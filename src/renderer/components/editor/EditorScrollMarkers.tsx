@@ -10,14 +10,17 @@ import type { AgentBlockChange } from '../../lib/agent/block-diff';
 
 /**
  * VSCode-style overview ticks for the manuscript (#comments / #agent-changes).
- * Ticks share the semantic outline scrollbar coordinate and mark where comments
- * and unread agent edits sit in the document, so the user can find them without
- * scrolling blind. Position is a fraction of total content height — like a
- * minimap — and is scroll-independent, so it only recomputes on layout change.
+ * Ticks overlay the native scrollbar at the editor's right edge and mark where
+ * comments and unread agent edits sit in the document, so the user can find
+ * them without scrolling blind. Position is a fraction of total content height
+ * — like a minimap — and is scroll-independent, so it only recomputes on layout
+ * change.
  *
  * Lives OUTSIDE .editor-scroll (a child of the positioned .editor-body) so it
- * stays put while the manuscript scrolls underneath. Always mounted — not gated
- * by the comment-rail toggle — so agent ticks show even with the rail closed.
+ * stays put over the scrollbar while the manuscript scrolls underneath. The
+ * map itself passes pointer events through and each tick remains clickable.
+ * Always mounted — not gated by the comment-rail toggle — so agent ticks show
+ * even with the rail closed.
  */
 interface EditorScrollMarkersProps {
   scrollEl: HTMLElement | null;

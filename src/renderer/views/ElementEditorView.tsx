@@ -685,7 +685,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         </EditorCrumb>
       </EditorTopBar>
 
-      {/* Mode-controlled semantic TOC scrollbar beside the native scroll tree. */}
+      {/* Mode-controlled semantic TOC beside the native scroll tree. */}
       <div className="editor-body">
         <EditorOutlineRail
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}

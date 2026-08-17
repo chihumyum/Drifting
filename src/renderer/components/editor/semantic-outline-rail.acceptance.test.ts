@@ -94,8 +94,9 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(workspace).not.toContain("classList.add('is-scrolling')");
   });
 
-  it('keeps the TOC on the left and one ordinary always-visible scrollbar on the right', () => {
+  it('keeps the TOC on the left and overlays clickable review markers on the right scrollbar', () => {
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
+    const scrollMarkers = source('src/renderer/components/editor/EditorScrollMarkers.tsx');
     const model = source('src/renderer/components/editor/outline-rail-model.ts');
     const css = source('src/styles/index.css');
     const commentsReviewCss = source('src/styles/comments-review.css');
@@ -157,7 +158,16 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(workspace).toContain('className="workspace-stage desktop-workspace-stage"');
     expect(desktopShellCss).toMatch(/\.desktop-workspace-stage\s*\{[\s\S]*?overflow:\s*hidden;/);
     expect(desktopShellCss).not.toMatch(/\.desktop-workspace-stage\s*\{[^}]*overflow-y:\s*auto;/);
-    expect(commentsReviewCss).toMatch(/\.editor__scrollmap\s*\{[\s\S]*?left:\s*0;/);
+    expect(commentsReviewCss).toMatch(
+      /\.editor__scrollmap\s*\{[\s\S]*?right:\s*0;[\s\S]*?width:\s*8px;[\s\S]*?pointer-events:\s*none;/,
+    );
+    expect(commentsReviewCss).not.toMatch(/\.editor__scrollmap\s*\{[^}]*left:\s*0;/);
+    expect(commentsReviewCss).toMatch(
+      /\.editor__scrollmap-tick\s*\{[\s\S]*?pointer-events:\s*auto;/,
+    );
+    expect(scrollMarkers).toContain('onClick={() => jump(t.blockIds)}');
+    expect(scrollMarkers).toContain("scrollIntoView({ behavior: 'smooth', block: 'center' })");
+    expect(scrollMarkers).toContain('blocks.forEach(flashBlock)');
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 
@@ -168,6 +178,8 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(doc).toContain('3. `windowed`');
     expect(doc).toContain("editor area's left edge");
     expect(doc).toContain('right edge');
+    expect(doc).toMatch(/directly over that native\s+scrollbar/);
+    expect(doc).toMatch(/Only the marker ticks\s+capture clicks/);
     expect(doc).toContain('existing plain-text TOC tags');
     expect(doc).toContain('retired dual-layer implementation is absent');
     expect(doc).toContain('1. `visible`');

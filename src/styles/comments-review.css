@@ -554,15 +554,16 @@
 }
 
 /* ============================================================
-   Review lanes inside the semantic TOC rail. Comment/Agent ticks retain their
-   existing colours and jump behaviour in a narrow left-edge marker lane.
+   Review markers overlay the right native scrollbar. The transparent map lets
+   ordinary scrollbar interaction pass through; only the Comment/Agent ticks
+   themselves retain pointer events for their existing jump behaviour.
    ============================================================ */
 .editor__scrollmap {
   position: absolute;
   top: 8px;
-  left: 0;
+  right: 0;
   bottom: 8px;
-  /* Review ticks stay compact beside the TOC labels. */
+  /* Match the WebKit scrollbar width declared for `.editor-scroll`. */
   width: 8px;
   z-index: 9;
   pointer-events: none;

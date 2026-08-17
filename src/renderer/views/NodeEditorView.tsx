@@ -770,8 +770,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             />
           )}
 
-          {/* The semantic TOC scrollbar stays outside the native scroll tree so
-              labels, viewport thumb and review lanes share one fixed map. */}
+          {/* The semantic TOC stays outside the native scroll tree on the left;
+              review markers independently overlay the native scrollbar on the right. */}
           <div className="editor-body">
             <EditorOutlineRail
               title={t('nodeEditor.outline.title')}

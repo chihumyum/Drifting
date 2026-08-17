@@ -1,18 +1,22 @@
 # Semantic outline rail
 
-Status: built on 2026-08-03 and updated on 2026-08-15 for the direct Editor Top
-Bar toggle across the five prose editors: whole book, chapter/drift, element,
-category, and storyline.
+Status: built on 2026-08-03 and updated on 2026-08-18 for the direct Editor Top
+Bar toggle and right-scrollbar review markers across the five prose editors:
+whole book, chapter/drift, element, category, and storyline.
 
 ## Product contract
 
-The editor now has two independent navigation surfaces:
+The editor has two independent navigation surfaces plus one review overlay:
 
 - A semantic TOC rail remains at the editor area's left edge. It contains only
   the existing plain-text TOC tags and distant-range omission handles.
 - The ordinary `.editor-scroll` scrollbar is restored at the editor area's
   right edge. It is always visible and is the only scrollbar and scroll source
   of truth.
+- Comment and Agent-change overview markers sit directly over that native
+  scrollbar instead of occupying the Editor's left edge. Only the marker ticks
+  capture clicks: their existing jump-and-flash action remains available while
+  uncovered scrollbar regions keep their native interaction.
 
 The retired dual-layer implementation is absent. The left TOC rail has no
 custom track, viewport-range bar, draggable thumb, track-click behavior, or
@@ -89,6 +93,12 @@ document boundaries, reserves a stable right scrollbar gutter, and wheel events
 over TOC labels forward only `deltaY`. This preserves the existing protection
 against horizontal page shake at a vertical scroll boundary.
 
+`EditorScrollMarkers.tsx` is a fixed sibling of `.editor-scroll`. Its 8px map is
+aligned with the 8px WebKit scrollbar at the right edge. The map does not take
+pointer events, but each Comment or Agent tick does, so tick clicks scroll to
+and flash their anchored prose blocks without disabling the rest of the native
+track.
+
 `EditorOutlineRail.tsx` owns DOM measurement and TOC interaction.
 `outline-rail-model.ts` owns deterministic tree flattening, density planning,
 collision layout, active ancestry, and visible-range calculation. Native
@@ -110,6 +120,8 @@ density stages, viewport-based multi-entry highlighting, omission behavior,
 absence of synthetic single-entity roots and empty-outline instructions, the
 two persisted TOC visibility choices, complete removal of the custom track and
 dual scrollbar model, and an always-visible ordinary scrollbar on the right.
+It also proves that Comment and Agent review markers overlay that scrollbar and
+retain their click-to-jump wiring without making the whole overlay interactive.
 
 Native visual spacing, scrollbar feel, WKWebView compositing, and
 physical-device touch behavior remain manual acceptance boundaries.
