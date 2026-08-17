@@ -129,16 +129,19 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createGroup]);
 
-  // The chapter panel's text summary doubles as its view-mode control, but
-  // its counts stay stable across both layouts: storylines + all chapters.
+  // The chapter panel's text summary doubles as its view-mode control. Before
+  // the first storyline exists, only the chapter count is meaningful; once a
+  // storyline exists, keep both counts stable across both layouts.
   // Other panels keep their own meta behavior.
   const isStorylineView = storylines.length > 0 && nodesViewMode === 'storyline';
   const meta =
     activeLeftPanel === 'nodes'
-      ? t('leftSidebar.viewMode.chapterSummary', {
-          storylines: storylines.length,
-          chapters: storylineNodeCount,
-        })
+      ? storylines.length > 0
+        ? t('leftSidebar.viewMode.chapterSummary', {
+            storylines: storylines.length,
+            chapters: storylineNodeCount,
+          })
+        : t('leftSidebar.meta.chapters', { count: storylineNodeCount })
       : activeLeftPanel === 'elements'
         ? t('leftSidebar.meta.elements', {
             categories: bookElementCategories.length,

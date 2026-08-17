@@ -321,7 +321,7 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
   });
 
-  it('keeps the text-only chapter counts stable across both view modes', () => {
+  it('shows only the chapter count until the first storyline exists', () => {
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const controls = source('src/styles/ui-controls.css');
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')) as {
@@ -337,8 +337,10 @@ describe('workspace surface language acceptance', () => {
     expect(subheader).toContain('className="left-panel-view-mode-text"');
     expect(subheader).toContain('onClick={handleToggleChapterViewMode}');
     expect(meta).toContain("t('leftSidebar.viewMode.chapterSummary'");
+    expect(meta).toContain('storylines.length > 0');
     expect(meta).toContain('storylines: storylines.length');
     expect(meta).toContain('chapters: storylineNodeCount');
+    expect(meta).toContain("t('leftSidebar.meta.chapters', { count: storylineNodeCount })");
     expect(meta).not.toContain('isStorylineView');
     expect(subheader).not.toContain("t('leftSidebar.viewMode.globalSummary'");
     expect(textControl).toContain('border: 0;');
