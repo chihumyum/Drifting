@@ -107,7 +107,11 @@ describe('mobile standalone routes', () => {
     expect(panels).not.toContain('MobileTimelineWorkspace');
     expect(bottomTimeline).toContain('presentation?: BottomTimelinePresentation');
     expect(bottomTimeline).toContain('className={`btl btl--${presentation}`}');
-    expect(bottomTimeline).toContain('startMobileNodeDrag');
+    expect(bottomTimeline).toContain('startNodePointerDrag');
+    expect(bottomTimeline).toContain('startChapterLanePointerDrag({');
+    expect(bottomTimeline).not.toContain('setDragOverPosition');
+    expect(bottomTimeline).not.toContain('chapterInsertionIndexForDrop');
+    expect(bottomTimeline).not.toContain('moveChapterToIndex');
     expect(bottomTimeline).toContain('commitChapterLaneDrop({');
     expect(bottomTimeline).toContain('beginTouchMenu(event');
     expect(timelinePin).toContain('onPointerDown={startDrag}');

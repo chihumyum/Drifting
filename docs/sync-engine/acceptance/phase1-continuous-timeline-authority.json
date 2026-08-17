@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase1-continuous-timeline-authority",
+  "recordedAt": "2026-08-18",
+  "status": "implemented-pending-manual-ui-acceptance",
+  "authority": {
+    "bookOrder": "authored-finite-real-lww",
+    "narrativeOrder": "authored-nullable-finite-real-lww",
+    "bookActStartOrder": "authored-nullable-finite-real-lww",
+    "sqliteStorage": "existing-integer-affinity-columns-accept-real-values",
+    "immutableBaselineHashPreserved": true,
+    "chapterSequence": "bookOrder-then-entity-id-utf8-bytewise",
+    "narrativeSequence": "narrativeOrder-then-entity-id-utf8-bytewise",
+    "actSegmentation": "startOrder-then-entity-id-utf8-bytewise",
+    "fractionalOrderRegisterForChapters": false,
+    "fractionalOrderRegisterForBookActs": false,
+    "checkpointPreservesExactCoordinates": true
+  },
+  "interaction": {
+    "pointerPreview": "continuous-card-left",
+    "grabOffsetPreserved": true,
+    "integerRounding": false,
+    "insertionSlotConversion": false,
+    "unplacedChapterDrag": "same-window-pointer-path-as-placed-chapters",
+    "projectionParity": "bottom-timeline-and-storyline-graph-share-pointer-controller",
+    "dragRendering": "single-source-clone-compositor-ghost-request-animation-frame",
+    "unplacedGrabAnchor": "exact-source-pixel-preserved",
+    "chapterDropIndicator": "removed-ghost-is-placement-preview",
+    "reactStateUpdatesPerPointerMove": false,
+    "selectionLockedDuringDrag": true,
+    "emptyAxisMarkerAndActCreation": true,
+    "emptyAxisContextMenus": true,
+    "emptyActHeadAdd": "one-first-act-at-axis-minimum",
+    "firstActBoundary": "movable-finite-coordinate",
+    "chaptersBeforeFirstFiniteAct": "unassigned",
+    "markerAndActDrag": "continuous-pixel-to-coordinate",
+    "dropTransaction": "coordinate-membership-primary-atomic"
+  },
+  "retiredAuthority": {
+    "historicalChapterOrderEffects": "inert-until-checkpoint",
+    "newChapterOrderEffects": "fail-closed-domain.unsupported-order"
+  },
+  "machineAcceptance": {
+    "command": "pnpm exec vitest run src/renderer/sync/journal/continuous-timeline-authority.acceptance.test.ts src/renderer/usecase/chapter-timeline-move.test.ts src/renderer/features/graph/chapter-lane-drag.test.ts src/renderer/shells/desktop/views/DesktopBottomTimeline.pointer-drag.acceptance.test.ts src/renderer/sync/reducer/production-domain-kernel.integration.test.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts src/renderer/usecase/sync-lifecycle-restore.integration.test.ts",
+    "focusedTests": "45-passed-0-failed",
+    "fullSuite": "1662-passed-1-skipped-0-failed",
+    "migrationAcceptance": "immutable-baseline-and-continuous-affinity-passed",
+    "legacyLifecycleDropAcceptance": "untouched-book-order-and-retired-chapter-order-effect-do-not-block-narrative-drop",
+    "typecheck": "passed",
+    "lint": "passed-with-39-repository-baseline-warnings",
+    "publicBoundary": "passed",
+    "agentCapabilities": "passed",
+    "manifestCheck": "passed-84-tables-923-fields",
+    "manualUiAcceptance": "pending-user-test-without-client-rebuild"
+  }
+}

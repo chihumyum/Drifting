@@ -54,8 +54,10 @@ import {
   DEFAULT_STORYLINE_LANE_ID as DEFAULT_LANE_ID,
   UNAFFILIATED_STORYLINE_LANE_ID as UNAFFILIATED_LANE_ID,
   canDropChapterOnLane,
+  chapterLaneGrabOffsetX,
   commitChapterLaneDrop,
-  initializeChapterDrag,
+  resolveChapterLanePointerTarget,
+  startChapterLanePointerDrag,
 } from '../../../features/graph/chapter-lane-drag';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import '../../../../styles/graph-view.css';
@@ -142,7 +144,7 @@ export function DesktopStoryGraphView() {
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode } = useBookNode({
+  const { updateNode, moveChapterOnTimeline } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -554,6 +556,14 @@ export function DesktopStoryGraphView() {
       GRAPH_CONFIG.CANVAS_PADDING_X + (order - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT,
     [orderSpan.min],
   );
+  const positionToOrder = useCallback(
+    (position: number) =>
+      Math.max(
+        orderSpan.min,
+        (position - GRAPH_CONFIG.CANVAS_PADDING_X) / GRAPH_CONFIG.GRID_UNIT + orderSpan.min,
+      ),
+    [orderSpan.min],
+  );
 
   const positionedNodes = useMemo<PositionedNode[]>(() => {
     return placedNodes
@@ -686,28 +696,8 @@ export function DesktopStoryGraphView() {
   }, [nodeEdges, positionedById, hiddenRelationTypeIds, resolveRelationTypeColor]);
 
   // ---- Narrative time pins ----
-  // Mirrors BottomTimeline's TimelinePin behavior: integer snap values
-  // come from the placed-node range; pins drag against those snaps;
-  // dragging shows a transient cursor-following line, and the pin only
-  // commits to its new slot on mouseup.
-  const snapValues = useMemo(() => {
-    if (!isNarrative || placedNodes.length === 0) return [] as number[];
-    const lo = Math.floor(orderSpan.min);
-    const hi = Math.ceil(orderSpan.max);
-    const out: number[] = [];
-    for (let i = lo; i <= hi; i++) out.push(i);
-    return out;
-  }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
-  // Same integer grid for the act rail's boundary drag, but on the BOOK
-  // axis — snapValues above is narrative-only by design.
-  const actSnapOrders = useMemo(() => {
-    if (isNarrative || placedNodes.length === 0) return [] as number[];
-    const lo = Math.floor(orderSpan.min);
-    const hi = Math.ceil(orderSpan.max);
-    const out: number[] = [];
-    for (let i = lo; i <= hi; i++) out.push(i);
-    return out;
-  }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
+  // Marker and act positions use the same continuous coordinate authority as
+  // chapters. The visible grid is presentation only, never a write policy.
   const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
   const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
   // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
@@ -742,74 +732,53 @@ export function DesktopStoryGraphView() {
     }
   }, [placedNodes, orderOf, updateNode, orderField, isNarrative, remapAfterSpread]);
 
-  // 「+幕」— drops an act boundary at the chapter nearest the viewport center
-  // (book mode). Lives behind the act rail's head-cell ＋. Splitting an empty
-  // book bootstraps the opener too (see useBookAct.splitAtOrder).
+  // 「+幕」bootstraps one first act at the book-axis head. Once acts exist, the
+  // same head-cell control inserts at the current viewport center.
   const handleAddActSplit = useCallback(() => {
-    if (actSnapOrders.length === 0) return;
     const canvas = canvasRef.current;
-    let target = actSnapOrders[0];
-    if (canvas) {
-      const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
-      let bestDist = Infinity;
-      for (const s of actSnapOrders) {
-        const d = Math.abs(orderToX(s) - centerContentX);
-        if (d < bestDist) {
-          bestDist = d;
-          target = s;
-        }
-      }
-    }
+    const centerContentX = canvas ? canvas.scrollLeft + canvas.clientWidth / 2 : 0;
+    // Empty rail: one first act at the book-axis head. Populated rail: keep
+    // the existing viewport-center convenience.
+    const target = bookActs.length === 0 ? orderSpan.min : positionToOrder(centerContentX);
     void splitAtOrder(target);
-  }, [actSnapOrders, orderToX, splitAtOrder]);
+  }, [bookActs.length, orderSpan.min, positionToOrder, splitAtOrder]);
 
   const handleAddPin = useCallback(() => {
-    if (!isNarrative || snapValues.length === 0) return;
+    if (!isNarrative) return;
     const canvas = canvasRef.current;
-    let target = snapValues[0];
-    if (canvas) {
-      const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
-      let bestDist = Infinity;
-      for (const s of snapValues) {
-        const d = Math.abs(orderToX(s) - centerContentX);
-        if (d < bestDist) {
-          bestDist = d;
-          target = s;
-        }
-      }
-    }
+    const centerContentX = canvas ? canvas.scrollLeft + canvas.clientWidth / 2 : 0;
+    const target = positionToOrder(centerContentX);
     const created = addMarker(target, t('bottomTimeline.marker.defaultLabel'));
     if (created) setNewlyAddedPinId(created.id);
-  }, [isNarrative, snapValues, addMarker, orderToX, t]);
+  }, [isNarrative, addMarker, positionToOrder, t]);
 
   // Drop a marker at a specific order (the rail right-click target), as opposed
   // to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
-      if (!isNarrative || snapValues.length === 0) return;
+      if (!isNarrative) return;
       const created = addMarker(order, t('bottomTimeline.marker.defaultLabel'));
       if (created) setNewlyAddedPinId(created.id);
     },
-    [isNarrative, snapValues.length, addMarker, t],
+    [isNarrative, addMarker, t],
   );
 
+  const openTimelineRailMenu = (track: HTMLElement, clientX: number, clientY: number) => {
+    const rect = track.getBoundingClientRect();
+    const px = clientX - rect.left;
+    setRailMenu({
+      x: clientX + 2,
+      y: clientY - 2,
+      order: positionToOrder(px),
+    });
+  };
+
   // ---- Drag / drop ----
-  // Both book and narrative views support tile drag-to-reorder; the
-  // `orderField` (bookOrder | narrativeOrder) decides which value the drop
-  // mutates. Drags originating from the narrative-view "未放置" drawer are
-  // additionally constrained to the node's primary storyline row (mirrors
-  // BottomTimeline's UX) so the canvas doesn't accept ambiguous placements.
-  const [draggedNode, setDraggedNode] = useState<BookNode | null>(null);
-  const [draggedFromDrawer, setDraggedFromDrawer] = useState(false);
-  const [dragOver, setDragOver] = useState<{
-    order: number;
-    storylineId: string | null;
-    // Cursor X in scroll-content coords (includes RAIL_WIDTH + the
-    // intentional left padding). Drives the drop indicator so it tracks
-    // the cursor / drag ghost rather than the snapped tile-left position.
-    indicatorX: number;
-  } | null>(null);
+  // Chapter tiles in this full graph and the compact Bottom Timeline share
+  // one pointer lifecycle. The drag visual is an imperative compositor layer,
+  // so moving a chapter never re-renders every lane on every pointer event.
   const canvasRef = useRef<HTMLDivElement>(null);
+  const suppressChapterClickRef = useRef(false);
 
   // Refs into every rendered tile / drift card so the fixed-position drift
   // edge SVG can read live viewport rects via getBoundingClientRect. Tiles
@@ -1039,33 +1008,67 @@ export function DesktopStoryGraphView() {
     relationTypeById,
   ]);
 
-  const draggedMainStorylineId = useMemo(
-    () => (draggedNode ? primaryStorylineId(draggedNode) : null),
-    [draggedNode, primaryStorylineId],
-  );
-
-  const canDropOnStoryline = useCallback(
-    (storylineId: string | null) => {
-      if (!draggedNode) return false;
-      return canDropChapterOnLane({
-        targetLaneId: storylineId,
-        fromDrawer: draggedFromDrawer,
-        primaryStorylineId: draggedMainStorylineId,
-      });
-    },
-    [draggedNode, draggedFromDrawer, draggedMainStorylineId],
-  );
-
-  const handleTileDragStart = (e: React.DragEvent, node: BookNode) => {
-    setDraggedNode(node);
-    setDraggedFromDrawer(false);
-    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
-  };
-
-  const handleChipDragStart = (e: React.DragEvent, node: BookNode) => {
-    setDraggedNode(node);
-    setDraggedFromDrawer(true);
-    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
+  const startGraphChapterPointerDrag = (
+    event: React.PointerEvent<HTMLElement>,
+    node: BookNode,
+    options: { fromDrawer?: boolean } = {},
+  ) => {
+    if (event.button !== 0) return;
+    const fromDrawer = options.fromDrawer ?? false;
+    const sourceElement = event.currentTarget;
+    const sourceRect = sourceElement.getBoundingClientRect();
+    const grabOffsetX = chapterLaneGrabOffsetX(event.clientX, sourceRect);
+    startChapterLanePointerDrag({
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      sourceElement,
+      grabOffsetX,
+      resolveTarget: (clientX, clientY) => {
+        const target = resolveChapterLanePointerTarget({
+          clientX,
+          clientY,
+          grabOffsetX,
+          positionToOrder,
+        });
+        if (
+          !target ||
+          !canDropChapterOnLane({
+            targetLaneId: target.storylineId,
+            fromDrawer,
+            primaryStorylineId: primaryStorylineId(node),
+          })
+        ) {
+          return null;
+        }
+        return target;
+      },
+      onDragStart: () => {
+        suppressChapterClickRef.current = true;
+        setPopover(null);
+        setContextMenu(null);
+      },
+      onDrop: async (target) => {
+        try {
+          await commitChapterLaneDrop({
+            nodeId: node.id,
+            targetLaneId: target.storylineId,
+            targetOrder: target.order,
+            orderField,
+            moveChapterOnTimeline,
+          });
+        } catch (error) {
+          log.error('Failed to update order on drop', error);
+        }
+      },
+      onDragEnd: () => {
+        if (fromDrawer) setDrawerOpen(false);
+        window.setTimeout(() => {
+          suppressChapterClickRef.current = false;
+        }, 0);
+      },
+    });
   };
 
   // Map a mouse Y (in scroll-content coordinates) to the lane whose row
@@ -1083,71 +1086,6 @@ export function DesktopStoryGraphView() {
     },
     [isNarrative, actRailHeight, lanesToRender],
   );
-
-  const handleTracksDragOver = (e: React.DragEvent) => {
-    if (!draggedNode || !canvasRef.current) return;
-    const scroll = canvasRef.current;
-    const rect = scroll.getBoundingClientRect();
-    // Cursor X in full scroll-content coords (includes the sticky rail
-    // width on the left). Used directly as the drop-indicator left so
-    // the indicator tracks the cursor.
-    const cursorContentX = e.clientX - rect.left + scroll.scrollLeft;
-    // Subtract RAIL_WIDTH + CANVAS_PADDING_X to get the cursor X within
-    // the track-cell's order grid. Snap on the *center* of the dropped
-    // tile rather than its left edge: the drag ghost is centered on the
-    // cursor, so centering the drop keeps ghost + indicator + final
-    // tile visually aligned.
-    const cursorTrackX = cursorContentX - GRAPH_CONFIG.RAIL_WIDTH - GRAPH_CONFIG.CANVAS_PADDING_X;
-    const tileWidth = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
-    const tileLeftTrackX = cursorTrackX - tileWidth / 2;
-    const order = Math.max(
-      orderSpan.min,
-      Math.round(tileLeftTrackX / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min,
-    );
-    const yInContent = e.clientY - rect.top + scroll.scrollTop;
-    const storylineId = storylineAtY(yInContent);
-    if (!canDropOnStoryline(storylineId)) {
-      // Drawer drag landed on a non-primary row — implicit reject (don't
-      // preventDefault, don't surface a drop indicator).
-      setDragOver(null);
-      return;
-    }
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOver({ order, storylineId, indicatorX: cursorContentX });
-  };
-
-  const handleTracksDrop = async (e: React.DragEvent) => {
-    if (!draggedNode || !dragOver) return;
-    if (!canDropOnStoryline(dragOver.storylineId)) return;
-    e.preventDefault();
-    try {
-      const targetRow = dragOver.storylineId;
-      if (!targetRow) return;
-      await commitChapterLaneDrop({
-        nodeId: draggedNode.id,
-        targetLaneId: targetRow,
-        targetOrder: dragOver.order,
-        orderField,
-        primaryStorylineId: draggedMainStorylineId,
-        membershipIds: nodeStorylines(draggedNode.id).map((storyline) => storyline.id),
-        updateNode,
-        setNodeStorylines,
-      });
-    } catch (err) {
-      log.error('Failed to update order on drop', err);
-    } finally {
-      setDraggedNode(null);
-      setDraggedFromDrawer(false);
-      setDragOver(null);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedNode(null);
-    setDraggedFromDrawer(false);
-    setDragOver(null);
-  };
 
   // Drift cards used to persist their order by permuting bookOrder, but
   // drift no longer carries bookOrder at all — that axis is chapter-only.
@@ -1279,9 +1217,10 @@ export function DesktopStoryGraphView() {
                         <div
                           key={node.id}
                           className="graph-head__unplaced-chip"
-                          draggable
-                          onDragStart={(e) => handleChipDragStart(e, node)}
-                          onDragEnd={handleDragEnd}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            startGraphChapterPointerDrag(event, node, { fromDrawer: true });
+                          }}
                           style={{ ['--chip-color' as string]: color } as React.CSSProperties}
                           title={node.title || t('common.untitled')}
                         >
@@ -1322,8 +1261,6 @@ export function DesktopStoryGraphView() {
         <div
           ref={canvasRef}
           className="graph-scroll"
-          onDragOver={handleTracksDragOver}
-          onDrop={handleTracksDrop}
           onContextMenu={(e) => {
             // Tile/rail handlers stopPropagation, so this only fires
             // on empty track area. Map cursor → lane and open the
@@ -1359,7 +1296,8 @@ export function DesktopStoryGraphView() {
               trackWidth={canvasContentWidth}
               height={actRailHeight}
               orderToX={orderToX}
-              snapOrders={actSnapOrders}
+              minOrder={orderSpan.min}
+              maxOrder={orderSpan.max}
               onRenameAct={(id, name) => void updateAct(id, { name })}
               onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
               onBoundaryDragMove={setActDragX}
@@ -1393,7 +1331,22 @@ export function DesktopStoryGraphView() {
               Rail cell is sticky-left + sticky-top (the corner); the
               track cell carries the draggable pin heads/labels. */}
           {isNarrative && (
-            <div className="graph-axis-row" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
+            <div
+              className="graph-axis-row"
+              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}
+              onContextMenuCapture={
+                markers.length === 0
+                  ? (event) => {
+                      const track =
+                        event.currentTarget.querySelector<HTMLElement>('.graph-axis-track-cell');
+                      if (!track) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openTimelineRailMenu(track, event.clientX, event.clientY);
+                    }
+                  : undefined
+              }
+            >
               <div
                 className="graph-axis-rail-cell"
                 style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
@@ -1403,12 +1356,7 @@ export function DesktopStoryGraphView() {
                 <button
                   type="button"
                   className="graph-rail__axis-add"
-                  disabled={snapValues.length === 0}
-                  title={
-                    snapValues.length === 0
-                      ? t('bottomTimeline.axis.needChapter')
-                      : t('bottomTimeline.axis.addPin')
-                  }
+                  title={t('bottomTimeline.axis.addPin')}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleAddPin();
@@ -1423,23 +1371,10 @@ export function DesktopStoryGraphView() {
                 onContextMenu={(e) => {
                   // Empty-rail right-click → 新建标记. Right-clicking a pin is
                   // caught by the pin (it stops propagation), so this only fires
-                  // on blank space. Needs a chapter to anchor the order grid.
-                  if (snapValues.length === 0) return;
+                  // on blank space.
                   e.preventDefault();
                   e.stopPropagation();
-                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                  const px = e.clientX - rect.left;
-                  // Snap to the nearest slot, matching the drift-drop logic.
-                  let order = snapValues[0];
-                  let bestDist = Infinity;
-                  for (const s of snapValues) {
-                    const d = Math.abs(orderToX(s) - px);
-                    if (d < bestDist) {
-                      bestDist = d;
-                      order = s;
-                    }
-                  }
-                  setRailMenu({ x: e.clientX + 2, y: e.clientY - 2, order });
+                  openTimelineRailMenu(e.currentTarget, e.clientX, e.clientY);
                 }}
                 onDragOver={(e) => {
                   // Drift card hovering the axis — accept: dropping anchors
@@ -1449,20 +1384,12 @@ export function DesktopStoryGraphView() {
                   e.dataTransfer.dropEffect = 'move';
                 }}
                 onDrop={(e) => {
-                  if (!draggedDrift || snapValues.length === 0) return;
+                  if (!draggedDrift) return;
                   e.preventDefault();
                   e.stopPropagation();
                   const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
                   const px = e.clientX - rect.left;
-                  let target = snapValues[0];
-                  let bestDist = Infinity;
-                  for (const s of snapValues) {
-                    const d = Math.abs(orderToX(s) - px);
-                    if (d < bestDist) {
-                      bestDist = d;
-                      target = s;
-                    }
-                  }
+                  const target = positionToOrder(px);
                   // Label stays empty — a bound pin renders the drift's
                   // live title; the label only matters after a later unbind.
                   addMarker(target, '', { driftNodeId: draggedDrift.id });
@@ -1478,8 +1405,8 @@ export function DesktopStoryGraphView() {
                     <TimelinePin
                       key={`pin-${m.id}`}
                       marker={m}
-                      snapValues={snapValues}
                       orderToPosition={orderToX}
+                      positionToOrder={positionToOrder}
                       variant="graph"
                       pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
                       isDragging={pinDragXs.has(m.id)}
@@ -1598,13 +1525,11 @@ export function DesktopStoryGraphView() {
                   ? unaffiliatedChapters
                   : (sortedNodesByStoryline.get(lane.id) ?? []);
             const tilesInLane = positionedNodes.filter((n) => n.rowIndex === rowIdx);
-            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
             return (
               <div
                 key={lane.id}
-                className={`graph-lane-row${dimmed ? ' is-drop-disabled' : ''}${
-                  lane.synthetic ? ' is-synthetic' : ''
-                }`}
+                data-storyline-row={lane.id}
+                className={`graph-lane-row${lane.synthetic ? ' is-synthetic' : ''}`}
                 style={
                   {
                     height: GRAPH_CONFIG.TRACK_HEIGHT,
@@ -1638,7 +1563,11 @@ export function DesktopStoryGraphView() {
                     {t('storyGraph.lane.chapterCount', { count: laneNodes.length })}
                   </div>
                 </div>
-                <div className="graph-track-cell" style={{ width: canvasContentWidth }}>
+                <div
+                  data-node-container
+                  className="graph-track-cell"
+                  style={{ width: canvasContentWidth }}
+                >
                   {tilesInLane.map((node) => {
                     const status = node.writingStatus;
                     const isDiscarded = status === 'discarded';
@@ -1661,9 +1590,7 @@ export function DesktopStoryGraphView() {
                         ]
                           .filter(Boolean)
                           .join(' ')}
-                        draggable
-                        onDragStart={(e) => handleTileDragStart(e, node)}
-                        onDragEnd={handleDragEnd}
+                        onPointerDown={(event) => startGraphChapterPointerDrag(event, node)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1680,6 +1607,12 @@ export function DesktopStoryGraphView() {
                           });
                         }}
                         onClick={(e) => {
+                          if (suppressChapterClickRef.current) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            suppressChapterClickRef.current = false;
+                            return;
+                          }
                           if (e.shiftKey) {
                             setLinkSource((prev) => (prev === node.id ? null : node.id));
                             return;
@@ -1836,29 +1769,6 @@ export function DesktopStoryGraphView() {
             </svg>
           )}
 
-          {/* Drop indicator while dragging — `indicatorX` is already the
-              cursor's full scroll-content x (includes the rail), so it
-              positions directly without an extra offset. */}
-          {dragOver &&
-            draggedNode &&
-            dragOver.storylineId &&
-            (() => {
-              const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
-              const rowStoryline = storylineById.get(dragOver.storylineId);
-              return (
-                <div
-                  className="graph-drop-indicator"
-                  style={{
-                    left: dragOver.indicatorX,
-                    top:
-                      (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) +
-                      rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
-                    height: GRAPH_CONFIG.TRACK_HEIGHT,
-                    background: rowStoryline?.color || 'hsl(var(--accent))',
-                  }}
-                />
-              );
-            })()}
         </div>
       </div>
 

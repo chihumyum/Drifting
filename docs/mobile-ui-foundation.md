@@ -74,10 +74,23 @@ editing, timeline, material, comment, and Agent capabilities.
   than restoring the desktop dock height, uses a narrower sticky rail and
   touch-sized rows and controls, opens chapters as mobile papers, supports
   direct touch dragging, and maps long press to the same node, storyline, act,
-  and marker menus used by desktop. Placed chapter cards use pointer-move and
-  pointer-up delivery on both desktop and mobile, so their committed lane/order
-  change does not depend on WebView HTML drag/drop delivery; the portaled
-  unplaced-chapter drawer retains native drag data for cross-surface drops.
+  and marker menus used by desktop. Bottom Timeline and Storyline Graph use the
+  same window-level pointer controller for placed cards and portaled unplaced
+  chips, so their committed lane/order change does not depend on WebView HTML
+  drag/drop delivery. The controller hides the source card and moves one
+  full-style compositor ghost with `requestAnimationFrame` instead of updating
+  React state on every pointer event; it also locks document selection for the
+  active drag. Both book and narrative views preserve the card's grabbed point,
+  including when the source is a narrow unplaced chip, and preview the card
+  continuously under the pointer. Chapter dragging has no separate center-line
+  drop indicator: the ghost itself is the placement preview. The exact finite
+  axis coordinate is persisted on pointer-up. `bookOrder` and `narrativeOrder`
+  are the authored coordinates: their numeric order determines chapter sequence
+  and narrative time, with entity ID as the deterministic tie-break for equal
+  coordinates.
+  Empty marker and act tracks keep their creation menus. The act-head `+`
+  creates one first act at the left edge; every act, including the first, can
+  then move to a finite coordinate, leaving earlier chapters outside all acts.
 - Focusing a rich-text editor opens a keyboard accessory in its compact circular
   state. The same button expands or collapses a horizontally scrollable set of
   paragraph, heading, quote, and inline-mark controls. Commands preserve the

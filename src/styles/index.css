@@ -1383,3 +1383,19 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   border-radius: 0;
   box-shadow: none;
 }
+html.chapter-lane-pointer-dragging,
+html.chapter-lane-pointer-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.chapter-lane-pointer-ghost {
+  position: fixed !important;
+  inset: 0 auto auto 0 !important;
+  margin: 0 !important;
+  z-index: 2147483000 !important;
+  pointer-events: none !important;
+  transition: none !important;
+  will-change: transform;
+  cursor: grabbing !important;
+}

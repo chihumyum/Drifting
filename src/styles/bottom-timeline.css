@@ -200,6 +200,8 @@
   border: 1px solid hsl(var(--rule));
   cursor: grab;
   user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
   transition:
     border-color 0.12s,
     background 0.12s;
@@ -608,6 +610,9 @@
   border-radius: 1px;
   overflow: hidden;
   cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
   transition:
     filter 0.12s,
     box-shadow 0.12s,
@@ -685,18 +690,6 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* Storyline rows where drag-from-drawer can NOT drop (only the node's
-   main storyline accepts an unplaced drop). Dimmed so the user sees the
-   constraint instead of guessing. */
-.btl-row.is-drop-disabled .btl-rail,
-.btl-row.is-drop-disabled .btl-track {
-  opacity: 0.32;
-  filter: saturate(0.6);
-  transition:
-    opacity 0.12s,
-    filter 0.12s;
-}
-
 /* ---------------- Empty + loading ---------------- */
 .btl-empty {
   position: absolute;
@@ -720,16 +713,6 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-}
-
-/* ---------------- Drop indicator ---------------- */
-.btl-drop-indicator {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  opacity: 0.7;
-  pointer-events: none;
 }
 
 /* ---------------- Cross-storyline links overlay ---------------- */

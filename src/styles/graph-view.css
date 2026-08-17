@@ -195,6 +195,8 @@
   cursor: grab;
   max-width: 260px;
   user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
   transition:
     border-color 0.12s,
     background 0.12s;
@@ -569,6 +571,9 @@
   border-radius: 1px;
   box-shadow: none;
   cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
   z-index: 3;
   overflow: hidden;
   transition:
@@ -665,31 +670,6 @@
 .graph-edges path {
   stroke-linecap: round;
   transition: opacity 0.2s;
-}
-
-/* ---------------- Drop indicator ----------------
-   Same recipe as BottomTimeline (`.btl-drop-indicator`): a 2px vertical
-   bar on the targeted row, tinted with the storyline's rail color via
-   inline `background`. Spans the row top-to-bottom and rides above the
-   tiles. */
-.graph-drop-indicator {
-  position: absolute;
-  width: 2px;
-  opacity: 0.7;
-  pointer-events: none;
-  z-index: 4;
-}
-
-/* When a drag is in flight from the "未放置" drawer, only the node's main
-   storyline accepts a drop — the whole lane row dims so the constraint
-   is visible instead of guessable. Mirrors BottomTimeline's
-   `.btl-row.is-drop-disabled`. */
-.graph-lane-row.is-drop-disabled {
-  opacity: 0.32;
-  filter: saturate(0.6);
-  transition:
-    opacity 0.12s,
-    filter 0.12s;
 }
 
 /* ---------------- Link source / new-edge dialog ---------------- */

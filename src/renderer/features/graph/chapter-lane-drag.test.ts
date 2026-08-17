@@ -1,31 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  CHAPTER_DRAG_MIME,
   DEFAULT_STORYLINE_LANE_ID,
   UNAFFILIATED_STORYLINE_LANE_ID,
   canDropChapterOnLane,
+  chapterLaneGrabOffsetX,
   commitChapterLaneDrop,
-  initializeChapterDrag,
 } from './chapter-lane-drag';
 
 describe('chapter lane drag', () => {
-  it('installs a real native drag payload for WebKit drop delivery', () => {
-    const setData = vi.fn();
-    const setDragImage = vi.fn();
-    const dataTransfer = { effectAllowed: 'none', setData, setDragImage } as unknown as DataTransfer;
-    const dragImage = {
-      getBoundingClientRect: () => ({ width: 80, height: 40 }),
-    } as unknown as HTMLElement;
+  it('preserves the exact grabbed point for narrow holding chips and full cards', () => {
+    const sourceRect = { left: 100, width: 240 };
 
-    initializeChapterDrag(dataTransfer, 'chapter-1', dragImage);
-
-    expect(dataTransfer.effectAllowed).toBe('move');
-    expect(setData).toHaveBeenCalledWith('text/plain', 'chapter-1');
-    expect(setData).toHaveBeenCalledWith(CHAPTER_DRAG_MIME, 'chapter-1');
-    expect(setDragImage).toHaveBeenCalledWith(dragImage, 40, 20);
+    expect(chapterLaneGrabOffsetX(112, sourceRect)).toBe(12);
+    expect(chapterLaneGrabOffsetX(220, sourceRect)).toBe(120);
+    expect(chapterLaneGrabOffsetX(328, sourceRect)).toBe(228);
+    expect(chapterLaneGrabOffsetX(80, sourceRect)).toBe(0);
+    expect(chapterLaneGrabOffsetX(360, sourceRect)).toBe(240);
   });
 
-  it('shares drawer and synthetic-lane acceptance rules', () => {
+  it('accepts every real and synthetic lane for both placed and unplaced chapters', () => {
     expect(
       canDropChapterOnLane({ targetLaneId: null, fromDrawer: false, primaryStorylineId: 'a' }),
     ).toBe(false);
@@ -42,71 +35,67 @@ describe('chapter lane drag', () => {
         fromDrawer: true,
         primaryStorylineId: 'a',
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canDropChapterOnLane({ targetLaneId: 'b', fromDrawer: true, primaryStorylineId: 'a' }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canDropChapterOnLane({ targetLaneId: 'b', fromDrawer: false, primaryStorylineId: 'a' }),
     ).toBe(true);
   });
 
-  it('reroutes primary membership and order as one shared transaction recipe', async () => {
-    const calls: string[] = [];
-    const setNodeStorylines = vi.fn(async (_id, ids: string[]) => {
-      calls.push(`members:${ids.join(',')}`);
-    });
-    const updateNode = vi.fn(async (_id, patch: object) => {
-      calls.push(`node:${JSON.stringify(patch)}`);
-    });
+  it('delegates membership and order to one atomic move command', async () => {
+    const moveChapterOnTimeline = vi.fn(async () => undefined);
 
     await commitChapterLaneDrop({
       nodeId: 'chapter-1',
       targetLaneId: 'storyline-b',
-      targetOrder: 12,
+      targetOrder: 12.375,
       orderField: 'bookOrder',
-      primaryStorylineId: 'storyline-a',
-      membershipIds: ['storyline-a', 'storyline-c'],
-      updateNode,
-      setNodeStorylines,
+      moveChapterOnTimeline,
     });
 
-    expect(setNodeStorylines).toHaveBeenCalledWith(
-      'chapter-1',
-      ['storyline-c', 'storyline-b'],
-      { primaryStorylineId: 'storyline-b' },
-    );
-    expect(updateNode).toHaveBeenCalledWith('chapter-1', {
-      bookOrder: 12,
-      mainStorylineId: 'storyline-b',
+    expect(moveChapterOnTimeline).toHaveBeenCalledTimes(1);
+    expect(moveChapterOnTimeline).toHaveBeenCalledWith('chapter-1', {
+      orderField: 'bookOrder',
+      order: 12.375,
+      targetStorylineId: 'storyline-b',
     });
-    expect(calls).toEqual([
-      'members:storyline-c,storyline-b',
-      'node:{"bookOrder":12,"mainStorylineId":"storyline-b"}',
-    ]);
+  });
+
+  it('persists a continuous book-axis coordinate without slot conversion', async () => {
+    const moveChapterOnTimeline = vi.fn(async () => undefined);
+
+    await commitChapterLaneDrop({
+      nodeId: 'chapter-1',
+      targetLaneId: DEFAULT_STORYLINE_LANE_ID,
+      targetOrder: 5.125,
+      orderField: 'bookOrder',
+      moveChapterOnTimeline,
+    });
+
+    expect(moveChapterOnTimeline).toHaveBeenCalledWith('chapter-1', {
+      orderField: 'bookOrder',
+      order: 5.125,
+      targetStorylineId: undefined,
+    });
   });
 
   it('clears primary and memberships before placing into the unaffiliated lane', async () => {
-    const calls: string[] = [];
+    const moveChapterOnTimeline = vi.fn(async () => undefined);
     await commitChapterLaneDrop({
       nodeId: 'chapter-1',
       targetLaneId: UNAFFILIATED_STORYLINE_LANE_ID,
       targetOrder: 8,
       orderField: 'narrativeOrder',
-      primaryStorylineId: 'storyline-a',
-      membershipIds: ['storyline-a'],
-      updateNode: async (_id, patch) => {
-        calls.push(`node:${JSON.stringify(patch)}`);
-      },
-      setNodeStorylines: async (_id, ids) => {
-        calls.push(`members:${ids.join(',')}`);
-      },
+      moveChapterOnTimeline,
     });
 
-    expect(calls).toEqual([
-      'node:{"mainStorylineId":null}',
-      'members:',
-      'node:{"narrativeOrder":8}',
-    ]);
+    expect(moveChapterOnTimeline).toHaveBeenCalledTimes(1);
+    expect(moveChapterOnTimeline).toHaveBeenCalledWith('chapter-1', {
+      orderField: 'narrativeOrder',
+      order: 8,
+      targetStorylineId: null,
+    });
   });
 });

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useStoryline } from '../../../usecase/useStoryline';
 import { useBookNode } from '../../../usecase/useBookNode';
 import type { Storyline } from '../../../domain/storyline';
-import { isChapter, isDrift } from '../../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../../domain/book-node';
 import { resolvePrimaryStorylineId } from '../../../domain/node-storyline-state';
 import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useAuthStore } from '../../../store/auth';
@@ -36,8 +36,10 @@ import {
   DEFAULT_STORYLINE_LANE_ID as DEFAULT_LANE_ID,
   UNAFFILIATED_STORYLINE_LANE_ID as UNAFFILIATED_LANE_ID,
   canDropChapterOnLane,
+  chapterLaneGrabOffsetX,
   commitChapterLaneDrop,
-  initializeChapterDrag,
+  resolveChapterLanePointerTarget,
+  startChapterLanePointerDrag,
 } from '../../../features/graph/chapter-lane-drag';
 import loglevel from 'loglevel';
 import '../../../../styles/bottom-timeline.css';
@@ -151,7 +153,7 @@ export function DesktopBottomTimeline({
     useBookAct({
       projectId: projectId ?? '',
     });
-  const { createNode, updateNode } = useBookNode({
+  const { createNode, updateNode, moveChapterOnTimeline } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -201,27 +203,27 @@ export function DesktopBottomTimeline({
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
+  const nextBookOrder = useMemo(() => {
+    const chapters = bookNodes.filter(isChapter);
+    if (chapters.length === 0) return 0;
+    return Math.max(...chapters.map((chapter) => chapter.bookOrder)) + CHAPTER_ORDER_STRIDE;
+  }, [bookNodes]);
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
   const {
-    draggedNode,
-    dragOverPosition,
     contextMenu,
     hoveredNodeId,
     hoverAnchor,
-    setDraggedNode,
-    setDragOverPosition,
-    clearDragState,
     setContextMenu,
     clearContextMenu,
     setHoverPreview,
     clearHoverPreview,
   } = useBottomTimelineInteractionState();
   const touchMenuCleanupRef = useRef<(() => void) | null>(null);
-  const suppressTouchClickRef = useRef(false);
+  const suppressPointerClickRef = useRef(false);
 
   useEffect(() => () => touchMenuCleanupRef.current?.(), []);
 
@@ -233,7 +235,7 @@ export function DesktopBottomTimeline({
     const startY = event.clientY;
     let timer = window.setTimeout(() => {
       timer = 0;
-      suppressTouchClickRef.current = true;
+      suppressPointerClickRef.current = true;
       open();
     }, 420);
     const cleanup = () => {
@@ -419,6 +421,12 @@ export function DesktopBottomTimeline({
     runwayUnits: TIMELINE_CONFIG.RUNWAY_UNITS,
   });
 
+  const positionToOrder = useCallback(
+    (position: number) =>
+      minOrder + Math.max(0, position) / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor),
+    [minOrder, scaleFactor],
+  );
+
   // Helper: which storyline owns this node as its "main" row. Reads the
   // primary from the link table (via the store), falling back to the first
   // storyline in the membership list when no primary is set.
@@ -445,6 +453,8 @@ export function DesktopBottomTimeline({
   const { handleContextMenuAction } = useBottomTimelineContextMenuActions({
     contextMenu,
     projectId,
+    orderField,
+    nextBookOrder,
     scrollContainerRef,
     createNode,
     setNodeStorylines,
@@ -461,196 +471,85 @@ export function DesktopBottomTimeline({
 
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
-  const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
-    clearHoverPreview();
-    setDraggedNode({ node, storylineId });
-    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
-  };
-
-  const startMobileNodeDrag = (
+  const startNodePointerDrag = (
     event: React.PointerEvent<HTMLElement>,
     node: TimelineNode,
     storylineId: string,
+    options: { fromDrawer?: boolean } = {},
   ) => {
-    if (!isMobilePresentation || event.pointerType !== 'touch' || event.button !== 0) return;
-    const pointerId = event.pointerId;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let dragging = false;
-    let target: { storylineId: string; order: number; x: number } | null = null;
-
-    const cleanup = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onCancel);
-    };
-    const onMove = (moveEvent: PointerEvent) => {
-      if (moveEvent.pointerId !== pointerId) return;
-      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
-      if (!dragging && distance < 6) return;
-      if (!dragging) {
-        dragging = true;
+    const fromDrawer = options.fromDrawer ?? false;
+    const isSyntheticLane =
+      storylineId === DEFAULT_LANE_ID || storylineId === UNAFFILIATED_LANE_ID;
+    if (
+      event.button !== 0 ||
+      (!fromDrawer && !isSyntheticLane && primaryStorylineId(node) !== storylineId)
+    ) {
+      return;
+    }
+    const sourceElement = event.currentTarget;
+    const grabOffsetX = chapterLaneGrabOffsetX(
+      event.clientX,
+      sourceElement.getBoundingClientRect(),
+    );
+    startChapterLanePointerDrag({
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      sourceElement,
+      grabOffsetX,
+      resolveTarget: (clientX, clientY) => {
+        const target = resolveChapterLanePointerTarget({
+          clientX,
+          clientY,
+          grabOffsetX,
+          positionToOrder,
+        });
+        if (
+          !target ||
+          !canDropChapterOnLane({
+            targetLaneId: target.storylineId,
+            fromDrawer,
+            primaryStorylineId: primaryStorylineId(node),
+          })
+        ) {
+          return null;
+        }
+        return target;
+      },
+      onDragStart: () => {
         touchMenuCleanupRef.current?.();
-        suppressTouchClickRef.current = true;
+        suppressPointerClickRef.current = true;
         clearContextMenu();
         clearHoverPreview();
-        setDraggedNode({ node, storylineId });
-      }
-      if (moveEvent.cancelable) moveEvent.preventDefault();
-      const row = document
-        .elementFromPoint(moveEvent.clientX, moveEvent.clientY)
-        ?.closest<HTMLElement>('[data-storyline-row]');
-      const targetStorylineId = row?.dataset.storylineRow ?? null;
-      if (
-        !row ||
-        !canDropChapterOnLane({
-          targetLaneId: targetStorylineId,
-          fromDrawer: false,
-          primaryStorylineId: primaryStorylineId(node),
-        })
-      ) {
-        target = null;
-        setDragOverPosition(null);
-        return;
-      }
-      const container = row.querySelector<HTMLElement>('[data-node-container]');
-      if (!container || !targetStorylineId) return;
-      const rect = container.getBoundingClientRect();
-      const pointerX = moveEvent.clientX - rect.left;
-      const nodeLeftX = pointerX - nodeWidth / 2;
-      const nextOrder = Math.max(
-        minOrder,
-        Math.round(nodeLeftX / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
-      );
-      target = { storylineId: targetStorylineId, order: nextOrder, x: pointerX };
-      setDragOverPosition(target);
-    };
-    const finish = async () => {
-      cleanup();
-      if (dragging && target) {
+      },
+      onDrop: async (target) => {
         try {
           await commitChapterLaneDrop({
             nodeId: node.id,
             targetLaneId: target.storylineId,
             targetOrder: target.order,
             orderField,
-            primaryStorylineId: primaryStorylineId(node),
-            membershipIds: node.storylines.map((storyline) => storyline.id),
-            updateNode,
-            setNodeStorylines,
+            moveChapterOnTimeline,
           });
         } catch (error) {
-          log.error('Failed to handle mobile timeline drop:', error);
+          log.error('Failed to handle timeline pointer drop:', error);
         }
-      }
-      clearDragState();
-    };
-    const onUp = (upEvent: PointerEvent) => {
-      if (upEvent.pointerId === pointerId) void finish();
-    };
-    const onCancel = (cancelEvent: PointerEvent) => {
-      if (cancelEvent.pointerId !== pointerId) return;
-      cleanup();
-      clearDragState();
-      suppressTouchClickRef.current = false;
-    };
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onCancel);
-  };
-
-  const handleDrawerDragStart = (e: React.DragEvent, node: TimelineNode) => {
-    clearHoverPreview();
-    const sourceId = primaryStorylineId(node) ?? '';
-    setDraggedNode({ node, storylineId: sourceId });
-    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
-    // Do NOT close the popover here: re-rendering during dragstart unmounts
-    // the chip we just started dragging, and the browser cancels the drag.
-    // The popover closes on dragend (handleDragEnd) instead.
-  };
-
-  // Drags from the holding popover can ONLY drop on the node's main
-  // storyline — anywhere else, no drop indicator + no drop accepted.
-  const draggedNodePrimaryStorylineId = useMemo(
-    () => (draggedNode ? primaryStorylineId(draggedNode.node) : null),
-    [draggedNode, primaryStorylineId],
-  );
-  const isDraggedFromDrawer = useMemo(
-    () => (draggedNode ? orderOf(draggedNode.node) === null : false),
-    [draggedNode, orderOf],
-  );
-  const canDropOnStoryline = (rowStorylineId: string) => {
-    if (!draggedNode) return false;
-    return canDropChapterOnLane({
-      targetLaneId: rowStorylineId,
-      fromDrawer: isDraggedFromDrawer,
-      primaryStorylineId: draggedNodePrimaryStorylineId,
+      },
+      onDragEnd: () => {
+        clearHoverPreview();
+        if (fromDrawer) setUnplacedPopoverOpen(false);
+        window.setTimeout(() => {
+          suppressPointerClickRef.current = false;
+        }, 0);
+      },
     });
-  };
-
-  const handleNodeDragOver = (e: React.DragEvent, storylineRowId: string) => {
-    if (!draggedNode) return;
-    if (!canDropOnStoryline(storylineRowId)) return; // implicit reject (no preventDefault)
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-
-    const container = (e.currentTarget as HTMLElement).querySelector(
-      '[data-node-container]',
-    ) as HTMLElement;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const nodeLeftX = mouseX - nodeWidth / 2;
-    const order = Math.max(
-      minOrder,
-      Math.round(nodeLeftX / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
-    );
-
-    setDragOverPosition({ storylineId: storylineRowId, order, x: mouseX });
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetStorylineId: string) => {
-    if (!draggedNode || !dragOverPosition) return;
-    if (!canDropOnStoryline(targetStorylineId)) return;
-    e.preventDefault();
-    clearHoverPreview();
-
-    const { node } = draggedNode;
-
-    try {
-      await commitChapterLaneDrop({
-        nodeId: node.id,
-        targetLaneId: targetStorylineId,
-        targetOrder: dragOverPosition.order,
-        orderField,
-        primaryStorylineId: primaryStorylineId(node),
-        membershipIds: node.storylines.map((storyline) => storyline.id),
-        updateNode,
-        setNodeStorylines,
-      });
-    } catch (error) {
-      log.error('Failed to handle drop:', error);
-    } finally {
-      clearHoverPreview();
-      clearDragState();
-    }
-  };
-
-  const handleDragEnd = () => {
-    clearHoverPreview();
-    clearDragState();
-    // Close the unplaced popover once the drag finishes (whether the drop
-    // succeeded or not). Closing earlier — e.g. on dragstart — would
-    // unmount the dragged chip mid-flight and the browser would cancel
-    // the drag entirely.
-    setUnplacedPopoverOpen(false);
   };
 
   const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (suppressTouchClickRef.current) {
-      suppressTouchClickRef.current = false;
+    if (suppressPointerClickRef.current) {
+      suppressPointerClickRef.current = false;
       e.preventDefault();
       return;
     }
@@ -663,7 +562,6 @@ export function DesktopBottomTimeline({
   };
 
   const handleNodeMouseEnter = (node: TimelineNode, e: React.MouseEvent<HTMLElement>) => {
-    if (draggedNode) return;
     setHoverPreview({
       nodeId: node.id,
       anchor: e.currentTarget,
@@ -675,8 +573,8 @@ export function DesktopBottomTimeline({
   };
 
   const handleTimelineClick = (event: React.MouseEvent) => {
-    if (suppressTouchClickRef.current) {
-      suppressTouchClickRef.current = false;
+    if (suppressPointerClickRef.current) {
+      suppressPointerClickRef.current = false;
       event.preventDefault();
       return;
     }
@@ -702,7 +600,13 @@ export function DesktopBottomTimeline({
         if (arr) arr.push(node);
       });
     });
-    m.forEach((arr) => arr.sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0)));
+    m.forEach((arr) =>
+      arr.sort((a, b) => {
+        const difference = (orderOf(a) ?? 0) - (orderOf(b) ?? 0);
+        if (difference !== 0) return difference;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      }),
+    );
     return m;
   }, [placedNodes, storylines, orderOf]);
 
@@ -796,20 +700,14 @@ export function DesktopBottomTimeline({
       status === 'finished' ? 'is-finished' : status === 'discarded' ? 'is-discarded' : 'is-draft';
 
     const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-      if (draggedNode) {
-        clearHoverPreview();
-        return;
-      }
       if (hoveredNodeId !== node.id) {
         handleNodeMouseEnter(node, e);
       }
     };
 
-    const isDragged = draggedNode?.node.id === node.id;
     const className = [
       'btl-clip',
       isSelected ? 'is-selected' : '',
-      isDragged ? 'is-dragging' : '',
       stateClass,
     ]
       .filter(Boolean)
@@ -820,10 +718,7 @@ export function DesktopBottomTimeline({
         key={`${node.id}-${storylineId}`}
         data-node-card
         className={className}
-        draggable={isPrimary && !isMobilePresentation}
-        onDragStart={(e) => handleNodeDragStart(e, node, storylineId)}
-        onDragEnd={handleDragEnd}
-        onPointerDown={(event) => startMobileNodeDrag(event, node, storylineId)}
+        onPointerDown={(event) => startNodePointerDrag(event, node, storylineId)}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleNodeMouseLeave}
         onClick={(e) => handleNodeClick(node.id, e)}
@@ -853,8 +748,6 @@ export function DesktopBottomTimeline({
     const isSynthetic = laneOpts?.synthetic ?? false;
     const isRouteActive = !isSynthetic && storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
-
-    const isDropDisabled = !!draggedNode && !canDropOnStoryline(storyline.id);
 
     const openRowContextMenu = (row: HTMLElement, clientX: number, clientY: number) => {
       // Synthetic lanes don't expose storyline actions, but their chapter
@@ -891,7 +784,7 @@ export function DesktopBottomTimeline({
         storylineId: storyline.id,
         position: Math.max(
           minOrder,
-          Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
+          x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor) + minOrder,
         ),
       });
     };
@@ -900,15 +793,11 @@ export function DesktopBottomTimeline({
       <div
         key={storyline.id}
         data-storyline-row={storyline.id}
-        className={`btl-row${isDropDisabled ? ' is-drop-disabled' : ''}${
-          isSynthetic ? ' is-synthetic' : ''
-        }`}
-        onDragOver={(e) => handleNodeDragOver(e, storyline.id)}
-        onDrop={(e) => handleDrop(e, storyline.id)}
+        className={`btl-row${isSynthetic ? ' is-synthetic' : ''}`}
         onClick={(e) => {
           e.stopPropagation();
-          if (suppressTouchClickRef.current) {
-            suppressTouchClickRef.current = false;
+          if (suppressPointerClickRef.current) {
+            suppressPointerClickRef.current = false;
             e.preventDefault();
             return;
           }
@@ -926,14 +815,13 @@ export function DesktopBottomTimeline({
         }}
       >
         <div
-          data-track-rail
           className={`btl-rail ${isRouteActive ? 'is-active' : ''}${
             isSynthetic ? '' : ' is-clickable'
           }`}
           onClick={(e) => {
             e.stopPropagation();
-            if (suppressTouchClickRef.current) {
-              suppressTouchClickRef.current = false;
+            if (suppressPointerClickRef.current) {
+              suppressPointerClickRef.current = false;
               e.preventDefault();
               return;
             }
@@ -1041,14 +929,8 @@ export function DesktopBottomTimeline({
             <div className="btl-pin-line is-dragging" style={{ left: actDragX }} />
           )}
 
-          {dragOverPosition && dragOverPosition.storylineId === storyline.id && (
-            <div
-              className="btl-drop-indicator"
-              style={{ left: dragOverPosition.x, background: railColor }}
-            />
-          )}
           {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
-          {nodesInStoryline.length === 0 && !draggedNode && (
+          {nodesInStoryline.length === 0 && (
             <div className="btl-empty">{t('bottomTimeline.empty.noChaptersInStoryline')}</div>
           )}
         </div>
@@ -1146,15 +1028,6 @@ export function DesktopBottomTimeline({
   const scrollContentWidth = railWidth + timelineWidth;
   const railOffset = railWidth;
 
-  const snapValues = useMemo(() => {
-    if (placedNodes.length === 0) return [] as number[];
-    const lo = Math.floor(minOrder);
-    const hi = Math.ceil(maxOrder);
-    const out: number[] = [];
-    for (let i = lo; i <= hi; i++) out.push(i);
-    return out;
-  }, [placedNodes.length, minOrder, maxOrder]);
-
   const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
   // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
   const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
@@ -1176,10 +1049,9 @@ export function DesktopBottomTimeline({
     });
   }, []);
 
-  // "打散" — keeps relative ordering, reassigns the active order field
-  // (bookOrder or narrativeOrder) with the same stride that new chapters
-  // use (CHAPTER_ORDER_STRIDE = tile width + 1), so scatter spacing matches
-  // creation spacing and adjacent tiles sit a single grid unit apart.
+  // "打散" — keeps relative ordering and deliberately redistributes the
+  // active continuous coordinate. Ordinary dragging never applies this
+  // spacing policy; it persists the exact pointer-derived position.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
     try {
@@ -1194,78 +1066,63 @@ export function DesktopBottomTimeline({
     }
   }, [placedNodes, orderOf, updateNode, orderField, isNarrative, remapAfterSpread]);
 
-  // "+幕" head button — drops an act boundary at the chapter nearest the
-  // viewport center (same center-pick as handleAddPin). The bootstrap path
-  // for projects with zero acts; precise placement lives on the track
-  // context menu (从此处开始新幕) and on the rail itself afterwards.
+  // "+幕" head button: bootstrap one first act at the book-axis head, then
+  // retain viewport-center insertion once the project already has acts.
+  // Precise placement is also available from the track context menu.
   const handleAddActSplit = useCallback(() => {
-    if (snapValues.length === 0) return;
     const container = scrollContainerRef.current;
-    let target = snapValues[0];
-    if (container) {
-      const centerX = container.scrollLeft + container.clientWidth / 2 - railWidth;
-      let bestDist = Infinity;
-      for (const s of snapValues) {
-        const d = Math.abs(orderToPosition(s) - centerX);
-        if (d < bestDist) {
-          bestDist = d;
-          target = s;
-        }
-      }
-    }
+    const centerX = container
+      ? container.scrollLeft + container.clientWidth / 2 - railWidth
+      : 0;
+    // The head ＋ bootstraps exactly one first act at the book-axis head.
+    // Once acts exist, it retains the convenient viewport-center insertion.
+    const target = bookActs.length === 0 ? minOrder : positionToOrder(centerX);
     void splitAtOrder(target);
-  }, [snapValues, orderToPosition, railWidth, splitAtOrder]);
+  }, [bookActs.length, minOrder, positionToOrder, railWidth, splitAtOrder]);
 
   const handleAddPin = useCallback(() => {
-    if (snapValues.length === 0) return;
     const container = scrollContainerRef.current;
-    let target = snapValues[0];
-    if (container) {
-      const centerX = container.scrollLeft + container.clientWidth / 2 - railWidth;
-      let bestDist = Infinity;
-      for (const s of snapValues) {
-        const d = Math.abs(orderToPosition(s) - centerX);
-        if (d < bestDist) {
-          bestDist = d;
-          target = s;
-        }
-      }
-    }
+    const centerX = container
+      ? container.scrollLeft + container.clientWidth / 2 - railWidth
+      : 0;
+    const target = positionToOrder(centerX);
     const created = addMarker(target, t('bottomTimeline.marker.defaultLabel'));
     if (created) setNewlyAddedMarkerId(created.id);
-  }, [snapValues, addMarker, orderToPosition, railWidth, t]);
+  }, [addMarker, positionToOrder, railWidth, t]);
 
   // Drop a marker at a specific order (the rail right-click target), as opposed
   // to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
-      if (snapValues.length === 0) return;
       const created = addMarker(order, t('bottomTimeline.marker.defaultLabel'));
       if (created) setNewlyAddedMarkerId(created.id);
     },
-    [snapValues.length, addMarker, t],
+    [addMarker, t],
   );
 
   const openTimelineRailMenu = (track: HTMLElement, clientX: number, clientY: number) => {
-    if (snapValues.length === 0) return;
     const rect = track.getBoundingClientRect();
     const px = clientX - rect.left;
-    let order = snapValues[0];
-    let bestDist = Infinity;
-    for (const snap of snapValues) {
-      const distance = Math.abs(orderToPosition(snap) - px);
-      if (distance < bestDist) {
-        bestDist = distance;
-        order = snap;
-      }
-    }
-    setRailMenu({ x: clientX + 2, y: clientY - 2, order });
+    setRailMenu({ x: clientX + 2, y: clientY - 2, order: positionToOrder(px) });
   };
 
   const renderTimeAxis = () => {
     if (!isNarrative) return null;
     return (
-      <div className="btl-axis">
+      <div
+        className="btl-axis"
+        onContextMenuCapture={
+          markers.length === 0
+            ? (event) => {
+                const track = event.currentTarget.querySelector<HTMLElement>('.btl-axis__track');
+                if (!track) return;
+                event.preventDefault();
+                event.stopPropagation();
+                openTimelineRailMenu(track, event.clientX, event.clientY);
+              }
+            : undefined
+        }
+      >
         <div
           className="btl-axis__rail"
           style={{ width: railWidth }}
@@ -1275,12 +1132,7 @@ export function DesktopBottomTimeline({
           <button
             type="button"
             className="btl-axis__rail-add"
-            title={
-              snapValues.length === 0
-                ? t('bottomTimeline.axis.needChapter')
-                : t('bottomTimeline.axis.addPin')
-            }
-            disabled={snapValues.length === 0}
+            title={t('bottomTimeline.axis.addPin')}
             onClick={(e) => {
               e.stopPropagation();
               handleAddPin();
@@ -1301,8 +1153,7 @@ export function DesktopBottomTimeline({
           onContextMenu={(e) => {
             // Empty-rail right-click → 新建标记. Right-clicking a pin is caught
             // by the pin itself (it stops propagation), so this only fires on
-            // blank space. Needs at least one chapter to anchor the order grid.
-            if (snapValues.length === 0) return;
+            // blank space.
             e.preventDefault();
             e.stopPropagation();
             openTimelineRailMenu(e.currentTarget, e.clientX, e.clientY);
@@ -1437,16 +1288,27 @@ export function DesktopBottomTimeline({
                           className="btl__unplaced-chip"
                           role="menuitem"
                           tabIndex={0}
-                          draggable
-                          onDragStart={(e) => handleDrawerDragStart(e, node)}
-                          onDragEnd={handleDragEnd}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            startNodePointerDrag(
+                              event,
+                              node,
+                              primaryStorylineId(node) ?? '',
+                              { fromDrawer: true },
+                            );
+                          }}
                           onClick={() => setNodeSelection(node.id, 'ui')}
                           onKeyDown={(event) => {
                             if (event.key !== 'Enter' && event.key !== ' ') return;
                             event.preventDefault();
                             setNodeSelection(node.id, 'ui');
                           }}
-                          style={{ ['--clip-color' as string]: color } as React.CSSProperties}
+                          style={
+                            {
+                              touchAction: 'none',
+                              ['--clip-color' as string]: color,
+                            } as React.CSSProperties
+                          }
                           title={node.title || t('common.untitled')}
                         >
                           <span className="btl__unplaced-chip-dot" />
@@ -1591,7 +1453,8 @@ export function DesktopBottomTimeline({
             trackWidth={timelineWidth}
             height={actRailHeight}
             orderToX={orderToPosition}
-            snapOrders={snapValues}
+            minOrder={minOrder}
+            maxOrder={maxOrder}
             onRenameAct={(id, name) => void updateAct(id, { name })}
             onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
             onBoundaryDragMove={setActDragX}
@@ -1621,8 +1484,8 @@ export function DesktopBottomTimeline({
             <SharedTimelinePin
               key={`pin-${m.id}`}
               marker={m}
-              snapValues={snapValues}
               orderToPosition={orderToPosition}
+              positionToOrder={positionToOrder}
               variant="bottom"
               xOffset={railOffset}
               isDragging={pinDragXs.has(m.id)}

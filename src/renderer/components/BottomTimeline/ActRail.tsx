@@ -14,12 +14,12 @@ import '../../../styles/act-rail.css';
 // Unlike the old lane (packed chips, independent scroll), the rail lives in
 // TRACK COORDINATE SPACE: callers pass their own orderToX so act bands align
 // vertically with the chapter columns below, in both BottomTimeline (20px
-// grid) and StoryGraphView (32px grid). Renders nothing when no acts exist —
-// creation bootstraps from the host's context menu / head button.
+// grid) and StoryGraphView (32px grid). The empty track stays interactive so
+// the host's context menu / head button can create the first boundary.
 //
 // Interactions, all rail-local:
 //   • drag the divider between two bands → move that act's startOrder
-//     (snapped to integer grid orders, clamped strictly between neighbors)
+//     (continuous coordinate, clamped strictly between neighbors)
 //   • double-click a band → inline rename
 //   • right-click a band → 重命名 / 在此处开始新幕 / 删除（并入相邻幕）
 //     (menu portals to body — fixed positioning escapes the shell
@@ -33,8 +33,9 @@ interface ActRailProps {
   trackWidth: number;
   height: number;
   orderToX: (order: number) => number;
-  /** Candidate boundary orders (the host's integer snap grid). */
-  snapOrders: number[];
+  /** Visible continuous coordinate range owned by the host axis. */
+  minOrder: number;
+  maxOrder: number;
   onRenameAct: (id: string, name: string) => void;
   onMoveBoundary: (id: string, startOrder: number) => void;
   /** Live boundary-drag x (track-relative px, = orderToX coords) while dragging
@@ -44,7 +45,7 @@ interface ActRailProps {
   onBoundaryDragMove?: (x: number | null) => void;
   onDeleteAct: (id: string) => void;
   onSplitAt: (startOrder: number) => void;
-  /** Create an act at the viewport center (the rail head cell's ＋ button). */
+  /** Create an act at the host-chosen coordinate (the rail head cell's ＋ button). */
   onAddAct?: () => void;
   // ---- Drift binding (an act may bind a drift as its 大纲/notes) ----
   /** Resolve a bound drift's live title (for the ⚓ tooltip). */
@@ -82,7 +83,8 @@ export function ActRail({
   trackWidth,
   height,
   orderToX,
-  snapOrders,
+  minOrder,
+  maxOrder,
   onRenameAct,
   onMoveBoundary,
   onBoundaryDragMove,
@@ -200,12 +202,30 @@ export function ActRail({
     return (px - x0) / unit;
   };
 
+  const axisMinOrder = Math.min(minOrder, maxOrder);
+  const axisMaxOrder = Math.max(minOrder, maxOrder);
+  const orderUnitPx = Math.abs(orderToX(1) - orderToX(0));
+  const onePixelOrder = orderUnitPx > 0 ? 1 / orderUnitPx : 1;
+  const boundaryEpsilon = Math.max(Number.EPSILON, onePixelOrder / 1000);
+  const orderAtTrackX = (px: number): number =>
+    Math.min(axisMaxOrder, Math.max(axisMinOrder, xToOrder(px)));
+  const movableBoundaryRange = (segIndex: number): { min: number; max: number } | null => {
+    if (segIndex < 0 || segIndex >= segments.length) return null;
+    const previous = segIndex > 0 ? segments[segIndex - 1].act.startOrder : null;
+    const next = segments[segIndex + 1]?.act.startOrder;
+    const min =
+      segIndex === 0
+        ? axisMinOrder
+        : Math.max(axisMinOrder, (previous ?? axisMinOrder) + boundaryEpsilon);
+    const max = Math.min(axisMaxOrder, (next ?? axisMaxOrder) - boundaryEpsilon);
+    return min <= max ? { min, max } : null;
+  };
+
   // Right-click the bare rail (anywhere but an act chip) → 在此处新建幕 only,
   // mirroring the timeline-marker rail. An act chip's own onContextMenu stops
-  // propagation, so this only fires on empty rail. Needs a chapter to anchor
-  // the order grid, same gate as the head ＋.
+  // propagation, so this only fires on empty rail. The host axis remains
+  // usable even when there are no chapters.
   const openRailMenu = (clientX: number, clientY: number) => {
-    if (snapOrders.length === 0) return;
     const rect = trackRef.current?.getBoundingClientRect();
     const px = rect ? clientX - rect.left : 0;
     menuReturnFocusRef.current = null;
@@ -213,19 +233,18 @@ export function ActRail({
       kind: 'rail',
       x: clientX + 2,
       y: clientY - 2,
-      orderAtCursor: Math.round(xToOrder(px)),
+      orderAtCursor: orderAtTrackX(px),
     });
   };
 
   const handleRailContextMenu = (e: React.MouseEvent) => {
-    if (snapOrders.length === 0) return;
     e.preventDefault();
     e.stopPropagation();
     openRailMenu(e.clientX, e.clientY);
   };
 
   // Rail head cell — mirrors the narrative time-axis head ("TIME ＋"): the
-  // 幕 label plus a ＋ that drops a new act at the viewport center. This is
+  // 幕 label plus a ＋ that creates a new act at the host-chosen coordinate. This is
   // the primary create entry (the old header 「+幕」button was retired).
   const railHead =
     railWidth > 0 ? (
@@ -235,12 +254,7 @@ export function ActRail({
           <button
             type="button"
             className="actrail__rail-add"
-            disabled={snapOrders.length === 0}
-            title={
-              snapOrders.length === 0
-                ? t('bottomTimeline.act.needChapter')
-                : t('bottomTimeline.act.newAct')
-            }
+            title={t('bottomTimeline.act.newAct')}
             onClick={(e) => {
               e.stopPropagation();
               onAddAct();
@@ -252,55 +266,25 @@ export function ActRail({
       </div>
     ) : null;
 
-  // No acts yet — the rail still shows (book mode always renders it now, so
-  // the 幕 feature stays discoverable via the head ＋). The empty track is
-  // plain (no dashed invitation); right-clicking it offers 在此处新建幕, the
-  // same gesture as the populated rail.
-  if (segments.length === 0) {
-    return (
-      <div
-        className={`actrail actrail--empty${className ? ` ${className}` : ''}`}
-        style={{ height }}
-      >
-        {railHead}
-        <div
-          ref={trackRef}
-          className="actrail__track"
-          style={{ minWidth: trackWidth }}
-          title={t('bottomTimeline.act.emptyTrackTitle')}
-          onContextMenu={handleRailContextMenu}
-          onPointerDown={(event) =>
-            beginTouchMenu(event, () => openRailMenu(event.clientX, event.clientY))
-          }
-        />
-      </div>
-    );
-  }
-
   const bandEdges = (i: number): { left: number; right: number } => {
-    const left = i === 0 ? 0 : orderToX(segments[i].act.startOrder ?? 0);
+    const left = orderToX(segments[i].act.startOrder ?? axisMinOrder);
     const right =
-      i + 1 < segments.length ? orderToX(segments[i + 1].act.startOrder ?? 0) : trackWidth;
+      i + 1 < segments.length
+        ? orderToX(segments[i + 1].act.startOrder ?? axisMinOrder)
+        : trackWidth;
     return { left, right: Math.max(right, left) };
   };
 
-  // Move an act's boundary (= the act's position). Driven by both the boundary
-  // divider AND the act chip itself (drag the chip to reposition the act). Only
-  // valid for segIndex >= 1 with a real startOrder — the first act (opener) has
-  // no boundary and can't be moved.
+  // Move an act's boundary (= the act's position). A legacy/book-head anchored
+  // null boundary starts at axisMinOrder; the first real movement converts it
+  // to an ordinary finite coordinate.
   const startBoundaryDrag = (e: React.PointerEvent, segIndex: number) => {
     if (e.button !== 0) return; // left button only; right-click → context menu
     const act = segments[segIndex].act;
-    if (segIndex === 0 || act.startOrder == null) return;
-    const prevBound = segments[segIndex - 1].act.startOrder ?? Number.NEGATIVE_INFINITY;
-    const nextBound =
-      segIndex + 1 < segments.length
-        ? (segments[segIndex + 1].act.startOrder ?? Number.POSITIVE_INFINITY)
-        : Number.POSITIVE_INFINITY;
+    const range = movableBoundaryRange(segIndex);
+    if (!range) return;
     // A boundary may pass THROUGH chapters freely but never cross a sibling
     // boundary — that would reorder the acts under the user's cursor.
-    const candidates = snapOrders.filter((o) => o > prevBound && o < nextBound);
-    if (candidates.length === 0) return;
     // Don't preventDefault on pointerdown: the chip also needs its click /
     // double-click (rename) / context-menu to fire. The drag runs on window
     // listeners regardless, and a movement threshold below keeps a plain click
@@ -308,36 +292,40 @@ export function ActRail({
     e.stopPropagation();
 
     const startMouseX = e.clientX;
-    const startPixel = orderToX(act.startOrder);
-    let nearest = act.startOrder;
+    const currentOrder = act.startOrder ?? axisMinOrder;
+    const startPixel = orderToX(currentOrder);
+    const pointerId = e.pointerId;
+    let nextOrder = currentOrder;
     let dragging = false;
     const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
       const dx = ev.clientX - startMouseX;
       if (!dragging && Math.abs(dx) < 4) return;
       dragging = true;
-      const px = startPixel + dx;
-      let best = candidates[0];
-      let bestDist = Infinity;
-      for (const c of candidates) {
-        const d = Math.abs(orderToX(c) - px);
-        if (d < bestDist) {
-          bestDist = d;
-          best = c;
-        }
-      }
-      nearest = best;
-      setDragGhostX(px);
-      onBoundaryDragMove?.(px);
+      nextOrder = Math.min(range.max, Math.max(range.min, xToOrder(startPixel + dx)));
+      const nextX = orderToX(nextOrder);
+      setDragGhostX(nextX);
+      onBoundaryDragMove?.(nextX);
     };
-    const onUp = () => {
+    const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
       setDragGhostX(null);
       onBoundaryDragMove?.(null);
-      if (dragging && nearest !== act.startOrder) onMoveBoundary(act.id, nearest);
+    };
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      cleanup();
+      if (dragging && nextOrder !== act.startOrder) onMoveBoundary(act.id, nextOrder);
+    };
+    const onCancel = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      cleanup();
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
   };
 
   const commitRename = (id: string, raw: string, fallback: string) => {
@@ -356,40 +344,33 @@ export function ActRail({
       actId,
       x: rect.left + Math.min(rect.width, 24),
       y: rect.bottom + 4,
-      orderAtCursor: Math.round(xToOrder(segmentLeft)),
+      orderAtCursor: orderAtTrackX(segmentLeft),
     });
   };
 
   const moveBoundaryFromKeyboard = (segIndex: number, direction: -1 | 1) => {
     const act = segments[segIndex]?.act;
-    if (!act || segIndex === 0 || act.startOrder == null) return;
-    const currentOrder = act.startOrder;
-    const prevBound = segments[segIndex - 1].act.startOrder ?? Number.NEGATIVE_INFINITY;
-    const nextBound =
-      segIndex + 1 < segments.length
-        ? (segments[segIndex + 1].act.startOrder ?? Number.POSITIVE_INFINITY)
-        : Number.POSITIVE_INFINITY;
-    const candidates = snapOrders
-      .filter((order) => order > prevBound && order < nextBound)
-      .sort((a, b) => a - b);
-    const currentIndex = candidates.indexOf(currentOrder);
-    const baseIndex =
-      currentIndex >= 0 ? currentIndex : candidates.findIndex((order) => order > currentOrder);
-    const nextIndex =
-      direction < 0
-        ? Math.max(0, (baseIndex < 0 ? candidates.length : baseIndex) - 1)
-        : Math.min(candidates.length - 1, Math.max(-1, baseIndex) + 1);
-    const next = candidates[nextIndex];
-    if (next !== undefined && next !== currentOrder) onMoveBoundary(act.id, next);
+    if (!act) return;
+    const currentOrder = act.startOrder ?? axisMinOrder;
+    const range = movableBoundaryRange(segIndex);
+    if (!range) return;
+    const next = Math.min(range.max, Math.max(range.min, currentOrder + direction * onePixelOrder));
+    if (next !== currentOrder) onMoveBoundary(act.id, next);
   };
 
   return (
-    <div className={`actrail${className ? ` ${className}` : ''}`} style={{ height }}>
+    <div
+      className={`actrail${segments.length === 0 ? ' actrail--empty' : ''}${
+        className ? ` ${className}` : ''
+      }`}
+      style={{ height }}
+    >
       {railHead}
       <div
         ref={trackRef}
         className="actrail__track"
         style={{ minWidth: trackWidth }}
+        title={segments.length === 0 ? t('bottomTimeline.act.emptyTrackTitle') : undefined}
         onContextMenu={handleRailContextMenu}
         onPointerDown={(event) =>
           beginTouchMenu(event, () => openRailMenu(event.clientX, event.clientY))
@@ -406,10 +387,9 @@ export function ActRail({
               ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
               : ''
           }`;
-          // Drag the chip to move the act's boundary (= its position) — same
-          // gesture/clamping as the divider. The first act (opener, no
-          // boundary) is fixed at the book head, so its chip isn't draggable.
-          const draggable = i >= 1 && seg.act.startOrder != null;
+          // Every act chip owns a movable boundary. A head-anchored first act
+          // starts at the left edge and becomes numeric on its first drag.
+          const draggable = movableBoundaryRange(i) !== null;
           return (
             // The band is now an inert positioning/clip wrapper (pointer-events
             // off in CSS) — it no longer captures right-click / double-click
@@ -464,7 +444,7 @@ export function ActRail({
                         actId: seg.act.id,
                         x: clientX + 2,
                         y: clientY - 2,
-                        orderAtCursor: Math.round(xToOrder(px)),
+                        orderAtCursor: orderAtTrackX(px),
                       });
                     });
                     if (draggable) startBoundaryDrag(event, i);
@@ -493,7 +473,7 @@ export function ActRail({
                       actId: seg.act.id,
                       x: e.clientX + 2,
                       y: e.clientY - 2,
-                      orderAtCursor: Math.round(xToOrder(px)),
+                      orderAtCursor: orderAtTrackX(px),
                     });
                   }}
                   onKeyDown={(e) => {
@@ -544,29 +524,25 @@ export function ActRail({
           );
         })}
 
-        {/* Boundary handles — left edge of every non-opener band. */}
+        {/* Boundary handles — left edge of every act, including the first. */}
         {segments.map((seg, i) => {
-          if (i === 0 || seg.act.startOrder == null) return null;
+          const boundaryOrder = seg.act.startOrder ?? axisMinOrder;
+          const range = movableBoundaryRange(i);
+          if (!range) return null;
           return (
             <div
               key={`bd-${seg.act.id}`}
               className="actrail__divider"
-              style={{ left: orderToX(seg.act.startOrder) }}
+              style={{ left: orderToX(boundaryOrder) }}
               onPointerDown={(e) => startBoundaryDrag(e, i)}
               title={t('bottomTimeline.act.dragBoundary')}
               role="slider"
               tabIndex={0}
               aria-label={t('bottomTimeline.act.dragBoundary')}
               aria-orientation="horizontal"
-              aria-valuenow={seg.act.startOrder}
-              aria-valuemin={
-                segments[i - 1].act.startOrder ??
-                (snapOrders.length > 0 ? Math.min(...snapOrders) : seg.act.startOrder)
-              }
-              aria-valuemax={
-                segments[i + 1]?.act.startOrder ??
-                (snapOrders.length > 0 ? Math.max(...snapOrders) : seg.act.startOrder)
-              }
+              aria-valuenow={boundaryOrder}
+              aria-valuemin={range.min}
+              aria-valuemax={range.max}
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                 e.preventDefault();

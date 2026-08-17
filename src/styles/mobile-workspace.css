@@ -703,11 +703,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.btl--mobile .btl-clip.is-dragging {
-  opacity: 0.56;
-  filter: saturate(0.72);
-}
-
 .btl--mobile .btl-axis,
 .btl--mobile .actrail {
   min-height: 36px;

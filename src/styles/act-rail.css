@@ -125,8 +125,8 @@
   pointer-events: auto;
   cursor: default;
 }
-/* Draggable chip — every act except the first (opener) can be dragged to move
-   its boundary, so it advertises grab/grabbing like the timeline-marker pin. */
+/* Every act chip can move its boundary. A book-head anchored first act begins
+   at the left edge and becomes a finite boundary on its first drag. */
 .actrail__label.is-draggable {
   cursor: grab;
 }

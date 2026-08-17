@@ -18,8 +18,8 @@ export interface TimelinePinAnchor {
 
 export interface TimelinePinProps {
   marker: TimelineMarker;
-  snapValues: number[];
   orderToPosition: (order: number) => number;
+  positionToOrder: (position: number) => number;
   variant: 'bottom' | 'graph';
   xOffset?: number;
   pinHeight: number;
@@ -37,13 +37,13 @@ export interface TimelinePinProps {
 
 /**
  * Shared narrative-time marker used by both BottomTimeline and StoryGraph.
- * The two surfaces own their coordinate systems and CSS, while drag, snap,
+ * The two surfaces own their coordinate systems and CSS, while drag,
  * rename, drift binding, keyboard, and context-menu behavior stay singular.
  */
 export function TimelinePin({
   marker,
-  snapValues,
   orderToPosition,
+  positionToOrder,
   variant,
   xOffset = 0,
   pinHeight,
@@ -84,7 +84,7 @@ export function TimelinePin({
 
   const startDrag = useCallback(
     (event: ReactPointerEvent) => {
-      if (event.button !== 0 || editing || snapValues.length === 0) return;
+      if (event.button !== 0 || editing) return;
       event.preventDefault();
       event.stopPropagation();
 
@@ -92,7 +92,7 @@ export function TimelinePin({
       const startPixel = orderToPosition(marker.narrativeOrder);
       const pointerId = event.pointerId;
       const menuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
-      let nearest = marker.narrativeOrder;
+      let nextOrder = marker.narrativeOrder;
       let dragging = false;
       let longPressed = false;
       let longPressTimer: number | null =
@@ -116,18 +116,8 @@ export function TimelinePin({
         clearLongPress();
         dragging = true;
 
-        const newPixel = startPixel + dx;
-        let best = snapValues[0];
-        let bestDistance = Number.POSITIVE_INFINITY;
-        for (const snapValue of snapValues) {
-          const distance = Math.abs(orderToPosition(snapValue) - newPixel);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = snapValue;
-          }
-        }
-        nearest = best;
-        onDragMove(newPixel);
+        nextOrder = positionToOrder(startPixel + dx);
+        onDragMove(orderToPosition(nextOrder));
       };
 
       const cleanup = () => {
@@ -145,8 +135,8 @@ export function TimelinePin({
           return;
         }
         onDragMove(null);
-        if (nearest !== marker.narrativeOrder) {
-          onChange({ narrativeOrder: nearest });
+        if (nextOrder !== marker.narrativeOrder) {
+          onChange({ narrativeOrder: nextOrder });
         }
       };
       const onCancel = (cancelEvent: PointerEvent) => {
@@ -166,7 +156,7 @@ export function TimelinePin({
       onDragMove,
       openBoundDrift,
       orderToPosition,
-      snapValues,
+      positionToOrder,
     ],
   );
 

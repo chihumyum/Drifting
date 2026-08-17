@@ -7,10 +7,13 @@ import type {
 interface UseBottomTimelineContextMenuActionsParams {
   contextMenu: BottomTimelineContextMenuState | null;
   projectId: string | null | undefined;
+  orderField: 'bookOrder' | 'narrativeOrder';
+  nextBookOrder: number;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   createNode: (input: {
     kind: 'chapter' | 'drift';
     bookOrder: number;
+    narrativeOrder?: number;
     mainStorylineId: string;
     position: { x: number; y: number };
   }) => Promise<BookNode>;
@@ -31,6 +34,8 @@ interface UseBottomTimelineContextMenuActionsParams {
 export function useBottomTimelineContextMenuActions({
   contextMenu,
   projectId,
+  orderField,
+  nextBookOrder,
   scrollContainerRef,
   createNode,
   setNodeStorylines,
@@ -60,7 +65,11 @@ export function useBottomTimelineContextMenuActions({
           ) {
             const newNode = await createNode({
               kind: 'chapter',
-              bookOrder: contextMenu.position,
+              bookOrder:
+                orderField === 'bookOrder' ? contextMenu.position : nextBookOrder,
+              ...(orderField === 'narrativeOrder'
+                ? { narrativeOrder: contextMenu.position }
+                : {}),
               mainStorylineId: contextMenu.storylineId,
               position: { x: 0, y: 0 },
             });

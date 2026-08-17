@@ -13,7 +13,7 @@ interface UseBottomTimelineSelectorsParams {
   // Fixed tile width in grid units. Tiles no longer have an `end`, so the
   // visual span is constant rather than derived from start/end.
   nodeDefaultWidth: number;
-  // Which integer field on a node drives x-position. Book order is always
+  // Which continuous numeric field on a node drives x-position. Book order is always
   // set; narrative order is nullable — nodes with null are filtered out of
   // `placedNodes` (and surface in `unplacedNodes` for the holding drawer).
   orderField: TimelineOrderField;
