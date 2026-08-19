@@ -8,8 +8,9 @@ The rewrite follows the client through four repository layouts: `frontend/`,
 directory. Those paths were normalized to the public repository root. Server,
 retired web, landing-site, prototype, deployment, cache, credential, private
 corpus, and unpublished literary paths were omitted. Personal email addresses
-and local machine identifiers were normalized, and Claude co-author/generated-
-message trailers were removed at the maintainer’s request.
+and local machine identifiers inherited from the private source were normalized,
+and Claude co-author/generated-message trailers were removed at the maintainer’s
+request. Later client commits may use maintainer-selected public identities.
 
 The extracted history contains 680 pre-publication commits and 13 merge
 commits. Empty commits created by filtering were pruned. A separate public

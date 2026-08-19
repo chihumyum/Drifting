@@ -37,7 +37,7 @@ export const APP_CONFIG = {
   TERMS_URL: (runtimeViteEnv.VITE_TERMS_URL as string | undefined) || '',
   PRIVACY_URL:
     (runtimeViteEnv.VITE_PRIVACY_URL as string | undefined) ||
-    'https://github.com/chihumyum/drifting/blob/main/PRIVACY.md',
+    'https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md',
 
   // Development
   ENABLE_DEBUG_LOGS: true,

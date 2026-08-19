@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chihumyum/drifting.git",
+    "url": "git+https://github.com/chihumyum/Drifting.git",
     "directory": "packages/prose-metrics"
   },
   "exports": {

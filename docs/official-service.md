@@ -6,8 +6,8 @@ configuration, or an entitlement to use official infrastructure.
 
 The default build is local-only. Hosted accounts, a hosted sync provider,
 billing, and proxy-backed AI features require a separately operated compatible
-service and explicit build/runtime configuration. A future author-connected
-personal-cloud provider is a separate SyncEngine capability and does not make
+service and explicit build/runtime configuration. The implemented Google Drive
+provider is a separate, author-connected SyncEngine capability and does not make
 the official service reachable. The source license does not grant API capacity,
 an account, hosted support, or permission to bypass authentication, rate limits,
 abuse controls, or service terms.
@@ -38,8 +38,10 @@ device is online. Pasted-URL metadata and remote preview images use
 `byok-provider` before creating or using a direct provider transport. Remote
 Agent extensions already require explicit per-server configuration and durable
 per-tool grants, so `agent-extension` records availability and purpose rather
-than adding a second permission switch. Google Drive support is planned
-separately; classifying `personal-cloud` does not enable a provider by itself.
+than adding a second permission switch. Google Drive uses the `personal-cloud`
+purpose, native OAuth, and an explicit provider-authority binding. Classifying
+the network purpose by itself does not connect an account, activate a provider,
+or send project content.
 
 The official service and the public client are built and deployed separately.
 If hosted sync returns, it implements the same immutable opaque-object contract
@@ -56,12 +58,13 @@ compatible service implementation is not currently supplied by this project.
 
 The public production CSP intentionally contains no Drifting hosted origin. It
 allows the currently supported direct BYOK origins, and HTTPS images only for
-the explicitly gated external-preview surface; no personal-cloud origin is
-present until a provider is implemented. Changing `VITE_API_BASE_URL` alone is
-therefore not sufficient for an operator build. Fork operators must provide a
-production CSP containing their exact HTTPS and WebSocket service origins (and
-any implemented personal-cloud origin), update the development CSP when needed,
-and verify the result without broadly relaxing the remaining policy.
+the explicitly gated external-preview surface. The native Google Drive
+transport does not depend on renderer CSP access. Changing `VITE_API_BASE_URL`
+alone is therefore not sufficient for an operator build. Fork operators must
+provide a production CSP containing their exact HTTPS and WebSocket service
+origins, add any renderer-based personal-cloud origin they implement, update the
+development CSP when needed, and verify the result without broadly relaxing the
+remaining policy.
 
 This document describes an engineering and licensing boundary; it is not a
 consumer Terms of Service. A build that enables account creation must configure

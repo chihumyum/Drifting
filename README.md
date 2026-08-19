@@ -17,8 +17,10 @@ real-account, cross-device or physical-device acceptance, so this is not yet a s
 claim.
 
 This history was extracted and rewritten from the original private monorepo. Server-only changes,
-credentials, private literary material, generated artifacts, personal email addresses, and layout
-transitions were removed or normalized, so commit hashes differ from the private source history.
+credentials, private literary material, generated artifacts, and layout transitions were removed.
+Personal email addresses and machine identifiers inherited from the private source were normalized;
+later commits may use maintainer-selected public identities. Commit hashes therefore differ from the
+private source history.
 
 ## Stack
 

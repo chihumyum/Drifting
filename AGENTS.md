@@ -16,8 +16,9 @@ Guidance for coding agents working in this standalone Drifting client repository
 ## Repository boundary
 
 - This repository contains the Tauri 2, Rust, React, and Vite client.
-- Public source builds default to local-only mode. Account, sync, payment, and
-  official hosted features belong to a separately operated service.
+- Public source builds default to local-only mode. Account, hosted sync,
+  payment, and other official hosted features belong to a separately operated
+  service. Author-connected personal-cloud providers remain client capabilities.
 - `packages/prose-metrics` is independently licensed under Apache-2.0. The
   remaining project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or

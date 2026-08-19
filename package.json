@@ -89,12 +89,12 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chihumyum/drifting.git"
+    "url": "git+https://github.com/chihumyum/Drifting.git"
   },
   "bugs": {
-    "url": "https://github.com/chihumyum/drifting/issues"
+    "url": "https://github.com/chihumyum/Drifting/issues"
   },
-  "homepage": "https://github.com/chihumyum/drifting#readme",
+  "homepage": "https://github.com/chihumyum/Drifting#readme",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@tailwindcss/postcss": "^4.3.3",

@@ -659,7 +659,7 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
             className="set-btn"
             onClick={() =>
               void platform.material.openExternal(
-                'https://github.com/chihumyum/drifting/blob/main/PRIVACY.md',
+                'https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md',
               )
             }
           >
@@ -716,7 +716,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
               className="set-btn"
               onClick={() =>
                 void platform.material.openExternal(
-                  'https://github.com/chihumyum/drifting/blob/main/THIRD_PARTY_NOTICES.md',
+                  'https://github.com/chihumyum/Drifting/blob/main/THIRD_PARTY_NOTICES.md',
                 )
               }
             >
@@ -731,7 +731,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
             <button
               className="set-btn"
               onClick={() =>
-                void platform.material.openExternal('https://github.com/chihumyum/drifting')
+                void platform.material.openExternal('https://github.com/chihumyum/Drifting')
               }
             >
               {t('settings.about.viewSource')}
@@ -746,7 +746,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
               className="set-btn"
               onClick={() =>
                 void platform.material.openExternal(
-                  'https://github.com/chihumyum/drifting/blob/main/LICENSE',
+                  'https://github.com/chihumyum/Drifting/blob/main/LICENSE',
                 )
               }
             >

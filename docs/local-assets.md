@@ -16,7 +16,7 @@ clean-over-compatibility rule lives in [`../AGENTS.md`](../AGENTS.md).
 - Ownership is expressed exactly once: `library_item.assetId` owns an image or
   PDF; `element.portraitAssetId` owns a portrait image.
 - Provider file IDs, revisions, cursors, transfer sessions, and retry state do
-  not belong in `project_asset`. A future SyncEngine stores them in its own
+  not belong in `project_asset`. SyncEngine stores them in its own
   replica/transport tables.
 
 `LibraryItem.kind` is the only payload discriminator:
@@ -62,18 +62,18 @@ directory. Project deletion captures every live asset ID in its SQLite
 transaction and performs file cleanup after commit.
 
 The remaining commit-to-file-cleanup crash window is current-format durability,
-not compatibility. Before SyncEngine is production-ready, add restart-safe
-inventory/GC for staging files, released picker imports, and directories with no
-live `project_asset` row.
+not compatibility, and is independent of whether a cloud provider is enabled.
+Restart-safe inventory/GC must account for staging files, released picker
+imports, and directories with no live `project_asset` row.
 
 ## Network and sync boundary
 
 Normal import, display, replacement, deletion, project boot, and online/offline
 events never call a hosted asset API. Project boot reads the complete local
 replica; no remote graph-hydration path exists. Binary sources enter a provider
-only through the future SyncEngine blob lane.
+only through the SyncEngine blob lane after the author connects that provider.
 
-The future SyncEngine publishes in dependency order:
+SyncEngine publishes in dependency order:
 
 ```text
 content-addressed source blob -> immutable asset metadata -> owner operation
