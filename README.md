@@ -254,6 +254,7 @@ the metrics contract without importing the AGPL client.
 - [Contributing and CLA](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Privacy boundaries](PRIVACY.md)
+- [Source publication readiness and runbook](docs/source-publication-readiness.md)
 - [Hosted-service boundary](docs/official-service.md)
 - [Trademark policy](TRADEMARKS.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
