@@ -457,7 +457,6 @@ function PdfCanvasPreview({
   // of `webSecurity`, so pdf.js's internal fetch silently fails.
   useEffect(() => {
     let cancelled = false;
-    let loadedDocument: PDFDocumentProxy | null = null;
     let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
 
     void platform.material
@@ -473,10 +472,8 @@ function PdfCanvasPreview({
         loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(res.bytes) });
         return loadingTask.promise.then((nextDocument) => {
           if (cancelled) {
-            void nextDocument.destroy();
             return;
           }
-          loadedDocument = nextDocument;
           setPdfDocument(nextDocument);
           setPageCount(nextDocument.numPages);
           setPageNumber(1);
@@ -490,11 +487,7 @@ function PdfCanvasPreview({
 
     return () => {
       cancelled = true;
-      if (loadedDocument) {
-        void loadedDocument.destroy();
-      } else if (loadingTask) {
-        void loadingTask.destroy();
-      }
+      void loadingTask?.destroy();
     };
   }, [filePath, t]);
 

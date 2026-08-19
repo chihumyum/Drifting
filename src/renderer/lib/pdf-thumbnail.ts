@@ -69,7 +69,7 @@ export async function renderPdfThumbnail(
       height: Math.max(1, Math.round(viewport.height)),
     };
   } finally {
-    await document.destroy();
+    await loadingTask.destroy();
   }
 }
 

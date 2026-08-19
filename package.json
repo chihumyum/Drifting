@@ -163,7 +163,7 @@
     "mitt": "^3.0.1",
     "nanoid": "^5.1.6",
     "openai": "^6.39.0",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-i18next": "^16.0.0",
