@@ -4,6 +4,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { getDb, type DbClient, type DbExecutor, type DbTransaction } from '../lib/db';
 import {
   SyncAppAuthorityTable,
+  SyncChangeSetTable,
   SyncConnectAttemptTable,
   SyncConnectGenerationAttemptTable,
   SyncCursorTable,
@@ -128,6 +129,8 @@ export interface CompleteSyncProviderTransitionInput {
 }
 
 export interface ActiveProviderRuntimeBinding {
+  /** Sanitized local workspace identity for project-scoped runtime status. */
+  projectId?: string;
   mode: CloudSyncProviderMode;
   providerNamespace: string;
   providerGenerationRef: string | null;
@@ -197,6 +200,29 @@ async function listActiveSyncGenerations(executor: DbExecutor): Promise<ActiveSy
     })
     .from(SyncGenerationTable)
     .where(eq(SyncGenerationTable.status, 'active'));
+}
+
+/**
+ * An authored project purge deliberately deletes the Project row and detaches
+ * `sync_generation.project_id` before its terminal journal can reach a cloud
+ * provider. The immutable generation still has one authoritative Project
+ * identity in its change-set lane, which reconnect/runtime activation must use
+ * without reattaching deleted domain state.
+ */
+export async function resolveSyncGenerationAuthorityProjectId(
+  executor: DbExecutor,
+  input: { readonly syncGenerationId: string; readonly projectId: string | null },
+): Promise<string> {
+  if (input.projectId) return requireNonEmpty(input.projectId, 'project id');
+  const rows = await executor
+    .select({ projectId: SyncChangeSetTable.projectId })
+    .from(SyncChangeSetTable)
+    .where(eq(SyncChangeSetTable.syncGenerationId, input.syncGenerationId));
+  const projectIds = new Set(rows.map((row) => row.projectId));
+  if (projectIds.size !== 1) {
+    throw new Error('Detached SyncGeneration has no unambiguous terminal project authority');
+  }
+  return requireNonEmpty([...projectIds][0], 'detached project id');
 }
 
 function providerNamespace(mode: CloudSyncProviderMode): string {
@@ -839,6 +865,7 @@ export function createSyncAppAuthorityRepository(
       const rows = await database
         .select({
           syncGenerationId: SyncProviderBindingTable.syncGenerationId,
+          projectId: SyncGenerationTable.projectId,
           providerNamespace: SyncProviderBindingTable.providerNamespace,
           providerGenerationRef: SyncProviderBindingTable.providerGenerationRef,
           accountSubjectId: SyncProviderAccountTable.accountSubjectId,
@@ -857,11 +884,15 @@ export function createSyncAppAuthorityRepository(
             eq(SyncProviderBindingTable.state, 'ready'),
           ),
         );
-      return rows.map((row) => {
+      return Promise.all(rows.map(async (row) => {
         if (row.authorityGeneration !== authority.generation) {
           throw new Error('Provider binding authority generation is stale');
         }
         return {
+          projectId: await resolveSyncGenerationAuthorityProjectId(database, {
+            syncGenerationId: row.syncGenerationId,
+            projectId: row.projectId,
+          }),
           mode: authority.mode as CloudSyncProviderMode,
           providerNamespace: row.providerNamespace,
           providerGenerationRef: row.providerGenerationRef,
@@ -873,7 +904,7 @@ export function createSyncAppAuthorityRepository(
             authorityGeneration: authority.generation,
           },
         };
-      });
+      }));
     },
   };
 }

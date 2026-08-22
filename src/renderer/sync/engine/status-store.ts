@@ -11,6 +11,8 @@ export interface SyncGenerationPendingDiagnostics {
 
 export interface SyncGenerationRuntimeStatus {
   readonly syncGenerationId: string;
+  /** Project-scoped UI identity; null for legacy/test runtimes. */
+  readonly projectId?: string | null;
   readonly phase: SyncGenerationCyclePhase;
   readonly cycleNumber: number;
   readonly lastPullSuccessAtMs: number | null;
@@ -63,10 +65,15 @@ export class SyncEngineStatusStore {
     this.emit();
   }
 
-  updateCycle(syncGenerationId: string, status: SyncGenerationCycleStatus): void {
+  updateCycle(
+    syncGenerationId: string,
+    status: SyncGenerationCycleStatus,
+    projectId?: string,
+  ): void {
     const previous = this.statuses.get(syncGenerationId);
     this.statuses.set(syncGenerationId, Object.freeze({
       syncGenerationId,
+      projectId: projectId ?? previous?.projectId ?? null,
       phase: status.phase,
       cycleNumber: status.cycleNumber,
       lastPullSuccessAtMs: status.lastPullSuccessAtMs,
@@ -80,10 +87,15 @@ export class SyncEngineStatusStore {
     this.emit();
   }
 
-  updatePending(syncGenerationId: string, pending: SyncGenerationPendingDiagnostics): void {
+  updatePending(
+    syncGenerationId: string,
+    pending: SyncGenerationPendingDiagnostics,
+    projectId?: string,
+  ): void {
     const previous = this.statuses.get(syncGenerationId);
     this.statuses.set(syncGenerationId, Object.freeze({
       syncGenerationId,
+      projectId: projectId ?? previous?.projectId ?? null,
       phase: previous?.phase ?? 'idle',
       cycleNumber: previous?.cycleNumber ?? 0,
       lastPullSuccessAtMs: previous?.lastPullSuccessAtMs ?? null,

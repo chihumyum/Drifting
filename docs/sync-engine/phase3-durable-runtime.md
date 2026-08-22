@@ -107,7 +107,10 @@ runtime recovers the immutable ProjectSync identity from that SyncGeneration's
 change-set history, publishes `sync-generation.purge`, and only then marks the
 SyncGeneration and binding `purged`. Remote purge retires the binding after the
 typed reducer transaction commits. A purged SyncGeneration cannot start another
-provider cycle.
+provider cycle. Provider reconnect and production runtime discovery use the
+same unique journal Project identity for a detached active generation; they do
+not require deleted domain rows to be recreated before the terminal purge can
+publish.
 
 `SyncEngineStatusStore` exposes sanitized per-project phase, outcome, pull,
 publish, convergence and pending counters. Secrets, paths, content and transfer

@@ -174,6 +174,11 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
           },
         });
         if (localAsset && (input.kind === 'image' || input.kind === 'pdf')) {
+          await assetStoreService.commitImport(projectId, localAsset.id).catch((error) => {
+            // The SQLite row and source bytes are already committed. Leaving
+            // the marker is safe: startup GC clears it from the retained set.
+            console.warn('[material] failed to clear committed asset import marker:', error);
+          });
           void releasePickedMaterialImport(input.sourcePath).catch((error) => {
             console.warn('[material] failed to release committed picker import:', error);
           });

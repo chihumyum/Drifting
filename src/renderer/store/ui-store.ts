@@ -72,6 +72,13 @@ export interface ProjectTabsState {
   activeTabKey: string | null;
 }
 
+export interface WorkspaceTabInventory {
+  nodeIds: ReadonlySet<string>;
+  storylineIds: ReadonlySet<string>;
+  elementIds: ReadonlySet<string>;
+  categoryIds: ReadonlySet<string>;
+}
+
 // Synthetic key used by the tab bar to identify a top-level tab. Leaves
 // keep the historical `entityType:id` form so existing keyboard / right-bar
 // code that pattern-matches keeps working; splits get a `split:<id>` prefix
@@ -90,6 +97,56 @@ export function focusedLeafOf(tab: AnyTab): LeafTab {
 
 function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
   return { kind: 'leaf', entityType: ref.entityType, id: ref.id, isPreview };
+}
+
+function isLeafInWorkspace(leaf: LeafTab, inventory: WorkspaceTabInventory): boolean {
+  switch (leaf.entityType) {
+    case 'node':
+      return inventory.nodeIds.has(leaf.id);
+    case 'storyline':
+      return inventory.storylineIds.has(leaf.id);
+    case 'element':
+      return inventory.elementIds.has(leaf.id);
+    case 'category':
+      return inventory.categoryIds.has(leaf.id);
+    case 'dashboard':
+    case 'all-chapters':
+      return leaf.id === SINGLETON_TAB_ID;
+  }
+}
+
+function pruneTabsToWorkspace(
+  project: ProjectTabsState,
+  inventory: WorkspaceTabInventory,
+): ProjectTabsState {
+  const previousActive = project.openTabs.find((tab) => tabKey(tab) === project.activeTabKey);
+  let replacementActiveKey: string | null = null;
+  const openTabs: AnyTab[] = [];
+
+  for (const tab of project.openTabs) {
+    if (tab.kind === 'leaf') {
+      if (!isLeafInWorkspace(tab, inventory)) continue;
+      openTabs.push(tab);
+      if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      continue;
+    }
+    const leftValid = isLeafInWorkspace(tab.left, inventory);
+    const rightValid = isLeafInWorkspace(tab.right, inventory);
+    if (leftValid && rightValid) {
+      openTabs.push(tab);
+      if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      continue;
+    }
+    const survivor = leftValid ? tab.left : rightValid ? tab.right : null;
+    if (!survivor) continue;
+    const collapsed: LeafTab = { ...survivor, isPreview: false };
+    openTabs.push(collapsed);
+    if (tab === previousActive) replacementActiveKey = tabKey(collapsed);
+  }
+
+  const activeTabKey =
+    replacementActiveKey ?? (openTabs[0] ? tabKey(openTabs[0]) : null);
+  return { openTabs, activeTabKey };
 }
 
 // Generate a synthetic split id without pulling in a uuid dep.
@@ -292,6 +349,7 @@ interface UiState {
   reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
   setActiveTab: (projectId: string, ref: TabRef | { splitId: string } | null) => void;
   clearProjectTabs: (projectId: string) => void;
+  pruneProjectTabs: (projectId: string, inventory: WorkspaceTabInventory) => void;
 
   // Split-pane actions. All operate on the project's top-level tab list.
   // "Active" below means the tab keyed by activeTabKey.
@@ -819,6 +877,26 @@ export const useUiStore = create<UiState>()(
           const rest = { ...state.tabsByProject };
           delete rest[projectId];
           return { tabsByProject: rest };
+        }),
+
+      pruneProjectTabs: (projectId, inventory) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const pruned = pruneTabsToWorkspace(project, inventory);
+          if (
+            pruned.activeTabKey === project.activeTabKey &&
+            pruned.openTabs.length === project.openTabs.length &&
+            pruned.openTabs.every((tab, index) => tab === project.openTabs[index])
+          ) {
+            return {};
+          }
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: pruned,
+            },
+          };
         }),
 
       splitActiveWith: (projectId, source, side) =>

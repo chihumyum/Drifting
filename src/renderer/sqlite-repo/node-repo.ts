@@ -205,6 +205,9 @@ export function createBookNodeSqliteRepository(
     },
 
     async update(id: string, updates: BookNodeUpdateData, options = {}) {
+      if (updates.projectId !== undefined && updates.projectId !== currentProject) {
+        throw new Error('Cannot move a book node between projects');
+      }
       const updateValues: Partial<typeof BookNodeTable.$inferInsert> = {
         updatedAt: updates.updatedAt,
       };
@@ -265,7 +268,9 @@ export function createBookNodeSqliteRepository(
     },
 
     async delete(id: string) {
-      const result = await dbProvider().delete(BookNodeTable).where(eq(BookNodeTable.id, id));
+      const result = await dbProvider()
+        .delete(BookNodeTable)
+        .where(and(eq(BookNodeTable.id, id), eq(BookNodeTable.projectId, currentProject)));
       return (result as any).rowsAffected > 0;
     },
 
@@ -274,7 +279,7 @@ export function createBookNodeSqliteRepository(
       const result = await dbProvider()
         .update(BookNodeTable)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(BookNodeTable.id, id));
+        .where(and(eq(BookNodeTable.id, id), eq(BookNodeTable.projectId, currentProject)));
       return (result as any).rowsAffected > 0;
     },
 
@@ -283,7 +288,7 @@ export function createBookNodeSqliteRepository(
       const result = await dbProvider()
         .update(BookNodeTable)
         .set({ deletedAt: null, updatedAt: now })
-        .where(eq(BookNodeTable.id, id));
+        .where(and(eq(BookNodeTable.id, id), eq(BookNodeTable.projectId, currentProject)));
       return (result as any).rowsAffected > 0;
     },
 
@@ -297,11 +302,11 @@ export function createBookNodeSqliteRepository(
         await db
           .update(BookNodeTable)
           .set({ bookOrder: second.bookOrder, updatedAt: now })
-          .where(eq(BookNodeTable.id, first.id));
+          .where(and(eq(BookNodeTable.id, first.id), eq(BookNodeTable.projectId, currentProject)));
         await db
           .update(BookNodeTable)
           .set({ bookOrder: first.bookOrder, updatedAt: now })
-          .where(eq(BookNodeTable.id, second.id));
+          .where(and(eq(BookNodeTable.id, second.id), eq(BookNodeTable.projectId, currentProject)));
         return;
       }
 
@@ -309,12 +314,12 @@ export function createBookNodeSqliteRepository(
         await tx
           .update(BookNodeTable)
           .set({ bookOrder: second.bookOrder, updatedAt: now })
-          .where(eq(BookNodeTable.id, first.id));
+          .where(and(eq(BookNodeTable.id, first.id), eq(BookNodeTable.projectId, currentProject)));
 
         await tx
           .update(BookNodeTable)
           .set({ bookOrder: first.bookOrder, updatedAt: now })
-          .where(eq(BookNodeTable.id, second.id));
+          .where(and(eq(BookNodeTable.id, second.id), eq(BookNodeTable.projectId, currentProject)));
       });
     },
   };

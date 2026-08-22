@@ -4,6 +4,7 @@ import type {
   ProjectAssetKind,
 } from '../domain/project-asset';
 import { platform } from '../platform';
+import { ensureLocalAuthoredAssetBlobVerified } from '../sync/assets/local-authored-blob';
 import { assetStoreService, extForMime } from './asset-store.service';
 
 export interface PrepareLocalProjectAssetInput {
@@ -43,6 +44,7 @@ export async function prepareLocalProjectAsset(
   const now = new Date().toISOString();
 
   try {
+    await assetStoreService.beginImport(input.projectId, assetId);
     if (input.kind === 'image') {
       const [prepared, sha256] = await Promise.all([
         platform.material.prepareImage(input.sourcePath),
@@ -80,7 +82,7 @@ export async function prepareLocalProjectAsset(
       );
       if (failedWrite) throw failedWrite.reason;
       const source = (writes[0] as PromiseFulfilledResult<{ sizeBytes: number }>).value;
-      return {
+      const asset: ProjectAsset = {
         id: assetId,
         projectId: input.projectId,
         kind: 'image',
@@ -91,6 +93,8 @@ export async function prepareLocalProjectAsset(
         height: prepared.source.height,
         createdAt: now,
       };
+      await ensureLocalAuthoredAssetBlobVerified(asset);
+      return asset;
     }
 
     const [thumbnail, sha256] = await Promise.all([
@@ -119,7 +123,7 @@ export async function prepareLocalProjectAsset(
     );
     if (failedWrite) throw failedWrite.reason;
     const source = (writes[0] as PromiseFulfilledResult<{ sizeBytes: number }>).value;
-    return {
+    const asset: ProjectAsset = {
       id: assetId,
       projectId: input.projectId,
       kind: 'pdf',
@@ -130,6 +134,8 @@ export async function prepareLocalProjectAsset(
       height: null,
       createdAt: now,
     };
+    await ensureLocalAuthoredAssetBlobVerified(asset);
+    return asset;
   } catch (error) {
     await assetStoreService.deleteAsset(input.projectId, assetId).catch((cleanupError) => {
       console.warn('[asset] failed to clean a partial local import:', cleanupError);

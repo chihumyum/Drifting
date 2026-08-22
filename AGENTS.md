@@ -24,22 +24,24 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.
 
-## Pre-release compatibility policy
+## Public Alpha compatibility policy
 
-- Drifting has not shipped a public data-compatibility contract. Until this
-  section is explicitly revised, architectural clarity takes priority over
-  preserving historical development data or retired private-service behavior.
-- Do not add migrators, fallback reads, dual writes, legacy enum values, dormant
-  jobs, recovery UI, or adapter layers solely for old R2, hosted-service,
-  absolute-path, or other pre-release formats. Delete obsolete representations
-  and update the current schema, fixtures, documentation, and acceptance checks
-  together. Local development databases may be reset.
-- A future compatibility layer requires an explicit product decision recorded
-  here and in the relevant architecture document, including the released source
-  version, supported data population, migration guarantees, and removal policy.
-- This policy does not relax current durability guarantees: once a current-format
-  local write commits, its SQLite/Yjs state and app-owned asset bytes must still
-  obey the documented transaction, deletion, and recovery boundaries.
+- `0.1.0-alpha.1` freezes the first public SQLite/domain/checkpoint baseline.
+  Every later public `0.1.x` build must open and migrate every earlier public
+  `0.1.x` database without asking the author to reset it.
+- Published migrations are immutable. Add a new ordered migration; never
+  rewrite a released migration or silently discard unknown data.
+- Development databases created before `0.1.0-alpha.1` remain outside the public
+  compatibility population. Do not add fallback reads, dual writes, legacy enum
+  values, dormant jobs, or adapters solely for retired R2, hosted-service, or
+  absolute-path formats. A current-baseline database may be preserved; older
+  development data must be exported or reset before entering the public line.
+- Before a public migration can mutate local state, create and verify a native
+  SQLite safety snapshot. On migration failure, leave the source database
+  untouched, stop opening the workspace, and surface recovery guidance.
+- Once a current-format local write commits, its SQLite/Yjs state and app-owned
+  asset bytes must obey the documented transaction, deletion, and recovery
+  boundaries.
 
 ## Data and editing invariants
 

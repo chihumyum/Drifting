@@ -6,33 +6,22 @@ function source(path: string): string {
 }
 
 describe('local project bootstrap and lifecycle architecture', () => {
-  it('hydrates the workspace only from local SQLite use cases', () => {
+  it('hydrates the workspace from one local SQLite projection transaction', () => {
     const provider = source('./ProjectRuntimeProvider.tsx');
 
     expect(provider).not.toContain("from '../../services/entity-sync.service'");
     expect(provider).not.toContain('pullAndHydrateProjectGraph');
     expect(provider).not.toContain('startPreferencesSync');
-    for (const localLoad of [
-      'projectUsecases.loadProject(projectId)',
-      'nodeUsecases.loadNodes()',
-      'storylineUsecases.loadStorylines()',
-      'elementUsecases.loadInitial()',
-      'categoryUsecases.loadCategories()',
-      'projectAssetUsecases.loadInitial()',
-      'libraryItemUsecases.loadInitial()',
-      'relationUsecases.loadInitial()',
-      'commentUsecases.loadInitial()',
-    ]) {
-      expect(provider).toContain(localLoad);
-    }
-  });
-
-  it('keeps project startup independent from child editor routes', () => {
-    const provider = source('./ProjectRuntimeProvider.tsx');
-
-    expect(provider).not.toContain('useNavigate');
-    expect(provider).toContain("status: 'missing'");
+    expect(provider).toContain('captureWorkspaceProjection({ projectId, userId })');
+    expect(provider).toContain('commitWorkspaceProjection(projectId, epoch, capture.data)');
+    expect(provider).toContain('clearWorkspaceProjection(projectId, epoch)');
     expect(provider).toContain('<Navigate to="/" replace />');
+    expect(provider).not.toContain('useNavigate');
+    expect(provider).not.toContain('nodeUsecases.loadNodes()');
+
+    const projection = source('../../services/workspace-projection.service.ts');
+    expect(projection).toContain('return getDb().transaction(async (tx) =>');
+    expect(projection).toContain('createBookNodeSqliteRepository(input.projectId, tx)');
   });
 
   it('keeps lifecycle durability local and exposes only the new SyncEngine hook', () => {

@@ -2,13 +2,15 @@ import { and, eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
 import { events } from '../../lib/events';
-import type { DbClient, DbTransaction } from '../../lib/db';
+import type { DbClient, DbExecutor, DbTransaction } from '../../lib/db';
 import { platform, type GoogleDriveNativeOAuthResult } from '../../platform';
 import {
+  SyncChangeSetTable,
   SyncConnectAttemptTable,
   SyncConnectGenerationAttemptTable,
   SyncCursorTable,
   SyncLocalObjectTable,
+  SyncProviderBindingTable,
   SyncQuarantinedObjectTable,
   SyncRemoteObjectTable,
   SyncRestoreAttemptTable,
@@ -30,6 +32,7 @@ import {
 import {
   activeProviderBindingId,
   createSyncAppAuthorityRepository,
+  resolveSyncGenerationAuthorityProjectId,
   type SyncProviderTransitionAttempt,
 } from '../app-authority-repository';
 import {
@@ -118,25 +121,83 @@ async function stageUnresolvedProjectGeneration(input: {
   db: DbClient;
   syncGenerationId: string;
   nowIso: string;
-}): Promise<void> {
-  await input.db.transaction(async (tx) => {
+}): Promise<'discover' | 'skip-terminal-local'> {
+  return input.db.transaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(SyncGenerationTable)
       .where(eq(SyncGenerationTable.syncGenerationId, input.syncGenerationId))
       .limit(1);
     if (existing) {
-      if (
-        existing.projectId !== null ||
-        existing.status !== 'staged' ||
-        existing.projectSyncId !== unresolvedProjectSync(input.syncGenerationId)
-      ) {
-        throw new GoogleDriveRestoreError(
-          'local-project-sync-conflict',
-          'Remote project generation identity is already owned by active local state',
-        );
+      // Discovery is intentionally replayable. A previous run may already
+      // have authenticated the marker and replaced restore-pending with the
+      // real projectSyncId before a later download/materialization step
+      // blocked. The marker is validated again below by
+      // stageRestoreSyncGeneration, so both unresolved and resolved
+      // project-less staging rows are safe to reuse here.
+      if (existing.projectId === null && existing.status === 'staged') {
+        return 'discover';
       }
-      return;
+
+      if (existing.projectId === null && existing.status === 'retired') {
+        const journal = await tx
+          .select({ id: SyncChangeSetTable.changeSetId })
+          .from(SyncChangeSetTable)
+          .where(eq(SyncChangeSetTable.syncGenerationId, input.syncGenerationId))
+          .limit(1);
+        const binding = await tx
+          .select({ id: SyncProviderBindingTable.syncGenerationId })
+          .from(SyncProviderBindingTable)
+          .where(eq(SyncProviderBindingTable.syncGenerationId, input.syncGenerationId))
+          .limit(1);
+        const histories = await tx
+          .select({
+            state: SyncConnectGenerationAttemptTable.state,
+            targetSyncGenerationId: SyncConnectGenerationAttemptTable.targetSyncGenerationId,
+          })
+          .from(SyncConnectGenerationAttemptTable)
+          .where(
+            eq(
+              SyncConnectGenerationAttemptTable.sourceSyncGenerationId,
+              input.syncGenerationId,
+            ),
+          );
+        const isCancelledRestoreShell =
+          journal.length === 0 &&
+          binding.length === 0 &&
+          histories.length > 0 &&
+          histories.every(
+            (history) =>
+              history.targetSyncGenerationId === null &&
+              history.state !== 'committed' &&
+              history.state !== 'activated',
+          );
+        if (isCancelledRestoreShell) {
+          await tx
+            .update(SyncGenerationTable)
+            .set({
+              status: 'staged',
+              retiredAt: null,
+              updatedAt: input.nowIso,
+            })
+            .where(eq(SyncGenerationTable.syncGenerationId, input.syncGenerationId));
+          return 'discover';
+        }
+      }
+
+      // Provider object logs are immutable, so discovery continues to list a
+      // generation after this device has durably retired or purged it. That
+      // terminal local receipt is authority to ignore the historical remote
+      // generation; staging it again would resurrect deleted state and used
+      // to fail reconnect before the still-active generation was examined.
+      if (existing.status === 'retired' || existing.status === 'purged') {
+        return 'skip-terminal-local';
+      }
+
+      throw new GoogleDriveRestoreError(
+        'local-project-sync-conflict',
+        'Remote project generation identity is already owned by active local state',
+      );
     }
     await tx.insert(SyncGenerationTable).values({
       syncGenerationId: input.syncGenerationId,
@@ -149,6 +210,7 @@ async function stageUnresolvedProjectGeneration(input: {
       createdAt: input.nowIso,
       updatedAt: input.nowIso,
     });
+    return 'discover';
   });
 }
 
@@ -610,6 +672,30 @@ async function recordRemoteObjects(
   );
 }
 
+async function durableRemoteObjectRowId(
+  executor: DbExecutor,
+  syncGenerationId: string,
+  providerObjectId: string,
+): Promise<string> {
+  const [row] = await executor
+    .select({ id: SyncRemoteObjectTable.id })
+    .from(SyncRemoteObjectTable)
+    .where(
+      and(
+        eq(SyncRemoteObjectTable.syncGenerationId, syncGenerationId),
+        eq(SyncRemoteObjectTable.providerObjectId, providerObjectId),
+      ),
+    )
+    .limit(1);
+  if (!row) {
+    throw new GoogleDriveRestoreError(
+      'restore-failed',
+      'Remote commit marker was not durably recorded',
+    );
+  }
+  return row.id;
+}
+
 async function recordRemoteObjectsInTransaction(
   tx: DbTransaction,
   syncGenerationId: string,
@@ -782,7 +868,7 @@ function productionDependencies(): GoogleDriveRestoreDependencies {
 }
 
 async function activeLocalSyncGenerations(db: DbClient) {
-  return db
+  const generations = await db
     .select({
       syncGenerationId: SyncGenerationTable.syncGenerationId,
       projectId: SyncGenerationTable.projectId,
@@ -790,6 +876,10 @@ async function activeLocalSyncGenerations(db: DbClient) {
     })
     .from(SyncGenerationTable)
     .where(eq(SyncGenerationTable.status, 'active'));
+  return Promise.all(generations.map(async (generation) => ({
+    ...generation,
+    authorityProjectId: await resolveSyncGenerationAuthorityProjectId(db, generation),
+  })));
 }
 
 async function resolveAttempt(input: {
@@ -959,18 +1049,9 @@ export async function restoreGoogleDriveSyncGenerations(
       nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
     });
 
-    const completedRestoreSyncGenerations = new Set(
-      (await input.db
-        .select({ syncGenerationId: SyncRestoreAttemptTable.sourceSyncGenerationId })
-        .from(SyncRestoreAttemptTable)
-        .where(eq(SyncRestoreAttemptTable.state, 'completed')))
-        .map(({ syncGenerationId }) => syncGenerationId),
-    );
     const ownedAttemptSyncGenerationIds = new Set(attempt.generations.map((generation) => generation.sourceSyncGenerationId));
     const localBeforeRestore = (await activeLocalSyncGenerations(input.db)).filter(
-      (generation) =>
-        ownedAttemptSyncGenerationIds.has(generation.syncGenerationId) &&
-        !completedRestoreSyncGenerations.has(generation.syncGenerationId),
+      (generation) => ownedAttemptSyncGenerationIds.has(generation.syncGenerationId),
     );
 
     const discoveredSnapshots = await dependencies.discovery.discover({
@@ -981,22 +1062,24 @@ export async function restoreGoogleDriveSyncGenerations(
     const remoteSyncGenerationIds = [...new Set(discoveredSnapshots.map(({ syncGenerationId }) => syncGenerationId))].sort(
       compareUtf8Bytewise,
     );
-    const localSyncGenerationIds = new Set(localBeforeRestore.map((generation) => generation.syncGenerationId));
-    if (remoteSyncGenerationIds.some((syncGenerationId) => localSyncGenerationIds.has(syncGenerationId))) {
-      throw new GoogleDriveRestoreError(
-        'local-project-sync-conflict',
-        'A local project already owns the same remote generation identity',
-      );
-    }
+    const localBySyncGenerationId = new Map(
+      localBeforeRestore.map((generation) => [generation.syncGenerationId, generation] as const),
+    );
 
     const targetGeneration = attempt.authorityGeneration + 1;
     const discovered: RemoteSnapshotCandidate[] = [];
     for (const syncGenerationId of remoteSyncGenerationIds) {
-      await stageUnresolvedProjectGeneration({
-        db: input.db,
-        syncGenerationId,
-        nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
-      });
+      // A generation that survived an earlier disconnect is already the local
+      // project authority. Reconnecting that exact identity must rebind it, not
+      // stage a duplicate restore generation or overwrite its offline edits.
+      if (!localBySyncGenerationId.has(syncGenerationId)) {
+        const disposition = await stageUnresolvedProjectGeneration({
+          db: input.db,
+          syncGenerationId,
+          nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
+        });
+        if (disposition === 'skip-terminal-local') continue;
+      }
       const providerGeneration = await dependencies.provider.openGeneration(
         temporaryBinding({
           attemptId: attempt.attemptId,
@@ -1024,19 +1107,39 @@ export async function restoreGoogleDriveSyncGenerations(
     const retiredAt = dependencies.nowIso?.() ?? new Date().toISOString();
     for (const candidate of discovered) {
       if (selectedSyncGenerationIds.has(candidate.syncGenerationId)) continue;
+      if (localBySyncGenerationId.has(candidate.syncGenerationId)) continue;
       await input.db
         .update(SyncGenerationTable)
         .set({ status: 'retired', retiredAt, updatedAt: retiredAt })
         .where(eq(SyncGenerationTable.syncGenerationId, candidate.syncGenerationId));
     }
     const localProjectSyncs = new Set(localBeforeRestore.map((generation) => generation.projectSyncId));
-    if (selected.some((candidate) => localProjectSyncs.has(candidate.marker.projectSyncId))) {
-      throw new GoogleDriveRestoreError(
-        'local-project-sync-conflict',
-        'A remote project belongs to another generation of a local projectSync',
-      );
-    }
+    const reconnectCandidates: RemoteSnapshotCandidate[] = [];
+    const restoreCandidates: RemoteSnapshotCandidate[] = [];
     for (const candidate of selected) {
+      const local = localBySyncGenerationId.get(candidate.syncGenerationId);
+      if (local) {
+        if (
+          local.authorityProjectId !== candidate.marker.projectId ||
+          local.projectSyncId !== candidate.marker.projectSyncId
+        ) {
+          throw new GoogleDriveRestoreError(
+            'local-project-sync-conflict',
+            'Remote generation identity conflicts with its local project authority',
+          );
+        }
+        reconnectCandidates.push(candidate);
+        continue;
+      }
+      if (localProjectSyncs.has(candidate.marker.projectSyncId)) {
+        throw new GoogleDriveRestoreError(
+          'local-project-sync-conflict',
+          'A remote project belongs to another generation of a local projectSync',
+        );
+      }
+      restoreCandidates.push(candidate);
+    }
+    for (const candidate of restoreCandidates) {
       await repository.stageRestoreSyncGeneration({
         attemptId: attempt.attemptId,
         syncGenerationId: candidate.syncGenerationId,
@@ -1052,8 +1155,32 @@ export async function restoreGoogleDriveSyncGenerations(
       nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
     });
     const connectedLocalSyncGenerationIds: string[] = [];
+    const reconnectedSyncGenerationIds = new Set<string>();
+    for (const candidate of reconnectCandidates) {
+      const observedAt = dependencies.nowIso?.() ?? new Date().toISOString();
+      await recordRemoteObjects(
+        input.db,
+        candidate.syncGenerationId,
+        candidate.inventory,
+        observedAt,
+        candidate.committedCursor,
+      );
+      await repository.markSyncGenerationCommitted({
+        attemptId: attempt.attemptId,
+        sourceSyncGenerationId: candidate.syncGenerationId,
+        commitMarkerObjectId: await durableRemoteObjectRowId(
+          input.db,
+          candidate.syncGenerationId,
+          candidate.markerObject.objectId,
+        ),
+        nowIso: observedAt,
+      });
+      reconnectedSyncGenerationIds.add(candidate.syncGenerationId);
+      connectedLocalSyncGenerationIds.push(candidate.syncGenerationId);
+    }
     for (const local of localBeforeRestore) {
       if (!local.projectId) continue;
+      if (reconnectedSyncGenerationIds.has(local.syncGenerationId)) continue;
       const [child] = await input.db
         .select({ state: SyncConnectGenerationAttemptTable.state })
         .from(SyncConnectGenerationAttemptTable)
@@ -1102,10 +1229,10 @@ export async function restoreGoogleDriveSyncGenerations(
     const restored: RestoreGoogleDriveSyncGenerationsResult['restored'][number][] = [];
     const atomicInputs: RestoreSnapshotInputV1[] = [];
     const downloadedBlobRefs: LocalObjectRef[] = [];
-    const restoreWriterIdentity = selected.length > 0
+    const restoreWriterIdentity = restoreCandidates.length > 0
       ? await dependencies.loadWriterIdentity()
       : null;
-    for (const candidate of selected) {
+    for (const candidate of restoreCandidates) {
       const restoreAttemptId = `snapshot-restore:${attempt.attemptId}:${candidate.syncGenerationId}`;
       const [completed] = await input.db
         .select()
@@ -1192,8 +1319,12 @@ export async function restoreGoogleDriveSyncGenerations(
                 results: readonly RestoreSnapshotResultV1[];
                 activatedAt: string;
               }) => {
-                for (const candidate of selected) {
-                  const markerId = remoteRowId(candidate.syncGenerationId, candidate.markerObject.objectId);
+                for (const candidate of restoreCandidates) {
+                  const markerId = await durableRemoteObjectRowId(
+                    tx,
+                    candidate.syncGenerationId,
+                    candidate.markerObject.objectId,
+                  );
                   const updated = await tx
                     .update(SyncConnectGenerationAttemptTable)
                     .set({
@@ -1216,10 +1347,10 @@ export async function restoreGoogleDriveSyncGenerations(
                 }
                 await repository.completeInTransaction(tx, {
                   attemptId: attempt.attemptId,
-                  bindings: [
+                  bindings: [...new Set([
                     ...localBeforeRestore.map((generation) => generation.syncGenerationId),
                     ...selected.map((candidate) => candidate.syncGenerationId),
-                  ].map((syncGenerationId) => ({
+                  ])].map((syncGenerationId) => ({
                     syncGenerationId,
                     providerNamespace: 'appDataFolder',
                     providerGenerationRef: null,
@@ -1249,10 +1380,10 @@ export async function restoreGoogleDriveSyncGenerations(
         const activatedAt = dependencies.nowIso?.() ?? new Date().toISOString();
         await repository.completeInTransaction(tx, {
           attemptId: attempt.attemptId,
-          bindings: [
+          bindings: [...new Set([
             ...localBeforeRestore.map((generation) => generation.syncGenerationId),
             ...selected.map((candidate) => candidate.syncGenerationId),
-          ].map((syncGenerationId) => ({
+          ])].map((syncGenerationId) => ({
             syncGenerationId,
             providerNamespace: 'appDataFolder',
             providerGenerationRef: null,
@@ -1296,6 +1427,11 @@ export async function restoreGoogleDriveSyncGenerations(
           nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
         })
         .catch(() => {});
+      try {
+        dependencies.emitAuthorityChanged?.();
+      } catch {
+        console.warn('[SyncRestore] Authority notification failed after a blocked connect');
+      }
     }
     if (error instanceof GoogleDriveRestoreError) throw error;
     throw new GoogleDriveRestoreError('restore-failed', 'Google Drive connect failed closed', error);

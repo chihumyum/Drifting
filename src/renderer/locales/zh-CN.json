@@ -2,21 +2,46 @@
   "appShell": {
     "checkingAuthentication": "正在检查登录状态…",
     "loadingProject": "正在打开项目…",
+    "syncingProject": "正在应用 Google Drive 更改…",
+    "syncingProjectDetail": "更新本地工作区期间，这个项目暂时只读。",
     "projectLoadFailedTitle": "无法打开这个项目",
     "projectLoadFailedDetail": "没有继续修改数据。请检查本地数据库后重试。",
+    "projectRefreshFailedTitle": "无法应用 Google Drive 更改",
+    "projectRefreshFailedDetail": "上一个完整工作区仍然安全。请重试加载这个项目。",
     "unexpectedTitle": "Drifting 遇到了意外错误",
     "unexpectedDetail": "当前界面已经停止，以免继续产生错误修改。",
     "retry": "重试"
   },
+  "databaseRecovery": {
+    "title": "资料库升级已安全停止",
+    "detail": "Drifting 没有继续挂载项目或设置。旧数据库和经过校验的安全副本仍然保留，请选择下一步操作。",
+    "errorCode": "失败阶段",
+    "version": "数据库版本",
+    "unknownVersion": "更早的开发版本",
+    "safetyBackup": "安全副本",
+    "retry": "重试隔离升级",
+    "retrying": "正在重试…",
+    "restore": "恢复安全副本",
+    "restoring": "正在校验并恢复…",
+    "restoreConfirm": "Drifting 会先从安全副本创建新的 candidate，完成 migration 与完整性校验；只有全部通过才会替换当前数据库。继续吗？",
+    "export": "导出安全副本",
+    "exported": "安全副本已导出。",
+    "openDirectory": "打开备份目录",
+    "copyDiagnostics": "复制脱敏诊断",
+    "copied": "已复制脱敏诊断摘要。",
+    "exit": "退出 Drifting",
+    "actionFailed": "恢复操作未能完成；未激活任何未经校验的数据库。"
+  },
   "preAlphaGuide": {
-    "title": "欢迎参加 Drifting Pre-Alpha",
-    "intro": "这是一个本地优先的公开预览版。核心写作与关系数据完全在本机工作，但接口、数据格式和体验仍可能变化。",
+    "title": "欢迎使用 Drifting Alpha",
+    "intro": "Drifting Alpha 本地优先且无需 Drifting 账号。核心写作与关系数据完全在本机工作；公开的 0.1.x 版本会通过顺序 migration 保留冻结后的 Alpha schema。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "sync": "此构建未启用 Drifting 托管同步，第三方云盘同步也尚未开放。",
-    "byok": "不提供 hosted AI 服务；所有 AI 功能都引用“设置 → 模型与 API”中统一管理的 BYOK 凭据。Copilot 使用自己选择的 provider 和模型，General Agent 在对话面板中选择。",
-    "backup": "请定期使用本地“导出关系型 Markdown”，在应用数据库之外保存一份可阅读的副本。",
-    "settingsHint": "进入一本书后，可在“设置 → 模型与 API”中统一连接 provider 凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
-    "continue": "了解，继续使用"
+    "sync": "Google Drive 同步可选。连接后，稿件、评论、关系、原始素材和持久化 Agent memory 会进入 Google 的信任边界；Drifting 不会在 Google Drive 之上额外提供端到端加密。",
+    "byok": "Copilot 与 General Agent 均为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
+    "settingsHint": "继续本地模式即可创建第一个项目；也可以现在打开「同步与数据」，连接 Google Drive。快速指南里有一条示例写作路径。",
+    "quickGuide": "快速指南",
+    "openDrive": "Google Drive…",
+    "continueLocal": "继续本地模式"
   },
   "settings": {
     "title": "设定",
@@ -42,10 +67,11 @@
       "editor": "编辑器",
       "language": "语言",
       "models": "模型与 API",
-      "copilot": "Copilot · 任务",
-      "agent": "General Agent",
+      "copilot": "Copilot · Experimental",
+      "agent": "General Agent · Experimental",
       "keys": "快捷键",
       "sync": "同步与数据",
+      "updates": "更新",
       "privacy": "隐私",
       "about_app": "关于 Drifting"
     },
@@ -118,7 +144,7 @@
       "sign_out_button": "退出登录",
       "danger_zone": "危险区",
       "export_all": "导出关系型 Markdown",
-      "export_all_desc": "导出本机书库中的所有项目及其中的章节、灵感、元素、注释和资料笔记；使用双向 Wiki 链接保留关系。不包含图片和 PDF 文件；这是可阅读、可迁移的副本，不是可恢复应用状态的完整备份。",
+      "export_all_desc": "导出本机书库中的所有项目及其中的章节、灵感、元素、注释和资料笔记；使用双向 Wiki 链接保留关系。不包含图片和 PDF 文件，也不能重新导入 Drifting。",
       "export_all_btn": "导出 Markdown ZIP",
       "exporting": "正在导出…",
       "export_done": "已导出 {{count}} 个 Markdown 文档。",
@@ -347,6 +373,34 @@
         "cloud-attention": "需要处理",
         "unavailable": "不可用"
       },
+      "transition_states": {
+        "connect": "正在连接",
+        "switch-provider": "正在切换同步服务",
+        "disconnect": "正在断开",
+        "restore": "正在从 Drive 恢复"
+      },
+      "operation_progress": {
+        "connect": {
+          "title": "正在连接 Google Drive…",
+          "desc": "请在系统浏览器中完成 Google 登录。随后会先发现远端项目，再发布仅存在于本机的内容。"
+        },
+        "disconnect": {
+          "title": "正在断开 Google Drive…",
+          "desc": "正在完成本地持久化与最后一次收敛检查，随后撤销 Google 授权；最长可能需要两分钟。"
+        },
+        "reauthorize": {
+          "title": "正在重新授权 Google Drive…",
+          "desc": "请在系统浏览器中完成登录；只接受当前已经连接的 Google 账号。"
+        },
+        "cancel": {
+          "title": "正在取消 Google Drive 设置…",
+          "desc": "正在撤销待完成的授权，并让所有项目返回纯本地模式。"
+        },
+        "settings": {
+          "title": "正在更新同步状态…",
+          "desc": "更新同步服务状态期间，本地编辑仍然可用。"
+        }
+      },
       "connect_google_drive": "Google Drive 同步",
       "connect_google_drive_desc": "通过系统浏览器登录 Google。Drifting 会自动发现并恢复这个 Google 账号中已有的项目，再发布只存在于本机的项目。",
       "google_drive_unavailable_target": "此构建尚未配置完整的 Google Drive 登录参数。",
@@ -382,6 +436,7 @@
       "resume_done": "所有项目的 Google Drive 同步已恢复。",
       "disconnect_google_drive": "断开 Google Drive",
       "disconnect_google_drive_desc": "已就绪的项目会先完成最后一次收敛检查，再撤销 Drifting 的 Google 授权，并把所有项目切回纯本地模式。尚未发布或已阻塞的项目仍会完整保留本机 SQLite、Yjs 与素材，但 Drive 端可能落后。Drive 中的远端数据不会被删除；其他设备之后可能需要重新登录。",
+      "disconnect_confirm_desc": "确认后会完成最后的本地与同步检查，并撤销本 App 的 Google 授权。本地项目仍可使用，Drive 中的远端数据不会删除。",
       "disconnect": "断开…",
       "retry_disconnect": "重试断开…",
       "confirm_disconnect": "确认断开",
@@ -456,6 +511,34 @@
         }
       }
     },
+    "update": {
+      "kicker": "签名更新 · UPDATES",
+      "title": "由你决定何时安装签名 Alpha 更新。",
+      "sub": "应用启动完成后，Drifting 最多每 24 小时检查一次公开 Alpha channel；下载和安装都必须由你确认。",
+      "current_version": "当前安装版本",
+      "channel_desc": "Apple Silicon · macOS 13+ · 公开 Alpha channel",
+      "unavailable": "这个开发构建没有编译 Alpha updater 公钥。签名 Release 构建会开放更新检查；没有通过签名校验时绝不会允许安装。",
+      "check": "Alpha 更新",
+      "check_action": "检查更新",
+      "checking": "正在检查…",
+      "no_update": "当前没有选中的新版签名 Alpha 更新。",
+      "available_version": "Drifting {{version}} 可用",
+      "download": "下载并校验",
+      "downloading": "正在下载并校验 updater 签名…",
+      "downloading_progress": "正在下载并校验… {{progress}}%",
+      "install": "安装更新…",
+      "confirm_install": "安装签名更新",
+      "install_migration_safety": "若新版本需要修改本地数据，下次启动会先创建经过校验的 SQLite 安全快照，只在隔离 candidate 中迁移并通过检查后才激活。",
+      "dismiss": "暂不更新",
+      "error": "更新器已安全停止：{{error}}",
+      "states": {
+        "checking": "正在读取签名 Alpha channel manifest…",
+        "available": "签名更新已可下载。",
+        "downloading": "正在下载并校验…",
+        "ready": "签名更新已准备安装。",
+        "error": "更新器已停止，当前安装没有被修改。"
+      }
+    },
     "privacy": {
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
@@ -471,8 +554,13 @@
       "usageStatsDesc": "界面点击、错误、性能指标。不含稿件内容。",
       "crashLogs": "崩溃日志",
       "crashLogsDesc": "应用崩溃时上传堆栈与运行环境。",
+      "diagnostics": "脱敏诊断摘要",
+      "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与 updater 状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
+      "copyDiagnostics": "复制摘要",
+      "diagnosticsCopied": "已复制脱敏诊断摘要。",
+      "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
       "fullPolicy": "查看完整隐私政策",
-      "lastUpdated": "最近更新 2026·08·14"
+      "lastUpdated": "最近更新 2026·08·20"
     },
     "about": {
       "kicker": "关于 · ABOUT",
@@ -482,7 +570,7 @@
       "version": "版本",
       "channel": "通道",
       "channelDev": "开发",
-      "channelPreAlpha": "Pre-Alpha",
+      "channelPreAlpha": "Alpha",
       "engine": "引擎",
       "credits": "致谢与许可",
       "fonts": "字体",
@@ -495,11 +583,17 @@
       "license": "客户端许可证",
       "licenseDesc": "GNU AGPL v3 或更高版本",
       "viewLicense": "查看许可证",
+      "driveDataUse": "Google Drive 数据使用",
+      "driveDataUseDesc": "哪些数据进入 Google 信任边界，以及 Drifting 能访问什么",
+      "knownIssues": "已知问题",
+      "knownIssuesDesc": "当前 Alpha 的限制与发布阻断项",
       "contact": "联系",
+      "support": "Alpha 支持",
+      "supportDesc": "故障排查与安全反馈说明",
       "emailTeam": "写信给团队",
       "writeEmail": "写邮件",
       "submitFeedback": "提交反馈",
-      "submitFeedbackDesc": "附带当前稿件上下文的报告（可选）。",
+      "submitFeedbackDesc": "打开一封空白邮件；Drifting 不会自动附带稿件上下文。",
       "feedback": "反馈…",
       "tagline": "为夜里不睡的写作人造。"
     },
@@ -522,7 +616,7 @@
       "tierTitle": "能力档位",
       "byokTitle": "自带密钥 · BYOK",
       "modelTitle": "模型",
-      "preAlphaByokOnly": "Pre-Alpha 不提供任何托管模型或 Drifting 额度。所有 AI 调用都必须使用你自己的 API Key，并计入对应服务商的费用与额度。",
+      "preAlphaByokOnly": "Alpha 中的 AI 功能均为 Experimental，不提供托管模型或 Drifting 额度。每次调用都必须使用你自己的 API Key，并遵循对应服务商的计费、隐私、留存、训练与输出条款。",
       "preAlphaAgentCredentials": "General Agent 使用你所选 provider 的 BYOK API Key；每个 provider 的密钥分别保存在本机 Keychain，不经过 Drifting 托管额度。",
       "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
       "disabledSuffix": " · 暂不可用"
@@ -564,9 +658,9 @@
       "submit": "提交"
     },
     "copilot": {
-      "kicker": "COPILOT · 副手",
-      "title": "把琐事交给一个安静的副手。",
-      "sub": "正文里的轻量补全、实体抽取、润色等结构化任务；在这里选择 Copilot 使用的 provider 与模型。",
+      "kicker": "COPILOT · EXPERIMENTAL",
+      "title": "把琐事交给一位安静的实验性副手。",
+      "sub": "Experimental BYOK 补全、实体抽取、润色等结构化任务。请检查每次输出；费用、隐私、留存、训练条款与输出风险由所选 provider 决定。",
       "keyPrivacy": "密钥统一在「模型与 API」管理。",
       "routingDesc": "Copilot 只保存自己的 provider 与模型选择，API Key 引用全局 Keychain 凭据。",
       "providerDesc": "选择 Copilot 调用的模型服务商。",
@@ -653,9 +747,9 @@
       "resetDefault": "重置默认"
     },
     "agent": {
-      "kicker": "GENERAL AGENT · 对话",
-      "title": "右栏那位能动手的 Agent。",
-      "sub": "运行在 Tauri renderer 内的 provider-neutral Agent。当前阶段可读取整本稿子，写入能力按验收阶段逐步开放。",
+      "kicker": "GENERAL AGENT · EXPERIMENTAL",
+      "title": "右栏那位能动手的实验性 Agent。",
+      "sub": "运行在 Tauri renderer 内的 BYOK provider-neutral Agent。请检查每次操作；费用、隐私、留存、训练条款与输出风险由所选 provider 决定。",
       "unavailableTitle": "General Agent 运行时未安装",
       "unavailableStatus": "当前 transport 不可用",
       "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
@@ -1409,6 +1503,11 @@
       "urlInfo": "网页信息",
       "noUrlTitle": "未取到标题",
       "chooseFile": "选择文件…",
+      "openingPicker": "正在打开文件选择器…",
+      "creating": "正在创建…",
+      "importingImage": "正在导入图片…",
+      "importingPdf": "正在导入 PDF…",
+      "importingFileDetail": "正在复制原文件、生成预览并校验本地内容哈希。",
       "create": "创建"
     },
     "super": {

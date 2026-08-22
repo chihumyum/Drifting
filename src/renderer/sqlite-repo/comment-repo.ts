@@ -97,7 +97,7 @@ export function createCommentRepository(
     const rows = await dbProvider()
       .select()
       .from(CommentTable)
-      .where(eq(CommentTable.id, id))
+      .where(and(eq(CommentTable.id, id), eq(CommentTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toCommentDomain(rows[0]) : null;
   };
@@ -115,6 +115,7 @@ export function createCommentRepository(
     findById,
     findAll,
     create: async (input) => {
+      if (input.projectId !== projectId) throw new Error('Comment projectId mismatch');
       const row: typeof CommentTable.$inferInsert = {
         id: input.id,
         projectId: input.projectId,
@@ -163,13 +164,13 @@ export function createCommentRepository(
       await dbProvider()
         .update(CommentTable)
         .set(updateValues)
-        .where(eq(CommentTable.id, id));
+        .where(and(eq(CommentTable.id, id), eq(CommentTable.projectId, projectId)));
       return findById(id);
     },
     delete: async (id) => {
       await dbProvider()
         .delete(CommentTable)
-        .where(eq(CommentTable.id, id));
+        .where(and(eq(CommentTable.id, id), eq(CommentTable.projectId, projectId)));
       return true;
     },
   };
@@ -185,7 +186,7 @@ export function createCommentActionRepository(
     const rows = await dbProvider()
       .select()
       .from(CommentActionTable)
-      .where(eq(CommentActionTable.id, id))
+      .where(and(eq(CommentActionTable.id, id), eq(CommentActionTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toActionDomain(rows[0]) : null;
   };
@@ -211,6 +212,7 @@ export function createCommentActionRepository(
       return rows.map(toActionDomain);
     },
     create: async (input) => {
+      if (input.projectId !== projectId) throw new Error('Comment action projectId mismatch');
       const row: typeof CommentActionTable.$inferInsert = {
         id: input.id,
         projectId: input.projectId,
@@ -245,11 +247,13 @@ export function createCommentActionRepository(
       await dbProvider()
         .update(CommentActionTable)
         .set(updateValues)
-        .where(eq(CommentActionTable.id, id));
+        .where(and(eq(CommentActionTable.id, id), eq(CommentActionTable.projectId, projectId)));
       return findById(id);
     },
     delete: async (id) => {
-      await dbProvider().delete(CommentActionTable).where(eq(CommentActionTable.id, id));
+      await dbProvider()
+        .delete(CommentActionTable)
+        .where(and(eq(CommentActionTable.id, id), eq(CommentActionTable.projectId, projectId)));
       return true;
     },
   };

@@ -597,6 +597,11 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             return element;
           },
         );
+        await assetStoreService.commitImport(activeProjectId, asset.id).catch((error) => {
+          // The SQLite row and source bytes are already committed. Startup GC
+          // will preserve the retained asset and clear this marker safely.
+          console.warn('[portrait] failed to clear committed asset import marker:', error);
+        });
         useDataStore.getState().upsertProjectAsset(asset);
         useDataStore.getState().updateBookElement(id, persisted);
         if (existing.portraitAssetId && existing.portraitAssetId !== asset.id) {

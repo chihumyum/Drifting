@@ -22,6 +22,7 @@ import {
   SyncGenerationTable,
 } from '../../schema/drizzle';
 import { captureSnapshotV1 } from '../checkpoint';
+import { createSyncAppAuthorityRepository } from '../app-authority-repository';
 import { SqliteSyncGenerationRuntime } from '../engine/durable-runtime';
 import { PlaintextSyncEngineObjectCodec } from '../engine/plaintext-object-codec';
 import { recordAuthoredChangeSetInTransaction, SyncChangeBuilder } from '../journal';
@@ -119,15 +120,27 @@ function discoveryFor(
   provider: MemoryObjectLogProvider,
   generation: ProviderGeneration,
 ): GoogleDriveRestoreDependencies['discovery'] {
+  return discoveryForMany(provider, [generation]);
+}
+
+function discoveryForMany(
+  provider: MemoryObjectLogProvider,
+  generations: readonly ProviderGeneration[],
+): GoogleDriveRestoreDependencies['discovery'] {
   return {
     async discover() {
-      const inventory = await provider.listInventory({ generation });
-      return inventory.objects
-        .filter(
-          (object): object is RemoteObject & { readonly objectKind: 'snapshot-commit' } =>
-            object.objectKind === 'snapshot-commit',
-        )
-        .map((object) => ({ syncGenerationId: generation.syncGenerationId, object }));
+      const discovered = await Promise.all(
+        generations.map(async (generation) => {
+          const inventory = await provider.listInventory({ generation });
+          return inventory.objects
+            .filter(
+              (object): object is RemoteObject & { readonly objectKind: 'snapshot-commit' } =>
+                object.objectKind === 'snapshot-commit',
+            )
+            .map((object) => ({ syncGenerationId: generation.syncGenerationId, object }));
+        }),
+      );
+      return discovered.flat();
     },
   };
 }
@@ -143,21 +156,27 @@ async function publishRemoteGenesis(input: {
   codec: PlaintextSyncEngineObjectCodec;
   providerGeneration: ProviderGeneration;
   signal: AbortSignal;
+  projectId?: string;
+  syncGenerationId?: string;
+  snapshotId?: string;
 }) {
+  const projectId = input.projectId ?? 'remote-project';
+  const syncGenerationId = input.syncGenerationId ?? 'remote-generation';
+  const snapshotId = input.snapshotId ?? 'genesis-remote';
   const captured = await captureSnapshotV1({
     db: input.db,
-    projectId: 'remote-project',
-    syncGenerationId: 'remote-generation',
-    snapshotId: 'genesis-remote',
+    projectId,
+    syncGenerationId,
+    snapshotId,
     snapshotKind: 'genesis',
     packageLogicalKeyId: 'pending-package-key',
     capturedAt: { wallMs: 100, counter: 0 },
     committedAt: { wallMs: 101, counter: 0 },
   });
   const preparedPackage = await input.codec.prepareOutbound({
-    syncGenerationId: 'remote-generation',
+    syncGenerationId,
     objectKind: 'genesis',
-    canonicalLogicalKey: 'snapshot/remote-generation/genesis/genesis-remote/package',
+    canonicalLogicalKey: `snapshot/${syncGenerationId}/genesis/${snapshotId}/package`,
     protocolBytes: captured.packageBytes,
   });
   const markerBytes = encodeSnapshotCommitMarkerV1({
@@ -165,9 +184,9 @@ async function publishRemoteGenesis(input: {
     packageLogicalKeyId: preparedPackage.logicalKeyId,
   });
   const preparedMarker = await input.codec.prepareOutbound({
-    syncGenerationId: 'remote-generation',
+    syncGenerationId,
     objectKind: 'snapshot-commit',
-    canonicalLogicalKey: 'snapshot/remote-generation/genesis/genesis-remote/commit',
+    canonicalLogicalKey: `snapshot/${syncGenerationId}/genesis/${snapshotId}/commit`,
     protocolBytes: markerBytes,
   });
   for (const [objectKind, prepared] of [
@@ -181,7 +200,7 @@ async function publishRemoteGenesis(input: {
       logicalKeyId: prepared.logicalKeyId,
       storedSha256: prepared.storedSha256,
       sizeBytes: prepared.sizeBytes,
-      transferId: `seed-${objectKind}`,
+      transferId: `seed-${syncGenerationId}-${objectKind}`,
       signal: input.signal,
     });
   }
@@ -458,7 +477,12 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
     expect(await removed.select().from(SyncApplyReceiptTable)).toEqual([]);
   });
 
-  it('restores a committed remote SyncGeneration and activates project + App authority atomically', async () => {
+  it.each([
+    { recoveryLabel: 'resuming the same durable attempt', cancelFirst: false },
+    { recoveryLabel: 'cancelling and starting a fresh connect', cancelFirst: true },
+  ])(
+    'restores a resolved staged remote SyncGeneration after $recoveryLabel',
+    async ({ cancelFirst }) => {
     const source = await database('source');
     await source.insert(ProjectTable).values({
       id: 'remote-project',
@@ -519,12 +543,18 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
     });
     let authorityChangedEvents = 0;
     const changedProjectIds: string[] = [];
+    let writerIdentityLoads = 0;
+    let nextAttemptId = 'restore-drive-attempt';
     const dependencies: GoogleDriveRestoreDependencies = {
       provider,
       discovery: discoveryFor(provider, providerGeneration),
       claimAccount: claimSameAccount,
       objectAccess: plaintextAccess(codec),
       async loadWriterIdentity() {
+        writerIdentityLoads += 1;
+        if (writerIdentityLoads === 1) {
+          throw new Error('injected failure after remote identity resolution');
+        }
         return restoredWriterIdentity('drive-restore');
       },
       assetRestorePort: {
@@ -537,21 +567,24 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
         async abandonAttempt() {},
       },
       async publishLocalSyncGeneration({ db, syncGenerationId }) {
-        await db.insert(SyncRemoteObjectTable).values({
-          id: `local-genesis-marker:${syncGenerationId}`,
-          syncGenerationId,
-          providerObjectId: `provider-local-marker:${syncGenerationId}`,
-          logicalKeyId: `logical-local-marker:${syncGenerationId}`,
-          objectKind: 'snapshot-commit',
-          storedSha256: '0'.repeat(64),
-          sizeBytes: 1,
-          firstObservedAt: NOW,
-          lastObservedAt: NOW,
-        });
+        await db
+          .insert(SyncRemoteObjectTable)
+          .values({
+            id: `local-genesis-marker:${syncGenerationId}`,
+            syncGenerationId,
+            providerObjectId: `provider-local-marker:${syncGenerationId}`,
+            logicalKeyId: `logical-local-marker:${syncGenerationId}`,
+            objectKind: 'snapshot-commit',
+            storedSha256: '0'.repeat(64),
+            sizeBytes: 1,
+            firstObservedAt: NOW,
+            lastObservedAt: NOW,
+          })
+          .onConflictDoNothing();
         return { commitMarkerRemoteObjectId: `local-genesis-marker:${syncGenerationId}` };
       },
       nowIso: () => NOW,
-      createAttemptId: () => 'restore-drive-attempt',
+      createAttemptId: () => nextAttemptId,
       emitAuthorityChanged() {
         authorityChangedEvents += 1;
       },
@@ -559,11 +592,42 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
         changedProjectIds.push(projectId);
       },
     };
+    await expect(
+      restoreGoogleDriveSyncGenerations({
+        db: target,
+        account: { accountSubject: 'google-subject', credentialSecretRef: 'secret:google' },
+        localUserId: 'local-device-user',
+        signal,
+        dependencies,
+      }),
+    ).rejects.toMatchObject({ code: 'restore-failed' });
+    expect(authorityChangedEvents).toBe(1);
+    expect(await target.select().from(SyncGenerationTable).where(eq(SyncGenerationTable.syncGenerationId, 'remote-generation')))
+      .toMatchObject([
+        {
+          projectId: null,
+          projectSyncId: 'remote-project-sync',
+          status: 'staged',
+        },
+      ]);
+
+    let retryAttemptId = 'restore-drive-attempt';
+    if (cancelFirst) {
+      await createSyncAppAuthorityRepository(target).cancel({
+        attemptId: 'restore-drive-attempt',
+        nowIso: NOW,
+      });
+      expect(await target.select().from(SyncGenerationTable).where(eq(SyncGenerationTable.syncGenerationId, 'remote-generation')))
+        .toMatchObject([{ projectId: null, status: 'retired' }]);
+      nextAttemptId = 'restore-drive-attempt-after-cancel';
+      retryAttemptId = nextAttemptId;
+    }
     const result = await restoreGoogleDriveSyncGenerations({
       db: target,
       account: { accountSubject: 'google-subject', credentialSecretRef: 'secret:google' },
       localUserId: 'local-device-user',
       signal,
+      ...(cancelFirst ? {} : { attemptId: 'restore-drive-attempt' }),
       dependencies,
     });
 
@@ -576,7 +640,7 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
       },
     ]);
     expect(result.connectedLocalSyncGenerationIds).toEqual(['local-generation']);
-    expect(authorityChangedEvents).toBe(1);
+    expect(authorityChangedEvents).toBe(2);
     expect(changedProjectIds).toEqual(['remote-project']);
     expect(
       (await target.select().from(ProjectTable)).sort((left, right) =>
@@ -626,8 +690,334 @@ describe('Google Drive trusted-cloud connect orchestration', () => {
         }),
       ]),
     );
-    expect(await target.select().from(SyncConnectAttemptTable)).toMatchObject([
-      { attemptId: 'restore-drive-attempt', kind: 'connect', state: 'completed' },
+    expect(await target.select().from(SyncConnectAttemptTable)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ attemptId: retryAttemptId, kind: 'connect', state: 'completed' }),
+      ]),
+    );
+    },
+  );
+
+  it.each([
+    { caseLabel: 'offline local edits', detachedPurge: false },
+    { caseLabel: 'an offline project purge', detachedPurge: true },
+  ])('rebinds an exact generation after disconnect with $caseLabel', async ({ detachedPurge }) => {
+    const source = await database(`reconnect-source-${detachedPurge ? 'purge' : 'edit'}`);
+    await source.insert(ProjectTable).values({
+      id: 'remote-project',
+      userId: 'source-user',
+      name: 'Remote before disconnect',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await source.insert(SyncGenerationTable).values({
+      syncGenerationId: 'remote-generation',
+      projectId: 'remote-project',
+      projectSyncId: 'remote-project-sync',
+      generationNumber: 1,
+      protocolVersion: 1,
+      domainSchemaVersion: 1,
+      status: 'active',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const objects = new MemoryProviderLocalObjectStore();
+    let nextRef = 1;
+    const codec = new PlaintextSyncEngineObjectCodec({
+      allocate() {
+        return objects.ref(`reconnect.${nextRef++}`);
+      },
+      read: (ref, signal) => objects.read(ref, signal),
+      write: (ref, bytes, signal) => objects.write(ref, bytes, signal),
+    });
+    const provider = new MemoryObjectLogProvider(objects, { pageSize: 1 });
+    const providerGeneration = await provider.openGeneration({
+      bindingId: 'reconnect-seed',
+      syncGenerationId: 'remote-generation',
+      accountRef: null,
+      secretRef: null,
+      authorityGeneration: 2,
+    });
+    const historicalProviderGeneration = await provider.openGeneration({
+      bindingId: 'historical-reconnect-seed',
+      syncGenerationId: 'historical-purged-generation',
+      accountRef: null,
+      secretRef: null,
+      authorityGeneration: 2,
+    });
+    const signal = new AbortController().signal;
+    await publishRemoteGenesis({ db: source, provider, codec, providerGeneration, signal });
+
+    // Build the historical generation in an isolated source database. Snapshot
+    // capture deliberately requires exactly one active generation per project
+    // authority, which also mirrors the separate project that originally
+    // published these immutable Drive objects.
+    const historicalSource = await database(
+      `reconnect-historical-source-${detachedPurge ? 'purge' : 'edit'}`,
+    );
+    await historicalSource.insert(ProjectTable).values({
+      id: 'historical-remote-project',
+      userId: 'source-user',
+      name: 'Historical project already purged locally',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await historicalSource.insert(SyncGenerationTable).values({
+      syncGenerationId: 'historical-purged-generation',
+      projectId: 'historical-remote-project',
+      projectSyncId: 'historical-project-sync',
+      generationNumber: 1,
+      protocolVersion: 1,
+      domainSchemaVersion: 1,
+      status: 'active',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await publishRemoteGenesis({
+      db: historicalSource,
+      provider,
+      codec,
+      providerGeneration: historicalProviderGeneration,
+      signal,
+      projectId: 'historical-remote-project',
+      syncGenerationId: 'historical-purged-generation',
+      snapshotId: 'genesis-historical-purged',
+    });
+    const previouslyPublishedInventory = await discoverCurrentSyncGenerationObjects({
+      provider,
+      generation: providerGeneration,
+      signal,
+    });
+    const previouslyPublishedMarker = previouslyPublishedInventory.objects.find(
+      (object) => object.objectKind === 'snapshot-commit',
+    );
+    if (!previouslyPublishedMarker) throw new Error('Reconnect fixture is missing its marker');
+
+    const target = await database(`reconnect-target-${detachedPurge ? 'purge' : 'edit'}`);
+    await target.insert(ProjectTable).values({
+      id: 'remote-project',
+      userId: 'local-device-user',
+      name: 'Edited while Drive was disconnected',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await target.insert(SyncGenerationTable).values({
+      syncGenerationId: 'remote-generation',
+      projectId: 'remote-project',
+      projectSyncId: 'remote-project-sync',
+      generationNumber: 1,
+      protocolVersion: 1,
+      domainSchemaVersion: 1,
+      status: 'active',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    // Immutable Drive inventory still discovers this old generation after
+    // local purge. Reconnect must treat its terminal local receipt as handled
+    // history and continue to the active generation below.
+    await target.insert(SyncGenerationTable).values({
+      syncGenerationId: 'historical-purged-generation',
+      projectId: null,
+      projectSyncId: 'historical-project-sync',
+      generationNumber: 1,
+      protocolVersion: 1,
+      domainSchemaVersion: 1,
+      status: 'purged',
+      createdAt: NOW,
+      updatedAt: NOW,
+      purgedAt: NOW,
+    });
+    // Existing connected databases used provider-object row IDs for genesis
+    // and marker inventory. Reconnect must reference the durable row that is
+    // already present instead of assuming the newer canonical remote row ID.
+    for (const object of previouslyPublishedInventory.objects) {
+      await target.insert(SyncRemoteObjectTable).values({
+        id: JSON.stringify(['provider-object', 'remote-generation', object.objectId]),
+        syncGenerationId: 'remote-generation',
+        providerObjectId: object.objectId,
+        logicalKeyId: object.logicalKeyId,
+        objectKind: object.objectKind,
+        storedSha256: object.storedSha256.slice('sha256:'.length),
+        sizeBytes: object.sizeBytes,
+        firstObservedAt: NOW,
+        lastObservedAt: NOW,
+      });
+    }
+    // A project originally restored on this device must be reconnectable too;
+    // historical restore receipts are not evidence of a duplicate authority.
+    await target.insert(SyncRestoreAttemptTable).values({
+      attemptId: 'historical-restore',
+      sourceSyncGenerationId: 'remote-generation',
+      sourceCheckpointId: null,
+      targetProjectId: 'remote-project',
+      stagingRef: 'opaque:historical-restore',
+      state: 'completed',
+      validationCode: 'valid',
+      activationReceipt: 'historical-activation',
+      errorCode: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+      completedAt: NOW,
+    });
+    const localChanges = new SyncChangeBuilder();
+    if (detachedPurge) {
+      localChanges.add({
+        action: 'sync-generation.purge',
+        target: {
+          family: 'sync-generation',
+          kind: 'sync-generation',
+          id: 'remote-generation',
+          incarnation: 1,
+        },
+        payload: {},
+      });
+    } else {
+      localChanges.add({
+        action: 'field.set',
+        target: { family: 'entity', kind: 'project', id: 'remote-project', incarnation: 0 },
+        payload: { field: 'name', value: 'Edited while Drive was disconnected' },
+      });
+    }
+    const reconnectWriter = restoredWriterIdentity('reconnect-target');
+    await target.transaction(async (tx) => {
+      if (detachedPurge) {
+        await tx.delete(ProjectTable).where(eq(ProjectTable.id, 'remote-project'));
+      }
+      await recordAuthoredChangeSetInTransaction(
+        tx,
+        {
+          projectId: 'remote-project',
+          projectSyncId: 'remote-project-sync',
+          syncGenerationId: 'remote-generation',
+          identity: reconnectWriter,
+          clock: { nowMs: 103, nowIso: NOW },
+          ...(detachedPurge ? { allowDetachedProject: true } : {}),
+        },
+        localChanges,
+      );
+    });
+
+    const dependencies: GoogleDriveRestoreDependencies = {
+      provider,
+      discovery: discoveryForMany(provider, [
+        historicalProviderGeneration,
+        providerGeneration,
+      ]),
+      claimAccount: claimSameAccount,
+      objectAccess: plaintextAccess(codec),
+      async loadWriterIdentity() {
+        throw new Error('exact-generation reconnect must not initialize restored project state');
+      },
+      assetRestorePort: {
+        async prepareVerifiedSource() {
+          throw new Error('exact-generation reconnect must not restore snapshot assets');
+        },
+        async activatePreparedSources() {
+          throw new Error('exact-generation reconnect must not activate restored assets');
+        },
+        async abandonAttempt() {},
+      },
+      async publishLocalSyncGeneration() {
+        throw new Error('exact-generation reconnect must not republish genesis');
+      },
+      nowIso: () => NOW,
+      createAttemptId: () => 'reconnect-drive-attempt',
+    };
+    const result = await restoreGoogleDriveSyncGenerations({
+      db: target,
+      account: { accountSubject: 'google-subject', credentialSecretRef: 'secret:google' },
+      localUserId: 'local-device-user',
+      signal,
+      dependencies,
+    });
+
+    expect(result.restored).toEqual([]);
+    expect(result.connectedLocalSyncGenerationIds).toEqual(['remote-generation']);
+    expect(
+      await target
+        .select()
+        .from(SyncGenerationTable)
+        .where(eq(SyncGenerationTable.syncGenerationId, 'historical-purged-generation')),
+    ).toMatchObject([
+      {
+        syncGenerationId: 'historical-purged-generation',
+        projectId: null,
+        status: 'purged',
+      },
     ]);
+    expect(await target.select().from(ProjectTable)).toMatchObject(
+      detachedPurge
+        ? []
+        : [{ id: 'remote-project', name: 'Edited while Drive was disconnected' }],
+    );
+    expect(await target.select().from(SyncRestoreAttemptTable)).toHaveLength(1);
+    expect(await target.select().from(SyncProviderBindingTable)).toMatchObject([
+      { syncGenerationId: 'remote-generation', state: 'ready' },
+    ]);
+    expect(await target.select().from(SyncConnectGenerationAttemptTable)).toMatchObject([
+      {
+        sourceSyncGenerationId: 'remote-generation',
+        commitMarkerObjectId: JSON.stringify([
+          'provider-object',
+          'remote-generation',
+          previouslyPublishedMarker.objectId,
+        ]),
+        state: 'activated',
+      },
+    ]);
+    expect(await target.select().from(SyncCursorTable)).toMatchObject([
+      { syncGenerationId: 'remote-generation', inventoryComplete: true },
+    ]);
+
+    const runtime = new SqliteSyncGenerationRuntime({
+      db: target,
+      syncGenerationId: 'remote-generation',
+      provider,
+      providerBinding: {
+        bindingId: 'binding:2:remote-generation',
+        syncGenerationId: 'remote-generation',
+        accountRef: 'google-subject',
+        secretRef: 'secret:google',
+        authorityGeneration: 2,
+      },
+      objectCodec: codec,
+      writerIdentity: reconnectWriter,
+      domainKernel: productionSyncDomainMaterializationKernel,
+      clock: {
+        nowMs: () => Date.parse(NOW),
+        nowIso: () => NOW,
+      },
+    });
+    await expect(runtime.runCycle(new Set(['manual']), signal)).resolves.toMatchObject(
+      detachedPurge ? { publishedSegments: 1 } : { converged: true },
+    );
+    const inventory = await discoverCurrentSyncGenerationObjects({
+      provider,
+      generation: providerGeneration,
+      signal,
+    });
+    expect(inventory.objects.some((object) => object.objectKind === 'segment')).toBe(true);
+    expect(await target.select().from(ProjectTable)).toMatchObject(
+      detachedPurge
+        ? []
+        : [{ id: 'remote-project', name: 'Edited while Drive was disconnected' }],
+    );
+    if (detachedPurge) {
+      expect(await target.select().from(SyncGenerationTable)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            syncGenerationId: 'remote-generation',
+            projectId: null,
+            status: 'purged',
+          }),
+          expect.objectContaining({
+            syncGenerationId: 'historical-purged-generation',
+            projectId: null,
+            status: 'purged',
+          }),
+        ]),
+      );
+    }
   });
 });

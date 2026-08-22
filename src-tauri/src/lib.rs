@@ -1,5 +1,7 @@
 #[cfg(target_os = "android")]
 mod android_image_codec;
+#[cfg(desktop)]
+mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
 mod commands;
@@ -119,6 +121,9 @@ pub fn run() {
         }
     }));
 
+    #[cfg(desktop)]
+    let builder = builder.manage(app_update::AppUpdateState::default());
+
     #[cfg(target_os = "android")]
     let builder = builder
         .plugin(tauri_plugin_drifting_secure_storage::init())
@@ -158,6 +163,7 @@ pub fn run() {
         .manage(mcp_stdio::McpStdioState::default())
         .manage(openai_responses::OpenAIResponsesState::default())
         .manage(google_drive_sync::GoogleDriveState::default())
+        .manage(native_capabilities::AssetImportSession::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_get_info,
             commands::app_get_path,
@@ -224,12 +230,20 @@ pub fn run() {
             native_capabilities::asset_store_get_path,
             native_capabilities::asset_store_write_bytes,
             native_capabilities::asset_store_copy_file,
+            native_capabilities::asset_store_begin_import,
+            native_capabilities::asset_store_commit_import,
+            native_capabilities::asset_store_gc_orphan_imports,
             native_capabilities::asset_store_delete_asset,
             native_capabilities::archive_save,
             native_capabilities::ai_log_write,
             native_capabilities::ai_log_open_dir,
             native_capabilities::ai_log_get_dir,
             database::database_open,
+            database::database_recovery_status,
+            database::database_recovery_retry,
+            database::database_recovery_restore_safety_backup,
+            database::database_recovery_export_safety_backup,
+            database::database_recovery_open_backup_directory,
             database::database_execute,
             database::database_query,
             database::database_begin,
@@ -237,8 +251,20 @@ pub fn run() {
             database::database_rollback,
             database::database_checkpoint,
             database::database_close,
+            #[cfg(desktop)]
+            app_update::update_check,
+            #[cfg(desktop)]
+            app_update::update_download,
+            #[cfg(desktop)]
+            app_update::update_install,
+            #[cfg(desktop)]
+            app_update::update_dismiss,
         ])
         .setup(|app| {
+            #[cfg(desktop)]
+            app_update::install_plugin_if_configured(app.handle())
+                .map_err(std::io::Error::other)?;
+
             let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;
             let database_directory = data_directories.database_directory;

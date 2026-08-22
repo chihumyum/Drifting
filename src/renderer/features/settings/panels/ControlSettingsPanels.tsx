@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Loader2 } from 'lucide-react';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
+import { UpdateService } from '../../../services/update/update-service';
+import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
 import {
   SHORTCUT_ACTIONS,
   useShortcutsStore,
@@ -146,7 +149,14 @@ export function SyncPanel({
   const { t } = useTranslation();
   const [exportBusy, setExportBusy] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const [cloudBusy, setCloudBusy] = useState<string | null>(null);
+  const [cloudBusy, setCloudBusy] = useState<
+    | 'connect'
+    | 'cancel-transition'
+    | 'reauthorize'
+    | 'pause'
+    | 'disconnect'
+    | null
+  >(null);
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
   const [disconnectArmed, setDisconnectArmed] = useState(false);
   const [transitionCancelArmed, setTransitionCancelArmed] = useState(false);
@@ -175,6 +185,25 @@ export function SyncPanel({
     runtimeFailure?.lastErrorCode === 'invalid-request' &&
     (runtimeFailure.lastFailedPhase === 'publishing-blobs' ||
       runtimeFailure.lastFailedPhase === 'publishing-segments');
+  const durableCloudOperation =
+    authority.status === 'transitioning' ? authority.transitionKind : null;
+  const visibleCloudOperation = cloudBusy ?? durableCloudOperation;
+  const cloudProgressKind =
+    visibleCloudOperation === 'disconnect'
+      ? 'disconnect'
+      : visibleCloudOperation === 'reauthorize'
+        ? 'reauthorize'
+        : visibleCloudOperation === 'cancel-transition'
+          ? 'cancel'
+          : visibleCloudOperation === 'pause'
+            ? 'settings'
+            : visibleCloudOperation
+              ? 'connect'
+              : null;
+  const authorityStatusKey =
+    authority.status === 'transitioning' && authority.transitionKind
+      ? `settings.sync.transition_states.${authority.transitionKind}`
+      : `settings.sync.cloud_states.${authority.status}`;
   useEffect(
     () => () => {
       operationRef.current?.abort(new DOMException('Sync Settings closed', 'AbortError'));
@@ -183,7 +212,7 @@ export function SyncPanel({
   );
 
   const runCloudAction = async (
-    action: string,
+    action: NonNullable<typeof cloudBusy>,
     work: (signal: AbortSignal) => Promise<void>,
     successKey: string | null,
   ) => {
@@ -246,10 +275,29 @@ export function SyncPanel({
           })}
           control={
             <span className="set-mono" style={{ color: 'hsl(var(--ink-3))' }}>
-              {t(`settings.sync.cloud_states.${authority.status}`)}
+              {t(authorityStatusKey)}
             </span>
           }
         />
+
+        {cloudProgressKind && (
+          <div
+            className="set-operation-feedback"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <Loader2 className="control-spinner" aria-hidden />
+            <div>
+              <div className="set-operation-feedback__title">
+                {t(`settings.sync.operation_progress.${cloudProgressKind}.title`)}
+              </div>
+              <div className="set-operation-feedback__desc">
+                {t(`settings.sync.operation_progress.${cloudProgressKind}.desc`)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {authority.mode === 'local' &&
           (authority.status === 'local' ||
@@ -279,6 +327,9 @@ export function SyncPanel({
                       )
                     }
                   >
+                    {cloudBusy === 'connect' && (
+                      <Loader2 className="control-spinner" aria-hidden />
+                    )}
                     {cloudBusy === 'connect'
                       ? t('settings.sync.connecting')
                       : authority.transitionKind === 'connect'
@@ -310,6 +361,9 @@ export function SyncPanel({
                           )
                         }
                       >
+                        {cloudBusy === 'cancel-transition' && (
+                          <Loader2 className="control-spinner" aria-hidden />
+                        )}
                         {cloudBusy === 'cancel-transition'
                           ? t('settings.sync.cancelling')
                           : t('settings.sync.confirm_cancel_pending_cloud')}
@@ -388,6 +442,9 @@ export function SyncPanel({
                         )
                       }
                     >
+                      {cloudBusy === 'reauthorize' && (
+                        <Loader2 className="control-spinner" aria-hidden />
+                      )}
                       {cloudBusy === 'reauthorize'
                         ? t('settings.sync.reauthorizing')
                         : t('settings.sync.reauthorize')}
@@ -449,6 +506,9 @@ export function SyncPanel({
                       )
                     }
                   >
+                    {cloudBusy === 'pause' && (
+                      <Loader2 className="control-spinner" aria-hidden />
+                    )}
                     {authority.status === 'cloud-paused'
                       ? t('settings.sync.resume')
                       : t('settings.sync.pause')}
@@ -458,7 +518,11 @@ export function SyncPanel({
             )}
             <SettingsRow
               label={t('settings.sync.disconnect_google_drive')}
-              desc={t('settings.sync.disconnect_google_drive_desc')}
+              desc={t(
+                disconnectArmed
+                  ? 'settings.sync.disconnect_confirm_desc'
+                  : 'settings.sync.disconnect_google_drive_desc',
+              )}
               control={
                 disconnectArmed ? (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -477,6 +541,9 @@ export function SyncPanel({
                         )
                       }
                     >
+                      {cloudBusy === 'disconnect' && (
+                        <Loader2 className="control-spinner" aria-hidden />
+                      )}
                       {cloudBusy === 'disconnect'
                         ? t('settings.sync.disconnecting')
                         : t('settings.sync.confirm_disconnect')}
@@ -597,9 +664,164 @@ export function SyncPanel({
   );
 }
 
+export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
+  const { t } = useTranslation();
+  const update = useSyncExternalStore(
+    UpdateService.subscribe,
+    UpdateService.getState,
+    UpdateService.getState,
+  );
+  const [installArmed, setInstallArmed] = useState(false);
+  const updaterAvailable =
+    getPlatformRuntime().capabilities?.featureStatus.appUpdater === 'available';
+  const busy = update.phase === 'checking' || update.phase === 'downloading';
+  const progress =
+    update.totalBytes && update.totalBytes > 0
+      ? Math.min(100, Math.round((update.downloadedBytes / update.totalBytes) * 100))
+      : null;
+
+  return (
+    <section className="set-panel" ref={registerRef} id="updates">
+      <SettingsPanelHeader
+        kicker={t('settings.update.kicker')}
+        title={t('settings.update.title')}
+        sub={t('settings.update.sub')}
+      />
+
+      <SettingsRow
+        label={t('settings.update.current_version')}
+        desc={t('settings.update.channel_desc')}
+        control={
+          <span className="set-mono">
+            {getPlatformRuntime().appInfo?.version ?? '0.1.0-alpha.1'} · Alpha
+          </span>
+        }
+      />
+
+      {!updaterAvailable ? (
+        <div className="set-note">{t('settings.update.unavailable')}</div>
+      ) : (
+        <>
+          <SettingsRow
+            label={
+              update.update
+                ? t('settings.update.available_version', { version: update.update.version })
+                : t('settings.update.check')
+            }
+            desc={
+              update.update?.notes ||
+              (update.phase === 'idle'
+                ? t('settings.update.no_update')
+                : t(`settings.update.states.${update.phase}`))
+            }
+            control={
+              update.phase === 'available' ? (
+                <button
+                  type="button"
+                  className="set-btn set-btn--primary"
+                  onClick={() => void UpdateService.download()}
+                >
+                  {t('settings.update.download')}
+                </button>
+              ) : update.phase === 'ready' ? (
+                installArmed ? (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="set-btn set-btn--primary"
+                      onClick={() => void UpdateService.install()}
+                    >
+                      {t('settings.update.confirm_install')}
+                    </button>
+                    <button
+                      type="button"
+                      className="set-btn"
+                      onClick={() => setInstallArmed(false)}
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="set-btn set-btn--primary"
+                    onClick={() => setInstallArmed(true)}
+                  >
+                    {t('settings.update.install')}
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  className="set-btn"
+                  disabled={busy}
+                  onClick={() => void UpdateService.check({ manual: true })}
+                >
+                  {update.phase === 'checking'
+                    ? t('settings.update.checking')
+                    : t('settings.update.check_action')}
+                </button>
+              )
+            }
+          />
+          {update.phase === 'downloading' && (
+            <div className="set-row__desc">
+              {progress === null
+                ? t('settings.update.downloading')
+                : t('settings.update.downloading_progress', { progress })}
+            </div>
+          )}
+          {update.phase === 'ready' && (
+            <div className="set-note">{t('settings.update.install_migration_safety')}</div>
+          )}
+          {update.error && (
+            <div className="set-note" style={{ color: 'hsl(var(--accent))' }}>
+              {t('settings.update.error', { error: update.error })}
+            </div>
+          )}
+          {update.update && update.phase !== 'downloading' && (
+            <button
+              type="button"
+              className="set-btn"
+              disabled={busy}
+              style={{ marginTop: 12 }}
+              onClick={() => {
+                setInstallArmed(false);
+                void UpdateService.dismiss();
+              }}
+            >
+              {t('settings.update.dismiss')}
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
   const hostedSettings = hostedAccountSettingsEnabled();
+  const authority = useProductSyncAuthority();
+  const runtime = useProductSyncRuntime();
+  const update = useSyncExternalStore(UpdateService.subscribe, UpdateService.getState);
+  const [diagnosticMessage, setDiagnosticMessage] = useState<string | null>(null);
+
+  const copyDiagnostics = async () => {
+    setDiagnosticMessage(null);
+    try {
+      const summary = createSanitizedDiagnosticSummary({
+        runtime: getPlatformRuntime(),
+        authority,
+        sync: runtime,
+        update,
+      });
+      await navigator.clipboard.writeText(summary);
+      setDiagnosticMessage(t('settings.privacy.diagnosticsCopied'));
+    } catch {
+      setDiagnosticMessage(t('settings.privacy.diagnosticsCopyFailed'));
+    }
+  };
 
   return (
     <section className="set-panel" ref={registerRef} id="privacy">
@@ -659,7 +881,7 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
             className="set-btn"
             onClick={() =>
               void platform.material.openExternal(
-                'https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md',
+                'https://drifting.app/privacy',
               )
             }
           >
@@ -667,6 +889,16 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
           </button>
         }
       />
+      <SettingsRow
+        label={t('settings.privacy.diagnostics')}
+        desc={t('settings.privacy.diagnosticsDesc')}
+        control={
+          <button className="set-btn" onClick={() => void copyDiagnostics()}>
+            {t('settings.privacy.copyDiagnostics')}
+          </button>
+        }
+      />
+      {diagnosticMessage && <div className="set-note">{diagnosticMessage}</div>}
     </section>
   );
 }
@@ -754,10 +986,52 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
             </button>
           }
         />
+        <SettingsRow
+          label={<span className="set-italic">{t('settings.about.driveDataUse')}</span>}
+          desc={t('settings.about.driveDataUseDesc')}
+          control={
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal(
+                  'https://drifting.app/google-drive-data-use',
+                )
+              }
+            >
+              {t('settings.common.open_in_browser')}
+            </button>
+          }
+        />
+        <SettingsRow
+          label={<span className="set-italic">{t('settings.about.knownIssues')}</span>}
+          desc={t('settings.about.knownIssuesDesc')}
+          control={
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal('https://drifting.app/known-issues')
+              }
+            >
+              {t('settings.common.open_in_browser')}
+            </button>
+          }
+        />
       </div>
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.about.contact')} hint="HELLO" />
+        <SettingsRow
+          label={t('settings.about.support')}
+          desc={t('settings.about.supportDesc')}
+          control={
+            <button
+              className="set-btn"
+              onClick={() => void platform.material.openExternal('https://drifting.app/support')}
+            >
+              {t('settings.common.open_in_browser')}
+            </button>
+          }
+        />
         <SettingsRow
           label={t('settings.about.emailTeam')}
           desc={<span className="set-mono">hi@drifting.app</span>}
@@ -778,7 +1052,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
               className="set-btn"
               onClick={() =>
                 void platform.material.openExternal(
-                  'mailto:hi@drifting.app?subject=Drifting%20Pre-Alpha%20Feedback',
+                  'mailto:hi@drifting.app?subject=Drifting%20Alpha%20Feedback',
                 )
               }
             >

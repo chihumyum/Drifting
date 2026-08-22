@@ -7,14 +7,15 @@ This repository contains the Drifting client. The official hosted service and it
 implementation are not included. A normal source build starts in local-only mode: no account or
 server is required, no cloud provider is connected, and BYOK AI requests use direct provider
 transport. Account, billing, and proxy-backed AI require a separately operated compatible service.
-Provider-independent SyncEngine work now includes native Google Drive transport, App-wide provider
+Provider-independent SyncEngine work includes native Google Drive transport, App-wide provider
 activation and a Settings control plane. Google OAuth and Drive are inside the optional cloud trust
 boundary: Drifting does not end-to-end encrypt synced projects against Google. Google sign-in is
 the cross-device access authority; connecting and restoring both use it plus automatic
 account-scoped project discovery. There is no
 Drifting account, recovery code, recovery QR, or application-managed Project content key. Native desktop/iOS/Android implementations do not replace
-real-account, cross-device or physical-device acceptance, so this is not yet a shipped cloud-sync
-claim.
+real-account or cross-device acceptance. A tagged Alpha is not releasable until the exact signed
+artifact has passed the two-Mac checklist in
+[`docs/qa/google-drive-desktop-alpha-acceptance.md`](docs/qa/google-drive-desktop-alpha-acceptance.md).
 
 This history was extracted and rewritten from the original private monorepo. Server-only changes,
 credentials, private literary material, generated artifacts, and layout transitions were removed.
@@ -128,12 +129,12 @@ mobile starting point and its explicit product gaps are tracked in
 
 ## Local data format
 
-Drifting has not shipped a public data-compatibility contract. The single checked-in
-`drizzle/0000_local_first_baseline.sql` describes the current pre-release schema, and development
-databases created by an older build must be reset. The runner verifies the complete recorded
-`(timestamp, hash)` prefix and fails closed on a missing, rewritten, or future journal; it does not
-scan, copy, or reinterpret data from retired clients or storage formats. The clean-over-compatibility
-rule and the bar for changing it are recorded in [`AGENTS.md`](AGENTS.md).
+`0.1.0-alpha.1` freezes the first public SQLite/domain/checkpoint compatibility baseline.
+Pre-Alpha development databases are not a supported migration population. Starting with this
+version, every public `0.1.x` release must upgrade earlier public `0.1.x` data in order; published
+migrations are immutable. The runner verifies the complete recorded
+`(timestamp, hash)` prefix and fails closed on a missing, rewritten, or future journal. The exact
+contract is in [`docs/alpha-release-contract.md`](docs/alpha-release-contract.md).
 
 The production database directories are normally:
 
@@ -142,7 +143,7 @@ The production database directories are normally:
 - Linux: `${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`
 - iOS/Android: the application container
 
-## Local data export
+## Readable export
 
 The always-available Local data settings panel exports every project as a relational Markdown ZIP
 without a Drifting account or hosted API. Open Yjs documents are flushed locally first; closed and
@@ -231,6 +232,11 @@ acceptance.
 Documentation entry points:
 
 - [documentation index](docs/README.md)
+- [desktop Alpha release contract](docs/alpha-release-contract.md)
+- [desktop Alpha release runbook](docs/desktop-alpha-release-runbook.md)
+- [Google Drive data-use disclosure](docs/google-drive-data-use.md)
+- [support](SUPPORT.md)
+- [known issues](KNOWN_ISSUES.md)
 - [local asset boundary](docs/local-assets.md)
 - [local relational Markdown export](docs/local-data-export.md)
 - [current trusted-cloud Google Drive contract](docs/sync-engine/trusted-cloud-google-drive.md)

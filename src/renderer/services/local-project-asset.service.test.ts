@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
   deleteImport: vi.fn(),
   copyFile: vi.fn(),
   writeBytes: vi.fn(),
+  beginImport: vi.fn(),
   deleteAsset: vi.fn(),
+  ensureBlobVerified: vi.fn(),
 }));
 
 vi.mock('../platform', () => ({
@@ -26,12 +28,17 @@ vi.mock('./asset-store.service', async (importOriginal) => {
   return {
     extForMime: actual.extForMime,
     assetStoreService: {
+      beginImport: mocks.beginImport,
       copyFile: mocks.copyFile,
       writeBytes: mocks.writeBytes,
       deleteAsset: mocks.deleteAsset,
     },
   };
 });
+
+vi.mock('../sync/assets/local-authored-blob', () => ({
+  ensureLocalAuthoredAssetBlobVerified: mocks.ensureBlobVerified,
+}));
 
 import {
   prepareLocalProjectAsset,
@@ -41,7 +48,9 @@ import {
 describe('local project asset preparation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.beginImport.mockResolvedValue(undefined);
     mocks.deleteAsset.mockResolvedValue(undefined);
+    mocks.ensureBlobVerified.mockResolvedValue(undefined);
     mocks.readBytes.mockResolvedValue({
       ok: true,
       bytes: new TextEncoder().encode('abc').buffer,
@@ -105,6 +114,8 @@ describe('local project asset preparation', () => {
       'png',
       '/app/imports/reference.png',
     );
+    expect(mocks.beginImport).toHaveBeenCalledWith('project-1', 'asset-1');
+    expect(mocks.ensureBlobVerified).toHaveBeenCalledWith(asset);
     expect(mocks.deleteAsset).not.toHaveBeenCalled();
   });
 
@@ -166,6 +177,20 @@ describe('local project asset preparation', () => {
       }),
     ).rejects.toThrow('invalid image');
     expect(mocks.deleteAsset).toHaveBeenCalledWith('project-1', 'asset-broken');
+  });
+
+  it('removes app-owned variants when native blob verification fails', async () => {
+    mocks.ensureBlobVerified.mockRejectedValueOnce(new Error('blob verification failed'));
+
+    await expect(
+      prepareLocalProjectAsset({
+        projectId: 'project-1',
+        kind: 'image',
+        sourcePath: '/app/imports/reference.png',
+        assetId: 'asset-unverified',
+      }),
+    ).rejects.toThrow('blob verification failed');
+    expect(mocks.deleteAsset).toHaveBeenCalledWith('project-1', 'asset-unverified');
   });
 
   it('waits for every sibling variant write before cleaning a failed import', async () => {

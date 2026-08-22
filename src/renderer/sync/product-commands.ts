@@ -54,8 +54,11 @@ const defaultDependencies: ProductSyncCommandDependencies = {
 export class ProductSyncCommandService {
   constructor(private readonly dependencies: ProductSyncCommandDependencies = defaultDependencies) {}
 
-  connectGoogleDrive(signal: AbortSignal): Promise<ProductGoogleDriveConnectionResult> {
-    return this.dependencies.connectGoogleDrive(this.dependencies.database(), signal);
+  async connectGoogleDrive(signal: AbortSignal): Promise<ProductGoogleDriveConnectionResult> {
+    const result = await this.dependencies.connectGoogleDrive(this.dependencies.database(), signal);
+    const projectIds = [...new Set(result.restored.map((item) => item.projectId))];
+    if (projectIds.length > 0) events.emit('sync:projects-restored', { projectIds });
+    return result;
   }
 
   triggerManualSync(): void {

@@ -82,6 +82,20 @@ export async function flushPendingAssetPersistence(): Promise<void> {
 
 /** Durable, local-only storage for canonical source bytes and their derivatives. */
 export const assetStoreService = {
+  beginImport(projectId: string, assetId: string): Promise<void> {
+    return trackAssetPersistence(platform.assetStore.beginImport(projectId, assetId));
+  },
+
+  commitImport(projectId: string, assetId: string): Promise<void> {
+    return trackAssetPersistence(platform.assetStore.commitImport(projectId, assetId));
+  },
+
+  gcOrphanImports(
+    retainedAssets: Array<{ projectId: string; assetId: string }>,
+  ): Promise<{ removedOrphans: number; clearedCommittedMarkers: number }> {
+    return trackAssetPersistence(platform.assetStore.gcOrphanImports(retainedAssets));
+  },
+
   async getPath(
     projectId: string,
     assetId: string,

@@ -41,6 +41,7 @@ export interface NativeSyncAssetStorePort {
     expectedSourceSha256: Sha256;
     expectedSizeBytes: number;
     expectedMimeType: string;
+    preserveExistingDestination?: boolean;
   }): Promise<NativeVerifiedAssetSourceResult>;
   prepareRestoreSource(input: {
     attemptId: string;
@@ -135,6 +136,7 @@ function restoreInput(
   targetProjectId: string,
   asset: SnapshotAssetV1,
   sourceRef: LocalObjectRef,
+  preserveExistingDestination: boolean,
 ) {
   return {
     attemptId,
@@ -145,16 +147,24 @@ function restoreInput(
     expectedSourceSha256: asset.sourceSha256,
     expectedSizeBytes: asset.sizeBytes,
     expectedMimeType: asset.mimeType,
+    ...(preserveExistingDestination ? { preserveExistingDestination: true } : {}),
   };
 }
 
 export function createNativeSnapshotAssetRestorePort(
   native: NativeSyncAssetStorePort,
+  options: { readonly preserveExistingDestination?: boolean } = {},
 ): SnapshotAssetRestorePort {
   return {
     async prepareVerifiedSource({ attemptId, targetProjectId, asset, sourceRef }) {
       const result = await native.prepareRestoreSource(
-        restoreInput(attemptId, targetProjectId, asset, sourceRef),
+        restoreInput(
+          attemptId,
+          targetProjectId,
+          asset,
+          sourceRef,
+          options.preserveExistingDestination ?? false,
+        ),
       );
       requireSafeSize(result.sizeBytes, 'native prepared asset size');
       const sourceSha256 = sha256(result.sourceSha256, 'native prepared asset hash');

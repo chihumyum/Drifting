@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createDatabasePlatform,
+  DatabaseOpenFailure,
   decodeDatabaseValue,
   encodeDatabaseParameters,
   encodeDatabaseValue,
@@ -118,5 +119,39 @@ describe('Tauri database command adapter', () => {
       clientSessionId: 'fresh-renderer-session',
       recoverStaleTransaction: false,
     });
+  });
+
+  it('projects structured migration failures and keeps recovery commands session-bound', async () => {
+    const failure = {
+      code: 'integrity-check-failed',
+      message: 'candidate was not activated',
+      recoverySessionId: '0123456789abcdef',
+      sourceVersion: '0.1.0-alpha.1',
+      targetVersion: '0.1.0-alpha.2',
+      safetyBackup: {
+        backupId: 'backup-safe',
+        sha256: 'a'.repeat(64),
+        sizeBytes: 42,
+        createdAtMs: 123,
+      },
+    };
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'database_open') throw failure;
+      return { path: '/managed/drifting.db', journalMode: 'wal', migrationsApplied: 1 };
+    });
+    const database = createDatabasePlatform(invoke, 'recovery-renderer');
+
+    await expect(database.open('drifting.db')).rejects.toMatchObject({
+      name: 'DatabaseOpenFailure',
+      code: 'integrity-check-failed',
+      recoverySessionId: '0123456789abcdef',
+      safetyBackup: { backupId: 'backup-safe', sizeBytes: 42 },
+    });
+    await database.retryMigration('0123456789abcdef');
+    expect(invoke).toHaveBeenLastCalledWith('database_recovery_retry', {
+      recoverySessionId: '0123456789abcdef',
+      clientSessionId: 'recovery-renderer',
+    });
+    expect(new DatabaseOpenFailure(failure)).toBeInstanceOf(Error);
   });
 });

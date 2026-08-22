@@ -8,6 +8,8 @@ import { FullScreenStatus } from './app/components/FullScreenStatus';
 import { AppRoutes } from './app/AppRoutes';
 import { getPlatformRuntime } from './platform/runtime';
 import { disableMobileWebViewZoom } from './shells/mobile/mobile-webview-zoom';
+import { DatabaseRecoveryBoundary } from './app/components/DatabaseRecoveryBoundary';
+import { useDatabaseOpenFailure } from './platform/database-recovery-store';
 
 const log = loglevel.getLogger('App');
 
@@ -50,10 +52,15 @@ function RootErrorFallback({ error, onRetry }: { error: Error; onRetry: () => vo
 }
 
 function AppContents() {
+  const databaseFailure = useDatabaseOpenFailure();
   useEffect(() => {
     if (!getPlatformRuntime().isMobile) return;
     return disableMobileWebViewZoom();
   }, []);
+
+  if (databaseFailure?.recoverySessionId) {
+    return <DatabaseRecoveryBoundary failure={databaseFailure} />;
+  }
 
   return (
     <>

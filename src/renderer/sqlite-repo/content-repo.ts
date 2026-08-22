@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
-import { NodeContentTable } from '../schema/drizzle';
-import { eq } from 'drizzle-orm';
+import { BookNodeTable, NodeContentTable } from '../schema/drizzle';
+import { and, eq } from 'drizzle-orm';
 import type { NodeContent } from '../domain/node-content';
 
 export type CreateBookContentInput = {
@@ -36,13 +36,26 @@ function toNodeContent(record: typeof NodeContentTable.$inferSelect): NodeConten
   };
 }
 
-export function createBookContentRepository(dbOverride?: DbExecutor): BookContentRepository {
+export function createBookContentRepository(
+  dbOverride?: DbExecutor,
+  projectId?: string,
+): BookContentRepository {
   const dbProvider = () => dbOverride ?? getDb();
+  const nodeBelongsToProject = async (nodeId: string): Promise<boolean> => {
+    if (!projectId) return true;
+    const rows = await dbProvider()
+      .select({ id: BookNodeTable.id })
+      .from(BookNodeTable)
+      .where(and(eq(BookNodeTable.id, nodeId), eq(BookNodeTable.projectId, projectId)))
+      .limit(1);
+    return Boolean(rows[0]);
+  };
   const findById = async (id: string): Promise<NodeContent | null> => {
     return findByNodeId(id);
   };
 
   const findByNodeId = async (nodeId: string): Promise<NodeContent | null> => {
+    if (!(await nodeBelongsToProject(nodeId))) return null;
     const rows = await dbProvider()
       .select()
       .from(NodeContentTable)
@@ -52,6 +65,9 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
   };
 
   const create = async (input: CreateBookContentInput): Promise<NodeContent> => {
+    if (!(await nodeBelongsToProject(input.nodeId))) {
+      throw new Error(`Cannot create node content outside project ${projectId}`);
+    }
     const now = new Date().toISOString();
 
     const newContent: typeof NodeContentTable.$inferInsert = {
@@ -68,6 +84,10 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
   };
 
   const update = async (id: string, data: BookContentUpdateData): Promise<NodeContent | null> => {
+    if (!(await nodeBelongsToProject(id))) return null;
+    if (data.nodeId && !(await nodeBelongsToProject(data.nodeId))) {
+      throw new Error(`Cannot move node content outside project ${projectId}`);
+    }
     const now = new Date().toISOString();
     const updateValues: Partial<typeof NodeContentTable.$inferInsert> = {
       updatedAt: now,
@@ -98,6 +118,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     nodeId: string,
     plotGridJson: string,
   ): Promise<NodeContent | null> => {
+    if (!(await nodeBelongsToProject(nodeId))) return null;
     await dbProvider()
       .update(NodeContentTable)
       .set({ plotGridJson, updatedAt: new Date().toISOString() })
@@ -106,6 +127,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
   };
 
   const deleteById = async (id: string): Promise<boolean> => {
+    if (!(await nodeBelongsToProject(id))) return false;
     const result = await dbProvider()
       .delete(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, id));
@@ -113,6 +135,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
   };
 
   const deleteByNodeId = async (nodeId: string): Promise<boolean> => {
+    if (!(await nodeBelongsToProject(nodeId))) return false;
     const result = await dbProvider()
       .delete(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, nodeId));

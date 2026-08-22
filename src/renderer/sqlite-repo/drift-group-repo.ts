@@ -3,7 +3,7 @@
  * nodes. Thin CRUD; nesting / cycle-guard / reparent-on-delete derivation
  * lives in domain/drift-group.ts and orchestration in usecase/useDriftGroup.ts.
  */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import { DriftGroupTable } from '../schema/drizzle';
 import type { DriftGroup } from '../domain/drift-group';
@@ -46,7 +46,7 @@ export function createDriftGroupRepository(
     const rows = await dbProvider()
       .select()
       .from(DriftGroupTable)
-      .where(eq(DriftGroupTable.id, id))
+      .where(and(eq(DriftGroupTable.id, id), eq(DriftGroupTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
@@ -64,6 +64,7 @@ export function createDriftGroupRepository(
     },
 
     create: async (input) => {
+      if (input.projectId !== projectId) throw new Error('Drift group projectId mismatch');
       await dbProvider().insert(DriftGroupTable).values({
         id: input.id,
         projectId: input.projectId,
@@ -85,12 +86,17 @@ export function createDriftGroupRepository(
       if (data.parentGroupId !== undefined) values.parentGroupId = data.parentGroupId;
       if (data.color !== undefined) values.color = data.color;
       if (data.sortOrder !== undefined) values.sortOrder = data.sortOrder;
-      await dbProvider().update(DriftGroupTable).set(values).where(eq(DriftGroupTable.id, id));
+      await dbProvider()
+        .update(DriftGroupTable)
+        .set(values)
+        .where(and(eq(DriftGroupTable.id, id), eq(DriftGroupTable.projectId, projectId)));
       return findById(id);
     },
 
     delete: async (id) => {
-      await dbProvider().delete(DriftGroupTable).where(eq(DriftGroupTable.id, id));
+      await dbProvider()
+        .delete(DriftGroupTable)
+        .where(and(eq(DriftGroupTable.id, id), eq(DriftGroupTable.projectId, projectId)));
       return true;
     },
   };

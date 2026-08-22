@@ -22,6 +22,60 @@ export interface DatabaseOpenResult {
   migrationsApplied: number;
 }
 
+export interface DatabaseSafetyBackupSummary {
+  backupId: string;
+  sha256: string;
+  sizeBytes: number;
+  createdAtMs: number;
+}
+
+export interface DatabaseOpenFailureData {
+  code: string;
+  message: string;
+  recoverySessionId: string | null;
+  sourceVersion: string | null;
+  targetVersion: string;
+  safetyBackup: DatabaseSafetyBackupSummary | null;
+}
+
+export class DatabaseOpenFailure extends Error implements DatabaseOpenFailureData {
+  readonly code: string;
+  readonly recoverySessionId: string | null;
+  readonly sourceVersion: string | null;
+  readonly targetVersion: string;
+  readonly safetyBackup: DatabaseSafetyBackupSummary | null;
+
+  constructor(data: DatabaseOpenFailureData) {
+    super(data.message);
+    this.name = 'DatabaseOpenFailure';
+    this.code = data.code;
+    this.recoverySessionId = data.recoverySessionId;
+    this.sourceVersion = data.sourceVersion;
+    this.targetVersion = data.targetVersion;
+    this.safetyBackup = data.safetyBackup;
+  }
+}
+
+export interface DatabaseRecoveryExportResult {
+  ok: boolean;
+  canceled: boolean;
+  fileName: string | null;
+}
+
+export interface DatabaseRecoveryApi {
+  status(recoverySessionId: string): Promise<DatabaseOpenFailureData>;
+  retryMigration(recoverySessionId: string): Promise<DatabaseOpenResult>;
+  restoreSafetyBackup(
+    recoverySessionId: string,
+    backupId: string,
+  ): Promise<DatabaseOpenResult>;
+  exportSafetyBackup(
+    recoverySessionId: string,
+    backupId: string,
+  ): Promise<DatabaseRecoveryExportResult>;
+  openBackupDirectory(recoverySessionId: string): Promise<void>;
+}
+
 export interface DatabaseExecuteResult {
   changes: number;
   lastInsertRowid: number | bigint;
@@ -141,6 +195,46 @@ function safeCount(value: unknown, label: string): number {
   return value;
 }
 
+function nullableString(value: unknown, label: string): string | null {
+  if (value === null || value === undefined) return null;
+  return stringField(value, label);
+}
+
+function parseSafetyBackup(value: unknown): DatabaseSafetyBackupSummary | null {
+  if (value === null || value === undefined) return null;
+  const backup = record(value, 'database safety backup');
+  return {
+    backupId: stringField(backup.backupId, 'database safety backup ID'),
+    sha256: stringField(backup.sha256, 'database safety backup hash'),
+    sizeBytes: safeCount(backup.sizeBytes, 'database safety backup size'),
+    createdAtMs: safeCount(backup.createdAtMs, 'database safety backup creation time'),
+  };
+}
+
+export function parseDatabaseOpenFailure(value: unknown): DatabaseOpenFailure {
+  const failure = record(value, 'database open failure');
+  return new DatabaseOpenFailure({
+    code: stringField(failure.code, 'database open failure code'),
+    message: stringField(failure.message, 'database open failure message'),
+    recoverySessionId: nullableString(
+      failure.recoverySessionId,
+      'database recovery session ID',
+    ),
+    sourceVersion: nullableString(failure.sourceVersion, 'database source version'),
+    targetVersion: stringField(failure.targetVersion, 'database target version'),
+    safetyBackup: parseSafetyBackup(failure.safetyBackup),
+  });
+}
+
+function parseDatabaseOpenResult(value: unknown): DatabaseOpenResult {
+  const raw = record(value, 'database open result');
+  return {
+    path: stringField(raw.path, 'database path'),
+    journalMode: stringField(raw.journalMode, 'database journal mode'),
+    migrationsApplied: safeCount(raw.migrationsApplied, 'database migration count'),
+  };
+}
+
 function byteArray(value: unknown, label: string): Uint8Array {
   if (!Array.isArray(value)) throw new TypeError(`${label} must be a byte array`);
   const bytes = value.map((byte, index) => {
@@ -244,26 +338,82 @@ function decodeQueryResult(value: unknown): DatabaseQueryResult {
 export function createDatabasePlatform(
   invokeCommand: DatabaseCommandInvoker,
   clientSessionId = createClientSessionId(),
-): DatabasePlatformApi {
+): DatabasePlatformApi & DatabaseRecoveryApi {
   const sessionId = parseClientSessionId(clientSessionId);
 
   return {
     async open(databaseName, options) {
+      try {
+        return parseDatabaseOpenResult(
+          await invokeCommand('database_open', {
+            databaseName,
+            clientSessionId: sessionId,
+            recoverStaleTransaction: options?.recoverStaleTransaction ?? false,
+          }),
+        );
+      } catch (error) {
+        try {
+          throw parseDatabaseOpenFailure(error);
+        } catch (parseError) {
+          if (parseError instanceof DatabaseOpenFailure) throw parseError;
+          throw error;
+        }
+      }
+    },
+
+    async status(recoverySessionId) {
+      return parseDatabaseOpenFailure(
+        await invokeCommand('database_recovery_status', { recoverySessionId }),
+      );
+    },
+
+    async retryMigration(recoverySessionId) {
+      try {
+        return parseDatabaseOpenResult(
+          await invokeCommand('database_recovery_retry', {
+            recoverySessionId,
+            clientSessionId: sessionId,
+          }),
+        );
+      } catch (error) {
+        throw parseDatabaseOpenFailure(error);
+      }
+    },
+
+    async restoreSafetyBackup(recoverySessionId, backupId) {
+      try {
+        return parseDatabaseOpenResult(
+          await invokeCommand('database_recovery_restore_safety_backup', {
+            recoverySessionId,
+            backupId,
+            clientSessionId: sessionId,
+          }),
+        );
+      } catch (error) {
+        throw parseDatabaseOpenFailure(error);
+      }
+    },
+
+    async exportSafetyBackup(recoverySessionId, backupId) {
       const raw = record(
-        await invokeCommand('database_open', {
-          databaseName,
-          clientSessionId: sessionId,
-          recoverStaleTransaction: options?.recoverStaleTransaction ?? false,
+        await invokeCommand('database_recovery_export_safety_backup', {
+          recoverySessionId,
+          backupId,
         }),
-        'database open result',
+        'database safety export result',
       );
       return {
-        path: stringField(raw.path, 'database path'),
-        journalMode: stringField(raw.journalMode, 'database journal mode'),
-        migrationsApplied: safeCount(raw.migrationsApplied, 'database migration count'),
+        ok: raw.ok === true,
+        canceled: raw.canceled === true,
+        fileName: nullableString(raw.fileName, 'database safety export filename'),
       };
     },
 
+    async openBackupDirectory(recoverySessionId) {
+      await invokeCommand('database_recovery_open_backup_directory', { recoverySessionId });
+    },
+
+    /* Database gateway operations. */
     async execute(sql, parameters = [], transactionId) {
       if (transactionId !== undefined) parseTransactionId(transactionId);
       const raw = record(

@@ -116,6 +116,18 @@ describe('SyncEngineCoordinator runtime integration', () => {
     vi.useRealTimers();
   });
 
+  it('keeps sanitized runtime progress bound to its project workspace', () => {
+    const coordinator = new SyncEngineCoordinator();
+    const projectRuntime = runtime('sync-generation-a', []);
+    Object.assign(projectRuntime, { projectId: 'project-a' });
+    coordinator.register(projectRuntime);
+
+    expect(coordinator.diagnostics().generations[0]).toMatchObject({
+      syncGenerationId: 'sync-generation-a',
+      projectId: 'project-a',
+    });
+  });
+
   it('wires authored debounce, lifecycle, resume and online signals without doing work in callbacks', async () => {
     const observed: SchedulerTrigger[][] = [];
     const coordinator = new SyncEngineCoordinator();

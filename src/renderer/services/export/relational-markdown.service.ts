@@ -489,7 +489,7 @@ export async function buildRelationalMarkdownArchive(
   }
   zip.file(
     'README.md',
-    '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内；这不是可无损恢复应用状态的完整备份。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
+    '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内，也不能重新导入 Drifting。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
   );
   zip.file(
     'index.md',

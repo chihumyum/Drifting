@@ -67,8 +67,11 @@ describe('hosted settings boundary', () => {
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as {
       preAlphaGuide: Record<string, string>;
     };
-    expect(onboarding).toContain("const GUIDE_VERSION = 'v2'");
+    expect(onboarding).toContain("const GUIDE_VERSION = 'v4'");
     expect(onboarding).toContain("t('preAlphaGuide.localData')");
+    expect(onboarding).not.toContain("t('preAlphaGuide.backup')");
+    expect(en.preAlphaGuide).not.toHaveProperty('backup');
+    expect(zh.preAlphaGuide).not.toHaveProperty('backup');
     expect(onboarding).not.toContain("t('preAlphaGuide.trial')");
     expect(en.preAlphaGuide).not.toHaveProperty('trial');
     expect(zh.preAlphaGuide).not.toHaveProperty('trial');

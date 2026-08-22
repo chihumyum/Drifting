@@ -2,11 +2,16 @@ import { TransactionRollbackError } from 'drizzle-orm/errors';
 import { drizzle, type AsyncRemoteCallback } from 'drizzle-orm/sqlite-proxy';
 import loglevel from 'loglevel';
 import {
+  DatabaseOpenFailure,
   databasePlatform,
   type DatabaseCheckpointResult,
   type DatabasePlatformApi,
   type TransactionBehavior,
 } from '../platform/database';
+import {
+  clearDatabaseOpenFailure,
+  publishDatabaseOpenFailure,
+} from '../platform/database-recovery-store';
 import * as schema from '../schema/drizzle';
 
 const log = loglevel.getLogger('DbLib');
@@ -292,11 +297,15 @@ export async function initDatabase(userId: string): Promise<void> {
       // must never acquire permission to roll back this renderer's work.
       recoverStaleTransactionOnNextOpen = false;
       await databasePlatform.open(targetDbName, { recoverStaleTransaction });
+      clearDatabaseOpenFailure();
       db = createDatabaseClient(databasePlatform);
       currentDbName = targetDbName;
       dbInitialized = true;
       log.info('[DB] Drizzle Proxy initialized successfully');
     } catch (error) {
+      if (error instanceof DatabaseOpenFailure && error.recoverySessionId) {
+        publishDatabaseOpenFailure(error);
+      }
       log.error('[DB] Failed to initialize database:', error);
       throw error;
     }

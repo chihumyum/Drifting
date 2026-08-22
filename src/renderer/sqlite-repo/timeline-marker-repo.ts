@@ -4,7 +4,7 @@
  * the unbind cascade for drift delete / drift→chapter conversion is invoked
  * from the usecases via unbindForDrift (FKs aren't enforced in this app).
  */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import { TimelineMarkerTable } from '../schema/drizzle';
 import type { TimelineMarker } from '../domain/timeline-marker';
@@ -54,7 +54,7 @@ export function createTimelineMarkerRepository(
     const rows = await dbProvider()
       .select()
       .from(TimelineMarkerTable)
-      .where(eq(TimelineMarkerTable.id, id))
+      .where(and(eq(TimelineMarkerTable.id, id), eq(TimelineMarkerTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
@@ -63,7 +63,12 @@ export function createTimelineMarkerRepository(
     const rows = await dbProvider()
       .select()
       .from(TimelineMarkerTable)
-      .where(eq(TimelineMarkerTable.driftNodeId, driftNodeId));
+      .where(
+        and(
+          eq(TimelineMarkerTable.projectId, projectId),
+          eq(TimelineMarkerTable.driftNodeId, driftNodeId),
+        ),
+      );
     return rows.map(toDomain);
   };
 
@@ -81,6 +86,7 @@ export function createTimelineMarkerRepository(
     },
 
     create: async (input) => {
+      if (input.projectId !== projectId) throw new Error('Timeline marker projectId mismatch');
       await dbProvider().insert(TimelineMarkerTable).values({
         id: input.id,
         projectId: input.projectId,
@@ -103,12 +109,14 @@ export function createTimelineMarkerRepository(
       await dbProvider()
         .update(TimelineMarkerTable)
         .set(values)
-        .where(eq(TimelineMarkerTable.id, id));
+        .where(and(eq(TimelineMarkerTable.id, id), eq(TimelineMarkerTable.projectId, projectId)));
       return findById(id);
     },
 
     delete: async (id) => {
-      await dbProvider().delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.id, id));
+      await dbProvider()
+        .delete(TimelineMarkerTable)
+        .where(and(eq(TimelineMarkerTable.id, id), eq(TimelineMarkerTable.projectId, projectId)));
       return true;
     },
 
@@ -123,7 +131,12 @@ export function createTimelineMarkerRepository(
         await dbProvider()
           .update(TimelineMarkerTable)
           .set({ driftNodeId: null, label, updatedAt: now })
-          .where(eq(TimelineMarkerTable.id, marker.id));
+          .where(
+            and(
+              eq(TimelineMarkerTable.id, marker.id),
+              eq(TimelineMarkerTable.projectId, projectId),
+            ),
+          );
         updated.push({ ...marker, driftNodeId: null, label, updatedAt: now });
       }
       return updated;

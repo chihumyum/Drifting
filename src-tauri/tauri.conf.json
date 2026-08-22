@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Drifting",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "identifier": "cc.drifting.client",
   "build": {
     "beforeDevCommand": "pnpm exec vite --config vite.renderer.config.ts",
@@ -42,8 +42,12 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
-    "icon": ["../src/assets/icon.png", "../src/assets/icon.ico", "../src/assets/icon.icns"]
+    "icon": ["../src/assets/icon.png", "../src/assets/icon.ico", "../src/assets/icon.icns"],
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
   },
   "plugins": {
     "deep-link": {

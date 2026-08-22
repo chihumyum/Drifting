@@ -2,21 +2,46 @@
   "appShell": {
     "checkingAuthentication": "Checking authentication…",
     "loadingProject": "Opening project…",
+    "syncingProject": "Applying Google Drive changes…",
+    "syncingProjectDetail": "This project is temporarily read-only while its local workspace is updated.",
     "projectLoadFailedTitle": "This project could not be opened",
     "projectLoadFailedDetail": "No data was changed. Check the local database and try again.",
+    "projectRefreshFailedTitle": "Google Drive changes could not be applied",
+    "projectRefreshFailedDetail": "The previous complete workspace is still safe. Try loading the project again.",
     "unexpectedTitle": "Drifting encountered an unexpected error",
     "unexpectedDetail": "The current screen was stopped before it could make more changes.",
     "retry": "Try again"
   },
+  "databaseRecovery": {
+    "title": "Your library upgrade was stopped safely",
+    "detail": "Drifting did not continue into projects or settings. The previous database and a verified safety copy remain available while you choose what to do.",
+    "errorCode": "Failure stage",
+    "version": "Database version",
+    "unknownVersion": "Earlier development version",
+    "safetyBackup": "Safety copy",
+    "retry": "Retry isolated upgrade",
+    "retrying": "Retrying…",
+    "restore": "Restore safety copy",
+    "restoring": "Checking and restoring…",
+    "restoreConfirm": "Drifting will first migrate and verify a new candidate made from this safety copy. It will replace the active database only if every check passes. Continue?",
+    "export": "Export safety copy",
+    "exported": "The safety copy was exported.",
+    "openDirectory": "Open backup folder",
+    "copyDiagnostics": "Copy safe diagnostics",
+    "copied": "A redacted diagnostic summary was copied.",
+    "exit": "Exit Drifting",
+    "actionFailed": "The recovery action could not be completed. No unverified database was activated."
+  },
   "preAlphaGuide": {
-    "title": "Welcome to Drifting Pre-Alpha",
-    "intro": "This public preview is local-first. Core writing and relational data work entirely on this device, while APIs, data formats, and UX may still change.",
+    "title": "Welcome to Drifting Alpha",
+    "intro": "Drifting Alpha is local-first and needs no Drifting account. Core writing and relational data work entirely on this device; public 0.1.x releases preserve the frozen Alpha schema through ordered migrations.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
-    "sync": "Drifting hosted sync is not enabled in this build. Third-party cloud-provider sync is not available yet.",
-    "byok": "There is no hosted AI service. Every AI feature references the BYOK credentials managed in Settings → Models & API. Copilot uses its selected provider and model; General Agent chooses them in the chat panel.",
-    "backup": "Regularly use local Relational Markdown Export to keep a readable copy outside the application database.",
-    "settingsHint": "After opening a book, connect provider credentials once in Settings → Models & API. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
-    "continue": "I understand — continue"
+    "sync": "Google Drive sync is optional. When connected, manuscripts, comments, relationships, original assets, and persistent Agent memory enter Google's trust boundary. Drifting does not add end-to-end encryption over Google Drive.",
+    "byok": "Copilot and General Agent are Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
+    "settingsHint": "Continue locally to create your first project, or open Sync & Data now to connect Google Drive. The quick guide includes a sample writing path.",
+    "quickGuide": "Quick guide",
+    "openDrive": "Google Drive…",
+    "continueLocal": "Continue locally"
   },
   "settings": {
     "title": "Settings",
@@ -42,10 +67,11 @@
       "editor": "Editor",
       "language": "Language",
       "models": "Models & API",
-      "copilot": "Copilot · Tasks",
-      "agent": "General Agent",
+      "copilot": "Copilot · Experimental",
+      "agent": "General Agent · Experimental",
       "keys": "Keyboard",
       "sync": "Sync & Data",
+      "updates": "Updates",
       "privacy": "Privacy",
       "about_app": "About Drifting"
     },
@@ -118,7 +144,7 @@
       "sign_out_button": "Sign out",
       "danger_zone": "Danger zone",
       "export_all": "Export relational Markdown",
-      "export_all_desc": "Export every project in this local library, including chapters, drifts, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included; this is a readable migration archive, not a restorable full-state backup.",
+      "export_all_desc": "Export every project in this local library, including chapters, drifts, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included, and the Markdown archive cannot be imported back into Drifting.",
       "export_all_btn": "Export Markdown ZIP",
       "exporting": "Exporting…",
       "export_done": "Exported {{count}} Markdown documents.",
@@ -347,6 +373,34 @@
         "cloud-attention": "Needs attention",
         "unavailable": "Unavailable"
       },
+      "transition_states": {
+        "connect": "Connecting",
+        "switch-provider": "Switching provider",
+        "disconnect": "Disconnecting",
+        "restore": "Restoring from Drive"
+      },
+      "operation_progress": {
+        "connect": {
+          "title": "Connecting Google Drive…",
+          "desc": "Complete Google sign-in in the system browser. Drifting will then discover remote projects before publishing local-only work."
+        },
+        "disconnect": {
+          "title": "Disconnecting Google Drive…",
+          "desc": "Drifting is finishing the local durability and convergence checks, then revoking the Google grant. This can take up to two minutes."
+        },
+        "reauthorize": {
+          "title": "Reauthorizing Google Drive…",
+          "desc": "Complete sign-in in the system browser. Only the currently connected Google account will be accepted."
+        },
+        "cancel": {
+          "title": "Cancelling Google Drive setup…",
+          "desc": "Drifting is revoking the pending authorization and returning every project to local-only mode."
+        },
+        "settings": {
+          "title": "Updating sync state…",
+          "desc": "Local editing remains available while the provider state is updated."
+        }
+      },
       "connect_google_drive": "Google Drive sync",
       "connect_google_drive_desc": "Sign in with Google in your system browser. Drifting automatically discovers and restores projects already stored for that Google account, then publishes projects found only on this device.",
       "google_drive_unavailable_target": "This build does not have complete Google Drive sign-in configuration.",
@@ -382,6 +436,7 @@
       "resume_done": "Google Drive sync resumed for every project.",
       "disconnect_google_drive": "Disconnect Google Drive",
       "disconnect_google_drive_desc": "Ready projects run a final convergence check before Drifting revokes its Google grant and returns every project to local-only mode. A stalled or not-yet-published project still keeps its complete local SQLite, Yjs, and assets, but Drive may be behind. Remote Drive data is not deleted. Other devices may need to sign in again.",
+      "disconnect_confirm_desc": "Confirm to finish the last local/sync checks and revoke this app's Google authorization. Local projects stay available; remote Drive data is not deleted.",
       "disconnect": "Disconnect…",
       "retry_disconnect": "Retry disconnect…",
       "confirm_disconnect": "Confirm disconnect",
@@ -456,6 +511,34 @@
         }
       }
     },
+    "update": {
+      "kicker": "SIGNED UPDATES",
+      "title": "Install signed Alpha updates on your terms.",
+      "sub": "Drifting checks the public Alpha channel at most once every 24 hours after startup. Downloads and installation always require your confirmation.",
+      "current_version": "Installed version",
+      "channel_desc": "Apple Silicon · macOS 13+ · public Alpha channel",
+      "unavailable": "This development build has no compiled Alpha updater public key. Signed release builds enable update checks; installation is never allowed without signature verification.",
+      "check": "Alpha update",
+      "check_action": "Check for updates",
+      "checking": "Checking…",
+      "no_update": "No newer signed Alpha update has been selected.",
+      "available_version": "Drifting {{version}} is available",
+      "download": "Download and verify",
+      "downloading": "Downloading and verifying the updater signature…",
+      "downloading_progress": "Downloading and verifying… {{progress}}%",
+      "install": "Install update…",
+      "confirm_install": "Install signed update",
+      "install_migration_safety": "If the new version needs to change local data, the next launch creates a verified SQLite safety snapshot and migrates an isolated candidate before activating it.",
+      "dismiss": "Not now",
+      "error": "Updater stopped safely: {{error}}",
+      "states": {
+        "checking": "Reading the signed Alpha channel manifest…",
+        "available": "A signed update is ready to download.",
+        "downloading": "Downloading and verifying…",
+        "ready": "The signed update is ready to install.",
+        "error": "The updater stopped without changing the installed app."
+      }
+    },
     "privacy": {
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
@@ -471,8 +554,13 @@
       "usageStatsDesc": "UI clicks, errors, and performance metrics. No manuscript content.",
       "crashLogs": "Crash logs",
       "crashLogsDesc": "Upload stack traces and runtime environment after app crashes.",
+      "diagnostics": "Sanitized diagnostic summary",
+      "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and updater state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
+      "copyDiagnostics": "Copy summary",
+      "diagnosticsCopied": "Sanitized diagnostic summary copied.",
+      "diagnosticsCopyFailed": "Could not write to the clipboard. Clipboard permission may be unavailable.",
       "fullPolicy": "View full privacy policy",
-      "lastUpdated": "Last updated 2026-08-14"
+      "lastUpdated": "Last updated 2026-08-20"
     },
     "about": {
       "kicker": "ABOUT",
@@ -482,7 +570,7 @@
       "version": "Version",
       "channel": "Channel",
       "channelDev": "Development",
-      "channelPreAlpha": "Pre-Alpha",
+      "channelPreAlpha": "Alpha",
       "engine": "Engine",
       "credits": "Credits and licenses",
       "fonts": "Fonts",
@@ -495,11 +583,17 @@
       "license": "Client license",
       "licenseDesc": "GNU AGPL v3 or later",
       "viewLicense": "View license",
+      "driveDataUse": "Google Drive data use",
+      "driveDataUseDesc": "What enters Google's trust boundary and what Drifting can access",
+      "knownIssues": "Known issues",
+      "knownIssuesDesc": "Current Alpha limitations and release blockers",
       "contact": "Contact",
+      "support": "Alpha support",
+      "supportDesc": "Troubleshooting and safe reporting instructions",
       "emailTeam": "Email the team",
       "writeEmail": "Write email",
       "submitFeedback": "Submit feedback",
-      "submitFeedbackDesc": "Includes current manuscript context optionally.",
+      "submitFeedbackDesc": "Opens a blank email. Drifting does not attach manuscript context automatically.",
       "feedback": "Feedback…",
       "tagline": "Built for writers awake deep into the night."
     },
@@ -522,7 +616,7 @@
       "tierTitle": "Capability tier",
       "byokTitle": "Bring your own key · BYOK",
       "modelTitle": "Model",
-      "preAlphaByokOnly": "Pre-Alpha provides no hosted model or Drifting AI quota. Every AI call requires your own API key and uses that provider's billing and quota.",
+      "preAlphaByokOnly": "Alpha AI features are Experimental and provide no hosted model or Drifting AI quota. Every call requires your own API key and follows that provider's billing, privacy, retention, training, and output terms.",
       "preAlphaAgentCredentials": "General Agent uses the BYOK API key for your selected provider. Each provider key is stored separately in the local Keychain and does not use Drifting-hosted quota.",
       "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
       "disabledSuffix": " · Unavailable"
@@ -564,9 +658,9 @@
       "submit": "Submit"
     },
     "copilot": {
-      "kicker": "COPILOT",
-      "title": "Give the small work to a quiet assistant.",
-      "sub": "Lightweight completion, extraction, polishing, and other structured prose tasks. Choose Copilot's provider and model here.",
+      "kicker": "COPILOT · EXPERIMENTAL",
+      "title": "Give the small work to a quiet experimental assistant.",
+      "sub": "Experimental BYOK completion, extraction, polishing, and other structured prose tasks. Review every output; provider costs, privacy, retention, training terms, and output risk apply.",
       "keyPrivacy": "Keys are managed centrally under Models & API.",
       "routingDesc": "Copilot stores only its provider and model choice; the API key comes from the global Keychain credential.",
       "providerDesc": "Model provider used by Copilot calls.",
@@ -653,9 +747,9 @@
       "resetDefault": "Reset default"
     },
     "agent": {
-      "kicker": "GENERAL AGENT",
-      "title": "The agent in the right rail that can act.",
-      "sub": "A provider-neutral Agent running inside the Tauri renderer. This phase can read the whole manuscript; write capabilities are enabled only after their acceptance gates pass.",
+      "kicker": "GENERAL AGENT · EXPERIMENTAL",
+      "title": "The experimental agent in the right rail that can act.",
+      "sub": "A BYOK provider-neutral Agent running inside the Tauri renderer. Review every action; provider costs, privacy, retention, training terms, and output risk apply.",
       "unavailableTitle": "General Agent runtime is not installed",
       "unavailableStatus": "No active transport",
       "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
@@ -1409,6 +1503,11 @@
       "urlInfo": "Page info",
       "noUrlTitle": "No title found",
       "chooseFile": "Choose file…",
+      "openingPicker": "Opening picker…",
+      "creating": "Creating…",
+      "importingImage": "Importing image…",
+      "importingPdf": "Importing PDF…",
+      "importingFileDetail": "Copying the source, generating previews, and verifying the local content hash.",
       "create": "Create"
     },
     "super": {

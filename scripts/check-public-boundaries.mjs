@@ -8,6 +8,16 @@ const configSource = readFileSync('src/renderer/lib/config.ts', 'utf8');
 const developmentGuide = readFileSync('DEV_GUIDE.md', 'utf8');
 const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
 const agentGuidance = readFileSync('AGENTS.md', 'utf8');
+const syncSettingsSource = readFileSync(
+  'src/renderer/features/settings/panels/ControlSettingsPanels.tsx',
+  'utf8',
+);
+const onboardingSource = readFileSync(
+  'src/renderer/components/modals/PreAlphaOnboardingDialog.tsx',
+  'utf8',
+);
+const platformContractsSource = readFileSync('src/renderer/platform/contracts.ts', 'utf8');
+const tauriHostSource = readFileSync('src-tauri/src/lib.rs', 'utf8');
 
 function requireCondition(condition, message) {
   if (!condition) errors.push(message);
@@ -60,10 +70,21 @@ requireCondition(
   'DEV_GUIDE.md must record the auditable non-hosted network purposes',
 );
 requireCondition(
-  agentGuidance.includes('## Pre-release compatibility policy') &&
-    agentGuidance.includes('architectural clarity takes priority') &&
-    agentGuidance.includes('Local development databases may be reset'),
-  'AGENTS.md must preserve the pre-release clean-over-compatibility policy',
+  agentGuidance.includes('## Public Alpha compatibility policy') &&
+    agentGuidance.includes('0.1.0-alpha.1') &&
+    agentGuidance.includes('Published migrations are immutable'),
+  'AGENTS.md must preserve the frozen public Alpha compatibility policy',
+);
+requireCondition(
+  !syncSettingsSource.includes('BackupService') &&
+    !syncSettingsSource.includes('replace-same-identity') &&
+    !onboardingSource.includes("preAlphaGuide.backup"),
+  'ordinary Settings and onboarding must not expose a whole-library backup/restore workflow',
+);
+requireCondition(
+  !platformContractsSource.includes('library_backup_') &&
+    !tauriHostSource.includes('library_backup'),
+  'public renderer/native contracts must not expose the retired library backup archive',
 );
 for (const retiredGuideText of ['Electron', 'src/main', 'backend/', 'out/']) {
   requireCondition(

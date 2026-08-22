@@ -13,6 +13,9 @@ import { flushApplicationPersistenceForLifecycle } from '../../lib/persistence-l
 import { installProductionSyncRuntime } from '../../sync/production-runtime';
 import { installGoogleDriveSyncGenerationProvisioningRuntime } from '../../sync/provision';
 import { installProductSyncAuthorityMonitor } from '../../sync/product-authority-store';
+import { events } from '../../lib/events';
+import { UpdateService } from '../../services/update/update-service';
+import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
 
 const log = loglevel.getLogger('AppEffects');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -172,6 +175,45 @@ function SyncEngineEffects() {
   return null;
 }
 
+function RestoredProjectUiEffects() {
+  useEffect(() => {
+    const clearDeviceLocalTabs = ({ projectIds }: { projectIds: string[] }) => {
+      for (const projectId of projectIds) {
+        useUiStore.getState().clearProjectTabs(projectId);
+      }
+    };
+    events.on('sync:projects-restored', clearDeviceLocalTabs);
+    return () => events.off('sync:projects-restored', clearDeviceLocalTabs);
+  }, []);
+  return null;
+}
+
+function AlphaUpdaterEffects() {
+  useEffect(() => {
+    const check = () => {
+      void UpdateService.check().catch((error) =>
+        log.warn('Automatic Alpha update check failed:', error),
+      );
+    };
+    events.on('db:ready', check);
+    return () => events.off('db:ready', check);
+  }, []);
+  return null;
+}
+
+function AssetStoreRestartGcEffects() {
+  useEffect(() => {
+    const collect = () => {
+      void runAssetStoreRestartGc().catch((error) =>
+        log.warn('Current-format orphan asset cleanup stopped safely:', error),
+      );
+    };
+    events.on('db:ready', collect);
+    return () => events.off('db:ready', collect);
+  }, []);
+  return null;
+}
+
 export function AppEffects() {
   return (
     <>
@@ -180,6 +222,9 @@ export function AppEffects() {
       <EditorPreferenceEffects />
       <PersistenceLifecycleEffects />
       <SyncEngineEffects />
+      <RestoredProjectUiEffects />
+      <AssetStoreRestartGcEffects />
+      <AlphaUpdaterEffects />
     </>
   );
 }

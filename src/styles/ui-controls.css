@@ -516,6 +516,53 @@
   cursor: not-allowed;
 }
 
+@keyframes control-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.control-spinner {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  animation: control-spinner-rotate 0.8s linear infinite;
+}
+
+.material-import-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid hsl(var(--accent) / 0.24);
+  border-radius: 3px;
+  background: hsl(var(--accent) / 0.06);
+  color: hsl(var(--ink-2));
+}
+
+.material-import-feedback__title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.material-import-feedback__desc {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: hsl(var(--ink-3));
+}
+
+.material-import-feedback--error {
+  border-color: hsl(var(--destructive) / 0.28);
+  background: hsl(var(--destructive) / 0.07);
+  color: hsl(var(--destructive));
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .modal-root {
   box-sizing: border-box;
   position: fixed;

@@ -3,7 +3,15 @@
 这份清单用于记录 Drifting Tauri 客户端中只能依赖真实设备、系统浏览器、真实账号或真实云端完成的回归。
 它不替代自动化测试，也不把尚未完成的移动端 UI 适配当作发布验收项。
 
-最后更新：2026-07-31
+最后更新：2026-08-20
+
+## 公开 Alpha 桌面门槛
+
+`0.1.0-alpha.1` 只支持 macOS 13+ Apple Silicon。它的 P0/P1 发布记录以
+[签名桌面 RC 表](desktop-alpha-release-candidate.md)和
+[Google Drive 双机表](google-drive-desktop-alpha-acceptance.md)为准；两张表必须记录日期、
+设备、构建 SHA 与脱敏证据。下面保留的 iOS/Android 清单是后续可移植性资料，不影响本轮
+桌面 Alpha 放行，也不能替代桌面签名构建验收。
 
 基线提交：
 
@@ -24,7 +32,7 @@
 
 优先级：
 
-- `P0`：发布阻断项。每个候选构建至少在一台当前 iPhone 和一台 Android 12+ 真机完成。
+- `P0`：对应目标平台的发布阻断项。桌面 Alpha 只采用上方两张 macOS 表。
 - `P1`：完整功能回归。功能相关改动或里程碑构建时完成。
 - `P2`：破坏性、升级和边界回归。有设备和时间时分批完成。
 
@@ -137,7 +145,7 @@ OAuth staging 必须满足：
 - 方向和宽高比正确，肉眼颜色合理；透明 PNG 不出现黑块或乱码。
 - 关闭并重开 App 后仍能显示，第二台设备可以重新下载并显示。
 
-## 4. P0 快速放行
+## 4. 移动端 P0（本轮桌面 Alpha 不适用）
 
 - [ ] `P0-01` 新安装后用邮箱登录，进入项目，创建一个测试章节并写入唯一 canary。
 - [ ] `P0-02` Android 保存测试 BYOK，force-stop 后重开，登录和 BYOK 都仍可用。
@@ -279,8 +287,11 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `DATA-04` `P1` 编辑时切后台、锁屏、旋转、接电话，再回前台；正文与选择状态不损坏。
 - [ ] `DATA-05` `P1` 导入素材时切后台或杀进程；重开后数据库无 ready 的空 asset，已提交 source 不丢失。
 - [ ] `DATA-06` `P1` 登出 A、登录 B；本地数据库、项目和 session 不串账号。
-- [ ] `DATA-07` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
-- [ ] `DATA-08` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
+- [ ] `DATA-07` `P0` Drive 同步三个带唯一 canary 的项目时快速切换项目；左栏、Tab、编辑区、关系与 bottom timeline 始终只属于当前 project，旧 hydrate 不得迟到覆盖。
+- [ ] `DATA-08` `P0` 从独立设置页执行 Drive 同步，再打开恢复项目；pull/ingest/apply 时显示项目级同步提示，路由 project authority 必须在子组件挂载前就绪；远端 commit 后以只读 loading overlay 等待原子 projection，完成后一次性出现完整 workspace，不得崩溃、逐块填充或在项目间振荡。
+- [ ] `DATA-09` `P1` fresh-device Drive 恢复不继承另一台设备或旧本地测试库的 Tab；本机新开的 Tab 在本机重启后仍保留。
+- [ ] `DATA-10` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
+- [ ] `DATA-11` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
 
 ## 10. 覆盖升级与重装
 

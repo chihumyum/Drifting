@@ -63,6 +63,8 @@ export type AppEvents = {
   'sync:runtime-state-changed': void;
   /** A remote change-set committed locally after live Yjs reconciliation. */
   'sync:project-changed': { projectId: string };
+  /** Fresh-device restore completed; tabs are device-local and must start clean. */
+  'sync:projects-restored': { projectIds: string[] };
 
   'search:query': { query: string };
   'search:results': { results: unknown[] };

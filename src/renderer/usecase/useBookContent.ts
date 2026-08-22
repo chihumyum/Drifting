@@ -19,8 +19,10 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
   if (!userId) {
     throw new Error('useBookContent requires a userId');
   }
-  const contentRepoRef = useRef(createBookContentRepository());
-  const contentRepo = contentRepoRef.current;
+  const contentRepo = useMemo(
+    () => createBookContentRepository(undefined, projectId),
+    [projectId],
+  );
   const plotGridRepoRef = useRef(createPlotGridRepository());
   const plotGridRepo = plotGridRepoRef.current;
   const ensureDb = useCallback(async () => {
@@ -56,7 +58,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
       // stale row here lets the editor's content debounce overwrite a newer
       // plot-grid write (and vice versa).
       return runDerivedTransaction('prose.node-content-projection', async (tx) => {
-        const repo = createBookContentRepository(tx);
+        const repo = createBookContentRepository(tx, projectId);
         const cont = await repo.findByNodeId(nodeId);
         if (!cont) {
           throw new Error(`Content with nodeId: ${nodeId} not found`);
@@ -68,14 +70,14 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
         return result;
       });
     },
-    [ensureDb],
+    [ensureDb, projectId],
   );
 
   const updateContentById = useCallback(
     async (id: string, updates: BookContentPatch) => {
       await ensureDb();
       return runDerivedTransaction('prose.node-content-projection', async (tx) => {
-        const repo = createBookContentRepository(tx);
+        const repo = createBookContentRepository(tx, projectId);
         const cont = await repo.findById(id);
         if (!cont) {
           throw new Error(`Content with id: ${id} not found`);
@@ -87,14 +89,14 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
         return result;
       });
     },
-    [ensureDb],
+    [ensureDb, projectId],
   );
 
   const createContent = useCallback(
     async (nodeId: string, content: BookContentPatch) => {
       await ensureDb();
       return runDerivedTransaction('prose.node-content-projection-create', async (tx) => {
-        const created = await createBookContentRepository(tx).create({
+        const created = await createBookContentRepository(tx, projectId).create({
           nodeId,
           contentJson: content.contentJson,
           outlineJson: content.outlineJson,
@@ -102,7 +104,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
         return created;
       });
     },
-    [ensureDb],
+    [ensureDb, projectId],
   );
 
   const getOutlineByNodeId = useCallback(

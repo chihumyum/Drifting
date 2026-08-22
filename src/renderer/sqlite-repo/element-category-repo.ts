@@ -69,7 +69,12 @@ export function createElementCategoryRepository(
       await dbProvider()
         .select()
         .from(ElementCategoryTable)
-        .where(eq(ElementCategoryTable.id, newCategory.id))
+        .where(
+          and(
+            eq(ElementCategoryTable.id, newCategory.id),
+            eq(ElementCategoryTable.projectId, projectId),
+          ),
+        )
         .limit(1)
     )[0];
 
@@ -86,7 +91,7 @@ export function createElementCategoryRepository(
     const existing = await dbProvider()
       .select()
       .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.id, id))
+      .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)))
       .limit(1);
     if (!existing[0]) return null;
     if (existing[0].projectId !== projectId) {
@@ -115,13 +120,13 @@ export function createElementCategoryRepository(
     await dbProvider()
       .update(ElementCategoryTable)
       .set(updateValues)
-      .where(eq(ElementCategoryTable.id, id));
+      .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)));
 
     return (
       await dbProvider()
         .select()
         .from(ElementCategoryTable)
-        .where(eq(ElementCategoryTable.id, id))
+        .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)))
         .limit(1)
     )[0] as BookElementCategory;
   };
@@ -170,8 +175,12 @@ export function createElementCategoryRepository(
     await dbProvider()
       .update(BookElementTable)
       .set({ categoryId: null, updatedAt: now })
-      .where(eq(BookElementTable.categoryId, id));
-    await dbProvider().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, id));
+      .where(
+        and(eq(BookElementTable.categoryId, id), eq(BookElementTable.projectId, projectId)),
+      );
+    await dbProvider()
+      .delete(ElementCategoryTable)
+      .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)));
   };
 
   const softDeleteCategory = async (id: string): Promise<void> => {
@@ -184,11 +193,13 @@ export function createElementCategoryRepository(
     await dbProvider()
       .update(BookElementTable)
       .set({ categoryId: null, updatedAt: now })
-      .where(eq(BookElementTable.categoryId, id));
+      .where(
+        and(eq(BookElementTable.categoryId, id), eq(BookElementTable.projectId, projectId)),
+      );
     await dbProvider()
       .update(ElementCategoryTable)
       .set({ deletedAt: now, updatedAt: now })
-      .where(eq(ElementCategoryTable.id, id));
+      .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)));
   };
 
   const restoreCategory = async (id: string): Promise<void> => {
@@ -196,7 +207,7 @@ export function createElementCategoryRepository(
     await dbProvider()
       .update(ElementCategoryTable)
       .set({ deletedAt: null, updatedAt: now })
-      .where(eq(ElementCategoryTable.id, id));
+      .where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId)));
   };
 
   return {

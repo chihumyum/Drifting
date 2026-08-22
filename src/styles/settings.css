@@ -614,6 +614,33 @@
   background: transparent;
 }
 
+.set-operation-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 12px;
+  padding: 11px 12px;
+  border: 1px solid hsl(var(--accent) / 0.24);
+  border-radius: 3px;
+  background: hsl(var(--accent) / 0.06);
+  color: hsl(var(--ink-2));
+}
+
+.set-operation-feedback__title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.set-operation-feedback__desc {
+  margin-top: 4px;
+  max-width: 640px;
+  color: hsl(var(--ink-3));
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
 /* Theme cards */
 .set-theme-grid {
   display: grid;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Loader2 } from 'lucide-react';
 import type { Comment } from '../../domain/comment';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
 import type { LibraryItemKind } from '../../domain/library-item';
@@ -200,7 +201,9 @@ export function ComposeLibraryItemDialog({
     favicon: string | null;
   } | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const titleAutoFilled = useRef(false);
   const ownedImportPathRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -294,6 +297,8 @@ export function ComposeLibraryItemDialog({
   const pickFile = async (pickerKind: 'image' | 'pdf' | 'any') => {
     if (submitting || pickerInFlightRef.current) return;
     pickerInFlightRef.current = true;
+    setPicking(true);
+    setOperationError(null);
     let unownedPickedPath: string | null = null;
     try {
       const res = await platform.material.pickFile(pickerKind);
@@ -305,7 +310,7 @@ export function ComposeLibraryItemDialog({
                   maxSizeMiB: Math.floor(res.maxSizeBytes / (1024 * 1024)),
                 })
               : t('memoMaterial.error.pickFailed', { error: res.error });
-          alert(message);
+          setOperationError(message);
         }
         return;
       }
@@ -325,7 +330,7 @@ export function ComposeLibraryItemDialog({
         setTitle(name);
       }
     } catch (error) {
-      alert(
+      setOperationError(
         t('memoMaterial.error.pickFailed', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -338,18 +343,20 @@ export function ComposeLibraryItemDialog({
         }
       }
       pickerInFlightRef.current = false;
+      if (mountedRef.current) setPicking(false);
     }
   };
 
   const selectKind = async (nextKind: LibraryItemKind) => {
     if (nextKind === kind || submitting || pickerInFlightRef.current) return;
     try {
+      setOperationError(null);
       await deleteOwnedImport();
       if (!mountedRef.current) return;
       setPickedSourcePath(null);
       setKind(nextKind);
     } catch (error) {
-      alert(
+      setOperationError(
         t('memoMaterial.error.pickFailed', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -360,10 +367,11 @@ export function ComposeLibraryItemDialog({
   const cancel = async () => {
     if (submitting || pickerInFlightRef.current) return;
     try {
+      setOperationError(null);
       await deleteOwnedImport();
       if (mountedRef.current) onCancel();
     } catch (error) {
-      alert(
+      setOperationError(
         t('memoMaterial.error.pickFailed', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -383,6 +391,7 @@ export function ComposeLibraryItemDialog({
     if (!canSubmit || submitting) return;
     submitInFlightRef.current = true;
     setSubmitting(true);
+    setOperationError(null);
     try {
       if (kind === 'url') {
         await deleteOwnedImport();
@@ -434,7 +443,7 @@ export function ComposeLibraryItemDialog({
       onCancel();
     } catch (error) {
       console.warn('[material] create failed:', error);
-      alert(
+      setOperationError(
         t('memoMaterial.error.createFailed', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -475,6 +484,7 @@ export function ComposeLibraryItemDialog({
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        disabled={submitting || picking}
         placeholder={t('memoMaterial.dialog.titlePlaceholder')}
         style={dialogInputStyle}
       />
@@ -553,7 +563,7 @@ export function ComposeLibraryItemDialog({
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')}
-            disabled={submitting}
+            disabled={submitting || picking}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
@@ -565,7 +575,10 @@ export function ComposeLibraryItemDialog({
               cursor: 'pointer',
             }}
           >
-            {t('memoMaterial.dialog.chooseFile')}
+            {picking && <Loader2 className="control-spinner" aria-hidden />}
+            {picking
+              ? t('memoMaterial.dialog.openingPicker')
+              : t('memoMaterial.dialog.chooseFile')}
           </button>
           {pickedSourcePath && (
             <span
@@ -586,6 +599,30 @@ export function ComposeLibraryItemDialog({
         </div>
       )}
 
+      {submitting && (kind === 'image' || kind === 'pdf') && (
+        <div className="material-import-feedback" role="status" aria-live="polite">
+          <Loader2 className="control-spinner" aria-hidden />
+          <div>
+            <div className="material-import-feedback__title">
+              {t(
+                kind === 'image'
+                  ? 'memoMaterial.dialog.importingImage'
+                  : 'memoMaterial.dialog.importingPdf',
+              )}
+            </div>
+            <div className="material-import-feedback__desc">
+              {t('memoMaterial.dialog.importingFileDetail')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {operationError && (
+        <div className="material-import-feedback material-import-feedback--error" role="alert">
+          {operationError}
+        </div>
+      )}
+
       {kind === 'text' && (
         <textarea
           value={body}
@@ -603,7 +640,13 @@ export function ComposeLibraryItemDialog({
         />
       )}
 
-      <div style={{ marginTop: 10 }}>
+      <div
+        style={{
+          marginTop: 10,
+          pointerEvents: submitting || picking ? 'none' : undefined,
+          opacity: submitting || picking ? 0.58 : undefined,
+        }}
+      >
         <EntityRelationPicker
           selected={selectedSet}
           selectedChipMode="toggle"
@@ -618,6 +661,18 @@ export function ComposeLibraryItemDialog({
         onCancel={() => void cancel()}
         onConfirm={() => void submit()}
         confirmDisabled={!canSubmit || submitting}
+        confirmBusy={submitting}
+        confirmLabel={
+          submitting
+            ? t(
+                kind === 'image'
+                  ? 'memoMaterial.dialog.importingImage'
+                  : kind === 'pdf'
+                    ? 'memoMaterial.dialog.importingPdf'
+                    : 'memoMaterial.dialog.creating',
+              )
+            : undefined
+        }
       />
     </DialogShell>
   );
@@ -646,10 +701,14 @@ function DialogActions({
   onCancel,
   onConfirm,
   confirmDisabled,
+  confirmBusy = false,
+  confirmLabel,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
   confirmDisabled?: boolean;
+  confirmBusy?: boolean;
+  confirmLabel?: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -661,11 +720,18 @@ function DialogActions({
         marginTop: 12,
       }}
     >
-      <Button size="sm" onClick={onCancel}>
+      <Button size="sm" onClick={onCancel} disabled={confirmBusy}>
         {t('common.cancel')}
       </Button>
-      <Button size="sm" variant="primary" onClick={onConfirm} disabled={confirmDisabled}>
-        {t('memoMaterial.dialog.create')}
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={onConfirm}
+        disabled={confirmDisabled}
+        aria-busy={confirmBusy}
+      >
+        {confirmBusy && <Loader2 className="control-spinner" aria-hidden />}
+        {confirmLabel ?? t('memoMaterial.dialog.create')}
       </Button>
     </div>
   );

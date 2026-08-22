@@ -52,7 +52,7 @@ export function createBookActRepository(
     const rows = await dbProvider()
       .select()
       .from(BookActTable)
-      .where(eq(BookActTable.id, id))
+      .where(and(eq(BookActTable.id, id), eq(BookActTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
@@ -70,6 +70,7 @@ export function createBookActRepository(
     },
 
     create: async (input) => {
+      if (input.projectId !== projectId) throw new Error('Book act projectId mismatch');
       await dbProvider().insert(BookActTable).values({
         id: input.id,
         projectId: input.projectId,
@@ -91,12 +92,17 @@ export function createBookActRepository(
       if (data.color !== undefined) values.color = data.color;
       if (data.startOrder !== undefined) values.startOrder = data.startOrder;
       if (data.driftNodeId !== undefined) values.driftNodeId = data.driftNodeId;
-      await dbProvider().update(BookActTable).set(values).where(eq(BookActTable.id, id));
+      await dbProvider()
+        .update(BookActTable)
+        .set(values)
+        .where(and(eq(BookActTable.id, id), eq(BookActTable.projectId, projectId)));
       return findById(id);
     },
 
     delete: async (id) => {
-      await dbProvider().delete(BookActTable).where(eq(BookActTable.id, id));
+      await dbProvider()
+        .delete(BookActTable)
+        .where(and(eq(BookActTable.id, id), eq(BookActTable.projectId, projectId)));
       return true;
     },
 

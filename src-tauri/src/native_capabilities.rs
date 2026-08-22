@@ -20,7 +20,7 @@
 //! centralized in `image_pipeline`; HEIC/HEIF/AVIF are routed to an operating-system codec where
 //! one exists instead of bundling a second native codec stack into every target.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -70,6 +70,21 @@ const NAT64_WELL_KNOWN_PREFIX: Ipv6Addr = Ipv6Addr::new(0x0064, 0xff9b, 0, 0, 0,
 const RFC6052_PREFIX_LENGTHS: [u8; 6] = [32, 40, 48, 56, 64, 96];
 
 static UNIQUE_COUNTER: AtomicU64 = AtomicU64::new(0);
+const ASSET_IMPORT_MARKER: &str = ".drifting-import-v1";
+
+#[derive(Clone, Debug)]
+pub(crate) struct AssetImportSession(String);
+
+impl Default for AssetImportSession {
+    fn default() -> Self {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let counter = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        Self(format!("{}-{nanos}-{counter}", std::process::id()))
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct FailureResult {
@@ -365,6 +380,20 @@ pub enum AssetStoreDeleteResult {
     Failure(FailureResult),
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetStoreRetainedAsset {
+    project_id: String,
+    asset_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetStoreGcResult {
+    removed_orphans: u64,
+    cleared_committed_markers: u64,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiLogWriteSuccess {
@@ -579,6 +608,128 @@ fn asset_store_asset_dir(
     let directory = root.join(project).join(asset);
     reject_symlinked_asset_path(&root, project_id, asset_id, None)?;
     Ok(directory)
+}
+
+fn asset_import_marker(asset_directory: &Path) -> PathBuf {
+    asset_directory.join(ASSET_IMPORT_MARKER)
+}
+
+fn clear_asset_import_marker(asset_directory: &Path) -> io::Result<bool> {
+    let marker = asset_import_marker(asset_directory);
+    match fs::symlink_metadata(&marker) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "refusing to remove an invalid asset import marker",
+            ))
+        }
+        Ok(_) => {
+            fs::remove_file(marker)?;
+            sync_directory(asset_directory)?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn gc_current_format_asset_imports_at(
+    root: &Path,
+    retained: &HashSet<(String, String)>,
+    current_session: &str,
+) -> io::Result<AssetStoreGcResult> {
+    let mut result = AssetStoreGcResult {
+        removed_orphans: 0,
+        cleared_committed_markers: 0,
+    };
+    if !root.exists() {
+        return Ok(result);
+    }
+    let root_metadata = fs::symlink_metadata(root)?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "asset store root is not a real directory",
+        ));
+    }
+
+    let projects = fs::read_dir(root)?.collect::<Result<Vec<_>, _>>()?;
+    for project in projects {
+        let project_metadata = project.file_type()?;
+        if project_metadata.is_symlink() {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "refusing to inspect a symlinked asset project directory",
+            ));
+        }
+        if !project_metadata.is_dir() {
+            continue;
+        }
+        let project_name = project.file_name().into_string().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "asset project name is not UTF-8",
+            )
+        })?;
+        if safe_asset_segment(&project_name).map_err(io::Error::other)? != project_name {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "asset project directory is not canonical",
+            ));
+        }
+
+        let assets = fs::read_dir(project.path())?.collect::<Result<Vec<_>, _>>()?;
+        for asset in assets {
+            let asset_metadata = asset.file_type()?;
+            if asset_metadata.is_symlink() {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "refusing to inspect a symlinked asset directory",
+                ));
+            }
+            if !asset_metadata.is_dir() {
+                continue;
+            }
+            let asset_name = asset.file_name().into_string().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidData, "asset name is not UTF-8")
+            })?;
+            if safe_asset_segment(&asset_name).map_err(io::Error::other)? != asset_name {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "asset directory is not canonical",
+                ));
+            }
+            let asset_directory = asset.path();
+            let marker = asset_import_marker(&asset_directory);
+            let marker_metadata = match fs::symlink_metadata(&marker) {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "asset import marker is invalid",
+                    ));
+                }
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            if marker_metadata.len() > 256 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "asset import marker is too large",
+                ));
+            }
+            let marker_session = fs::read_to_string(&marker)?;
+            if retained.contains(&(project_name.clone(), asset_name.clone())) {
+                if clear_asset_import_marker(&asset_directory)? {
+                    result.cleared_committed_markers += 1;
+                }
+            } else if marker_session.trim() != current_session {
+                durable_delete_asset_directory(root, &asset_directory)?;
+                result.removed_orphans += 1;
+            }
+        }
+    }
+    Ok(result)
 }
 
 fn reject_symlinked_asset_path(
@@ -2409,6 +2560,64 @@ pub async fn asset_store_copy_file(
 }
 
 #[tauri::command]
+pub async fn asset_store_begin_import(
+    app: AppHandle,
+    state: tauri::State<'_, AssetImportSession>,
+    project_id: String,
+    asset_id: String,
+) -> Result<(), String> {
+    let asset_directory = asset_store_asset_dir(&app, &project_id, &asset_id)?;
+    let session = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::create_dir_all(&asset_directory)
+            .and_then(|_| atomic_write(&asset_import_marker(&asset_directory), session.as_bytes()))
+            .map_err(|_| "could not create the durable asset import marker".to_string())
+    })
+    .await
+    .map_err(|_| "asset import marker worker failed".to_string())?
+}
+
+#[tauri::command]
+pub async fn asset_store_commit_import(
+    app: AppHandle,
+    project_id: String,
+    asset_id: String,
+) -> Result<(), String> {
+    let asset_directory = asset_store_asset_dir(&app, &project_id, &asset_id)?;
+    tauri::async_runtime::spawn_blocking(move || clear_asset_import_marker(&asset_directory))
+        .await
+        .map_err(|_| "asset import commit worker failed".to_string())?
+        .map(|_| ())
+        .map_err(|_| "could not commit the asset import marker".to_string())
+}
+
+#[tauri::command]
+pub async fn asset_store_gc_orphan_imports(
+    app: AppHandle,
+    state: tauri::State<'_, AssetImportSession>,
+    retained_assets: Vec<AssetStoreRetainedAsset>,
+) -> Result<AssetStoreGcResult, String> {
+    if retained_assets.len() > 1_000_000 {
+        return Err("asset import retained set is too large".to_string());
+    }
+    let mut retained = HashSet::with_capacity(retained_assets.len());
+    for retained_asset in retained_assets {
+        retained.insert((
+            safe_asset_segment(&retained_asset.project_id)?,
+            safe_asset_segment(&retained_asset.asset_id)?,
+        ));
+    }
+    let root = app_local_dir(&app, "assets")?;
+    let session = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        gc_current_format_asset_imports_at(&root, &retained, &session)
+            .map_err(|error| format!("could not clean orphan asset imports: {error}"))
+    })
+    .await
+    .map_err(|_| "asset import cleanup worker failed".to_string())?
+}
+
+#[tauri::command]
 pub async fn asset_store_delete_asset(
     app: AppHandle,
     project_id: String,
@@ -2566,6 +2775,37 @@ mod tests {
             root.join("project-a").join("asset-a").join("display.png")
         );
         assert_ne!(source, display);
+    }
+
+    #[test]
+    fn current_format_asset_restart_gc_preserves_commits_and_active_imports() {
+        let directory = test_directory("asset-import-restart-gc");
+        let root = directory.join("assets");
+        let committed = root.join("project-a").join("asset-committed");
+        let orphan = root.join("project-a").join("asset-orphan");
+        let active = root.join("project-a").join("asset-active");
+        let unmarked = root.join("project-a").join("asset-unmarked");
+        for asset in [&committed, &orphan, &active, &unmarked] {
+            fs::create_dir_all(asset).unwrap();
+            fs::write(asset.join("source.bin"), b"bytes").unwrap();
+        }
+        fs::write(asset_import_marker(&committed), b"previous-session").unwrap();
+        fs::write(asset_import_marker(&orphan), b"previous-session").unwrap();
+        fs::write(asset_import_marker(&active), b"current-session").unwrap();
+        let retained = HashSet::from([("project-a".to_string(), "asset-committed".to_string())]);
+
+        let result =
+            gc_current_format_asset_imports_at(&root, &retained, "current-session").unwrap();
+
+        assert_eq!(result.removed_orphans, 1);
+        assert_eq!(result.cleared_committed_markers, 1);
+        assert!(committed.join("source.bin").exists());
+        assert!(!asset_import_marker(&committed).exists());
+        assert!(!orphan.exists());
+        assert!(active.join("source.bin").exists());
+        assert!(asset_import_marker(&active).exists());
+        assert!(unmarked.join("source.bin").exists());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

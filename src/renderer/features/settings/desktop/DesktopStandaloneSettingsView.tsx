@@ -10,9 +10,16 @@ import {
   AboutPanel,
   PrivacyPanel,
   SyncPanel,
+  UpdatePanel,
 } from '../panels/ControlSettingsPanels';
 
-type StandaloneSettingsId = 'appearance' | 'language' | 'sync' | 'privacy' | 'about';
+type StandaloneSettingsId =
+  | 'appearance'
+  | 'language'
+  | 'sync'
+  | 'updates'
+  | 'privacy'
+  | 'about';
 
 interface StandaloneSettingsItem {
   id: StandaloneSettingsId;
@@ -35,7 +42,10 @@ const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
   },
   {
     labelKey: 'settings.groups.control',
-    items: [{ id: 'sync', glyph: '⇅', labelKey: 'settings.rail.sync' }],
+    items: [
+      { id: 'sync', glyph: '⇅', labelKey: 'settings.rail.sync' },
+      { id: 'updates', glyph: '↻', labelKey: 'settings.rail.updates' },
+    ],
   },
   {
     labelKey: 'settings.groups.about',
@@ -63,6 +73,8 @@ function StandaloneSettingsPanel({ id }: { id: StandaloneSettingsId }) {
       return <LanguagePanel registerRef={REGISTER_NOOP} />;
     case 'sync':
       return <SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />;
+    case 'updates':
+      return <UpdatePanel registerRef={REGISTER_NOOP} />;
     case 'privacy':
       return <PrivacyPanel registerRef={REGISTER_NOOP} />;
     case 'about':

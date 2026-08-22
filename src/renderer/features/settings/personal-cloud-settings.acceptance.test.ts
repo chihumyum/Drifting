@@ -52,6 +52,32 @@ describe('personal-cloud Settings boundary', () => {
     expect(panel).toContain('setTransitionCancelArmed(true)');
   });
 
+  it('keeps connect and disconnect visibly busy instead of only disabling controls', () => {
+    const panel = read('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
+    const en = JSON.parse(read('src/renderer/locales/en.json')) as {
+      settings: { sync: Record<string, unknown> };
+    };
+    const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as typeof en;
+
+    expect(panel).toContain('className="set-operation-feedback"');
+    expect(panel).toContain('role="status"');
+    expect(panel).toContain('aria-busy="true"');
+    expect(panel).toContain("visibleCloudOperation === 'disconnect'");
+    expect(panel).toContain('disconnect_confirm_desc');
+    expect(JSON.stringify(en.settings.sync)).toContain('up to two minutes');
+    expect(JSON.stringify(zh.settings.sync)).toContain('最长可能需要两分钟');
+  });
+
+  it('grants only the native dialog message/confirm permissions used by desktop UI', () => {
+    const capability = JSON.parse(read('src-tauri/capabilities/desktop.json')) as {
+      permissions: string[];
+    };
+
+    expect(capability.permissions).toContain('dialog:allow-message');
+    expect(capability.permissions).toContain('dialog:allow-confirm');
+    expect(capability.permissions).not.toContain('dialog:default');
+  });
+
   it('uses Google sign-in for both connection and automatic project discovery', () => {
     const en = JSON.parse(read('src/renderer/locales/en.json')) as {
       settings: { sync: Record<string, string> };

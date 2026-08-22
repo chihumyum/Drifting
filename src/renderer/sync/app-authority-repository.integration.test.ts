@@ -19,6 +19,7 @@ import {
   createSyncAppAuthorityRepository,
   type SyncProviderTransitionIdSource,
 } from './app-authority-repository';
+import { recordAuthoredChangeSetInTransaction, SyncChangeBuilder } from './journal';
 
 const NOW = '2026-08-15T12:00:00.000Z';
 const LATER = '2026-08-15T12:01:00.000Z';
@@ -237,5 +238,51 @@ describe('App-wide SyncEngine provider authority repository', () => {
       { syncGenerationId: 'sync-generation-a' },
       { syncGenerationId: 'sync-generation-b' },
     ]);
+  });
+
+  it('mounts a detached active generation by its unique terminal journal project identity', async () => {
+    const input = await setup();
+    await connectGoogle(input);
+    const purge = new SyncChangeBuilder();
+    purge.add({
+      action: 'sync-generation.purge',
+      target: {
+        family: 'sync-generation',
+        kind: 'sync-generation',
+        id: 'sync-generation-a',
+        incarnation: 1,
+      },
+      payload: {},
+    });
+    await input.db.transaction(async (tx) => {
+      await tx.delete(ProjectTable).where(eq(ProjectTable.id, 'project-a'));
+      await recordAuthoredChangeSetInTransaction(
+        tx,
+        {
+          projectId: 'project-a',
+          projectSyncId: 'project-sync-a',
+          syncGenerationId: 'sync-generation-a',
+          identity: {
+            installationId: 'detached-installation',
+            createWriterIdentity: () => ({
+              writerId: 'detached-writer',
+              writerEpoch: 'detached-epoch',
+            }),
+          },
+          clock: { nowMs: Date.parse(LATER), nowIso: LATER },
+          allowDetachedProject: true,
+        },
+        purge,
+      );
+    });
+
+    expect(await input.repository.listActiveRuntimeBindings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          projectId: 'project-a',
+          binding: expect.objectContaining({ syncGenerationId: 'sync-generation-a' }),
+        }),
+      ]),
+    );
   });
 });

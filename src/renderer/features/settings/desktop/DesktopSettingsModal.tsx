@@ -10,7 +10,13 @@ import { SubscriptionPanel } from '../../../features/settings/panels/Subscriptio
 import { AppearancePanel, EditorPanel, LanguagePanel, TrashRailPanel } from '../../../features/settings/panels/PreferenceSettingsPanels';
 import { CopilotPanel, ModelsPanel } from '../../../features/settings/panels/IntelligenceSettingsPanels';
 import { AgentPanel } from '../../../features/settings/panels/AgentSettingsPanel';
-import { AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } from '../../../features/settings/panels/ControlSettingsPanels';
+import {
+  AboutPanel,
+  KeysPanel,
+  PrivacyPanel,
+  SyncPanel,
+  UpdatePanel,
+} from '../../../features/settings/panels/ControlSettingsPanels';
 import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
@@ -35,6 +41,7 @@ type RailId =
   | 'agent'
   | 'keys'
   | 'sync'
+  | 'updates'
   | 'privacy'
   | 'about';
 
@@ -108,6 +115,12 @@ const RAIL_BASE: RailBaseDef[] = [
   { id: 'keys', groupKey: 'settings.groups.control', glyph: '⌨', labelKey: 'settings.rail.keys' },
   { id: 'sync', groupKey: 'settings.groups.control', glyph: '⇅', labelKey: 'settings.rail.sync' },
   {
+    id: 'updates',
+    groupKey: 'settings.groups.control',
+    glyph: '↻',
+    labelKey: 'settings.rail.updates',
+  },
+  {
     id: 'privacy',
     groupKey: 'settings.groups.about',
     glyph: '⚷',
@@ -133,6 +146,7 @@ const RAIL_IDS = new Set<RailId>([
   'agent',
   'keys',
   'sync',
+  'updates',
   'privacy',
   'about',
 ]);
@@ -289,6 +303,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
             registerRef={(el) => (panelRefs.current.sync = el ?? undefined)}
             projectImportEnabled
           />
+          <UpdatePanel registerRef={(el) => (panelRefs.current.updates = el ?? undefined)} />
           <PrivacyPanel registerRef={(el) => (panelRefs.current.privacy = el ?? undefined)} />
           <AboutPanel registerRef={(el) => (panelRefs.current.about = el ?? undefined)} />
         </main>

@@ -1122,7 +1122,7 @@ export function ProjectDashboard() {
 
         {/* ════════ FOOTER ════════ */}
         <footer className="dash-foot">
-          <span>Drifting · v{appVersion} · pre-alpha</span>
+          <span>Drifting · v{appVersion} · alpha</span>
           <span>{storageFooter}</span>
         </footer>
       </div>

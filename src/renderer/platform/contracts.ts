@@ -41,6 +41,7 @@ export interface NativePlatformCapabilities {
   materialFiles?: boolean;
   assetStore?: boolean;
   aiLog?: boolean;
+  appUpdater?: boolean;
   oauth?: boolean;
   imageCodecs?: {
     rust: string[];
@@ -65,6 +66,7 @@ export interface PlatformCapabilities extends NativePlatformCapabilities {
     materialFiles: ContractAvailability;
     assetStore: ContractAvailability;
     aiLog: ContractAvailability;
+    appUpdater?: ContractAvailability;
     oauth: ContractAvailability;
     mcpStdio: ContractAvailability;
     generalAgent: ContractAvailability;
@@ -279,11 +281,31 @@ export type AssetStoreWriteResult =
   | { ok: false; error: string };
 
 export type AssetStoreDeleteResult = { ok: true } | { ok: false; error: string };
+export interface AssetStoreRetainedAsset {
+  projectId: string;
+  assetId: string;
+}
+export interface AssetStoreGcResult {
+  removedOrphans: number;
+  clearedCommittedMarkers: number;
+}
 
 export type ArchiveSaveResult =
   | { ok: true }
   | { ok: false; canceled: true }
   | { ok: false; canceled: false; error: string };
+
+export interface AppUpdateMetadata {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+  publishedAt: string | null;
+}
+
+export type AppUpdateDownloadEvent =
+  | { event: 'Started'; data: { contentLength: number | null } }
+  | { event: 'Progress'; data: { chunkLength: number } }
+  | { event: 'Finished' };
 
 export type AILogWriteResult = { ok: true; filePath: string } | { ok: false; error: string };
 
@@ -416,6 +438,7 @@ export interface TauriCommandContract {
       expectedSourceSha256: string;
       expectedSizeBytes: number;
       expectedMimeType: string;
+      preserveExistingDestination?: boolean;
     };
     result: SyncVerifiedAssetSourceResult;
   };
@@ -583,6 +606,18 @@ export interface TauriCommandContract {
     };
     result: AssetStoreWriteResult;
   };
+  asset_store_begin_import: {
+    args: { projectId: string; assetId: string };
+    result: undefined;
+  };
+  asset_store_commit_import: {
+    args: { projectId: string; assetId: string };
+    result: undefined;
+  };
+  asset_store_gc_orphan_imports: {
+    args: { retainedAssets: AssetStoreRetainedAsset[] };
+    result: AssetStoreGcResult;
+  };
   asset_store_delete_asset: {
     args: { projectId: string; assetId: string };
     result: AssetStoreDeleteResult;
@@ -591,6 +626,13 @@ export interface TauriCommandContract {
     args: { filename: string; bytes: number[] };
     result: ArchiveSaveResult;
   };
+  update_check: { args: undefined; result: AppUpdateMetadata | null };
+  update_download: {
+    args: { onEvent: unknown };
+    result: number;
+  };
+  update_install: { args: undefined; result: undefined };
+  update_dismiss: { args: undefined; result: undefined };
   ai_log_write: {
     args: { filename: string; content: string };
     result: AILogWriteResult;

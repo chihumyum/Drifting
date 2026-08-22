@@ -99,6 +99,7 @@ export interface SyncEngineCheckpointHook {
 export interface SqliteSyncGenerationRuntimeOptions {
   readonly db: DbClient;
   readonly syncGenerationId: string;
+  readonly projectId?: string;
   readonly provider: ObjectLogProvider;
   readonly providerBinding: ProviderBinding;
   readonly objectCodec: SyncEngineObjectCodec;
@@ -281,6 +282,7 @@ function quarantineState(reason: string): 'blocked-update' | 'blocked-corrupt' {
 
 export class SqliteSyncGenerationRuntime {
   readonly syncGenerationId: string;
+  readonly projectId?: string;
 
   private readonly db: DbClient;
   private readonly provider: ObjectLogProvider;
@@ -307,6 +309,7 @@ export class SqliteSyncGenerationRuntime {
     }
     this.db = options.db;
     this.syncGenerationId = options.syncGenerationId;
+    this.projectId = options.projectId;
     this.provider = options.provider;
     this.providerBinding = options.providerBinding;
     this.objectCodec = options.objectCodec;

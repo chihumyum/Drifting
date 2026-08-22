@@ -1,5 +1,7 @@
 import type {
   AILogWriteResult,
+  AppUpdateDownloadEvent,
+  AppUpdateMetadata,
   AppInfo,
   ArchiveSaveResult,
   AssetStoreDeleteResult,
@@ -124,6 +126,8 @@ export interface SyncAssetStorePlatformApi {
     expectedSourceSha256: string;
     expectedSizeBytes: number;
     expectedMimeType: string;
+    /** Receipt v2: preserve an existing canonical destination for rollback. */
+    preserveExistingDestination?: boolean;
   }): Promise<SyncPreparedAssetSourceResult>;
   activateRestoreSources(input: {
     attemptId: string;
@@ -254,6 +258,11 @@ export interface MaterialPlatformApi {
 }
 
 export interface AssetStorePlatformApi {
+  beginImport(projectId: string, assetId: string): Promise<void>;
+  commitImport(projectId: string, assetId: string): Promise<void>;
+  gcOrphanImports(
+    retainedAssets: import('./contracts').AssetStoreRetainedAsset[],
+  ): Promise<import('./contracts').AssetStoreGcResult>;
   getPath(
     projectId: string,
     assetId: string,
@@ -288,6 +297,13 @@ export interface AILogPlatformApi {
   getDir(): Promise<string>;
 }
 
+export interface UpdatePlatformApi {
+  check(): Promise<AppUpdateMetadata | null>;
+  download(onEvent: (event: AppUpdateDownloadEvent) => void): Promise<number>;
+  install(): Promise<void>;
+  dismiss(): Promise<void>;
+}
+
 export interface McpStdioPlatformApi {
   start(input: McpStdioStartInput): Promise<McpStdioStartResult>;
   request(input: McpStdioRequestInput): Promise<string>;
@@ -319,6 +335,7 @@ export interface PlatformApi {
   readonly material: MaterialPlatformApi;
   readonly assetStore: AssetStorePlatformApi;
   readonly archive: ArchivePlatformApi;
+  readonly updater: UpdatePlatformApi;
   readonly aiLog: AILogPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;

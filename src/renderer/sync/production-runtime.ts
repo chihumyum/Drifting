@@ -108,7 +108,10 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
             .where(eq(SyncGenerationTable.syncGenerationId, binding.binding.syncGenerationId))
             .limit(1);
           if (!generation?.projectId) {
-            throw new Error('Checkpoint publication requires an attached project SyncGeneration');
+            // A detached active generation owns only a terminal project purge.
+            // The runtime must publish that journal, but there is no remaining
+            // authored project state from which a checkpoint could be captured.
+            return { captureIfDue: async () => false };
           }
           const providerGeneration = await provider.openGeneration(binding.binding);
           const objectCodec = new NativePlaintextSyncEngineObjectCodec(nativeSyncObjectCodec);
@@ -137,6 +140,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
     return new SqliteSyncGenerationRuntime({
       db: database,
       syncGenerationId: binding.binding.syncGenerationId,
+      projectId: binding.projectId,
       provider,
       providerBinding: binding.binding,
       objectCodec: new NativePlaintextSyncEngineObjectCodec(nativeSyncObjectCodec),

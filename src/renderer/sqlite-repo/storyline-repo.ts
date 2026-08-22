@@ -89,7 +89,7 @@ export function createStorylineRepository(
     const rows = await dbProvider()
       .select()
       .from(StorylineTable)
-      .where(eq(StorylineTable.id, id))
+      .where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId)))
       .limit(1);
     if (rows.length === 0) {
       log.warn(`Storyline with id ${id} not found`);
@@ -141,7 +141,7 @@ export function createStorylineRepository(
     const res = await dbProvider()
       .update(StorylineTable)
       .set(updateValues)
-      .where(eq(StorylineTable.id, id))
+      .where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId)))
       .returning();
 
     if (!res || res.length === 0) {
@@ -151,7 +151,9 @@ export function createStorylineRepository(
   };
 
   const deleteStoryline = async (id: string): Promise<void> => {
-    await dbProvider().delete(StorylineTable).where(eq(StorylineTable.id, id));
+    await dbProvider()
+      .delete(StorylineTable)
+      .where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId)));
   };
 
   const softDeleteStoryline = async (id: string): Promise<void> => {
@@ -159,7 +161,7 @@ export function createStorylineRepository(
     await dbProvider()
       .update(StorylineTable)
       .set({ deletedAt: now, updatedAt: now })
-      .where(eq(StorylineTable.id, id));
+      .where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId)));
   };
 
   const restoreStoryline = async (id: string): Promise<void> => {
@@ -167,7 +169,7 @@ export function createStorylineRepository(
     await dbProvider()
       .update(StorylineTable)
       .set({ deletedAt: null, updatedAt: now })
-      .where(eq(StorylineTable.id, id));
+      .where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId)));
   };
 
   return {

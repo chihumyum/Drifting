@@ -23,7 +23,8 @@ const SYNC_OBJECT_ROOT: &str = "sync-objects";
 const ATTEMPT_ROOT: &str = "sync-asset-attempts";
 const REF_PREFIX: &str = "syncobj:";
 const MAX_SOURCE_BYTES: u64 = 512 * 1024 * 1024;
-const RECEIPT_VERSION: u8 = 1;
+const RECEIPT_VERSION_V1: u8 = 1;
+const RECEIPT_VERSION_V2: u8 = 2;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +55,7 @@ pub(crate) struct AssetGcResult {
 #[serde(rename_all = "kebab-case")]
 enum ReceiptState {
     Prepared,
+    Replacing,
     Activated,
 }
 
@@ -70,6 +72,14 @@ struct AssetAttemptReceipt {
     mime_type: String,
     staging_ref: String,
     state: ReceiptState,
+    #[serde(default)]
+    destination_existed: bool,
+    #[serde(default)]
+    previous_ref: Option<String>,
+    #[serde(default)]
+    previous_sha256: Option<String>,
+    #[serde(default)]
+    previous_size_bytes: Option<u64>,
     updated_at_ms: u128,
 }
 
@@ -310,6 +320,19 @@ fn verify_source(
     Ok(())
 }
 
+fn verify_content(
+    path: &Path,
+    expected_sha256: &str,
+    expected_size_bytes: u64,
+) -> Result<(), String> {
+    validate_sha256(expected_sha256)?;
+    let (size, sha256) = hash_file(path)?;
+    if size != expected_size_bytes || sha256 != expected_sha256 {
+        return Err("asset content hash or size does not match rollback metadata".into());
+    }
+    Ok(())
+}
+
 fn promote_verified_source(
     source: &Path,
     destination: &Path,
@@ -361,7 +384,7 @@ fn read_receipt(path: &Path) -> Result<AssetAttemptReceipt, String> {
     let bytes = fs::read(path).map_err(|_| "asset restore receipt is unavailable".to_string())?;
     let receipt: AssetAttemptReceipt = serde_json::from_slice(&bytes)
         .map_err(|_| "asset restore receipt is corrupt".to_string())?;
-    if receipt.version != RECEIPT_VERSION {
+    if !matches!(receipt.version, RECEIPT_VERSION_V1 | RECEIPT_VERSION_V2) {
         return Err("asset restore receipt version is unsupported".into());
     }
     Ok(receipt)
@@ -405,8 +428,58 @@ fn remove_attempt_directory(app: &AppHandle, attempt_id: &str) -> Result<(), Str
     }
 }
 
+fn rollback_v2_destination(
+    destination: &Path,
+    previous: Option<&Path>,
+    receipt: &AssetAttemptReceipt,
+) -> Result<(), String> {
+    if receipt.destination_existed {
+        if let (Some(previous), Some(previous_sha256), Some(previous_size_bytes)) = (
+            previous,
+            receipt.previous_sha256.as_deref(),
+            receipt.previous_size_bytes,
+        ) {
+            verify_content(previous, previous_sha256, previous_size_bytes)?;
+            atomic_copy_capped(previous, destination, MAX_SOURCE_BYTES)
+                .map_err(|_| "could not restore the previous asset source".to_string())?;
+            verify_content(destination, previous_sha256, previous_size_bytes)?;
+        }
+    } else if verify_source(
+        destination,
+        &receipt.source_sha256,
+        receipt.size_bytes,
+        &receipt.mime_type,
+    )
+    .is_ok()
+    {
+        fs::remove_file(destination)
+            .map_err(|_| "could not remove the uncommitted asset source".to_string())?;
+    }
+    Ok(())
+}
+
 fn abandon_receipt(app: &AppHandle, receipt: &AssetAttemptReceipt) -> Result<(), String> {
-    if receipt.state == ReceiptState::Activated {
+    if receipt.version == RECEIPT_VERSION_V2
+        && matches!(
+            receipt.state,
+            ReceiptState::Replacing | ReceiptState::Activated
+        )
+    {
+        let extension = mime_extension(&receipt.mime_type)?;
+        let destination = asset_store_path(
+            app,
+            &receipt.target_project_id,
+            &receipt.asset_id,
+            AssetVariant::Source,
+            extension,
+        )?;
+        let previous = receipt
+            .previous_ref
+            .as_deref()
+            .map(|reference| resolve_object_ref(app, reference))
+            .transpose()?;
+        rollback_v2_destination(&destination, previous.as_deref(), receipt)?;
+    } else if receipt.version == RECEIPT_VERSION_V1 && receipt.state == ReceiptState::Activated {
         let extension = mime_extension(&receipt.mime_type)?;
         let destination = asset_store_path(
             app,
@@ -427,6 +500,9 @@ fn abandon_receipt(app: &AppHandle, receipt: &AssetAttemptReceipt) -> Result<(),
         }
     }
     remove_object_ref(app, &receipt.staging_ref);
+    if let Some(previous_ref) = receipt.previous_ref.as_deref() {
+        remove_object_ref(app, previous_ref);
+    }
     Ok(())
 }
 
@@ -502,6 +578,7 @@ pub(crate) async fn sync_asset_prepare_restore_source(
     expected_source_sha256: String,
     expected_size_bytes: u64,
     expected_mime_type: String,
+    preserve_existing_destination: Option<bool>,
 ) -> Result<PreparedAssetSourceResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         validate_identity(&attempt_id, "asset restore attempt identity")?;
@@ -529,7 +606,11 @@ pub(crate) async fn sync_asset_prepare_restore_source(
             &expected_mime_type,
         )?;
         let receipt = AssetAttemptReceipt {
-            version: RECEIPT_VERSION,
+            version: if preserve_existing_destination.unwrap_or(false) {
+                RECEIPT_VERSION_V2
+            } else {
+                RECEIPT_VERSION_V1
+            },
             attempt_id: attempt_id.clone(),
             target_project_id,
             asset_id: asset_id.clone(),
@@ -539,6 +620,10 @@ pub(crate) async fn sync_asset_prepare_restore_source(
             mime_type: normalized_mime(&expected_mime_type),
             staging_ref: staging_ref.clone(),
             state: ReceiptState::Prepared,
+            destination_existed: false,
+            previous_ref: None,
+            previous_sha256: None,
+            previous_size_bytes: None,
             updated_at_ms: now_ms(),
         };
         write_receipt(&receipt_path(&app, &attempt_id, &staging_ref)?, &receipt)?;
@@ -590,6 +675,38 @@ pub(crate) async fn sync_asset_activate_restore_sources(
                 AssetVariant::Source,
                 extension,
             )?;
+            if receipt.version == RECEIPT_VERSION_V2 && receipt.state == ReceiptState::Prepared {
+                let mut allocated_previous_ref = None;
+                receipt.destination_existed = destination.is_file();
+                if receipt.destination_existed
+                    && verify_source(
+                        &destination,
+                        &receipt.source_sha256,
+                        receipt.size_bytes,
+                        &receipt.mime_type,
+                    )
+                    .is_err()
+                {
+                    let (previous_ref, previous_path) = allocate_object_ref(&app)?;
+                    atomic_copy_capped(&destination, &previous_path, MAX_SOURCE_BYTES)
+                        .map_err(|_| "could not preserve the previous asset source".to_string())?;
+                    let (previous_size_bytes, previous_sha256) = hash_file(&previous_path)?;
+                    receipt.previous_ref = Some(previous_ref);
+                    receipt.previous_sha256 = Some(previous_sha256);
+                    receipt.previous_size_bytes = Some(previous_size_bytes);
+                    allocated_previous_ref = receipt.previous_ref.clone();
+                }
+                receipt.state = ReceiptState::Replacing;
+                receipt.updated_at_ms = now_ms();
+                // The rollback source and replacing state must be durable before
+                // the canonical destination can change.
+                if let Err(error) = write_receipt(&receipt_file, &receipt) {
+                    if let Some(previous_ref) = allocated_previous_ref.as_deref() {
+                        remove_object_ref(&app, previous_ref);
+                    }
+                    return Err(error);
+                }
+            }
             promote_verified_source(&source, &destination, &receipt)?;
             receipt.state = ReceiptState::Activated;
             receipt.updated_at_ms = now_ms();
@@ -637,6 +754,9 @@ pub(crate) async fn sync_asset_finalize_restore_attempt(
                 );
             }
             remove_object_ref(&app, &receipt.staging_ref);
+            if let Some(previous_ref) = receipt.previous_ref.as_deref() {
+                remove_object_ref(&app, previous_ref);
+            }
         }
         remove_attempt_directory(&app, &attempt_id)
     })
@@ -752,7 +872,7 @@ mod tests {
         let directory = tempdir().unwrap();
         let path = directory.path().join("receipt.json");
         let receipt = AssetAttemptReceipt {
-            version: RECEIPT_VERSION,
+            version: RECEIPT_VERSION_V2,
             attempt_id: "attempt-1".into(),
             target_project_id: "project-1".into(),
             asset_id: "asset-1".into(),
@@ -762,6 +882,10 @@ mod tests {
             mime_type: "application/pdf".into(),
             staging_ref: "syncobj:stage-1".into(),
             state: ReceiptState::Activated,
+            destination_existed: true,
+            previous_ref: Some("syncobj:rollback-1".into()),
+            previous_sha256: Some(format!("sha256:{}", "b".repeat(64))),
+            previous_size_bytes: Some(21),
             updated_at_ms: 1,
         };
         write_receipt(&path, &receipt).unwrap();
@@ -769,6 +893,7 @@ mod tests {
         assert_eq!(decoded.attempt_id, receipt.attempt_id);
         assert_eq!(decoded.state, ReceiptState::Activated);
         assert_eq!(decoded.source_sha256, receipt.source_sha256);
+        assert_eq!(decoded.previous_ref, receipt.previous_ref);
     }
 
     #[test]
@@ -784,7 +909,7 @@ mod tests {
 
     fn pdf_receipt(source: &[u8], asset_id: &str) -> AssetAttemptReceipt {
         AssetAttemptReceipt {
-            version: RECEIPT_VERSION,
+            version: RECEIPT_VERSION_V1,
             attempt_id: "sigkill-attempt".into(),
             target_project_id: "sigkill-project".into(),
             asset_id: asset_id.into(),
@@ -794,8 +919,45 @@ mod tests {
             mime_type: "application/pdf".into(),
             staging_ref: format!("syncobj:stage-{asset_id}"),
             state: ReceiptState::Prepared,
+            destination_existed: false,
+            previous_ref: None,
+            previous_sha256: None,
+            previous_size_bytes: None,
             updated_at_ms: 1,
         }
+    }
+
+    #[test]
+    fn v2_rollback_restores_overwritten_bytes_and_removes_only_owned_new_files() {
+        let directory = tempdir().unwrap();
+        let destination = directory.path().join("source.pdf");
+        let previous = directory.path().join("previous.object");
+        let old_bytes = b"%PDF-1.7\nold canonical source\n%%EOF";
+        let new_bytes = b"%PDF-1.7\nreplacement source\n%%EOF";
+        write(&previous, old_bytes);
+        write(&destination, new_bytes);
+
+        let mut receipt = pdf_receipt(new_bytes, "same-asset-id");
+        receipt.version = RECEIPT_VERSION_V2;
+        receipt.state = ReceiptState::Replacing;
+        receipt.destination_existed = true;
+        receipt.previous_ref = Some("syncobj:previous-source".into());
+        receipt.previous_sha256 = Some(format!("sha256:{}", sha256_hex(old_bytes)));
+        receipt.previous_size_bytes = Some(old_bytes.len() as u64);
+        rollback_v2_destination(&destination, Some(&previous), &receipt).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), old_bytes);
+
+        write(&destination, new_bytes);
+        receipt.destination_existed = false;
+        receipt.previous_ref = None;
+        receipt.previous_sha256 = None;
+        receipt.previous_size_bytes = None;
+        rollback_v2_destination(&destination, None, &receipt).unwrap();
+        assert!(!destination.exists());
+
+        write(&destination, old_bytes);
+        rollback_v2_destination(&destination, None, &receipt).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), old_bytes);
     }
 
     #[test]

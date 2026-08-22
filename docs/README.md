@@ -4,6 +4,17 @@ This directory contains current product contracts, architecture notes, runbooks,
 and acceptance evidence. Current behavior must be read from the sources below;
 dated run reports are evidence for one checkout, not product truth.
 
+## Desktop public Alpha
+
+- [Frozen release contract](alpha-release-contract.md)
+- [Release runbook](desktop-alpha-release-runbook.md)
+- [Google Drive data-use disclosure](google-drive-data-use.md)
+- [Desktop quick start](quick-start.md)
+- [Google Drive two-Mac acceptance](qa/google-drive-desktop-alpha-acceptance.md)
+- [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
+- [Known issues](../KNOWN_ISSUES.md)
+- [Support](../SUPPORT.md)
+
 ## Start here
 
 | Question                                                   | Source                                                                                                                                                                |

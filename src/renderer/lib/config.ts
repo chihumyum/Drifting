@@ -23,7 +23,7 @@ export const APP_CONFIG = {
   // Authentication
   REQUIRE_AUTH: readBooleanEnv(runtimeViteEnv.VITE_REQUIRE_AUTH as string | undefined, false),
 
-  // Pre-Alpha is BYOK-only. Hosted AI is deliberately unavailable regardless
+  // Public Alpha is BYOK-only. Hosted AI is deliberately unavailable regardless
   // of persisted settings or build environment.
   BYOK_ONLY: true,
 

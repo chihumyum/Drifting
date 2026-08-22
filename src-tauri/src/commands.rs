@@ -30,6 +30,7 @@ pub struct PlatformCapabilities {
     material_files: bool,
     asset_store: bool,
     ai_log: bool,
+    app_updater: bool,
     oauth: bool,
     mcp_stdio: bool,
     image_codecs: ImageCodecCapabilities,
@@ -105,6 +106,10 @@ pub fn platform_capabilities() -> PlatformCapabilities {
         material_files: true,
         asset_store: true,
         ai_log: true,
+        app_updater: cfg!(desktop)
+            && option_env!("DRIFTING_UPDATER_PUBLIC_KEY")
+                .map(str::trim)
+                .is_some_and(|value| !value.is_empty()),
         oauth: true,
         // Streamable HTTP is renderer-owned on every target. The native stdio
         // process host is deliberately desktop-only.

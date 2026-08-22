@@ -84,6 +84,28 @@ describe('clean local project asset architecture', () => {
     expect(elementUsecase).toContain('appendProjectAssetUnbindMutation');
   });
 
+  it('verifies the native blob before authored asset.bind validation', () => {
+    const importer = source('./local-project-asset.service.ts');
+    const verifiedBlob = source('../sync/assets/local-authored-blob.ts');
+
+    expect(importer).toContain('ensureLocalAuthoredAssetBlobVerified(asset)');
+    expect(verifiedBlob).toContain("localState: 'verified'");
+    expect(verifiedBlob).toContain('nativeSyncAssetBlobPort');
+    expect(verifiedBlob).toContain('findActiveSyncGenerationInTransaction');
+    expect(verifiedBlob).not.toMatch(/filePath|absolutePath|credentialSecretRef/u);
+  });
+
+  it('shows explicit picker/import progress and inline failures', () => {
+    const dialog = source('../features/library/LibraryDialogs.tsx');
+
+    expect(dialog).toContain('memoMaterial.dialog.importingImage');
+    expect(dialog).toContain('memoMaterial.dialog.importingPdf');
+    expect(dialog).toContain('material-import-feedback');
+    expect(dialog).toContain('role="status"');
+    expect(dialog).toContain('role="alert"');
+    expect(dialog).not.toContain('alert(');
+  });
+
   it('uses derived bytes for image rendering and canonical source bytes for fidelity hand-offs', () => {
     const preview = source('../features/library/LibraryItemPreview.tsx');
     const libraryPanel = source('../features/library/LibraryPanel.tsx');
@@ -133,11 +155,11 @@ describe('clean local project asset architecture', () => {
     expect(fileCleanup).toBeGreaterThan(committed);
   });
 
-  it('records the pre-release clean-over-compatibility rule as a durable agent policy', () => {
+  it('records the frozen public Alpha compatibility rule as a durable agent policy', () => {
     const agents = source('../../../AGENTS.md');
-    expect(agents).toContain('## Pre-release compatibility policy');
-    expect(agents).toContain('architectural clarity takes priority');
-    expect(agents).toContain('Local development databases may be reset');
-    expect(agents).toContain('This policy does not relax current durability guarantees');
+    expect(agents).toContain('## Public Alpha compatibility policy');
+    expect(agents).toContain('0.1.0-alpha.1');
+    expect(agents).toContain('Published migrations are immutable');
+    expect(agents).toContain('Development databases created before');
   });
 });

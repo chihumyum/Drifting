@@ -1,6 +1,6 @@
 [package]
 name = "drifting"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 description = "Drifting creative writing client"
 authors = ["chihumyum <108172547+chihumyum@users.noreply.github.com>"]
 license = "AGPL-3.0-or-later"
@@ -62,6 +62,7 @@ security-framework = "3"
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 fontdb = "0.23"
 tauri-plugin-single-instance = { version = "2.4.3", features = ["deep-link"] }
+tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
 tempfile = "3.14.0"

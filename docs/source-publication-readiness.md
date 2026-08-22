@@ -84,6 +84,21 @@ one of the following with an evidence-backed rationale:
 
 Do not dismiss the alert merely to make the security dashboard show zero.
 
+## 2026-08-20 Alpha release preparation
+
+The working Alpha implementation adds an exact-tag release check, SHA-pinned
+Actions, draft signed/notarized arm64 artifact workflow, SBOM/checksum/NOTICE
+assets, and a separately protected updater-channel promotion workflow. These
+changes are implementation, not publication evidence: they are not complete
+until committed, reviewed, run on the exact tag, and revalidated anonymously.
+
+The release environments intentionally add secrets that were absent from the
+historical 2026-08-19 snapshot. `alpha-release` may contain only the production
+Desktop OAuth client, Developer ID certificate, App Store Connect
+notarization key, and updater signing material. `alpha-channel` protects only
+the manual promotion. Neither environment may expose secrets to pull-request
+workflows, and ordinary CI keeps read-only contents permission.
+
 ## Publication preflight
 
 Run this checklist on the exact commit intended to become public.
@@ -127,8 +142,8 @@ Run this checklist on the exact commit intended to become public.
       do not substitute a run for an earlier commit.
 - [ ] Run `pnpm audit --prod --audit-level high` and review every open
       Dependabot alert, including Rust lockfile alerts not covered by pnpm.
-- [ ] Re-check whether GitHub Actions should be pinned to immutable commit SHAs
-      before accepting public pull-request execution.
+- [ ] Run `node scripts/check-alpha-release.mjs app-v<version>` and confirm every
+      third-party Action remains pinned to a 40-character commit SHA.
 
 ### GitHub configuration
 
@@ -174,6 +189,8 @@ and real-account gates documented in:
 
 - [`../README.md`](../README.md#licensing-and-project-policy);
 - [`qa/tauri-native-manual-regression.md`](qa/tauri-native-manual-regression.md);
+- [`qa/desktop-alpha-release-candidate.md`](qa/desktop-alpha-release-candidate.md);
+- [`qa/google-drive-desktop-alpha-acceptance.md`](qa/google-drive-desktop-alpha-acceptance.md);
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md); and
 - [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md).
 

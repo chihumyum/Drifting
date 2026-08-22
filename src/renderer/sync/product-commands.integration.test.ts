@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
+import { events } from '../lib/events';
 import {
   ProjectTable,
   SyncProviderBindingTable,
@@ -118,6 +119,32 @@ describe('ProductSyncCommandService', () => {
       connectedLocalSyncGenerationIds: ['sync-generation-1'],
     });
     expect(input.dependencies.connectGoogleDrive).toHaveBeenCalledWith(input.db, signal);
+  });
+
+  it('announces freshly restored projects so device-local tabs can be discarded', async () => {
+    const input = await setup();
+    vi.mocked(input.dependencies.connectGoogleDrive).mockResolvedValueOnce({
+      status: 'connected',
+      attemptId: 'pending-connect',
+      accountSubject: 'subject-1',
+      restored: [
+        {
+          projectId: 'project-restored',
+          projectSyncId: 'project-sync-restored',
+          syncGenerationId: 'sync-generation-restored',
+          snapshotId: 'snapshot-restored',
+        },
+      ],
+      connectedLocalSyncGenerationIds: [],
+    });
+    const listener = vi.fn();
+    events.on('sync:projects-restored', listener);
+    try {
+      await input.service.connectGoogleDrive(new AbortController().signal);
+      expect(listener).toHaveBeenCalledWith({ projectIds: ['project-restored'] });
+    } finally {
+      events.off('sync:projects-restored', listener);
+    }
   });
 
   it('pauses and resumes every SyncGeneration atomically and emits one authority reload', async () => {

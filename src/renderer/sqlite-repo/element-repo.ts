@@ -47,7 +47,7 @@ export function createBookElementSqliteRepository(
     const rows = await dbProvider()
       .select()
       .from(BookElementTable)
-      .where(eq(BookElementTable.id, id))
+      .where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId)))
       .limit(1);
 
     if (rows.length === 0) return null;
@@ -90,6 +90,9 @@ export function createBookElementSqliteRepository(
   };
 
   const create = async (input: ElementCreateData): Promise<BookElement> => {
+    if (input.projectId !== projectId) {
+      throw new Error(`Cannot create element for project ${input.projectId} in ${projectId}`);
+    }
     const newElement: typeof BookElementTable.$inferInsert = {
       id: input.id,
       projectId: input.projectId,
@@ -130,7 +133,7 @@ export function createBookElementSqliteRepository(
     await dbProvider()
       .update(BookElementTable)
       .set(updateValues)
-      .where(eq(BookElementTable.id, id));
+      .where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId)));
 
     return findById(id);
   };
@@ -143,7 +146,9 @@ export function createBookElementSqliteRepository(
     create,
     update,
     delete: async (id) => {
-      await dbProvider().delete(BookElementTable).where(eq(BookElementTable.id, id));
+      await dbProvider()
+        .delete(BookElementTable)
+        .where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId)));
       return true;
     },
     softDelete: async (id) => {
@@ -151,7 +156,7 @@ export function createBookElementSqliteRepository(
       await dbProvider()
         .update(BookElementTable)
         .set({ deletedAt: now, updatedAt: now })
-        .where(eq(BookElementTable.id, id));
+        .where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId)));
       return true;
     },
     restore: async (id) => {
@@ -159,7 +164,7 @@ export function createBookElementSqliteRepository(
       await dbProvider()
         .update(BookElementTable)
         .set({ deletedAt: null, updatedAt: now })
-        .where(eq(BookElementTable.id, id));
+        .where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId)));
       return true;
     },
   };

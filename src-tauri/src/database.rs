@@ -1,17 +1,21 @@
 use std::collections::VecDeque;
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use include_dir::{include_dir, Dir};
 use rusqlite::types::{Value, ValueRef};
-use rusqlite::{params, params_from_iter, Connection, OpenFlags};
+use rusqlite::{params, params_from_iter, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::State;
+use tauri::{AppHandle, State};
+use tauri_plugin_dialog::{DialogExt, FileAccessMode, PickerMode};
+use tauri_plugin_opener::OpenerExt;
+
+use crate::native_capabilities::{atomic_write, durable_replace_file, temporary_sibling};
 
 type DatabaseResult<T> = Result<T, String>;
 type Response<T> = mpsc::Sender<DatabaseResult<T>>;
@@ -20,6 +24,9 @@ const DATABASE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const CLIENT_SESSION_ID_MAX_LENGTH: usize = 128;
 const MIGRATION_BREAKPOINT: &str = "--> statement-breakpoint";
 const MIGRATIONS_TABLE: &str = "__drizzle_migrations";
+const SAFETY_BACKUPS_PER_VERSION: usize = 3;
+const RECOVERY_RECEIPT_VERSION: u8 = 1;
+const RECOVERY_FAILURE_PREFIX: &str = "database-recovery:";
 
 // The journal remains the single migration manifest. `include_dir!` embeds the
 // journal and every referenced SQL file into desktop and mobile binaries, so a
@@ -61,6 +68,45 @@ pub struct DatabaseOpenResult {
     path: String,
     journal_mode: String,
     migrations_applied: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseSafetyBackupSummary {
+    backup_id: String,
+    sha256: String,
+    size_bytes: u64,
+    created_at_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseOpenFailure {
+    code: String,
+    message: String,
+    recovery_session_id: Option<String>,
+    source_version: Option<String>,
+    target_version: String,
+    safety_backup: Option<DatabaseSafetyBackupSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DatabaseRecoveryReceipt {
+    version: u8,
+    recovery_session_id: String,
+    database_name: String,
+    source_version: Option<String>,
+    target_version: String,
+    backup_id: String,
+    backup_file_name: String,
+    backup_sha256: String,
+    backup_size_bytes: u64,
+    created_at_ms: u64,
+    state: String,
+    candidate_file_name: Option<String>,
+    failed_stage: String,
+    error_code: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -141,12 +187,19 @@ enum Request {
         client_session_id: String,
         response: Response<()>,
     },
+    RestoreSafetyBackup {
+        recovery_session_id: String,
+        backup_id: String,
+        client_session_id: String,
+        response: Response<DatabaseOpenResult>,
+    },
     Shutdown,
 }
 
 struct GatewayInner {
     sender: mpsc::Sender<Request>,
     worker: Mutex<Option<thread::JoinHandle<()>>>,
+    database_directory: PathBuf,
 }
 
 impl Drop for GatewayInner {
@@ -174,17 +227,55 @@ pub struct DatabaseGateway {
 impl DatabaseGateway {
     pub fn new(database_directory: PathBuf) -> DatabaseResult<Self> {
         let (sender, receiver) = mpsc::channel();
+        let worker_directory = database_directory.clone();
         let worker = thread::Builder::new()
             .name("drifting-sqlite".into())
-            .spawn(move || worker_loop(receiver, database_directory))
+            .spawn(move || worker_loop(receiver, worker_directory))
             .map_err(|error| format!("failed to start SQLite worker: {error}"))?;
 
         Ok(Self {
             inner: Arc::new(GatewayInner {
                 sender,
                 worker: Mutex::new(Some(worker)),
+                database_directory,
             }),
         })
+    }
+
+    fn recovery_failure(&self, error: String) -> DatabaseOpenFailure {
+        let Some((session_id, fallback_code)) = parse_recovery_failure(&error) else {
+            return DatabaseOpenFailure {
+                code: "database-open-failed".into(),
+                message: "Drifting could not open the local library database.".into(),
+                recovery_session_id: None,
+                source_version: None,
+                target_version: env!("CARGO_PKG_VERSION").into(),
+                safety_backup: None,
+            };
+        };
+
+        read_recovery_receipt(&self.inner.database_directory, session_id)
+            .map(|receipt| DatabaseOpenFailure {
+                code: receipt.error_code.clone(),
+                message: "The local library upgrade stopped before activation. Your previous database is still available.".into(),
+                recovery_session_id: Some(receipt.recovery_session_id.clone()),
+                source_version: receipt.source_version.clone(),
+                target_version: receipt.target_version.clone(),
+                safety_backup: Some(DatabaseSafetyBackupSummary {
+                    backup_id: receipt.backup_id,
+                    sha256: receipt.backup_sha256,
+                    size_bytes: receipt.backup_size_bytes,
+                    created_at_ms: receipt.created_at_ms,
+                }),
+            })
+            .unwrap_or_else(|_| DatabaseOpenFailure {
+                code: fallback_code.to_owned(),
+                message: "The local library upgrade is incomplete and its recovery receipt could not be verified.".into(),
+                recovery_session_id: Some(session_id.to_owned()),
+                source_version: None,
+                target_version: env!("CARGO_PKG_VERSION").into(),
+                safety_backup: None,
+            })
     }
 
     fn request<T>(&self, create_request: impl FnOnce(Response<T>) -> Request) -> DatabaseResult<T> {
@@ -296,6 +387,28 @@ impl DatabaseGateway {
             response,
         })
     }
+
+    pub fn restore_safety_backup(
+        &self,
+        recovery_session_id: String,
+        backup_id: String,
+        client_session_id: String,
+    ) -> DatabaseResult<DatabaseOpenResult> {
+        validate_client_session_id(&client_session_id)?;
+        self.request(|response| Request::RestoreSafetyBackup {
+            recovery_session_id,
+            backup_id,
+            client_session_id,
+            response,
+        })
+    }
+
+    fn recovery_receipt(
+        &self,
+        recovery_session_id: &str,
+    ) -> DatabaseResult<DatabaseRecoveryReceipt> {
+        read_recovery_receipt(&self.inner.database_directory, recovery_session_id)
+    }
 }
 
 struct OpenDatabase {
@@ -381,6 +494,7 @@ fn should_defer(
         | Request::Rollback { .. }
         | Request::Checkpoint { .. }
         | Request::Close { .. }
+        | Request::RestoreSafetyBackup { .. }
         | Request::Shutdown => false,
     }
 }
@@ -410,6 +524,9 @@ impl Request {
                 client_session_id, ..
             }
             | Self::Close {
+                client_session_id, ..
+            }
+            | Self::RestoreSafetyBackup {
                 client_session_id, ..
             } => Some(client_session_id),
             Self::Shutdown => None,
@@ -576,6 +693,23 @@ fn process_request(
             };
             let _ = response.send(result);
         }
+        Request::RestoreSafetyBackup {
+            recovery_session_id,
+            backup_id,
+            client_session_id,
+            response,
+        } => {
+            let result = restore_safety_backup_for_client_session(
+                database,
+                active_transaction,
+                current_client_session_id,
+                database_directory,
+                &recovery_session_id,
+                &backup_id,
+                &client_session_id,
+            );
+            let _ = response.send(result);
+        }
         Request::Shutdown => {
             let _ = rollback_and_close(database, active_transaction);
             *current_client_session_id = None;
@@ -654,6 +788,52 @@ fn open_for_client_session(
     // renderer stay rejected.
     *current_client_session_id = Some(requested_client_session_id.to_owned());
     open_or_switch_database(database, database_directory, database_name)
+}
+
+fn restore_safety_backup_for_client_session(
+    database: &mut Option<OpenDatabase>,
+    active_transaction: &mut Option<u64>,
+    current_client_session_id: &mut Option<String>,
+    database_directory: &Path,
+    recovery_session_id: &str,
+    backup_id: &str,
+    requested_client_session_id: &str,
+) -> DatabaseResult<DatabaseOpenResult> {
+    ensure_client_session_access(
+        current_client_session_id.as_deref(),
+        requested_client_session_id,
+    )?;
+    if active_transaction.is_some() || database.is_some() {
+        return Err("database recovery requires a closed database".into());
+    }
+    let receipt = read_recovery_receipt(database_directory, recovery_session_id)?;
+    if receipt.backup_id != backup_id {
+        return Err("database recovery backup identity does not match".into());
+    }
+    let database_path = resolve_database_path(database_directory, &receipt.database_name)?;
+    let backup_path = verify_recovery_backup(database_directory, &receipt)?;
+    let migration =
+        migrate_shadow_candidate(database_directory, &database_path, &backup_path, &receipt);
+    let migrations_applied = match migration {
+        Ok(applied) => applied,
+        Err((stage, code, _detail)) => {
+            let _ = update_recovery_failure(database_directory, recovery_session_id, stage, code);
+            return Err(format!(
+                "{RECOVERY_FAILURE_PREFIX}{recovery_session_id}:{code}"
+            ));
+        }
+    };
+    record_opened_app_version(database_directory, &database_path, &receipt.target_version)?;
+    remove_recovery_receipt(database_directory, recovery_session_id);
+
+    let (open_database, reopened_migrations) = open_database(database_directory, database_path)?;
+    let result = DatabaseOpenResult {
+        path: open_database.path.to_string_lossy().into_owned(),
+        journal_mode: open_database.journal_mode.clone(),
+        migrations_applied: migrations_applied.saturating_add(reopened_migrations),
+    };
+    *database = Some(open_database);
+    Ok(result)
 }
 
 fn with_connection<T>(
@@ -805,23 +985,76 @@ fn open_database(
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_CREATE
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let connection = Connection::open_with_flags(&database_path, flags)
+    let database_existed = database_path
+        .metadata()
+        .map(|metadata| metadata.is_file() && metadata.len() > 0)
+        .unwrap_or(false);
+    if database_existed {
+        reconcile_incomplete_shadow_migration(database_directory, &database_path)?;
+    }
+    let mut connection = Connection::open_with_flags(&database_path, flags)
         .map_err(|error| format!("failed to open database: {error}"))?;
-    connection
-        .busy_timeout(DATABASE_BUSY_TIMEOUT)
-        .map_err(|error| format!("failed to configure SQLite busy timeout: {error}"))?;
+    let mut journal_mode = configure_active_connection(&connection)?;
 
-    let journal_mode: String = connection
-        .query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
-        .map_err(|error| format!("failed to enable WAL mode: {error}"))?;
-    connection
-        .pragma_update(None, "synchronous", "NORMAL")
-        .map_err(|error| format!("failed to configure SQLite synchronous mode: {error}"))?;
-    connection
-        .pragma_update(None, "wal_autocheckpoint", 1_000_i64)
-        .map_err(|error| format!("failed to configure WAL autocheckpoint: {error}"))?;
+    let marker_is_current = database_version_is_current(
+        database_directory,
+        &database_path,
+        env!("CARGO_PKG_VERSION"),
+    )?;
+    let migrations_applied = if database_existed && !marker_is_current {
+        checkpoint_database(&connection)?;
+        let safety_backup = create_pre_update_safety_backup(
+            &connection,
+            database_directory,
+            &database_path,
+            env!("CARGO_PKG_VERSION"),
+        )?
+        .ok_or_else(|| "database safety snapshot was unexpectedly skipped".to_string())?;
+        let receipt = create_recovery_receipt(
+            database_directory,
+            &database_path,
+            &safety_backup,
+            "candidate-preparation",
+            "migration-candidate-failed",
+        )?;
 
-    let migrations_applied = apply_migrations(&connection)?;
+        drop(connection);
+        let migration_result =
+            migrate_shadow_candidate(database_directory, &database_path, &safety_backup, &receipt);
+        let applied = match migration_result {
+            Ok(applied) => applied,
+            Err((stage, code, _detail)) => {
+                let recovery_session_id = receipt.recovery_session_id.clone();
+                let _ =
+                    update_recovery_failure(database_directory, &recovery_session_id, stage, code);
+                return Err(format!(
+                    "{RECOVERY_FAILURE_PREFIX}{}:{code}",
+                    recovery_session_id
+                ));
+            }
+        };
+
+        connection = Connection::open_with_flags(&database_path, flags)
+            .map_err(|error| format!("failed to reopen activated database: {error}"))?;
+        journal_mode = configure_active_connection(&connection)?;
+        validate_database_truth(&connection)?;
+        record_opened_app_version(
+            database_directory,
+            &database_path,
+            env!("CARGO_PKG_VERSION"),
+        )?;
+        remove_recovery_receipt(database_directory, &receipt.recovery_session_id);
+        applied
+    } else {
+        let applied = apply_migrations(&connection)?;
+        validate_database_truth(&connection)?;
+        record_opened_app_version(
+            database_directory,
+            &database_path,
+            env!("CARGO_PKG_VERSION"),
+        )?;
+        applied
+    };
     connection
         .pragma_update(None, "foreign_keys", true)
         .map_err(|error| format!("failed to enable foreign keys: {error}"))?;
@@ -834,6 +1067,654 @@ fn open_database(
         },
         migrations_applied,
     ))
+}
+
+fn configure_active_connection(connection: &Connection) -> DatabaseResult<String> {
+    connection
+        .busy_timeout(DATABASE_BUSY_TIMEOUT)
+        .map_err(|error| format!("failed to configure SQLite busy timeout: {error}"))?;
+    let journal_mode = connection
+        .query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+        .map_err(|error| format!("failed to enable WAL mode: {error}"))?;
+    connection
+        .pragma_update(None, "synchronous", "NORMAL")
+        .map_err(|error| format!("failed to configure SQLite synchronous mode: {error}"))?;
+    connection
+        .pragma_update(None, "wal_autocheckpoint", 1_000_i64)
+        .map_err(|error| format!("failed to configure WAL autocheckpoint: {error}"))?;
+    Ok(journal_mode)
+}
+
+fn database_version_is_current(
+    database_directory: &Path,
+    database_path: &Path,
+    app_version: &str,
+) -> DatabaseResult<bool> {
+    let marker = database_version_marker(database_directory, database_path)?;
+    Ok(fs::read_to_string(marker)
+        .map(|value| value.trim() == app_version)
+        .unwrap_or(false))
+}
+
+fn database_opened_version(
+    database_directory: &Path,
+    database_path: &Path,
+) -> DatabaseResult<Option<String>> {
+    let marker = database_version_marker(database_directory, database_path)?;
+    Ok(fs::read_to_string(marker)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty()))
+}
+
+fn recovery_directory(database_directory: &Path) -> PathBuf {
+    database_directory.join("safety-backups").join("recovery")
+}
+
+fn recovery_receipt_path(database_directory: &Path, recovery_session_id: &str) -> PathBuf {
+    recovery_directory(database_directory).join(format!("{recovery_session_id}.json"))
+}
+
+fn validate_opaque_id(value: &str) -> DatabaseResult<()> {
+    if value.len() < 16
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+    {
+        return Err("invalid recovery identifier".into());
+    }
+    Ok(())
+}
+
+fn file_sha256_and_size(path: &Path) -> DatabaseResult<(String, u64)> {
+    use std::io::Read;
+
+    let mut file =
+        File::open(path).map_err(|error| format!("failed to open safety file: {error}"))?;
+    let mut hasher = Sha256::new();
+    let mut size = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("failed to hash safety file: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        size = size
+            .checked_add(read as u64)
+            .ok_or_else(|| "safety file size overflowed".to_string())?;
+        hasher.update(&buffer[..read]);
+    }
+    Ok((format!("{:x}", hasher.finalize()), size))
+}
+
+fn create_recovery_receipt(
+    database_directory: &Path,
+    database_path: &Path,
+    backup_path: &Path,
+    stage: &str,
+    error_code: &str,
+) -> DatabaseResult<DatabaseRecoveryReceipt> {
+    let database_name = database_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "database filename is not valid UTF-8".to_string())?;
+    let backup_file_name = backup_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "database safety filename is not valid UTF-8".to_string())?;
+    let (backup_sha256, backup_size_bytes) = file_sha256_and_size(backup_path)?;
+    let created_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "system clock is before the Unix epoch".to_string())?;
+    let entropy = format!(
+        "{database_name}:{}:{}:{}",
+        created_at.as_nanos(),
+        std::process::id(),
+        backup_sha256
+    );
+    let recovery_session_id = format!("{:x}", Sha256::digest(entropy.as_bytes()));
+    let backup_id = format!(
+        "{:x}",
+        Sha256::digest(format!("backup:{recovery_session_id}").as_bytes())
+    );
+    let receipt = DatabaseRecoveryReceipt {
+        version: RECOVERY_RECEIPT_VERSION,
+        recovery_session_id,
+        database_name: database_name.to_owned(),
+        source_version: database_opened_version(database_directory, database_path)?,
+        target_version: env!("CARGO_PKG_VERSION").into(),
+        backup_id,
+        backup_file_name: backup_file_name.to_owned(),
+        backup_sha256,
+        backup_size_bytes,
+        created_at_ms: created_at.as_millis().try_into().unwrap_or(u64::MAX),
+        state: "snapshot-created".into(),
+        candidate_file_name: None,
+        failed_stage: stage.into(),
+        error_code: error_code.into(),
+    };
+    write_recovery_receipt(database_directory, &receipt)?;
+    Ok(receipt)
+}
+
+fn write_recovery_receipt(
+    database_directory: &Path,
+    receipt: &DatabaseRecoveryReceipt,
+) -> DatabaseResult<()> {
+    validate_opaque_id(&receipt.recovery_session_id)?;
+    let path = recovery_receipt_path(database_directory, &receipt.recovery_session_id);
+    let bytes = serde_json::to_vec_pretty(receipt)
+        .map_err(|error| format!("failed to encode database recovery receipt: {error}"))?;
+    atomic_write(&path, &bytes)
+        .map_err(|error| format!("failed to persist database recovery receipt: {error}"))
+}
+
+fn read_recovery_receipt(
+    database_directory: &Path,
+    recovery_session_id: &str,
+) -> DatabaseResult<DatabaseRecoveryReceipt> {
+    validate_opaque_id(recovery_session_id)?;
+    let path = recovery_receipt_path(database_directory, recovery_session_id);
+    let bytes = fs::read(path)
+        .map_err(|error| format!("failed to read database recovery receipt: {error}"))?;
+    let receipt: DatabaseRecoveryReceipt = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("failed to decode database recovery receipt: {error}"))?;
+    if receipt.version != RECOVERY_RECEIPT_VERSION
+        || receipt.recovery_session_id != recovery_session_id
+    {
+        return Err("database recovery receipt is not compatible".into());
+    }
+    Ok(receipt)
+}
+
+fn update_recovery_failure(
+    database_directory: &Path,
+    recovery_session_id: &str,
+    stage: &str,
+    code: &str,
+) -> DatabaseResult<()> {
+    let mut receipt = read_recovery_receipt(database_directory, recovery_session_id)?;
+    receipt.failed_stage = stage.into();
+    receipt.error_code = code.into();
+    write_recovery_receipt(database_directory, &receipt)
+}
+
+fn remove_recovery_receipt(database_directory: &Path, recovery_session_id: &str) {
+    if validate_opaque_id(recovery_session_id).is_ok() {
+        let _ = fs::remove_file(recovery_receipt_path(
+            database_directory,
+            recovery_session_id,
+        ));
+    }
+}
+
+fn latest_recovery_receipt_for_database(
+    database_directory: &Path,
+    database_name: &str,
+) -> DatabaseResult<Option<DatabaseRecoveryReceipt>> {
+    let directory = recovery_directory(database_directory);
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect database recovery receipts: {error}"
+            ))
+        }
+    };
+    let mut receipts = Vec::new();
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| format!("failed to inspect a database recovery receipt: {error}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("json") {
+            continue;
+        }
+        let session_id = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "database recovery receipt filename is invalid".to_string())?;
+        if validate_opaque_id(session_id).is_err() {
+            return Err("database recovery receipt filename is invalid".into());
+        }
+        let receipt = fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<DatabaseRecoveryReceipt>(&bytes).ok())
+            .filter(|receipt| {
+                receipt.version == RECOVERY_RECEIPT_VERSION
+                    && receipt.recovery_session_id == session_id
+            })
+            .ok_or_else(|| {
+                format!("{RECOVERY_FAILURE_PREFIX}{session_id}:recovery-receipt-invalid")
+            })?;
+        if receipt.database_name == database_name {
+            receipts.push(receipt);
+        }
+    }
+    receipts.sort_by_key(|receipt| receipt.created_at_ms);
+    Ok(receipts.pop())
+}
+
+fn recovery_backup_path(
+    database_directory: &Path,
+    receipt: &DatabaseRecoveryReceipt,
+) -> DatabaseResult<PathBuf> {
+    let path = Path::new(&receipt.backup_file_name);
+    if path.components().count() != 1 {
+        return Err("invalid recovery backup filename".into());
+    }
+    Ok(database_directory
+        .join("safety-backups")
+        .join(&receipt.target_version)
+        .join(path))
+}
+
+fn verify_recovery_backup(
+    database_directory: &Path,
+    receipt: &DatabaseRecoveryReceipt,
+) -> DatabaseResult<PathBuf> {
+    let path = recovery_backup_path(database_directory, receipt)?;
+    let (hash, size) = file_sha256_and_size(&path)?;
+    if hash != receipt.backup_sha256 || size != receipt.backup_size_bytes {
+        return Err("database safety backup hash or size does not match its receipt".into());
+    }
+    Ok(path)
+}
+
+fn validate_database_truth(connection: &Connection) -> DatabaseResult<()> {
+    let integrity: String = connection
+        .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+        .map_err(|error| format!("database integrity check failed to run: {error}"))?;
+    if integrity != "ok" {
+        return Err("database integrity check did not return ok".into());
+    }
+    let foreign_key_failure: Option<i64> = connection
+        .query_row(
+            "SELECT 1 FROM pragma_foreign_key_check LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| format!("database foreign key check failed to run: {error}"))?;
+    if foreign_key_failure.is_some() {
+        return Err("database foreign key check found invalid references".into());
+    }
+    validate_applied_migration_truth(connection)
+}
+
+/// Verify that the active database already contains the exact embedded
+/// migration prefix. This path is deliberately read-only: restart
+/// reconciliation after durable replacement must never migrate active
+/// authority while deciding whether it is safe to complete the version marker.
+fn validate_applied_migration_truth(connection: &Connection) -> DatabaseResult<()> {
+    let journal_file = DRIZZLE_MIGRATIONS
+        .get_file("meta/_journal.json")
+        .ok_or_else(|| "embedded Drizzle migration journal is missing".to_string())?;
+    let journal: MigrationJournal = serde_json::from_slice(journal_file.contents())
+        .map_err(|error| format!("invalid embedded Drizzle migration journal: {error}"))?;
+    validate_migration_journal(&journal)?;
+
+    let migration_table_exists: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?1)",
+            params![MIGRATIONS_TABLE],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("failed to inspect Drizzle migration state: {error}"))?;
+    if !migration_table_exists {
+        return Err("active database has no Drizzle migration journal".into());
+    }
+
+    let mut statement = connection
+        .prepare(&format!(
+            "SELECT hash, created_at FROM {MIGRATIONS_TABLE} ORDER BY created_at ASC"
+        ))
+        .map_err(|error| format!("failed to read Drizzle migration state: {error}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(AppliedMigration {
+                hash: row.get(0)?,
+                when: row.get(1)?,
+            })
+        })
+        .map_err(|error| format!("failed to read Drizzle migration state: {error}"))?;
+    let applied = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read Drizzle migration state: {error}"))?;
+    if applied.len() != journal.entries.len() {
+        return Err(format!(
+            "active database migration count does not match this build ({} != {})",
+            applied.len(),
+            journal.entries.len()
+        ));
+    }
+    for (recorded, expected) in applied.iter().zip(&journal.entries) {
+        let migration_path = format!("{}.sql", expected.tag);
+        let migration_file = DRIZZLE_MIGRATIONS
+            .get_file(&migration_path)
+            .ok_or_else(|| format!("embedded migration is missing: {migration_path}"))?;
+        let expected_hash = format!("{:x}", Sha256::digest(migration_file.contents()));
+        if recorded.when != expected.when || recorded.hash != expected_hash {
+            return Err(format!(
+                "active database migration {} is not the expected journal entry",
+                expected.tag
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn migration_fault(stage: &str) -> DatabaseResult<()> {
+    if cfg!(debug_assertions)
+        && std::env::var("DRIFTING_TEST_DATABASE_KILL_STAGE").as_deref() == Ok(stage)
+    {
+        use std::io::Write;
+
+        println!("DATABASE_MIGRATION_STAGE:{stage}");
+        let _ = std::io::stdout().flush();
+        loop {
+            thread::sleep(Duration::from_secs(60));
+        }
+    }
+    if cfg!(debug_assertions)
+        && std::env::var("DRIFTING_TEST_DATABASE_FAULT_STAGE").as_deref() == Ok(stage)
+    {
+        return Err(format!("injected database migration fault at {stage}"));
+    }
+    Ok(())
+}
+
+type ShadowMigrationFailure = (&'static str, &'static str, String);
+
+fn migrate_shadow_candidate(
+    database_directory: &Path,
+    database_path: &Path,
+    backup_path: &Path,
+    receipt: &DatabaseRecoveryReceipt,
+) -> Result<usize, ShadowMigrationFailure> {
+    let candidate = temporary_sibling(database_path).map_err(|error| {
+        (
+            "candidate-preparation",
+            "candidate-create-failed",
+            error.to_string(),
+        )
+    })?;
+    let candidate_file_name = candidate
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or((
+            "candidate-preparation",
+            "candidate-create-failed",
+            "candidate filename is not valid UTF-8".into(),
+        ))?
+        .to_owned();
+    let mut active_receipt = receipt.clone();
+    active_receipt.state = "candidate-created".into();
+    active_receipt.candidate_file_name = Some(candidate_file_name);
+    write_recovery_receipt(database_directory, &active_receipt)
+        .map_err(|error| ("candidate-preparation", "receipt-write-failed", error))?;
+
+    let outcome = (|| {
+        migration_fault("snapshot-copy")
+            .map_err(|error| ("snapshot-copy", "candidate-copy-failed", error))?;
+        fs::copy(backup_path, &candidate)
+            .map_err(|error| ("snapshot-copy", "candidate-copy-failed", error.to_string()))?;
+        File::open(&candidate)
+            .and_then(|file| file.sync_all())
+            .map_err(|error| {
+                (
+                    "candidate-fsync",
+                    "candidate-fsync-failed",
+                    error.to_string(),
+                )
+            })?;
+        migration_fault("candidate-fsync")
+            .map_err(|error| ("candidate-fsync", "candidate-fsync-failed", error))?;
+
+        let connection = Connection::open(&candidate)
+            .map_err(|error| ("candidate-open", "candidate-open-failed", error.to_string()))?;
+        connection
+            .busy_timeout(DATABASE_BUSY_TIMEOUT)
+            .map_err(|error| ("candidate-open", "candidate-open-failed", error.to_string()))?;
+        connection
+            .pragma_update(None, "journal_mode", "DELETE")
+            .map_err(|error| ("candidate-open", "candidate-open-failed", error.to_string()))?;
+        connection
+            .pragma_update(None, "synchronous", "FULL")
+            .map_err(|error| ("candidate-open", "candidate-open-failed", error.to_string()))?;
+        migration_fault("migration")
+            .map_err(|error| ("migration", "migration-statement-failed", error))?;
+        let applied = apply_migrations(&connection)
+            .map_err(|error| ("migration", "migration-statement-failed", error))?;
+        migration_fault("integrity-check")
+            .map_err(|error| ("integrity-check", "integrity-check-failed", error))?;
+        validate_database_truth(&connection)
+            .map_err(|error| ("integrity-check", "integrity-check-failed", error))?;
+        drop(connection);
+        File::open(&candidate)
+            .and_then(|file| file.sync_all())
+            .map_err(|error| {
+                (
+                    "candidate-fsync",
+                    "candidate-fsync-failed",
+                    error.to_string(),
+                )
+            })?;
+        migration_fault("post-migration-fsync")
+            .map_err(|error| ("candidate-fsync", "candidate-fsync-failed", error))?;
+
+        active_receipt.state = "replacing".into();
+        active_receipt.failed_stage = "durable-replace".into();
+        active_receipt.error_code = "durable-replace-failed".into();
+        write_recovery_receipt(database_directory, &active_receipt)
+            .map_err(|error| ("durable-replace", "receipt-write-failed", error))?;
+        migration_fault("replace")
+            .map_err(|error| ("durable-replace", "durable-replace-failed", error))?;
+        remove_database_sidecars(database_path)
+            .map_err(|error| ("durable-replace", "sidecar-cleanup-failed", error))?;
+        durable_replace_file(&candidate, database_path).map_err(|error| {
+            (
+                "durable-replace",
+                "durable-replace-failed",
+                error.to_string(),
+            )
+        })?;
+        migration_fault("marker")
+            .map_err(|error| ("version-marker", "version-marker-failed", error))?;
+        Ok(applied)
+    })();
+
+    if outcome.is_err() && candidate.exists() {
+        let _ = fs::remove_file(&candidate);
+    }
+    outcome
+}
+
+fn remove_database_sidecars(database_path: &Path) -> DatabaseResult<()> {
+    let Some(filename) = database_path.file_name().and_then(|value| value.to_str()) else {
+        return Err("database filename is not valid UTF-8".into());
+    };
+    let parent = database_path
+        .parent()
+        .ok_or_else(|| "database path has no parent directory".to_string())?;
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = parent.join(format!("{filename}{suffix}"));
+        match fs::remove_file(sidecar) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("failed to remove a database sidecar: {error}")),
+        }
+    }
+    Ok(())
+}
+
+fn reconcile_incomplete_shadow_migration(
+    database_directory: &Path,
+    database_path: &Path,
+) -> DatabaseResult<()> {
+    let database_name = database_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "database filename is not valid UTF-8".to_string())?;
+    let Some(receipt) = latest_recovery_receipt_for_database(database_directory, database_name)?
+    else {
+        return Ok(());
+    };
+    verify_recovery_backup(database_directory, &receipt).map_err(|_| {
+        format!(
+            "{RECOVERY_FAILURE_PREFIX}{}:safety-backup-invalid",
+            receipt.recovery_session_id
+        )
+    })?;
+
+    let candidate_exists = receipt
+        .candidate_file_name
+        .as_deref()
+        .map(|name| database_directory.join(name).is_file())
+        .unwrap_or(false);
+    if receipt.state != "replacing" || candidate_exists {
+        if let Some(name) = receipt.candidate_file_name.as_deref() {
+            let candidate = database_directory.join(name);
+            let _ = fs::remove_file(candidate);
+        }
+        remove_recovery_receipt(database_directory, &receipt.recovery_session_id);
+        return Ok(());
+    }
+
+    let connection = Connection::open(database_path).map_err(|_| {
+        format!(
+            "{RECOVERY_FAILURE_PREFIX}{}:activated-database-open-failed",
+            receipt.recovery_session_id
+        )
+    })?;
+    if validate_database_truth(&connection).is_err() {
+        return Err(format!(
+            "{RECOVERY_FAILURE_PREFIX}{}:activated-database-invalid",
+            receipt.recovery_session_id
+        ));
+    }
+    drop(connection);
+    record_opened_app_version(database_directory, database_path, &receipt.target_version)?;
+    remove_recovery_receipt(database_directory, &receipt.recovery_session_id);
+    Ok(())
+}
+
+fn parse_recovery_failure(error: &str) -> Option<(&str, &str)> {
+    let payload = error.strip_prefix(RECOVERY_FAILURE_PREFIX)?;
+    payload.split_once(':')
+}
+
+fn database_version_marker(
+    database_directory: &Path,
+    database_path: &Path,
+) -> DatabaseResult<PathBuf> {
+    let filename = database_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "database filename is not valid UTF-8".to_string())?;
+    Ok(database_directory
+        .join("safety-backups")
+        .join(format!("{filename}.last-version")))
+}
+
+fn record_opened_app_version(
+    database_directory: &Path,
+    database_path: &Path,
+    app_version: &str,
+) -> DatabaseResult<()> {
+    let marker = database_version_marker(database_directory, database_path)?;
+    if let Some(parent) = marker.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!("failed to create safety backup metadata directory: {error}")
+        })?;
+    }
+    atomic_write(&marker, app_version.as_bytes())
+        .map_err(|error| format!("failed to record the database safety version: {error}"))
+}
+
+fn retain_recent_database_safety_backups(directory: &Path) -> DatabaseResult<()> {
+    let mut backups = fs::read_dir(directory)
+        .map_err(|error| format!("failed to inspect database safety backups: {error}"))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let metadata = entry.metadata().ok()?;
+            let name = entry.file_name().into_string().ok()?;
+            (metadata.is_file() && name.ends_with(".sqlite")).then_some((
+                entry.path(),
+                metadata.modified().ok(),
+                name,
+            ))
+        })
+        .collect::<Vec<_>>();
+    backups.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| right.2.cmp(&left.2)));
+    for (path, _, _) in backups.into_iter().skip(SAFETY_BACKUPS_PER_VERSION) {
+        fs::remove_file(path)
+            .map_err(|error| format!("failed to prune an old database safety backup: {error}"))?;
+    }
+    Ok(())
+}
+
+/// Snapshot the committed SQLite truth before a new application version can
+/// run migrations. `VACUUM INTO` includes WAL content in one standalone file
+/// and does not modify the source database.
+fn create_pre_update_safety_backup(
+    connection: &Connection,
+    database_directory: &Path,
+    database_path: &Path,
+    app_version: &str,
+) -> DatabaseResult<Option<PathBuf>> {
+    let marker = database_version_marker(database_directory, database_path)?;
+    if fs::read_to_string(&marker)
+        .map(|value| value.trim() == app_version)
+        .unwrap_or(false)
+    {
+        return Ok(None);
+    }
+    let database_name = database_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "database filename is not valid UTF-8".to_string())?;
+    let directory = database_directory.join("safety-backups").join(app_version);
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("failed to create database safety backup directory: {error}"))?;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "system clock is before the Unix epoch".to_string())?
+        .as_nanos();
+    let destination = directory.join(format!("{database_name}-{timestamp}.sqlite"));
+    let destination_text = destination
+        .to_str()
+        .ok_or_else(|| "database safety backup path is not valid UTF-8".to_string())?;
+    connection
+        .execute("VACUUM INTO ?1", params![destination_text])
+        .map_err(|error| {
+            format!("failed to create the pre-update database safety backup: {error}")
+        })?;
+    File::open(&destination)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| {
+            format!("failed to durably finalize the database safety backup: {error}")
+        })?;
+    sync_database_directory(&directory)
+        .map_err(|error| format!("failed to durably record the database safety backup: {error}"))?;
+    retain_recent_database_safety_backups(&directory)?;
+    sync_database_directory(&directory).map_err(|error| {
+        format!("failed to durably finalize database safety backup retention: {error}")
+    })?;
+    Ok(Some(destination))
+}
+
+#[cfg(unix)]
+fn sync_database_directory(directory: &Path) -> std::io::Result<()> {
+    File::open(directory)?.sync_all()
+}
+
+#[cfg(not(unix))]
+fn sync_database_directory(_directory: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 fn close_database(database: OpenDatabase) -> DatabaseResult<()> {
@@ -1238,15 +2119,29 @@ async fn run_blocking<T: Send + 'static>(
         .map_err(|error| format!("database task failed: {error}"))?
 }
 
+async fn run_database_open(
+    gateway: DatabaseGateway,
+    operation: impl FnOnce(DatabaseGateway) -> DatabaseResult<DatabaseOpenResult> + Send + 'static,
+) -> Result<DatabaseOpenResult, DatabaseOpenFailure> {
+    let error_gateway = gateway.clone();
+    match tauri::async_runtime::spawn_blocking(move || operation(gateway)).await {
+        Ok(Ok(result)) => Ok(result),
+        Ok(Err(error)) => Err(error_gateway.recovery_failure(error)),
+        Err(_) => {
+            Err(error_gateway.recovery_failure("database worker task stopped unexpectedly".into()))
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn database_open(
     gateway: State<'_, DatabaseGateway>,
     database_name: String,
     client_session_id: String,
     recover_stale_transaction: Option<bool>,
-) -> DatabaseResult<DatabaseOpenResult> {
+) -> Result<DatabaseOpenResult, DatabaseOpenFailure> {
     let gateway = gateway.inner().clone();
-    run_blocking(move || {
+    run_database_open(gateway, move |gateway| {
         gateway.open(
             database_name,
             client_session_id,
@@ -1254,6 +2149,146 @@ pub async fn database_open(
         )
     })
     .await
+}
+
+#[tauri::command]
+pub fn database_recovery_status(
+    gateway: State<'_, DatabaseGateway>,
+    recovery_session_id: String,
+) -> Result<DatabaseOpenFailure, String> {
+    let receipt = gateway.recovery_receipt(&recovery_session_id)?;
+    verify_recovery_backup(&gateway.inner.database_directory, &receipt)?;
+    Ok(gateway.recovery_failure(format!(
+        "{RECOVERY_FAILURE_PREFIX}{recovery_session_id}:{}",
+        receipt.error_code
+    )))
+}
+
+#[tauri::command]
+pub async fn database_recovery_retry(
+    gateway: State<'_, DatabaseGateway>,
+    recovery_session_id: String,
+    client_session_id: String,
+) -> Result<DatabaseOpenResult, DatabaseOpenFailure> {
+    let gateway = gateway.inner().clone();
+    let receipt = match gateway.recovery_receipt(&recovery_session_id) {
+        Ok(receipt) => receipt,
+        Err(error) => return Err(gateway.recovery_failure(error)),
+    };
+    run_database_open(gateway, move |gateway| {
+        gateway.open(receipt.database_name, client_session_id, false)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn database_recovery_restore_safety_backup(
+    gateway: State<'_, DatabaseGateway>,
+    recovery_session_id: String,
+    backup_id: String,
+    client_session_id: String,
+) -> Result<DatabaseOpenResult, DatabaseOpenFailure> {
+    let gateway = gateway.inner().clone();
+    run_database_open(gateway, move |gateway| {
+        gateway.restore_safety_backup(recovery_session_id, backup_id, client_session_id)
+    })
+    .await
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseRecoveryExportResult {
+    ok: bool,
+    canceled: bool,
+    file_name: Option<String>,
+}
+
+#[tauri::command]
+pub async fn database_recovery_export_safety_backup(
+    app: AppHandle,
+    gateway: State<'_, DatabaseGateway>,
+    recovery_session_id: String,
+    backup_id: String,
+) -> DatabaseResult<DatabaseRecoveryExportResult> {
+    let receipt = gateway.recovery_receipt(&recovery_session_id)?;
+    if receipt.backup_id != backup_id {
+        return Err("database recovery backup identity does not match".into());
+    }
+    let source = verify_recovery_backup(&gateway.inner.database_directory, &receipt)?;
+    let file_name = format!("Drifting-database-safety-{}.sqlite", &backup_id[..16]);
+    let selected = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        let file_name = file_name.clone();
+        move || {
+            app.dialog()
+                .file()
+                .set_picker_mode(PickerMode::Document)
+                .set_file_access_mode(FileAccessMode::Scoped)
+                .set_file_name(file_name)
+                .add_filter("SQLite database", &["sqlite"])
+                .blocking_save_file()
+        }
+    })
+    .await
+    .map_err(|_| "database safety export dialog failed".to_string())?;
+    let Some(selected) = selected else {
+        return Ok(DatabaseRecoveryExportResult {
+            ok: false,
+            canceled: true,
+            file_name: None,
+        });
+    };
+    let destination = selected
+        .into_path()
+        .map_err(|_| "selected export location cannot be written durably".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let temporary = temporary_sibling(&destination)
+            .map_err(|error| format!("failed to create export temporary file: {error}"))?;
+        let outcome = fs::copy(&source, &temporary)
+            .map_err(|error| format!("failed to copy database safety backup: {error}"))
+            .and_then(|_| {
+                File::open(&temporary)
+                    .and_then(|file| file.sync_all())
+                    .map_err(|error| format!("failed to finalize database safety export: {error}"))
+            })
+            .and_then(|_| {
+                durable_replace_file(&temporary, &destination)
+                    .map_err(|error| format!("failed to activate database safety export: {error}"))
+            });
+        if outcome.is_err() {
+            let _ = fs::remove_file(temporary);
+        }
+        outcome
+    })
+    .await
+    .map_err(|_| "database safety export worker failed".to_string())??;
+    Ok(DatabaseRecoveryExportResult {
+        ok: true,
+        canceled: false,
+        file_name: Some(file_name),
+    })
+}
+
+#[tauri::command]
+pub fn database_recovery_open_backup_directory(
+    app: AppHandle,
+    gateway: State<'_, DatabaseGateway>,
+    recovery_session_id: String,
+) -> DatabaseResult<()> {
+    validate_opaque_id(&recovery_session_id)?;
+    let directory = gateway
+        .recovery_receipt(&recovery_session_id)
+        .ok()
+        .and_then(|receipt| {
+            verify_recovery_backup(&gateway.inner.database_directory, &receipt).ok()
+        })
+        .and_then(|backup| backup.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| gateway.inner.database_directory.join("safety-backups"));
+    fs::create_dir_all(&directory)
+        .map_err(|_| "could not prepare the database safety backup directory".to_string())?;
+    app.opener()
+        .open_path(directory.to_string_lossy(), None::<&str>)
+        .map_err(|_| "could not open the database safety backup directory".to_string())
 }
 
 #[tauri::command]
@@ -1355,6 +2390,8 @@ pub async fn database_close(
 
 #[cfg(test)]
 mod tests {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Command, Stdio};
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
@@ -1363,8 +2400,11 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        DatabaseGateway, DatabaseValue, MigrationJournal, TransactionBehavior, DRIZZLE_MIGRATIONS,
-        MIGRATIONS_TABLE,
+        apply_migrations, create_pre_update_safety_backup, create_recovery_receipt,
+        database_version_is_current, migrate_shadow_candidate, read_recovery_receipt,
+        reconcile_incomplete_shadow_migration, record_opened_app_version, recovery_directory,
+        recovery_receipt_path, write_recovery_receipt, DatabaseGateway, DatabaseValue,
+        MigrationJournal, TransactionBehavior, DRIZZLE_MIGRATIONS, MIGRATIONS_TABLE,
     };
 
     const CLIENT_SESSION: &str = "test-renderer-session";
@@ -2014,5 +3054,324 @@ mod tests {
         assert!(gateway
             .open("missing-extension".into(), CLIENT_SESSION.into(), false)
             .is_err());
+    }
+
+    #[test]
+    fn pre_update_safety_snapshot_is_standalone_and_once_per_version() {
+        let directory = TempDir::new().expect("temporary database directory");
+        let database_path = directory.path().join("library.db");
+        let connection = Connection::open(&database_path).expect("open source database");
+        connection
+            .execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE prose (body TEXT NOT NULL); INSERT INTO prose VALUES ('kept');")
+            .expect("seed source database");
+
+        let backup = create_pre_update_safety_backup(
+            &connection,
+            directory.path(),
+            &database_path,
+            "0.1.0-alpha.2",
+        )
+        .expect("create safety snapshot")
+        .expect("first open for version creates a snapshot");
+        let backup_connection = Connection::open(&backup).expect("open standalone safety snapshot");
+        let body: String = backup_connection
+            .query_row("SELECT body FROM prose", [], |row| row.get(0))
+            .expect("read snapshot content");
+        assert_eq!(body, "kept");
+
+        record_opened_app_version(directory.path(), &database_path, "0.1.0-alpha.2")
+            .expect("record successful open");
+        assert!(create_pre_update_safety_backup(
+            &connection,
+            directory.path(),
+            &database_path,
+            "0.1.0-alpha.2",
+        )
+        .expect("repeat safety check")
+        .is_none());
+    }
+
+    #[test]
+    fn failed_shadow_candidate_never_changes_the_active_database() {
+        let directory = TempDir::new().expect("temporary database directory");
+        let database_path = directory.path().join("library.db");
+        let connection = Connection::open(&database_path).expect("open active database");
+        connection
+            .execute_batch("CREATE TABLE prose (body TEXT NOT NULL); INSERT INTO prose VALUES ('old authority');")
+            .expect("seed active database");
+        drop(connection);
+        let corrupt_backup = directory.path().join("corrupt.sqlite");
+        std::fs::write(&corrupt_backup, b"not sqlite").expect("write corrupt backup");
+        let receipt = create_recovery_receipt(
+            directory.path(),
+            &database_path,
+            &corrupt_backup,
+            "candidate-preparation",
+            "candidate-failed",
+        )
+        .expect("create recovery receipt");
+
+        let failure =
+            migrate_shadow_candidate(directory.path(), &database_path, &corrupt_backup, &receipt)
+                .expect_err("corrupt candidate must fail");
+        assert_eq!(failure.0, "candidate-open");
+        let active = Connection::open(&database_path).expect("reopen active database");
+        let body: String = active
+            .query_row("SELECT body FROM prose", [], |row| row.get(0))
+            .expect("read old authority");
+        assert_eq!(body, "old authority");
+        let persisted = read_recovery_receipt(directory.path(), &receipt.recovery_session_id)
+            .expect("read persisted candidate receipt");
+        assert!(persisted
+            .candidate_file_name
+            .map(|name| !directory.path().join(name).exists())
+            .unwrap_or(false));
+    }
+
+    #[test]
+    fn restart_after_replace_completes_marker_only_after_validating_active_database() {
+        let directory = TempDir::new().expect("temporary database directory");
+        let database_path = directory.path().join("library.db");
+        let connection = Connection::open(&database_path).expect("open active database");
+        apply_migrations(&connection).expect("migrate active database");
+        let backup = create_pre_update_safety_backup(
+            &connection,
+            directory.path(),
+            &database_path,
+            env!("CARGO_PKG_VERSION"),
+        )
+        .expect("create safety backup")
+        .expect("missing marker creates safety backup");
+        drop(connection);
+        let mut receipt = create_recovery_receipt(
+            directory.path(),
+            &database_path,
+            &backup,
+            "version-marker",
+            "version-marker-failed",
+        )
+        .expect("create recovery receipt");
+        receipt.state = "replacing".into();
+        receipt.candidate_file_name = Some("candidate-already-renamed.sqlite".into());
+        write_recovery_receipt(directory.path(), &receipt).expect("persist replacing receipt");
+
+        reconcile_incomplete_shadow_migration(directory.path(), &database_path)
+            .expect("reconcile replaced database");
+        assert!(database_version_is_current(
+            directory.path(),
+            &database_path,
+            env!("CARGO_PKG_VERSION")
+        )
+        .expect("read marker"));
+        assert!(!recovery_receipt_path(directory.path(), &receipt.recovery_session_id).exists());
+    }
+
+    #[test]
+    fn restart_after_replace_never_migrates_an_incomplete_active_database() {
+        let directory = TempDir::new().expect("temporary database directory");
+        let database_path = directory.path().join("library.db");
+        let connection = Connection::open(&database_path).expect("open incomplete active database");
+        connection
+            .execute_batch(&format!(
+                "CREATE TABLE {MIGRATIONS_TABLE} (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric);\
+                 CREATE TABLE active_canary (value TEXT NOT NULL);\
+                 INSERT INTO active_canary VALUES ('must remain unmigrated');"
+            ))
+            .expect("seed incomplete migration journal");
+        let backup = create_pre_update_safety_backup(
+            &connection,
+            directory.path(),
+            &database_path,
+            env!("CARGO_PKG_VERSION"),
+        )
+        .expect("create safety backup")
+        .expect("missing marker creates safety backup");
+        drop(connection);
+        let mut receipt = create_recovery_receipt(
+            directory.path(),
+            &database_path,
+            &backup,
+            "version-marker",
+            "version-marker-failed",
+        )
+        .expect("create recovery receipt");
+        receipt.state = "replacing".into();
+        receipt.candidate_file_name = Some("candidate-already-renamed.sqlite".into());
+        write_recovery_receipt(directory.path(), &receipt).expect("persist replacing receipt");
+
+        let error = reconcile_incomplete_shadow_migration(directory.path(), &database_path)
+            .expect_err("incomplete active journal must stop reconciliation");
+        assert_eq!(
+            error,
+            format!(
+                "database-recovery:{}:activated-database-invalid",
+                receipt.recovery_session_id
+            )
+        );
+        let active = Connection::open(&database_path).expect("reopen active database");
+        let migration_count: i64 = active
+            .query_row(
+                &format!("SELECT count(*) FROM {MIGRATIONS_TABLE}"),
+                [],
+                |row| row.get(0),
+            )
+            .expect("read migration count");
+        assert_eq!(migration_count, 0);
+        let project_table_exists: bool = active
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'project')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("inspect baseline table");
+        assert!(!project_table_exists);
+        assert!(!database_version_is_current(
+            directory.path(),
+            &database_path,
+            env!("CARGO_PKG_VERSION")
+        )
+        .expect("read marker"));
+    }
+
+    #[test]
+    fn malformed_recovery_receipt_stops_startup_instead_of_guessing() {
+        let directory = TempDir::new().expect("temporary database directory");
+        let database_path = directory.path().join("library.db");
+        Connection::open(&database_path).expect("create active database");
+        let recovery = recovery_directory(directory.path());
+        std::fs::create_dir_all(&recovery).expect("create recovery directory");
+        let session = "0123456789abcdef0123456789abcdef";
+        std::fs::write(recovery.join(format!("{session}.json")), b"{not-json")
+            .expect("write malformed receipt");
+
+        let error = reconcile_incomplete_shadow_migration(directory.path(), &database_path)
+            .expect_err("ambiguous receipt must stop startup");
+        assert_eq!(
+            error,
+            format!("database-recovery:{session}:recovery-receipt-invalid")
+        );
+    }
+
+    #[test]
+    fn shadow_migration_sigkill_worker() {
+        let Ok(directory) = std::env::var("DRIFTING_DATABASE_SIGKILL_DIRECTORY") else {
+            return;
+        };
+        let database_path = std::path::PathBuf::from(
+            std::env::var("DRIFTING_DATABASE_SIGKILL_ACTIVE").expect("active database path"),
+        );
+        let backup_path = std::path::PathBuf::from(
+            std::env::var("DRIFTING_DATABASE_SIGKILL_BACKUP").expect("backup database path"),
+        );
+        let recovery_session_id =
+            std::env::var("DRIFTING_DATABASE_SIGKILL_RECEIPT").expect("receipt identity");
+        let receipt = read_recovery_receipt(std::path::Path::new(&directory), &recovery_session_id)
+            .expect("read recovery receipt");
+        migrate_shadow_candidate(
+            std::path::Path::new(&directory),
+            &database_path,
+            &backup_path,
+            &receipt,
+        )
+        .expect("migration should only return when no kill stage is configured");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sigkill_matrix_reconciles_to_exactly_old_or_new_database() {
+        use std::os::unix::process::ExitStatusExt;
+
+        for stage in [
+            "snapshot-copy",
+            "candidate-fsync",
+            "migration",
+            "integrity-check",
+            "post-migration-fsync",
+            "replace",
+            "marker",
+        ] {
+            let directory = TempDir::new().expect("temporary database directory");
+            let database_path = directory.path().join("library.db");
+            let active = Connection::open(&database_path).expect("open active database");
+            apply_migrations(&active).expect("migrate active database");
+            active
+                .execute_batch(
+                    "CREATE TABLE crash_truth (value TEXT NOT NULL); INSERT INTO crash_truth VALUES ('old');",
+                )
+                .expect("seed old authority");
+            drop(active);
+
+            let backup_directory = directory
+                .path()
+                .join("safety-backups")
+                .join(env!("CARGO_PKG_VERSION"));
+            std::fs::create_dir_all(&backup_directory).expect("create safety backup directory");
+            let backup_path = backup_directory.join("replacement-source.sqlite");
+            let replacement = Connection::open(&backup_path).expect("open replacement source");
+            apply_migrations(&replacement).expect("migrate replacement source");
+            replacement
+                .execute_batch(
+                    "CREATE TABLE crash_truth (value TEXT NOT NULL); INSERT INTO crash_truth VALUES ('new');",
+                )
+                .expect("seed new authority");
+            drop(replacement);
+            std::fs::File::open(&backup_path)
+                .and_then(|file| file.sync_all())
+                .expect("sync replacement source");
+            let receipt = create_recovery_receipt(
+                directory.path(),
+                &database_path,
+                &backup_path,
+                "candidate-preparation",
+                "migration-candidate-failed",
+            )
+            .expect("create recovery receipt");
+
+            let current = std::env::current_exe().expect("current test binary");
+            let mut child = Command::new(current)
+                .args([
+                    "--exact",
+                    "database::tests::shadow_migration_sigkill_worker",
+                    "--nocapture",
+                ])
+                .env("DRIFTING_DATABASE_SIGKILL_DIRECTORY", directory.path())
+                .env("DRIFTING_DATABASE_SIGKILL_ACTIVE", &database_path)
+                .env("DRIFTING_DATABASE_SIGKILL_BACKUP", &backup_path)
+                .env(
+                    "DRIFTING_DATABASE_SIGKILL_RECEIPT",
+                    &receipt.recovery_session_id,
+                )
+                .env("DRIFTING_TEST_DATABASE_KILL_STAGE", stage)
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("spawn migration worker");
+            let mut output = BufReader::new(child.stdout.take().expect("worker stdout"));
+            let mut line = String::new();
+            loop {
+                line.clear();
+                assert!(output.read_line(&mut line).expect("read worker output") > 0);
+                if line.contains(&format!("DATABASE_MIGRATION_STAGE:{stage}")) {
+                    break;
+                }
+            }
+            child.kill().expect("kill migration worker");
+            let status = child.wait().expect("wait for migration worker");
+            assert_eq!(status.signal(), Some(9));
+
+            reconcile_incomplete_shadow_migration(directory.path(), &database_path)
+                .expect("reconcile interrupted migration");
+            let connection = Connection::open(&database_path).expect("open reconciled database");
+            let value: String = connection
+                .query_row("SELECT value FROM crash_truth", [], |row| row.get(0))
+                .expect("read authority sentinel");
+            assert_eq!(value, if stage == "marker" { "new" } else { "old" });
+            let integrity: String = connection
+                .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+                .expect("run integrity check");
+            assert_eq!(integrity, "ok");
+            assert!(
+                !recovery_receipt_path(directory.path(), &receipt.recovery_session_id).exists()
+            );
+        }
     }
 }

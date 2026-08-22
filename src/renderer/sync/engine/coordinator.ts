@@ -21,6 +21,7 @@ import { fullJitterBackoffMs } from './backoff';
 
 export interface RegisteredSyncGenerationRuntime {
   readonly syncGenerationId: string;
+  readonly projectId?: string;
   readonly status?: SyncGenerationCycleStatus;
   runCycle(triggers: ReadonlySet<SchedulerTrigger>, signal: AbortSignal): Promise<SyncGenerationCycleResult>;
   inspectPending?(): Promise<SyncGenerationPendingDiagnostics>;
@@ -71,9 +72,15 @@ export class SyncEngineCoordinator {
           this.failureAttempts.delete(syncGenerationId);
           return result;
         } finally {
-          if (runtime.status) this.statusStore.updateCycle(syncGenerationId, runtime.status);
+          if (runtime.status) {
+            this.statusStore.updateCycle(syncGenerationId, runtime.status, runtime.projectId);
+          }
           if (runtime.inspectPending) {
-            this.statusStore.updatePending(syncGenerationId, await runtime.inspectPending());
+            this.statusStore.updatePending(
+              syncGenerationId,
+              await runtime.inspectPending(),
+              runtime.projectId,
+            );
           }
         }
       },
@@ -100,9 +107,13 @@ export class SyncEngineCoordinator {
     }
     this.runtimes.set(runtime.syncGenerationId, runtime);
     const unsubscribeStatus = runtime.subscribeStatus?.((source) => {
-      if (source.status) this.statusStore.updateCycle(source.syncGenerationId, source.status);
+      if (source.status) {
+        this.statusStore.updateCycle(source.syncGenerationId, source.status, source.projectId);
+      }
     }) ?? (() => {});
-    if (runtime.status) this.statusStore.updateCycle(runtime.syncGenerationId, runtime.status);
+    if (runtime.status) {
+      this.statusStore.updateCycle(runtime.syncGenerationId, runtime.status, runtime.projectId);
+    }
     this.scheduler.registerSyncGeneration(runtime.syncGenerationId);
     return () => {
       if (this.runtimes.get(runtime.syncGenerationId) !== runtime) return;

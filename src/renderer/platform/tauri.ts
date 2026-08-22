@@ -5,6 +5,7 @@ import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
 import { consumePendingNativeOAuth, createPendingNativeOAuth } from './native-oauth-state';
 import type {
   ContractAvailability,
+  AppUpdateDownloadEvent,
   GoogleDriveNativeError,
   GoogleDriveNativeErrorCode,
   GoogleDriveNativeResult,
@@ -420,6 +421,7 @@ function normalizeCapabilities(
       materialFiles: advertised(native.materialFiles),
       assetStore: advertised(native.assetStore),
       aiLog: advertised(native.aiLog),
+      appUpdater: advertised(native.appUpdater),
       oauth:
         native.oauth === undefined && native.deepLinks && native.externalUrlOpener
           ? 'available'
@@ -810,6 +812,12 @@ export const tauriPlatform: PlatformApi = {
   },
 
   assetStore: {
+    beginImport: (projectId, assetId) =>
+      invokeContract('asset_store_begin_import', { projectId, assetId }),
+    commitImport: (projectId, assetId) =>
+      invokeContract('asset_store_commit_import', { projectId, assetId }),
+    gcOrphanImports: (retainedAssets) =>
+      invokeContract('asset_store_gc_orphan_imports', { retainedAssets }),
     async getPath(projectId, assetId, variant, ext) {
       return normalizeStoredAssetFileUrl(
         await invokeContract('asset_store_get_path', { projectId, assetId, variant, ext }),
@@ -844,6 +852,16 @@ export const tauriPlatform: PlatformApi = {
   archive: {
     save: (filename, bytes) =>
       invokeContract('archive_save', { filename, bytes: toNumberArray(bytes) }),
+  },
+
+  updater: {
+    check: () => invokeContract('update_check', undefined),
+    download: (callback) => {
+      const onEvent = new Channel<AppUpdateDownloadEvent>(callback);
+      return invokeContract('update_download', { onEvent });
+    },
+    install: () => invokeContract('update_install', undefined),
+    dismiss: () => invokeContract('update_dismiss', undefined),
   },
 
   aiLog: {

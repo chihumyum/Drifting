@@ -29,11 +29,60 @@ export interface EntityRelationLink {
   updatedAt: string;
 }
 
+export interface WorkspaceDataProjection {
+  storylines: Storyline[];
+  storylineNodeMapping: Record<string, string[]>;
+  primaryStorylineByNode: Record<string, string | null>;
+  bookNodes: BookNode[];
+  bookElementCategories: BookElementCategory[];
+  bookElements: BookElement[];
+  projectAssets: ProjectAsset[];
+  trashedEntityIds: Set<string>;
+  libraryItems: LibraryItem[];
+  comments: Comment[];
+  commentActions: CommentAction[];
+  entityRelations: EntityRelationLink[];
+  entityRelationTypes: EntityRelationType[];
+  blockSections: BlockSection[];
+  bookActs: BookAct[];
+  driftGroups: DriftGroup[];
+  timelineMarkers: TimelineMarker[];
+}
+
+export type WorkspaceProjectionStatus =
+  | 'idle'
+  | 'loading'
+  | 'refreshing'
+  | 'ready'
+  | 'error';
+
 // Key for the trashed-id set below. Kind-scoped so an element and a node that
 // happen to share a uuid don't collide.
 export const trashedKey = (kind: EntityKind, id: string): string => `${kind}:${id}`;
 
 interface DataState {
+  /**
+   * Authority for the unkeyed desktop workspace projection below. Only the
+   * latest (projectId, epoch) request may publish a captured SQLite snapshot.
+   * This prevents a slow project hydrate from overwriting a newer route.
+   */
+  workspaceProjectId: string | null;
+  workspaceRequestedProjectId: string | null;
+  workspaceProjectionEpoch: number;
+  workspaceProjectionStatus: WorkspaceProjectionStatus;
+  workspaceProjectionError: string | null;
+  requestWorkspaceProjection: (
+    projectId: string,
+    mode: 'loading' | 'refreshing',
+  ) => number;
+  commitWorkspaceProjection: (
+    projectId: string,
+    epoch: number,
+    projection: WorkspaceDataProjection,
+  ) => boolean;
+  clearWorkspaceProjection: (projectId: string, epoch: number) => boolean;
+  failWorkspaceProjection: (projectId: string, epoch: number, error: string) => boolean;
+
   storylines: Storyline[];
   /** storyline.id → nodeId[] */
   storylineNodeMapping: Record<string, string[]>;
@@ -189,7 +238,109 @@ function deriveNodeStorylineMapping(forward: Record<string, string[]>): Record<s
   return reverse;
 }
 
+function emptyWorkspaceProjection(): WorkspaceDataProjection {
+  return {
+    storylines: [],
+    storylineNodeMapping: {},
+    primaryStorylineByNode: {},
+    bookNodes: [],
+    bookElementCategories: [],
+    bookElements: [],
+    projectAssets: [],
+    trashedEntityIds: new Set<string>(),
+    libraryItems: [],
+    comments: [],
+    commentActions: [],
+    entityRelations: [],
+    entityRelationTypes: [],
+    blockSections: [],
+    bookActs: [],
+    driftGroups: [],
+    timelineMarkers: [],
+  };
+}
+
 export const useDataStore = create<DataState>((set) => ({
+  workspaceProjectId: null,
+  workspaceRequestedProjectId: null,
+  workspaceProjectionEpoch: 0,
+  workspaceProjectionStatus: 'idle',
+  workspaceProjectionError: null,
+  requestWorkspaceProjection: (projectId, mode) => {
+    let epoch = 0;
+    set((state) => {
+      epoch = state.workspaceProjectionEpoch + 1;
+      const shouldClear = mode === 'loading' || state.workspaceProjectId !== projectId;
+      return {
+        ...(shouldClear ? emptyWorkspaceProjection() : {}),
+        workspaceProjectId: shouldClear ? null : state.workspaceProjectId,
+        workspaceRequestedProjectId: projectId,
+        workspaceProjectionEpoch: epoch,
+        workspaceProjectionStatus: mode,
+        workspaceProjectionError: null,
+      };
+    });
+    return epoch;
+  },
+  commitWorkspaceProjection: (projectId, epoch, projection) => {
+    let accepted = false;
+    set((state) => {
+      if (
+        state.workspaceRequestedProjectId !== projectId ||
+        state.workspaceProjectionEpoch !== epoch
+      ) {
+        return {};
+      }
+      accepted = true;
+      return {
+        ...projection,
+        nodeStorylineMapping: deriveNodeStorylineMapping(projection.storylineNodeMapping),
+        timelineMarkers: sortMarkers(projection.timelineMarkers),
+        workspaceProjectId: projectId,
+        workspaceProjectionStatus: 'ready',
+        workspaceProjectionError: null,
+      };
+    });
+    return accepted;
+  },
+  clearWorkspaceProjection: (projectId, epoch) => {
+    let accepted = false;
+    set((state) => {
+      if (
+        state.workspaceRequestedProjectId !== projectId ||
+        state.workspaceProjectionEpoch !== epoch
+      ) {
+        return {};
+      }
+      accepted = true;
+      return {
+        ...emptyWorkspaceProjection(),
+        workspaceProjectId: null,
+        workspaceRequestedProjectId: null,
+        workspaceProjectionStatus: 'idle',
+        workspaceProjectionError: null,
+      };
+    });
+    return accepted;
+  },
+  failWorkspaceProjection: (projectId, epoch, error) => {
+    let accepted = false;
+    set((state) => {
+      if (
+        state.workspaceRequestedProjectId !== projectId ||
+        state.workspaceProjectionEpoch !== epoch
+      ) {
+        return {};
+      }
+      accepted = true;
+      return {
+        workspaceProjectionStatus: 'error',
+        workspaceProjectionError: error,
+      };
+    });
+    return accepted;
+  },
+
   storylines: [],
   storylineNodeMapping: {},
   nodeStorylineMapping: {},

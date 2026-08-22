@@ -1,6 +1,6 @@
 # Drifting client privacy boundary
 
-Last updated: 2026-08-16
+Last updated: 2026-08-20
 
 This document describes the public-source client. It is not a privacy policy
 for every fork or independently operated service. A fork operator is
@@ -71,6 +71,22 @@ account type, region, and current provider terms. Review them before sending
 private writing. This public client contains no manuscript-training pipeline.
 Any configured service operator must publish its own policy; this repository
 does not make promises on that operator's behalf.
+
+Copilot and General Agent are Experimental. Their output can be inaccurate or
+destructive, and the author must review proposed changes. Model-provider costs,
+privacy, retention, training, availability, and output risks are governed by
+the selected provider rather than Drifting.
+
+## Recovery snapshots and diagnostics
+
+Before a new application version migrates SQLite, Drifting creates a native
+safety snapshot in the application data directory and retains only a bounded
+number per version. This snapshot is used by the database recovery boundary;
+it is not a general-purpose library export. A diagnostic summary, when copied
+or exported by the author, must contain operational state,
+counts, versions, and error categories only—not manuscript content, tokens,
+credentials, or absolute filesystem paths. Drifting does not upload that
+summary automatically.
 
 ## Your controls
 

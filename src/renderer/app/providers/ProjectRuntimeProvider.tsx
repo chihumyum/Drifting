@@ -6,31 +6,74 @@ import { initDatabase } from '../../lib/db';
 import { events } from '../../lib/events';
 import { useAgentToolBridge } from '../../lib/agent/useAgentToolBridge';
 import { useDriftingAgentRuntime } from '../../lib/agent/useDriftingAgentRuntime';
-import { useDataStore } from '../../store/data-store';
+import { useDataStore, type WorkspaceDataProjection } from '../../store/data-store';
+import { useUiStore } from '../../store/ui-store';
 import { sumCanonicalChapterWordCounts } from '../../domain/book-node';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
 import { useProseMetricsStatusStore } from '../../store/prose-metrics-status-store';
+import { useProjectStore } from '../../store/project-store';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useBookContent } from '../../usecase/useBookContent';
 import { useElementCategory } from '../../usecase/useElementCategory';
-import { useProjectAsset } from '../../usecase/useProjectAsset';
-import { useLibraryItem } from '../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { useEntityRelationTypes } from '../../usecase/useEntityRelationTypes';
 import { useComment } from '../../usecase/useComment';
-import { loadBookActs } from '../../usecase/useBookAct';
-import { loadDriftGroups } from '../../usecase/useDriftGroup';
-import { loadTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import { useProject } from '../../usecase/useProject';
 import { rebuildProjectInlineReferenceIndex } from '../../services/reference-index.service';
-import { reconcileProjectProseMetrics } from '../../services/node-prose-metrics.service';
+import {
+  NodeProseMetricRevisionConflictError,
+  reconcileProjectProseMetrics,
+} from '../../services/node-prose-metrics.service';
 import { flushPendingAtomicSyncTransactions } from '../../services/atomic-sync-transaction-tracker';
+import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
+import { useProductSyncRuntime } from '../../sync/product-runtime-react';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
+
+function pruneDeviceTabsToProjection(projectId: string, data: WorkspaceDataProjection): void {
+  useUiStore.getState().pruneProjectTabs(projectId, {
+    nodeIds: new Set(data.bookNodes.map((node) => node.id)),
+    storylineIds: new Set(data.storylines.map((storyline) => storyline.id)),
+    elementIds: new Set(data.bookElements.map((element) => element.id)),
+    categoryIds: new Set(data.bookElementCategories.map((category) => category.id)),
+  });
+}
+
+function WorkspaceBlockingStatus({
+  title,
+  detail,
+  action,
+}: {
+  title: string;
+  detail: string;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div
+      role={action ? 'alert' : 'status'}
+      aria-live={action ? 'assertive' : 'polite'}
+      className="app-workspace-blocking-status"
+    >
+      <div className="app-fullscreen-status__content">
+        <div className="app-fullscreen-status__title">{title}</div>
+        <div className="app-fullscreen-status__detail">{detail}</div>
+        {action && (
+          <button
+            type="button"
+            className="set-btn set-btn--primary app-fullscreen-status__action"
+            onClick={action.onClick}
+          >
+            {action.label}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type ProjectBootState =
   | { key: string; status: 'loading' }
@@ -56,12 +99,23 @@ export function ProjectRuntimeProvider({
     key: bootKey,
     status: 'loading',
   });
+  const workspaceProjectionStatus = useDataStore((state) => state.workspaceProjectionStatus);
+  const workspaceRequestedProjectId = useDataStore(
+    (state) => state.workspaceRequestedProjectId,
+  );
+  const workspaceProjectionError = useDataStore((state) => state.workspaceProjectionError);
+  const syncRuntime = useProductSyncRuntime();
+  const projectSyncPhase = syncRuntime.diagnostics?.generations.find(
+    (generation) => generation.projectId === projectId,
+  )?.phase;
+  const projectPullActive =
+    projectSyncPhase === 'pulling' ||
+    projectSyncPhase === 'ingesting' ||
+    projectSyncPhase === 'applying';
   const nodeUsecases = useBookNode({ projectId, userId });
   const storylineUsecases = useStoryline({ projectId, userId });
   const elementUsecases = useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
-  const projectAssetUsecases = useProjectAsset({ projectId, userId });
-  const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
   const relationTypeUsecases = useEntityRelationTypes({ projectId });
   const commentUsecases = useComment({ projectId, userId });
@@ -138,7 +192,9 @@ export function ProjectRuntimeProvider({
   useEffect(() => {
     const tick = () => {
       if (useProseMetricsStatusStore.getState().byProject[projectId] !== 'ready') return;
-      const nodes = useDataStore.getState().bookNodes;
+      const dataState = useDataStore.getState();
+      if (dataState.workspaceProjectId !== projectId) return;
+      const nodes = dataState.bookNodes;
       const total = sumCanonicalChapterWordCounts(nodes);
       if (total.ready) {
         useWritingStatsStore.getState().recordTotalWords(projectId, total.count);
@@ -157,111 +213,161 @@ export function ProjectRuntimeProvider({
     if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
     let disposed = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let refreshTail = Promise.resolve();
+    let metricTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshRunning = false;
+    let refreshRequested = false;
+    let pendingEpoch: number | null = null;
+    let projectMissing = false;
 
-    const hydrateCommittedReplica = async () => {
-      await flushPendingAtomicSyncTransactions();
-      const project = await projectUsecases.loadProject(projectId);
-      if (!project) {
-        if (!disposed) setBootState({ key: bootKey, status: 'missing' });
-        return;
+    const scheduleMetricReconciliation = () => {
+      if (metricTimer !== null) clearTimeout(metricTimer);
+      metricTimer = setTimeout(() => {
+        metricTimer = null;
+        if (disposed || useDataStore.getState().workspaceProjectId !== projectId) return;
+        void reconcileProjectProseMetrics(projectId).catch((error) => {
+          // A remote Yjs stream can advance while a metric projection is being
+          // captured. This is derived data; defer it until the next quiet
+          // window instead of failing an otherwise valid workspace refresh.
+          if (error instanceof NodeProseMetricRevisionConflictError) {
+            scheduleMetricReconciliation();
+            return;
+          }
+          log.warn('Canonical prose metric reconciliation failed:', error);
+        });
+      }, 800);
+    };
+
+    const captureAndPublish = async (epoch: number) => {
+      try {
+        await flushPendingAtomicSyncTransactions();
+        const capture = await captureWorkspaceProjection({ projectId, userId });
+        if (!capture) {
+          if (!disposed) {
+            projectMissing = true;
+            useDataStore.getState().clearWorkspaceProjection(projectId, epoch);
+            setBootState({ key: bootKey, status: 'missing' });
+          }
+          return 'missing' as const;
+        }
+        if (disposed) return 'stale' as const;
+        const accepted = useDataStore
+          .getState()
+          .commitWorkspaceProjection(projectId, epoch, capture.data);
+        if (!accepted) return 'stale' as const;
+        useProjectStore.getState().setCurrentProject(capture.project);
+        pruneDeviceTabsToProjection(projectId, capture.data);
+        void rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
+          log.warn('Reference index rebuild failed:', error);
+        });
+        return 'published' as const;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        useDataStore.getState().failWorkspaceProjection(projectId, epoch, message);
+        throw error;
       }
-      await Promise.all([
-        nodeUsecases.loadNodes(),
-        storylineUsecases.loadStorylines(),
-        elementUsecases.loadInitial(),
-        categoryUsecases.loadCategories(),
-        projectAssetUsecases.loadInitial(),
-        libraryItemUsecases.loadInitial(),
-        relationUsecases.loadInitial(),
-        commentUsecases.loadInitial(),
-        loadBookActs(projectId),
-        loadDriftGroups(projectId),
-        loadTimelineMarkers(projectId),
-      ]);
-      await storylineUsecases.loadNodeStorylineMapping();
-      await rebuildProjectInlineReferenceIndex(projectId);
-      await reconcileProjectProseMetrics(projectId);
+    };
+
+    const runRefresh = async () => {
+      if (refreshRunning || disposed) return;
+      refreshRunning = true;
+      try {
+        while (refreshRequested && !disposed) {
+          refreshRequested = false;
+          const epoch =
+            pendingEpoch ??
+            useDataStore.getState().requestWorkspaceProjection(projectId, 'refreshing');
+          pendingEpoch = null;
+          try {
+            const result = await captureAndPublish(epoch);
+            if (result === 'missing') {
+              refreshRequested = false;
+              pendingEpoch = null;
+              break;
+            }
+          } catch (error) {
+            log.warn('Remote project refresh failed:', error);
+          }
+        }
+      } finally {
+        refreshRunning = false;
+        if (!disposed && !projectMissing) scheduleMetricReconciliation();
+      }
     };
 
     const scheduleRefresh = (event: { projectId: string }) => {
       if (event.projectId !== projectId || disposed) return;
+      refreshRequested = true;
+      if (pendingEpoch === null) {
+        // Show a project-scoped, interaction-blocking state as soon as the
+        // first remote commit lands. The actual capture waits for a short
+        // quiet window so one pull burst becomes one coherent projection.
+        pendingEpoch = useDataStore
+          .getState()
+          .requestWorkspaceProjection(projectId, 'refreshing');
+      }
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
-        refreshTail = refreshTail
-          .catch(() => undefined)
-          .then(hydrateCommittedReplica)
-          .catch((error) => log.warn('Remote project refresh failed:', error));
-      }, 50);
+        void runRefresh();
+      }, 250);
     };
 
     events.on('sync:project-changed', scheduleRefresh);
     return () => {
       disposed = true;
       if (refreshTimer !== null) clearTimeout(refreshTimer);
+      if (metricTimer !== null) clearTimeout(metricTimer);
       events.off('sync:project-changed', scheduleRefresh);
     };
-  }, [
-    bootKey,
-    bootState,
-    categoryUsecases,
-    commentUsecases,
-    elementUsecases,
-    libraryItemUsecases,
-    nodeUsecases,
-    projectAssetUsecases,
-    projectId,
-    projectUsecases,
-    relationUsecases,
-    storylineUsecases,
-  ]);
+  }, [bootKey, bootState, projectId, userId]);
 
   useEffect(() => {
     let active = true;
+    const epoch = useDataStore
+      .getState()
+      .requestWorkspaceProjection(projectId, 'loading');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setBootState({ key: bootKey, status: 'loading' });
 
     const initialize = async () => {
       try {
         await initDatabase(userId);
-        const [project] = await Promise.all([
-          projectUsecases.loadProject(projectId),
-          nodeUsecases.loadNodes(),
-          storylineUsecases.loadStorylines(),
-          elementUsecases.loadInitial(),
-          categoryUsecases.loadCategories(),
-          projectAssetUsecases.loadInitial(),
-          libraryItemUsecases.loadInitial(),
-          relationUsecases.loadInitial(),
-          commentUsecases.loadInitial(),
-          loadBookActs(projectId),
-          loadDriftGroups(projectId),
-          loadTimelineMarkers(projectId),
-        ]);
-        await storylineUsecases.loadNodeStorylineMapping();
-        await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
-          log.warn('Reference index rebuild failed:', error);
-        });
-
-        if (!active) return;
-        if (!project) {
-          setBootState({ key: bootKey, status: 'missing' });
+        const capture = await captureWorkspaceProjection({ projectId, userId });
+        if (!capture) {
+          if (active) {
+            useDataStore.getState().clearWorkspaceProjection(projectId, epoch);
+            setBootState({ key: bootKey, status: 'missing' });
+          }
           return;
         }
+        if (!active) return;
+        const accepted = useDataStore
+          .getState()
+          .commitWorkspaceProjection(projectId, epoch, capture.data);
+        if (!accepted) return;
+        useProjectStore.getState().setCurrentProject(capture.project);
+        pruneDeviceTabsToProjection(projectId, capture.data);
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
-        // The project is already fully hydrated from its local SQLite replica.
-        // Remote objects are ingested by SyncEngine and never overwrite the
-        // local graph from a network response.
+        void rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
+          log.warn('Reference index rebuild failed:', error);
+        });
+        // Derived metrics run after the workspace authority is published. A
+        // remote Yjs revision conflict never invalidates the captured domain
+        // projection and will be retried by the remote quiet-window worker.
         void reconcileProjectProseMetrics(projectId).catch((error) => {
-          log.warn('Canonical prose metric reconciliation failed:', error);
+          if (!(error instanceof NodeProseMetricRevisionConflictError)) {
+            log.warn('Canonical prose metric reconciliation failed:', error);
+          }
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log.error('Project initialization failed:', error);
         events.emit('db:error', { error: message });
-        if (active) setBootState({ key: bootKey, status: 'error', error: message });
+        if (active) {
+          useDataStore.getState().failWorkspaceProjection(projectId, epoch, message);
+          setBootState({ key: bootKey, status: 'error', error: message });
+        }
       }
     };
 
@@ -269,21 +375,7 @@ export function ProjectRuntimeProvider({
     return () => {
       active = false;
     };
-  }, [
-    bootAttempt,
-    bootKey,
-    projectId,
-    userId,
-    projectUsecases,
-    nodeUsecases,
-    storylineUsecases,
-    elementUsecases,
-    categoryUsecases,
-    projectAssetUsecases,
-    libraryItemUsecases,
-    relationUsecases,
-    commentUsecases,
-  ]);
+  }, [bootAttempt, bootKey, projectId, userId]);
 
   const currentBoot: ProjectBootState =
     bootState.key === bootKey ? bootState : { key: bootKey, status: 'loading' };
@@ -309,5 +401,35 @@ export function ProjectRuntimeProvider({
     );
   }
 
-  return children;
+  const projectRefreshFailed =
+    workspaceRequestedProjectId === projectId &&
+    workspaceProjectionStatus === 'error';
+  const projectRefreshActive =
+    workspaceRequestedProjectId === projectId &&
+    workspaceProjectionStatus === 'refreshing';
+
+  return (
+    <>
+      {children}
+      {projectRefreshFailed ? (
+        <WorkspaceBlockingStatus
+          title={t('appShell.projectRefreshFailedTitle')}
+          detail={`${t('appShell.projectRefreshFailedDetail')} ${workspaceProjectionError ?? ''}`}
+          action={{
+            label: t('appShell.retry'),
+            onClick: () => setBootAttempt((attempt) => attempt + 1),
+          }}
+        />
+      ) : projectRefreshActive ? (
+        <WorkspaceBlockingStatus
+          title={t('appShell.syncingProject')}
+          detail={t('appShell.syncingProjectDetail')}
+        />
+      ) : projectPullActive ? (
+        <div role="status" aria-live="polite" className="app-project-sync-pill">
+          {t('appShell.syncingProject')}
+        </div>
+      ) : null}
+    </>
+  );
 }

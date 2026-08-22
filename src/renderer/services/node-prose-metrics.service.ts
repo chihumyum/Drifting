@@ -131,7 +131,7 @@ export async function persistNodeProseProjectionInTransaction(
     }
   }
 
-  const contentRepo = createBookContentRepository(tx);
+  const contentRepo = createBookContentRepository(tx, input.projectId);
   const existingContent = await contentRepo.findByNodeId(input.nodeId);
   let content;
   if (existingContent && input.touchNodeUpdatedAt === false) {
@@ -191,7 +191,10 @@ async function persistProjection(
     (tx) => persistNodeProseProjectionInTransaction(tx, input),
   );
   if (input.publishToDataStore !== false) {
-    useDataStore.getState().updateBookNode(input.nodeId, result.node);
+    const workspace = useDataStore.getState();
+    if (workspace.workspaceProjectId === input.projectId) {
+      workspace.updateBookNode(input.nodeId, result.node);
+    }
   }
   return {
     ...input,
@@ -201,12 +204,13 @@ async function persistProjection(
 }
 
 async function captureNodeProjection(
+  projectId: string,
   nodeId: string,
   fallbackContentJson?: string | null,
 ): Promise<CanonicalNodeProseProjection> {
   const contentJson =
     fallbackContentJson ??
-    (await createBookContentRepository().findByNodeId(nodeId))?.contentJson ??
+    (await createBookContentRepository(undefined, projectId).findByNodeId(nodeId))?.contentJson ??
     EMPTY_DOCUMENT;
   const seedUpdate = await createEntitySeedUpdate(contentJson);
   const base = await createYjsProsePersistenceCoordinator().readBase(
@@ -224,11 +228,11 @@ export async function materializeCanonicalNodeProse(
 ): Promise<CanonicalNodeProseProjection> {
   let lastConflict: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const projection = await captureNodeProjection(nodeId, fallbackContentJson);
+    const projection = await captureNodeProjection(projectId, nodeId, fallbackContentJson);
     try {
       const [node, content] = await Promise.all([
         createBookNodeSqliteRepository(projectId).findById(nodeId),
-        createBookContentRepository().findByNodeId(nodeId),
+        createBookContentRepository(undefined, projectId).findByNodeId(nodeId),
       ]);
       if (node && canReuseCanonicalProjection(node, content, projection)) {
         return {

@@ -50,6 +50,53 @@
   color: hsl(var(--ink-1));
 }
 
+/* Keep the last complete editor tree mounted while a remote project snapshot
+ * is being captured. The opaque, pointer-blocking overlay prevents authored
+ * interactions against a stale projection without forcing Yjs editors to
+ * unmount on every SyncEngine cycle. */
+.app-workspace-blocking-status {
+  position: fixed;
+  z-index: calc(var(--z-modal) + 20);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: hsl(var(--paper) / 0.96);
+  color: hsl(var(--ink-1));
+}
+
+.app-project-sync-pill {
+  position: fixed;
+  z-index: calc(var(--z-modal) + 10);
+  top: 14px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 7px 12px;
+  transform: translateX(-50%);
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 999px;
+  background: hsl(var(--paper) / 0.94);
+  box-shadow: var(--shadow-control);
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.app-project-sync-pill::before {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border: 1.5px solid hsl(var(--ink-4) / 0.35);
+  border-top-color: hsl(var(--accent));
+  border-radius: 50%;
+  animation: control-spinner-rotate 0.8s linear infinite;
+  content: '';
+}
+
 .app-fullscreen-status__content {
   width: min(440px, 100%);
   text-align: center;
@@ -71,4 +118,77 @@
 
 .app-fullscreen-status__action {
   margin-top: 18px;
+}
+
+.database-recovery {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.database-recovery__card {
+  width: min(680px, 100%);
+  padding: 32px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 16px;
+  background: hsl(var(--card));
+  box-shadow: 0 20px 60px rgb(0 0 0 / 12%);
+}
+
+.database-recovery__eyebrow {
+  margin: 0 0 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.database-recovery__card h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+}
+
+.database-recovery__summary {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0;
+  padding: 16px;
+  border-radius: 10px;
+  background: hsl(var(--muted));
+}
+
+.database-recovery__summary div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 16px;
+}
+
+.database-recovery__summary dt {
+  color: hsl(var(--muted-foreground));
+}
+
+.database-recovery__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.database-recovery__notice {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: hsl(var(--muted));
+}
+
+.database-recovery__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.database-recovery__exit {
+  margin-left: auto;
 }
