@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import loglevel from 'loglevel';
 import { initDatabase } from '../../lib/db';
 import { events } from '../../lib/events';
@@ -35,6 +35,7 @@ log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN)
 type ProjectBootState =
   | { key: string; status: 'loading' }
   | { key: string; status: 'ready' }
+  | { key: string; status: 'missing' }
   | { key: string; status: 'error'; error: string };
 
 interface ProjectRuntimeProviderProps {
@@ -49,7 +50,6 @@ export function ProjectRuntimeProvider({
   children,
 }: ProjectRuntimeProviderProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const bootKey = `${userId}:${projectId}`;
   const [bootAttempt, setBootAttempt] = useState(0);
   const [bootState, setBootState] = useState<ProjectBootState>({
@@ -163,7 +163,7 @@ export function ProjectRuntimeProvider({
       await flushPendingAtomicSyncTransactions();
       const project = await projectUsecases.loadProject(projectId);
       if (!project) {
-        if (!disposed) navigate('/', { replace: true });
+        if (!disposed) setBootState({ key: bootKey, status: 'missing' });
         return;
       }
       await Promise.all([
@@ -209,7 +209,6 @@ export function ProjectRuntimeProvider({
     commentUsecases,
     elementUsecases,
     libraryItemUsecases,
-    navigate,
     nodeUsecases,
     projectAssetUsecases,
     projectId,
@@ -226,7 +225,7 @@ export function ProjectRuntimeProvider({
     const initialize = async () => {
       try {
         await initDatabase(userId);
-        await Promise.all([
+        const [project] = await Promise.all([
           projectUsecases.loadProject(projectId),
           nodeUsecases.loadNodes(),
           storylineUsecases.loadStorylines(),
@@ -246,6 +245,10 @@ export function ProjectRuntimeProvider({
         });
 
         if (!active) return;
+        if (!project) {
+          setBootState({ key: bootKey, status: 'missing' });
+          return;
+        }
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
         // The project is already fully hydrated from its local SQLite replica.
@@ -286,6 +289,9 @@ export function ProjectRuntimeProvider({
     bootState.key === bootKey ? bootState : { key: bootKey, status: 'loading' };
   if (currentBoot.status === 'loading') {
     return <FullScreenStatus title={t('appShell.loadingProject')} />;
+  }
+  if (currentBoot.status === 'missing') {
+    return <Navigate to="/" replace />;
   }
   if (currentBoot.status === 'error') {
     return (

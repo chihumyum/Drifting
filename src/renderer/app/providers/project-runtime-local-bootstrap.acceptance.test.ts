@@ -27,6 +27,14 @@ describe('local project bootstrap and lifecycle architecture', () => {
     }
   });
 
+  it('keeps project startup independent from child editor routes', () => {
+    const provider = source('./ProjectRuntimeProvider.tsx');
+
+    expect(provider).not.toContain('useNavigate');
+    expect(provider).toContain("status: 'missing'");
+    expect(provider).toContain('<Navigate to="/" replace />');
+  });
+
   it('keeps lifecycle durability local and exposes only the new SyncEngine hook', () => {
     const lifecycle = source('../../lib/persistence-lifecycle.ts');
 

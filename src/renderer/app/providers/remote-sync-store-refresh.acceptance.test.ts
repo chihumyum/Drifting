@@ -23,7 +23,9 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(projectRuntime).toContain("events.on('sync:project-changed', scheduleRefresh)");
     expect(projectRuntime).toContain('await flushPendingAtomicSyncTransactions()');
     expect(projectRuntime).toContain('await projectUsecases.loadProject(projectId)');
-    expect(projectRuntime).toContain("navigate('/', { replace: true })");
+    expect(projectRuntime).toContain("setBootState({ key: bootKey, status: 'missing' })");
+    expect(projectRuntime).toContain('<Navigate to="/" replace />');
+    expect(projectRuntime).not.toContain('useNavigate');
 
     const picker = source('../../views/ProjectPickerView.tsx');
     expect(picker).toContain("events.on('sync:project-changed', refresh)");

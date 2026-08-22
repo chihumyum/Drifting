@@ -8,6 +8,10 @@ lifecycle reachability boundary.
 - `ProjectRuntimeProvider` opens the per-device database and hydrates all
   project stores from local SQLite repositories/use cases. It never calls the
   retired hosted `/graph` pull-and-overwrite path.
+- Project runtime lifetime is keyed by user, project, and explicit retry only.
+  Child editor route changes never reopen the database or replace the mounted
+  workspace with project-loading UI; a confirmed missing project transitions
+  to declarative route state.
 - The lifecycle barrier drains the active editor, open Yjs documents, snapshot
   history, native asset mutations, authored SQLite transactions, the SQLite
   checkpoint, and local token persistence. These operations do not wait for
