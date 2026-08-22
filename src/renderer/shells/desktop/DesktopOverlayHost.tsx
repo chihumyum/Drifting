@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { AgentConfirmDialog } from '../../components/agent/AgentConfirmDialog';
 import { DesktopSettingsModal } from '../../features/settings/desktop/DesktopSettingsModal';
 import { ImportDialog } from '../../components/modals/ImportDialog';
@@ -24,7 +25,7 @@ interface DesktopOverlayHostProps {
   onCloseGlobalSearch: () => void;
 }
 
-export function DesktopOverlayHost({
+export const DesktopOverlayHost = memo(function DesktopOverlayHost({
   activeSuperView,
   isSettingsOpen,
   settingsTargetRail,
@@ -59,4 +60,4 @@ export function DesktopOverlayHost({
       <GlobalSearchModal isOpen={isGlobalSearchOpen} onClose={onCloseGlobalSearch} />
     </>
   );
-}
+});

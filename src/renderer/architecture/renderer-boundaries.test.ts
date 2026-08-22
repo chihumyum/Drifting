@@ -45,8 +45,31 @@ describe('renderer ownership boundaries', () => {
     expect(app.split('\n').length).toBeLessThanOrEqual(120);
     expect(source('app/AppRoutes.tsx')).toContain('<DesktopAppShell />');
     expect(source('shells/desktop/DesktopAppShell.tsx')).toContain(
-      '<WorkspaceNavigationProvider navigator={workspaceNavigator}>',
+      '<DesktopWorkspaceNavigationBoundary',
     );
+  });
+
+  it('contains child-route subscriptions inside the desktop navigation boundary', () => {
+    const compatibilityHook = source('hooks/useProjectNavigation.ts');
+    expect(compatibilityHook).toContain('useWorkspaceNavigator()');
+    expect(compatibilityHook).not.toMatch(/useLocation|useNavigate|useParams/u);
+
+    const boundary = source(
+      'shells/desktop/navigation/DesktopWorkspaceNavigationBoundary.tsx',
+    );
+    expect(boundary).toContain('useDesktopWorkspaceNavigator(projectId)');
+    expect(boundary).toContain('useSyncSplitFocusedUrl()');
+    expect(boundary).toContain('<WorkspaceNavigationProvider navigator={navigator}>');
+
+    const adapter = source('shells/desktop/navigation/useDesktopWorkspaceNavigator.ts');
+    expect(adapter).toContain('const pathnameRef = useRef(location.pathname)');
+    expect(adapter).toContain('const navigateRef = useRef(routerNavigate)');
+    expect(adapter).toContain('useLayoutEffect(() =>');
+    expect(adapter).toContain('useMemo<WorkspaceNavigator>');
+
+    const shell = source('shells/desktop/DesktopAppShell.tsx');
+    expect(shell).toContain('projectId={projectId}');
+    expect(shell).not.toMatch(/useLocation|useNavigate|useSyncSplitFocusedUrl/u);
   });
 
   it('keeps compatibility barrels thin after feature extraction', () => {

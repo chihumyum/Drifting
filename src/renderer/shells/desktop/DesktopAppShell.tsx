@@ -4,16 +4,13 @@ import { useParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
 import { useUiStore } from '../../store/ui-store';
 import { subscribeActiveEditor } from '../../lib/active-editor';
-import { useSyncSplitFocusedUrl } from '../../components/editor/useSyncSplitFocusedUrl';
 import { useNotificationFeed } from '../../hooks/useNotificationFeed';
 import { ProjectRuntimeProvider } from '../../app/providers/ProjectRuntimeProvider';
 import { DesktopWorkspace } from './DesktopWorkspace';
 import { DesktopOverlayHost } from './DesktopOverlayHost';
 import { useDesktopShellEvents } from './useDesktopShellEvents';
-import { useDesktopGlobalShortcuts } from './useDesktopGlobalShortcuts';
-import { useDesktopWorkspaceNavigator } from './navigation/useDesktopWorkspaceNavigator';
-import { WorkspaceNavigationProvider } from '../../features/workspace/navigation/WorkspaceNavigationContext';
 import { SuperViewRelationUiProvider } from '../../features/graph/SuperViewRelationUiContext';
+import { DesktopWorkspaceNavigationBoundary } from './navigation/DesktopWorkspaceNavigationBoundary';
 
 export function DesktopAppShell() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -33,9 +30,7 @@ export function DesktopAppShell() {
   const setChapterStorylineEditorNodeId = useUiStore(
     (state) => state.setChapterStorylineEditorNodeId,
   );
-  const workspaceNavigator = useDesktopWorkspaceNavigator();
 
-  useSyncSplitFocusedUrl();
   useNotificationFeed();
 
   const openSettings = useCallback((railId: string | null) => {
@@ -48,9 +43,19 @@ export function DesktopAppShell() {
     setIsGlobalSearchOpen(true);
   }, []);
   const openFind = useCallback((editor: Editor) => setFindPanelEditor(editor), []);
+  const closeFindPanel = useCallback(() => setFindPanelEditor(null), []);
+  const closeSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+    setSettingsTargetRail(null);
+  }, []);
+  const closeImport = useCallback(() => setIsImportOpen(false), []);
+  const closeChapterStorylineEditor = useCallback(
+    () => setChapterStorylineEditorNodeId(null),
+    [setChapterStorylineEditorNodeId],
+  );
+  const closeGlobalSearch = useCallback(() => setIsGlobalSearchOpen(false), []);
 
   useDesktopShellEvents({ openSettings, openImport, openSearch: openGlobalSearch });
-  useDesktopGlobalShortcuts({ projectId, openFind, openGlobalSearch });
 
   useEffect(() => {
     return subscribeActiveEditor((editor) => {
@@ -61,29 +66,30 @@ export function DesktopAppShell() {
   return (
     <ProjectRuntimeProvider projectId={projectId} userId={userId}>
       <SuperViewRelationUiProvider key={projectId} projectId={projectId}>
-        <WorkspaceNavigationProvider navigator={workspaceNavigator}>
+        <DesktopWorkspaceNavigationBoundary
+          projectId={projectId}
+          openFind={openFind}
+          openGlobalSearch={openGlobalSearch}
+        >
           <DesktopWorkspace
             activeLeftPanel={activeLeftPanel}
             bottomTimelineHidden={bottomTimelineHidden}
             findPanelEditor={findPanelEditor}
-            onCloseFindPanel={() => setFindPanelEditor(null)}
+            onCloseFindPanel={closeFindPanel}
           />
           <DesktopOverlayHost
             activeSuperView={activeSuperView}
             isSettingsOpen={isSettingsOpen}
             settingsTargetRail={settingsTargetRail}
-            onCloseSettings={() => {
-              setIsSettingsOpen(false);
-              setSettingsTargetRail(null);
-            }}
+            onCloseSettings={closeSettings}
             isImportOpen={isImportOpen}
-            onCloseImport={() => setIsImportOpen(false)}
+            onCloseImport={closeImport}
             chapterStorylineEditorNodeId={chapterStorylineEditorNodeId}
-            onCloseChapterStorylineEditor={() => setChapterStorylineEditorNodeId(null)}
+            onCloseChapterStorylineEditor={closeChapterStorylineEditor}
             isGlobalSearchOpen={isGlobalSearchOpen}
-            onCloseGlobalSearch={() => setIsGlobalSearchOpen(false)}
+            onCloseGlobalSearch={closeGlobalSearch}
           />
-        </WorkspaceNavigationProvider>
+        </DesktopWorkspaceNavigationBoundary>
       </SuperViewRelationUiProvider>
     </ProjectRuntimeProvider>
   );

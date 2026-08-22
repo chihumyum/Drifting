@@ -43,6 +43,17 @@ Dependencies flow toward shared contracts:
 7. Compatibility re-exports may remain temporarily but cannot regain
    implementation or state ownership.
 
+Child editor URLs are observed only by each shell's route adapter. On desktop,
+`DesktopWorkspaceNavigationBoundary` owns URL/tab synchronization and provides
+a `WorkspaceNavigator` whose identity is stable for the lifetime of one
+project. The boundary must pass the route `projectId` into the desktop adapter;
+an unscoped navigator is invalid because child write use cases deliberately
+fail closed without project authority. Shared and desktop workspace consumers
+must not subscribe to `useLocation()` through compatibility navigation helpers.
+A tab switch may update the editor outlet, tab selection, and entity-dependent
+panels, but it must not restart `ProjectRuntimeProvider` or invalidate the
+surrounding shell.
+
 `src/renderer/architecture/renderer-boundaries.test.ts` and restricted-import
 lint rules enforce these directions.
 

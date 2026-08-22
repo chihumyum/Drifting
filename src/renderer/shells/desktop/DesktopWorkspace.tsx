@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core';
+import { memo } from 'react';
 import { AppTopbar } from '../../views/AppTopbar';
 import { Sidebar } from '../../components/Sidebar';
 import { LeftSidebarHeader } from '../../components/leftBars/LeftSidebarHeader';
@@ -19,7 +20,7 @@ interface DesktopWorkspaceProps {
   onCloseFindPanel: () => void;
 }
 
-export function DesktopWorkspace({
+export const DesktopWorkspace = memo(function DesktopWorkspace({
   activeLeftPanel,
   bottomTimelineHidden,
   findPanelEditor,
@@ -70,4 +71,4 @@ export function DesktopWorkspace({
       <BottomStatusBar />
     </div>
   );
-}
+});

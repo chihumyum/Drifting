@@ -1,48 +1,33 @@
 import { useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { focusedLeafOf, tabKey, useUiStore } from '../../store/ui-store';
+import type { NavigateFunction } from 'react-router-dom';
+import { focusedLeafOf, SINGLETON_TAB_ID, tabKey, useUiStore } from '../../store/ui-store';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { matchesAccelerator } from '../../lib/shortcuts';
 import { getActiveEditor, saveActiveEditor } from '../../lib/active-editor';
 import { flushAllYjsDocumentsLocally } from '../../services/yjs-local-durability.service';
-import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
+import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
+import type { WorkspaceNavigator } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('DesktopGlobalShortcuts');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
-
-function urlForTarget(projectId: string, target: WorkspaceTarget): string | null {
-  switch (target.entityType) {
-    case 'node':
-      return `/project/${projectId}/editor/${target.id}`;
-    case 'storyline':
-      return `/project/${projectId}/editor/storyline/${target.id}`;
-    case 'element':
-      return `/project/${projectId}/element/${target.id}`;
-    case 'category':
-      return `/project/${projectId}/category/${encodeURIComponent(target.id)}`;
-    case 'dashboard':
-      return `/project/${projectId}/home`;
-    case 'all-chapters':
-      return `/project/${projectId}/editor/all`;
-    default:
-      return null;
-  }
-}
 
 interface DesktopGlobalShortcutOptions {
   projectId: string;
   openFind(editor: Editor): void;
   openGlobalSearch(): void;
+  navigator: WorkspaceNavigator;
+  navigate: NavigateFunction;
 }
 
 export function useDesktopGlobalShortcuts({
   projectId,
   openFind,
   openGlobalSearch,
+  navigator,
+  navigate,
 }: DesktopGlobalShortcutOptions) {
-  const { openEntity, navigateToHome, navigateToAllChapters, navigate } = useProjectNavigation();
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
   const lastSingletonShortcut = useRef<{ code: 'Digit1' | 'Digit2'; at: number } | null>(null);
@@ -71,13 +56,13 @@ export function useDesktopGlobalShortcuts({
         case 'Digit1':
           event.preventDefault();
           dismissSuperView();
-          navigateToHome();
+          navigator.open({ entityType: 'dashboard', id: SINGLETON_TAB_ID });
           maybePromote('Digit1');
           return;
         case 'Digit2':
           event.preventDefault();
           dismissSuperView();
-          navigateToAllChapters();
+          navigator.open({ entityType: 'all-chapters', id: SINGLETON_TAB_ID });
           maybePromote('Digit2');
           return;
         case 'Digit3':
@@ -99,7 +84,7 @@ export function useDesktopGlobalShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSuperView, navigateToAllChapters, navigateToHome, projectId, setActiveSuperView]);
+  }, [activeSuperView, navigator, projectId, setActiveSuperView]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -171,12 +156,10 @@ export function useDesktopGlobalShortcuts({
         if (nextTab.kind === 'split') {
           state.setActiveTab(projectId, { splitId: nextTab.id });
           const target = focusedLeafOf(nextTab);
-          const url = urlForTarget(projectId, target);
+          const url = workspaceUrlFor(projectId, target);
           if (url) navigate(url);
         } else {
-          state.setActiveTab(projectId, { entityType: nextTab.entityType, id: nextTab.id });
-          const url = urlForTarget(projectId, nextTab);
-          if (url) navigate(url);
+          navigator.activate(nextTab);
         }
       }
 
@@ -194,7 +177,7 @@ export function useDesktopGlobalShortcuts({
             : { entityType: activeTab.entityType, id: activeTab.id };
         const { nextActive } = state.closeTab(projectId, closeRef);
         if (nextActive) {
-          openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+          navigator.open({ entityType: nextActive.entityType, id: nextActive.id });
         } else {
           navigate(`/project/${projectId}`, { replace: true });
         }
@@ -203,5 +186,5 @@ export function useDesktopGlobalShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigate, openEntity, openFind, openGlobalSearch, projectId]);
+  }, [navigate, navigator, openFind, openGlobalSearch, projectId]);
 }
