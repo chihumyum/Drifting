@@ -1,0 +1,69 @@
+name: Promote Alpha updater channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published immutable release tag, for example app-v0.1.0-alpha.1
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: alpha-channel
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - name: Verify published release and download exact updater evidence
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = "false"
+          test "$(gh release view "$RELEASE_TAG" --json isPrerelease --jq .isPrerelease)" = "true"
+          test "$(gh repo view --json visibility --jq .visibility)" = "PUBLIC"
+          node scripts/check-alpha-release.mjs "$RELEASE_TAG"
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release"
+          test -f "$RUNNER_TEMP/release/SHA256SUMS.txt"
+          (cd "$RUNNER_TEMP/release" && shasum -a 256 -c SHA256SUMS.txt)
+          UPDATE_PATH=$(find "$RUNNER_TEMP/release" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          test -f "$UPDATE_PATH"
+          test -f "$UPDATE_PATH.sig"
+          test -f "$RUNNER_TEMP/release/sbom.spdx.json"
+          test -f "$RUNNER_TEMP/release/THIRD_PARTY_NOTICES.md"
+          RELEASE_VERSION=${RELEASE_TAG#app-v}
+          NOTES_FILE="docs/releases/${RELEASE_VERSION}.md"
+          test -f "$NOTES_FILE"
+          UPDATE_NAME=$(basename "$UPDATE_PATH")
+          UPDATE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${UPDATE_NAME}"
+          node scripts/create-alpha-update-manifest.mjs \
+            --version "$RELEASE_VERSION" \
+            --url "$UPDATE_URL" \
+            --signature-file "$UPDATE_PATH.sig" \
+            --notes-file "$NOTES_FILE" \
+            --output "$RUNNER_TEMP/pages/updates/alpha/latest.json"
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ runner.temp }}/pages
+      - name: Deploy protected Alpha channel manifest
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
