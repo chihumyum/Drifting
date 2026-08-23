@@ -894,6 +894,34 @@
 .m-plot-workspace .pl-resize-grip {
   opacity: 1;
 }
+
+.m-plot-workspace .pl-cell,
+.m-plot-workspace .pl-head__text {
+  font-size: 16px;
+}
+
+.m-plot-workspace .pl-head__del {
+  width: 44px;
+  height: 44px;
+  touch-action: manipulation;
+}
+
+.m-plot-workspace .pl-add--col {
+  right: -52px;
+  width: 44px;
+}
+
+.m-plot-workspace .pl-add--row {
+  bottom: -52px;
+  height: 44px;
+}
+
+.m-plot-workspace .pl-resize-grip {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  padding: 0;
+}
 .m-tool-empty {
   min-height: 100%;
   display: grid;

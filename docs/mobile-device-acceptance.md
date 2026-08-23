@@ -141,6 +141,16 @@ Emulator 的 M4 记录见
 hardware Back、one-live All Chapters 和零章节创建。它不关闭精确选区端点重启恢复、
 真机触摸/IME、辅助功能、生命周期、性能或 M5-M9 门槛。
 
+## 2026-08-23 Mobile V2 M5 iOS Simulator and Android Emulator check
+
+复用同一台 `iPhone 16e / iOS 26.1` Simulator 和 `Persimmon_API_35` Android
+Emulator 的 M5 记录见
+[`qa/mobile-v2-m5-planning-simulator-2026-08-23.md`](qa/mobile-v2-m5-planning-simulator-2026-08-23.md)。
+该记录覆盖完整 Planning 可达性、书序/叙事、Act、marker、双故事线/跨线、未归属/未放置、
+延迟拖动、长按菜单、midpoint pinch 接线，以及 Plot Grid 行列、TSV 与 normalized 持久化。
+所有 iOS/Android WebView 指针输入都明确标记为 `nativeInput=false`；仅 Android hardware
+Back 是真实系统输入。因此真实连续触摸、双指、边缘滚动和长按手感仍必须在双平台真机完成。
+
 ## Historical 2026-08-13 pre-M3 iOS Simulator spot check
 
 本轮按任务要求只使用 `iPhone 17 Pro / iOS 26.1` Simulator，不使用真机。当前 checkout 已完成：dev 包构建、安装与启动；清空项目纸张会话后再次进入项目会打开 Dashboard；Dashboard 和正文避开顶部状态栏；轻点 paper cluster 可以进入 overview；普通按钮导航可以从 Dashboard 进入正文。富文本聚焦后已验证圆形样式按钮、展开/收起，以及执行粗体时键盘和编辑焦点保持；重新构建并安装 iOS archive 后，又分别聚焦登录页邮箱和密码输入框，确认原生上一个/下一个/完成表单导航栏均不再出现，系统 `Passwords` 自动填充建议保持可用。另用 local-only QA 章节验证了 46px 浮动按钮、同一按钮展开/收起、TOC/Comment 互斥切换、H1/H2/H3 目录触控定位、锚定与实体评论、触控原文高亮、转 TODO/转回、键盘 `visualViewport` 跟随、Rail 打开时 paper cluster 让位，以及 Comment 展开时按钮移到对侧；删除、Copilot 接受/拒绝等破坏性或需要 Provider 的操作未在这份 fixture 中逐项执行，但仍复用共享 Comment Rail 路径并由静态契约覆盖。

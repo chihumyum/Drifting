@@ -33,6 +33,12 @@ describe('Mobile V2 frozen design contract', () => {
   const editingWorkspaceSimulator = read(
     'docs/qa/mobile-v2-m4-editing-simulator-2026-08-23.md',
   );
+  const planningWorkspace = read(
+    'docs/mobile-v2/complete-planning-and-touch-drag.md',
+  );
+  const planningWorkspaceSimulator = read(
+    'docs/qa/mobile-v2-m5-planning-simulator-2026-08-23.md',
+  );
   const current = read('docs/mobile-ui-foundation.md');
   const docsIndex = read('docs/README.md');
 
@@ -44,6 +50,7 @@ describe('Mobile V2 frozen design contract', () => {
     expect(index).toContain('workspace_controller: simulator_accepted');
     expect(index).toContain('stable_paper_workspace: simulator_accepted');
     expect(index).toContain('editing_workspace: simulator_accepted');
+    expect(index).toContain('planning_workspace: simulator_accepted');
     expect(index).toContain('This directory defines the target. It does not claim');
     expect(current).toContain('current implemented mobile shell');
     expect(current).toContain('mobile-v2/README.md');
@@ -85,7 +92,7 @@ describe('Mobile V2 frozen design contract', () => {
     }
     expect(delivery).toContain('Simulator and Emulator evidence never closes physical-device');
     expect(delivery).toContain('Google Drive cannot be waived');
-    expect(delivery).toContain('M0-M4 complete, M5 not started');
+    expect(delivery).toContain('M0-M5 complete, M6 not started');
     expect(platformFoundation).toContain('Native capability and UI shell are separate');
     expect(platformFoundation).toContain('target=mobile');
     expect(platformFoundation).toContain('shellMode=desktop');
@@ -112,6 +119,16 @@ describe('Mobile V2 frozen design contract', () => {
     expect(editingWorkspaceSimulator).toContain('M4 Simulator/Emulator acceptance passed');
     expect(editingWorkspaceSimulator).toContain('336.381px');
     expect(editingWorkspaceSimulator).toContain('count increased from');
+    expect(planningWorkspace).toContain(
+      'M5 implementation and Simulator/Emulator acceptance complete',
+    );
+    expect(planningWorkspace).toContain('approximately 180ms hold arms drag');
+    expect(planningWorkspace).toContain('exactly-once');
+    expect(planningWorkspaceSimulator).toContain(
+      'M5 Simulator/Emulator acceptance passed',
+    );
+    expect(planningWorkspaceSimulator).toContain('book_order=8.8');
+    expect(planningWorkspaceSimulator).toContain('nativeInput=false');
     expect(simulator).toContain('M0 baseline passed');
     expect(simulator).toContain('does **not** verify the future unified bar');
     expect(simulator).toContain('No new Simulator device or iOS runtime was created');

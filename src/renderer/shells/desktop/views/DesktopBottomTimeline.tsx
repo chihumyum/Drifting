@@ -41,6 +41,10 @@ import {
   resolveChapterLanePointerTarget,
   startChapterLanePointerDrag,
 } from '../../../features/graph/chapter-lane-drag';
+import {
+  MOBILE_PLANNING_CONTEXT_MENU_MS,
+  MOBILE_PLANNING_MOVE_TOLERANCE_PX,
+} from '../../../features/graph/mobile-planning-gesture';
 import loglevel from 'loglevel';
 import '../../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -237,7 +241,7 @@ export function DesktopBottomTimeline({
       timer = 0;
       suppressPointerClickRef.current = true;
       open();
-    }, 420);
+    }, MOBILE_PLANNING_CONTEXT_MENU_MS);
     const cleanup = () => {
       if (timer) window.clearTimeout(timer);
       window.removeEventListener('pointermove', onMove);
@@ -247,7 +251,12 @@ export function DesktopBottomTimeline({
     };
     const onMove = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
-      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
+      if (
+        Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) >
+        MOBILE_PLANNING_MOVE_TOLERANCE_PX
+      ) {
+        cleanup();
+      }
     };
     const onEnd = (endEvent: PointerEvent) => {
       if (endEvent.pointerId === pointerId) cleanup();
@@ -487,6 +496,8 @@ export function DesktopBottomTimeline({
       return;
     }
     const sourceElement = event.currentTarget;
+    const touchMenuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
+    if (isMobilePresentation && event.pointerType === 'touch') event.stopPropagation();
     const grabOffsetX = chapterLaneGrabOffsetX(
       event.clientX,
       sourceElement.getBoundingClientRect(),
@@ -543,6 +554,25 @@ export function DesktopBottomTimeline({
           suppressPointerClickRef.current = false;
         }, 0);
       },
+      mobileTouch:
+        isMobilePresentation && event.pointerType === 'touch'
+          ? {
+              scrollContainer: scrollContainerRef.current,
+              onMenu: () => {
+                suppressPointerClickRef.current = true;
+                clearHoverPreview();
+                setContextMenu({
+                  ...touchMenuPoint,
+                  type: 'node',
+                  nodeId: node.id,
+                  storylineId: storylineId || undefined,
+                  nodeTitle: node.title,
+                  nodeSummary: node.summary,
+                  nodeStorylines: node.storylines,
+                });
+              },
+            }
+          : undefined,
     });
   };
 
@@ -1297,7 +1327,10 @@ export function DesktopBottomTimeline({
                               { fromDrawer: true },
                             );
                           }}
-                          onClick={() => setNodeSelection(node.id, 'ui')}
+                          onClick={(event) => {
+                            if (isMobilePresentation) setUnplacedPopoverOpen(false);
+                            handleNodeClick(node.id, event);
+                          }}
                           onKeyDown={(event) => {
                             if (event.key !== 'Enter' && event.key !== ' ') return;
                             event.preventDefault();
@@ -1405,6 +1438,7 @@ export function DesktopBottomTimeline({
       ref={timelineRef}
       className={`btl btl--${presentation}`}
       data-view={viewMode}
+      data-mobile-planning={isMobilePresentation ? 'complete' : undefined}
       onClick={handleTimelineClick}
       style={{ height: totalHeight }}
     >
@@ -1434,12 +1468,15 @@ export function DesktopBottomTimeline({
       <div
         ref={scrollContainerRef}
         data-timeline-container
+        data-mobile-planning-gesture-surface
         className="btl__scroll"
         onTouchStart={touchHandlers.onTouchStart}
         onTouchMove={touchHandlers.onTouchMove}
         onTouchEnd={touchHandlers.onTouchEnd}
         onTouchCancel={touchHandlers.onTouchCancel}
-        style={{ touchAction: 'pan-x pinch-zoom' }}
+        style={{
+          touchAction: isMobilePresentation ? 'pan-x pan-y pinch-zoom' : 'pan-x pinch-zoom',
+        }}
       >
         {/* Act rail (幕) — book mode, always present (empty rail when no acts).
             Lives inside the scroll container in track coordinate space so the

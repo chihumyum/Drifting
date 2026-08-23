@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimelineMarker } from '../../domain/timeline-marker';
+import { MOBILE_PLANNING_CONTEXT_MENU_MS } from '../../features/graph/mobile-planning-gesture';
 import { TimelinePinMenu } from '../graph/TimelinePinMenu';
 
 export interface TimelinePinAnchor {
@@ -100,7 +101,7 @@ export function TimelinePin({
           ? window.setTimeout(() => {
               longPressed = true;
               setMenu(menuPoint);
-            }, 420)
+            }, MOBILE_PLANNING_CONTEXT_MENU_MS)
           : null;
 
       const clearLongPress = () => {

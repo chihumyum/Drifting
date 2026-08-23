@@ -7,6 +7,10 @@ import {
   type ActChapterRef,
   type BookAct,
 } from '../../domain/book-act';
+import {
+  MOBILE_PLANNING_CONTEXT_MENU_MS,
+  MOBILE_PLANNING_MOVE_TOLERANCE_PX,
+} from '../../features/graph/mobile-planning-gesture';
 import '../../../styles/act-rail.css';
 
 // ActRail — the 幕 strip that replaced FullBookLane in book mode.
@@ -149,7 +153,7 @@ export function ActRail({
       timer = 0;
       suppressTouchClickRef.current = true;
       open();
-    }, 420);
+    }, MOBILE_PLANNING_CONTEXT_MENU_MS);
     const cleanup = () => {
       if (timer) window.clearTimeout(timer);
       window.removeEventListener('pointermove', onMove);
@@ -159,7 +163,12 @@ export function ActRail({
     };
     const onMove = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
-      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
+      if (
+        Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) >
+        MOBILE_PLANNING_MOVE_TOLERANCE_PX
+      ) {
+        cleanup();
+      }
     };
     const onEnd = (endEvent: PointerEvent) => {
       if (endEvent.pointerId === pointerId) cleanup();

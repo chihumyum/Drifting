@@ -2,7 +2,7 @@
 
 > This document describes the current implemented mobile shell. The frozen
 > replacement target and staged M0-M9 delivery gates are indexed at
-> [`mobile-v2/README.md`](mobile-v2/README.md). M1-M4 implementation records are
+> [`mobile-v2/README.md`](mobile-v2/README.md). M1-M5 implementation records are
 > current boundaries; later milestone prose remains target behavior only.
 
 ## Current verdict
@@ -35,6 +35,11 @@ comment rails portal into one shared sheet, paper/Project search are read-only,
 All Chapters promotes exactly one live editor, and an empty Project can create
 its first chapter. The implemented boundary is in
 [`mobile-v2/editing-comments-search-and-all-chapters.md`](mobile-v2/editing-comments-search-and-all-chapters.md).
+Since M5, complete shared Planning is reachable in the vertical tool workspace,
+chapter touch drag uses delayed ownership with compositor ghost, edge scroll,
+and exactly-once commit, Timeline pinch stays midpoint-anchored, and Plot Grid
+retains normalized row/column/TSV/resize writes. The implemented boundary is in
+[`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md).
 
 This is an implemented foundation with static, build, state-machine, and dated
 Simulator evidence. It is not a claim that current interactions have passed
@@ -186,7 +191,7 @@ contracts.
 ## Remaining device acceptance
 
 1. Unified-bar ergonomics, panel handles, real-finger paper swipe, nested
-   gesture arbitration, Timeline/Plot touch, and Super View canvas gestures
+   gesture arbitration, Timeline/Plot continuous touch, and Super View canvas gestures
    still need complete iOS and Android physical-device validation. The
    2026-08-23 iPhone Simulator run covered the M3 visible bar/rail/panel paths;
    its paper drags were explicitly `synthetic-dom`, not native touch.
@@ -196,8 +201,10 @@ contracts.
    English/Chinese/Gboard and native-selection paths only.
 3. Rotation, safe areas, system bars, background/foreground, offline recovery,
    low-memory behavior, and representative device performance remain open.
-4. Story Graph, Timeline, Plot Grid, Agent, entity editing, TSV paste, and other
-   dense workflows require device-specific interaction checks.
+4. Story Graph, Agent, entity editing, and other dense workflows require
+   device-specific interaction checks. M5 Simulator/Emulator evidence covers
+   visible Timeline/Plot and synthetic drag/TSV/persistence only; it does not
+   close their physical-touch gate.
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
 the current checklist. Build or Simulator success must not be reported as

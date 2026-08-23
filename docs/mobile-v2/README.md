@@ -5,10 +5,11 @@ Status: **target product contract frozen; staged implementation in progress**
 Updated: 2026-08-23
 
 Mobile V2 is Drifting's writing-first native mobile workspace. It keeps the
-shared SQLite, Yjs, sync, Agent, asset, and domain core. M1-M4 now implement
+shared SQLite, Yjs, sync, Agent, asset, and domain core. M1-M5 now implement
 the platform/shell foundation, controller-owned Back, stable paper viewport,
 one unified bar, vertical panel rails, explicit read-paper swipe ownership,
-keyboard-safe writing sheets, read-only search, and one-live All Chapters.
+keyboard-safe writing sheets, read-only search, one-live All Chapters, and the
+complete shared Planning/Plot workspace with deterministic touch arbitration.
 
 This directory defines the target. It does not claim that the current mobile
 shell already implements or has physically accepted the target interactions.
@@ -31,7 +32,9 @@ device results remain evidence rather than product truth.
 6. [`editing-comments-search-and-all-chapters.md`](editing-comments-search-and-all-chapters.md)
    records the current M4 writing, shared-sheet, search, and all-chapters
    boundary.
-7. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
+7. [`complete-planning-and-touch-drag.md`](complete-planning-and-touch-drag.md)
+   records the current M5 Timeline, touch-drag, pinch, and Plot Grid boundary.
+8. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
    current native setup and physical-device runbook.
 
 If these documents disagree, authority is ordered as follows:
@@ -63,6 +66,7 @@ These markers distinguish a frozen target from shipped behavior:
 - `workspace_controller: simulator_accepted`
 - `stable_paper_workspace: simulator_accepted`
 - `editing_workspace: simulator_accepted`
+- `planning_workspace: simulator_accepted`
 
 The design markers and phase graph are checked by
 `src/renderer/shells/mobile/workspace/mobile-v2-design.acceptance.test.ts`.

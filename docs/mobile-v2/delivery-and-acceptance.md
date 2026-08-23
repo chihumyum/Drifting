@@ -1,6 +1,6 @@
 # Mobile V2 delivery and acceptance
 
-Status: **normative staged plan; M0-M4 complete, M5 not started**
+Status: **normative staged plan; M0-M5 complete, M6 not started**
 
 Updated: 2026-08-23
 
@@ -254,6 +254,23 @@ remain open.
   manual Simulator touch limitations remain explicit.
 - Physical-device completion remains open until real continuous touch, pinch,
   autoscroll, and long-press are accepted on both platforms.
+
+Current implementation evidence:
+
+- [`complete-planning-and-touch-drag.md`](complete-planning-and-touch-drag.md)
+- `mobile-planning-gesture.test.ts`
+- `chapter-lane-drag.pointer.test.ts`
+- `useTimelineExpandedScale.test.ts`
+- `mobile-v2-planning.acceptance.test.ts`
+- [`../qa/mobile-v2-m5-planning-simulator-2026-08-23.md`](../qa/mobile-v2-m5-planning-simulator-2026-08-23.md)
+
+The M5 iPhone run visibly covered the complete full-panel Timeline and Plot
+surfaces with a synthetic four-chapter/two-storyline fixture. Explicitly
+synthetic DOM input exercised delayed drag, long press, TSV paste, and
+normalized persistence; Android device pixels covered the same compact Mobile
+Shell presentation over an app-created chapter, and real hardware Back reduced
+full Planning to docked Planning. Physical continuous touch and multi-touch
+remain open.
 
 ## M6 — Mobile Agent, Library/TODO, and Stats
 

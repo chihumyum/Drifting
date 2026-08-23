@@ -12,6 +12,18 @@ interface UseTimelineExpandedScaleParams {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }
 
+export function timelinePinchAnchoredScrollLeft(input: {
+  anchorContentX: number;
+  nextScale: number;
+  midpointClientX: number;
+  containerLeft: number;
+  maxScrollLeft: number;
+}) {
+  const localMidpoint = input.midpointClientX - input.containerLeft;
+  const desired = input.anchorContentX * input.nextScale - localMidpoint;
+  return Math.min(Math.max(0, input.maxScrollLeft), Math.max(0, desired));
+}
+
 function clampExpandedScaleValue(scale: number) {
   return Math.min(EXPANDED_ZOOM_CONFIG.MAX_SCALE, Math.max(EXPANDED_ZOOM_CONFIG.MIN_SCALE, scale));
 }
@@ -29,7 +41,19 @@ export function useTimelineExpandedScale({
   scrollContainerRef,
 }: UseTimelineExpandedScaleParams) {
   const [expandedScale, setExpandedScale] = useState(getInitialExpandedScale);
-  const pinchStateRef = useRef<{ startDistance: number; startScale: number } | null>(null);
+  const pinchStateRef = useRef<{
+    startDistance: number;
+    startScale: number;
+    anchorContentX: number;
+  } | null>(null);
+  const pinchScrollFrameRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      if (pinchScrollFrameRef.current) cancelAnimationFrame(pinchScrollFrameRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     localStorage.setItem(EXPANDED_ZOOM_CONFIG.STORAGE_KEY, expandedScale.toString());
@@ -64,11 +88,21 @@ export function useTimelineExpandedScale({
     return Math.hypot(dx, dy);
   };
 
+  const getTouchMidpointX = (touches: React.TouchList): number =>
+    touches.length < 2 ? 0 : (touches[0].clientX + touches[1].clientX) / 2;
+
   const handleTimelineTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isExpanded || e.touches.length < 2) return;
     const startDistance = getTouchDistance(e.touches);
-    if (startDistance <= 0) return;
-    pinchStateRef.current = { startDistance, startScale: expandedScale };
+    const container = scrollContainerRef.current;
+    if (startDistance <= 0 || !container) return;
+    const midpointClientX = getTouchMidpointX(e.touches);
+    const localMidpoint = midpointClientX - container.getBoundingClientRect().left;
+    pinchStateRef.current = {
+      startDistance,
+      startScale: expandedScale,
+      anchorContentX: (container.scrollLeft + localMidpoint) / expandedScale,
+    };
   };
 
   const handleTimelineTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -83,12 +117,30 @@ export function useTimelineExpandedScale({
 
     const ratio = currentDistance / pinchStateRef.current.startDistance;
     const nextScale = pinchStateRef.current.startScale * ratio;
-    setExpandedScale(clampExpandedScaleValue(nextScale));
+    const clampedScale = clampExpandedScaleValue(nextScale);
+    const midpointClientX = getTouchMidpointX(e.touches);
+    setExpandedScale(clampedScale);
+    if (pinchScrollFrameRef.current) cancelAnimationFrame(pinchScrollFrameRef.current);
+    pinchScrollFrameRef.current = requestAnimationFrame(() => {
+      pinchScrollFrameRef.current = 0;
+      const container = scrollContainerRef.current;
+      const pinch = pinchStateRef.current;
+      if (!container || !pinch) return;
+      container.scrollLeft = timelinePinchAnchoredScrollLeft({
+        anchorContentX: pinch.anchorContentX,
+        nextScale: clampedScale,
+        midpointClientX,
+        containerLeft: container.getBoundingClientRect().left,
+        maxScrollLeft: container.scrollWidth - container.clientWidth,
+      });
+    });
   };
 
   const handleTimelineTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length < 2) {
       pinchStateRef.current = null;
+      if (pinchScrollFrameRef.current) cancelAnimationFrame(pinchScrollFrameRef.current);
+      pinchScrollFrameRef.current = 0;
     }
   };
 

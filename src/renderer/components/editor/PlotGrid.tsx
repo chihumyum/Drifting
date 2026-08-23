@@ -212,7 +212,9 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
     let lastH = cellH;
     let prevX = e.clientX;
     let prevY = e.clientY;
+    const pointerId = e.pointerId;
     const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
       // Horizontal gain: nc/2 while centered (left margin present), else nc.
       let gainX = nc;
       const wrap = planner.parentElement;
@@ -232,17 +234,28 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
       planner.style.setProperty('--pl-cell-h', `${lastH}px`);
       measureData(); // synchronous reflow → grip follows the cursor with no lag
     };
-    const up = () => {
+    const cleanup = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
       setCellW(lastW);
       setCellH(lastH);
       emit({ cellW: lastW, cellH: lastH });
     };
+    const cancel = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+      planner.style.setProperty('--pl-cell-w', `${cellW}px`);
+      planner.style.setProperty('--pl-cell-h', `${cellH}px`);
+      measureData();
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
+    window.addEventListener('pointercancel', cancel);
   };
 
   // Keep --pl-data-* in sync on structural/size changes and content-driven
@@ -278,6 +291,7 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
                       type="button"
                       className="pl-head__del"
                       title={t('plotGrid.deleteColumn')}
+                      aria-label={t('plotGrid.deleteColumn')}
                       onClick={() => delCol(c.id)}
                     >
                       ×
@@ -297,6 +311,7 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
                       type="button"
                       className="pl-head__del"
                       title={t('plotGrid.deleteRow')}
+                      aria-label={t('plotGrid.deleteRow')}
                       onClick={() => delRow(r.id)}
                     >
                       ×
@@ -337,30 +352,31 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
           </tbody>
         </table>
 
-        <button type="button" className="pl-add pl-add--col" title={t('plotGrid.addColumn')} onClick={addCol}>
+        <button type="button" className="pl-add pl-add--col" title={t('plotGrid.addColumn')} aria-label={t('plotGrid.addColumn')} onClick={addCol}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <line x1="8" y1="3" x2="8" y2="13" />
             <line x1="3" y1="8" x2="13" y2="8" />
           </svg>
         </button>
-        <button type="button" className="pl-add pl-add--row" title={t('plotGrid.addRow')} onClick={addRow}>
+        <button type="button" className="pl-add pl-add--row" title={t('plotGrid.addRow')} aria-label={t('plotGrid.addRow')} onClick={addRow}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <line x1="8" y1="3" x2="8" y2="13" />
             <line x1="3" y1="8" x2="13" y2="8" />
           </svg>
         </button>
 
-        <div
+        <button
+          type="button"
           className="pl-resize-grip"
           title={t('plotGrid.resize')}
+          aria-label={t('plotGrid.resize')}
           onPointerDown={onGripDown}
-          aria-hidden="true"
         >
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
             <line x1="11" y1="4" x2="4" y2="11" />
             <line x1="11" y1="8" x2="8" y2="11" />
           </svg>
-        </div>
+        </button>
       </div>
     </div>
   );

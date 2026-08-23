@@ -1,3 +1,9 @@
+import {
+  MOBILE_PLANNING_CONTEXT_MENU_MS,
+  mobilePlanningEdgeAutoscrollDelta,
+  resolveMobilePlanningGesture,
+} from './mobile-planning-gesture';
+
 export const DEFAULT_STORYLINE_LANE_ID = '__default__';
 export const UNAFFILIATED_STORYLINE_LANE_ID = '__unaffiliated__';
 
@@ -76,6 +82,25 @@ interface StartChapterLanePointerDragInput {
   onDragStart: () => void;
   onDrop: (target: ChapterLanePointerTarget) => void | Promise<void>;
   onDragEnd: () => void;
+  mobileTouch?: {
+    onMenu: () => void;
+    scrollContainer: HTMLElement | null;
+  };
+}
+
+export interface ChapterLanePointerDragHandle {
+  cancel: () => void;
+}
+
+export function createExactlyOnceChapterDrop(
+  onDrop: (target: ChapterLanePointerTarget) => void | Promise<void>,
+): (target: ChapterLanePointerTarget | null) => Promise<void> {
+  let committed = false;
+  return async (target) => {
+    if (committed || !target) return;
+    committed = true;
+    await onDrop(target);
+  };
 }
 
 /**
@@ -94,9 +119,13 @@ export function startChapterLanePointerDrag({
   onDragStart,
   onDrop,
   onDragEnd,
-}: StartChapterLanePointerDragInput): void {
+  mobileTouch,
+}: StartChapterLanePointerDragInput): ChapterLanePointerDragHandle {
   const threshold = pointerType === 'touch' ? 6 : 3;
+  const mobileTouchEnabled = pointerType === 'touch' && Boolean(mobileTouch);
+  const startedAt = Date.now();
   let dragging = false;
+  let settled = false;
   let target: ChapterLanePointerTarget | null = null;
   let ghost: HTMLElement | null = null;
   let frame = 0;
@@ -105,6 +134,22 @@ export function startChapterLanePointerDrag({
   const sourceRect = sourceElement.getBoundingClientRect();
   const grabOffsetY = startClientY - sourceRect.top;
   const previousVisibility = sourceElement.style.visibility;
+  const commitDrop = createExactlyOnceChapterDrop(onDrop);
+  let menuTimer = mobileTouchEnabled
+    ? window.setTimeout(() => {
+        if (settled || dragging) return;
+        settled = true;
+        stopListening();
+        cleanupVisuals();
+        mobileTouch?.onMenu();
+      }, MOBILE_PLANNING_CONTEXT_MENU_MS)
+    : 0;
+
+  const clearMenuTimer = () => {
+    if (!menuTimer) return;
+    window.clearTimeout(menuTimer);
+    menuTimer = 0;
+  };
 
   const paintDrag = () => {
     frame = 0;
@@ -112,6 +157,21 @@ export function startChapterLanePointerDrag({
     ghost.style.transform = `translate3d(${pendingClientX - grabOffsetX}px, ${
       pendingClientY - grabOffsetY
     }px, 0)`;
+    const scrollContainer = mobileTouch?.scrollContainer;
+    if (scrollContainer) {
+      const rect = scrollContainer.getBoundingClientRect();
+      const delta = mobilePlanningEdgeAutoscrollDelta({
+        clientX: pendingClientX,
+        left: rect.left,
+        right: rect.right,
+        scrollLeft: scrollContainer.scrollLeft,
+        maxScrollLeft: scrollContainer.scrollWidth - scrollContainer.clientWidth,
+      });
+      if (delta !== 0) scrollContainer.scrollLeft += delta;
+      target = resolveTarget(pendingClientX, pendingClientY);
+      if (delta !== 0) frame = window.requestAnimationFrame(paintDrag);
+      return;
+    }
     target = resolveTarget(pendingClientX, pendingClientY);
   };
   const schedulePaint = (clientX: number, clientY: number) => {
@@ -137,6 +197,8 @@ export function startChapterLanePointerDrag({
     window.removeEventListener('pointermove', handleMove);
     window.removeEventListener('pointerup', handleUp);
     window.removeEventListener('pointercancel', handleCancel);
+    window.removeEventListener('pointerdown', handleAdditionalPointer, true);
+    clearMenuTimer();
     unlockSelection();
   };
   const cleanupVisuals = () => {
@@ -147,11 +209,27 @@ export function startChapterLanePointerDrag({
     sourceElement.style.visibility = previousVisibility;
   };
   const handleMove = (event: PointerEvent) => {
-    if (event.pointerId !== pointerId) return;
+    if (settled || event.pointerId !== pointerId) return;
     const distance = Math.hypot(event.clientX - startClientX, event.clientY - startClientY);
+    if (mobileTouchEnabled && !dragging) {
+      const intent = resolveMobilePlanningGesture({
+        surface: 'card',
+        elapsedMs: Date.now() - startedAt,
+        distancePx: distance,
+        pointerCount: 1,
+      });
+      if (intent === 'pan') {
+        settled = true;
+        stopListening();
+        cleanupVisuals();
+        return;
+      }
+      if (intent !== 'drag') return;
+    }
     if (!dragging && distance < threshold) return;
     if (!dragging) {
       dragging = true;
+      clearMenuTimer();
       document.documentElement.classList.add('chapter-lane-pointer-dragging');
       onDragStart();
       createGhost(event.clientX, event.clientY);
@@ -161,7 +239,8 @@ export function startChapterLanePointerDrag({
     schedulePaint(event.clientX, event.clientY);
   };
   const handleUp = (event: PointerEvent) => {
-    if (event.pointerId !== pointerId) return;
+    if (settled || event.pointerId !== pointerId) return;
+    settled = true;
     if (dragging) {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
@@ -174,23 +253,48 @@ export function startChapterLanePointerDrag({
     }
     const finalTarget = target;
     void Promise.resolve()
-      .then(() => (finalTarget ? onDrop(finalTarget) : undefined))
+      .then(() => commitDrop(finalTarget))
       .finally(() => {
         cleanupVisuals();
         onDragEnd();
       });
   };
   const handleCancel = (event: PointerEvent) => {
-    if (event.pointerId !== pointerId) return;
+    if (settled || event.pointerId !== pointerId) return;
+    settled = true;
     stopListening();
-    if (!dragging) return;
     cleanupVisuals();
-    onDragEnd();
+    if (dragging) onDragEnd();
+  };
+  const handleAdditionalPointer = (event: PointerEvent) => {
+    if (
+      settled ||
+      !mobileTouchEnabled ||
+      event.pointerType !== 'touch' ||
+      event.pointerId === pointerId
+    ) {
+      return;
+    }
+    settled = true;
+    stopListening();
+    cleanupVisuals();
+    if (dragging) onDragEnd();
   };
 
   window.addEventListener('pointermove', handleMove, { passive: false });
   window.addEventListener('pointerup', handleUp);
   window.addEventListener('pointercancel', handleCancel);
+  if (mobileTouchEnabled) window.addEventListener('pointerdown', handleAdditionalPointer, true);
+
+  return {
+    cancel: () => {
+      if (settled) return;
+      settled = true;
+      stopListening();
+      cleanupVisuals();
+      if (dragging) onDragEnd();
+    },
+  };
 }
 
 interface CommitChapterLaneDropInput {

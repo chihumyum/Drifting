@@ -5,6 +5,7 @@ import {
   canDropChapterOnLane,
   chapterLaneGrabOffsetX,
   commitChapterLaneDrop,
+  createExactlyOnceChapterDrop,
 } from './chapter-lane-drag';
 
 describe('chapter lane drag', () => {
@@ -97,5 +98,18 @@ describe('chapter lane drag', () => {
       order: 8,
       targetStorylineId: null,
     });
+  });
+
+  it('commits one valid pointer drop exactly once and ignores invalid completion', async () => {
+    const write = vi.fn(async () => undefined);
+    const commit = createExactlyOnceChapterDrop(write);
+    const target = { storylineId: 'storyline-b', order: 12.5 };
+
+    await commit(null);
+    await commit(target);
+    await commit({ storylineId: 'storyline-c', order: 14 });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith(target);
   });
 });
