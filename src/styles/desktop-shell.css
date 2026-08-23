@@ -65,38 +65,6 @@
   color: hsl(var(--ink-1));
 }
 
-.app-project-sync-pill {
-  position: fixed;
-  z-index: calc(var(--z-modal) + 10);
-  top: 14px;
-  left: 50%;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(420px, calc(100vw - 48px));
-  padding: 7px 12px;
-  transform: translateX(-50%);
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 999px;
-  background: hsl(var(--paper) / 0.94);
-  box-shadow: var(--shadow-control);
-  color: hsl(var(--ink-2));
-  font-family: var(--font-sans);
-  font-size: 12px;
-  pointer-events: none;
-}
-
-.app-project-sync-pill::before {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 auto;
-  border: 1.5px solid hsl(var(--ink-4) / 0.35);
-  border-top-color: hsl(var(--accent));
-  border-radius: 50%;
-  animation: control-spinner-rotate 0.8s linear infinite;
-  content: '';
-}
-
 .app-fullscreen-status__content {
   width: min(440px, 100%);
   text-align: center;

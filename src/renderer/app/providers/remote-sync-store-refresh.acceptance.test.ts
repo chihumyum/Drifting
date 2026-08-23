@@ -44,10 +44,22 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(status).toContain('readonly projectId?: string | null');
 
     const projectRuntime = source('./ProjectRuntimeProvider.tsx');
-    expect(projectRuntime).toContain('generation.projectId === projectId');
-    expect(projectRuntime).toContain("projectSyncPhase === 'pulling'");
-    expect(projectRuntime).toContain('className="app-project-sync-pill"');
+    expect(projectRuntime).not.toContain('app-project-sync-pill');
     expect(projectRuntime).toContain('className="app-workspace-blocking-status"');
+
+    const footer = source('../../components/BottomStatusBar.tsx');
+    expect(footer).toContain('generation.projectId === projectId');
+    expect(footer).toContain("phase === 'pulling'");
+    expect(footer).toContain("phase === 'ingesting' || phase === 'applying'");
+    expect(footer).toContain('role="status"');
+    expect(footer).toContain('aria-live="polite"');
+
+    const zh = source('../../locales/zh-CN.json');
+    expect(zh).toContain('"checking": "正在检查 Google Drive 更新"');
+    expect(zh).toContain('"applying": "正在应用 Google Drive 更改"');
+
+    const desktopShellCss = source('../../../styles/desktop-shell.css');
+    expect(desktopShellCss).not.toContain('.app-project-sync-pill');
 
     const commands = source('../../sync/product-commands.ts');
     expect(commands).toContain("events.emit('sync:projects-restored', { projectIds })");

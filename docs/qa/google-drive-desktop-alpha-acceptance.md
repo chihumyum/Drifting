@@ -71,11 +71,11 @@ timeline marker. Capture canonical SQLite/Yjs/asset hashes before the run.
    entire discovery/restore operation; an enabled-looking idle control with an
    empty workspace is a failure.
 3. Open project A on Mac B while the runtime is still cycling other projects.
-   During A's pull/ingest/apply phases, a project-scoped sync indicator must be
-   visible without unmounting the last complete editor. Once remote commits
-   require a fresh projection, an opaque read-only loading overlay must block
-   interaction until the new project snapshot is published. B or C content
-   must never render behind it.
+   During A's pull/ingest/apply phases, the footer's project-scoped Drive status
+   must distinguish checking from applying without unmounting or covering the
+   last complete editor. Once remote commits require a fresh projection, an
+   opaque read-only loading overlay must block interaction until the new
+   project snapshot is published. B or C content must never render behind it.
 4. Rapidly switch A → B → C → A at least ten times while both Macs produce
    remote changes. Record a screen capture containing the left outline, top
    tabs, central editor, and bottom timeline. A late hydrate from a previous

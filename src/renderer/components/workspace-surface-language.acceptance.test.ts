@@ -158,7 +158,7 @@ describe('workspace surface language acceptance', () => {
     expect(footer).not.toContain('CopilotQuickMenu');
     expect(footer).not.toContain('ShadowQuickMenu');
     expect(footer).toContain('deriveWritingStats');
-    expect(footer).toContain('t(`bottomStatusBar.storage.${syncState}`)');
+    expect(footer).toContain('currentProjectSyncActivity');
     expect(footer).toContain('bsb__storage--${syncState}');
     expect(footer).not.toContain('useSyncObserver');
     expect(footerCss).toContain('.bsb__timeline-toggle {');

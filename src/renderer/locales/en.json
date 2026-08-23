@@ -974,6 +974,8 @@
     "storage": {
       "local": "On-device",
       "syncing": "Syncing with Google Drive",
+      "checking": "Checking Google Drive for updates",
+      "applying": "Applying Google Drive changes",
       "synced": "Google Drive up to date",
       "paused": "Google Drive sync paused",
       "offline": "Google Drive paused offline",

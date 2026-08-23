@@ -28,7 +28,6 @@ import {
 } from '../../services/node-prose-metrics.service';
 import { flushPendingAtomicSyncTransactions } from '../../services/atomic-sync-transaction-tracker';
 import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
-import { useProductSyncRuntime } from '../../sync/product-runtime-react';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
@@ -104,14 +103,6 @@ export function ProjectRuntimeProvider({
     (state) => state.workspaceRequestedProjectId,
   );
   const workspaceProjectionError = useDataStore((state) => state.workspaceProjectionError);
-  const syncRuntime = useProductSyncRuntime();
-  const projectSyncPhase = syncRuntime.diagnostics?.generations.find(
-    (generation) => generation.projectId === projectId,
-  )?.phase;
-  const projectPullActive =
-    projectSyncPhase === 'pulling' ||
-    projectSyncPhase === 'ingesting' ||
-    projectSyncPhase === 'applying';
   const nodeUsecases = useBookNode({ projectId, userId });
   const storylineUsecases = useStoryline({ projectId, userId });
   const elementUsecases = useBookElement({ projectId, userId });
@@ -425,10 +416,6 @@ export function ProjectRuntimeProvider({
           title={t('appShell.syncingProject')}
           detail={t('appShell.syncingProjectDetail')}
         />
-      ) : projectPullActive ? (
-        <div role="status" aria-live="polite" className="app-project-sync-pill">
-          {t('appShell.syncingProject')}
-        </div>
       ) : null}
     </>
   );

@@ -17,6 +17,8 @@ type WordMetric = {
   count: number | null;
 };
 
+type CurrentProjectSyncActivity = 'checking' | 'applying' | null;
+
 // BottomStatusBar is a status-first line spanning the full application width.
 // Its one structural control is the Bottom Timeline visibility toggle;
 // navigation and feature menus live in AppTopbar.
@@ -71,6 +73,15 @@ export function BottomStatusBar() {
     [projectWordCount, writingHistory],
   );
 
+  const currentProjectSyncActivity = useMemo<CurrentProjectSyncActivity>(() => {
+    const phase = syncRuntime.diagnostics?.generations.find(
+      (generation) => generation.projectId === projectId,
+    )?.phase;
+    if (phase === 'pulling') return 'checking';
+    if (phase === 'ingesting' || phase === 'applying') return 'applying';
+    return null;
+  }, [projectId, syncRuntime]);
+
   const syncState = useMemo(() => {
     if (syncAuthority.status === 'unavailable' || syncAuthority.status === 'cloud-attention') {
       return 'attention' as const;
@@ -103,7 +114,13 @@ export function BottomStatusBar() {
     );
     return busy ? ('syncing' as const) : ('synced' as const);
   }, [syncAuthority.status, syncRuntime]);
-  const storageLabel = t(`bottomStatusBar.storage.${syncState}`);
+  const storageLabel = t(
+    `bottomStatusBar.storage.${
+      syncState === 'syncing' && currentProjectSyncActivity
+        ? currentProjectSyncActivity
+        : syncState
+    }`,
+  );
 
   return (
     <footer className="bsb app-plane" aria-label={t('bottomStatusBar.statusLine')}>
@@ -125,6 +142,8 @@ export function BottomStatusBar() {
       <div className="bsb__spacer" />
       <div
         className={`bsb__storage bsb__storage--${syncState}`}
+        role="status"
+        aria-live="polite"
         title={storageLabel}
         aria-label={storageLabel}
       >

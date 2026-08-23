@@ -974,6 +974,8 @@
     "storage": {
       "local": "设备本地",
       "syncing": "正在同步到 Google Drive",
+      "checking": "正在检查 Google Drive 更新",
+      "applying": "正在应用 Google Drive 更改",
       "synced": "Google Drive 已同步",
       "paused": "Google Drive 同步已暂停",
       "offline": "离线，Google Drive 已暂停",
