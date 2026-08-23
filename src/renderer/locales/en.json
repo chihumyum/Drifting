@@ -2891,6 +2891,12 @@
       "open": "Search",
       "paperScope": "Paper",
       "projectScope": "Search the whole Project"
+    },
+    "superView": {
+      "label": "Independent Super View",
+      "navigation": "Switch Super View",
+      "relationMode": "Create relation",
+      "relationModeOn": "Choose start"
     }
   },
   "mobileEditorRails": {

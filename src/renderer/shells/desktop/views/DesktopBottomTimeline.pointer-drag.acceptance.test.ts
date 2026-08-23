@@ -38,8 +38,9 @@ describe('desktop chapter pointer drag acceptance', () => {
     expect(storyGraph).toContain('resolveChapterLanePointerTarget({');
     expect(storyGraph).toContain('data-storyline-row={lane.id}');
     expect(storyGraph).toContain('data-node-container');
+    expect(storyGraph).toContain('onPointerDown={(event) => {');
     expect(storyGraph).toContain(
-      'onPointerDown={(event) => startGraphChapterPointerDrag(event, node)}',
+      'if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);',
     );
     expect(storyGraph).toContain('{ fromDrawer: true }');
     expect(storyGraph).toContain('chapterLaneGrabOffsetX(event.clientX, sourceRect)');

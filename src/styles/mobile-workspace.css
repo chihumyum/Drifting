@@ -2352,8 +2352,11 @@
   width: 100dvw;
   height: 100dvh;
   background: hsl(var(--paper));
+  isolation: isolate;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
-.m-super-view-host .super-view-overlay {
+html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2382,13 +2385,13 @@
 .m-super-view-host .super-view-head__switcher {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  flex: 1 1 calc(100% - 32px);
+  flex: 1 1 calc(100% - 50px);
   max-width: none;
   min-width: 0;
 }
 .m-super-view-host .super-view-head__switcher-option {
   min-width: 0;
-  min-height: 38px;
+  min-height: 44px;
   padding-inline: 6px;
   overflow: hidden;
   font-size: 10px;
@@ -2401,7 +2404,7 @@
 .m-super-view-host .super-view-head__right {
   flex: 0 0 100%;
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   justify-content: flex-start;
   overflow-x: auto;
   scrollbar-width: none;
@@ -2409,6 +2412,48 @@
 .m-super-view-host .super-view-head__actions button {
   min-width: 44px;
   min-height: 44px;
+}
+
+.m-super-view-host .super-view-head__back {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+
+.m-super-view-host .super-view-head button {
+  min-height: 44px;
+}
+
+.m-super-view-host .super-view-head__right > button,
+.m-super-view-host .super-view-head__right .filter-chip,
+.m-super-view-host .relation-kind-menu-trigger,
+.m-super-view-host .super-element-reset,
+.m-super-view-host .super-element-toggle,
+.m-super-view-host .graph-head__filter {
+  min-height: 44px;
+}
+
+.m-super-view-link-mode {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: var(--radius-sm);
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.m-super-view-link-mode.is-active {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.12);
+  color: hsl(var(--accent));
+}
+
+.m-super-view-host .graph-scroll {
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }
 
 .m-super-view-host .super-mm-overlay .super-view-head__right input {
@@ -2445,7 +2490,7 @@
 }
 
 .m-super-view-host .super-mm-overlay .smm-library-toolbar__create {
-  min-height: 38px;
+  min-height: 44px;
   white-space: nowrap;
 }
 

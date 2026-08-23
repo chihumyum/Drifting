@@ -222,7 +222,8 @@ describe('mobile standalone routes', () => {
     expect(zoomGuard).toContain('user-scalable=no');
     expect(html).toContain('maximum-scale=1.0, user-scalable=no');
     expect(superElement).toContain('const pinchRef = useRef');
-    expect(superElement).toContain('pinch.startZoom * (distance / pinch.startDistance)');
+    expect(superElement).toContain('beginSuperViewPinch({');
+    expect(superElement).toContain('updateSuperViewPinch({');
   });
 
   it('keeps all three Super View destinations directly reachable in the mobile header', () => {
@@ -233,7 +234,7 @@ describe('mobile standalone routes', () => {
     expect(header).toContain("id: 'graph'");
     expect(header).toContain("id: 'memo-material'");
     expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
-    expect(css).toContain('flex: 1 1 calc(100% - 32px)');
+    expect(css).toContain('flex: 1 1 calc(100% - 50px)');
     expect(css).toContain('.m-super-view-host .super-view-head__meta');
     expect(css).toContain('.m-super-view-host .super-view-head__right');
     expect(memoMaterial).toContain('className="smm-workspace-split"');

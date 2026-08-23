@@ -60,6 +60,7 @@ import {
   startChapterLanePointerDrag,
 } from '../../../features/graph/chapter-lane-drag';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
+import { getPlatformRuntime } from '../../../platform/runtime';
 import '../../../../styles/graph-view.css';
 
 const log = loglevel.getLogger('StoryGraphView');
@@ -131,6 +132,7 @@ const DRIFT_SLOT_WIDTH = 168 + 10;
 
 export function DesktopStoryGraphView() {
   const { t } = useTranslation();
+  const mobileShell = getPlatformRuntime().isMobileShell;
   const {
     bookNodes,
     storylines,
@@ -228,6 +230,7 @@ export function DesktopStoryGraphView() {
   }, [driftPanelOpen, setSharedDriftPanelOpen]);
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
+  const [mobileLinkMode, setMobileLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
   // Drift card right-click — mirrors SuperElementView's drift cmenu: same
   // unified EntityCellContextMenu, with `startEdgeFrom` appended so users
@@ -894,6 +897,11 @@ export function DesktopStoryGraphView() {
         onEscape: () => setLinkSource(null),
       },
       {
+        id: 'mobile-link-mode',
+        active: mobileLinkMode,
+        onEscape: () => setMobileLinkMode(false),
+      },
+      {
         id: 'drift-panel',
         active: driftPanelMounted && !driftPanelClosing,
         onEscape: closeDriftPanel,
@@ -1241,13 +1249,30 @@ export function DesktopStoryGraphView() {
           </>
         }
         rightSlot={
-          nodeEdges.length === 0 ? (
-            <div className="graph-head__filters">
-              <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
-                {t('storyGraph.edge.hint')}
+          <>
+            {mobileShell && (
+              <button
+                type="button"
+                className={`m-super-view-link-mode${mobileLinkMode ? ' is-active' : ''}`}
+                aria-pressed={mobileLinkMode}
+                onClick={() => {
+                  setMobileLinkMode((value) => !value);
+                  setLinkSource(null);
+                }}
+              >
+                {mobileLinkMode
+                  ? t('mobileWorkspace.superView.relationModeOn')
+                  : t('mobileWorkspace.superView.relationMode')}
+              </button>
+            )}
+            {nodeEdges.length === 0 && !mobileShell && (
+              <div className="graph-head__filters">
+                <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
+                  {t('storyGraph.edge.hint')}
+                </div>
               </div>
-            </div>
-          ) : undefined
+            )}
+          </>
         }
       />
 
@@ -1590,7 +1615,9 @@ export function DesktopStoryGraphView() {
                         ]
                           .filter(Boolean)
                           .join(' ')}
-                        onPointerDown={(event) => startGraphChapterPointerDrag(event, node)}
+                        onPointerDown={(event) => {
+                          if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);
+                        }}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1615,6 +1642,19 @@ export function DesktopStoryGraphView() {
                           }
                           if (e.shiftKey) {
                             setLinkSource((prev) => (prev === node.id ? null : node.id));
+                            return;
+                          }
+                          if (mobileLinkMode) {
+                            if (!linkSource || linkSource === node.id) {
+                              setLinkSource((prev) => (prev === node.id ? null : node.id));
+                            } else {
+                              setNewEdgePair({ source: linkSource, target: node.id });
+                              setNewEdgeTypeId(null);
+                              setNewEdgeReversed(false);
+                              setNewEdgeCreatingType(false);
+                              setLinkSource(null);
+                              setMobileLinkMode(false);
+                            }
                             return;
                           }
                           if (linkSource && linkSource !== node.id) {
@@ -1884,6 +1924,19 @@ export function DesktopStoryGraphView() {
                 onClick={(e) => {
                   if (e.shiftKey) {
                     setLinkSource((prev) => (prev === node.id ? null : node.id));
+                    return;
+                  }
+                  if (mobileLinkMode) {
+                    if (!linkSource || linkSource === node.id) {
+                      setLinkSource((prev) => (prev === node.id ? null : node.id));
+                    } else {
+                      setNewEdgePair({ source: linkSource, target: node.id });
+                      setNewEdgeTypeId(null);
+                      setNewEdgeReversed(false);
+                      setNewEdgeCreatingType(false);
+                      setLinkSource(null);
+                      setMobileLinkMode(false);
+                    }
                     return;
                   }
                   if (linkSource && linkSource !== node.id) {

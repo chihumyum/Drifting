@@ -25,7 +25,7 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
       navigationSlot={
         <nav
           className="super-view-head__switcher super-view-head__no-drag"
-          aria-label="Super views"
+          aria-label={t('mobileWorkspace.superView.navigation')}
         >
           {SUPER_VIEW_OPTIONS.map((option) => (
             <button

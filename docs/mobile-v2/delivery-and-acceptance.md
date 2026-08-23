@@ -1,6 +1,6 @@
 # Mobile V2 delivery and acceptance
 
-Status: **normative staged plan; M0-M6 complete, M7 not started**
+Status: **normative staged plan; M0-M7 complete, M8 not started**
 
 Updated: 2026-08-23
 
@@ -327,6 +327,22 @@ or account behavior is inferred from the synthetic fixture.
 - iOS Simulator verifies entry, switching, nested layers, close restoration,
   safe areas, and representative canvas state.
 - Physical iOS/Android devices remain required for real multi-touch acceptance.
+
+Current implementation evidence:
+
+- [`independent-super-views.md`](independent-super-views.md)
+- `mobile-super-view-state.test.ts`
+- `super-view-canvas-gesture.test.ts`
+- `mobile-v2-super-views.acceptance.test.ts`
+- [`../qa/mobile-v2-m7-independent-super-views-simulator-2026-08-23.md`](../qa/mobile-v2-m7-independent-super-views-simulator-2026-08-23.md)
+
+The M7 iPhone run visibly switched all three views in one independent host,
+exercised simulated midpoint-preserving pinch without page zoom, unwound
+relation mode, and restored the exact paper key, active item, scroll position,
+and route. Android device pixels covered the compact Story Graph and real
+hardware Back cleared relation mode before closing the host. Both WebView
+transports report `nativeInput=false`; real multi-touch, continuous populated
+node/card drag, and physical accessibility remain open.
 
 ## M8 — Google Drive release gate
 

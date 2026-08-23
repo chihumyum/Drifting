@@ -2891,6 +2891,12 @@
       "open": "搜索",
       "paperScope": "本纸",
       "projectScope": "搜索整个项目"
+    },
+    "superView": {
+      "label": "独立超级视图",
+      "navigation": "切换超级视图",
+      "relationMode": "创建关系",
+      "relationModeOn": "选择起点"
     }
   },
   "mobileEditorRails": {

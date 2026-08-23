@@ -33,6 +33,7 @@ import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item'
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { assetStoreService } from '../../../services/asset-store.service';
 import { platform } from '../../../platform';
+import { getPlatformRuntime } from '../../../platform/runtime';
 
 const KIND_ORDER: LibraryItemKind[] = ['image', 'pdf', 'url', 'text'];
 
@@ -1024,6 +1025,7 @@ function KindGroup({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const mobileShell = getPlatformRuntime().isMobileShell;
   return (
     <section style={{ marginBottom: 18 }}>
       <div
@@ -1054,6 +1056,7 @@ function KindGroup({
             material={mat}
             relations={refsByFrom.get(`library_item:${mat.id}`) ?? []}
             editing={editingId === mat.id}
+            mobileActions={mobileShell}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
             onOpenInSystem={() => openLibraryItemInSystem(mat)}
             onOpenInApp={() => openLibraryItemInApp(mat)}
@@ -1103,6 +1106,7 @@ function BottomDrawer({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const mobileShell = getPlatformRuntime().isMobileShell;
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -1266,6 +1270,7 @@ function BottomDrawer({
                   material={mat}
                   relations={[]}
                   editing={editingId === mat.id}
+                  mobileActions={mobileShell}
                   onSetEditing={(on) => setEditingId(on ? mat.id : null)}
                   onOpenInSystem={() => openLibraryItemInSystem(mat)}
                   onOpenInApp={() => openLibraryItemInApp(mat)}

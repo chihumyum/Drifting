@@ -49,6 +49,12 @@ import {
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
+import {
+  beginSuperViewPinch,
+  updateSuperViewPinch,
+  type SuperViewPinchOrigin,
+} from '../../../features/graph/super-view-canvas-gesture';
+import { getPlatformRuntime } from '../../../platform/runtime';
 
 // Visual cell dimensions for CATEGORY world. Each element card occupies one
 // cell. Categories expand by adding cells along whichever axis the
@@ -806,6 +812,7 @@ function CategoryBox({
 
 export function DesktopSuperElementView() {
   const { t } = useTranslation();
+  const mobileShell = getPlatformRuntime().isMobileShell;
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { openEntity, projectId } = useProjectNavigation();
@@ -895,6 +902,7 @@ export function DesktopSuperElementView() {
         : null,
     [relationTypeById, selectedEdgeRelation],
   );
+  const [mobileLinkMode, setMobileLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<{ kind: 'element' | 'node'; id: string } | null>(
     null,
   );
@@ -1031,6 +1039,11 @@ export function DesktopSuperElementView() {
         id: linkSource ? `link-source:${linkSource.kind}:${linkSource.id}` : 'link-source',
         active: linkSource !== null,
         onEscape: () => setLinkSource(null),
+      },
+      {
+        id: 'mobile-link-mode',
+        active: mobileLinkMode,
+        onEscape: () => setMobileLinkMode(false),
       },
       {
         id: 'drift-panel',
@@ -1347,12 +1360,7 @@ export function DesktopSuperElementView() {
   const isPanningRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
-  const pinchRef = useRef<{
-    startDistance: number;
-    startZoom: number;
-    worldX: number;
-    worldY: number;
-  } | null>(null);
+  const pinchRef = useRef<SuperViewPinchOrigin | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Refs mirror the latest pan/zoom for the native wheel listener (registered
   // once, no React closure deps) so it always sees fresh values.
@@ -1702,22 +1710,23 @@ export function DesktopSuperElementView() {
         points.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (points.size === 2) {
           const [a, b] = [...points.values()];
+          if (!a || !b) return;
           const rect = e.currentTarget.getBoundingClientRect();
-          const midpoint = {
-            x: (a.x + b.x) / 2 - rect.left,
-            y: (a.y + b.y) / 2 - rect.top,
-          };
-          const startZoom = zoomRef.current;
-          pinchRef.current = {
-            startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-            startZoom,
-            worldX: (midpoint.x - panRef.current.x) / startZoom,
-            worldY: (midpoint.y - panRef.current.y) / startZoom,
-          };
+          pinchRef.current = beginSuperViewPinch({
+            points: [a, b],
+            viewportOrigin: { x: rect.left, y: rect.top },
+            pan: panRef.current,
+            zoom: zoomRef.current,
+          });
           isPanningRef.current = false;
           panStartRef.current = null;
           for (const pointerId of points.keys()) {
-            e.currentTarget.setPointerCapture(pointerId);
+            try {
+              e.currentTarget.setPointerCapture(pointerId);
+            } catch {
+              // WebKit can already have released a synthetic or interrupted
+              // pointer; the tracked midpoint still owns the gesture.
+            }
           }
           setPanningVisual(true);
           return;
@@ -1735,7 +1744,7 @@ export function DesktopSuperElementView() {
         if (
           target?.closest(
             // Match interactive things — these own their click/drag.
-            '[data-super-card="element"]',
+            '[data-super-card]',
           ) ||
           target?.closest('[data-super-edge]') ||
           target?.closest('[data-relation-edge-popover]') ||
@@ -1767,20 +1776,26 @@ export function DesktopSuperElementView() {
         const pinch = pinchRef.current;
         if (pinch && touchPointsRef.current.size >= 2) {
           const [a, b] = [...touchPointsRef.current.values()];
+          if (!a || !b) return;
           const rect = e.currentTarget.getBoundingClientRect();
-          const midpoint = {
-            x: (a.x + b.x) / 2 - rect.left,
-            y: (a.y + b.y) / 2 - rect.top,
-          };
-          const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-          let nextZoom = Math.max(
-            ZOOM_MIN,
-            Math.min(ZOOM_MAX, pinch.startZoom * (distance / pinch.startDistance)),
-          );
+          const next = updateSuperViewPinch({
+            origin: pinch,
+            points: [a, b],
+            viewportOrigin: { x: rect.left, y: rect.top },
+            minZoom: ZOOM_MIN,
+            maxZoom: ZOOM_MAX,
+          });
+          let nextZoom = next.zoom;
           nextZoom = clampZoomForSticky(nextZoom);
           panRef.current = {
-            x: clampPanXForSticky(midpoint.x - pinch.worldX * nextZoom, nextZoom),
-            y: clampPanYForSticky(midpoint.y - pinch.worldY * nextZoom, nextZoom),
+            x: clampPanXForSticky(
+              next.pan.x + pinch.world.x * (next.zoom - nextZoom),
+              nextZoom,
+            ),
+            y: clampPanYForSticky(
+              next.pan.y + pinch.world.y * (next.zoom - nextZoom),
+              nextZoom,
+            ),
           };
           zoomRef.current = nextZoom;
           applyTransform();
@@ -1871,6 +1886,24 @@ export function DesktopSuperElementView() {
         });
         return;
       }
+      if (mobileLinkMode) {
+        if (!linkSource || (linkSource.kind === kind && linkSource.id === id)) {
+          setLinkSource((prev) =>
+            prev && prev.kind === kind && prev.id === id ? null : { kind, id },
+          );
+        } else {
+          setPendingLink({
+            source: linkSource,
+            target: { kind, id },
+          });
+          setPendingLinkTypeId(null);
+          setPendingLinkReversed(false);
+          setPendingLinkCreatingType(false);
+          setLinkSource(null);
+          setMobileLinkMode(false);
+        }
+        return;
+      }
       if (linkSource && !(linkSource.kind === kind && linkSource.id === id)) {
         setPendingLink({
           source: linkSource,
@@ -1908,7 +1941,7 @@ export function DesktopSuperElementView() {
         });
       }
     },
-    [linkSource, driftIds],
+    [driftIds, linkSource, mobileLinkMode],
   );
 
   // Commit a typed entity relation for the pending pair. The modal either
@@ -2210,6 +2243,21 @@ export function DesktopSuperElementView() {
         onBack={close}
         rightSlot={
           <>
+            {mobileShell && (
+              <button
+                type="button"
+                className={`m-super-view-link-mode${mobileLinkMode ? ' is-active' : ''}`}
+                aria-pressed={mobileLinkMode}
+                onClick={() => {
+                  setMobileLinkMode((value) => !value);
+                  setLinkSource(null);
+                }}
+              >
+                {mobileLinkMode
+                  ? t('mobileWorkspace.superView.relationModeOn')
+                  : t('mobileWorkspace.superView.relationMode')}
+              </button>
+            )}
             {/* Linking hint — surfaces when a shift-click is mid-flight, so
                 users know they need to click a second target. */}
             {linkSource && (

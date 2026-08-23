@@ -5,12 +5,13 @@ Status: **target product contract frozen; staged implementation in progress**
 Updated: 2026-08-23
 
 Mobile V2 is Drifting's writing-first native mobile workspace. It keeps the
-shared SQLite, Yjs, sync, Agent, asset, and domain core. M1-M6 now implement
+shared SQLite, Yjs, sync, Agent, asset, and domain core. M1-M7 now implement
 the platform/shell foundation, controller-owned Back, stable paper viewport,
 one unified bar, vertical panel rails, explicit read-paper swipe ownership,
 keyboard-safe writing sheets, read-only search, one-live All Chapters, and the
 complete shared Planning/Plot workspace with deterministic touch arbitration,
-plus a mobile-owned answer-only Agent and portrait Library/TODO/Stats surfaces.
+plus a mobile-owned answer-only Agent, portrait Library/TODO/Stats surfaces,
+and three independent full-screen Super Views with exact paper restoration.
 
 This directory defines the target. It does not claim that the current mobile
 shell already implements or has physically accepted the target interactions.
@@ -37,7 +38,10 @@ device results remain evidence rather than product truth.
    records the current M5 Timeline, touch-drag, pinch, and Plot Grid boundary.
 8. [`mobile-agent-library-todo-and-stats.md`](mobile-agent-library-todo-and-stats.md)
    records the current M6 Agent, Library/TODO, and Stats boundary.
-9. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
+9. [`independent-super-views.md`](independent-super-views.md) records the
+   current M7 Story Graph, Element Panorama, Memo and Material, gesture, and
+   paper-restoration boundary.
+10. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
    current native setup and physical-device runbook.
 
 If these documents disagree, authority is ordered as follows:
@@ -71,6 +75,7 @@ These markers distinguish a frozen target from shipped behavior:
 - `editing_workspace: simulator_accepted`
 - `planning_workspace: simulator_accepted`
 - `tool_workspaces: simulator_accepted`
+- `independent_super_views: simulator_accepted`
 
 The design markers and phase graph are checked by
 `src/renderer/shells/mobile/workspace/mobile-v2-design.acceptance.test.ts`.

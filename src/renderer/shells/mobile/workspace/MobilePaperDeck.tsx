@@ -485,6 +485,8 @@ export function MobilePaperDeck({
     <main
       ref={rootRef}
       className="m-workspace"
+      inert={workspaceUi.surface.kind !== 'paper'}
+      aria-hidden={workspaceUi.surface.kind !== 'paper' ? 'true' : undefined}
       data-debug-id="mobile-workspace"
       data-reveal={reveal}
       data-preview={panelResizing ? 'true' : 'false'}

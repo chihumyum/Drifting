@@ -47,6 +47,7 @@ dated run reports are evidence for one checkout, not product truth.
 | What Mobile V2 writing/search boundary is implemented?     | [`mobile-v2/editing-comments-search-and-all-chapters.md`](mobile-v2/editing-comments-search-and-all-chapters.md)                                                      |
 | What Mobile V2 Planning/touch boundary is implemented?     | [`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md)                                                                      |
 | What Mobile V2 Agent/Library/TODO/Stats boundary is implemented? | [`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md)                                                        |
+| What Mobile V2 independent Super View boundary is implemented? | [`mobile-v2/independent-super-views.md`](mobile-v2/independent-super-views.md)                                                                                |
 | What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
 | What is historically complete?                             | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ProjectRuntimeProvider } from '../../app/providers/ProjectRuntimeProvider';
 import { WorkspaceNavigationProvider } from '../../features/workspace/navigation/WorkspaceNavigationContext';
@@ -24,7 +24,19 @@ import {
   type MobileSuperViewId,
 } from './workspace/mobile-workspace-controller';
 import { useMobileWorkspaceBack } from './workspace/useMobileWorkspaceBack';
+import {
+  captureMobileSuperViewReturnPoint,
+  mobileSuperViewReturnPointMatches,
+  type MobileSuperViewReturnPoint,
+} from './workspace/mobile-super-view-state';
 import '../../../styles/mobile-workspace.css';
+
+function readActivePaperScrollTop(): number | undefined {
+  const activePage = document.querySelector<HTMLElement>(
+    '.m-paper-row__page[data-active="true"]',
+  );
+  return activePage?.querySelector<HTMLElement>('.editor-scroll, .dash')?.scrollTop;
+}
 
 function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
@@ -38,6 +50,10 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   );
   const [frozenProseByKey, setFrozenProseByKey] = useState<Record<string, string>>({});
   const [projectSearchQuery, setProjectSearchQuery] = useState<string | null>(null);
+  const superViewReturnPointRef = useRef<MobileSuperViewReturnPoint | null>(null);
+  const [lastSuperViewRestoreStatus, setLastSuperViewRestoreStatus] = useState<
+    'none' | 'preserved' | 'changed'
+  >('none');
   const leaveProject = useCallback(() => navigate('/', { replace: true }), [navigate]);
 
   useMobileWorkspaceBack({
@@ -65,13 +81,15 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         activeKey: state.activeKey,
         controller: workspaceUi,
         unifiedBar: selectMobileUnifiedBarProjection(workspaceUi),
+        superViewReturnPoint: superViewReturnPointRef.current,
+        lastSuperViewRestoreStatus,
       }));
     });
     return () => {
       cancelled = true;
       dispose?.();
     };
-  }, [frozenProseByKey, projectId, state, workspaceUi]);
+  }, [frozenProseByKey, lastSuperViewRestoreStatus, projectId, state, workspaceUi]);
 
   const freezeActivePaper = useCallback((): string | undefined => {
     const active = state.papers.find((paper) => paper.key === state.activeKey);
@@ -126,13 +144,51 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
     return () => window.clearTimeout(timer);
   }, [location.pathname, openPaper, projectId, state.papers.length]);
 
-  const setSuperView = useCallback((view: MobileSuperViewId | null) => {
-    if (view) dispatchWorkspaceUi({ type: 'show-super-view', view });
-    else dispatchWorkspaceUi({ type: 'show-paper' });
-  }, []);
-
   const activeSuperView =
     workspaceUi.surface.kind === 'super-view' ? workspaceUi.surface.view : null;
+  const setSuperView = useCallback(
+    (view: MobileSuperViewId | null) => {
+      if (view) {
+        if (activeSuperView === null) {
+          const liveScrollTop = readActivePaperScrollTop();
+          if (state.activeKey && liveScrollTop !== undefined) {
+            rememberScroll(state.activeKey, liveScrollTop);
+          }
+          freezeActivePaper();
+          void saveActiveEditor();
+          superViewReturnPointRef.current = captureMobileSuperViewReturnPoint(
+            state,
+            location,
+            liveScrollTop,
+          );
+          setLastSuperViewRestoreStatus('none');
+        }
+        dispatchWorkspaceUi({ type: 'show-super-view', view });
+        return;
+      }
+
+      const returnPoint = superViewReturnPointRef.current;
+      const liveScrollTop = readActivePaperScrollTop();
+      if (state.activeKey && liveScrollTop !== undefined) {
+        rememberScroll(state.activeKey, liveScrollTop);
+      }
+      const preserved =
+        returnPoint !== null &&
+        mobileSuperViewReturnPointMatches(returnPoint, state, location, liveScrollTop);
+      setLastSuperViewRestoreStatus(preserved ? 'preserved' : 'changed');
+      if (!preserved && import.meta.env.DEV) {
+        console.error('[mobile-super-view] paper return point changed while overlay was open', {
+          returnPoint,
+          currentSession: state,
+          currentLocation: location,
+          liveScrollTop,
+        });
+      }
+      superViewReturnPointRef.current = null;
+      dispatchWorkspaceUi({ type: 'show-paper' });
+    }, [activeSuperView, freezeActivePaper, location, rememberScroll, state],
+  );
+
   const overviewOpen = workspaceUi.surface.kind === 'overview';
   const trashOpen =
     workspaceUi.transient.kind === 'dialog' &&
@@ -191,7 +247,11 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         />
       )}
 
-      <MobileSuperViewHost active={activeSuperView} onActiveChange={setSuperView} />
+      <MobileSuperViewHost
+        active={activeSuperView}
+        onActiveChange={setSuperView}
+        returnPointCaptured={activeSuperView !== null}
+      />
       {trashOpen && (
         <MobileProjectTrashView onClose={() => requestMobileWorkspaceBack('visible')} />
       )}

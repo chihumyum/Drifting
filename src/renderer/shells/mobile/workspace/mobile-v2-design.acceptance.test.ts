@@ -45,6 +45,12 @@ describe('Mobile V2 frozen design contract', () => {
   const toolWorkspacesSimulator = read(
     'docs/qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md',
   );
+  const independentSuperViews = read(
+    'docs/mobile-v2/independent-super-views.md',
+  );
+  const independentSuperViewsSimulator = read(
+    'docs/qa/mobile-v2-m7-independent-super-views-simulator-2026-08-23.md',
+  );
   const current = read('docs/mobile-ui-foundation.md');
   const docsIndex = read('docs/README.md');
 
@@ -58,6 +64,7 @@ describe('Mobile V2 frozen design contract', () => {
     expect(index).toContain('editing_workspace: simulator_accepted');
     expect(index).toContain('planning_workspace: simulator_accepted');
     expect(index).toContain('tool_workspaces: simulator_accepted');
+    expect(index).toContain('independent_super_views: simulator_accepted');
     expect(index).toContain('This directory defines the target. It does not claim');
     expect(current).toContain('current implemented mobile shell');
     expect(current).toContain('mobile-v2/README.md');
@@ -99,7 +106,7 @@ describe('Mobile V2 frozen design contract', () => {
     }
     expect(delivery).toContain('Simulator and Emulator evidence never closes physical-device');
     expect(delivery).toContain('Google Drive cannot be waived');
-    expect(delivery).toContain('M0-M6 complete, M7 not started');
+    expect(delivery).toContain('M0-M7 complete, M8 not started');
     expect(platformFoundation).toContain('Native capability and UI shell are separate');
     expect(platformFoundation).toContain('target=mobile');
     expect(platformFoundation).toContain('shellMode=desktop');
@@ -146,6 +153,18 @@ describe('Mobile V2 frozen design contract', () => {
     );
     expect(toolWorkspacesSimulator).toContain('inputPath=synthetic-dom');
     expect(toolWorkspacesSimulator).toMatch(/from `bottom-full` to\s+`bottom-docked`/);
+    expect(independentSuperViews).toContain(
+      'M7 implementation and Simulator/Emulator acceptance complete',
+    );
+    expect(independentSuperViews).toContain('one immutable return point');
+    expect(independentSuperViews).toContain('moving two-finger midpoint');
+    expect(independentSuperViewsSimulator).toContain(
+      'M7 Simulator/Emulator acceptance passed',
+    );
+    expect(independentSuperViewsSimulator).toContain(
+      'lastSuperViewRestoreStatus=preserved',
+    );
+    expect(independentSuperViewsSimulator).toContain('nativeInput=false');
     expect(simulator).toContain('M0 baseline passed');
     expect(simulator).toContain('does **not** verify the future unified bar');
     expect(simulator).toContain('No new Simulator device or iOS runtime was created');
