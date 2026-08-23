@@ -33,6 +33,38 @@ describe('mobile workspace paper session', () => {
     expect(state.activeKey).toBe('node:c');
   });
 
+  it('closes a neighboring paper without changing the active paper', () => {
+    let state = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
+      type: 'open',
+      target: chapter('a'),
+    });
+    state = mobileWorkspaceSessionReducer(state, { type: 'open', target: chapter('b') });
+    state = mobileWorkspaceSessionReducer(state, { type: 'open', target: chapter('c') });
+    state = mobileWorkspaceSessionReducer(state, { type: 'activate', target: chapter('b') });
+    state = mobileWorkspaceSessionReducer(state, { type: 'close', key: 'node:a' });
+    expect(state.papers.map((paper) => paper.target.id)).toEqual(['b', 'c']);
+    expect(state.activeKey).toBe('node:b');
+  });
+
+  it('reorders papers without changing their identity, scroll, or active key', () => {
+    let state = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
+      type: 'open',
+      target: chapter('a'),
+    });
+    state = mobileWorkspaceSessionReducer(state, { type: 'open', target: chapter('b') });
+    state = mobileWorkspaceSessionReducer(state, {
+      type: 'remember-scroll',
+      key: 'node:a',
+      scrollTop: 120,
+    });
+    state = mobileWorkspaceSessionReducer(state, { type: 'reorder', from: 0, to: 1 });
+    expect(state.papers.map((paper) => [paper.key, paper.scrollTop])).toEqual([
+      ['node:b', 0],
+      ['node:a', 120],
+    ]);
+    expect(state.activeKey).toBe('node:b');
+  });
+
   it('clears every open paper without deleting its underlying entity', () => {
     const state = mobileWorkspaceSessionReducer(
       mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {

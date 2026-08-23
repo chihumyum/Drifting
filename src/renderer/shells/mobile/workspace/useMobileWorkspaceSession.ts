@@ -9,27 +9,19 @@ import {
   workspaceUrlFor,
 } from '../../../features/workspace/navigation/workspace-route';
 import {
-  EMPTY_MOBILE_WORKSPACE_SESSION,
   mobilePaperKey,
   mobileWorkspaceSessionReducer,
-  normalizeMobileWorkspaceSession,
 } from './mobile-workspace-session';
-
-const STORAGE_VERSION = 1;
-
-function storageKey(projectId: string): string {
-  return `drifting:mobile-workspace:${STORAGE_VERSION}:${projectId}`;
-}
+import {
+  readMobileWorkspaceSession,
+  writeMobileWorkspaceSession,
+} from './mobile-workspace-session-storage';
 
 function readInitial(projectId: string) {
-  if (typeof localStorage === 'undefined') return EMPTY_MOBILE_WORKSPACE_SESSION;
-  try {
-    const raw = localStorage.getItem(storageKey(projectId));
-    if (!raw) return EMPTY_MOBILE_WORKSPACE_SESSION;
-    return normalizeMobileWorkspaceSession(JSON.parse(raw));
-  } catch {
-    return EMPTY_MOBILE_WORKSPACE_SESSION;
-  }
+  return readMobileWorkspaceSession(
+    typeof localStorage === 'undefined' ? null : localStorage,
+    projectId,
+  );
 }
 
 export function useMobileWorkspaceSession(projectId: string) {
@@ -43,7 +35,11 @@ export function useMobileWorkspaceSession(projectId: string) {
   }, [state]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey(projectId), JSON.stringify(state));
+    writeMobileWorkspaceSession(
+      typeof localStorage === 'undefined' ? null : localStorage,
+      projectId,
+      state,
+    );
   }, [projectId, state]);
 
   const goTo = useCallback(

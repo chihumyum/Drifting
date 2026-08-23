@@ -1,6 +1,5 @@
 import { Check, ListTree, Menu, MessageSquare } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CommentTargetKind } from '../../../domain/comment';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
@@ -40,33 +39,23 @@ export function MobilePaperRailMenu({
   const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [viewportTop, setViewportTop] = useState(() =>
-    typeof window === 'undefined' ? 0 : (window.visualViewport?.offsetTop ?? 0),
-  );
   const availability = mobilePaperRailAvailability(target);
   const currentCommentTarget = commentTarget(target);
   const [commentsVisible, setCommentsVisible] = useEntityMarginNotes(
     currentCommentTarget.kind,
     currentCommentTarget.id,
   );
-
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return undefined;
-    const update = () => setViewportTop(viewport.offsetTop);
-    viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-    return () => {
-      viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-    };
-  }, []);
+  const previousCommentsVisibleRef = useRef(commentsVisible);
+  const previousActiveRailRef = useRef(activeRail);
 
   // Selection comments, the desktop-compatible editor toggle, and Copilot can
   // all change the shared rail from inside an editor. Mirror both directions
   // into the mobile shell so comments never mount behind TOC (or leave an
   // empty comments overlay behind after the editor closes them).
   useEffect(() => {
+    const changed = previousCommentsVisibleRef.current !== commentsVisible;
+    previousCommentsVisibleRef.current = commentsVisible;
+    if (!changed) return;
     const next = mobilePaperRailFromCommentVisibility(
       activeRail,
       commentsVisible,
@@ -74,6 +63,13 @@ export function MobilePaperRailMenu({
     );
     if (next !== activeRail) onActiveRailChange(next);
   }, [activeRail, availability.comments, commentsVisible, onActiveRailChange]);
+
+  useEffect(() => {
+    const previous = previousActiveRailRef.current;
+    previousActiveRailRef.current = activeRail;
+    if (previous !== 'comments' || activeRail === 'comments' || !commentsVisible) return;
+    queueMicrotask(() => setCommentsVisible(false));
+  }, [activeRail, commentsVisible, setCommentsVisible]);
 
   if ((!availability.toc && !availability.comments) || typeof document === 'undefined') {
     return null;
@@ -83,14 +79,15 @@ export function MobilePaperRailMenu({
     const next = toggleMobilePaperRail(activeRail, requested);
     if (availability.comments) setCommentsVisible(next === 'comments');
     onActiveRailChange(next);
+    setMenuOpen(false);
   };
 
   const trigger = (
     <button
       ref={buttonRef}
       type="button"
-      className="m-paper-rail-toggle"
-      style={{ '--m-paper-rail-viewport-top': `${viewportTop}px` } as CSSProperties}
+      className="m-unified-bar__action m-unified-bar__rail-trigger"
+      data-debug-id="mobile-paper-actions"
       data-active={activeRail ?? 'none'}
       aria-label={t('mobileEditorRails.controls')}
       aria-haspopup="menu"
@@ -104,7 +101,7 @@ export function MobilePaperRailMenu({
 
   return (
     <>
-      {createPortal(trigger, document.body)}
+      {trigger}
       <AnchoredPopover
         anchorRef={buttonRef}
         open={menuOpen}

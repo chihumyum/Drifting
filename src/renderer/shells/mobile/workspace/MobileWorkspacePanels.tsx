@@ -6,6 +6,15 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  Boxes,
+  CalendarRange,
+  LibraryBig,
+  Lightbulb,
+} from 'lucide-react';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { useDataStore } from '../../../store/data-store';
 import { isDrift } from '../../../domain/book-node';
@@ -28,14 +37,13 @@ import { useAuthStore } from '../../../store/auth';
 import { ChapterPanel } from '../../../components/leftBars/ChapterPanel';
 import { ElementPanel } from '../../../components/leftBars/ElementPanel';
 import { DriftPanel } from '../../../components/leftBars/DriftPanel';
-import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
-import { hostedAccountSettingsEnabled } from '../../../features/settings/hosted-settings-policy';
 import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
-import type { PaperReveal } from './usePaperPinch';
 
 type StructureTab = 'chapters' | 'elements' | 'inspiration';
-type ToolTab = 'todo' | 'library' | 'stats' | 'agent' | 'timeline' | 'plot';
-type PanelPosition = Exclude<PaperReveal, 'focused'>;
+type ToolTab = 'planning' | 'agent' | 'library' | 'stats';
+type PlanningMode = 'timeline' | 'plot';
+type LibraryMode = 'todo' | 'library';
+type PanelPosition = 'top' | 'bottom';
 
 function PanelResizeHandle({
   panel,
@@ -107,22 +115,20 @@ function MobileStructureWorkspace({
   extent,
   onExtentChange,
   onExtentCommit,
-  onOpenDashboard,
   onPreviewTarget,
 }: {
   target: WorkspaceTarget | null;
   extent: number;
   onExtentChange: (extent: number) => void;
   onExtentCommit: (extent: number) => void;
-  onOpenDashboard: () => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<StructureTab>('chapters');
   const structureTabs = [
-    ['chapters', t('leftSidebar.tabs.chapters')],
-    ['elements', t('leftSidebar.tabs.elements')],
-    ['inspiration', t('leftSidebar.tabs.drifts')],
+    ['chapters', t('leftSidebar.tabs.chapters'), BookOpen],
+    ['elements', t('leftSidebar.tabs.elements'), Boxes],
+    ['inspiration', t('leftSidebar.tabs.drifts'), Lightbulb],
   ] as const;
 
   return (
@@ -131,18 +137,17 @@ function MobileStructureWorkspace({
       aria-label={t('leftSidebar.title')}
     >
       <div className="m-context-workspace__landscape">
-        <aside className="m-context-tab-rail">
-          <button type="button" className="m-context-tab-rail__dashboard" onClick={onOpenDashboard}>
-            {t('dashboard.targets.dashboard', { defaultValue: '项目主页' })}
-          </button>
+        <aside className="m-context-tab-rail m-context-tab-rail--structure">
           <nav aria-label={t('leftSidebar.title')}>
-            {structureTabs.map(([id, label]) => (
+            {structureTabs.map(([id, label, Icon]) => (
               <button
                 key={id}
                 type="button"
                 aria-current={tab === id ? 'page' : undefined}
+                aria-label={label}
                 onClick={() => setTab(id)}
               >
+                <Icon size={19} aria-hidden="true" />
                 <span>{label}</span>
               </button>
             ))}
@@ -342,22 +347,18 @@ function MobileToolWorkspace({
   onExtentCommit: (extent: number) => void;
 }) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<ToolTab>('todo');
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const user = useAuthStore((state) => state.user);
+  const [tab, setTab] = useState<ToolTab>('planning');
+  const [planningMode, setPlanningMode] = useState<PlanningMode>('timeline');
+  const [libraryMode, setLibraryMode] = useState<LibraryMode>('todo');
   const focused = focusedEntity(target);
   const data = useDataStore();
   const currentStatsTarget = statsTarget(target);
   const tabs = [
-    ['todo', 'TODO'],
-    ['library', t('rightSidebar.tabs.library')],
-    ['stats', t('rightSidebar.tabs.stats')],
-    ['agent', 'Agent'],
-    ['timeline', t('bottomTimeline.title', { defaultValue: '时间线' })],
-    ['plot', t('editorTopBar.actions.plotPlanner', { defaultValue: '情节' })],
+    ['planning', t('mobileWorkspace.planning', { defaultValue: '规划' }), CalendarRange],
+    ['agent', 'Agent', Bot],
+    ['library', t('rightSidebar.tabs.library'), LibraryBig],
+    ['stats', t('rightSidebar.tabs.stats'), BarChart3],
   ] as const;
-  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
 
   return (
     <section
@@ -370,43 +371,91 @@ function MobileToolWorkspace({
         onExtentChange={onExtentChange}
         onExtentCommit={onExtentCommit}
       />
-      <div className="m-tool-workspace">
-        <header className="m-tool-workspace__tabs">
+      <div className="m-context-workspace__landscape m-tool-workspace">
+        <aside className="m-context-tab-rail m-context-tab-rail--tools">
           <nav aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}>
-            {tabs.map(([id, label]) => (
+            {tabs.map(([id, label, Icon]) => (
               <button
                 key={id}
                 type="button"
                 aria-current={tab === id ? 'page' : undefined}
+                aria-label={label}
                 onClick={() => setTab(id)}
               >
-                {label}
+                <Icon size={19} aria-hidden="true" />
+                <span>{label}</span>
               </button>
             ))}
           </nav>
-          <UserAvatar
-            initial={displayName.charAt(0).toUpperCase()}
-            size={30}
-            fontSize={14}
-            forwardRef={userTriggerRef}
-            title={t(
-              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
-            )}
-            expanded={userMenuOpen}
-            onClick={() => setUserMenuOpen((open) => !open)}
-          />
-          <UserMenu
-            triggerRef={userTriggerRef}
-            open={userMenuOpen}
-            onClose={() => setUserMenuOpen(false)}
-            scope="project"
-          />
-        </header>
-        <div className="m-context-workspace__pane m-context-workspace__body">
-          {tab === 'todo' && <TodoPanel focused={focused} />}
-          {tab === 'library' && <LibraryPanel focused={focused} />}
+        </aside>
+        <div className="m-tool-workspace__pane">
+          {tab === 'planning' && (
+            <>
+              <header className="m-tool-workspace__subtabs">
+                <button
+                  type="button"
+                  aria-current={planningMode === 'timeline' ? 'page' : undefined}
+                  onClick={() => setPlanningMode('timeline')}
+                >
+                  {t('bottomTimeline.title', { defaultValue: '时间线' })}
+                </button>
+                <button
+                  type="button"
+                  aria-current={planningMode === 'plot' ? 'page' : undefined}
+                  onClick={() => setPlanningMode('plot')}
+                >
+                  {t('editorTopBar.actions.plotPlanner', { defaultValue: '情节' })}
+                </button>
+              </header>
+              <div className="m-context-workspace__pane m-context-workspace__body">
+                {planningMode === 'timeline' ? (
+                  <div className="m-bottom-timeline">
+                    <BottomTimeline presentation="mobile" />
+                  </div>
+                ) : (
+                  <MobilePlotPlannerWorkspace
+                    key={target?.id ?? 'none'}
+                    projectId={projectId}
+                    target={target}
+                  />
+                )}
+              </div>
+            </>
+          )}
+          {tab === 'agent' && (
+            <div className="m-context-workspace__pane m-context-workspace__body">
+              <CompanionPanel projectId={projectId} />
+            </div>
+          )}
+          {tab === 'library' && (
+            <>
+              <header className="m-tool-workspace__subtabs">
+                <button
+                  type="button"
+                  aria-current={libraryMode === 'todo' ? 'page' : undefined}
+                  onClick={() => setLibraryMode('todo')}
+                >
+                  TODO
+                </button>
+                <button
+                  type="button"
+                  aria-current={libraryMode === 'library' ? 'page' : undefined}
+                  onClick={() => setLibraryMode('library')}
+                >
+                  {t('rightSidebar.tabs.library')}
+                </button>
+              </header>
+              <div className="m-context-workspace__pane m-context-workspace__body">
+                {libraryMode === 'todo' ? (
+                  <TodoPanel focused={focused} />
+                ) : (
+                  <LibraryPanel focused={focused} />
+                )}
+              </div>
+            </>
+          )}
           {tab === 'stats' && (
-            <div className="m-context-workspace__scroll m-context-workspace__stats">
+            <div className="m-context-workspace__pane m-context-workspace__scroll m-context-workspace__stats">
               <EntityStatsContent
                 target={currentStatsTarget}
                 bookNodes={data.bookNodes}
@@ -418,19 +467,6 @@ function MobileToolWorkspace({
                 primaryStorylineByNode={data.primaryStorylineByNode}
               />
             </div>
-          )}
-          {tab === 'agent' && <CompanionPanel projectId={projectId} />}
-          {tab === 'timeline' && (
-            <div className="m-bottom-timeline">
-              <BottomTimeline presentation="mobile" />
-            </div>
-          )}
-          {tab === 'plot' && (
-            <MobilePlotPlannerWorkspace
-              key={target?.id ?? 'none'}
-              projectId={projectId}
-              target={target}
-            />
           )}
         </div>
       </div>
@@ -444,7 +480,6 @@ export function MobileWorkspacePanels({
   panelExtent,
   onPanelExtentChange,
   onPanelExtentCommit,
-  onOpenDashboard,
   onPreviewTarget,
 }: {
   projectId: string;
@@ -452,7 +487,6 @@ export function MobileWorkspacePanels({
   panelExtent: number;
   onPanelExtentChange: (panel: PanelPosition, extent: number) => void;
   onPanelExtentCommit: (panel: PanelPosition, extent: number) => void;
-  onOpenDashboard: () => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   return (
@@ -462,7 +496,6 @@ export function MobileWorkspacePanels({
         extent={panelExtent}
         onExtentChange={(extent) => onPanelExtentChange('top', extent)}
         onExtentCommit={(extent) => onPanelExtentCommit('top', extent)}
-        onOpenDashboard={onOpenDashboard}
         onPreviewTarget={onPreviewTarget}
       />
       <MobileToolWorkspace

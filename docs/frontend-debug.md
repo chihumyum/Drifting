@@ -51,10 +51,10 @@ pnpm drifting frontend query --input '{"locator":{"kind":"debug-id","value":"mob
 pnpm drifting frontend wait --input '{"locator":{"kind":"role","role":"button","name":"纸张"},"state":"visible"}'
 pnpm drifting frontend style --input '{"locator":{"kind":"css","value":".m-workspace"},"properties":["pointer-events","transform"]}'
 pnpm drifting frontend hit-test --x 195 --y 780
-pnpm drifting frontend tap --input '{"locator":{"kind":"debug-id","value":"mobile-paper-cluster"}}'
+pnpm drifting frontend tap --input '{"locator":{"kind":"debug-id","value":"mobile-open-overview"}}'
 pnpm drifting frontend type --input '{"locator":{"kind":"role","role":"textbox"},"text":"test","replace":true}'
 pnpm drifting frontend scroll --delta-y 400 --x 195 --y 420
-pnpm drifting frontend drag --input '{"locator":{"kind":"debug-id","value":"mobile-paper-cluster"},"deltaX":-132,"deltaY":0}'
+pnpm drifting frontend drag --input '{"locator":{"kind":"debug-id","value":"mobile-paper-row"},"deltaX":-220,"deltaY":0,"durationMs":240}'
 pnpm drifting frontend pinch --x 195 --y 300 --start-distance 180 --end-distance 80
 pnpm drifting frontend evaluate --expression 'document.readyState'
 pnpm drifting frontend console
@@ -81,9 +81,9 @@ full CDP network events. iOS reports `inputPath: "synthetic-dom"` and only
 An explicitly opted-in Debug renderer installs the read-only
 `window.__DRIFTING_FRONTEND_DEBUG_V1__` registry. It exposes runtime, route,
 viewport, focus/selection, project boot, open/active papers, frozen-paper
-flags, overview/Super View, paper reveal/extent/quick-switch, editing state,
-and active rail. It provides no business-state mutation method. Interaction
-must still target visible DOM.
+flags, overview/Super View, controller state, unified-bar projection, panel
+reveal/extent, paper-swipe phase, editing state, and active rail. It provides
+no business-state mutation method. Interaction must still target visible DOM.
 
 Normal production builds do not install the registry or connect to port 4318.
 The daemon binds loopback only and requires its random bearer token. Password,
