@@ -128,8 +128,13 @@ describe('workspace surface language acceptance', () => {
     expect(workspaceNavigationCss).not.toContain('workspace-super-trigger[aria-expanded');
     expect(notification).not.toContain('e.currentTarget.style.background');
     expect(topTimeline).not.toContain('event.currentTarget.style.background');
-    expect(appTopbar).toContain('runtime.isMacDesktop ? 288 : 216');
+    expect(appTopbar).toContain("const leftWidth = runtime.isMobile ? 72 : 'max-content';");
     expect(appTopbar).not.toContain("background: 'var(--workspace-ui-bg)'");
+    expect(appTopbar).toContain("borderRight: 'var(--chrome-divider)'");
+    expect(appTopbar).toContain("borderLeft: 'var(--chrome-divider)'");
+    expect(source('src/styles/index.css')).toContain(
+      '--chrome-divider: 1px solid var(--workspace-border);',
+    );
 
     expect(rightTopbar).not.toContain('CopilotQuickMenu');
     expect(rightTopbar).not.toContain('ShadowQuickMenu');
@@ -749,8 +754,11 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 横跨整个窗口底部');
-    expect(doc).toContain('`AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`');
+    expect(doc).toContain(
+      '`AppTopbar` 的固定顺序是当前 Project 名称、搜索、左栏 toggle、项目主页、通览全书、`SUPER`',
+    );
     expect(doc).toContain('hover 都只提高前景文字/图标颜色，不绘制额外底色');
+    expect(doc).toContain('`SUPER` 右侧与通知铃铛左侧');
     expect(doc).toContain('`BottomStatusBar` 以只读状态为主');
     expect(doc).toContain('唯一的交互例外是 Bottom Timeline');
     expect(doc).toContain('通知入口仍留在 topbar');

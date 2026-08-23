@@ -28,7 +28,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Command and status ownership
 
-- `AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标；低频入口不再各自占用一枚顶栏图标。
+- `AppTopbar` 的固定顺序是当前 Project 名称、搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。`SUPER` 右侧与通知铃铛左侧分别使用和顶栏底边相同的 `1px --workspace-border` hairline，明确分开导航、文档 Tabs 与账户命令区。Project 名称是只读的位置锚点，不兼任项目切换器；普通图标按钮统一使用 `26px` 热区和约 `16px` 图标，低频入口不再各自占用一枚顶栏图标。
 - 通览全书是 Project Home 与 `SUPER` 之间的独立纯文字按钮，直接进入 All Chapters editor，并以文字颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但菜单现在只包含 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
 - 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；icon button 保留 `aria-pressed` 等可访问性状态，但当前目的地不改变图标颜色，不绘制视觉选中态。真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
 - Copilot 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后可就地修改 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
@@ -83,6 +83,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 已持久化的用户侧栏开合状态继续被尊重；这次调整不强制覆盖现有偏好。
 - Header、左右栏、编辑器外侧、Bottom Timeline 与 `BottomStatusBar` 在所有平台都直接使用不透明 `--workspace-ui-bg`。macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`；Tauri 窗口配置显式保持 `transparent: false`，renderer 不再加载单独的原生材质样式。这样三处灰色底色来自同一个普通颜色 token，不依赖桌面壁纸、窗口激活状态或系统材质变化。
 - macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。renderer 顶栏高 `42px`，同排图标与文字按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。
+- 桌面顶栏在红绿灯（其他桌面平台为普通 leading inset）之后持续显示当前 Project 名称。macOS leading inset 固定为 `94px`，在第三个红绿灯之后留下独立呼吸空间。名称直接订阅已发布的 `currentProject.name`，重命名后即时更新；它按文本自身宽度占位，最大不超过 `min(220px, 22vw)`，保持单行并在溢出时省略，`title` 暴露完整名称。Project 文字显式退出 Tauri drag region 并保持 `user-select: text`，鼠标可在字面区域拖选；名称左右的空白仍属于父级窗口拖动面。左侧 section 使用 intrinsic width，命令组禁止收缩，因此搜索、导航和文档 Tabs 会紧跟实际项目名而不是对齐固定栏宽；移动端不复用这一桌面标识。
 - Project Dashboard 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受 editor pane 约束，并使用 `overflow-y: auto`。隐藏的只是 scrollbar chrome，不是滚动能力；不能依赖处于非 flex parent 内时无效的 `flex: 1` 来建立滚动高度。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
 - Super View overlay 停在全宽 `BottomStatusBar` 上方；工作区入口已经迁到 topbar。
@@ -98,6 +99,6 @@ pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/acce
 pnpm test:renderer-architecture
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/header 摘要切换入口与 sort menu 分离/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首元素建组语义，以及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、Super 菜单、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收；菜单的实际阴影与字形也需要在真实窗口中目测。
+测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/header 摘要切换入口与 sort menu 分离/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首元素建组语义，以及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、当前 Project 名称的桌面位置锚点与不压缩命令组约束、Super 菜单、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收；新增 Project 名称的文本截断观感，以及菜单的实际阴影与字形，也需要在真实窗口中目测。
 
 Renderer 的桌面/共享所有权规则记录在 [`renderer-ui-architecture.md`](renderer-ui-architecture.md)；移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

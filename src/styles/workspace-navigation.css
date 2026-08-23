@@ -3,6 +3,30 @@
   color: hsl(var(--ink-1));
 }
 
+.app-topbar__project-name {
+  min-width: 0;
+  max-width: min(220px, 22vw);
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 26px;
+  cursor: text;
+  text-overflow: ellipsis;
+  user-select: text;
+  white-space: nowrap;
+}
+
+.app-topbar__left-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
 .workspace-all-chapters-trigger,
 .workspace-super-trigger {
   display: inline-flex;

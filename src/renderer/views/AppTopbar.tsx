@@ -6,17 +6,19 @@ import { getPlatformRuntime } from '../platform/runtime';
 
 export function AppTopbar() {
   const runtime = getPlatformRuntime();
-  // Topbar side sections always size to the minimum needed for their content,
-  // regardless of whether the sidebars below them are open or wide. Earlier
-  // the side sections matched the sidebar widths "for alignment", but with
-  // a wide sidebar that wasted ~200px per side that could have been tabs.
-  // Now the tabs take all remaining width and the side sections hug their
-  // controls. Project-wide destinations live beside the left toggle; Copilot
-  // now lives one level inside the account menu. The Bottom Timeline
-  // toggle remains beside that dock's status line in the footer.
-  // macOS needs room for its native window controls. Other desktop targets
-  // and mobile keep only the product controls in this section.
-  const leftWidth = runtime.isMobile ? 72 : runtime.isMacDesktop ? 288 : 216;
+  // Topbar side sections remain independent from the resizable sidebars below.
+  // Earlier they matched those sidebar widths "for alignment", which could
+  // waste ~200px per side that should remain available to tabs. Both side
+  // sections now hug their actual content, so project identity, commands and
+  // tabs close up naturally instead of aligning to an invented column width.
+  // Project-wide destinations live beside the left toggle; Copilot lives one
+  // level inside the account menu. The Bottom Timeline toggle remains beside
+  // that dock's status line in the footer.
+  // macOS needs room for its native window controls and a stable current-project
+  // identity. The name itself owns the only capped, shrinkable slot; the
+  // surrounding section is intrinsic-width and the command group stays fixed.
+  // Mobile keeps only its product controls.
+  const leftWidth = runtime.isMobile ? 72 : 'max-content';
   return (
     <div
       className="app-topbar app-plane"

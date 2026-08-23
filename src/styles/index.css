@@ -130,7 +130,7 @@
        titlebar, timeline and footer all resolve through the same role. */
     --workspace-ui-bg: hsl(var(--paper-deep));
     --chrome-bg: var(--workspace-ui-bg);
-    --chrome-divider: none;
+    --chrome-divider: 1px solid var(--workspace-border);
 
     /* Super Views stop above the full-width BottomStatusBar. */
     --super-view-bottom-inset: 20px;
@@ -152,7 +152,7 @@
        consumes the same height so its content center stays aligned with the
        14px macOS traffic lights. */
     --window-titlebar-height: 42px;
-    --window-header-leading-inset: 86px;
+    --window-header-leading-inset: 94px;
     --window-surface-inline-inset: 0px;
   }
 

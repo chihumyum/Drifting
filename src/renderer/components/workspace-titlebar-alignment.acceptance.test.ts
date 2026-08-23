@@ -36,10 +36,31 @@ describe('workspace titlebar centerline', () => {
     expect(topbar).toContain("height: 'var(--window-titlebar-height)'");
     expect(leftTopbar).toContain("height: 'var(--window-titlebar-height)'");
     expect(leftTopbar).toContain("alignItems: 'center'");
+    expect(leftTopbar).toContain(
+      "useProjectStore((state) => state.currentProject?.name.trim() ?? '')",
+    );
+    expect(leftTopbar).toContain('!runtime.isMobile && projectName');
+    expect(leftTopbar).toContain('className="app-topbar__project-name"');
+    expect(leftTopbar).toContain('data-tauri-drag-region="false"');
+    expect(leftTopbar).toContain('title={projectName}');
+    expect(leftTopbar.indexOf('className="app-topbar__project-name"')).toBeLessThan(
+      leftTopbar.indexOf('className="app-topbar__left-actions"'),
+    );
+    expect(shellCss).toContain('--window-header-leading-inset: 94px;');
+    expect(leftTopbar).toContain(
+      "paddingLeft: runtime.isMacDesktop ? 'var(--window-header-leading-inset)' : 8",
+    );
+    expect(topbar).toContain("const leftWidth = runtime.isMobile ? 72 : 'max-content';");
     expect(cssBlock(controlCss, '.ghost-icon-button--md {')).toMatch(
       /width:\s*26px;[\s\S]*height:\s*26px;/,
     );
     expect(cssBlock(navigationCss, '.workspace-all-chapters-trigger,')).toContain('height: 26px;');
+    expect(cssBlock(navigationCss, '.app-topbar__project-name {')).toMatch(
+      /min-width:\s*0;[\s\S]*max-width:\s*min\(220px, 22vw\);[\s\S]*flex:\s*0 1 auto;[\s\S]*overflow:\s*hidden;[\s\S]*cursor:\s*text;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*user-select:\s*text;[\s\S]*white-space:\s*nowrap;/,
+    );
+    expect(cssBlock(navigationCss, '.app-topbar__left-actions {')).toMatch(
+      /flex:\s*0 0 auto;/,
+    );
 
     const expectedPosition = { x: 18, y: 22 };
     expect(baseConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
