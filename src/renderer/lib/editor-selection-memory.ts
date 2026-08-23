@@ -224,7 +224,7 @@ export function pruneEditorSelectionMemory(projectId: string, openTabs: AnyTab[]
   for (const tab of openTabs) {
     if (tab.kind === 'leaf') {
       addLeaf(tab);
-    } else {
+    } else if (tab.kind === 'split') {
       addLeaf(tab.left);
       addLeaf(tab.right);
     }

@@ -153,10 +153,13 @@ export function useDesktopGlobalShortcuts({
         const nextIndex =
           (baseIndex + direction + project.openTabs.length) % project.openTabs.length;
         const nextTab = project.openTabs[nextIndex];
-        if (nextTab.kind === 'split') {
+        if (nextTab.kind === 'create') {
+          state.setActiveTab(projectId, { createId: nextTab.id });
+          navigate(`/project/${projectId}`);
+        } else if (nextTab.kind === 'split') {
           state.setActiveTab(projectId, { splitId: nextTab.id });
           const target = focusedLeafOf(nextTab);
-          const url = workspaceUrlFor(projectId, target);
+          const url = target ? workspaceUrlFor(projectId, target) : null;
           if (url) navigate(url);
         } else {
           navigator.activate(nextTab);
@@ -174,11 +177,13 @@ export function useDesktopGlobalShortcuts({
         const closeRef =
           activeTab.kind === 'split'
             ? { splitId: activeTab.id }
+            : activeTab.kind === 'create'
+              ? { createId: activeTab.id }
             : { entityType: activeTab.entityType, id: activeTab.id };
-        const { nextActive } = state.closeTab(projectId, closeRef);
+        const { nextActive, wasActive } = state.closeTab(projectId, closeRef);
         if (nextActive) {
           navigator.open({ entityType: nextActive.entityType, id: nextActive.id });
-        } else {
+        } else if (wasActive) {
           navigate(`/project/${projectId}`, { replace: true });
         }
       }

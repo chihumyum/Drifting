@@ -8,6 +8,7 @@ import {
   useUiStore,
   tabKey,
   type LeafTab,
+  type CreateTab,
   type SplitTab,
 } from '../../store/ui-store';
 import { NodeEditorView } from '../../views/NodeEditorView';
@@ -23,6 +24,7 @@ import {
   useHoverPreview,
   type EntityHoverTarget,
 } from '../../features/entities/hover/entity-hover-card-model';
+import { DesktopUniversalCreateView } from '../../shells/desktop/entity-create/DesktopUniversalCreateView';
 
 // EditorMainArea sits where <Outlet /> used to be. Its job is to decide
 // whether the editor surface should render a single matched route element
@@ -58,6 +60,7 @@ export function EditorMainArea() {
   const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey) ?? null;
   const isSplit = activeTab?.kind === 'split';
   const split = isSplit ? (activeTab as SplitTab) : null;
+  const createTab = activeTab?.kind === 'create' ? (activeTab as CreateTab) : null;
   const hasNoTabs = openTabs.length === 0;
 
   useEffect(() => {
@@ -110,6 +113,10 @@ export function EditorMainArea() {
       // Only react to drags that carry the tab payload — we don't want to
       // hijack text/file drops the editor might want.
       if (!event.dataTransfer.types.includes('application/x-drifting-tab')) return;
+      if (createTab) {
+        setDropSide(null);
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
       const el = surfaceRef.current;
@@ -123,7 +130,7 @@ export function EditorMainArea() {
       else if (x > rect.width * 0.67) setDropSide('right');
       else setDropSide(null);
     },
-    [],
+    [createTab],
   );
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -158,7 +165,9 @@ export function EditorMainArea() {
       onMouseOut={handleEntityLinkMouseOut}
       style={{ position: 'relative', height: '100%', width: '100%' }}
     >
-      {isSplit && split ? (
+      {createTab ? (
+        <DesktopUniversalCreateView tab={createTab} />
+      ) : isSplit && split ? (
         <SplitView
           split={split}
           projectId={projectId ?? ''}

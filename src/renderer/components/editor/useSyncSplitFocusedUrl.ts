@@ -135,7 +135,30 @@ export function useSyncSplitFocusedUrl(): void {
       return;
     }
 
+    if (active.kind === 'create') {
+      const previousFocused = prevFocusedRef.current;
+      if (urlEntity && previousFocused && sameEntity(urlEntity, previousFocused)) {
+        // Activating the transient tab and navigating to the bare project URL
+        // can render in two commits. The old entity URL is stale in that
+        // intermediate frame, so keep the create tab authoritative.
+        navigate(`/project/${projectId}`, { replace: true });
+      } else if (urlEntity) {
+        // Back/forward, a deep link, or another entity navigation leaves the
+        // draft open but moves focus to the requested real entity.
+        openEntityTab(projectId, urlEntity, { preview: true });
+        mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
+        prevFocusedRef.current = urlEntity;
+        return;
+      }
+      const ui = useUiStore.getState();
+      if (ui.nodeUi.selectedId) setNodeSelection(null);
+      if (ui.elementUi.selectedId) setElementSelection(null);
+      prevFocusedRef.current = null;
+      return;
+    }
+
     const focused = focusedLeafOf(active);
+    if (!focused) return;
     const prevFocused = prevFocusedRef.current;
     const focusedChanged =
       prevFocused !== null && !sameEntity(prevFocused, focused);

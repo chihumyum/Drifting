@@ -2096,8 +2096,51 @@
       "closeRight": "Close tabs to the right",
       "closeAll": "Close all"
     },
+    "newEntity": "Create entity",
+    "newTab": "New…",
     "closeTab": "Close tab",
     "closePane": "Close pane"
+  },
+  "universalCreate": {
+    "eyebrow": "Create entity",
+    "title": "What do you want to create?",
+    "subtitle": "Choose an entity type first. Nothing is written to the project until you confirm; closing this tab leaves no entity behind.",
+    "back": "Back to entity types",
+    "continue": "Continue",
+    "createNow": "Create now",
+    "submit": "Create and open",
+    "creating": "Creating…",
+    "errorUnknown": "Creation failed. Please try again.",
+    "noCategories": "This project has no categories yet. Go back and create a category before creating an element.",
+    "contextTitle": {
+      "chapter": "Create chapter",
+      "drift": "Create drift",
+      "element": "Create element"
+    },
+    "contextSubtitle": {
+      "chapter": "Leave the chapter unaffiliated for now or place it in an existing storyline.",
+      "drift": "Keep the drift at the root or place it in an existing drift group.",
+      "element": "Every element needs a category; its group can be organized later."
+    },
+    "kinds": {
+      "chapter": { "label": "Chapter", "description": "Start a prose chapter and optionally choose its storyline." },
+      "drift": { "label": "Drift", "description": "Capture an idea that is not yet part of the manuscript." },
+      "element": { "label": "Element", "description": "Create a character, place, object, or other reference." },
+      "storyline": { "label": "Storyline", "description": "Create a narrative line and open its editor." },
+      "category": { "label": "Category", "description": "Create a top-level classification for elements." }
+    },
+    "fields": {
+      "storyline": "Storyline",
+      "driftGroup": "Drift group",
+      "categoryRequired": "Category (required)",
+      "elementGroup": "Element group"
+    },
+    "defaults": {
+      "unaffiliated": "Unaffiliated",
+      "root": "Root",
+      "chooseCategory": "Choose a category…",
+      "ungrouped": "Ungrouped"
+    }
   },
   "bottomTimeline": {
     "marker": {

@@ -1074,6 +1074,82 @@ html[data-platform-target='mobile'] .patch-create-modal {
   scrollbar-width: none;
 }
 
+.top-timeline-create-button {
+  width: 38px;
+  min-width: 38px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+  border-radius: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.top-timeline-create-button:focus-visible {
+  outline: 1px solid hsl(var(--ink-3));
+  outline-offset: -2px;
+}
+
+.app-tab--create {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 6px 0 10px;
+  overflow: hidden;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-style: italic;
+  user-select: none;
+}
+
+.app-tab--create.is-active {
+  border-bottom-color: hsl(var(--surface));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+}
+
+.app-tab--create__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-tab--create .app-tab__close {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+}
+
+.app-tab--create .app-tab__close:hover {
+  color: hsl(var(--ink-1));
+}
+
+.app-tab--create .app-tab__close:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .left-panel-scroll::-webkit-scrollbar,
 .left-panel-scroll-hidden::-webkit-scrollbar,
 .top-timeline-container::-webkit-scrollbar {

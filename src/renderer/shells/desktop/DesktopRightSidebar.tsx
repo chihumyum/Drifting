@@ -42,6 +42,9 @@ export function DesktopRightSidebar() {
       return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
     }
     const leaf = focusedLeafOf(activeTab);
+    if (!leaf) {
+      return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
+    }
     if (leaf.entityType === 'dashboard') {
       return {
         kind: 'none',

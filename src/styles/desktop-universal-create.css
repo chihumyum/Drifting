@@ -1,0 +1,229 @@
+.universal-create {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+}
+
+.universal-create__content {
+  width: min(760px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: clamp(44px, 8vh, 96px) 0 72px;
+}
+
+.universal-create__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 24px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.universal-create__back:hover,
+.universal-create__back:focus-visible {
+  color: hsl(var(--ink-1));
+}
+
+.universal-create__header {
+  max-width: 620px;
+  margin-bottom: 30px;
+}
+
+.universal-create__eyebrow {
+  margin: 0 0 9px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.universal-create__header h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.universal-create__header > p:last-child {
+  max-width: 560px;
+  margin: 12px 0 0;
+  color: hsl(var(--ink-3));
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.universal-create__kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid hsl(var(--rule));
+}
+
+.universal-create__kind {
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 20px 18px;
+  border: 0;
+  border-right: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+  background: transparent;
+  color: hsl(var(--ink-1));
+  text-align: left;
+  cursor: pointer;
+}
+
+.universal-create__kind:nth-child(even),
+.universal-create__kind:last-child {
+  border-right: 0;
+}
+
+.universal-create__kind:hover,
+.universal-create__kind:focus-visible {
+  background: var(--workspace-cell-hover-bg);
+}
+
+.universal-create__kind:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.universal-create__kind-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.universal-create__kind-copy strong {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.universal-create__kind-copy span {
+  color: hsl(var(--ink-3));
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.universal-create__kind-action {
+  padding-top: 2px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.universal-create__context {
+  max-width: 560px;
+  border-top: 1px solid hsl(var(--rule));
+  padding-top: 24px;
+}
+
+.universal-create__field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.universal-create__field > span {
+  color: hsl(var(--ink-2));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.universal-create__field select {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 0;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  font: inherit;
+  font-size: 13px;
+}
+
+.universal-create__field select:focus-visible {
+  outline: 1px solid hsl(var(--accent));
+  outline-offset: 1px;
+}
+
+.universal-create__field select:disabled {
+  color: hsl(var(--ink-4));
+  background: hsl(var(--paper));
+}
+
+.universal-create__notice,
+.universal-create__error {
+  margin: 4px 0 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.universal-create__notice {
+  color: hsl(var(--ink-3));
+}
+
+.universal-create__error {
+  color: hsl(var(--destructive));
+}
+
+.universal-create__submit {
+  min-width: 116px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid hsl(var(--ink-1));
+  border-radius: 0;
+  background: hsl(var(--ink-1));
+  color: hsl(var(--surface));
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.universal-create__submit:disabled {
+  border-color: hsl(var(--rule));
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-4));
+  cursor: default;
+}
+
+.universal-create__spinner {
+  animation: universal-create-spin 0.8s linear infinite;
+}
+
+@keyframes universal-create-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .universal-create__content {
+    width: min(100% - 36px, 620px);
+  }
+
+  .universal-create__kinds {
+    grid-template-columns: 1fr;
+  }
+
+  .universal-create__kind,
+  .universal-create__kind:nth-child(even) {
+    border-right: 0;
+  }
+}

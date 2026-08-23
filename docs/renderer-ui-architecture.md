@@ -72,6 +72,36 @@ Pure layout, projection, relation, editor, graph, timeline, and domain logic
 should move downward when both shells need it. Shell interaction state should
 not be generalized merely to make it importable.
 
+## Desktop universal create
+
+The desktop tab model has one shell-owned `create` variant in addition to real
+entity leaves and splits. It is a project-local, session-only transient draft,
+not a `WorkspaceTarget` or `WorkspaceEntityType`: shared navigation and the
+mobile paper session therefore never need to recognize a synthetic entity.
+Each project may hold at most one draft, kept at the end of its open-tab list.
+The `+` command sits immediately after the rendered tabs inside the horizontal
+tab strip, including when the list is empty, rather than occupying a detached
+right-edge command slot.
+
+Opening the draft navigates the desktop shell to the bare project URL and makes
+`focusedLeafOf` return `null`, so URL mirroring, the right sidebar, status
+consumers, and split actions behave as though no entity is focused. A later
+entity/deep-link navigation leaves the draft in the list but moves focus away.
+The draft cannot be previewed, reordered, or fused into a split. Inventory
+pruning preserves it during the current session, but it does not enter
+`ui-storage`, SQLite, Yjs, sync, or restart restoration.
+
+`DesktopUniversalCreateView` collects the entity kind and only the required
+existing parent/group context. It then delegates to `createNode`,
+`createStoryline`, `createElement`, or `createCategory`; those authored use cases
+remain responsible for unique defaults, templates, Yjs seeding, SQLite atomic
+transactions, optimistic rollback, and sync journal entries. Success replaces
+the transient slot in place with a dedicated leaf. The URL changes only when
+the draft is still active, so an async completion cannot steal focus from a tab
+the user selected meanwhile. Failure leaves the same draft and error available
+for retry. This surface is desktop-only; mobile creation design remains
+independent and unchanged.
+
 ## Shared interaction contracts
 
 - Menus and anchored popovers portal to `body`, use fixed viewport
@@ -126,6 +156,7 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/comments-review.css` | comments, outline rail, inline review, and review cards                         |
 | `src/styles/entity-editors.css`  | entity editors, relations, metadata, and domain surfaces                        |
 | `src/styles/desktop-shell.css`   | desktop geometry, columns, overlays, and full-screen states                     |
+| `src/styles/desktop-universal-create.css` | desktop transient-create chooser and context form                   |
 | `src/styles/mobile-*.css`        | mobile standalone routes, workspace, safe-area, paper, and gesture presentation |
 
 Mobile must not override `desktop-shell.css` to simulate a separate layout.
@@ -140,7 +171,10 @@ pnpm lint
 pnpm test:renderer-architecture
 pnpm exec vitest run \
   src/renderer/hooks/useSuperViewEscapeStack.test.ts \
-  src/renderer/components/ui/EntityCardPopoverShell.test.ts
+  src/renderer/components/ui/EntityCardPopoverShell.test.ts \
+  src/renderer/store/ui-store.workspace-tabs.test.ts \
+  src/renderer/shells/desktop/entity-create/desktop-universal-create.test.ts \
+  src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts
 pnpm exec vite build
 ```
 

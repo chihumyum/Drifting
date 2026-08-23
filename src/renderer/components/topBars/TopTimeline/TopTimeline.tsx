@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
@@ -11,6 +11,7 @@ import {
   tabKey,
   focusedLeafOf,
   type AnyTab,
+  type CreateTab,
   type LeafTab,
   type SplitTab,
   type TabEntityType,
@@ -127,6 +128,7 @@ export function TopTimeline() {
   const { projectId, openEntity } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
+  const openCreateTab = useUiStore((s) => s.openCreateTab);
   const closeTab = useUiStore((s) => s.closeTab);
   const closeOtherTabs = useUiStore((s) => s.closeOtherTabs);
   const closeTabsToRight = useUiStore((s) => s.closeTabsToRight);
@@ -280,12 +282,17 @@ export function TopTimeline() {
       const raw =
         tab.kind === 'leaf'
           ? measureLabelWidth(lookups.labelOfLeaf(tab)) + TAB_CHROME_WIDTH
-          : measureLabelWidth(lookups.labelOfLeaf(tab.left)) +
-            measureLabelWidth(lookups.labelOfLeaf(tab.right)) +
-            SPLIT_CHROME_WIDTH;
+          : tab.kind === 'create'
+            ? measureLabelWidth(t('topTimeline.newTab')) + TAB_CHROME_WIDTH
+            : measureLabelWidth(lookups.labelOfLeaf(tab.left)) +
+              measureLabelWidth(lookups.labelOfLeaf(tab.right)) +
+              SPLIT_CHROME_WIDTH;
       return Math.min(TAB_MAX_WIDTH * weights[i], raw);
     });
     const totalGaps = TAB_GAP * Math.max(0, openTabs.length - 1);
+    // Preserve the document-tab sizing contract. The adjacent `+` is a
+    // separate strip item and may extend the scrollable content; it must not
+    // make every existing tab enter proportional shrink earlier.
     const availableW = Math.max(0, containerWidth - CONTAINER_PADDING_X - totalGaps);
     const idealTotal = ideals.reduce((a, b) => a + b, 0);
 
@@ -306,7 +313,7 @@ export function TopTimeline() {
     }
     const scale = Math.min(1, virtual / idealTotal);
     return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
-  }, [openTabs, lookups, containerWidth]);
+  }, [openTabs, lookups, containerWidth, t]);
 
   // A narrow insertion marker translates between drag-and-drop positions.
   // It is reorder feedback, independent of the static active-tab treatment.
@@ -347,10 +354,15 @@ export function TopTimeline() {
   const handleSelectTab = useCallback(
     (tab: AnyTab) => {
       if (!projectId) return;
+      if (tab.kind === 'create') {
+        setActiveTab(projectId, { createId: tab.id });
+        navigate(`/project/${projectId}`);
+        return;
+      }
       if (tab.kind === 'split') {
         setActiveTab(projectId, { splitId: tab.id });
         const focused = focusedLeafOf(tab);
-        const url = urlForLeaf(projectId, focused);
+        const url = focused ? urlForLeaf(projectId, focused) : null;
         if (url) navigate(url);
         return;
       }
@@ -365,7 +377,11 @@ export function TopTimeline() {
     (tab: AnyTab) => {
       if (!projectId) return;
       const closeRef =
-        tab.kind === 'split' ? { splitId: tab.id } : { entityType: tab.entityType, id: tab.id };
+        tab.kind === 'split'
+          ? { splitId: tab.id }
+          : tab.kind === 'create'
+            ? { createId: tab.id }
+            : { entityType: tab.entityType, id: tab.id };
       const { nextActive, wasActive } = closeTab(projectId, closeRef);
       // Three cases:
       //   1. nextActive → closed the active tab AND a sibling took over.
@@ -461,6 +477,7 @@ export function TopTimeline() {
         label: t('topTimeline.menu.close'),
         accelerator: 'Cmd+W',
         onClick: () => handleCloseTab(tab),
+        disabled: tab.kind === 'create' && tab.draft.status === 'creating',
       });
 
       // Split-create options only on leaves — splitting an already-split tab
@@ -533,10 +550,6 @@ export function TopTimeline() {
       t,
     ],
   );
-
-  if (openTabs.length === 0) {
-    return null;
-  }
 
   return (
     <div
@@ -618,6 +631,23 @@ export function TopTimeline() {
           setDropTarget(null);
         };
 
+        if (tab.kind === 'create') {
+          return (
+            <CreateTabSlot
+              key={key}
+              tab={tab}
+              isActive={isActive}
+              width={width}
+              label={t('topTimeline.newTab')}
+              onSelect={() => handleSelectTab(tab)}
+              onClose={() => handleCloseTab(tab)}
+              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
+              onDragOverSlot={onDragOverSlot}
+              onDropSlot={onDropSlot}
+            />
+          );
+        }
+
         if (tab.kind === 'leaf') {
           return (
             <LeafTabSlot
@@ -683,6 +713,20 @@ export function TopTimeline() {
         );
       })}
 
+      <button
+        type="button"
+        className="top-timeline-create-button"
+        aria-label={t('topTimeline.newEntity')}
+        title={t('topTimeline.newEntity')}
+        onClick={() => {
+          if (!projectId) return;
+          openCreateTab(projectId);
+          navigate(`/project/${projectId}`);
+        }}
+      >
+        <Plus size={16} strokeWidth={1.8} aria-hidden />
+      </button>
+
       {contextMenu && (
         <TabContextMenu
           x={contextMenu.x}
@@ -691,7 +735,63 @@ export function TopTimeline() {
           onClose={() => setContextMenu(null)}
         />
       )}
+    </div>
+  );
+}
 
+function CreateTabSlot({
+  tab,
+  isActive,
+  width,
+  label,
+  onSelect,
+  onClose,
+  onContextMenu,
+  onDragOverSlot,
+  onDropSlot,
+}: {
+  tab: CreateTab;
+  isActive: boolean;
+  width: number;
+  label: string;
+  onSelect: () => void;
+  onClose: () => void;
+  onContextMenu: (x: number, y: number) => void;
+  onDragOverSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDropSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+}) {
+  const { t } = useTranslation();
+  const isCreating = tab.draft.status === 'creating';
+  return (
+    <div
+      role="tab"
+      aria-selected={isActive}
+      data-tab-key={tabKey(tab)}
+      className={`app-tab app-tab--create${isActive ? ' is-active' : ''}`}
+      onClick={onSelect}
+      onDragOver={onDragOverSlot}
+      onDrop={onDropSlot}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onContextMenu(event.clientX, event.clientY);
+      }}
+      style={{ width, minWidth: TAB_FLOOR_WIDTH }}
+    >
+      <Plus size={14} strokeWidth={1.8} aria-hidden />
+      <span className="app-tab--create__label">{label}</span>
+      <button
+        type="button"
+        className="app-tab__close"
+        aria-label={t('topTimeline.closeTab')}
+        title={t('topTimeline.closeTab')}
+        disabled={isCreating}
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+      >
+        <X size={12} strokeWidth={2} />
+      </button>
     </div>
   );
 }

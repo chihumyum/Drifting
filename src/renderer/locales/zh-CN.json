@@ -2096,8 +2096,51 @@
       "closeRight": "关闭右侧全部",
       "closeAll": "全部关闭"
     },
+    "newEntity": "新建实体",
+    "newTab": "新建…",
     "closeTab": "关闭标签页",
     "closePane": "关闭分屏"
+  },
+  "universalCreate": {
+    "eyebrow": "新建实体",
+    "title": "你想新建什么？",
+    "subtitle": "先选择实体类型。只有确认创建后才会写入项目；关闭这个标签页不会留下任何内容。",
+    "back": "返回类型选择",
+    "continue": "继续",
+    "createNow": "立即创建",
+    "submit": "创建并打开",
+    "creating": "正在创建…",
+    "errorUnknown": "创建失败，请重试。",
+    "noCategories": "项目里还没有类目。请先返回并创建一个类目，再新建元素。",
+    "contextTitle": {
+      "chapter": "新建章节",
+      "drift": "新建灵感",
+      "element": "新建元素"
+    },
+    "contextSubtitle": {
+      "chapter": "章节可以暂时不归属故事线，也可以直接进入一条现有故事线。",
+      "drift": "灵感默认放在根层，也可以归入现有灵感分组。",
+      "element": "元素必须属于一个类目；分组可以稍后再整理。"
+    },
+    "kinds": {
+      "chapter": { "label": "章节", "description": "进入正文写作，并可选择所属故事线。" },
+      "drift": { "label": "灵感", "description": "记录暂时游离于正文之外的想法。" },
+      "element": { "label": "元素", "description": "创建人物、地点、物件等设定条目。" },
+      "storyline": { "label": "故事线", "description": "创建一条新的叙事线并进入编辑。" },
+      "category": { "label": "类目", "description": "为元素建立新的一级分类。" }
+    },
+    "fields": {
+      "storyline": "故事线",
+      "driftGroup": "灵感分组",
+      "categoryRequired": "类目（必选）",
+      "elementGroup": "元素分组"
+    },
+    "defaults": {
+      "unaffiliated": "未归属",
+      "root": "根层",
+      "chooseCategory": "选择类目…",
+      "ungrouped": "不分组"
+    }
   },
   "bottomTimeline": {
     "marker": {

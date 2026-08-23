@@ -37,6 +37,32 @@ export function isSingletonTabType(t: TabEntityType): boolean {
 
 export type TabRef = WorkspaceTarget;
 
+export type UniversalCreateEntityKind =
+  | 'chapter'
+  | 'drift'
+  | 'element'
+  | 'storyline'
+  | 'category';
+
+export interface CreateTabDraft {
+  step: 'kind' | 'context';
+  entityKind: UniversalCreateEntityKind | null;
+  storylineId: string | null;
+  driftGroupId: string | null;
+  categoryId: string | null;
+  elementGroupName: string | null;
+  status: 'idle' | 'creating';
+  error: string | null;
+}
+
+export const CREATE_TAB_ID = 'universal-new';
+
+export interface CreateTab {
+  kind: 'create';
+  id: typeof CREATE_TAB_ID;
+  draft: CreateTabDraft;
+}
+
 // Leaf — a single entity occupying a tab slot. The on-screen rendering of
 // a leaf is whatever view component matches its entityType.
 export interface LeafTab extends TabRef {
@@ -61,7 +87,7 @@ export interface SplitTab {
   splitRatio: number; // 0..1, fraction of width given to the left pane
 }
 
-export type AnyTab = LeafTab | SplitTab;
+export type AnyTab = LeafTab | SplitTab | CreateTab;
 
 // Backwards-compat alias for the pre-split-pane code that imported `Tab`.
 // New code should reference `LeafTab` or `AnyTab` directly.
@@ -85,14 +111,33 @@ export interface WorkspaceTabInventory {
 // that callers must opt-in to handle.
 export function tabKey(tab: AnyTab | TabRef): string {
   if ('kind' in tab && tab.kind === 'split') return `split:${tab.id}`;
+  if ('kind' in tab && tab.kind === 'create') return `create:${tab.id}`;
   return `${tab.entityType}:${tab.id}`;
 }
 
 // The leaf whose entity the focused pane is currently showing. For a leaf
 // tab that's itself; for a split tab it's the side under `focused`.
-export function focusedLeafOf(tab: AnyTab): LeafTab {
+export function focusedLeafOf(tab: AnyTab): LeafTab | null {
   if (tab.kind === 'leaf') return tab;
+  if (tab.kind === 'create') return null;
   return tab.focused === 'left' ? tab.left : tab.right;
+}
+
+export function initialCreateTabDraft(): CreateTabDraft {
+  return {
+    step: 'kind',
+    entityKind: null,
+    storylineId: null,
+    driftGroupId: null,
+    categoryId: null,
+    elementGroupName: null,
+    status: 'idle',
+    error: null,
+  };
+}
+
+function makeCreateTab(): CreateTab {
+  return { kind: 'create', id: CREATE_TAB_ID, draft: initialCreateTabDraft() };
 }
 
 function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
@@ -124,6 +169,11 @@ function pruneTabsToWorkspace(
   const openTabs: AnyTab[] = [];
 
   for (const tab of project.openTabs) {
+    if (tab.kind === 'create') {
+      openTabs.push(tab);
+      if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      continue;
+    }
     if (tab.kind === 'leaf') {
       if (!isLeafInWorkspace(tab, inventory)) continue;
       openTabs.push(tab);
@@ -147,6 +197,25 @@ function pruneTabsToWorkspace(
   const activeTabKey =
     replacementActiveKey ?? (openTabs[0] ? tabKey(openTabs[0]) : null);
   return { openTabs, activeTabKey };
+}
+
+export function persistableTabsByProject(
+  tabsByProject: Record<string, ProjectTabsState>,
+): Record<string, ProjectTabsState> {
+  const persisted: Record<string, ProjectTabsState> = {};
+  for (const [projectId, project] of Object.entries(tabsByProject)) {
+    const openTabs = project.openTabs.filter((tab) => tab.kind !== 'create');
+    const activeStillExists = openTabs.some((tab) => tabKey(tab) === project.activeTabKey);
+    persisted[projectId] = {
+      openTabs,
+      activeTabKey: activeStillExists
+        ? project.activeTabKey
+        : openTabs.length > 0
+          ? tabKey(openTabs[openTabs.length - 1])
+          : null,
+    };
+  }
+  return persisted;
 }
 
 // Generate a synthetic split id without pulling in a uuid dep.
@@ -331,6 +400,12 @@ interface UiState {
 
   tabsByProject: Record<string, ProjectTabsState>;
   openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
+  openCreateTab: (projectId: string) => void;
+  updateCreateTabDraft: (projectId: string, patch: Partial<CreateTabDraft>) => void;
+  replaceCreateTabWithEntity: (
+    projectId: string,
+    ref: TabRef,
+  ) => { replaced: boolean; wasActive: boolean };
   promoteTab: (projectId: string, ref?: TabRef) => void;
   // Close a top-level tab (either a leaf or a whole split). Returns:
   //   • nextActive — the leaf that should become active next so the URL /
@@ -344,10 +419,13 @@ interface UiState {
   //     active (or re-create a singleton tab when navigating home).
   closeTab: (
     projectId: string,
-    ref: TabRef | { splitId: string },
+    ref: TabRef | { splitId: string } | { createId: typeof CREATE_TAB_ID },
   ) => { nextActive: LeafTab | null; wasActive: boolean };
   reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
-  setActiveTab: (projectId: string, ref: TabRef | { splitId: string } | null) => void;
+  setActiveTab: (
+    projectId: string,
+    ref: TabRef | { splitId: string } | { createId: typeof CREATE_TAB_ID } | null,
+  ) => void;
   clearProjectTabs: (projectId: string) => void;
   pruneProjectTabs: (projectId: string, inventory: WorkspaceTabInventory) => void;
 
@@ -727,7 +805,7 @@ export const useUiStore = create<UiState>()(
             const activeTab = project.openTabs.find((t) => tabKey(t) === project.activeTabKey);
             if (activeTab && activeTab.kind === 'split') {
               const split = activeTab;
-              const focusedKey = tabKey(focusedLeafOf(split));
+              const focusedKey = tabKey(focusedLeafOf(split)!);
               if (focusedKey === key) return {};
               const updated: SplitTab = {
                 ...split,
@@ -761,10 +839,18 @@ export const useUiStore = create<UiState>()(
               nextOpenTabs = project.openTabs.slice();
               nextOpenTabs[previewIdx] = newLeaf;
             } else {
-              nextOpenTabs = [...project.openTabs, newLeaf];
+              const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
+              nextOpenTabs = project.openTabs.slice();
+              nextOpenTabs.splice(createIdx >= 0 ? createIdx : nextOpenTabs.length, 0, newLeaf);
             }
           } else {
-            nextOpenTabs = [...project.openTabs, { ...newLeaf, isPreview: false }];
+            const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
+            nextOpenTabs = project.openTabs.slice();
+            nextOpenTabs.splice(
+              createIdx >= 0 ? createIdx : nextOpenTabs.length,
+              0,
+              { ...newLeaf, isPreview: false },
+            );
           }
 
           return {
@@ -774,6 +860,76 @@ export const useUiStore = create<UiState>()(
             },
           };
         }),
+
+      openCreateTab: (projectId) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
+          const existing = project.openTabs.find((tab) => tab.kind === 'create');
+          if (existing) {
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: { ...project, activeTabKey: tabKey(existing) },
+              },
+            };
+          }
+          const createTab = makeCreateTab();
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: {
+                openTabs: [...project.openTabs, createTab],
+                activeTabKey: tabKey(createTab),
+              },
+            },
+          };
+        }),
+
+      updateCreateTabDraft: (projectId, patch) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          let changed = false;
+          const openTabs = project.openTabs.map((tab) => {
+            if (tab.kind !== 'create') return tab;
+            changed = true;
+            return { ...tab, draft: { ...tab.draft, ...patch } };
+          });
+          if (!changed) return {};
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs },
+            },
+          };
+        }),
+
+      replaceCreateTabWithEntity: (projectId, ref) => {
+        let replaced = false;
+        let wasActive = false;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
+          if (createIdx < 0) return {};
+          const createKey = tabKey(project.openTabs[createIdx]);
+          const leaf = makeLeafTab(ref, false);
+          const openTabs = project.openTabs.slice();
+          openTabs[createIdx] = leaf;
+          replaced = true;
+          wasActive = project.activeTabKey === createKey;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: {
+                openTabs,
+                activeTabKey: wasActive ? tabKey(leaf) : project.activeTabKey,
+              },
+            },
+          };
+        });
+        return { replaced, wasActive };
+      },
 
       promoteTab: (projectId, ref) =>
         set((state) => {
@@ -801,9 +957,16 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const key = 'splitId' in ref ? `split:${ref.splitId}` : `${ref.entityType}:${ref.id}`;
+          const key =
+            'splitId' in ref
+              ? `split:${ref.splitId}`
+              : 'createId' in ref
+                ? `create:${ref.createId}`
+                : `${ref.entityType}:${ref.id}`;
           const idx = project.openTabs.findIndex((t) => tabKey(t) === key);
           if (idx < 0) return {};
+          const closing = project.openTabs[idx];
+          if (closing.kind === 'create' && closing.draft.status === 'creating') return {};
           const nextOpenTabs = project.openTabs.slice();
           nextOpenTabs.splice(idx, 1);
 
@@ -844,9 +1007,14 @@ export const useUiStore = create<UiState>()(
           ) {
             return {};
           }
+          if (project.openTabs[fromIndex].kind === 'create') return {};
+          const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
+          const boundedToIndex =
+            createIdx >= 0 ? Math.max(0, Math.min(toIndex, createIdx - 1)) : toIndex;
+          if (fromIndex === boundedToIndex) return {};
           const nextOpenTabs = project.openTabs.slice();
           const [moved] = nextOpenTabs.splice(fromIndex, 1);
-          nextOpenTabs.splice(toIndex, 0, moved);
+          nextOpenTabs.splice(boundedToIndex, 0, moved);
           return {
             tabsByProject: {
               ...state.tabsByProject,
@@ -861,6 +1029,7 @@ export const useUiStore = create<UiState>()(
           let nextKey: string | null;
           if (!ref) nextKey = null;
           else if ('splitId' in ref) nextKey = `split:${ref.splitId}`;
+          else if ('createId' in ref) nextKey = `create:${ref.createId}`;
           else nextKey = `${ref.entityType}:${ref.id}`;
           if (project.activeTabKey === nextKey) return {};
           return {
@@ -956,6 +1125,16 @@ export const useUiStore = create<UiState>()(
           }
 
           const active = workingTabs[activeIdx];
+          if (active.kind === 'create') {
+            const insertionIdx = activeIdx;
+            workingTabs.splice(insertionIdx, 0, sourceLeaf);
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: { openTabs: workingTabs, activeTabKey: tabKey(sourceLeaf) },
+              },
+            };
+          }
           let newSplit: SplitTab;
           let displacedLeaf: LeafTab | null = null;
           if (active.kind === 'leaf') {
@@ -1144,11 +1323,16 @@ export const useUiStore = create<UiState>()(
           if (!project) return {};
           const keep = project.openTabs.find((t) => tabKey(t) === keepKey);
           if (!keep) return {};
+          const protectedCreate = project.openTabs.find(
+            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
+          );
+          const openTabs =
+            protectedCreate && protectedCreate !== keep ? [keep, protectedCreate] : [keep];
           nextActive = focusedLeafOf(keep);
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: [keep], activeTabKey: keepKey },
+              [projectId]: { openTabs, activeTabKey: keepKey },
             },
           };
         });
@@ -1163,6 +1347,12 @@ export const useUiStore = create<UiState>()(
           const idx = project.openTabs.findIndex((t) => tabKey(t) === anchorKey);
           if (idx < 0) return {};
           const nextOpenTabs = project.openTabs.slice(0, idx + 1);
+          const protectedCreate = project.openTabs.find(
+            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
+          );
+          if (protectedCreate && !nextOpenTabs.includes(protectedCreate)) {
+            nextOpenTabs.push(protectedCreate);
+          }
           let nextActiveTabKey = project.activeTabKey;
           if (
             project.activeTabKey &&
@@ -1183,11 +1373,17 @@ export const useUiStore = create<UiState>()(
 
       closeAllTabs: (projectId) =>
         set((state) => {
-          if (!state.tabsByProject[projectId]) return {};
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const protectedCreate = project.openTabs.find(
+            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
+          );
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: [], activeTabKey: null },
+              [projectId]: protectedCreate
+                ? { openTabs: [protectedCreate], activeTabKey: tabKey(protectedCreate) }
+                : { openTabs: [], activeTabKey: null },
             },
           };
         }),
@@ -1207,6 +1403,7 @@ export const useUiStore = create<UiState>()(
           // active-tab key with the same "prefer right neighbor" rule
           // closeTab uses.
           const replacements: Array<AnyTab | null> = project.openTabs.map((tab) => {
+            if (tab.kind === 'create') return tab;
             if (tab.kind === 'leaf') {
               return matchesLeaf(tab) ? null : tab;
             }
@@ -1286,7 +1483,7 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'ui-storage', // unique name
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
@@ -1297,7 +1494,7 @@ export const useUiStore = create<UiState>()(
         rightPanelSplitRatio: state.rightPanelSplitRatio,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
-        tabsByProject: state.tabsByProject,
+        tabsByProject: persistableTabsByProject(state.tabsByProject),
         bottomTimelineHidden: state.bottomTimelineHidden,
         plotPlannerOpen: state.plotPlannerOpen,
         plotPlannerHeight: state.plotPlannerHeight,
@@ -1320,9 +1517,16 @@ export const useUiStore = create<UiState>()(
       // tab bar.
       migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== 'object') return persisted;
-        if (version >= 2) return persisted;
         const state = persisted as { tabsByProject?: Record<string, unknown> };
         if (!state.tabsByProject) return persisted;
+        if (version >= 2) {
+          return {
+            ...state,
+            tabsByProject: persistableTabsByProject(
+              state.tabsByProject as Record<string, ProjectTabsState>,
+            ),
+          };
+        }
         const migrated: Record<string, ProjectTabsState> = {};
         for (const [projectId, raw] of Object.entries(state.tabsByProject)) {
           if (!raw || typeof raw !== 'object') continue;
