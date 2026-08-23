@@ -12,11 +12,14 @@ import { Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
+import { getActiveEditor } from '../../../lib/active-editor';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobilePaperContent } from './MobilePaperContent';
 import { MobileBarSheet } from './MobileBarSheet';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
+import { MobilePaperStatusSheet } from './MobilePaperStatusSheet';
+import { MobilePanelPullHandle } from './MobilePanelPullHandle';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
 import {
@@ -159,6 +162,7 @@ export function MobilePaperDeck({
   const paperSwipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composingRef = useRef(false);
   const suppressClickRef = useRef(false);
+  const previousActiveKeyRef = useRef(session.activeKey);
   const [paperSwipePhase, setPaperSwipePhase] = useState<PaperSwipePhase>('idle');
   const [panelExtentOverride, setPanelExtentOverride] = useState<number | null>(null);
   const [dockedExtent, setDockedExtent] = useState({
@@ -200,7 +204,18 @@ export function MobilePaperDeck({
   const panelExtent = panelExtentOverride ?? settledPanelExtent;
   const visibleExtent = reveal === 'focused' ? 0 : panelExtent;
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
+  const activeIndex = active
+    ? session.papers.findIndex((paper) => paper.key === active.key)
+    : -1;
   const editorActive = workspaceUi.paperMode.kind === 'edit';
+
+  useLayoutEffect(() => {
+    if (previousActiveKeyRef.current === session.activeKey) return;
+    previousActiveKeyRef.current = session.activeKey;
+    getActiveEditor()?.commands.blur();
+    setKeyboardInset(0);
+    onWorkspaceUiAction({ type: 'sync-editor', editing: false });
+  }, [onWorkspaceUiAction, session.activeKey]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
@@ -281,20 +296,39 @@ export function MobilePaperDeck({
       if (paperSwipeTimerRef.current) clearTimeout(paperSwipeTimerRef.current);
       const settle = () => {
         paperSwipeTimerRef.current = null;
-        if (committed && destination.key !== session.activeKey) onActivate(destination);
+        if (committed && destination.key !== session.activeKey) {
+          getActiveEditor()?.commands.blur();
+          onWorkspaceUiAction({ type: 'sync-editor', editing: false });
+          onActivate(destination);
+        }
         setPaperSwipePhase('idle');
       };
       if (reducedMotion) settle();
       else paperSwipeTimerRef.current = setTimeout(settle, PAPER_SWIPE_SETTLE_MS);
     },
-    [active, onActivate, scrollPaperIntoPlace, session.activeKey, session.papers],
+    [
+      active,
+      onActivate,
+      onWorkspaceUiAction,
+      scrollPaperIntoPlace,
+      session.activeKey,
+      session.papers,
+    ],
   );
 
   const beginPaperSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     const row = event.currentTarget;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (session.papers.length < 2 || paperSwipePhase !== 'idle') return;
-    if (mobilePaperSwipeTargetIsExcluded(event.target, row)) return;
+    if (
+      mobilePaperSwipeTargetIsExcluded(
+        event.target,
+        row,
+        active?.target.entityType === 'dashboard',
+      )
+    ) {
+      return;
+    }
     if (
       !canStartMobilePaperSwipe({
         workspace: workspaceUi,
@@ -470,14 +504,9 @@ export function MobilePaperDeck({
       onWorkspaceUiAction({ type: 'sync-keyboard', keyboard }),
     [onWorkspaceUiAction],
   );
-  const setEditorAccessoryExpanded = useCallback(
-    (expanded: boolean) =>
-      onWorkspaceUiAction({
-        type: 'set-transient',
-        transient: expanded
-          ? { kind: 'bar-sheet', sheet: 'formatting' }
-          : { kind: 'none' },
-      }),
+  const setEditorAccessoryMode = useCallback(
+    (accessory: 'navigation' | 'formatting') =>
+      onWorkspaceUiAction({ type: 'set-editor-accessory', accessory }),
     [onWorkspaceUiAction],
   );
 
@@ -513,6 +542,13 @@ export function MobilePaperDeck({
         composingRef.current = false;
       }}
     >
+      <MobilePanelPullHandle
+        panel="top"
+        extent={workspaceUi.panel.startsWith('top-') ? panelExtent : 0}
+        disabled={workspaceUi.surface.kind !== 'paper'}
+        onExtentChange={setExtentFromHandle}
+        onExtentCommit={commitExtentFromHandle}
+      />
       <MobileWorkspacePanels
         projectId={projectId}
         target={active?.target ?? null}
@@ -624,6 +660,17 @@ export function MobilePaperDeck({
         />
       )}
 
+      {workspaceUi.transient.kind === 'paper-status' && active && activeIndex >= 0 && (
+        <MobilePaperStatusSheet
+          target={active.target}
+          paperIndex={activeIndex}
+          paperCount={session.papers.length}
+          onClose={() =>
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
+          }
+        />
+      )}
+
       {activeBarSheet && (
         <MobileBarSheet
           sheet={activeBarSheet}
@@ -640,18 +687,22 @@ export function MobilePaperDeck({
         paperCount={session.papers.length}
         activeRail={activeRail}
         keyboardInset={keyboardInset}
-        onWorkspacePanelChange={(panel) =>
-          onWorkspaceUiAction({ type: 'set-panel', panel })
-        }
+        panelExtent={panelExtent}
+        onPanelExtentChange={setExtentFromHandle}
+        onPanelExtentCommit={commitExtentFromHandle}
         onOpenOverview={onOpenOverview}
+        onOpenStatus={() =>
+          onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-status' } })
+        }
         onOpenSearch={openSearch}
         onProjectSearch={onProjectSearch}
         onActiveRailChange={setActivePaperRail}
-        editorAccessoryExpanded={
-          workspaceUi.transient.kind === 'bar-sheet' &&
-          workspaceUi.transient.sheet === 'formatting'
+        editorAccessoryMode={
+          workspaceUi.paperMode.kind === 'edit'
+            ? workspaceUi.paperMode.accessory
+            : 'formatting'
         }
-        onEditorAccessoryExpandedChange={setEditorAccessoryExpanded}
+        onEditorAccessoryModeChange={setEditorAccessoryMode}
         onEditingStateChange={syncEditor}
         onKeyboardStateChange={syncKeyboard}
         onKeyboardInsetChange={setKeyboardInset}

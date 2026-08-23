@@ -21,7 +21,7 @@ describe('Mobile V2 paper swipe arbitration', () => {
     ).toBe(true);
 
     for (const environment of [
-      { workspace: { ...root, paperMode: { kind: 'edit', accessory: 'compact' } as const } },
+      { workspace: { ...root, paperMode: { kind: 'edit', accessory: 'navigation' } as const } },
       { workspace: { ...root, panel: 'top-docked' as const } },
       { workspace: { ...root, transient: { kind: 'search', scope: 'paper' } as const } },
       { workspace: { ...root, surface: { kind: 'overview' } as const } },

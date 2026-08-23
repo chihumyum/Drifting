@@ -1,6 +1,5 @@
-import { ListTree, MessageSquare, Type, X } from 'lucide-react';
+import { ListTree, MessageSquare, MoreHorizontal, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { MobileFormattingSheetContent } from './MobileEditorAccessory';
 import type { MobileWorkspaceTransient } from './mobile-workspace-controller';
 
 type BarSheet = Extract<MobileWorkspaceTransient, { kind: 'bar-sheet' }>['sheet'];
@@ -8,13 +7,11 @@ type BarSheet = Extract<MobileWorkspaceTransient, { kind: 'bar-sheet' }>['sheet'
 export function MobileBarSheet({ sheet, onClose }: { sheet: BarSheet; onClose: () => void }) {
   const { t } = useTranslation();
   const presentation =
-    sheet === 'formatting'
-      ? { icon: Type, label: t('mobileWorkspace.editorAccessory.expand', { defaultValue: '格式' }) }
-      : sheet === 'outline'
+    sheet === 'outline'
         ? { icon: ListTree, label: t('mobileEditorRails.toc') }
         : sheet === 'comments'
           ? { icon: MessageSquare, label: t('mobileEditorRails.comments') }
-          : { icon: Type, label: t('mobileEditorRails.menu') };
+          : { icon: MoreHorizontal, label: t('mobileEditorRails.menu') };
   const Icon = presentation.icon;
   return (
     <div className="m-bar-sheet" data-sheet={sheet} role="presentation">
@@ -42,7 +39,6 @@ export function MobileBarSheet({ sheet, onClose }: { sheet: BarSheet; onClose: (
           }
           className="m-bar-sheet__content"
         >
-          {sheet === 'formatting' ? <MobileFormattingSheetContent /> : null}
         </div>
       </section>
     </div>

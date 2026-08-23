@@ -2,7 +2,7 @@
 
 Status: **M2 implementation, iOS Simulator acceptance, and Android Emulator Back acceptance complete**
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 This document records the implemented M2 state and Back boundary. It remains
 current implementation truth for navigation ownership. M3 now renders the
@@ -16,10 +16,10 @@ has five axes:
 
 ```text
 surface    = paper | overview | super-view(view)
-paperMode  = read | edit(accessory: compact | expanded)
+paperMode  = read | edit(accessory: navigation | formatting)
 panel      = none | top-docked | top-full | bottom-docked | bottom-full
 transient  = none | search | agent-input | popover | bar-sheet
-             | entity-preview | dialog
+             | paper-status | entity-preview | dialog
 keyboard   = closed | open
 ```
 
@@ -33,7 +33,10 @@ The reducer normalizes transitions instead of allowing callers to construct
 contradictory combinations. Examples include:
 
 - a non-paper surface cannot edit, own a panel, or retain the keyboard;
-- editing and a structure/tool panel are mutually exclusive;
+- edit mode requires a focused live editor and a visibly open software
+  keyboard; keyboard-less pseudo-edit is illegal;
+- structure/tool panels are independent from the keyboard accessory and may
+  retain their state while editing;
 - Search and Agent input cannot coexist with a panel;
 - an open keyboard requires edit, Search, or Agent-input ownership;
 - Project Trash starts from a clean read root;
@@ -51,16 +54,15 @@ returns exactly one layer, one legal next state, and at most one effect. The
 implemented order is:
 
 1. destructive, native, or full-screen Project Trash dialog;
-2. popover, entity preview, or bar sheet;
-3. expanded editor accessory;
+2. popover, current-paper status, entity preview, or bar sheet;
+3. edit mode and its keyboard atomically return to read mode and blur the
+   editor;
 4. Search or Agent input, including its keyboard;
-5. a standalone editor keyboard;
-6. full panel to the corresponding docked panel;
-7. docked panel to the read paper;
-8. Super View child layers, then the Super View root;
-9. Overview root;
-10. edit mode to read mode;
-11. Android hardware Back at the read root leaves the Project.
+5. full panel to the corresponding docked panel;
+6. docked panel to the read paper;
+7. Super View child layers, then the Super View root;
+8. Overview root;
+9. Android hardware Back at the read root leaves the Project.
 
 A visible control or keyboard Escape at the read root is intentionally a
 no-op. It cannot leave the Project or switch papers. Android hardware Back is
@@ -98,12 +100,13 @@ needed by that existing plugin.
 
 - whether the future bar is visible;
 - read, edit, Search, or Agent-input mode;
-- disabled, Back, or keyboard-dismiss left action;
+- disabled, Back, or keyboard-dismiss action;
 - safe-bottom or above-bottom-panel placement.
 
-M3 renders that projection in one 56px `MobileUnifiedBar`; the old paper
-cluster and paper-pinch chrome are removed. The implemented presentation and
-gesture boundary is documented in
+M3 renders that projection in one 56px `MobileUnifiedBar`; the 2026-08-24
+interaction correction makes it a floating pill, removes panel buttons, and
+keeps its keyboard accessory independent from panel ownership. The implemented
+presentation and gesture boundary is documented in
 [`unified-bar-rails-and-paper-swipe.md`](unified-bar-rails-and-paper-swipe.md).
 M2 still owns Search state and Back semantics, while M4 owns the complete
 author-visible Search controller and UI.

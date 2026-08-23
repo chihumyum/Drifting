@@ -1,4 +1,4 @@
-import { Check, ListTree, Menu, MessageSquare } from 'lucide-react';
+import { Check, Layers3, ListTree, Menu, MessageSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CommentTargetKind } from '../../../domain/comment';
@@ -31,10 +31,12 @@ export function MobilePaperRailMenu({
   target,
   activeRail,
   onActiveRailChange,
+  onOpenOverview,
 }: {
   target: WorkspaceTarget | null;
   activeRail: MobilePaperRail | null;
   onActiveRailChange: (rail: MobilePaperRail | null) => void;
+  onOpenOverview: () => void;
 }) {
   const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -71,7 +73,7 @@ export function MobilePaperRailMenu({
     queueMicrotask(() => setCommentsVisible(false));
   }, [activeRail, commentsVisible, setCommentsVisible]);
 
-  if ((!availability.toc && !availability.comments) || typeof document === 'undefined') {
+  if (typeof document === 'undefined') {
     return null;
   }
 
@@ -116,6 +118,17 @@ export function MobilePaperRailMenu({
         restoreFocus={false}
       >
         <div className="m-paper-rail-menu__label">{t('mobileEditorRails.menu')}</div>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setMenuOpen(false);
+            onOpenOverview();
+          }}
+        >
+          <Layers3 size={17} aria-hidden="true" />
+          <span>{t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}</span>
+        </button>
         {availability.toc && (
           <button
             type="button"

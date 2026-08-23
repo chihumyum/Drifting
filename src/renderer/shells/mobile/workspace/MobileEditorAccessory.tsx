@@ -1,7 +1,9 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
@@ -66,16 +68,16 @@ const KEY_BY_ACTION: Record<string, string> = {
 const KEYBOARD_INSET_THRESHOLD = 72;
 
 export function MobileEditorAccessory({
-  expanded,
-  onExpandedChange,
+  active,
+  mode,
+  onModeChange,
   onEditingStateChange,
-  onKeyboardStateChange,
   onKeyboardInsetChange,
 }: {
-  expanded: boolean;
-  onExpandedChange?: (expanded: boolean) => void;
+  active: boolean;
+  mode: 'navigation' | 'formatting';
+  onModeChange?: (mode: 'navigation' | 'formatting') => void;
   onEditingStateChange?: (editing: boolean) => void;
-  onKeyboardStateChange?: (keyboard: 'closed' | 'open') => void;
   onKeyboardInsetChange?: (inset: number) => void;
 }) {
   const { t } = useTranslation();
@@ -86,8 +88,25 @@ export function MobileEditorAccessory({
   });
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [softwareKeyboardVisible, setSoftwareKeyboardVisible] = useState(false);
+  const observedKeyboardWhileFocusedRef = useRef(false);
   const [, setRevision] = useState(0);
-  const editing = Boolean(editor && !editor.isDestroyed && focusedEditor === editor);
+  const editorFocused = Boolean(editor && !editor.isDestroyed && focusedEditor === editor);
+  const editing = editorFocused && softwareKeyboardVisible;
+  const actions = useMemo<AccessoryAction[]>(() => {
+    const items = [...getBlockFormatItems(), ...getInlineFormatItems()];
+    return items.flatMap((item) => {
+      const icon = ICON_BY_ACTION[item.id];
+      const key = KEY_BY_ACTION[item.id];
+      if (!icon || !key) return [];
+      return [
+        {
+          item,
+          icon,
+          label: t(`mobileWorkspace.editorAccessory.${key}`, { defaultValue: item.title }),
+        },
+      ];
+    });
+  }, [t]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -120,17 +139,10 @@ export function MobileEditorAccessory({
     };
   }, [editor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onEditingStateChange?.(editing);
     return () => onEditingStateChange?.(false);
   }, [editing, onEditingStateChange]);
-
-  const keyboardVisible = editing && softwareKeyboardVisible;
-
-  useEffect(() => {
-    onKeyboardStateChange?.(keyboardVisible ? 'open' : 'closed');
-    return () => onKeyboardStateChange?.('closed');
-  }, [keyboardVisible, onKeyboardStateChange]);
 
   useEffect(() => {
     onKeyboardInsetChange?.(keyboardInset);
@@ -144,7 +156,7 @@ export function MobileEditorAccessory({
   );
 
   useEffect(() => {
-    if (!editing) return;
+    if (!editorFocused) return;
     const viewport = window.visualViewport;
     let frame = 0;
     const syncInset = () => {
@@ -166,27 +178,57 @@ export function MobileEditorAccessory({
       window.removeEventListener('resize', syncInset);
       window.removeEventListener(MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT, syncInset);
     };
-  }, [editing]);
+  }, [editorFocused]);
 
-  const keepEditorFocused = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
-      // Execute before a mobile browser can move focus from contenteditable to
-      // the button. The matching click is ignored; keyboard-triggered clicks
-      // still use onClick below (detail === 0).
-      event.preventDefault();
-      action();
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return undefined;
+    if (!editorFocused) {
+      observedKeyboardWhileFocusedRef.current = false;
+      return undefined;
+    }
+    if (softwareKeyboardVisible) {
+      observedKeyboardWhileFocusedRef.current = true;
+      return undefined;
+    }
+    if (observedKeyboardWhileFocusedRef.current) {
+      editor.commands.blur();
+      return undefined;
+    }
 
-  if (!editing || !editor || editor.isDestroyed) return null;
+    // A tap focuses WebKit before visualViewport/native IME geometry catches
+    // up. Give the software keyboard one short opening window; if it never
+    // appears, remove the caret instead of leaving a stable focus/read hybrid.
+    const timer = window.setTimeout(() => {
+      if (
+        editor.isFocused &&
+        !readMobileSoftwareKeyboardVisible(KEYBOARD_INSET_THRESHOLD)
+      ) {
+        editor.commands.blur();
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [editor, editorFocused, softwareKeyboardVisible]);
 
-  const toggle = () => onExpandedChange?.(!expanded);
+  const keepEditorFocused = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    // Prevent the browser from moving focus away from contenteditable, but do
+    // not reflow the whole accessory until this pointer gesture has completed.
+    // Reflowing on pointerdown lets iOS retarget the remaining gesture at the
+    // newly exposed navigation row and can produce a ghost editor input.
+    event.preventDefault();
+  }, []);
+
+  if (!active || !editing || !editor || editor.isDestroyed) return null;
+
+  const toggle = () => onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+  const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
+    event.preventDefault();
+    action();
+  };
   return (
     <aside
       className="m-editor-accessory"
-      data-expanded={expanded ? 'true' : 'false'}
-      data-keyboard={keyboardVisible ? 'true' : 'false'}
+      data-mode={mode}
+      data-keyboard="true"
       aria-label={t('mobileWorkspace.editorAccessory.label', {
         defaultValue: '编辑样式附件栏',
       })}
@@ -194,78 +236,39 @@ export function MobileEditorAccessory({
       <button
         type="button"
         className="m-editor-accessory__toggle"
-        aria-expanded={expanded}
+        aria-expanded={mode === 'formatting'}
         aria-label={t(
-          expanded
+          mode === 'formatting'
             ? 'mobileWorkspace.editorAccessory.collapse'
             : 'mobileWorkspace.editorAccessory.expand',
-          { defaultValue: expanded ? '收起格式栏' : '展开格式栏' },
+          { defaultValue: mode === 'formatting' ? '收起格式栏' : '展开格式栏' },
         )}
-        onPointerDown={(event) => keepEditorFocused(event, toggle)}
-        onClick={(event) => {
-          if (event.detail === 0) toggle();
-        }}
+        onPointerDown={keepEditorFocused}
+        onClick={toggle}
       >
-        <Type size={20} strokeWidth={1.8} aria-hidden="true" />
+        <Type size={18} strokeWidth={1.8} aria-hidden="true" />
+        <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
       </button>
 
-      <span className="m-editor-accessory__label">
-        {t('mobileWorkspace.editorAccessory.expand', { defaultValue: '格式' })}
-      </span>
+      {mode === 'formatting' && (
+        <div className="m-editor-accessory__actions" role="toolbar">
+          {actions.map(({ item, icon: Icon, label }) => (
+            <button
+              key={item.id}
+              type="button"
+              className="m-editor-accessory__action"
+              aria-label={label}
+              aria-pressed={item.isActive?.(editor) ?? false}
+              onPointerDown={(event) => run(event, () => item.run(editor))}
+              onClick={(event) => {
+                if (event.detail === 0) item.run(editor);
+              }}
+            >
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
     </aside>
-  );
-}
-
-export function MobileFormattingSheetContent() {
-  const { t } = useTranslation();
-  const editor = useSyncExternalStore(subscribeActiveEditor, getActiveEditor, () => null);
-  const [, setRevision] = useState(0);
-  const actions = useMemo<AccessoryAction[]>(() => {
-    const items = [...getBlockFormatItems(), ...getInlineFormatItems()];
-    return items.flatMap((item) => {
-      const icon = ICON_BY_ACTION[item.id];
-      const key = KEY_BY_ACTION[item.id];
-      if (!icon || !key) return [];
-      return [{ item, icon, label: t(`mobileWorkspace.editorAccessory.${key}`, { defaultValue: item.title }) }];
-    });
-  }, [t]);
-
-  useEffect(() => {
-    if (!editor || editor.isDestroyed) return undefined;
-    const update = () => setRevision((revision) => revision + 1);
-    editor.on('selectionUpdate', update);
-    editor.on('transaction', update);
-    return () => {
-      editor.off('selectionUpdate', update);
-      editor.off('transaction', update);
-    };
-  }, [editor]);
-
-  if (!editor || editor.isDestroyed) {
-    return <p className="m-bar-sheet__empty">{t('editorMainArea.emptyHint')}</p>;
-  }
-
-  const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
-    event.preventDefault();
-    action();
-  };
-  return (
-    <div className="m-format-sheet" role="toolbar">
-      {actions.map(({ item, icon: Icon, label }) => (
-        <button
-          key={item.id}
-          type="button"
-          aria-label={label}
-          aria-pressed={item.isActive?.(editor) ?? false}
-          onPointerDown={(event) => run(event, () => item.run(editor))}
-          onClick={(event) => {
-            if (event.detail === 0) item.run(editor);
-          }}
-        >
-          <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
-          <span>{label}</span>
-        </button>
-      ))}
-    </div>
   );
 }

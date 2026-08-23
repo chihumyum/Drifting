@@ -8,6 +8,26 @@ import {
 const chapter = (id: string) => ({ entityType: 'node' as const, id });
 
 describe('mobile workspace paper session', () => {
+  it('ensures the Project dashboard is an ordinary first paper without stealing activation', () => {
+    const chapterState = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
+      type: 'open',
+      target: chapter('a'),
+    });
+    const withDashboard = mobileWorkspaceSessionReducer(chapterState, {
+      type: 'ensure',
+      target: { entityType: 'dashboard', id: 'self' },
+      position: 'start',
+    });
+    expect(withDashboard.papers.map((paper) => paper.key)).toEqual(['dashboard:self', 'node:a']);
+    expect(withDashboard.activeKey).toBe('node:a');
+    expect(
+      mobileWorkspaceSessionReducer(withDashboard, {
+        type: 'ensure',
+        target: { entityType: 'dashboard', id: 'self' },
+      }),
+    ).toBe(withDashboard);
+  });
+
   it('inserts a new paper to the right and activates an existing paper without duplicating it', () => {
     const first = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
       type: 'open',

@@ -4,8 +4,6 @@ import {
   ChevronUp,
   ChevronsDown,
   Layers3,
-  PanelBottom,
-  PanelTop,
   Search,
 } from 'lucide-react';
 import { useEffect, useSyncExternalStore, type CSSProperties } from 'react';
@@ -14,15 +12,14 @@ import { getActiveEditor } from '../../../lib/active-editor';
 import type { MobilePaper } from './mobile-workspace-session';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 import { MobileEditorAccessory } from './MobileEditorAccessory';
+import { MobilePanelPullHandle } from './MobilePanelPullHandle';
 import { MobilePaperRailMenu } from './MobilePaperRailMenu';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
 import {
   selectMobileUnifiedBarProjection,
-  type MobileWorkspacePanel,
   type MobileWorkspaceUiState,
 } from './mobile-workspace-controller';
 import type { MobilePaperRail } from './mobile-paper-rail';
-import { nextMobilePanelForBar } from './mobile-unified-bar-state';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
@@ -101,12 +98,10 @@ function MobileUnifiedSearch({
 
 function MobileUnifiedBarPaperIdentity({
   paper,
-  paperCount,
-  onOpenOverview,
+  onOpenStatus,
 }: {
   paper: MobilePaper;
-  paperCount: number;
-  onOpenOverview: () => void;
+  onOpenStatus: () => void;
 }) {
   const presentation = useMobilePaperPresentation(paper.target);
   const allChaptersContext = useSyncExternalStore(
@@ -119,9 +114,9 @@ function MobileUnifiedBarPaperIdentity({
     <button
       type="button"
       className="m-unified-bar__paper"
-      data-debug-id="mobile-open-overview"
-      onClick={onOpenOverview}
-      aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
+      data-debug-id="mobile-open-paper-status"
+      onClick={onOpenStatus}
+      aria-label={t('mobileWorkspace.paperStatus.open', { defaultValue: '查看当前纸张状态' })}
     >
       <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
       <span>
@@ -136,7 +131,6 @@ function MobileUnifiedBarPaperIdentity({
             : presentation.title}
         </strong>
       </span>
-      <em>{paperCount}</em>
     </button>
   );
 }
@@ -147,13 +141,16 @@ export function MobileUnifiedBar({
   paperCount,
   activeRail,
   keyboardInset,
-  onWorkspacePanelChange,
+  panelExtent,
+  onPanelExtentChange,
+  onPanelExtentCommit,
   onOpenOverview,
+  onOpenStatus,
   onOpenSearch,
   onProjectSearch,
   onActiveRailChange,
-  editorAccessoryExpanded,
-  onEditorAccessoryExpandedChange,
+  editorAccessoryMode,
+  onEditorAccessoryModeChange,
   onEditingStateChange,
   onKeyboardStateChange,
   onKeyboardInsetChange,
@@ -163,13 +160,16 @@ export function MobileUnifiedBar({
   paperCount: number;
   activeRail: MobilePaperRail | null;
   keyboardInset: number;
-  onWorkspacePanelChange: (panel: MobileWorkspacePanel) => void;
+  panelExtent: number;
+  onPanelExtentChange: (panel: 'top' | 'bottom', extent: number) => void;
+  onPanelExtentCommit: (panel: 'top' | 'bottom', extent: number) => void;
   onOpenOverview: () => void;
+  onOpenStatus: () => void;
   onOpenSearch: () => void;
   onProjectSearch: (query: string) => void;
   onActiveRailChange: (rail: MobilePaperRail | null) => void;
-  editorAccessoryExpanded: boolean;
-  onEditorAccessoryExpandedChange: (expanded: boolean) => void;
+  editorAccessoryMode: 'navigation' | 'formatting';
+  onEditorAccessoryModeChange: (mode: 'navigation' | 'formatting') => void;
   onEditingStateChange: (editing: boolean) => void;
   onKeyboardStateChange: (keyboard: 'closed' | 'open') => void;
   onKeyboardInsetChange: (inset: number) => void;
@@ -214,8 +214,11 @@ export function MobileUnifiedBar({
     if (projection.leftAction === 'dismiss-keyboard') getActiveEditor()?.commands.blur();
     requestMobileWorkspaceBack('visible');
   };
-  const setPanel = (side: 'top' | 'bottom') =>
-    onWorkspacePanelChange(nextMobilePanelForBar(workspaceUi.panel, side));
+  const editingFormatting =
+    projection.mode === 'edit' && editorAccessoryMode === 'formatting';
+  const showPaperNavigation =
+    projection.mode === 'read' ||
+    (projection.mode === 'edit' && editorAccessoryMode === 'navigation');
 
   return (
     <footer
@@ -228,73 +231,26 @@ export function MobileUnifiedBar({
       style={{ '--m-unified-keyboard-inset': `${keyboardInset}px` } as CSSProperties}
       aria-label={t('mobileWorkspace.unifiedBar', { defaultValue: '移动工作栏' })}
     >
-      <div className="m-unified-bar__left">
-        <button
-          type="button"
-          className="m-unified-bar__action"
-          data-debug-id="mobile-unified-back"
-          disabled={projection.leftAction === 'disabled'}
-          onClick={handleBack}
-          aria-label={
-            projection.leftAction === 'dismiss-keyboard'
-              ? t('mobileWorkspace.dismissKeyboard', { defaultValue: '收起键盘' })
-              : t('navigation.back')
-          }
-        >
-          {projection.leftAction === 'dismiss-keyboard' ? (
-            <ChevronsDown size={20} aria-hidden="true" />
-          ) : (
-            <ArrowLeft size={20} aria-hidden="true" />
-          )}
-        </button>
-      </div>
-
-      <div className="m-unified-bar__center">
-        {projection.mode === 'search' ? (
-          <MobileUnifiedSearch owner={searchOwner} onProjectSearch={onProjectSearch} />
-        ) : (
-          <MobileEditorAccessory
-          expanded={editorAccessoryExpanded}
-          onExpandedChange={onEditorAccessoryExpandedChange}
-          onEditingStateChange={onEditingStateChange}
-          onKeyboardStateChange={onKeyboardStateChange}
-          onKeyboardInsetChange={onKeyboardInsetChange}
-          />
-        )}
-        {projection.mode !== 'edit' && activePaper ? (
-          projection.mode === 'search' ? null : (
-            <div className="m-unified-bar__read-center">
-              <MobileUnifiedBarPaperIdentity
-                paper={activePaper}
-                paperCount={paperCount}
-                onOpenOverview={onOpenOverview}
-              />
-              <button
-                type="button"
-                className="m-unified-bar__action"
-                data-debug-id="mobile-open-search"
-                onClick={onOpenSearch}
-                aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
-              >
-                <Search size={19} aria-hidden="true" />
-              </button>
-              <MobilePaperRailMenu
-                target={activePaper.target}
-                activeRail={activeRail}
-                onActiveRailChange={onActiveRailChange}
-              />
-            </div>
-          )
-        ) : projection.mode !== 'edit' ? (
-          <span className="m-unified-bar__empty">
-            <Layers3 size={18} aria-hidden="true" /> Drifting
-          </span>
-        ) : null}
-      </div>
-
-      <div className="m-unified-bar__right">
+      <MobilePanelPullHandle
+        panel="bottom"
+        extent={workspaceUi.panel.startsWith('bottom-') ? panelExtent : 0}
+        disabled={projection.mode === 'search'}
+        onExtentChange={onPanelExtentChange}
+        onExtentCommit={onPanelExtentCommit}
+      />
+      <div className="m-unified-bar__content">
         {projection.mode === 'search' ? (
           <>
+            <button
+              type="button"
+              className="m-unified-bar__action"
+              data-debug-id="mobile-unified-back"
+              onClick={handleBack}
+              aria-label={t('navigation.back')}
+            >
+              <ArrowLeft size={20} aria-hidden="true" />
+            </button>
+            <MobileUnifiedSearch owner={searchOwner} onProjectSearch={onProjectSearch} />
             <button
               type="button"
               className="m-unified-bar__action"
@@ -316,34 +272,62 @@ export function MobileUnifiedBar({
               <ChevronDown size={19} aria-hidden="true" />
             </button>
           </>
-        ) : projection.mode === 'edit' ? (
-          <MobilePaperRailMenu
-            target={activePaper?.target ?? null}
-            activeRail={activeRail}
-            onActiveRailChange={onActiveRailChange}
-          />
         ) : (
           <>
+            <MobileEditorAccessory
+              active={projection.mode === 'edit'}
+              mode={editorAccessoryMode}
+              onModeChange={onEditorAccessoryModeChange}
+              onEditingStateChange={onEditingStateChange}
+              onKeyboardInsetChange={onKeyboardInsetChange}
+            />
+            {showPaperNavigation && activePaper ? (
+            <div className="m-unified-bar__read-center">
+              <MobileUnifiedBarPaperIdentity
+                paper={activePaper}
+                onOpenStatus={onOpenStatus}
+              />
+              <button
+                type="button"
+                className="m-unified-bar__action m-unified-bar__count"
+                data-debug-id="mobile-open-overview"
+                onClick={onOpenOverview}
+                aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
+              >
+                <span>{paperCount}</span>
+              </button>
+              <button
+                type="button"
+                className="m-unified-bar__action"
+                data-debug-id="mobile-open-search"
+                onClick={onOpenSearch}
+                aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
+              >
+                <Search size={19} aria-hidden="true" />
+              </button>
+              <MobilePaperRailMenu
+                target={activePaper.target}
+                activeRail={activeRail}
+                onActiveRailChange={onActiveRailChange}
+                onOpenOverview={onOpenOverview}
+              />
+            </div>
+            ) : showPaperNavigation ? (
+              <span className="m-unified-bar__empty">
+                <Layers3 size={18} aria-hidden="true" /> Drifting
+              </span>
+            ) : null}
+            {editingFormatting && (
             <button
               type="button"
               className="m-unified-bar__action"
-              data-debug-id="mobile-structure-panel"
-              aria-pressed={workspaceUi.panel.startsWith('top-')}
-              onClick={() => setPanel('top')}
-              aria-label={t('leftSidebar.title')}
+              data-debug-id="mobile-dismiss-keyboard"
+              onClick={handleBack}
+              aria-label={t('mobileWorkspace.dismissKeyboard', { defaultValue: '收起键盘' })}
             >
-              <PanelTop size={20} aria-hidden="true" />
+              <ChevronsDown size={20} aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              className="m-unified-bar__action"
-              data-debug-id="mobile-tools-panel"
-              aria-pressed={workspaceUi.panel.startsWith('bottom-')}
-              onClick={() => setPanel('bottom')}
-              aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
-            >
-              <PanelBottom size={20} aria-hidden="true" />
-            </button>
+            )}
           </>
         )}
       </div>

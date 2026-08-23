@@ -80,6 +80,10 @@ counts, or paper-session entries.
   duplicate.
 - Dashboard-class utility papers may default to the end when no contextual
   insertion cause exists.
+- The Project Dashboard is ensured into the ordinary paper rail on workspace
+  restoration without stealing activation from a deep-linked or restored
+  editor paper. Its cards arbitrate horizontal paper swipes after the axis lock;
+  form controls and nested horizontal scrollers remain excluded.
 - Closing selects the nearest surviving neighbor.
 - Overview reorders, activates, closes, and closes all papers.
 - Project-scoped paper order, active key, and per-paper scroll position restore
@@ -130,35 +134,45 @@ The unified bar is a pure controlled projection of these states.
 Back resolves one visible layer at a time in this order:
 
 1. destructive/native dialog;
-2. popover, entity preview, or bar sheet;
-3. expanded editor accessory;
+2. popover, current-paper status, entity preview, or bar sheet;
+3. edit mode and its software keyboard atomically return to read mode;
 4. search or Agent input, including its keyboard;
-5. a standalone editor keyboard;
-6. full panel to docked panel;
-7. docked panel to read paper;
-8. Super View child layer, then the Super View;
-9. Overview;
-10. edit mode to read mode;
-11. Android system Back at read root leaves the Project for the shelf.
+5. full panel to docked panel;
+6. docked panel to read paper;
+7. Super View child layer, then the Super View;
+8. Overview;
+9. Android system Back at read root leaves the Project for the shelf.
 
 The unified bar's left slot only exits the current visual layer. It never
 switches papers or leaves the Project. At read root it is visibly disabled.
 Overview owns its own header and hides the unified bar.
 
-## 6. Unified bar
+## 6. Floating key bar and keyboard accessory
 
-- Height is always 56px.
-- Slots are left 44px, flexible center, and right 44px or 88px.
-- Left and right slot geometry never moves between states.
-- Only the center content changes directionally.
-- Read state shows paper context plus search and paper-count entry points.
-- Edit state owns keyboard dismissal and formatting levels.
+- The base bar is a floating horizontal 56px pill, never a full-width footer.
+- Read state always shows the current editor entity, a separate paper-count
+  button, Search, and the hamburger menu. The entity opens a current-paper
+  status sheet; only the count button opens paper Overview.
+- The pill contains no top-panel or bottom-panel buttons. A safe-top grabber
+  pulls down the structure panel; the pill's own grabber pulls up the tool
+  panel. Settled panels retain their continuous resize handle.
+- Edit state exists only while the live editor is focused and a software
+  keyboard is visibly open. Caret-less, keyboard-less pseudo-edit states are
+  illegal.
+- On edit entry, formatting is already the active second-level presentation:
+  one horizontally scrollable icon row inside the accessory. It is never a
+  Sheet. Pressing the Format label collapses that row and restores the complete
+  paper-context/count/Search/menu presentation; pressing it again restores the
+  formatting row.
+- The keyboard accessory, structure panel, and tool panel have independent
+  ownership. An already-open panel does not suppress the accessory above the
+  software keyboard.
 - Search state owns query scope, current match, and previous/next actions.
 - Agent input shows explicit context chips and send/cancel state.
 - A docked bottom panel places the bar immediately above the panel; a full
   panel returns it to the safe bottom edge.
-- Formatting, TOC, comments, and secondary entity actions escalate through a
-  shared bar sheet rather than a separate floating rail control.
+- TOC and comments retain their shared Sheet/portal boundary; formatting does
+  not share it.
 
 ## 7. Vertical panel rails
 
@@ -184,9 +198,12 @@ and Plot Grid are Planning submodes.
 
 ### 8.1 Single paper
 
-- Focusing prose enters edit mode and disables paper swipe.
+- Focusing prose enters edit mode only after the software keyboard becomes
+  visible and disables paper swipe. Losing the keyboard returns to read mode.
 - Formatting must preserve the live selection and keyboard.
 - The unified bar follows `visualViewport` above the software keyboard.
+- Settled paper activation blurs the outgoing editor before mounting the next
+  live paper, so horizontal switching cannot transfer a hidden edit state.
 - TOC preserves the five-level outline and active ancestry.
 - Comments preserve anchored/entity comments, creation, evidence navigation,
   resolve/reopen, TODO conversion, exception, Agent decisions, snapshots, and

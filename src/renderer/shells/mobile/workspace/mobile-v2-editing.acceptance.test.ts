@@ -28,15 +28,18 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(paperSearch).not.toContain('editor.commands.setContent');
   });
 
-  it('uses the one shared bar-sheet boundary for formatting, five-level TOC, and comments', () => {
+  it('keeps formatting in one horizontal accessory row while TOC and comments use sheets', () => {
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
     expect(deck).toContain('<MobileBarSheet');
-    expect(deck).toContain("{ kind: 'bar-sheet', sheet: 'formatting' }");
-    expect(sheet).toContain('<MobileFormattingSheetContent />');
+    expect(deck).not.toContain("{ kind: 'bar-sheet', sheet: 'formatting' }");
+    expect(sheet).not.toContain('MobileFormattingSheetContent');
+    expect(accessory).toContain("data-mode={mode}");
+    expect(accessory).toContain('m-editor-accessory__actions');
+    expect(accessory).toContain("mode === 'formatting'");
     expect(accessory).toContain('event.preventDefault()');
     expect(accessory).toContain('item.run(editor)');
     expect(css).toContain("[data-bar-sheet='outline'] .editor__toc-rail");
@@ -47,6 +50,7 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
       "[data-bar-sheet='comments'] #mobile-comments-sheet-content > .editor__margin",
     );
     expect(css).toContain('min-height: 44px');
+    expect(css).toContain('touch-action: pan-x');
   });
 
   it('bridges Android IME insets when edge-to-edge WebView geometry stays stable', () => {

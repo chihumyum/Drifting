@@ -50,6 +50,21 @@ const EXCLUDED_SELECTOR = [
   '.editor__toc-rail',
 ].join(',');
 
+const ALWAYS_EXCLUDED_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'summary',
+  'canvas',
+  '[role="slider"]',
+  '[role="tab"]',
+  '[data-mobile-paper-swipe="exclude"]',
+  '.btl',
+  '.planner-wrap',
+  '.mnote',
+  '.editor__toc-rail',
+].join(',');
+
 export function mobilePaperSwipeDistanceThreshold(viewportWidth: number): number {
   const width = Number.isFinite(viewportWidth) ? Math.max(0, viewportWidth) : 0;
   return Math.max(72, Math.min(96, width * 0.22));
@@ -117,9 +132,12 @@ export function resolveMobilePaperSwipe({
 export function mobilePaperSwipeTargetIsExcluded(
   target: EventTarget | null,
   row: HTMLElement,
+  allowInteractiveStart = false,
 ): boolean {
   if (!(target instanceof Element)) return true;
-  if (target.closest(EXCLUDED_SELECTOR)) return true;
+  if (target.closest(allowInteractiveStart ? ALWAYS_EXCLUDED_SELECTOR : EXCLUDED_SELECTOR)) {
+    return true;
+  }
 
   for (let element: Element | null = target; element && element !== row; element = element.parentElement) {
     if (!(element instanceof HTMLElement)) continue;

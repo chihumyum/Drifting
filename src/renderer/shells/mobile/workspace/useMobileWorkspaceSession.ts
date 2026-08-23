@@ -18,9 +18,16 @@ import {
 } from './mobile-workspace-session-storage';
 
 function readInitial(projectId: string) {
-  return readMobileWorkspaceSession(
-    typeof localStorage === 'undefined' ? null : localStorage,
-    projectId,
+  return mobileWorkspaceSessionReducer(
+    readMobileWorkspaceSession(
+      typeof localStorage === 'undefined' ? null : localStorage,
+      projectId,
+    ),
+    {
+      type: 'ensure',
+      target: { entityType: 'dashboard', id: 'self' },
+      position: 'start',
+    },
   );
 }
 

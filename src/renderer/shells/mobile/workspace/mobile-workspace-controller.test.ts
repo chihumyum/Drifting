@@ -46,16 +46,15 @@ describe('Mobile V2 workspace controller', () => {
     });
   });
 
-  it('normalizes panel ownership to a clean read surface', () => {
+  it('keeps the keyboard accessory independent from an existing context panel', () => {
     let state = reduce(createInitialMobileWorkspaceUiState(), { type: 'sync-editor', editing: true });
-    state = reduce(state, { type: 'sync-keyboard', keyboard: 'open' });
     state = reduce(state, { type: 'set-panel', panel: 'top-full' });
     expect(state).toMatchObject({
       surface: { kind: 'paper' },
-      paperMode: { kind: 'read' },
+      paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'top-full',
       transient: { kind: 'none' },
-      keyboard: 'closed',
+      keyboard: 'open',
     });
   });
 
@@ -75,7 +74,7 @@ describe('Mobile V2 workspace controller', () => {
   it('rejects impossible combinations with actionable reasons', () => {
     const impossible: MobileWorkspaceUiState = {
       surface: { kind: 'overview' },
-      paperMode: { kind: 'edit', accessory: 'expanded' },
+      paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'bottom-full',
       transient: { kind: 'search', scope: 'project' },
       keyboard: 'open',
@@ -96,6 +95,15 @@ describe('Mobile V2 workspace controller', () => {
   it('ignores keyboard-open requests without an input owner', () => {
     const root = createInitialMobileWorkspaceUiState();
     expect(reduce(root, { type: 'sync-keyboard', keyboard: 'open' })).toBe(root);
+  });
+
+  it('rejects the caret-less pseudo-edit state', () => {
+    expect(
+      mobileWorkspaceStateIssues({
+        ...createInitialMobileWorkspaceUiState(),
+        paperMode: { kind: 'edit', accessory: 'formatting' },
+      }),
+    ).toContain('edit mode requires a visible software keyboard');
   });
 });
 
@@ -137,32 +145,25 @@ describe('Mobile V2 Back priority', () => {
     expect(layers).toEqual(['dialog', 'transient', 'panel-full', 'panel-docked']);
   });
 
-  it('collapses the editor accessory, input, and keyboard without skipping layers', () => {
+  it('leaves editing and its keyboard atomically without a caret-less intermediate state', () => {
     let state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
-      paperMode: { kind: 'edit', accessory: 'expanded' },
-      panel: 'none',
-      transient: { kind: 'bar-sheet', sheet: 'formatting' },
+      paperMode: { kind: 'edit', accessory: 'formatting' },
+      panel: 'bottom-docked',
+      transient: { kind: 'none' },
       keyboard: 'open',
     };
-
-    const sheet = resolveMobileWorkspaceBack(state, 'visible');
-    expect(sheet.layer).toBe('transient');
-    state = sheet.nextState;
-    expect(state.paperMode).toEqual({ kind: 'edit', accessory: 'expanded' });
-
-    const accessory = resolveMobileWorkspaceBack(state, 'visible');
-    expect(accessory.layer).toBe('editor-accessory');
-    state = accessory.nextState;
-
-    const keyboard = resolveMobileWorkspaceBack(state, 'visible');
-    expect(keyboard.layer).toBe('keyboard');
-    state = keyboard.nextState;
 
     const editMode = resolveMobileWorkspaceBack(state, 'visible');
     expect(editMode.layer).toBe('edit-mode');
     expect(editMode.effect).toBe('blur-editor');
     expect(editMode.nextState.paperMode).toEqual({ kind: 'read' });
+    expect(editMode.nextState.keyboard).toBe('closed');
+    expect(editMode.nextState.panel).toBe('bottom-docked');
+
+    state = editMode.nextState;
+    const panel = resolveMobileWorkspaceBack(state, 'visible');
+    expect(panel.layer).toBe('panel-docked');
   });
 
   it('closes search before the panel and normalizes its keyboard', () => {
@@ -204,7 +205,7 @@ describe('Mobile V2 Back priority', () => {
 });
 
 describe('Mobile V2 unified bar projection', () => {
-  it('is disabled at the read root and moves above a docked bottom panel', () => {
+  it('keeps read-root chrome stable while a docked bottom panel moves the pill', () => {
     const root = createInitialMobileWorkspaceUiState();
     expect(selectMobileUnifiedBarProjection(root)).toEqual({
       visible: true,
@@ -214,7 +215,7 @@ describe('Mobile V2 unified bar projection', () => {
     });
     expect(
       selectMobileUnifiedBarProjection({ ...root, panel: 'bottom-docked' }),
-    ).toMatchObject({ leftAction: 'back', placement: 'above-bottom-panel' });
+    ).toMatchObject({ leftAction: 'disabled', placement: 'above-bottom-panel' });
   });
 
   it('derives search, Agent input, edit, keyboard, and hidden surface states', () => {
@@ -231,7 +232,7 @@ describe('Mobile V2 unified bar projection', () => {
     expect(
       selectMobileUnifiedBarProjection({
         ...root,
-        paperMode: { kind: 'edit', accessory: 'compact' },
+        paperMode: { kind: 'edit', accessory: 'navigation' },
         keyboard: 'open',
       }),
     ).toMatchObject({ mode: 'edit', leftAction: 'dismiss-keyboard' });

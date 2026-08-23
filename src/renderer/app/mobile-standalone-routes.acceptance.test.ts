@@ -42,9 +42,6 @@ describe('mobile standalone routes', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const panels = rendererSource('shells/mobile/workspace/MobileWorkspacePanels.tsx');
     const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
-    const unifiedBarState = rendererSource(
-      'shells/mobile/workspace/mobile-unified-bar-state.ts',
-    );
     const paperSwipe = rendererSource('shells/mobile/workspace/mobile-paper-swipe.ts');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
     const projectTrash = rendererSource('shells/mobile/workspace/MobileProjectTrashView.tsx');
@@ -158,13 +155,15 @@ describe('mobile standalone routes', () => {
     expect(unifiedBar).toContain('selectMobileUnifiedBarProjection(workspaceUi)');
     expect(unifiedBar).toContain('<MobileEditorAccessory');
     expect(unifiedBar).toContain('<MobilePaperRailMenu');
-    expect(unifiedBar).toContain("nextMobilePanelForBar(workspaceUi.panel, side)");
-    expect(unifiedBarState).toContain("if (current === docked) return full");
+    expect(unifiedBar).toContain('<MobilePanelPullHandle');
+    expect(unifiedBar).not.toContain('PanelTop');
+    expect(unifiedBar).not.toContain('PanelBottom');
     expect(editorAccessory).toContain('subscribeActiveEditor');
     expect(editorAccessory).toContain('window.visualViewport');
     expect(editorAccessory).toContain('getBlockFormatItems()');
     expect(editorAccessory).toContain('getInlineFormatItems()');
-    expect(editorAccessory).toContain("data-expanded={expanded ? 'true' : 'false'}");
+    expect(editorAccessory).toContain('data-mode={mode}');
+    expect(editorAccessory).toContain('editorFocused && softwareKeyboardVisible');
     expect(editorAccessory).toContain('event.preventDefault()');
     expect(paperDeck).toContain('data-paper-rail={activeRail');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');

@@ -2887,6 +2887,36 @@
     }
   },
   "mobileWorkspace": {
+    "unifiedBar": "Mobile workspace bar",
+    "openPapers": "Open papers",
+    "dismissKeyboard": "Dismiss keyboard",
+    "paperStatus": {
+      "open": "View current paper status",
+      "current": "Current paper",
+      "position": "Paper position",
+      "writingStatus": "Writing status",
+      "words": "Words",
+      "storyline": "Storyline",
+      "chapters": "Chapters",
+      "category": "Category",
+      "elements": "Elements",
+      "updated": "Last updated"
+    },
+    "editorAccessory": {
+      "label": "Editing format accessory",
+      "format": "Format",
+      "expand": "Show formatting",
+      "collapse": "Hide formatting",
+      "paragraph": "Body",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "blockquote": "Quote",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strike": "Strikethrough"
+    },
     "search": {
       "open": "Search",
       "paperScope": "Paper",
@@ -2901,7 +2931,7 @@
   },
   "mobileEditorRails": {
     "controls": "Paper navigation and comments",
-    "menu": "Paper editing aids",
+    "menu": "Paper navigation and comments",
     "toc": "TOC rail",
     "comments": "Comment rail"
   },

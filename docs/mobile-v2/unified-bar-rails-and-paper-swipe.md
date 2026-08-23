@@ -2,7 +2,7 @@
 
 Status: **M3 implementation and iOS Simulator acceptance complete**
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 This document records the implemented M3 presentation and gesture boundary.
 It is current checkout truth for the Mobile Shell paper workspace. M4 still
@@ -12,22 +12,24 @@ owns complete Planning touch drag.
 ## One controlled bar
 
 `MobilePaperDeck` mounts one `MobileUnifiedBar` and passes the M2 workspace
-controller state into `selectMobileUnifiedBarProjection`. The bar is 56 CSS px
-high before the bottom safe-area inset and has three stable regions:
+controller state into `selectMobileUnifiedBarProjection`. The author-visible
+base is a 56 CSS px floating horizontal pill with four complete entrances:
 
-- left: Back or keyboard dismissal, disabled at the read root;
-- center in read state: active-paper identity plus open-paper count; tapping it
-  opens Overview as a controller surface;
-- right in read state: structure and tool panel actions; repeated activation
-  cycles `none -> docked -> full -> none`, while switching sides enters the
-  other side's docked state;
-- center/right in edit state: the existing editor accessory and TOC/comment
-  action are hosted inside the bar instead of separate floating chrome.
+- current editor entity, which opens a dedicated read-only status Sheet;
+- a separate numbered paper-count button, which alone opens Overview;
+- current-paper Search;
+- a persistent hamburger menu for paper actions, including on Dashboard.
 
-The bar remains mounted while its projection controls visibility, mode,
-placement, and keyboard ownership. It sits at the safe bottom for an ordinary
-paper, moves above a docked bottom panel, overlays a full panel, and follows
-the visual keyboard inset while editing.
+The rejected structure/tool buttons are absent. A small safe-top grabber pulls
+down the structure panel. A grabber belonging to the floating pill pulls up the
+tool panel. Existing settled panel handles continue continuous resize and
+dock/full/close commitment.
+
+The pill remains mounted while its projection controls visibility, mode,
+placement, and keyboard ownership. It sits above the safe bottom for an
+ordinary paper, moves above a docked bottom panel, and follows the visual
+keyboard inset while editing. Panel ownership does not suppress or replace the
+keyboard accessory.
 
 ## Two one-level vertical rails
 
@@ -73,6 +75,11 @@ full paper row. It starts only when all of these are true:
   Plot Grid, comment/TOC rail, explicitly excluded target, or nested
   horizontally scrollable container.
 
+Dashboard is the deliberate exception for button-like cards: after the same
+axis lock, a horizontal movement may take paper-swipe ownership and suppress
+the card click. Text inputs, textareas, selects, canvas, slider/tab controls,
+explicit exclusions, and nested horizontal scrollers still win.
+
 The first 8px is undecided. Horizontal ownership requires a 1.2 dominant-axis
 ratio and must be established before a 180ms stationary hold, so a long press
 does not unexpectedly change papers. Release commits one adjacent paper when
@@ -92,6 +99,8 @@ M3 keeps the existing reducer-owned mobile paper session rather than adding a
 second navigation store:
 
 - open-new inserts one target once and activates it;
+- restoration ensures Dashboard as the first ordinary paper when absent,
+  without stealing the active key from a restored or deep-linked editor paper;
 - activate-existing changes only the active key;
 - close and close-neighbor retain deterministic fallback activation;
 - Overview reorder writes the same ordered session;
@@ -106,7 +115,7 @@ live editors are never mounted during a swipe.
 ## Deterministic evidence
 
 - `src/renderer/shells/mobile/workspace/mobile-paper-swipe.test.ts`
-- `src/renderer/shells/mobile/workspace/MobileUnifiedBar.test.ts`
+- `src/renderer/shells/mobile/workspace/mobile-interaction-repair.acceptance.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-workspace-session.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-workspace-session-storage.test.ts`
 - `src/renderer/app/mobile-standalone-routes.acceptance.test.ts`

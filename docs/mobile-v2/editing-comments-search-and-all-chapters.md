@@ -2,7 +2,7 @@
 
 Status: **M4 implementation and Simulator/Emulator acceptance complete**
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 This document records the implemented M4 writing boundary. It is current
 checkout truth for Mobile Shell editing, shared writing sheets, paper/Project
@@ -11,12 +11,19 @@ not inherit editor gestures.
 
 ## Writing-first unified bar
 
-There is still one 56px `MobileUnifiedBar`. Focusing a live editor changes that
-bar from read navigation to editing controls; it does not mount a second
-floating accessory. The compact formatting trigger expands a shared mobile
-sheet with paragraph, heading, quotation, and inline mark commands. Pointer
-down is consumed before command dispatch so an existing ProseMirror selection
-is not collapsed before the command runs.
+There is still one 56px `MobileUnifiedBar`, now presented as a floating pill and
+owned independently from the top and bottom panels. A live editor enters edit
+mode only when it is focused and the software keyboard is visibly open. Focus
+without a keyboard is read mode; paper activation blurs the outgoing editor.
+There is no supported caret-less pseudo-edit state.
+
+Edit entry defaults directly to a horizontally scrollable single-row format
+level with paragraph, heading, quotation, and inline mark commands. Formatting
+never opens a Sheet. Pressing the Format label collapses the row and reveals
+the complete entity/status, numbered paper count, Search, and hamburger
+entrances; pressing the label again restores formatting. Pointer down is
+consumed before command dispatch so an existing ProseMirror selection is not
+collapsed before the command runs.
 
 Keyboard placement is derived from the greatest reliable inset:
 
@@ -25,20 +32,24 @@ Keyboard placement is derived from the greatest reliable inset:
   while Gboard overlays it, so `MainActivity` publishes the native
   `WindowInsetsCompat.Type.ime()` inset as CSS pixels and dispatches
   `drifting:native-keyboard-geometry`;
-- the unified bar and editor accessory subscribe to both sources and use the
+- the keyboard accessory subscribes to both sources and uses the
   larger inset.
+
+The keyboard accessory may appear above the IME while a top or bottom panel
+retains its own reducer state. Opening a panel no longer rewrites edit state;
+closing the keyboard returns edit and keyboard ownership to read atomically.
 
 Android hardware Back follows the M2 resolver. In edit mode its first action
 blurs the active editor and dismisses IME; the next action unwinds the next
 workspace layer. It does not leave a focused ProseMirror under read-state
 chrome.
 
-## One shared mobile-sheet boundary
+## Shared Sheet boundary without formatting
 
-`MobileBarSheet` owns the transient presentation for formatting, outline,
-comments, and entity preview. It consumes its backdrop and keeps touch targets
-at least 44px high. This is presentation reuse, not a second implementation of
-editor semantics:
+`MobileBarSheet` owns the transient presentation for outline and comments;
+entity preview and current-paper status use their dedicated read-only Sheets.
+They consume their backdrops and keep touch targets at least 44px high. This is
+presentation reuse, not a second implementation of editor semantics:
 
 - the outline portal renders the real `EditorOutlineRail`, including the
   act/chapter/scene/beat/note hierarchy, current ancestry, omitted ancestors,
@@ -49,7 +60,8 @@ editor semantics:
 - entity cells first open a read-only sheet; only an explicit open action adds
   an ordinary paper.
 
-The rails use `EditorRailPresentationContext` to select the mobile portal host.
+Formatting is intentionally absent from this Sheet boundary. The rails use
+`EditorRailPresentationContext` to select the mobile portal host.
 Domain ownership, SQLite comment durability, live Yjs prose, and editor event
 handling remain shared with desktop.
 
@@ -111,6 +123,7 @@ enter the entity-preview sheet.
 - `src/renderer/shells/mobile/workspace/mobile-all-chapters.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-keyboard-geometry.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-workspace-controller.test.ts`
+- `src/renderer/shells/mobile/workspace/mobile-interaction-repair.acceptance.test.ts`
 - `src/renderer/app/mobile-standalone-routes.acceptance.test.ts`
 
 The 100- and 300-chapter fixtures are synthetic. The tests cover bounded load

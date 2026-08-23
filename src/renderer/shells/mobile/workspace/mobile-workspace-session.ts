@@ -12,6 +12,7 @@ export interface MobileWorkspaceSessionState {
 }
 
 export type MobileWorkspaceSessionAction =
+  | { type: 'ensure'; target: WorkspaceTarget; position?: 'start' | 'end' }
   | { type: 'open'; target: WorkspaceTarget }
   | { type: 'activate'; target: WorkspaceTarget }
   | { type: 'close'; key: string }
@@ -80,6 +81,13 @@ export function mobileWorkspaceSessionReducer(
   action: MobileWorkspaceSessionAction,
 ): MobileWorkspaceSessionState {
   switch (action.type) {
+    case 'ensure': {
+      const key = mobilePaperKey(action.target);
+      if (state.papers.some((paper) => paper.key === key)) return state;
+      const paper = { key, target: action.target, scrollTop: 0 };
+      const papers = action.position === 'end' ? [...state.papers, paper] : [paper, ...state.papers];
+      return { papers, activeKey: state.activeKey ?? key };
+    }
     case 'open': {
       const key = mobilePaperKey(action.target);
       if (state.papers.some((paper) => paper.key === key)) {

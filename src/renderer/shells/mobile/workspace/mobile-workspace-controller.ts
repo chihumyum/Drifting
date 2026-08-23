@@ -9,7 +9,7 @@ export type MobileWorkspaceSurface =
 
 export type MobilePaperMode =
   | { kind: 'read' }
-  | { kind: 'edit'; accessory: 'compact' | 'expanded' };
+  | { kind: 'edit'; accessory: 'navigation' | 'formatting' };
 
 export type MobileWorkspacePanel =
   | 'none'
@@ -23,7 +23,8 @@ export type MobileWorkspaceTransient =
   | { kind: 'search'; scope: 'paper' | 'project' }
   | { kind: 'agent-input' }
   | { kind: 'popover'; id: string }
-  | { kind: 'bar-sheet'; sheet: 'formatting' | 'outline' | 'comments' | 'actions' }
+  | { kind: 'bar-sheet'; sheet: 'outline' | 'comments' | 'actions' }
+  | { kind: 'paper-status' }
   | { kind: 'entity-preview'; target: WorkspaceTarget }
   | { kind: 'dialog'; dialog: 'project-trash' | 'destructive' | 'native' };
 
@@ -45,7 +46,7 @@ export type MobileWorkspaceAction =
   | { type: 'set-panel'; panel: MobileWorkspacePanel }
   | { type: 'set-transient'; transient: MobileWorkspaceTransient }
   | { type: 'sync-editor'; editing: boolean }
-  | { type: 'set-editor-accessory'; expanded: boolean }
+  | { type: 'set-editor-accessory'; accessory: 'navigation' | 'formatting' }
   | { type: 'sync-keyboard'; keyboard: MobileKeyboardState }
   | { type: 'replace'; state: MobileWorkspaceUiState };
 
@@ -54,7 +55,6 @@ export type MobileBackSource = 'visible' | 'keyboard' | 'android-hardware';
 export type MobileBackLayer =
   | 'dialog'
   | 'transient'
-  | 'editor-accessory'
   | 'input'
   | 'keyboard'
   | 'panel-full'
@@ -121,9 +121,6 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   if (!atPaper && state.keyboard !== 'closed') {
     issues.push('non-paper surface cannot own the keyboard');
   }
-  if (state.paperMode.kind === 'edit' && state.panel !== 'none') {
-    issues.push('editing and a context panel are mutually exclusive');
-  }
   if (
     state.paperMode.kind === 'edit' &&
     state.transient.kind !== 'none' &&
@@ -131,6 +128,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     state.transient.kind !== 'dialog'
   ) {
     issues.push('editing only permits the controlled bar sheet transient');
+  }
+  if (state.paperMode.kind === 'edit' && state.keyboard !== 'open') {
+    issues.push('edit mode requires a visible software keyboard');
   }
   if (
     state.transient.kind === 'dialog' &&
@@ -183,10 +183,10 @@ export function mobileWorkspaceReducer(
       return checked({
         ...state,
         surface: PAPER_SURFACE,
-        paperMode: READ_MODE,
+        paperMode: state.paperMode.kind === 'edit' ? state.paperMode : READ_MODE,
         panel: action.panel,
         transient: NO_TRANSIENT,
-        keyboard: 'closed',
+        keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
       });
     case 'set-transient': {
       if (
@@ -204,7 +204,11 @@ export function mobileWorkspaceReducer(
       if (action.transient.kind === 'none') {
         return checked({ ...state, transient: NO_TRANSIENT });
       }
-      if (action.transient.kind === 'entity-preview' || action.transient.kind === 'popover') {
+      if (
+        action.transient.kind === 'entity-preview' ||
+        action.transient.kind === 'paper-status' ||
+        action.transient.kind === 'popover'
+      ) {
         return checked({
           ...state,
           surface: PAPER_SURFACE,
@@ -217,8 +221,10 @@ export function mobileWorkspaceReducer(
         return checked({
           ...state,
           surface: PAPER_SURFACE,
+          paperMode: READ_MODE,
           panel: 'none',
           transient: action.transient,
+          keyboard: 'closed',
         });
       }
       return checked({
@@ -237,14 +243,14 @@ export function mobileWorkspaceReducer(
       }
       if (
         state.surface.kind !== 'paper' ||
-        state.panel !== 'none' ||
-        (state.transient.kind !== 'none' && state.transient.kind !== 'bar-sheet')
+        state.transient.kind !== 'none'
       ) {
         return state;
       }
       return checked({
         ...state,
-        paperMode: { kind: 'edit', accessory: 'compact' },
+        paperMode: { kind: 'edit', accessory: 'formatting' },
+        keyboard: 'open',
       });
     case 'set-editor-accessory':
       if (state.paperMode.kind !== 'edit') return state;
@@ -252,10 +258,13 @@ export function mobileWorkspaceReducer(
         ...state,
         paperMode: {
           kind: 'edit',
-          accessory: action.expanded ? 'expanded' : 'compact',
+          accessory: action.accessory,
         },
       });
     case 'sync-keyboard':
+      if (action.keyboard === 'closed' && state.paperMode.kind === 'edit') {
+        return checked({ ...state, paperMode: READ_MODE, keyboard: 'closed' });
+      }
       if (
         action.keyboard === 'open' &&
         state.paperMode.kind !== 'edit' &&
@@ -289,16 +298,18 @@ export function resolveMobileWorkspaceBack(
   }
   if (
     state.transient.kind === 'popover' ||
+    state.transient.kind === 'paper-status' ||
     state.transient.kind === 'entity-preview' ||
     state.transient.kind === 'bar-sheet'
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
-  if (state.paperMode.kind === 'edit' && state.paperMode.accessory === 'expanded') {
-    return resolution('editor-accessory', {
-      ...state,
-      paperMode: { kind: 'edit', accessory: 'compact' },
-    });
+  if (state.paperMode.kind === 'edit') {
+    return resolution(
+      'edit-mode',
+      { ...state, paperMode: READ_MODE, keyboard: 'closed' },
+      'blur-editor',
+    );
   }
   if (transientOwnsInput(state.transient)) {
     return resolution('input', {
@@ -326,9 +337,6 @@ export function resolveMobileWorkspaceBack(
   if (state.surface.kind === 'overview') {
     return resolution('overview', createInitialMobileWorkspaceUiState());
   }
-  if (state.paperMode.kind === 'edit') {
-    return resolution('edit-mode', { ...state, paperMode: READ_MODE }, 'blur-editor');
-  }
   if (source === 'android-hardware') {
     return resolution('project-root', state, 'leave-project');
   }
@@ -347,8 +355,7 @@ export function selectMobileUnifiedBarProjection(
         : state.paperMode.kind === 'edit'
           ? 'edit'
           : 'read';
-  const atReadRoot =
-    mode === 'read' && state.panel === 'none' && state.transient.kind === 'none';
+  const atReadRoot = mode === 'read' && state.transient.kind === 'none';
 
   return {
     visible,

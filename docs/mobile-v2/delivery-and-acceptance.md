@@ -160,11 +160,15 @@ resolver.
 
 - Remove paper pinch, paper scaling, cluster quick switch, and floating paper
   rail control.
-- Add one controlled 56px unified bar.
+- Add one controlled 56px floating pill with separate entity-status,
+  paper-count, Search, and hamburger entrances.
+- Open panels only through the safe-top pull handle, floating-pill pull handle,
+  and settled resize handles; do not add panel buttons to the pill.
 - Add 56px one-level vertical rails to top and bottom workspaces.
 - Add read-state paper swipe with nested-interaction exclusions.
 - Preserve ordered session, active-only live editor, static snapshots, URL
   synchronization, and scroll restoration.
+- Ensure Dashboard participates in the ordinary rail and horizontal swipe.
 - Panels crop the paper viewport and never scale prose.
 
 ### Exit gates
@@ -180,8 +184,9 @@ resolver.
 Current implementation evidence:
 
 - [`unified-bar-rails-and-paper-swipe.md`](unified-bar-rails-and-paper-swipe.md)
+- [`../qa/mobile-v2-paper-accessory-interaction-repair-simulator-2026-08-24.md`](../qa/mobile-v2-paper-accessory-interaction-repair-simulator-2026-08-24.md)
 - `mobile-paper-swipe.test.ts`
-- `MobileUnifiedBar.test.ts`
+- `mobile-interaction-repair.acceptance.test.ts`
 - `mobile-workspace-session.test.ts`
 - `mobile-workspace-session-storage.test.ts`
 - `mobile-standalone-routes.acceptance.test.ts`
@@ -198,9 +203,13 @@ touch remains open.
 
 ### Required behavior
 
-- Move formatting and keyboard geometry into the unified bar.
-- Escalate formatting levels, TOC, comments, and entity preview through shared
-  mobile sheets.
+- Keep the keyboard accessory independent from the top and bottom panels.
+- Require a focused editor plus visible software keyboard for edit mode; paper
+  switching must settle in read mode.
+- Show formatting as the default horizontally scrollable accessory row, with a
+  Format label that collapses back to the complete navigation entrances.
+- Keep TOC/comments and entity preview in their mobile Sheet boundaries;
+  formatting itself must never open a Sheet.
 - Extract headless current-paper and Project search controllers.
 - Add Overview grouped Project results.
 - Complete touch promotion, one-live-row editing, search, TOC, focus, and
@@ -208,7 +217,7 @@ touch remains open.
 
 ### Exit gates
 
-- Yjs selection/IME survives formatting and sheet transitions.
+- Yjs selection/IME survives inline formatting and accessory-level transitions.
 - Search never mutates prose and restores the current match.
 - All-chapters keeps one live chapter for 100- and 300-chapter fixtures.
 - iOS Simulator verifies English and Chinese keyboard paths, all-chapters

@@ -2887,6 +2887,36 @@
     }
   },
   "mobileWorkspace": {
+    "unifiedBar": "移动工作栏",
+    "openPapers": "打开的纸张",
+    "dismissKeyboard": "收起键盘",
+    "paperStatus": {
+      "open": "查看当前纸张状态",
+      "current": "当前纸张",
+      "position": "纸张位置",
+      "writingStatus": "写作状态",
+      "words": "字数",
+      "storyline": "故事线",
+      "chapters": "章节",
+      "category": "类目",
+      "elements": "元素",
+      "updated": "最近更新"
+    },
+    "editorAccessory": {
+      "label": "编辑格式附件栏",
+      "format": "格式",
+      "expand": "展开格式栏",
+      "collapse": "收起格式栏",
+      "paragraph": "正文",
+      "heading1": "一级标题",
+      "heading2": "二级标题",
+      "heading3": "三级标题",
+      "blockquote": "引用",
+      "bold": "粗体",
+      "italic": "斜体",
+      "underline": "下划线",
+      "strike": "删除线"
+    },
     "search": {
       "open": "搜索",
       "paperScope": "本纸",
@@ -2901,7 +2931,7 @@
   },
   "mobileEditorRails": {
     "controls": "纸张导航与批注",
-    "menu": "纸张编辑辅助",
+    "menu": "纸张导航与批注",
     "toc": "TOC 轨道",
     "comments": "批注轨道"
   },
