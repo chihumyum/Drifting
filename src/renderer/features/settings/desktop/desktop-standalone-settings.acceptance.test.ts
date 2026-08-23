@@ -19,7 +19,7 @@ describe('desktop standalone settings', () => {
     expect(menu).toContain("scope === 'shelf'");
     expect(menu).toContain("navigate('/settings?section=sync', { state: { from: '/' } })");
     expect(routes).toContain(
-      'isMobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
+      'isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
     );
     expect(settings).toContain("const active: StandaloneSettingsId = isStandaloneSettingsId");
     expect(settings).toContain(": 'sync';");

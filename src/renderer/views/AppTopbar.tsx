@@ -18,7 +18,7 @@ export function AppTopbar() {
   // identity. The name itself owns the only capped, shrinkable slot; the
   // surrounding section is intrinsic-width and the command group stays fixed.
   // Mobile keeps only its product controls.
-  const leftWidth = runtime.isMobile ? 72 : 'max-content';
+  const leftWidth = runtime.isMobileShell ? 72 : 'max-content';
   return (
     <div
       className="app-topbar app-plane"

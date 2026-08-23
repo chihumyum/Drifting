@@ -69,14 +69,14 @@ function PublicRoute({ children }: { children: ReactNode }) {
 }
 
 export function AppRoutes() {
-  const isMobile = getPlatformRuntime().isMobile;
+  const isMobileShell = getPlatformRuntime().isMobileShell;
   return (
     <Routes>
       <Route
         path="/login"
         element={
           <PublicRoute>
-            {isMobile ? <MobileAuthPage initialMode="signin" /> : <LoginPage />}
+            {isMobileShell ? <MobileAuthPage initialMode="signin" /> : <LoginPage />}
           </PublicRoute>
         }
       />
@@ -84,7 +84,7 @@ export function AppRoutes() {
         path="/register"
         element={
           <PublicRoute>
-            {isMobile ? <MobileAuthPage initialMode="signup" /> : <RegisterPage />}
+            {isMobileShell ? <MobileAuthPage initialMode="signup" /> : <RegisterPage />}
           </PublicRoute>
         }
       />
@@ -92,7 +92,7 @@ export function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            {isMobile ? <MobileProjectShelfView /> : <ProjectPickerView />}
+            {isMobileShell ? <MobileProjectShelfView /> : <ProjectPickerView />}
           </ProtectedRoute>
         }
       />
@@ -100,14 +100,16 @@ export function AppRoutes() {
         path="/settings"
         element={
           <ProtectedRoute>
-            {isMobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />}
+            {isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />}
           </ProtectedRoute>
         }
       />
       <Route
         path="/project/:projectId"
         element={
-          <ProtectedRoute>{isMobile ? <MobileAppShell /> : <DesktopAppShell />}</ProtectedRoute>
+          <ProtectedRoute>
+            {isMobileShell ? <MobileAppShell /> : <DesktopAppShell />}
+          </ProtectedRoute>
         }
       >
         <Route index element={null} />

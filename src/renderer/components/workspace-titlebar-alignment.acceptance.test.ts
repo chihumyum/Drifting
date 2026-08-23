@@ -39,7 +39,7 @@ describe('workspace titlebar centerline', () => {
     expect(leftTopbar).toContain(
       "useProjectStore((state) => state.currentProject?.name.trim() ?? '')",
     );
-    expect(leftTopbar).toContain('!runtime.isMobile && projectName');
+    expect(leftTopbar).toContain('!runtime.isMobileShell && projectName');
     expect(leftTopbar).toContain('className="app-topbar__project-name"');
     expect(leftTopbar).toContain('data-tauri-drag-region="false"');
     expect(leftTopbar).toContain('title={projectName}');
@@ -50,7 +50,7 @@ describe('workspace titlebar centerline', () => {
     expect(leftTopbar).toContain(
       "paddingLeft: runtime.isMacDesktop ? 'var(--window-header-leading-inset)' : 8",
     );
-    expect(topbar).toContain("const leftWidth = runtime.isMobile ? 72 : 'max-content';");
+    expect(topbar).toContain("const leftWidth = runtime.isMobileShell ? 72 : 'max-content';");
     expect(cssBlock(controlCss, '.ghost-icon-button--md {')).toMatch(
       /width:\s*26px;[\s\S]*height:\s*26px;/,
     );

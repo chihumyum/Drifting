@@ -96,7 +96,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   };
 
   const openFullSettings = () => {
-    if (getPlatformRuntime().isMobile) navigate('/settings?section=copilot');
+    if (getPlatformRuntime().isMobileShell) navigate('/settings?section=copilot');
     else events.emit('settings:open', { railId: 'copilot' });
     handleClose();
   };

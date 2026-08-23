@@ -765,7 +765,7 @@
 /* Native mobile overlays own a safe-area-aware viewport box. The preferred
    desktop width remains a cap; the dialog itself always shrinks to the space
    left after system insets, and only its body scrolls so actions stay usable. */
-html[data-platform-target='mobile'] .modal-root {
+html[data-shell-mode='mobile'] .modal-root {
   width: 100vw;
   width: 100dvw;
   height: 100vh;
@@ -774,34 +774,34 @@ html[data-platform-target='mobile'] .modal-root {
     max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
 
-html[data-platform-target='mobile'] .modal-card {
+html[data-shell-mode='mobile'] .modal-card {
   max-height: 100%;
 }
 
-html[data-platform-target='mobile'] .modal-root__dialog {
+html[data-shell-mode='mobile'] .modal-root__dialog {
   height: 100%;
   min-height: 0;
 }
 
-html[data-platform-target='mobile'] .modal-header {
+html[data-shell-mode='mobile'] .modal-header {
   padding: 16px 14px 12px;
 }
 
-html[data-platform-target='mobile'] .modal-body {
+html[data-shell-mode='mobile'] .modal-body {
   padding: 14px;
 }
 
-html[data-platform-target='mobile'] .modal-actions {
+html[data-shell-mode='mobile'] .modal-actions {
   flex-wrap: wrap;
   padding: 12px 14px 14px;
 }
 
-html[data-platform-target='mobile'] .modal-actions > .ui-button {
+html[data-shell-mode='mobile'] .modal-actions > .ui-button {
   min-height: 48px;
   flex: 1 1 120px;
 }
 
-html[data-platform-target='mobile'] .pre-alpha-guide-modal__continue {
+html[data-shell-mode='mobile'] .pre-alpha-guide-modal__continue {
   width: 100%;
 }
 
@@ -816,13 +816,13 @@ html[data-platform-target='mobile'] .pre-alpha-guide-modal__continue {
   max-width: 100%;
 }
 
-html[data-platform-target='mobile'] .patch-create-modal__overlay {
+html[data-shell-mode='mobile'] .patch-create-modal__overlay {
   align-items: center;
   padding: max(12px, var(--safe-area-top)) max(12px, var(--safe-area-right))
     max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
 
-html[data-platform-target='mobile'] .patch-create-modal {
+html[data-shell-mode='mobile'] .patch-create-modal {
   width: 100%;
   max-height: 100%;
 }

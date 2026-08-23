@@ -128,7 +128,9 @@ describe('workspace surface language acceptance', () => {
     expect(workspaceNavigationCss).not.toContain('workspace-super-trigger[aria-expanded');
     expect(notification).not.toContain('e.currentTarget.style.background');
     expect(topTimeline).not.toContain('event.currentTarget.style.background');
-    expect(appTopbar).toContain("const leftWidth = runtime.isMobile ? 72 : 'max-content';");
+    expect(appTopbar).toContain(
+      "const leftWidth = runtime.isMobileShell ? 72 : 'max-content';",
+    );
     expect(appTopbar).not.toContain("background: 'var(--workspace-ui-bg)'");
     expect(appTopbar).toContain("borderRight: 'var(--chrome-divider)'");
     expect(appTopbar).toContain("borderLeft: 'var(--chrome-divider)'");
@@ -185,7 +187,7 @@ describe('workspace surface language acceptance', () => {
       ),
     ).not.toContain('storylineEditor.meta.kWords');
 
-    expect(shellCss).toContain("html[data-platform-target='mobile'] .app-topbar__workspace-nav");
+    expect(shellCss).toContain("html[data-shell-mode='mobile'] .app-topbar__workspace-nav");
   });
 
   it('keeps macOS and cross-platform workspace chrome on one opaque grey plane', () => {
@@ -737,7 +739,7 @@ describe('workspace surface language acceptance', () => {
     expect(mobileDoc).toContain('physical-device appearance or feel');
     expect(css).toContain("html[data-platform-target='mobile'] .app-root");
     expect(css).toContain('height: 100dvh !important;');
-    expect(css).toContain("html[data-platform-target='mobile'] .sidebar-shell");
+    expect(css).toContain("html[data-shell-mode='mobile'] .sidebar-shell");
   });
 
   it('records the palette boundary and manual visual acceptance boundary', () => {

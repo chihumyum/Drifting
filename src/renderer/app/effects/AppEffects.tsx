@@ -16,6 +16,7 @@ import { installProductSyncAuthorityMonitor } from '../../sync/product-authority
 import { events } from '../../lib/events';
 import { UpdateService } from '../../services/update/update-service';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
+import { applyResolvedColorScheme } from '../../lib/initial-theme';
 
 const log = loglevel.getLogger('AppEffects');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -36,8 +37,7 @@ function AppearanceEffects() {
   useEffect(() => {
     const root = document.documentElement;
     const apply = (mode: 'light' | 'dark') => {
-      if (mode === 'dark') root.classList.add('dark');
-      else root.classList.remove('dark');
+      applyResolvedColorScheme(root, mode);
       setUiTheme(mode);
     };
     if (themeMode === 'system') {

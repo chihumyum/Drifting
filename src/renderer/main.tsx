@@ -22,6 +22,7 @@ import { elementCandidateCapability } from './lib/copilot/capabilities/element-c
 import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
 import { hydrateSessionToken } from './lib/session-token';
 import { hydratePlatformRuntime } from './platform/runtime';
+import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
@@ -62,6 +63,7 @@ const queryClient = new QueryClient({
 });
 
 async function bootstrap() {
+  applyInitialThemeBeforeRender();
   await Promise.all([hydrateSessionToken(), hydratePlatformRuntime()]);
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

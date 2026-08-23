@@ -38,7 +38,7 @@ export function LeftSidebarTopBar() {
     >
       {/* macOS native controls and product actions share this section; on
           other targets the actions start at the ordinary content inset. */}
-      {!runtime.isMobile && projectName && (
+      {!runtime.isMobileShell && projectName && (
         <span
           className="app-topbar__project-name"
           data-tauri-drag-region="false"

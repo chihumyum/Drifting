@@ -148,6 +148,24 @@
     );
     --entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);
 
+    /* Mobile V2 semantic color roles. Components consume roles rather than
+       fixed light colors so phone and compact-tablet surfaces can switch
+       continuously between explicit light/dark and the system preference. */
+    --mobile-v2-desk: hsl(var(--paper-deep));
+    --mobile-v2-page: hsl(var(--page));
+    --mobile-v2-panel: hsl(var(--surface));
+    --mobile-v2-panel-deep: hsl(var(--paper));
+    --mobile-v2-bar: hsl(var(--paper-deep) / 0.94);
+    --mobile-v2-rail-active: hsl(var(--accent) / 0.14);
+    --mobile-v2-layer-wash: hsl(var(--accent) / 0.08);
+    --mobile-v2-search-match: hsl(var(--story-4) / 0.28);
+    --mobile-v2-search-current: hsl(var(--story-4) / 0.52);
+    --mobile-v2-agent-message: hsl(var(--secondary));
+    --mobile-v2-drag-ghost: hsl(var(--surface) / 0.92);
+    --mobile-v2-canvas-grid: hsl(var(--ink-1) / 0.07);
+    --mobile-v2-sheet: hsl(var(--surface));
+    --mobile-v2-backdrop: hsl(30 6% 12% / 0.28);
+
     /* Native window chrome geometry. Every renderer-owned titlebar surface
        consumes the same height so its content center stays aligned with the
        14px macOS traffic lights. */
@@ -360,6 +378,8 @@
     --story-4: 45 68% 68%;
     --story-5: 282 44% 74%;
     --story-6: 182 38% 60%;
+
+    --mobile-v2-backdrop: hsl(220 10% 3% / 0.58);
 
     --chrome-bg: hsl(var(--paper) / 0.65);
   }
@@ -744,21 +764,21 @@ html[data-platform-target='mobile'] .app-root {
   overscroll-behavior: none;
 }
 
-html[data-platform-target='mobile'] .app-topbar,
-html[data-platform-target='mobile'] .app-row,
-html[data-platform-target='mobile'] .app-mid,
-html[data-platform-target='mobile'] .app-topbar__center {
+html[data-shell-mode='mobile'] .app-topbar,
+html[data-shell-mode='mobile'] .app-row,
+html[data-shell-mode='mobile'] .app-mid,
+html[data-shell-mode='mobile'] .app-topbar__center {
   min-width: 0;
 }
 
 /* On a phone, sidebars become temporary overlay drawers instead of consuming
    the editor's already narrow layout width. Their existing open/close store and
    product controls remain unchanged. */
-html[data-platform-target='mobile'] .app-row {
+html[data-shell-mode='mobile'] .app-row {
   position: relative;
 }
 
-html[data-platform-target='mobile'] .sidebar-shell {
+html[data-shell-mode='mobile'] .sidebar-shell {
   position: absolute !important;
   top: 0;
   bottom: 0;
@@ -766,25 +786,25 @@ html[data-platform-target='mobile'] .sidebar-shell {
   max-width: min(84vw, 320px);
 }
 
-html[data-platform-target='mobile'] .sidebar-shell--left {
+html[data-shell-mode='mobile'] .sidebar-shell--left {
   left: 0;
 }
 
-html[data-platform-target='mobile'] .sidebar-shell--right {
+html[data-shell-mode='mobile'] .sidebar-shell--right {
   right: 0;
 }
 
-html[data-platform-target='mobile'] .app-mid {
+html[data-shell-mode='mobile'] .app-mid {
   width: 100%;
 }
 
 @media (max-width: 600px) {
-  html[data-platform-target='mobile'] .app-topbar__workspace-nav,
-  html[data-platform-target='mobile'] .app-topbar__quick-actions {
+  html[data-shell-mode='mobile'] .app-topbar__workspace-nav,
+  html[data-shell-mode='mobile'] .app-topbar__quick-actions {
     display: none;
   }
 
-  html[data-platform-target='mobile'] .app-topbar__right {
+  html[data-shell-mode='mobile'] .app-topbar__right {
     max-width: 108px;
     overflow: hidden;
   }

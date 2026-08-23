@@ -272,12 +272,12 @@
   font-size: 9px;
 }
 
-html[data-platform-target='mobile'] .pp-modal-backdrop {
+html[data-shell-mode='mobile'] .pp-modal-backdrop {
   place-items: end center;
   padding: 0 var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
 }
 
-html[data-platform-target='mobile'] .pp-modal {
+html[data-shell-mode='mobile'] .pp-modal {
   width: 100% !important;
   max-height: min(82dvh, 680px);
   overflow-y: auto;
@@ -287,13 +287,13 @@ html[data-platform-target='mobile'] .pp-modal {
   border-radius: 12px 12px 0 0;
 }
 
-html[data-platform-target='mobile'] .pp-modal__input,
-html[data-platform-target='mobile'] .pp-modal__textarea {
+html[data-shell-mode='mobile'] .pp-modal__input,
+html[data-shell-mode='mobile'] .pp-modal__textarea {
   min-height: 48px;
   font-size: 16px;
 }
 
-html[data-platform-target='mobile'] .pp-modal__btn {
+html[data-shell-mode='mobile'] .pp-modal__btn {
   min-height: 48px;
 }
 

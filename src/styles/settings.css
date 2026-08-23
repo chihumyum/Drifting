@@ -1738,7 +1738,7 @@
 
 /* Mobile shell: keep the full-screen settings surface inside system safe
    areas and leave a useful minimum width for both the rail and content. */
-html[data-platform-target='mobile'] .set-overlay {
+html[data-shell-mode='mobile'] .set-overlay {
   box-sizing: border-box;
   padding-top: var(--safe-area-top);
   padding-right: var(--safe-area-right);
@@ -1747,24 +1747,24 @@ html[data-platform-target='mobile'] .set-overlay {
 }
 
 @media (max-width: 600px) {
-  html[data-platform-target='mobile'] .set-head {
+  html[data-shell-mode='mobile'] .set-head {
     gap: 8px;
   }
 
-  html[data-platform-target='mobile'] .set-head__title em,
-  html[data-platform-target='mobile'] .set-head__search kbd {
+  html[data-shell-mode='mobile'] .set-head__title em,
+  html[data-shell-mode='mobile'] .set-head__search kbd {
     display: none;
   }
 
-  html[data-platform-target='mobile'] .set-head__search {
+  html[data-shell-mode='mobile'] .set-head__search {
     width: min(42vw, 220px);
   }
 
-  html[data-platform-target='mobile'] .set-rail {
+  html[data-shell-mode='mobile'] .set-rail {
     width: clamp(104px, 32vw, 148px);
   }
 
-  html[data-platform-target='mobile'] .set-main {
+  html[data-shell-mode='mobile'] .set-main {
     min-width: 0;
   }
 
