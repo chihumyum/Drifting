@@ -1,0 +1,99 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const rendererRoot = path.resolve(import.meta.dirname, '../../..');
+const repoRoot = path.resolve(rendererRoot, '../..');
+const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, relative), 'utf8');
+
+describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
+  it('owns paper and Project search without a prose-write path', () => {
+    const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const runtime = source('shells/mobile/MobileAppShell.tsx');
+    const overview = source('shells/mobile/workspace/MobileTabOverview.tsx');
+    const projectSearch = source('shells/mobile/workspace/useMobileProjectSearch.ts');
+    const paperSearch = source('shells/mobile/workspace/mobile-paper-search.ts');
+
+    expect(bar).toContain('<MobileUnifiedSearch');
+    expect(bar).toContain('owner?.setQuery(event.target.value)');
+    expect(bar).toContain('onProjectSearch(snapshot.query)');
+    expect(bar.match(/onPointerDown=\{\(event\) => event\.preventDefault\(\)\}/g)).toHaveLength(2);
+    expect(runtime).toContain('projectSearchQuery');
+    expect(runtime).toContain('saveActiveEditor().finally');
+    expect(overview).toContain('useMobileProjectSearch(searchQuery ?? \'\')');
+    expect(overview).toContain('onActivateSearchResult(group.target)');
+    expect(projectSearch).toContain('.select({');
+    expect(projectSearch).not.toMatch(/\.insert\(|\.update\(|\.delete\(/);
+    expect(paperSearch).toContain('Decoration.inline');
+    expect(paperSearch).not.toContain('editor.commands.setContent');
+  });
+
+  it('uses the one shared bar-sheet boundary for formatting, five-level TOC, and comments', () => {
+    const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
+    const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
+    const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
+    const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
+
+    expect(deck).toContain('<MobileBarSheet');
+    expect(deck).toContain("{ kind: 'bar-sheet', sheet: 'formatting' }");
+    expect(sheet).toContain('<MobileFormattingSheetContent />');
+    expect(accessory).toContain('event.preventDefault()');
+    expect(accessory).toContain('item.run(editor)');
+    expect(css).toContain("[data-bar-sheet='outline'] .editor__toc-rail");
+    expect(sheet).toContain("'mobile-outline-sheet-content'");
+    expect(sheet).toContain("'mobile-comments-sheet-content'");
+    expect(css).toContain('.m-outline-sheet-list__item--l5');
+    expect(css).toContain(
+      "[data-bar-sheet='comments'] #mobile-comments-sheet-content > .editor__margin",
+    );
+    expect(css).toContain('min-height: 44px');
+  });
+
+  it('bridges Android IME insets when edge-to-edge WebView geometry stays stable', () => {
+    const geometry = source('shells/mobile/workspace/mobile-keyboard-geometry.ts');
+    const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
+    const back = source('shells/mobile/workspace/useMobileWorkspaceBack.ts');
+    const activity = fs.readFileSync(
+      path.join(
+        repoRoot,
+        'src-tauri/gen/android/app/src/main/java/cc/drifting/client/MainActivity.kt',
+      ),
+      'utf8',
+    );
+
+    expect(activity).toContain('WindowInsetsCompat.Type.ime()');
+    expect(activity).toContain("'--mobile-native-keyboard-inset'");
+    expect(activity).toContain("'drifting:native-keyboard-geometry'");
+    expect(geometry).toContain('Math.max(visualInset, readMobileNativeKeyboardInset())');
+    expect(accessory).toContain('MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT');
+    expect(back).toContain("resolved.effect === 'blur-editor'");
+  });
+
+  it('promotes a touch at its caret only after flushing the previous live chapter', () => {
+    const view = source('views/AllChaptersEditorView.tsx');
+    const row = source('components/editor/VirtualChapterRow.tsx');
+    const allChapters = source('shells/mobile/workspace/mobile-all-chapters.ts');
+
+    expect(view).toContain('await saveActiveEditor()');
+    expect(view).toContain('createMobileAllChaptersLoader');
+    expect(view).toContain('writeMobileAllChaptersPosition');
+    expect(view).toContain('createMobileAllChaptersSearchOwner');
+    expect(row).toContain('onPointerDown');
+    expect(row).toContain('isMobileAllChaptersTap');
+    expect(row).toContain('editorTabSelectionKey(projectId');
+    expect(row).toContain('IntersectionObserver');
+    expect(allChapters).toContain('MOBILE_ALL_CHAPTERS_LOAD_CONCURRENCY = 6');
+    expect(allChapters).toContain("caretIntent: 'restore-selection'");
+  });
+
+  it('keeps an empty mobile Project writable through the shared chapter use case', () => {
+    const chapters = source('components/leftBars/ChapterPanel.tsx');
+    const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
+
+    expect(chapters).toContain("presentation === 'mobile' &&");
+    expect(chapters).toContain('onClick={() => void handleCreateNode(null)}');
+    expect(chapters).toContain('options?.preview !== false');
+    expect(css).toContain('.m-chapter-panel__create > button');
+    expect(css).toContain('min-height: 44px');
+  });
+});

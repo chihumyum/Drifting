@@ -134,7 +134,13 @@ export function EditorOutlineRail(props: Props) {
   const presentation = useEditorRailPresentation();
   const visible = presentation?.outlineVisible ?? outlineRailMode !== 'hidden';
   if (!visible) return null;
-  return <VisibleEditorOutlineRail {...props} labelPitch={presentation?.outlineLabelPitch} />;
+  return (
+    <VisibleEditorOutlineRail
+      {...props}
+      labelPitch={presentation?.outlineLabelPitch}
+      portalTargetId={presentation?.outlinePortalTargetId}
+    />
+  );
 }
 
 function VisibleEditorOutlineRail({
@@ -145,7 +151,8 @@ function VisibleEditorOutlineRail({
   emptyHint,
   secondaryItems,
   labelPitch,
-}: Props & { labelPitch?: number }) {
+  portalTargetId,
+}: Props & { labelPitch?: number; portalTargetId?: string }) {
   const { t } = useTranslation();
   const railRef = useRef<HTMLElement | null>(null);
   const bodyElRef = useRef<HTMLElement | null>(null);
@@ -158,6 +165,11 @@ function VisibleEditorOutlineRail({
   const [railHeight, setRailHeight] = useState(0);
   const [geometry, setGeometry] = useState<RailGeometry>(EMPTY_GEOMETRY);
   const [omissionReveal, setOmissionReveal] = useState<OmissionReveal | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    setPortalTarget(portalTargetId ? document.getElementById(portalTargetId) : null);
+  }, [portalTargetId]);
 
   const flat = useMemo(
     () => flattenOutlineEntries([...items, ...(secondaryItems ?? [])]),
@@ -350,15 +362,43 @@ function VisibleEditorOutlineRail({
     onItemClick?.(id);
   };
 
+  const mobileList = portalTarget
+    ? createPortal(
+        <nav className="m-outline-sheet-list" aria-label={`${title} · ${t('editorOutline.aria')}`}>
+          {flat.length === 0 && emptyHint ? (
+            <span className="m-outline-sheet-list__empty">{emptyHint}</span>
+          ) : null}
+          {flat.map((entry) => {
+            const tier = entryTier(entry);
+            const primary = entry.id === primaryId;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                className={`m-outline-sheet-list__item m-outline-sheet-list__item--${tier}`}
+                aria-current={primary ? 'location' : undefined}
+                onClick={() => jumpToEntry(entry.id)}
+              >
+                {entry.item.num ? <span>{entry.item.num}</span> : null}
+                <strong>{entry.item.text}</strong>
+              </button>
+            );
+          })}
+        </nav>,
+        portalTarget,
+      )
+    : null;
+
   return (
-    <nav
-      ref={attachRail}
-      className="editor__toc-rail editor__toc-rail--edge is-active"
-      aria-label={`${title} · ${t('editorOutline.aria')}`}
-      data-density={plan.mode}
-      data-placement="edge"
-      onWheel={handleWheel}
-    >
+    <>
+      <nav
+        ref={attachRail}
+        className="editor__toc-rail editor__toc-rail--edge is-active"
+        aria-label={`${title} · ${t('editorOutline.aria')}`}
+        data-density={plan.mode}
+        data-placement="edge"
+        onWheel={handleWheel}
+      >
       <div className="editor__toc-labels">
         {flat.length === 0 && emptyHint && <span className="editor__toc-empty">{emptyHint}</span>}
         {laidOut.map(({ label, y }) => {
@@ -465,6 +505,8 @@ function VisibleEditorOutlineRail({
             document.body,
           )
         : null}
-    </nav>
+      </nav>
+      {mobileList}
+    </>
   );
 }

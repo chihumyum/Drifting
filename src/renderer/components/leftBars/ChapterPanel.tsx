@@ -93,7 +93,7 @@ export function ChapterPanel({
       : nodeUi.selectedId;
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
-      if (onPreviewTarget) onPreviewTarget(target);
+      if (onPreviewTarget && options?.preview !== false) onPreviewTarget(target);
       else openEntity(target, options);
     },
     [onPreviewTarget, openEntity],
@@ -458,6 +458,18 @@ export function ChapterPanel({
       >
         {viewMode === 'global' && (
           <>
+            {presentation === 'mobile' && (
+              <div className="m-chapter-panel__create">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateNode(null)}
+                  aria-label={t('leftSidebar.actions.newChapter')}
+                >
+                  <span aria-hidden="true">＋</span>
+                  {t('leftSidebar.actions.newChapter')}
+                </button>
+              </div>
+            )}
             {sortedNodesGlobal.map((node) => renderNodeCard(node))}
             {!hasNodes && (
               <div

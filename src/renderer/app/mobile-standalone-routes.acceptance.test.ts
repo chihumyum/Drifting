@@ -12,15 +12,17 @@ function rendererSource(relativePath: string): string {
 describe('mobile standalone routes', () => {
   it('selects the mobile auth presentation from native platform metadata', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain('getPlatformRuntime().isMobile');
+    expect(routes).toContain('getPlatformRuntime().isMobileShell');
     expect(routes).toContain('<MobileAuthPage initialMode="signin" />');
     expect(routes).toContain('<MobileAuthPage initialMode="signup" />');
   });
 
   it('selects the mobile project shelf and the independent mobile workspace shell', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain('isMobile ? <MobileProjectShelfView /> : <ProjectPickerView />');
-    expect(routes).toContain('isMobile ? <MobileAppShell /> : <DesktopAppShell />');
+    expect(routes).toContain(
+      'isMobileShell ? <MobileProjectShelfView /> : <ProjectPickerView />',
+    );
+    expect(routes).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
     const mobileShelf = rendererSource('shells/mobile/standalone/MobileProjectShelfView.tsx');
     expect(mobileShelf).toContain('<ProjectPickerView presentation="mobile" />');
     const mobileWorkspace = rendererSource('shells/mobile/MobileAppShell.tsx');
@@ -36,15 +38,24 @@ describe('mobile standalone routes', () => {
     expect(mobileWorkspace).not.toContain('store/ui-store');
   });
 
-  it('keeps paper navigation, overview and gesture ownership in the mobile shell', () => {
+  it('keeps the M3 paper workspace, unified bar and touch ownership in the mobile shell', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const panels = rendererSource('shells/mobile/workspace/MobileWorkspacePanels.tsx');
+    const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const unifiedBarState = rendererSource(
+      'shells/mobile/workspace/mobile-unified-bar-state.ts',
+    );
+    const paperSwipe = rendererSource('shells/mobile/workspace/mobile-paper-swipe.ts');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
     const projectTrash = rendererSource('shells/mobile/workspace/MobileProjectTrashView.tsx');
     const plotGrid = rendererSource('components/editor/PlotGrid.tsx');
     const session = rendererSource('shells/mobile/workspace/mobile-workspace-session.ts');
-    const pinch = rendererSource('shells/mobile/workspace/usePaperPinch.ts');
-    const cluster = rendererSource('shells/mobile/workspace/paper-cluster-gesture.ts');
+    const sessionStorage = rendererSource(
+      'shells/mobile/workspace/mobile-workspace-session-storage.ts',
+    );
+    const sessionHook = rendererSource(
+      'shells/mobile/workspace/useMobileWorkspaceSession.ts',
+    );
     const previewSheet = rendererSource('shells/mobile/workspace/MobileEntityPreviewSheet.tsx');
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const paperRailMenu = rendererSource('shells/mobile/workspace/MobilePaperRailMenu.tsx');
@@ -67,28 +78,43 @@ describe('mobile standalone routes', () => {
     expect(session).toContain("case 'reorder'");
     expect(session).toContain("case 'clear'");
     expect(session).toContain("case 'remember-scroll'");
+    expect(sessionStorage).toContain('readMobileWorkspaceSession');
+    expect(sessionStorage).toContain('writeMobileWorkspaceSession');
+    expect(sessionStorage).toContain('normalizeMobileWorkspaceSession(JSON.parse(raw))');
+    expect(sessionHook).toContain('readMobileWorkspaceSession(');
+    expect(sessionHook).toContain('writeMobileWorkspaceSession(');
     expect(paperDeck).toContain('<MobilePaperContent');
     expect(paperDeck).toContain('<MobilePaperViewport');
     expect(paperDeck).toContain('<MobilePaperSnapshot');
     expect(paperDeck).toContain('<MobileEntityPreviewSheet');
-    expect(paperDeck).not.toContain('m-paper-deck__gesture-layer');
-    expect(paperDeck).toContain('className="m-paper-cluster"');
-    expect(paperDeck).toContain('data-armed={clusterArmed');
+    expect(paperDeck).toContain('<MobileUnifiedBar');
     expect(paperDeck).toContain('className="m-paper-row"');
     expect(paperDeck).toContain('session.papers.map((paper)');
-    expect(paperDeck).toContain('activateNearestPaper');
-    expect(paperDeck).not.toContain("phase: 'exit'");
-    expect(paperDeck).not.toContain("phase: 'settle'");
+    expect(paperDeck).toContain('onPointerDown={beginPaperSwipe}');
+    expect(paperDeck).toContain('onPointerMove={movePaperSwipe}');
+    expect(paperDeck).toContain('onPointerUp={endPaperSwipe}');
+    expect(paperDeck).toContain('data-paper-swipe={paperSwipePhase}');
+    expect(paperDeck).toContain('canStartMobilePaperSwipe({');
+    expect(paperDeck).toContain('currentSelectionIsCollapsed()');
+    expect(paperDeck).toContain('composing: composingRef.current');
+    expect(paperDeck).not.toContain('usePaperPinch');
+    expect(paperDeck).not.toContain('paperCluster');
+    expect(paperDeck).not.toContain('VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE');
     expect(paperDeck).toContain("data-full-panel={fullPanel ?? 'none'}");
     expect(panels).toContain('<PanelResizeHandle');
-    expect(panels).toContain('className="m-context-tab-rail"');
+    expect(panels).toContain('m-context-tab-rail--structure');
+    expect(panels).toContain('m-context-tab-rail--tools');
     expect(panels).toContain('<ChapterPanel');
     expect(panels).toContain('<ElementPanel');
     expect(panels).toContain('<DriftPanel');
     expect(panels).toContain('presentation="mobile"');
-    expect(panels).toContain('className="m-context-tab-rail__dashboard"');
-    expect(panels).toContain('className="m-tool-workspace__tabs"');
-    expect(panels).toContain('<UserAvatar');
+    expect(panels).not.toContain('m-context-tab-rail__dashboard');
+    expect(panels).not.toContain('<Home');
+    expect(panels).toContain("type ToolTab = 'planning' | 'agent' | 'library' | 'stats'");
+    expect(panels).toContain("type PlanningMode = 'timeline' | 'plot'");
+    expect(panels).toContain("type LibraryMode = 'todo' | 'library'");
+    expect(panels).toContain('className="m-tool-workspace__subtabs"');
+    expect(panels).not.toContain('<UserAvatar');
     expect(panels).not.toContain('m-structure-shelf');
     expect(panels).not.toContain('whatCanIDo');
     expect(previewSheet).toContain('这里只读预览');
@@ -119,41 +145,33 @@ describe('mobile standalone routes', () => {
     expect(actRail).toContain('beginTouchMenu(event');
     expect(bottomTimeline).toContain("value: 'narrative'");
     expect(plotGrid).toContain('onPointerDown={onGripDown}');
-    expect(pinch).toContain('paperRevealForMidpoint');
-    expect(pinch).toContain('pinchStrength');
-    expect(pinch).toContain('gesture.strength >= 1.45');
-    expect(pinch).toContain('onOverview?.()');
-    expect(pinch).toContain("return 'bottom'");
-    expect(pinch).toContain("return 'top'");
-    expect(cluster).toContain('paperClusterDestination');
-    expect(paperDeck).toContain('paperClusterDestination(');
-    expect(paperDeck).toContain('CLUSTER_ARM_DELAY_MS = 160');
-    expect(paperDeck).toContain("event.pointerType === 'mouse'");
-    expect(paperDeck).toContain('VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE');
-    expect(paperDeck).toContain("commitExtentFromHandle('bottom', 1)");
-    expect(paperDeck).toContain('paperClusterQuickSwitchIndex(');
-    expect(paperDeck).toContain('onFreezeActivePaper()');
-    expect(paperDeck).toContain('data-paper-switch={quickSwitch');
-    expect(paperDeck).toContain(
-      'const isActive = paper.key === session.activeKey && quickSwitch === null',
-    );
+    expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_AXIS_LOCK_PX = 8');
+    expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_AXIS_RATIO = 1.2');
+    expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS = 180');
+    expect(paperSwipe).toContain('workspace.paperMode.kind === \'read\'');
+    expect(paperSwipe).toContain("workspace.panel === 'none'");
+    expect(paperSwipe).toContain("workspace.transient.kind === 'none'");
+    expect(paperSwipe).toContain('targetIndex = Math.max');
     expect(paperDeck).toContain('className="m-paper-row__activate"');
-    expect(paperDeck).toContain('<MobileEditorAccessory');
     expect(paperDeck).toContain('data-editor-active={editorActive');
+    expect(unifiedBar).toContain('data-debug-id="mobile-unified-bar"');
+    expect(unifiedBar).toContain('selectMobileUnifiedBarProjection(workspaceUi)');
+    expect(unifiedBar).toContain('<MobileEditorAccessory');
+    expect(unifiedBar).toContain('<MobilePaperRailMenu');
+    expect(unifiedBar).toContain("nextMobilePanelForBar(workspaceUi.panel, side)");
+    expect(unifiedBarState).toContain("if (current === docked) return full");
     expect(editorAccessory).toContain('subscribeActiveEditor');
     expect(editorAccessory).toContain('window.visualViewport');
     expect(editorAccessory).toContain('getBlockFormatItems()');
     expect(editorAccessory).toContain('getInlineFormatItems()');
     expect(editorAccessory).toContain("data-expanded={expanded ? 'true' : 'false'}");
     expect(editorAccessory).toContain('event.preventDefault()');
-    expect(paperDeck).toContain('<MobilePaperRailMenu');
     expect(paperDeck).toContain('data-paper-rail={activeRail');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');
     expect(paperDeck).toContain('outlineLabelPitch: 34');
-    expect(paperRailMenu).toContain('createPortal(trigger, document.body)');
+    expect(paperRailMenu).not.toContain('createPortal');
     expect(paperRailMenu).toContain('<AnchoredPopover');
-    expect(paperRailMenu).toContain('window.visualViewport');
-    expect(paperRailMenu).toContain("'--m-paper-rail-viewport-top'");
+    expect(paperRailMenu).toContain('data-debug-id="mobile-paper-actions"');
     expect(paperRailMenu).toContain("selectRail('toc')");
     expect(paperRailMenu).toContain("selectRail('comments')");
     expect(paperRailMenu).toContain('useEntityMarginNotes');
@@ -175,25 +193,27 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('visibility: visible');
     expect(css).toContain(".m-workspace[data-full-panel='top']");
     expect(css).toContain(".m-workspace[data-full-panel='bottom'] .m-context-workspace--tools");
-    expect(css).toContain('scroll-snap-type: x mandatory');
+    expect(css).toContain('--m-unified-bar-height: 56px');
+    expect(css).toContain('.m-unified-bar');
+    expect(css).toContain(".m-unified-bar[data-placement='above-bottom-panel']");
+    expect(css).toContain(".m-unified-bar[data-keyboard='open']");
+    expect(css).toContain(".m-workspace[data-paper-swipe='dragging'] .m-paper-row__page");
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).not.toContain('--m-paper-scale');
+    expect(css).not.toContain('scroll-snap-type');
+    expect(css).not.toContain('.m-paper-cluster');
+    expect(css).not.toContain('.m-paper-rail-toggle');
     expect(css).toContain('display: flex');
     expect(css).toContain('height: calc(var(--m-panel-extent) * 100dvh)');
     expect(css).toContain(".m-workspace[data-reveal='top'] .m-paper-deck");
     expect(css).toContain(".m-workspace[data-reveal='bottom'] .m-paper-deck");
-    expect(css).toContain(".m-paper-cluster[data-armed='true']");
-    expect(css).toContain(".m-paper-cluster[data-axis='horizontal']");
-    expect(css).toContain("[data-paper-switch='true'] .m-paper-row__page");
     expect(css).toContain(".m-workspace:not([data-reveal='focused']) .editor-scroll");
     expect(css).toContain('overscroll-behavior-x: auto');
     expect(css).toContain('.m-paper-row__activate');
-    expect(css).toContain(".m-workspace[data-editor-active='true'] .m-paper-cluster");
-    expect(css).toContain(".m-workspace:not([data-paper-rail='none']) .m-paper-cluster");
-    expect(css).toContain(".m-editor-accessory[data-expanded='true']");
-    expect(css).toContain(".m-editor-accessory[data-keyboard='true']");
-    expect(css).toContain('.m-paper-rail-toggle');
-    expect(css).toContain(".m-paper-rail-toggle[data-active='comments']");
-    expect(css).toContain(".m-workspace[data-paper-rail='toc'] .editor__toc-rail");
-    expect(css).toContain(".m-workspace[data-paper-rail='comments'] .editor__margin");
+    expect(css).toContain(".m-workspace[data-bar-sheet='outline'] .editor__toc-rail");
+    expect(css).toContain(
+      ".m-workspace[data-bar-sheet='comments'] #mobile-comments-sheet-content > .editor__margin",
+    );
     expect(css).toContain('.m-bottom-timeline');
     expect(css).toContain('.btl--mobile .btl__scroll');
     expect(css).toContain('touch-action: pan-x pan-y pinch-zoom');
@@ -242,13 +262,13 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('min-height: 100dvh');
     expect(css).toContain('var(--safe-area-bottom)');
     expect(css).toContain('min-height: 48px');
-    expect(css).toContain("html[data-platform-target='mobile'] .pp-modal");
+    expect(css).toContain("html[data-shell-mode='mobile'] .pp-modal");
   });
 
   it('routes mobile settings outside project runtime and gates hosted account sections', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
     expect(routes).toContain(
-      'isMobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
+      'isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
     );
     const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');
     expect(settings).toContain('withoutHostedAccountSettings(group.items, accountSettingsEnabled)');
@@ -291,8 +311,8 @@ describe('mobile standalone routes', () => {
     expect(onboarding).toContain('pre-alpha-guide-modal__continue');
     expect(controls).toContain('grid-template-columns: minmax(0, 1fr)');
     expect(controls).toContain('width: min(100%, var(--modal-card-width, 520px))');
-    expect(controls).toContain("html[data-platform-target='mobile'] .modal-root");
-    expect(controls).toContain("html[data-platform-target='mobile'] .modal-root__dialog");
+    expect(controls).toContain("html[data-shell-mode='mobile'] .modal-root");
+    expect(controls).toContain("html[data-shell-mode='mobile'] .modal-root__dialog");
     expect(controls).toContain('height: 100%');
     expect(controls).toContain('max(12px, var(--safe-area-left))');
     expect(controls).toContain('min-height: 48px');

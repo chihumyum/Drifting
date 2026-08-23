@@ -108,7 +108,8 @@ describe('hosted settings boundary', () => {
     expect(shelf).toContain('accountSettingsEnabled && user?.email');
     expect(projectPicker).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     expect(projectPicker).toContain('hostedAccountSettingsEnabled() && user?.email');
-    expect(workspace).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
+    expect(workspace).not.toContain('<UserAvatar');
+    expect(workspace).not.toContain('hostedAccountSettingsEnabled');
   });
 
   it('omits inert help, update and Finder actions instead of rendering dead controls', () => {

@@ -739,7 +739,7 @@ button.relation-kind-menu__name:hover {
   color: hsl(var(--ink-1));
 }
 
-html[data-platform-target='mobile'] .super-view-overlay {
+html[data-shell-mode='mobile'] .super-view-overlay {
   top: var(--safe-area-top);
   right: var(--safe-area-right);
   bottom: max(var(--super-view-bottom-inset), var(--safe-area-bottom));

@@ -1,10 +1,28 @@
-import { ArrowLeft, BookOpen, PanelsTopLeft, Settings, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, PanelsTopLeft, Search, Settings, Trash2, X } from 'lucide-react';
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import { useMobilePaperPresentation } from './MobilePaperContent';
+import type { MobileSuperViewId } from './mobile-workspace-controller';
+import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
+import { useMobileProjectSearch } from './useMobileProjectSearch';
+import type { MobileProjectSearchOccurrence } from './mobile-project-search';
 
-export type MobileSuperViewId = 'element' | 'graph' | 'memo-material';
+export type { MobileSuperViewId } from './mobile-workspace-controller';
+
+function SearchExcerpt({ occurrence }: { occurrence: MobileProjectSearchOccurrence }) {
+  const before = occurrence.excerpt.slice(0, occurrence.matchStart);
+  const match = occurrence.excerpt.slice(
+    occurrence.matchStart,
+    occurrence.matchStart + occurrence.matchLength,
+  );
+  const after = occurrence.excerpt.slice(occurrence.matchStart + occurrence.matchLength);
+  return (
+    <span>
+      {before}<mark>{match}</mark>{after}
+    </span>
+  );
+}
 
 function PaperOverviewCard({
   paper,
@@ -63,8 +81,11 @@ function PaperOverviewCard({
 
 export function MobileTabOverview({
   session,
+  searchQuery,
+  onSearchQueryChange,
   onClose,
   onActivate,
+  onActivateSearchResult,
   onClosePaper,
   onCloseAll,
   onReorder,
@@ -75,8 +96,11 @@ export function MobileTabOverview({
   onBackToShelf,
 }: {
   session: MobileWorkspaceSessionState;
+  searchQuery: string | null;
+  onSearchQueryChange: (query: string | null) => void;
   onClose: () => void;
   onActivate: (paper: MobilePaper) => void;
+  onActivateSearchResult: (target: WorkspaceTarget) => void;
   onClosePaper: (key: string) => void;
   onCloseAll: () => void;
   onReorder: (from: number, to: number) => void;
@@ -89,6 +113,8 @@ export function MobileTabOverview({
   const { t } = useTranslation();
   const draggingIndexRef = useRef<number | null>(null);
   const [dragging, setDragging] = useState(false);
+  const projectSearch = useMobileProjectSearch(searchQuery ?? '');
+  const searchingProject = searchQuery !== null;
   const superViews: Array<{ id: MobileSuperViewId; label: string; meta: string }> = [
     { id: 'element', label: t('superElement.title'), meta: t('leftSidebar.tabs.elements') },
     { id: 'graph', label: t('storyGraph.title'), meta: t('dashboard.structure.storylines') },
@@ -128,14 +154,65 @@ export function MobileTabOverview({
         </button>
         <div>
           <span>Drifting</span>
-          <strong>{t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}</strong>
+          {searchingProject ? (
+            <label className="m-tab-overview__search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+                placeholder={t('globalSearch.placeholder')}
+                aria-label={t('globalSearch.placeholder')}
+              />
+            </label>
+          ) : (
+            <strong>{t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}</strong>
+          )}
         </div>
-        <button type="button" onClick={onOpenSettings} aria-label={t('settings.title')}>
-          <Settings size={19} />
+        <button
+          type="button"
+          onClick={() => (searchingProject ? onSearchQueryChange(null) : onOpenSettings())}
+          aria-label={searchingProject ? t('findPanel.closeTitle') : t('settings.title')}
+        >
+          {searchingProject ? <X size={19} /> : <Settings size={19} />}
         </button>
       </header>
 
       <div className="m-tab-overview__scroll">
+        {searchingProject ? (
+          <section className="m-project-search" data-status={projectSearch.status}>
+            <header>
+              <span>{t('mobileWorkspace.search.projectScope', { defaultValue: '项目搜索' })}</span>
+              <strong>{projectSearch.totalMatches}</strong>
+            </header>
+            {searchQuery.trim() === '' ? (
+              <p>{t('globalSearch.emptyPrompt')}</p>
+            ) : projectSearch.status === 'searching' ? (
+              <p>{t('common.loading')}</p>
+            ) : projectSearch.groups.length === 0 ? (
+              <p>{t('globalSearch.noResults')}</p>
+            ) : (
+              <div className="m-project-search__groups">
+                {projectSearch.groups.map((group) => (
+                  <button
+                    key={`${group.target.entityType}:${group.target.id}`}
+                    type="button"
+                    onClick={() => onActivateSearchResult(group.target)}
+                  >
+                    <span>
+                      <strong>{group.title}</strong>
+                      <em>{group.totalMatches}</em>
+                    </span>
+                    {group.occurrences.slice(0, 3).map((occurrence, index) => (
+                      <SearchExcerpt key={`${occurrence.field}:${index}`} occurrence={occurrence} />
+                    ))}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
         <section className="m-tab-overview__super">
           <div>
             <span>SUPER VIEW</span>
@@ -187,9 +264,11 @@ export function MobileTabOverview({
             ))}
           </div>
         </section>
+          </>
+        )}
       </div>
 
-      <footer>
+      {!searchingProject && <footer>
         <button type="button" onClick={onOpenTrash}>
           <Trash2 size={17} aria-hidden="true" />
           {t('settings.rail.trash')}
@@ -197,7 +276,7 @@ export function MobileTabOverview({
         <button type="button" onClick={onBackToShelf}>
           {t('projectPicker.backToShelf', { defaultValue: '返回书架' })}
         </button>
-      </footer>
+      </footer>}
     </section>
   );
 }

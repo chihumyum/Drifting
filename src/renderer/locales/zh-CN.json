@@ -2852,6 +2852,13 @@
       "backHome": "回到首页"
     }
   },
+  "mobileWorkspace": {
+    "search": {
+      "open": "搜索",
+      "paperScope": "本纸",
+      "projectScope": "搜索整个项目"
+    }
+  },
   "mobileEditorRails": {
     "controls": "纸张导航与批注",
     "menu": "纸张编辑辅助",

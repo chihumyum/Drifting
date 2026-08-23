@@ -2852,6 +2852,13 @@
       "backHome": "Back home"
     }
   },
+  "mobileWorkspace": {
+    "search": {
+      "open": "Search",
+      "paperScope": "Paper",
+      "projectScope": "Search the whole Project"
+    }
+  },
   "mobileEditorRails": {
     "controls": "Paper navigation and comments",
     "menu": "Paper editing aids",

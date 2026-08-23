@@ -4,10 +4,8 @@ import {
   useMemo,
   useState,
   useSyncExternalStore,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import {
   Bold,
@@ -29,7 +27,11 @@ import {
   getInlineFormatItems,
   type BlockFormatItem,
 } from '../../../lib/slash-menu';
-import { readMobileKeyboardInset } from './mobile-keyboard-geometry';
+import {
+  MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
+  readMobileKeyboardInset,
+  readMobileSoftwareKeyboardVisible,
+} from './mobile-keyboard-geometry';
 
 interface AccessoryAction {
   item: BlockFormatItem;
@@ -64,9 +66,17 @@ const KEY_BY_ACTION: Record<string, string> = {
 const KEYBOARD_INSET_THRESHOLD = 72;
 
 export function MobileEditorAccessory({
+  expanded,
+  onExpandedChange,
   onEditingStateChange,
+  onKeyboardStateChange,
+  onKeyboardInsetChange,
 }: {
+  expanded: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   onEditingStateChange?: (editing: boolean) => void;
+  onKeyboardStateChange?: (keyboard: 'closed' | 'open') => void;
+  onKeyboardInsetChange?: (inset: number) => void;
 }) {
   const { t } = useTranslation();
   const editor = useSyncExternalStore(subscribeActiveEditor, getActiveEditor, () => null);
@@ -74,8 +84,8 @@ export function MobileEditorAccessory({
     const current = getActiveEditor();
     return current?.isFocused ? current : null;
   });
-  const [expanded, setExpanded] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [softwareKeyboardVisible, setSoftwareKeyboardVisible] = useState(false);
   const [, setRevision] = useState(0);
   const editing = Boolean(editor && !editor.isDestroyed && focusedEditor === editor);
 
@@ -87,8 +97,8 @@ export function MobileEditorAccessory({
       const focused = editor.isFocused;
       setFocusedEditor((current) => (focused ? editor : current === editor ? null : current));
       if (!focused) {
-        setExpanded(false);
         setKeyboardInset(0);
+        setSoftwareKeyboardVisible(false);
       }
       setRevision((revision) => revision + 1);
     };
@@ -115,43 +125,48 @@ export function MobileEditorAccessory({
     return () => onEditingStateChange?.(false);
   }, [editing, onEditingStateChange]);
 
+  const keyboardVisible = editing && softwareKeyboardVisible;
+
+  useEffect(() => {
+    onKeyboardStateChange?.(keyboardVisible ? 'open' : 'closed');
+    return () => onKeyboardStateChange?.('closed');
+  }, [keyboardVisible, onKeyboardStateChange]);
+
+  useEffect(() => {
+    onKeyboardInsetChange?.(keyboardInset);
+  }, [keyboardInset, onKeyboardInsetChange]);
+
+  useEffect(
+    () => () => {
+      onKeyboardInsetChange?.(0);
+    },
+    [onKeyboardInsetChange],
+  );
+
   useEffect(() => {
     if (!editing) return;
     const viewport = window.visualViewport;
     let frame = 0;
     const syncInset = () => {
       if (frame) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setKeyboardInset(readMobileKeyboardInset()));
+      frame = requestAnimationFrame(() => {
+        setKeyboardInset(readMobileKeyboardInset());
+        setSoftwareKeyboardVisible(readMobileSoftwareKeyboardVisible(KEYBOARD_INSET_THRESHOLD));
+      });
     };
     syncInset();
     viewport?.addEventListener('resize', syncInset);
     viewport?.addEventListener('scroll', syncInset);
     window.addEventListener('resize', syncInset);
+    window.addEventListener(MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT, syncInset);
     return () => {
       if (frame) cancelAnimationFrame(frame);
       viewport?.removeEventListener('resize', syncInset);
       viewport?.removeEventListener('scroll', syncInset);
       window.removeEventListener('resize', syncInset);
+      window.removeEventListener(MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT, syncInset);
     };
   }, [editing]);
-
-  const actions = useMemo<AccessoryAction[]>(() => {
-    const items = [...getBlockFormatItems(), ...getInlineFormatItems()];
-    return items.flatMap((item) => {
-      const icon = ICON_BY_ACTION[item.id];
-      const key = KEY_BY_ACTION[item.id];
-      if (!icon || !key) return [];
-      return [
-        {
-          item,
-          icon,
-          label: t(`mobileWorkspace.editorAccessory.${key}`, {
-            defaultValue: item.title,
-          }),
-        },
-      ];
-    });
-  }, [t]);
 
   const keepEditorFocused = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
@@ -166,18 +181,12 @@ export function MobileEditorAccessory({
 
   if (!editing || !editor || editor.isDestroyed) return null;
 
-  const toggle = () => setExpanded((current) => !current);
-  const style = {
-    '--m-editor-keyboard-inset': `${keyboardInset}px`,
-  } as CSSProperties;
-  const keyboardVisible = keyboardInset >= KEYBOARD_INSET_THRESHOLD;
-
-  return createPortal(
+  const toggle = () => onExpandedChange?.(!expanded);
+  return (
     <aside
       className="m-editor-accessory"
       data-expanded={expanded ? 'true' : 'false'}
       data-keyboard={keyboardVisible ? 'true' : 'false'}
-      style={style}
       aria-label={t('mobileWorkspace.editorAccessory.label', {
         defaultValue: '编辑样式附件栏',
       })}
@@ -200,26 +209,63 @@ export function MobileEditorAccessory({
         <Type size={20} strokeWidth={1.8} aria-hidden="true" />
       </button>
 
-      {expanded && (
-        <div className="m-editor-accessory__actions" role="toolbar">
-          {actions.map(({ item, icon: Icon, label }) => (
-            <button
-              key={item.id}
-              type="button"
-              className="m-editor-accessory__action"
-              aria-label={label}
-              aria-pressed={item.isActive?.(editor) ?? false}
-              onPointerDown={(event) => keepEditorFocused(event, () => item.run(editor))}
-              onClick={(event) => {
-                if (event.detail === 0) item.run(editor);
-              }}
-            >
-              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      )}
-    </aside>,
-    document.body,
+      <span className="m-editor-accessory__label">
+        {t('mobileWorkspace.editorAccessory.expand', { defaultValue: '格式' })}
+      </span>
+    </aside>
+  );
+}
+
+export function MobileFormattingSheetContent() {
+  const { t } = useTranslation();
+  const editor = useSyncExternalStore(subscribeActiveEditor, getActiveEditor, () => null);
+  const [, setRevision] = useState(0);
+  const actions = useMemo<AccessoryAction[]>(() => {
+    const items = [...getBlockFormatItems(), ...getInlineFormatItems()];
+    return items.flatMap((item) => {
+      const icon = ICON_BY_ACTION[item.id];
+      const key = KEY_BY_ACTION[item.id];
+      if (!icon || !key) return [];
+      return [{ item, icon, label: t(`mobileWorkspace.editorAccessory.${key}`, { defaultValue: item.title }) }];
+    });
+  }, [t]);
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return undefined;
+    const update = () => setRevision((revision) => revision + 1);
+    editor.on('selectionUpdate', update);
+    editor.on('transaction', update);
+    return () => {
+      editor.off('selectionUpdate', update);
+      editor.off('transaction', update);
+    };
+  }, [editor]);
+
+  if (!editor || editor.isDestroyed) {
+    return <p className="m-bar-sheet__empty">{t('editorMainArea.emptyHint')}</p>;
+  }
+
+  const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
+    event.preventDefault();
+    action();
+  };
+  return (
+    <div className="m-format-sheet" role="toolbar">
+      {actions.map(({ item, icon: Icon, label }) => (
+        <button
+          key={item.id}
+          type="button"
+          aria-label={label}
+          aria-pressed={item.isActive?.(editor) ?? false}
+          onPointerDown={(event) => run(event, () => item.run(editor))}
+          onClick={(event) => {
+            if (event.detail === 0) item.run(editor);
+          }}
+        >
+          <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
   );
 }

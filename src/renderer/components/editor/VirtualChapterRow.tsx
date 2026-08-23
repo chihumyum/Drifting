@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -11,6 +11,8 @@ import type {
   EntityLinkTargetColorResolver,
 } from '../../lib/extensions/entity-link';
 import type { OutlineItem } from '../../lib/outline';
+import { editorTabSelectionKey } from '../../lib/editor-selection-memory';
+import { isMobileAllChaptersTap } from '../../shells/mobile/workspace/mobile-all-chapters';
 import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
 
@@ -100,15 +102,39 @@ function VirtualChapterRowImpl({
   resolveEntityLinkColor,
 }: VirtualChapterRowProps) {
   const { t } = useTranslation();
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
+  const [nearViewport, setNearViewport] = useState(false);
 
   const intrinsicHeight = estimateChapterHeight(node.wordCount || 0);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || isFocused) {
+      const frame = requestAnimationFrame(() => setNearViewport(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      const frame = requestAnimationFrame(() => setNearViewport(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setNearViewport(true);
+        observer.disconnect();
+      },
+      { rootMargin: '120% 0px' },
+    );
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [isFocused]);
 
   // Load (and, on un-focus, refresh) this row's content. While focused the live
   // editor owns the document, so we don't touch it; when focus leaves we re-read
   // the cache so the static prose reflects edits made while it was the editor.
   useEffect(() => {
-    if (isFocused) return;
+    if (!nearViewport || (isFocused && content !== undefined)) return;
     let cancelled = false;
     void fetchContent(node.id)
       .then((c) => {
@@ -121,7 +147,7 @@ function VirtualChapterRowImpl({
     return () => {
       cancelled = true;
     };
-  }, [isFocused, fetchContent, node.id]);
+  }, [content, isFocused, fetchContent, nearViewport, node.id]);
 
   const staticHtml = useMemo(
     () =>
@@ -152,6 +178,7 @@ function VirtualChapterRowImpl({
 
   return (
     <div
+      ref={rowRef}
       data-chapter-id={node.id}
       data-chapter-index={index}
       className="all-chap-row"
@@ -181,7 +208,7 @@ function VirtualChapterRowImpl({
 
           {storylineName && <div className="page__chapter-mark">— {storylineName} —</div>}
 
-          {isFocused ? (
+          {isFocused && content !== undefined ? (
             <ChapterEditor
               nodeId={node.id}
               projectId={projectId}
@@ -200,6 +227,10 @@ function VirtualChapterRowImpl({
               autoFocus={false}
               activateCaret={activateCaret ?? null}
               minHeight="240px"
+              selectionKey={editorTabSelectionKey(projectId, {
+                entityType: 'node',
+                id: node.id,
+              })}
             />
           ) : (
             <StaticChapterBody
@@ -243,9 +274,16 @@ function StaticChapterBody({
   onActivate: (coords: { clientX: number; clientY: number }) => void;
   onEntityClick?: (ref: EntityLinkRef) => void;
 }) {
-  const handleMouseDown = useCallback(
-    (event: React.MouseEvent) => {
-      if (event.button !== 0) return; // primary click only
+  const touchStartRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    time: number;
+    target: EventTarget | null;
+  } | null>(null);
+  const activateFromPointer = useCallback(
+    (event: React.PointerEvent, target: EventTarget | null = event.target) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
 
       // A click on an entity-link navigates to its target, mirroring the live
       // editor's entity-link handleClick. We act on mousedown (not click)
@@ -254,7 +292,7 @@ function StaticChapterBody({
       // activation when interaction is off, the target isn't a link, or it
       // carries no id.
       if (entityLinkConfig.interactionEnabled) {
-        const linkEl = (event.target as HTMLElement | null)?.closest(
+        const linkEl = (target as HTMLElement | null)?.closest(
           '.entity-link',
         ) as HTMLElement | null;
         const targetId = linkEl?.getAttribute('data-target-id');
@@ -281,7 +319,43 @@ function StaticChapterBody({
   );
 
   return (
-    <div onMouseDown={handleMouseDown} style={{ cursor: 'text' }}>
+    <div
+      onPointerDown={(event) => {
+        if (event.pointerType === 'mouse') {
+          activateFromPointer(event);
+          return;
+        }
+        touchStartRef.current = {
+          pointerId: event.pointerId,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          time: event.timeStamp,
+          target: event.target,
+        };
+      }}
+      onPointerUp={(event) => {
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        if (!start || start.pointerId !== event.pointerId) return;
+        if (
+          !isMobileAllChaptersTap({
+            startX: start.clientX,
+            startY: start.clientY,
+            startTime: start.time,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            time: event.timeStamp,
+          })
+        ) {
+          return;
+        }
+        activateFromPointer(event, start.target);
+      }}
+      onPointerCancel={() => {
+        touchStartRef.current = null;
+      }}
+      style={{ cursor: 'text' }}
+    >
       <h1 className="page__title" style={{ margin: '0 0 10px' }}>
         {title || 'Untitled Chapter'}
       </h1>

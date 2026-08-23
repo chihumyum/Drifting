@@ -4,67 +4,63 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
+  type Dispatch,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
-import { MobilePaperContent } from './MobilePaperContent';
-import { MobilePaperSnapshot } from './MobilePaperSnapshot';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
-import { MobileEditorAccessory } from './MobileEditorAccessory';
-import { MobilePaperRailMenu } from './MobilePaperRailMenu';
+import { MobilePaperContent } from './MobilePaperContent';
+import { MobileBarSheet } from './MobileBarSheet';
+import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
+import { MobilePaperSnapshot } from './MobilePaperSnapshot';
+import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
-import type { MobilePaperRail } from './mobile-paper-rail';
 import {
-  paperClusterDestination,
-  paperClusterPreview,
-  paperClusterQuickSwitchIndex,
-} from './paper-cluster-gesture';
-import { usePaperPinch, type PaperReveal } from './usePaperPinch';
+  canStartMobilePaperSwipe,
+  MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS,
+  mobilePaperSwipeTargetIsExcluded,
+  resolveMobilePaperSwipe,
+} from './mobile-paper-swipe';
+import type { MobilePaperRail } from './mobile-paper-rail';
+import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
+import {
+  type MobileWorkspaceAction,
+  type MobileWorkspacePanel,
+  type MobileWorkspaceUiState,
+} from './mobile-workspace-controller';
 
-interface PreviewState {
-  target: Exclude<PaperReveal, 'focused'>;
-  progress: number;
-}
+type PanelPosition = 'top' | 'bottom';
+type PaperSwipePhase = 'idle' | 'tracking' | 'dragging' | 'settling';
 
-interface ClusterGestureState {
+interface PaperSwipeState {
+  pointerId: number;
   x: number;
   y: number;
-  start: PaperReveal;
+  time: number;
   originIndex: number;
-  pointerId: number;
-  timer: ReturnType<typeof setTimeout> | null;
-  armed: boolean;
-  moved: boolean;
+  originScrollLeft: number;
+  axis: 'horizontal' | null;
   cancelled: boolean;
-  axis: 'horizontal' | 'vertical' | null;
-  previewKey: string | null;
-  frozenContentJson: string | undefined;
-}
-
-interface QuickSwitchState {
-  paperKey: string;
-  frozenPaperKey: string;
-  frozenContentJson: string | undefined;
 }
 
 const DEFAULT_PANEL_EXTENT = 0.3;
-const CLUSTER_ARM_DELAY_MS = 160;
-const CLUSTER_PREARM_SLOP = 14;
-const CLUSTER_DIRECTION_SLOP = 6;
-const SIMULATOR_BOTTOM_PANEL_ACCEPTANCE =
-  import.meta.env.VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE === 'true';
+const PAPER_SWIPE_SETTLE_MS = 180;
 
 function MobilePaperViewport({
   paper,
   outlineRailVisible,
+  outlinePortalTargetId,
+  commentPortalTargetId,
   onRememberScroll,
 }: {
   paper: MobilePaper;
   outlineRailVisible: boolean;
+  outlinePortalTargetId?: string;
+  commentPortalTargetId?: string;
   onRememberScroll: (key: string, scrollTop: number) => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -111,7 +107,12 @@ function MobilePaperViewport({
   return (
     <div ref={rootRef} className="m-paper-scroll-memory">
       <EditorRailPresentationContext.Provider
-        value={{ outlineVisible: outlineRailVisible, outlineLabelPitch: 34 }}
+        value={{
+          outlineVisible: outlineRailVisible,
+          outlineLabelPitch: 34,
+          outlinePortalTargetId,
+          commentPortalTargetId,
+        }}
       >
         <MobilePaperContent target={paper.target} />
       </EditorRailPresentationContext.Provider>
@@ -119,52 +120,87 @@ function MobilePaperViewport({
   );
 }
 
+function currentSelectionIsCollapsed(): boolean {
+  const selection = window.getSelection?.();
+  return !selection || selection.isCollapsed;
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
+
 export function MobilePaperDeck({
   projectId,
   session,
   frozenProseByKey,
-  onFreezeActivePaper,
   onActivate,
   onOpenPaper,
   onRememberScroll,
   onOpenOverview,
+  onProjectSearch,
+  workspaceUi,
+  onWorkspaceUiAction,
 }: {
   projectId: string;
   session: MobileWorkspaceSessionState;
   frozenProseByKey: Readonly<Record<string, string>>;
-  onFreezeActivePaper: () => string | undefined;
   onActivate: (paper: MobilePaper) => void;
   onOpenPaper: (target: WorkspaceTarget) => void;
   onRememberScroll: (key: string, scrollTop: number) => void;
   onOpenOverview: () => void;
+  onProjectSearch: (query: string) => void;
+  workspaceUi: MobileWorkspaceUiState;
+  onWorkspaceUiAction: Dispatch<MobileWorkspaceAction>;
 }) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLElement | null>(null);
   const paperRowRef = useRef<HTMLDivElement | null>(null);
-  const clusterDragRef = useRef<ClusterGestureState | null>(null);
-  const rowScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const programmaticRowScrollRef = useRef(false);
-  const [reveal, setReveal] = useState<PaperReveal>('focused');
-  const [preview, setPreview] = useState<PreviewState | null>(null);
-  const [panelExtent, setPanelExtent] = useState(0);
+  const paperSwipeRef = useRef<PaperSwipeState | null>(null);
+  const paperSwipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composingRef = useRef(false);
+  const suppressClickRef = useRef(false);
+  const [paperSwipePhase, setPaperSwipePhase] = useState<PaperSwipePhase>('idle');
+  const [panelExtentOverride, setPanelExtentOverride] = useState<number | null>(null);
+  const [dockedExtent, setDockedExtent] = useState({
+    top: DEFAULT_PANEL_EXTENT,
+    bottom: DEFAULT_PANEL_EXTENT,
+  });
   const [panelResizing, setPanelResizing] = useState(false);
-  const [fullPanel, setFullPanel] = useState<Exclude<PaperReveal, 'focused'> | null>(null);
-  const [previewTarget, setPreviewTarget] = useState<WorkspaceTarget | null>(null);
-  const [clusterArmed, setClusterArmed] = useState(false);
-  const [clusterAxis, setClusterAxis] = useState<'horizontal' | 'vertical' | null>(null);
-  const [quickSwitch, setQuickSwitch] = useState<QuickSwitchState | null>(null);
-  const [editorActive, setEditorActive] = useState(false);
-  const [railByPaper, setRailByPaper] = useState<Record<string, MobilePaperRail | undefined>>({});
+  const [keyboardInset, setKeyboardInset] = useState(0);
 
-  const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
-  const activeRail = active ? (railByPaper[active.key] ?? null) : null;
-  const visualActiveKey = quickSwitch?.paperKey ?? session.activeKey;
-  const visualReveal = preview?.target ?? reveal;
-  const visibleExtent = preview
-    ? preview.progress * (reveal === 'focused' ? 0.3 : panelExtent)
-    : reveal === 'focused'
+  const reveal: PanelPosition | 'focused' = workspaceUi.panel.startsWith('top-')
+    ? 'top'
+    : workspaceUi.panel.startsWith('bottom-')
+      ? 'bottom'
+      : 'focused';
+  const fullPanel: PanelPosition | null = workspaceUi.panel.endsWith('-full')
+    ? reveal === 'focused'
+      ? null
+      : reveal
+    : null;
+  const previewTarget =
+    workspaceUi.transient.kind === 'entity-preview' ? workspaceUi.transient.target : null;
+  const activeRail: MobilePaperRail | null =
+    workspaceUi.transient.kind === 'bar-sheet' && workspaceUi.transient.sheet === 'outline'
+      ? 'toc'
+      : workspaceUi.transient.kind === 'bar-sheet' &&
+          workspaceUi.transient.sheet === 'comments'
+        ? 'comments'
+        : null;
+  const activeBarSheet =
+    workspaceUi.transient.kind === 'bar-sheet' ? workspaceUi.transient.sheet : null;
+  const settledPanelExtent =
+    workspaceUi.panel === 'none'
       ? 0
-      : panelExtent;
+      : workspaceUi.panel.endsWith('-full')
+        ? 1
+        : workspaceUi.panel.startsWith('top-')
+          ? dockedExtent.top
+          : dockedExtent.bottom;
+  const panelExtent = panelExtentOverride ?? settledPanelExtent;
+  const visibleExtent = reveal === 'focused' ? 0 : panelExtent;
+  const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
+  const editorActive = workspaceUi.paperMode.kind === 'edit';
 
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
@@ -176,21 +212,14 @@ export function MobilePaperDeck({
       if (cancelled) return;
       dispose = registerFrontendDebugSlice('mobile.paper-deck', () => ({
         activeKey: session.activeKey,
-        visualActiveKey,
         reveal,
-        visualReveal,
-        preview,
         panelExtent,
         visibleExtent,
         panelResizing,
         fullPanel,
-        quickSwitch: quickSwitch
-          ? { paperKey: quickSwitch.paperKey, frozenPaperKey: quickSwitch.frozenPaperKey }
-          : null,
         editorActive,
         activeRail,
-        clusterArmed,
-        clusterAxis,
+        paperSwipePhase,
       }));
     });
     return () => {
@@ -199,237 +228,288 @@ export function MobilePaperDeck({
     };
   }, [
     activeRail,
-    clusterArmed,
-    clusterAxis,
     editorActive,
     fullPanel,
     panelExtent,
     panelResizing,
-    preview,
-    quickSwitch,
+    paperSwipePhase,
     reveal,
     session.activeKey,
     visibleExtent,
-    visualActiveKey,
-    visualReveal,
   ]);
 
   useEffect(
     () => () => {
-      if (clusterDragRef.current?.timer) clearTimeout(clusterDragRef.current.timer);
-      if (rowScrollTimerRef.current) clearTimeout(rowScrollTimerRef.current);
+      if (paperSwipeTimerRef.current) clearTimeout(paperSwipeTimerRef.current);
     },
     [],
   );
 
-  const centerPaper = useCallback((paperKey: string, releaseOnNextFrame = true) => {
-    const row = paperRowRef.current;
-    if (!row) return;
-    const page = row.querySelector<HTMLElement>(`[data-paper-key="${CSS.escape(paperKey)}"]`);
-    if (!page) return;
-    programmaticRowScrollRef.current = true;
-    row.scrollTo({
-      left: page.offsetLeft - (row.clientWidth - page.offsetWidth) / 2,
-      behavior: 'auto',
-    });
-    if (releaseOnNextFrame) {
-      requestAnimationFrame(() => {
-        programmaticRowScrollRef.current = false;
-      });
-    }
-  }, []);
-
-  const alignActivePaper = useCallback(() => {
-    if (!session.activeKey) return;
-    centerPaper(session.activeKey);
-  }, [centerPaper, session.activeKey]);
-
-  const setActivePaperRail = useCallback(
-    (rail: MobilePaperRail | null) => {
-      if (!active) return;
-      setRailByPaper((current) => {
-        if ((current[active.key] ?? null) === rail) return current;
-        const next = { ...current };
-        if (rail === null) delete next[active.key];
-        else next[active.key] = rail;
-        return next;
-      });
+  const scrollPaperIntoPlace = useCallback(
+    (paperKey: string, behavior: ScrollBehavior = 'auto') => {
+      const row = paperRowRef.current;
+      if (!row) return;
+      const page = row.querySelector<HTMLElement>(`[data-paper-key="${CSS.escape(paperKey)}"]`);
+      if (!page) return;
+      row.scrollTo({ left: page.offsetLeft, behavior });
     },
-    [active],
+    [],
   );
 
   useLayoutEffect(() => {
-    alignActivePaper();
-  }, [alignActivePaper, session.papers.length, visibleExtent]);
-
-  const activateNearestPaper = useCallback(() => {
-    const row = paperRowRef.current;
-    if (!row || programmaticRowScrollRef.current) return;
-    const center = row.scrollLeft + row.clientWidth / 2;
-    let nearest: { paper: MobilePaper; distance: number } | null = null;
-    for (const paper of session.papers) {
-      const page = row.querySelector<HTMLElement>(`[data-paper-key="${CSS.escape(paper.key)}"]`);
-      if (!page) continue;
-      const distance = Math.abs(page.offsetLeft + page.offsetWidth / 2 - center);
-      if (!nearest || distance < nearest.distance) nearest = { paper, distance };
+    if (session.activeKey && paperSwipePhase === 'idle') {
+      scrollPaperIntoPlace(session.activeKey);
     }
-    if (nearest && nearest.paper.key !== session.activeKey) onActivate(nearest.paper);
-  }, [onActivate, session.activeKey, session.papers]);
+  }, [paperSwipePhase, scrollPaperIntoPlace, session.activeKey, session.papers.length, visibleExtent]);
 
-  const commitReveal = useCallback((nextReveal: PaperReveal, extent = DEFAULT_PANEL_EXTENT) => {
-    setPreview(null);
-    setPanelResizing(false);
-    setFullPanel(null);
-    setReveal(nextReveal);
-    setPanelExtent(nextReveal === 'focused' ? 0 : Math.max(0.08, Math.min(0.48, extent)));
-  }, []);
+  const finishPaperSwipe = useCallback(
+    (targetIndex: number, committed: boolean) => {
+      const target = session.papers[targetIndex];
+      const origin = paperSwipeRef.current
+        ? session.papers[paperSwipeRef.current.originIndex]
+        : active;
+      const destination = committed && target ? target : origin;
+      paperSwipeRef.current = null;
+      if (!destination) {
+        setPaperSwipePhase('idle');
+        return;
+      }
 
-  usePaperPinch(rootRef, {
-    enabled: fullPanel === null && previewTarget === null,
-    reveal,
-    onPreview: (target, progress) => setPreview({ target, progress }),
-    onCommit: commitReveal,
-    onOverview: onOpenOverview,
-  });
+      const reducedMotion = prefersReducedMotion();
+      setPaperSwipePhase('settling');
+      scrollPaperIntoPlace(destination.key, reducedMotion ? 'auto' : 'smooth');
+      if (paperSwipeTimerRef.current) clearTimeout(paperSwipeTimerRef.current);
+      const settle = () => {
+        paperSwipeTimerRef.current = null;
+        if (committed && destination.key !== session.activeKey) onActivate(destination);
+        setPaperSwipePhase('idle');
+      };
+      if (reducedMotion) settle();
+      else paperSwipeTimerRef.current = setTimeout(settle, PAPER_SWIPE_SETTLE_MS);
+    },
+    [active, onActivate, scrollPaperIntoPlace, session.activeKey, session.papers],
+  );
 
-  const setExtentFromHandle = (panel: Exclude<PaperReveal, 'focused'>, extent: number) => {
-    setPreview(null);
-    setPanelResizing(true);
-    setReveal(panel);
-    setFullPanel(null);
-    setPanelExtent(extent);
+  const beginPaperSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const row = event.currentTarget;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (session.papers.length < 2 || paperSwipePhase !== 'idle') return;
+    if (mobilePaperSwipeTargetIsExcluded(event.target, row)) return;
+    if (
+      !canStartMobilePaperSwipe({
+        workspace: workspaceUi,
+        activeRail,
+        selectionCollapsed: currentSelectionIsCollapsed(),
+        composing: composingRef.current,
+      })
+    ) {
+      return;
+    }
+    const originIndex = session.papers.findIndex((paper) => paper.key === session.activeKey);
+    if (originIndex < 0) return;
+    paperSwipeRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp,
+      originIndex,
+      originScrollLeft: row.scrollLeft,
+      axis: null,
+      cancelled: false,
+    };
+    setPaperSwipePhase('tracking');
   };
 
-  const commitExtentFromHandle = (panel: Exclude<PaperReveal, 'focused'>, extent: number) => {
-    setPanelResizing(false);
-    if (extent <= 0.08) {
-      commitReveal('focused');
+  const movePaperSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = paperSwipeRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.cancelled) return;
+    const durationMs = Math.max(0, event.timeStamp - gesture.time);
+    if (gesture.axis === null && durationMs > MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS) {
+      gesture.cancelled = true;
+      setPaperSwipePhase('idle');
       return;
     }
-    setPreview(null);
-    setReveal(panel);
-    if (extent >= 0.5) {
-      setFullPanel(panel);
-      setPanelExtent(1);
-      return;
-    }
-    setFullPanel(null);
-    setPanelExtent(extent);
-  };
 
-  const clusterMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = clusterDragRef.current;
-    if (!drag) return;
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
-    if (!drag.armed) {
-      if (Math.hypot(dx, dy) > CLUSTER_PREARM_SLOP) {
-        drag.cancelled = true;
-        if (drag.timer) clearTimeout(drag.timer);
-      }
+    const deltaX = event.clientX - gesture.x;
+    const deltaY = event.clientY - gesture.y;
+    const decision = resolveMobilePaperSwipe({
+      deltaX,
+      deltaY,
+      durationMs,
+      viewportWidth: event.currentTarget.clientWidth,
+      originIndex: gesture.originIndex,
+      paperCount: session.papers.length,
+    });
+    if (decision.axis === 'pending') return;
+    if (decision.axis === 'vertical') {
+      gesture.cancelled = true;
+      setPaperSwipePhase('idle');
       return;
     }
-    if (!drag.axis) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) <= CLUSTER_DIRECTION_SLOP) return;
-      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
-      setClusterAxis(drag.axis);
-      if (drag.axis === 'horizontal') {
-        drag.frozenContentJson = onFreezeActivePaper();
-        const originPaper = session.papers[drag.originIndex];
-        if (originPaper) {
-          setQuickSwitch({
-            paperKey: originPaper.key,
-            frozenPaperKey: session.activeKey ?? originPaper.key,
-            frozenContentJson: drag.frozenContentJson,
-          });
-        }
-      }
+
+    if (gesture.axis === null) {
+      gesture.axis = 'horizontal';
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setPaperSwipePhase('dragging');
     }
-    drag.moved = true;
-    if (drag.axis === 'horizontal') {
-      const nextIndex = paperClusterQuickSwitchIndex(drag.originIndex, dx, session.papers.length);
-      const paper = session.papers[nextIndex];
-      if (!paper || paper.key === drag.previewKey) return;
-      drag.previewKey = paper.key;
-      setQuickSwitch({
-        paperKey: paper.key,
-        frozenPaperKey: session.activeKey ?? paper.key,
-        frozenContentJson: drag.frozenContentJson,
-      });
-      centerPaper(paper.key, false);
-      return;
-    }
-    setPreview(
-      paperClusterPreview(
-        drag.start,
-        dy,
-        rootRef.current?.clientHeight ?? window.innerHeight,
-        panelExtent,
-      ),
+    event.preventDefault();
+    const row = event.currentTarget;
+    row.scrollLeft = Math.max(
+      0,
+      Math.min(row.scrollWidth - row.clientWidth, gesture.originScrollLeft - deltaX),
     );
   };
 
-  const clusterUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = clusterDragRef.current;
-    if (!drag) return;
-    clusterDragRef.current = null;
-    if (drag.timer) clearTimeout(drag.timer);
-    setClusterArmed(false);
-    setClusterAxis(null);
-    if (drag.armed) event.currentTarget.releasePointerCapture?.(event.pointerId);
-    if (!drag.armed) {
-      setPreview(null);
-      if (!drag.cancelled && Math.abs(event.clientY - drag.y) <= CLUSTER_PREARM_SLOP) {
-        if (SIMULATOR_BOTTOM_PANEL_ACCEPTANCE) {
-          commitExtentFromHandle('bottom', 1);
-          return;
-        }
-        // Let the native button's synthesized click finish before replacing it
-        // with the full-screen overview; otherwise Android can retarget that
-        // click to the overview footer directly underneath the pill.
-        window.setTimeout(onOpenOverview, 0);
+  const endPaperSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = paperSwipeRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture.axis !== 'horizontal' || gesture.cancelled) {
+      paperSwipeRef.current = null;
+      setPaperSwipePhase('idle');
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    suppressClickRef.current = true;
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+    const decision = resolveMobilePaperSwipe({
+      deltaX: event.clientX - gesture.x,
+      deltaY: event.clientY - gesture.y,
+      durationMs: Math.max(0, event.timeStamp - gesture.time),
+      viewportWidth: event.currentTarget.clientWidth,
+      originIndex: gesture.originIndex,
+      paperCount: session.papers.length,
+    });
+    finishPaperSwipe(decision.targetIndex, decision.committed);
+  };
+
+  const cancelPaperSwipe = () => {
+    const gesture = paperSwipeRef.current;
+    paperSwipeRef.current = null;
+    setPaperSwipePhase('idle');
+    const origin = gesture ? session.papers[gesture.originIndex] : active;
+    if (origin) scrollPaperIntoPlace(origin.key);
+  };
+
+  const commitPanel = useCallback(
+    (nextReveal: PanelPosition | 'focused', extent = DEFAULT_PANEL_EXTENT) => {
+      setPanelResizing(false);
+      if (nextReveal !== 'focused') {
+        const nextExtent = Math.max(0.08, Math.min(0.48, extent));
+        setDockedExtent((current) =>
+          current[nextReveal] === nextExtent
+            ? current
+            : { ...current, [nextReveal]: nextExtent },
+        );
       }
-      return;
-    }
-    if (!drag.moved) {
-      setPreview(null);
-      setQuickSwitch(null);
-      return;
-    }
-    if (drag.axis === 'horizontal') {
-      const selected = session.papers.find((paper) => paper.key === drag.previewKey);
-      if (selected && selected.key !== session.activeKey) onActivate(selected);
-      setQuickSwitch(null);
-      requestAnimationFrame(() => {
-        programmaticRowScrollRef.current = false;
-        if (!selected) alignActivePaper();
+      setPanelExtentOverride(null);
+      onWorkspaceUiAction({
+        type: 'set-panel',
+        panel: nextReveal === 'focused' ? 'none' : `${nextReveal}-docked`,
       });
-      return;
-    }
-    const deltaY = event.clientY - drag.y;
-    const viewportHeight = rootRef.current?.clientHeight ?? window.innerHeight;
-    const settledPreview = paperClusterPreview(drag.start, deltaY, viewportHeight, panelExtent);
-    const destination = paperClusterDestination(drag.start, deltaY, viewportHeight, panelExtent);
-    if (destination === null) setPreview(null);
-    else {
-      const extent =
-        settledPreview.progress * (drag.start === 'focused' ? DEFAULT_PANEL_EXTENT : panelExtent);
-      commitReveal(destination, extent);
+    },
+    [onWorkspaceUiAction],
+  );
+
+  const setExtentFromHandle = (panel: PanelPosition, extent: number) => {
+    setPanelResizing(true);
+    setPanelExtentOverride(extent);
+    const nextPanel = `${panel}-docked` as MobileWorkspacePanel;
+    if (workspaceUi.panel !== nextPanel) {
+      onWorkspaceUiAction({ type: 'set-panel', panel: nextPanel });
     }
   };
+
+  const commitExtentFromHandle = (panel: PanelPosition, extent: number) => {
+    setPanelResizing(false);
+    if (extent <= 0.08) {
+      commitPanel('focused');
+      return;
+    }
+    if (extent >= 0.5) {
+      setPanelExtentOverride(null);
+      onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-full` });
+      return;
+    }
+    setDockedExtent((current) =>
+      current[panel] === extent ? current : { ...current, [panel]: extent },
+    );
+    setPanelExtentOverride(null);
+    onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-docked` });
+  };
+
+  const setActivePaperRail = useCallback(
+    (rail: MobilePaperRail | null) =>
+      onWorkspaceUiAction({
+        type: 'set-transient',
+        transient:
+          rail === 'toc'
+            ? { kind: 'bar-sheet', sheet: 'outline' }
+            : rail === 'comments'
+              ? { kind: 'bar-sheet', sheet: 'comments' }
+              : { kind: 'none' },
+      }),
+    [onWorkspaceUiAction],
+  );
+  const openSearch = useCallback(
+    () =>
+      onWorkspaceUiAction({
+        type: 'set-transient',
+        transient: { kind: 'search', scope: 'paper' },
+      }),
+    [onWorkspaceUiAction],
+  );
+  const syncEditor = useCallback(
+    (editing: boolean) => onWorkspaceUiAction({ type: 'sync-editor', editing }),
+    [onWorkspaceUiAction],
+  );
+  const syncKeyboard = useCallback(
+    (keyboard: 'closed' | 'open') =>
+      onWorkspaceUiAction({ type: 'sync-keyboard', keyboard }),
+    [onWorkspaceUiAction],
+  );
+  const setEditorAccessoryExpanded = useCallback(
+    (expanded: boolean) =>
+      onWorkspaceUiAction({
+        type: 'set-transient',
+        transient: expanded
+          ? { kind: 'bar-sheet', sheet: 'formatting' }
+          : { kind: 'none' },
+      }),
+    [onWorkspaceUiAction],
+  );
 
   return (
     <main
       ref={rootRef}
       className="m-workspace"
       data-debug-id="mobile-workspace"
-      data-reveal={visualReveal}
-      data-preview={preview || panelResizing ? 'true' : 'false'}
+      data-reveal={reveal}
+      data-preview={panelResizing ? 'true' : 'false'}
       data-full-panel={fullPanel ?? 'none'}
-      data-paper-switch={quickSwitch ? 'true' : 'false'}
+      data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
       data-paper-rail={activeRail ?? 'none'}
-      style={{ '--m-panel-extent': visibleExtent } as React.CSSProperties}
+      data-bar-sheet={activeBarSheet ?? 'none'}
+      data-controller-surface={workspaceUi.surface.kind}
+      data-controller-panel={workspaceUi.panel}
+      data-controller-transient={workspaceUi.transient.kind}
+      data-controller-paper-mode={workspaceUi.paperMode.kind}
+      data-controller-keyboard={workspaceUi.keyboard}
+      style={
+        {
+          '--m-panel-extent': visibleExtent,
+          '--m-unified-keyboard-inset': `${keyboardInset}px`,
+        } as CSSProperties
+      }
+      onCompositionStartCapture={() => {
+        composingRef.current = true;
+      }}
+      onCompositionEndCapture={() => {
+        composingRef.current = false;
+      }}
     >
       <MobileWorkspacePanels
         projectId={projectId}
@@ -437,11 +517,12 @@ export function MobilePaperDeck({
         panelExtent={panelExtent}
         onPanelExtentChange={setExtentFromHandle}
         onPanelExtentCommit={commitExtentFromHandle}
-        onOpenDashboard={() => {
-          onOpenPaper({ entityType: 'dashboard', id: 'self' });
-          commitReveal('focused');
-        }}
-        onPreviewTarget={setPreviewTarget}
+        onPreviewTarget={(target) =>
+          onWorkspaceUiAction({
+            type: 'set-transient',
+            transient: { kind: 'entity-preview', target },
+          })
+        }
       />
 
       <div className="m-paper-deck">
@@ -450,23 +531,25 @@ export function MobilePaperDeck({
             ref={paperRowRef}
             className="m-paper-row"
             data-debug-id="mobile-paper-row"
-            onScroll={() => {
-              if (programmaticRowScrollRef.current) return;
-              if (clusterDragRef.current?.axis === 'horizontal') return;
-              if (rowScrollTimerRef.current) clearTimeout(rowScrollTimerRef.current);
-              rowScrollTimerRef.current = setTimeout(activateNearestPaper, 100);
+            onPointerDown={beginPaperSwipe}
+            onPointerMove={movePaperSwipe}
+            onPointerUp={endPaperSwipe}
+            onPointerCancel={cancelPaperSwipe}
+            onClickCapture={(event) => {
+              if (!suppressClickRef.current) return;
+              event.preventDefault();
+              event.stopPropagation();
             }}
           >
             {session.papers.map((paper) => {
-              const isActive = paper.key === session.activeKey && quickSwitch === null;
-              const isVisuallyActive = paper.key === visualActiveKey;
+              const isActive = paper.key === session.activeKey;
               return (
                 <section
                   key={paper.key}
                   className="m-paper-row__page"
                   data-paper-key={paper.key}
-                  data-active={isVisuallyActive ? 'true' : 'false'}
-                  aria-current={isVisuallyActive ? 'page' : undefined}
+                  data-active={isActive ? 'true' : 'false'}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <div className="m-paper-row__paper">
                     {isActive ? (
@@ -474,6 +557,14 @@ export function MobilePaperDeck({
                         <MobilePaperViewport
                           paper={paper}
                           outlineRailVisible={activeRail === 'toc'}
+                          outlinePortalTargetId={
+                            activeRail === 'toc' ? 'mobile-outline-sheet-content' : undefined
+                          }
+                          commentPortalTargetId={
+                            activeRail === 'comments'
+                              ? 'mobile-comments-sheet-content'
+                              : undefined
+                          }
                           onRememberScroll={onRememberScroll}
                         />
                       </div>
@@ -481,11 +572,7 @@ export function MobilePaperDeck({
                       <MobilePaperSnapshot
                         projectId={projectId}
                         paper={paper}
-                        frozenContentJson={
-                          quickSwitch?.frozenPaperKey === paper.key
-                            ? quickSwitch.frozenContentJson
-                            : frozenProseByKey[paper.key]
-                        }
+                        frozenContentJson={frozenProseByKey[paper.key]}
                       />
                     )}
                     {!isActive && (
@@ -516,70 +603,6 @@ export function MobilePaperDeck({
         )}
       </div>
 
-      {session.papers.length > 0 && fullPanel === null && (
-        <button
-          type="button"
-          className="m-paper-cluster"
-          data-debug-id="mobile-paper-cluster"
-          data-armed={clusterArmed ? 'true' : 'false'}
-          data-axis={clusterAxis ?? 'none'}
-          aria-label={t('mobileWorkspace.paperCluster', { defaultValue: '纸张控制与总览' })}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            const button = event.currentTarget;
-            const pointerArmsImmediately = event.pointerType === 'mouse';
-            const gesture: ClusterGestureState = {
-              x: event.clientX,
-              y: event.clientY,
-              start: reveal,
-              originIndex: Math.max(
-                0,
-                session.papers.findIndex((paper) => paper.key === session.activeKey),
-              ),
-              pointerId: event.pointerId,
-              timer: null,
-              armed: pointerArmsImmediately,
-              moved: false,
-              cancelled: false,
-              axis: null,
-              previewKey: session.activeKey,
-              frozenContentJson: undefined,
-            };
-            clusterDragRef.current = gesture;
-            if (pointerArmsImmediately) {
-              button.setPointerCapture?.(gesture.pointerId);
-              setClusterArmed(true);
-            } else {
-              gesture.timer = setTimeout(() => {
-                if (clusterDragRef.current !== gesture || gesture.cancelled) return;
-                gesture.armed = true;
-                button.setPointerCapture?.(gesture.pointerId);
-                setClusterArmed(true);
-              }, CLUSTER_ARM_DELAY_MS);
-            }
-          }}
-          onPointerMove={clusterMove}
-          onPointerUp={clusterUp}
-          onPointerCancel={() => {
-            if (clusterDragRef.current?.timer) clearTimeout(clusterDragRef.current.timer);
-            clusterDragRef.current = null;
-            setClusterArmed(false);
-            setClusterAxis(null);
-            setPreview(null);
-            setQuickSwitch(null);
-            alignActivePaper();
-          }}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-        >
-          {session.papers.map((paper) => (
-            <span key={paper.key} data-active={paper.key === visualActiveKey ? 'true' : 'false'} />
-          ))}
-        </button>
-      )}
-
       {previewTarget && (
         <MobileEntityPreviewSheet
           target={previewTarget}
@@ -588,25 +611,49 @@ export function MobilePaperDeck({
               paper.target.entityType === previewTarget.entityType &&
               paper.target.id === previewTarget.id,
           )}
-          onClose={() => setPreviewTarget(null)}
+          onClose={() =>
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
+          }
           onInsert={() => {
             onOpenPaper(previewTarget);
-            setPreviewTarget(null);
-            commitReveal('focused');
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } });
+            commitPanel('focused');
           }}
         />
       )}
 
-      {active && visualReveal === 'focused' && fullPanel === null && !quickSwitch && (
-        <MobilePaperRailMenu
-          key={active.key}
-          target={active.target}
-          activeRail={activeRail}
-          onActiveRailChange={setActivePaperRail}
+      {activeBarSheet && (
+        <MobileBarSheet
+          sheet={activeBarSheet}
+          onClose={() =>
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
+          }
         />
       )}
 
-      <MobileEditorAccessory onEditingStateChange={setEditorActive} />
+      <MobilePaperSearchOwnerMount paper={active} />
+      <MobileUnifiedBar
+        workspaceUi={workspaceUi}
+        activePaper={active}
+        paperCount={session.papers.length}
+        activeRail={activeRail}
+        keyboardInset={keyboardInset}
+        onWorkspacePanelChange={(panel) =>
+          onWorkspaceUiAction({ type: 'set-panel', panel })
+        }
+        onOpenOverview={onOpenOverview}
+        onOpenSearch={openSearch}
+        onProjectSearch={onProjectSearch}
+        onActiveRailChange={setActivePaperRail}
+        editorAccessoryExpanded={
+          workspaceUi.transient.kind === 'bar-sheet' &&
+          workspaceUi.transient.sheet === 'formatting'
+        }
+        onEditorAccessoryExpandedChange={setEditorAccessoryExpanded}
+        onEditingStateChange={syncEditor}
+        onKeyboardStateChange={syncKeyboard}
+        onKeyboardInsetChange={setKeyboardInset}
+      />
     </main>
   );
 }

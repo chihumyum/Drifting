@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ProjectRuntimeProvider } from '../../app/providers/ProjectRuntimeProvider';
 import { WorkspaceNavigationProvider } from '../../features/workspace/navigation/WorkspaceNavigationContext';
@@ -10,11 +10,20 @@ import { AgentConfirmDialog } from '../../components/agent/AgentConfirmDialog';
 import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapshotHistoryModal';
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { MobilePaperDeck } from './workspace/MobilePaperDeck';
-import { MobileTabOverview, type MobileSuperViewId } from './workspace/MobileTabOverview';
+import { MobileTabOverview } from './workspace/MobileTabOverview';
 import { MobileSuperViewHost } from './workspace/MobileSuperViewHost';
 import { MobileProjectTrashView } from './workspace/MobileProjectTrashView';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
+import { requestMobileWorkspaceBack } from './workspace/mobile-workspace-back';
+import { saveActiveEditor } from '../../lib/active-editor';
+import {
+  createInitialMobileWorkspaceUiState,
+  mobileWorkspaceReducer,
+  selectMobileUnifiedBarProjection,
+  type MobileSuperViewId,
+} from './workspace/mobile-workspace-controller';
+import { useMobileWorkspaceBack } from './workspace/useMobileWorkspaceBack';
 import '../../../styles/mobile-workspace.css';
 
 function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
@@ -22,10 +31,20 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const location = useLocation();
   const { state, navigator, open, activate, close, clear, reorder, rememberScroll } =
     useMobileWorkspaceSession(projectId);
-  const [overviewOpen, setOverviewOpen] = useState(false);
-  const [activeSuperView, setActiveSuperView] = useState<MobileSuperViewId | null>(null);
-  const [trashOpen, setTrashOpen] = useState(false);
+  const [workspaceUi, dispatchWorkspaceUi] = useReducer(
+    mobileWorkspaceReducer,
+    undefined,
+    createInitialMobileWorkspaceUiState,
+  );
   const [frozenProseByKey, setFrozenProseByKey] = useState<Record<string, string>>({});
+  const [projectSearchQuery, setProjectSearchQuery] = useState<string | null>(null);
+  const leaveProject = useCallback(() => navigate('/', { replace: true }), [navigate]);
+
+  useMobileWorkspaceBack({
+    state: workspaceUi,
+    dispatch: dispatchWorkspaceUi,
+    onLeaveProject: leaveProject,
+  });
 
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
@@ -44,16 +63,15 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
           frozen: Object.prototype.hasOwnProperty.call(frozenProseByKey, paper.key),
         })),
         activeKey: state.activeKey,
-        overviewOpen,
-        activeSuperView,
-        trashOpen,
+        controller: workspaceUi,
+        unifiedBar: selectMobileUnifiedBarProjection(workspaceUi),
       }));
     });
     return () => {
       cancelled = true;
       dispose?.();
     };
-  }, [activeSuperView, frozenProseByKey, overviewOpen, projectId, state, trashOpen]);
+  }, [frozenProseByKey, projectId, state, workspaceUi]);
 
   const freezeActivePaper = useCallback((): string | undefined => {
     const active = state.papers.find((paper) => paper.key === state.activeKey);
@@ -109,9 +127,16 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   }, [location.pathname, openPaper, projectId, state.papers.length]);
 
   const setSuperView = useCallback((view: MobileSuperViewId | null) => {
-    setOverviewOpen(false);
-    setActiveSuperView(view);
+    if (view) dispatchWorkspaceUi({ type: 'show-super-view', view });
+    else dispatchWorkspaceUi({ type: 'show-paper' });
   }, []);
+
+  const activeSuperView =
+    workspaceUi.surface.kind === 'super-view' ? workspaceUi.surface.view : null;
+  const overviewOpen = workspaceUi.surface.kind === 'overview';
+  const trashOpen =
+    workspaceUi.transient.kind === 'dialog' &&
+    workspaceUi.transient.dialog === 'project-trash';
 
   return (
     <WorkspaceNavigationProvider navigator={mobileNavigator}>
@@ -119,20 +144,36 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         projectId={projectId}
         session={state}
         frozenProseByKey={frozenProseByKey}
-        onFreezeActivePaper={freezeActivePaper}
         onActivate={(paper) => activatePaper(paper.target)}
         onOpenPaper={openPaper}
         onRememberScroll={rememberScroll}
-        onOpenOverview={() => setOverviewOpen(true)}
+        onOpenOverview={() => {
+          setProjectSearchQuery(null);
+          dispatchWorkspaceUi({ type: 'show-overview' });
+        }}
+        onProjectSearch={(query) => {
+          void saveActiveEditor().finally(() => {
+            setProjectSearchQuery(query);
+            dispatchWorkspaceUi({ type: 'show-overview' });
+          });
+        }}
+        workspaceUi={workspaceUi}
+        onWorkspaceUiAction={dispatchWorkspaceUi}
       />
 
       {overviewOpen && (
         <MobileTabOverview
           session={state}
-          onClose={() => setOverviewOpen(false)}
+          searchQuery={projectSearchQuery}
+          onSearchQueryChange={setProjectSearchQuery}
+          onClose={() => requestMobileWorkspaceBack('visible')}
           onActivate={(paper) => {
             activatePaper(paper.target);
-            setOverviewOpen(false);
+            dispatchWorkspaceUi({ type: 'show-paper' });
+          }}
+          onActivateSearchResult={(target) => {
+            openPaper(target);
+            dispatchWorkspaceUi({ type: 'show-paper' });
           }}
           onClosePaper={closePaper}
           onCloseAll={clearPapers}
@@ -140,19 +181,20 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
           onOpenSuperView={setSuperView}
           onOpenAllChapters={() => {
             openPaper({ entityType: 'all-chapters', id: 'self' });
-            setOverviewOpen(false);
+            dispatchWorkspaceUi({ type: 'show-paper' });
           }}
           onOpenSettings={() => navigate('/settings', { state: { from: location.pathname } })}
           onOpenTrash={() => {
-            setOverviewOpen(false);
-            setTrashOpen(true);
+            dispatchWorkspaceUi({ type: 'open-project-trash' });
           }}
-          onBackToShelf={() => navigate('/', { replace: true })}
+          onBackToShelf={leaveProject}
         />
       )}
 
       <MobileSuperViewHost active={activeSuperView} onActiveChange={setSuperView} />
-      {trashOpen && <MobileProjectTrashView onClose={() => setTrashOpen(false)} />}
+      {trashOpen && (
+        <MobileProjectTrashView onClose={() => requestMobileWorkspaceBack('visible')} />
+      )}
       <AgentConfirmDialog />
       <EntitySnapshotHistoryModal />
       <DriftBindModal />

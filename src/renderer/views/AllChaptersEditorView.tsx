@@ -30,6 +30,16 @@ import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
 import { parseOutline } from '../lib/outline';
+import { saveActiveEditor } from '../lib/active-editor';
+import {
+  createMobileAllChaptersLoader,
+  readMobileAllChaptersPosition,
+  writeMobileAllChaptersPosition,
+  type MobileAllChaptersReadPosition,
+} from '../shells/mobile/workspace/mobile-all-chapters';
+import { createMobileAllChaptersSearchOwner } from '../shells/mobile/workspace/mobile-all-chapters-search';
+import { registerMobilePaperSearchOwner } from '../shells/mobile/workspace/mobile-paper-search';
+import { publishMobileAllChaptersContext } from '../shells/mobile/workspace/mobile-all-chapters-context';
 import {
   buildEntityLinkColorSignature,
   resolveEntityLinkTargetColor,
@@ -73,15 +83,7 @@ function actTocId(actId: string): string {
 // Where the reader was in 通览全书, kept in module scope so it survives the
 // view unmounting on a tab switch (this view is torn down when you leave the
 // tab, not just hidden). Keyed by project. Restored on return.
-interface AllChaptersReadPosition {
-  // The scroll-spy's active outline id: a chapter nodeId, or a heading
-  // block-id deeper inside a chapter. Null = top of book (nothing passed the
-  // reading line yet).
-  outlineId: string | null;
-  // The chapter that was promoted to a live editor, if any.
-  focusNodeId: string | null;
-}
-const readPositionByProject = new Map<string, AllChaptersReadPosition>();
+const readPositionByProject = new Map<string, MobileAllChaptersReadPosition>();
 
 // "Read the whole book" mode — every chapter in bookOrder concatenated into
 // one vertical scroller. Each chapter is a full ChapterEditor instance
@@ -177,12 +179,20 @@ export function AllChaptersEditorView() {
   // Stable per-node content cache so repeat fetches (after unmount/remount)
   // skip another roundtrip. Tracked by nodeId; null means "fetched, no row".
   const contentCacheRef = useRef<Map<string, NodeContent | null>>(new Map());
+  const boundedContentLoad = useMemo(
+    () =>
+      createMobileAllChaptersLoader(async (nodeId: string) => {
+        const content = await getContentByNodeId(nodeId);
+        return content ?? null;
+      }),
+    [getContentByNodeId],
+  );
   const fetchContent = useCallback(
     async (nodeId: string): Promise<NodeContent | null> => {
       const cached = contentCacheRef.current.get(nodeId);
       if (cached !== undefined) return cached;
       try {
-        const c = await getContentByNodeId(nodeId);
+        const c = await boundedContentLoad(nodeId);
         contentCacheRef.current.set(nodeId, c ?? null);
         return c ?? null;
       } catch (error) {
@@ -190,7 +200,7 @@ export function AllChaptersEditorView() {
         return null;
       }
     },
-    [getContentByNodeId],
+    [boundedContentLoad],
   );
 
   // The one chapter the user is actively editing. Only that row mounts a live
@@ -202,9 +212,23 @@ export function AllChaptersEditorView() {
     nodeId: string;
     caret: { clientX: number; clientY: number } | null;
   } | null>(null);
+  const focusRef = useRef(focus);
+  const promotionRef = useRef<Promise<void>>(Promise.resolve());
+  const promotionRequestRef = useRef(0);
+  useEffect(() => {
+    focusRef.current = focus;
+  }, [focus]);
   const handleActivate = useCallback(
     (nodeId: string, coords: { clientX: number; clientY: number }) => {
-      setFocus({ nodeId, caret: coords });
+      const request = ++promotionRequestRef.current;
+      promotionRef.current = promotionRef.current.then(async () => {
+        const previous = focusRef.current?.nodeId ?? null;
+        if (previous && previous !== nodeId) await saveActiveEditor();
+        if (request !== promotionRequestRef.current) return;
+        const next = { nodeId, caret: coords };
+        focusRef.current = next;
+        setFocus(next);
+      });
     },
     [],
   );
@@ -289,6 +313,10 @@ export function AllChaptersEditorView() {
   // populate fire regardless of dep churn is fine — setState on an
   // unmounted component is a no-op.
   const prefetchedOutlineRef = useRef<Set<string>>(new Set());
+  const boundedOutlineLoad = useMemo(
+    () => createMobileAllChaptersLoader((nodeId: string) => getOutlineByNodeId(nodeId)),
+    [getOutlineByNodeId],
+  );
   useEffect(() => {
     const toFetch = orderedNodes.filter((n) => !prefetchedOutlineRef.current.has(n.id));
     if (toFetch.length === 0) return;
@@ -298,7 +326,7 @@ export function AllChaptersEditorView() {
       await Promise.all(
         toFetch.map(async (n) => {
           try {
-            const json = await getOutlineByNodeId(n.id);
+            const json = await boundedOutlineLoad(n.id);
             if (!json) return;
             const items = parseOutline(json);
             if (items.length > 0) buffered[n.id] = items;
@@ -319,7 +347,7 @@ export function AllChaptersEditorView() {
         return changed ? next : prev;
       });
     })();
-  }, [orderedNodes, getOutlineByNodeId]);
+  }, [boundedOutlineLoad, orderedNodes]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -359,12 +387,26 @@ export function AllChaptersEditorView() {
     [orderedNodes],
   );
 
+  useEffect(() => {
+    const mobileSearchOwner = createMobileAllChaptersSearchOwner({
+      chapters: findChapters,
+      fetchContent,
+      getScrollRoot: () => scrollRef.current,
+    });
+    const unregister = registerMobilePaperSearchOwner(mobileSearchOwner);
+    return () => {
+      unregister();
+      mobileSearchOwner.destroy?.();
+    };
+  }, [fetchContent, findChapters]);
+
   // Snapshot the saved read-position ONCE at mount, before any effect (the
   // scroll-spy fires on mount and would overwrite the shared map with the
   // top-of-book position before the restore effect could read it).
-  const savedPositionRef = useRef<AllChaptersReadPosition | null | undefined>(undefined);
+  const savedPositionRef = useRef<MobileAllChaptersReadPosition | null | undefined>(undefined);
   if (savedPositionRef.current === undefined) {
-    savedPositionRef.current = readPositionByProject.get(projectId) ?? null;
+    savedPositionRef.current =
+      readPositionByProject.get(projectId) ?? readMobileAllChaptersPosition(projectId);
   }
   const didRestoreRef = useRef(false);
 
@@ -580,10 +622,13 @@ export function AllChaptersEditorView() {
   // unmounts this view) restores it. The reading anchor comes from the spy
   // (updates as you scroll); focusNodeId tracks the chapter open for editing.
   useEffect(() => {
-    readPositionByProject.set(projectId, {
+    const position: MobileAllChaptersReadPosition = {
       outlineId: activeOutlineId,
       focusNodeId: focus?.nodeId ?? null,
-    });
+      caretIntent: focus?.nodeId ? 'restore-selection' : null,
+    };
+    readPositionByProject.set(projectId, position);
+    writeMobileAllChaptersPosition(projectId, position);
   }, [projectId, activeOutlineId, focus]);
 
   // Wire chapter content / title / summary updates back to the data layer.
@@ -646,6 +691,22 @@ export function AllChaptersEditorView() {
     () => orderedNodes.find((n) => n.id === activeChapterId) ?? orderedNodes[0] ?? null,
     [orderedNodes, activeChapterId],
   );
+  const mobileActName = useMemo(() => {
+    if (!menuTargetNode) return null;
+    return (
+      deriveActSegments(bookActs, orderedNodes).find((segment) =>
+        segment.chapters.some((chapter) => chapter.id === menuTargetNode.id),
+      )?.act.name ?? null
+    );
+  }, [bookActs, menuTargetNode, orderedNodes]);
+  useEffect(() => {
+    publishMobileAllChaptersContext({
+      actName: mobileActName,
+      chapterId: menuTargetNode?.id ?? null,
+      chapterTitle: menuTargetNode?.title || null,
+    });
+    return () => publishMobileAllChaptersContext(null);
+  }, [menuTargetNode?.id, menuTargetNode?.title, mobileActName]);
   const handleChapterMenuAction = useCallback(
     async (action: string) => {
       const target = menuTargetNode;

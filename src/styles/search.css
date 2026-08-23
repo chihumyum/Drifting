@@ -249,12 +249,12 @@
   gap: 6px;
 }
 
-html[data-platform-target='mobile'] .gsearch-overlay {
+html[data-shell-mode='mobile'] .gsearch-overlay {
   padding: max(12px, var(--safe-area-top)) max(12px, var(--safe-area-right))
     max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
 
-html[data-platform-target='mobile'] .gsearch-modal {
+html[data-shell-mode='mobile'] .gsearch-modal {
   max-height: 100%;
 }
 

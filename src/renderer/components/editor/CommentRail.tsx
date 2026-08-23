@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Check,
@@ -55,6 +56,7 @@ import {
   hasCommentSourceDiverged as originalDiverged,
 } from '../../features/comments/comment-rail-model';
 import { CommentSnapshotModal } from '../../features/comments/CommentSnapshotModal';
+import { useEditorRailPresentation } from './editor-rail-presentation';
 
 interface CommentRailProps {
   projectId: string;
@@ -101,6 +103,7 @@ export function CommentRail({
   const commentUsecases = useComment({ projectId, userId: effectiveUserId });
   const { createElement } = useBookElement({ projectId, userId: effectiveUserId });
   const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
+  const railPresentation = useEditorRailPresentation();
 
   const marginRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -109,6 +112,12 @@ export function CommentRail({
   const [snapshotForId, setSnapshotForId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const targetId = railPresentation?.commentPortalTargetId;
+    setPortalTarget(targetId ? document.getElementById(targetId) : null);
+  }, [railPresentation?.commentPortalTargetId]);
 
   // Active window — per copilot comment id. seenIds is the "ever activated"
   // set; presence in seenIds + absence in activeIds = stale.
@@ -1030,6 +1039,13 @@ export function CommentRail({
             }
           >
             <MessageSquare size={11} />
+            {portalTarget ? (
+              <span>
+                {total > 0
+                  ? t('commentRail.entity.noteCount', { count: total })
+                  : t('commentRail.entity.newNote')}
+              </span>
+            ) : null}
             {total > 1 && <span className="mnote-stack__ball-count">{total}</span>}
           </button>
         </div>
@@ -1091,17 +1107,21 @@ export function CommentRail({
     return ids;
   })();
 
+  const margin = (
+    <aside ref={marginRef} className="editor__margin" aria-label={t('commentRail.aria.margin')}>
+      {visibleComments
+        .filter((comment) => !isStackOrphan(comment))
+        .map((comment) => (
+          <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
+        ))}
+      {renderComposer()}
+      {renderLooseStack()}
+    </aside>
+  );
+
   return (
     <>
-      <aside ref={marginRef} className="editor__margin" aria-label={t('commentRail.aria.margin')}>
-        {visibleComments
-          .filter((comment) => !isStackOrphan(comment))
-          .map((comment) => (
-            <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
-          ))}
-        {renderComposer()}
-        {renderLooseStack()}
-      </aside>
+      {portalTarget ? createPortal(margin, portalTarget) : margin}
       {snapshotComment && snapshotPayload.length > 0 && (
         <CommentSnapshotModal
           snapshots={snapshotPayload}
