@@ -46,6 +46,7 @@ dated run reports are evidence for one checkout, not product truth.
 | What is the frozen Mobile V2 target and delivery sequence? | [`mobile-v2/README.md`](mobile-v2/README.md)                                                                                                                          |
 | What Mobile V2 writing/search boundary is implemented?     | [`mobile-v2/editing-comments-search-and-all-chapters.md`](mobile-v2/editing-comments-search-and-all-chapters.md)                                                      |
 | What Mobile V2 Planning/touch boundary is implemented?     | [`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md)                                                                      |
+| What Mobile V2 Agent/Library/TODO/Stats boundary is implemented? | [`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md)                                                        |
 | What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
 | What is historically complete?                             | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
 

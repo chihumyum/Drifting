@@ -123,6 +123,7 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 10. paper overview 可以激活、关闭、全部关闭，并通过卡片拖动在二维网格中重排所有 paper；关闭按钮位于每张卡片右上角，不能出现上下排序箭头。overview 还能进入三个 Super View、通览全书、设置和书架；从设置返回时恢复原工作区 URL。
 11. Super View 内 header 可直接横向切换三个视图，关闭后回到 paper workspace；WebView 本身不应随双指缩放整个页面，元素全景的自有画布应绕双指中点平滑缩放并保持平移；实体打开和共享浮层不得溢出 viewport。
 12. 顶部结构区只有一个 56px 左侧竖 rail：章节、元素、灵感；Dashboard 是普通 paper，不得占 rail。章节和灵感纵向滚动，元素保持桌面分类/网格能力。点 cell 先出现只读 Sheet，点 backdrop 只关闭且不得穿透。底部工具区只有一个 56px 左侧竖 rail：Planning、Agent、Library、Stats；Timeline/Plot 是 Planning 内部选择，TODO/素材库是 Library 内部选择，不得形成第二层 rail，项目用户菜单也不得占工具 rail。时间线必须直接复用完整 `BottomTimeline`：书序/叙事切换、幕轨、叙事标记、未归属与未放置、打散、定位、跨故事线连线、缩放、绑定灵感和全部上下文操作都存在，轻点章节打开对应移动纸张，章节触控拖动会写回顺序/主故事线，长按章节、故事线、幕和标记打开与桌面同源菜单。情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
+13. Mobile Agent 必须显示当前 Project、纸张/实体和可用的稳定段落锚点；历史对话、停止、重试、工作记忆、证据跳转与 provider 空/加载/错误状态在竖屏可操作。手机每轮只能取得读取工具，回答不得自动写正文；复制、转灵感、加入 TODO 都必须由作者明确点按。TODO 保留新建、关联、完成、归档、重开和删除；素材库保留四种类型、过滤、关联、预览/系统打开、编辑和删除，不能依赖 hover 或右键。Stats 可在当前纸张和全书之间切换；长内容、空状态、深色模式与 44px 触控目标不得横向撑开 viewport。
 
 自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、unified bar、两侧 rail、overview、设置和普通按钮。宿主鼠标拖动仍可能把 iPhone Simulator WKWebView 的中间 `pointermove` 合并，不能冒充真实手指。DEV-only frontend bridge 可以用明确标记为 `synthetic-dom` 的事件验收 DOM 手势状态机、URL 和 controller 接线，但不替代真机连续触摸、原生键盘、选区、多指或人体工学验收。生产构建不再存在旧的 Simulator 专用底栏开关。
 
@@ -150,6 +151,17 @@ Emulator 的 M5 记录见
 延迟拖动、长按菜单、midpoint pinch 接线，以及 Plot Grid 行列、TSV 与 normalized 持久化。
 所有 iOS/Android WebView 指针输入都明确标记为 `nativeInput=false`；仅 Android hardware
 Back 是真实系统输入。因此真实连续触摸、双指、边缘滚动和长按手感仍必须在双平台真机完成。
+
+## 2026-08-23 Mobile V2 M6 iOS Simulator and Android Emulator check
+
+复用同一台 `iPhone 16e / iOS 26.1` Simulator 和 `Persimmon_API_35` Android
+Emulator 的 M6 记录见
+[`qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md`](qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md)。
+该记录覆盖 Mobile Agent 的持久会话、显式 Project/实体/段落上下文、证据跳转、作者点按
+转灵感/转 TODO、Library/TODO CRUD、当前/全书统计、空/错误状态、深色模式、44px 操作区和
+无横向溢出；Android real hardware Back 还覆盖 full → docked → closed。provider 输出来自明确
+标记的合成持久化 fixture，iOS/Android WebView 输入均为 `nativeInput=false`；它不关闭实时
+provider、原生剪贴板、真机触摸/辅助功能、生命周期、性能或 M7-M9 门槛。
 
 ## Historical 2026-08-13 pre-M3 iOS Simulator spot check
 

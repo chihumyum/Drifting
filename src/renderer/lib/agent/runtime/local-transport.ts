@@ -383,6 +383,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
               ...(input.effort ? { effort: input.effort } : {}),
             },
         toolSearch: input.toolSearch ?? 'off',
+        toolAccess: input.toolAccess ?? 'read_write',
         history: session.history,
         ...(this.limits ? { limits: this.limits } : {}),
         signal: controller.signal,

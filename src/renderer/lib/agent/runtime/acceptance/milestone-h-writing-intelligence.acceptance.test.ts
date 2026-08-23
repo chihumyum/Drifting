@@ -85,7 +85,8 @@ describe('Milestone H replacement: author-owned writing policy', () => {
       projectRules: 'author-editable-project-facts',
       standingGuidance: 'author-created-or-author-approved-active-memory',
       guidanceLifecycle: 'author-editable-and-deletable',
-      executionSafety: 'data-integrity-review-and-author-configurable-destructive-confirmation',
+      executionSafety:
+        'data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter',
     });
     expect(buildDriftingAgentCapabilityManifest().authorControl).toEqual(
       AGENT_AUTHOR_CONTROL_CONTRACT,

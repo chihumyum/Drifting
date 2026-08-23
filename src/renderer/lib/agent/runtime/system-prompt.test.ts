@@ -12,10 +12,22 @@ function prompt(input: Partial<AgentStartInput> = {}): string {
 }
 
 describe('Drifting General Agent system prompt', () => {
+  it('states the hard answer-only boundary when the surface removes write tools', () => {
+    const value = prompt({ toolAccess: 'read_only' });
+    expect(value).toContain('answer-only');
+    expect(value).toContain('write capability has been removed');
+    expect(value).toContain('must not claim to create, edit, delete, approve, or save');
+    expect(value).toContain(
+      'Working Memory is shared short-lived context, but it is read-only for this answer-only turn',
+    );
+    expect(value).toContain('Do not call checkpoint_working_memory');
+    expect(value).not.toContain('call checkpoint_working_memory exactly once');
+  });
+
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(47);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(48);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');

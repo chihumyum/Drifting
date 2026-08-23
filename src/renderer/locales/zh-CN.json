@@ -908,6 +908,7 @@
   "common": {
     "local": "本地",
     "edit": "编辑",
+    "more": "更多操作",
     "close": "关闭",
     "delete": "删除",
     "deleted_paren": "（已删除）",
@@ -1391,6 +1392,39 @@
     },
     "empty": {
       "start": "给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。"
+    },
+    "mobile": {
+      "currentProject": "当前项目",
+      "contextAria": "本轮上下文",
+      "contextProject": "项目",
+      "contextParagraph": "段落",
+      "contextCurrent": "当前",
+      "safety": "回答模式 · Agent 只有读取工具；复制、转灵感、转 TODO 均需你点按。",
+      "empty": "向 Agent 提问以分析当前上下文。它只能读取项目；不会直接改写正文。",
+      "actionsAria": "回答操作",
+      "evidenceAria": "本轮证据",
+      "evidenceTitle": "本轮证据",
+      "latest": "↓ 最新",
+      "retry": "重试上条请求",
+      "target": {
+        "dashboard": "项目主页",
+        "allChapters": "通览全书",
+        "untitledNode": "未命名章节",
+        "untitledStoryline": "未命名故事线",
+        "untitledElement": "未命名元素",
+        "untitledCategory": "未命名类目",
+        "deleted": "已删除对象"
+      },
+      "action": {
+        "copy": "复制",
+        "inspiration": "转为灵感",
+        "todo": "加入 TODO",
+        "pending": "处理中…",
+        "copied": "已复制",
+        "inspirationDone": "已存为灵感",
+        "todoDone": "已加入 TODO",
+        "failed": "操作失败"
+      }
     },
     "turnChanges": "本轮改动",
     "jumpLatest": "回到最新",

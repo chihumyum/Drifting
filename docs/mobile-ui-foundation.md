@@ -2,7 +2,7 @@
 
 > This document describes the current implemented mobile shell. The frozen
 > replacement target and staged M0-M9 delivery gates are indexed at
-> [`mobile-v2/README.md`](mobile-v2/README.md). M1-M5 implementation records are
+> [`mobile-v2/README.md`](mobile-v2/README.md). M1-M6 implementation records are
 > current boundaries; later milestone prose remains target behavior only.
 
 ## Current verdict
@@ -40,6 +40,12 @@ chapter touch drag uses delayed ownership with compositor ghost, edge scroll,
 and exactly-once commit, Timeline pinch stays midpoint-anchored, and Plot Grid
 retains normalized row/column/TSV/resize writes. The implemented boundary is in
 [`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md).
+Since M6, compact Mobile Shell owns an answer-only Agent presentation over the
+shared runtime, persists visible Project/entity/block context, exposes stable
+evidence and author-tapped output actions, and gives Library/TODO/Stats a
+portrait information architecture with ordinary touch actions. The implemented
+boundary is in
+[`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md).
 
 This is an implemented foundation with static, build, state-machine, and dated
 Simulator evidence. It is not a claim that current interactions have passed
@@ -203,8 +209,10 @@ contracts.
    low-memory behavior, and representative device performance remain open.
 4. Story Graph, Agent, entity editing, and other dense workflows require
    device-specific interaction checks. M5 Simulator/Emulator evidence covers
-   visible Timeline/Plot and synthetic drag/TSV/persistence only; it does not
-   close their physical-touch gate.
+   visible Timeline/Plot and synthetic drag/TSV/persistence. M6 covers
+   answer-only Agent, Library/TODO, and Stats through synthetic WebView input,
+   but does not close live-provider, native clipboard, accessibility, or
+   physical-touch gates.
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
 the current checklist. Build or Simulator success must not be reported as

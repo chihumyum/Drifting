@@ -1,6 +1,6 @@
 # Mobile V2 delivery and acceptance
 
-Status: **normative staged plan; M0-M5 complete, M6 not started**
+Status: **normative staged plan; M0-M6 complete, M7 not started**
 
 Updated: 2026-08-23
 
@@ -292,6 +292,23 @@ remain open.
 - iOS Simulator verifies local fixture conversations, context, outputs,
   Library/TODO CRUD, Stats navigation, empty/loading/error states, and dark mode.
 - Live provider/device acceptance remains separately identified.
+
+Current implementation evidence:
+
+- [`mobile-agent-library-todo-and-stats.md`](mobile-agent-library-todo-and-stats.md)
+- `turn-context.test.ts`
+- `mobile-agent-model.test.ts`
+- `runtime-tool-search.test.ts`
+- `mobile-v2-tool-workspaces.acceptance.test.ts`
+- [`../qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md`](../qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md)
+
+The M6 iPhone run visibly covered a persisted synthetic answer, explicit
+Project/entity/block context, evidence jump, author-tapped inspiration/TODO
+results, Library/TODO CRUD, current/whole-book Stats, touch targets, empty/error
+states, and dark mode. Android device pixels covered the same compact portrait
+information architecture; real Android hardware Back unwound full → docked →
+closed. Both WebView transports report `nativeInput=false`, and no live provider
+or account behavior is inferred from the synthetic fixture.
 
 ## M7 — Independent Super Views
 

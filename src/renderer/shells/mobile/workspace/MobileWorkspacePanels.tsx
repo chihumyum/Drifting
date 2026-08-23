@@ -23,7 +23,7 @@ import { TodoPanel } from '../../../components/rightBars/TodoPanel';
 import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
 import { EntityStatsContent } from '../../../features/stats/EntityStatsContent';
 import type { EntityStatsTarget } from '../../../features/stats/entity-stats-types';
-import { CompanionPanel } from '../../../components/agent/CompanionPanel';
+import { MobileAgentPanel } from './MobileAgentPanel';
 import { PlotGridEditor } from '../../../components/editor/PlotGrid';
 import {
   clonePlotGrid,
@@ -43,6 +43,7 @@ type StructureTab = 'chapters' | 'elements' | 'inspiration';
 type ToolTab = 'planning' | 'agent' | 'library' | 'stats';
 type PlanningMode = 'timeline' | 'plot';
 type LibraryMode = 'todo' | 'library';
+type StatsMode = 'current' | 'book';
 type PanelPosition = 'top' | 'bottom';
 
 function PanelResizeHandle({
@@ -350,9 +351,13 @@ function MobileToolWorkspace({
   const [tab, setTab] = useState<ToolTab>('planning');
   const [planningMode, setPlanningMode] = useState<PlanningMode>('timeline');
   const [libraryMode, setLibraryMode] = useState<LibraryMode>('todo');
+  const [statsMode, setStatsMode] = useState<StatsMode>('current');
   const focused = focusedEntity(target);
   const data = useDataStore();
-  const currentStatsTarget = statsTarget(target);
+  const currentStatsTarget =
+    statsMode === 'book'
+      ? ({ kind: 'all-chapters', id: null, title: '通览全书', kicker: '全项目' } as const)
+      : statsTarget(target);
   const tabs = [
     ['planning', t('mobileWorkspace.planning', { defaultValue: '规划' }), CalendarRange],
     ['agent', 'Agent', Bot],
@@ -424,7 +429,7 @@ function MobileToolWorkspace({
           )}
           {tab === 'agent' && (
             <div className="m-context-workspace__pane m-context-workspace__body">
-              <CompanionPanel projectId={projectId} />
+              <MobileAgentPanel projectId={projectId} target={target} />
             </div>
           )}
           {tab === 'library' && (
@@ -445,28 +450,53 @@ function MobileToolWorkspace({
                   {t('rightSidebar.tabs.library')}
                 </button>
               </header>
-              <div className="m-context-workspace__pane m-context-workspace__body">
+              <div
+                className="m-context-workspace__pane m-context-workspace__body m-library-workspace"
+                data-mobile-library={libraryMode}
+              >
                 {libraryMode === 'todo' ? (
                   <TodoPanel focused={focused} />
                 ) : (
-                  <LibraryPanel focused={focused} />
+                  <LibraryPanel focused={focused} presentation="mobile" />
                 )}
               </div>
             </>
           )}
           {tab === 'stats' && (
-            <div className="m-context-workspace__pane m-context-workspace__scroll m-context-workspace__stats">
-              <EntityStatsContent
-                target={currentStatsTarget}
-                bookNodes={data.bookNodes}
-                bookActs={data.bookActs}
-                bookElements={data.bookElements}
-                storylines={data.storylines}
-                categories={data.bookElementCategories}
-                storylineNodeMapping={data.storylineNodeMapping}
-                primaryStorylineByNode={data.primaryStorylineByNode}
-              />
-            </div>
+            <>
+              <header className="m-tool-workspace__subtabs m-stats-navigation">
+                <button
+                  type="button"
+                  aria-current={statsMode === 'current' ? 'page' : undefined}
+                  onClick={() => setStatsMode('current')}
+                >
+                  当前纸张
+                </button>
+                <button
+                  type="button"
+                  aria-current={statsMode === 'book' ? 'page' : undefined}
+                  onClick={() => setStatsMode('book')}
+                >
+                  全书
+                </button>
+                <span title={currentStatsTarget.title}>{currentStatsTarget.title}</span>
+              </header>
+              <div
+                className="m-context-workspace__pane m-context-workspace__scroll m-context-workspace__stats"
+                data-mobile-stats={currentStatsTarget.kind === 'none' ? 'empty' : 'ready'}
+              >
+                <EntityStatsContent
+                  target={currentStatsTarget}
+                  bookNodes={data.bookNodes}
+                  bookActs={data.bookActs}
+                  bookElements={data.bookElements}
+                  storylines={data.storylines}
+                  categories={data.bookElementCategories}
+                  storylineNodeMapping={data.storylineNodeMapping}
+                  primaryStorylineByNode={data.primaryStorylineByNode}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

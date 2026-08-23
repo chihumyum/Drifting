@@ -25,6 +25,7 @@ export interface FocusedEntity {
 interface Props {
   /** The currently-focused entity (for the "仅当前条目相关" filter mode). */
   focused: FocusedEntity;
+  presentation?: 'desktop' | 'mobile';
 }
 
 type ViewFilter = 'all' | 'related';
@@ -42,7 +43,7 @@ type ViewFilter = 'all' | 'related';
  *
  * TODOs live in the sibling TodoPanel, not here.
  */
-export function LibraryPanel({ focused }: Props) {
+export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const { t } = useTranslation();
   const { projectId } = useWorkspaceNavigator();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
@@ -188,6 +189,7 @@ export function LibraryPanel({ focused }: Props) {
             relations={refsByFrom.get(`library_item:${mat.id}`) ?? []}
             editing={editingId === mat.id}
             showRelations={showRelations}
+            mobileActions={presentation === 'mobile'}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
             onOpenInSystem={() => openLibraryItemInSystem(mat)}
             onOpenInApp={() => openLibraryItemInApp(mat)}

@@ -772,6 +772,8 @@ export interface AgentRuntimeRunInput {
     reminder?: string;
   };
   toolSearch?: AgentRuntimeToolSearchMode;
+  /** Hard per-turn tool boundary selected by the author-facing surface. */
+  toolAccess?: 'read_only' | 'read_write';
   history?: readonly AgentModelMessage[];
   limits?: Partial<AgentRuntimeLimits>;
   signal?: AbortSignal;

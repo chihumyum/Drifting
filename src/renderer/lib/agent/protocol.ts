@@ -162,6 +162,7 @@ export type AgentModelChoice = string;
 export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgentThinkingChoice = 'adaptive' | 'off';
 export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
+export type AgentToolAccessChoice = 'read_only' | 'read_write';
 export type AgentContextModeChoice = 'standard' | 'max';
 export type AgentPromptSource = 'author' | 'runtime_continuation';
 
@@ -189,6 +190,8 @@ export interface AgentStartInput {
   effort?: AgentEffortChoice;
   thinking?: AgentThinkingChoice;
   toolSearch?: AgentToolSearchChoice;
+  /** Hard runtime tool boundary; read_only removes write definitions entirely. */
+  toolAccess?: AgentToolAccessChoice;
   /** Canonical author-visible project name, never inferred from `projectId`. */
   projectName?: string;
   projectFacts?: { key: string; value: string }[];

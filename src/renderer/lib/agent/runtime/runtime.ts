@@ -557,28 +557,37 @@ export class AgentRuntime {
         'The runtime control channel belongs to a different turn',
       );
     }
+    const toolAccess = input.toolAccess ?? 'read_write';
+    if (toolAccess !== 'read_only' && toolAccess !== 'read_write') {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        `Invalid tool access mode "${String(toolAccess)}"`,
+      );
+    }
     const definitions = Object.freeze(
-      [...this.tools.listDefinitions(context)].map((definition) => {
-        if (
-          (definition.access !== 'read' && definition.access !== 'write') ||
-          typeof definition.validateInput !== 'function'
-        ) {
-          throw new AgentRuntimeError(
-            'INTERNAL_ERROR',
-            `Tool definition "${definition.name}" is not executable`,
-          );
-        }
-        let inputSchema: object;
-        try {
-          inputSchema = deepFreeze(clonePortableData(definition.inputSchema));
-        } catch {
-          throw new AgentRuntimeError(
-            'INTERNAL_ERROR',
-            `Tool definition "${definition.name}" has a non-portable schema`,
-          );
-        }
-        return { ...definition, inputSchema };
-      }),
+      [...this.tools.listDefinitions(context)]
+        .filter((definition) => toolAccess === 'read_write' || definition.access === 'read')
+        .map((definition) => {
+          if (
+            (definition.access !== 'read' && definition.access !== 'write') ||
+            typeof definition.validateInput !== 'function'
+          ) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool definition "${definition.name}" is not executable`,
+            );
+          }
+          let inputSchema: object;
+          try {
+            inputSchema = deepFreeze(clonePortableData(definition.inputSchema));
+          } catch {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool definition "${definition.name}" has a non-portable schema`,
+            );
+          }
+          return { ...definition, inputSchema };
+        }),
     );
     const availableDefinitionsByName = groupDefinitions(definitions);
     const completionToolName = input.completionTool?.name.trim();

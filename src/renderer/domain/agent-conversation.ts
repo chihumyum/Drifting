@@ -17,12 +17,27 @@ export interface AgentTodoItem {
   activeForm?: string;
 }
 
+/**
+ * Author-visible context captured with one submitted message. Stable ids are
+ * persisted with the transcript; labels are presentation snapshots only.
+ */
+export interface AgentConversationContextRef {
+  kind: 'project' | 'workspace';
+  projectId: string;
+  label: string;
+  entityType?: 'node' | 'element' | 'storyline' | 'category' | 'all-chapters';
+  entityId?: string;
+  blockId?: string;
+}
+
 export type AgentChatMessage =
   | {
       kind: 'user';
       text: string;
       /** ISO timestamp captured when the author prompt entered the transcript. */
       at?: string;
+      /** Explicit author-visible turn context, retained across app restarts. */
+      context?: AgentConversationContextRef[];
     }
   | { kind: 'assistant'; text: string; streaming?: boolean }
   | { kind: 'thinking'; text: string; streaming?: boolean }

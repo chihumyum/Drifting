@@ -39,6 +39,12 @@ describe('Mobile V2 frozen design contract', () => {
   const planningWorkspaceSimulator = read(
     'docs/qa/mobile-v2-m5-planning-simulator-2026-08-23.md',
   );
+  const toolWorkspaces = read(
+    'docs/mobile-v2/mobile-agent-library-todo-and-stats.md',
+  );
+  const toolWorkspacesSimulator = read(
+    'docs/qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md',
+  );
   const current = read('docs/mobile-ui-foundation.md');
   const docsIndex = read('docs/README.md');
 
@@ -51,6 +57,7 @@ describe('Mobile V2 frozen design contract', () => {
     expect(index).toContain('stable_paper_workspace: simulator_accepted');
     expect(index).toContain('editing_workspace: simulator_accepted');
     expect(index).toContain('planning_workspace: simulator_accepted');
+    expect(index).toContain('tool_workspaces: simulator_accepted');
     expect(index).toContain('This directory defines the target. It does not claim');
     expect(current).toContain('current implemented mobile shell');
     expect(current).toContain('mobile-v2/README.md');
@@ -92,7 +99,7 @@ describe('Mobile V2 frozen design contract', () => {
     }
     expect(delivery).toContain('Simulator and Emulator evidence never closes physical-device');
     expect(delivery).toContain('Google Drive cannot be waived');
-    expect(delivery).toContain('M0-M5 complete, M6 not started');
+    expect(delivery).toContain('M0-M6 complete, M7 not started');
     expect(platformFoundation).toContain('Native capability and UI shell are separate');
     expect(platformFoundation).toContain('target=mobile');
     expect(platformFoundation).toContain('shellMode=desktop');
@@ -129,6 +136,16 @@ describe('Mobile V2 frozen design contract', () => {
     );
     expect(planningWorkspaceSimulator).toContain('book_order=8.8');
     expect(planningWorkspaceSimulator).toContain('nativeInput=false');
+    expect(toolWorkspaces).toContain(
+      'M6 implementation and Simulator/Emulator acceptance complete',
+    );
+    expect(toolWorkspaces).toContain('hard runtime boundary');
+    expect(toolWorkspaces).toContain('author-controlled actions');
+    expect(toolWorkspacesSimulator).toContain(
+      'M6 Simulator/Emulator acceptance passed',
+    );
+    expect(toolWorkspacesSimulator).toContain('inputPath=synthetic-dom');
+    expect(toolWorkspacesSimulator).toMatch(/from `bottom-full` to\s+`bottom-docked`/);
     expect(simulator).toContain('M0 baseline passed');
     expect(simulator).toContain('does **not** verify the future unified bar');
     expect(simulator).toContain('No new Simulator device or iOS runtime was created');

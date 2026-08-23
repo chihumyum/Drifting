@@ -908,6 +908,7 @@
   "common": {
     "local": "Local",
     "edit": "Edit",
+    "more": "More actions",
     "close": "Close",
     "delete": "Delete",
     "deleted_paren": "(deleted)",
@@ -1391,6 +1392,39 @@
     },
     "empty": {
       "start": "Send Agent a message to start. It can read and write this project's chapters, elements, and relations."
+    },
+    "mobile": {
+      "currentProject": "Current project",
+      "contextAria": "Turn context",
+      "contextProject": "Project",
+      "contextParagraph": "Paragraph",
+      "contextCurrent": "Current",
+      "safety": "Answer mode · Agent has read-only tools. Copy, Save as inspiration, and Add TODO require your tap.",
+      "empty": "Ask Agent to analyze the current context. It can only read the project and cannot rewrite prose directly.",
+      "actionsAria": "Answer actions",
+      "evidenceAria": "Turn evidence",
+      "evidenceTitle": "Turn evidence",
+      "latest": "↓ Latest",
+      "retry": "Retry last request",
+      "target": {
+        "dashboard": "Project home",
+        "allChapters": "All Chapters",
+        "untitledNode": "Untitled chapter",
+        "untitledStoryline": "Untitled storyline",
+        "untitledElement": "Untitled element",
+        "untitledCategory": "Untitled category",
+        "deleted": "Deleted item"
+      },
+      "action": {
+        "copy": "Copy",
+        "inspiration": "Save as inspiration",
+        "todo": "Add TODO",
+        "pending": "Working…",
+        "copied": "Copied",
+        "inspirationDone": "Saved as inspiration",
+        "todoDone": "Added to TODO",
+        "failed": "Action failed"
+      }
     },
     "turnChanges": "Turn changes",
     "jumpLatest": "Jump to latest",

@@ -151,6 +151,8 @@ export function CollapsibleFooter({
   return (
     <div
       ref={rootRef}
+      className="collapsible-footer"
+      data-expanded={isExpanded ? 'true' : 'false'}
       style={{
         flexShrink: 0,
         display: 'flex',
@@ -187,6 +189,7 @@ export function CollapsibleFooter({
       )}
 
       <div
+        className="collapsible-footer__header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -196,6 +199,7 @@ export function CollapsibleFooter({
       >
         <button
           type="button"
+          className="collapsible-footer__toggle"
           onClick={() => setExpanded(!isExpanded)}
           aria-expanded={isExpanded}
           title={isExpanded ? collapseTitle : expandTitle}

@@ -196,7 +196,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Project rules: `author-editable-project-facts`
 - Standing guidance: `author-created-or-author-approved-active-memory`
 - Guidance lifecycle: `author-editable-and-deletable`
-- Execution safety: `data-integrity-review-and-author-configurable-destructive-confirmation`
+- Execution safety: `data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter`
 
 ## Provider and extension platform
 

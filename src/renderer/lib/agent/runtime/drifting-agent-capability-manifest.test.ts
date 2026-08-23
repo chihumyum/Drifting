@@ -235,7 +235,8 @@ describe('Drifting Agent capability manifest', () => {
       projectRules: 'author-editable-project-facts',
       standingGuidance: 'author-created-or-author-approved-active-memory',
       guidanceLifecycle: 'author-editable-and-deletable',
-      executionSafety: 'data-integrity-review-and-author-configurable-destructive-confirmation',
+      executionSafety:
+        'data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter',
     });
   });
 

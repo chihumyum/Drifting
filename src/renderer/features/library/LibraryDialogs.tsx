@@ -48,6 +48,7 @@ export function ResolvedTodoArchive({
       {todos.map((todo) => (
         <div
           key={todo.id}
+          className="resolved-todo-archive__row"
           style={{
             display: 'flex',
             alignItems: 'flex-start',
@@ -73,6 +74,8 @@ export function ResolvedTodoArchive({
           <button
             onClick={() => onReopen(todo.id)}
             title={t('memoMaterial.archive.reopen')}
+            aria-label={t('memoMaterial.archive.reopen')}
+            className="resolved-todo-archive__action"
             style={{
               border: 'none',
               background: 'transparent',
@@ -88,6 +91,8 @@ export function ResolvedTodoArchive({
           <button
             onClick={() => onDelete(todo.id)}
             title={t('common.delete')}
+            aria-label={t('common.delete')}
+            className="resolved-todo-archive__action"
             style={{
               border: 'none',
               background: 'transparent',

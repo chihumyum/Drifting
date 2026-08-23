@@ -45,6 +45,7 @@ function LibraryItemContextMenuItem({
 
 function LibraryItemContextMenu({
   material,
+  mobileActions,
   relationCount,
   x,
   y,
@@ -54,6 +55,7 @@ function LibraryItemContextMenu({
   onClose,
 }: {
   material: LibraryItem;
+  mobileActions: boolean;
   relationCount: number;
   x: number;
   y: number;
@@ -123,6 +125,7 @@ function LibraryItemContextMenu({
       ref={menuRef}
       role="menu"
       className="menu-surface menu-surface--rich menu-surface--wide btl-cmenu"
+      data-library-mobile-actions={mobileActions ? 'true' : undefined}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top, zIndex: 'var(--z-context-menu)' }}
@@ -177,6 +180,7 @@ export function LibraryItemCard({
   relations,
   editing,
   showRelations = true,
+  mobileActions = false,
   onSetEditing,
   onOpenInSystem,
   onOpenInApp,
@@ -192,6 +196,8 @@ export function LibraryItemCard({
   /** When false, hide the relation chips/picker entirely even if relations
    *  exist. Controlled from the panel toolbar's link toggle. */
   showRelations?: boolean;
+  /** Exposes an ordinary tap target for actions that desktop keeps in a context menu. */
+  mobileActions?: boolean;
   onSetEditing: (on: boolean) => void;
   onOpenInSystem: () => void;
   onOpenInApp: () => void;
@@ -237,6 +243,12 @@ export function LibraryItemCard({
   const handleOpenInApp = useCallback(() => onOpenInApp(), [onOpenInApp]);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const openMobileActionMenu = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setContextMenu({ x: rect.right, y: rect.bottom + 4 });
+  }, []);
 
   const openContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
@@ -339,6 +351,17 @@ export function LibraryItemCard({
               {textExpanded ? t('memoMaterial.card.collapse') : t('memoMaterial.card.expand')}
             </button>
           )}
+          {mobileActions && (
+            <button
+              type="button"
+              className="library-item-card__mobile-menu"
+              aria-label={t('common.more')}
+              title={t('common.more')}
+              onClick={openMobileActionMenu}
+            >
+              ···
+            </button>
+          )}
           {!isTextSnippet && (
             <button
               onClick={handleOpenInSystem}
@@ -400,11 +423,21 @@ export function LibraryItemCard({
                 />
               ) : (
                 <div
+                  className="library-item-card__editable-title"
                   onClick={() => {
                     setDraft(material.title);
                     onSetEditing(true);
                   }}
                   title={material.title || subtitle}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${t('common.edit')} ${material.title || subtitle || t('common.untitled')}`}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    setDraft(material.title);
+                    onSetEditing(true);
+                  }}
                   style={{
                     fontFamily: 'var(--font-sans)',
                     fontSize: 13.5,
@@ -483,11 +516,21 @@ export function LibraryItemCard({
               />
             ) : (
               <div
+                className="library-item-card__editable-title"
                 onClick={() => {
                   setDraft(material.title);
                   onSetEditing(true);
                 }}
                 title={material.title || subtitle}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t('common.edit')} ${material.title || subtitle || t('common.untitled')}`}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  setDraft(material.title);
+                  onSetEditing(true);
+                }}
                 style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 13.5,
@@ -508,6 +551,7 @@ export function LibraryItemCard({
               </div>
             )}
             <div
+              className="library-item-card__snippet-body"
               onClick={handleOpenInApp}
               style={{
                 fontFamily: 'var(--font-sans)',
@@ -560,6 +604,7 @@ export function LibraryItemCard({
 
         {isTextSnippet && !isTextExpanded && (
           <div
+            className="library-item-card__snippet-body"
             onClick={handleOpenInApp}
             style={{
               marginTop: 6,
@@ -598,6 +643,7 @@ export function LibraryItemCard({
       {contextMenu && (
         <LibraryItemContextMenu
           material={material}
+          mobileActions={mobileActions}
           relationCount={relations.length}
           x={contextMenu.x}
           y={contextMenu.y}

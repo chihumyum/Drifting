@@ -36,6 +36,7 @@ import { createAgentConversationRepository } from '../sqlite-repo/agent-conversa
 import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
 import type {
   AgentChatMessage as ChatMsg,
+  AgentConversationContextRef,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
 import type {
@@ -69,6 +70,7 @@ import {
 } from '../lib/agent/runtime/long-task-auto-continuation';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
+import { agentTurnContextPrompt, normalizeAgentTurnContext } from '../lib/agent/turn-context';
 
 const repo = createAgentConversationRepository();
 const longTaskRepo = createAgentRuntimeLongTaskRepository();
@@ -183,6 +185,10 @@ export interface AgentChatSendOptions {
   origin?: AgentChatSendOrigin;
   /** Product-owned model instruction that must never appear in the composer. */
   runtimePrompt?: string;
+  /** Visible, durable context selected by the author-facing composer. */
+  turnContext?: readonly AgentConversationContextRef[];
+  /** Mobile Answer mode removes every write tool at the runtime boundary. */
+  toolAccess?: 'read_only' | 'read_write';
 }
 
 /**
@@ -496,6 +502,13 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     try {
       const projectId = s.boundProjectId;
       const text = submittedPrompt.trim();
+      const turnContext = normalizeAgentTurnContext(options?.turnContext);
+      const userMessage = {
+        kind: 'user' as const,
+        text,
+        at: new Date().toISOString(),
+        ...(turnContext.length > 0 ? { context: turnContext } : {}),
+      };
       const isRuntimeContinuation =
         origin === 'author_continuation' || origin === 'automatic_continuation';
       // Preserve an explicit cancellable startup boundary even when no product
@@ -503,7 +516,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // this intent before the stale prompt is appended to either transcript.
       await Promise.resolve();
       if (!isCurrentStart()) return;
-      const now = new Date().toISOString();
+      const now = userMessage.at;
       const settings = useSettingsStore.getState();
       const auth = settings.agentAuth;
       // The conversation row records only hosted vs byok-ish; oauth/apikey both
@@ -522,7 +535,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId,
             title: deriveTitle(text),
             mode: convMode,
-            messages: isRuntimeContinuation ? [] : [{ kind: 'user', text, at: now }],
+            messages: isRuntimeContinuation ? [] : [userMessage],
             sdkSessionId: null,
             runtimeSessionId: null,
             createdAt: now,
@@ -541,17 +554,20 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       cancelAutomaticContinuationTimer(cid);
       const previousAutomatic =
         prevRun?.automaticContinuation ?? createInactiveAgentAutomaticContinuation();
+      const toolAccess = options?.toolAccess ?? 'read_write';
       const automaticContinuation =
-        origin === 'automatic_continuation'
-          ? beginAutomaticContinuationSlice(previousAutomatic)
-          : origin === 'headless_once'
-            ? createInactiveAgentAutomaticContinuation(previousAutomatic.sequenceId + 1)
-            : armAgentAutomaticContinuation(previousAutomatic, Date.now());
+        toolAccess === 'read_only'
+          ? createInactiveAgentAutomaticContinuation(previousAutomatic.sequenceId + 1)
+          : origin === 'automatic_continuation'
+            ? beginAutomaticContinuationSlice(previousAutomatic)
+            : origin === 'headless_once'
+              ? createInactiveAgentAutomaticContinuation(previousAutomatic.sequenceId + 1)
+              : armAgentAutomaticContinuation(previousAutomatic, Date.now());
       const run: RunState = {
         projectId,
         messages: isRuntimeContinuation
           ? [...(prevRun?.messages ?? [])]
-          : [...(prevRun?.messages ?? []), { kind: 'user', text, at: now }],
+          : [...(prevRun?.messages ?? []), userMessage],
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
         seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
         controlStatus: null,
@@ -618,6 +634,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // the product composition. Do not duplicate them into every user prompt;
       // that legacy path grew long tasks quadratically and blurred authorship.
       const promptNotes = reverts.length ? [buildRevertNote(reverts)] : [];
+      const visibleContextNote = agentTurnContextPrompt(turnContext);
+      if (visibleContextNote) promptNotes.push(visibleContextNote);
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
       const r = await generalAgentTransport
         .start({
@@ -635,6 +653,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           // for the current task. Exposing the raw domain catalog makes tool
           // mechanics dominate the conversation and is no longer a user mode.
           toolSearch: 'on',
+          toolAccess,
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
           memories,

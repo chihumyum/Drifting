@@ -113,6 +113,16 @@ function runInput(overrides: Partial<AgentRuntimeRunInput>): AgentRuntimeRunInpu
 }
 
 describe('AgentRuntime tool search integration', () => {
+  it('removes every write definition in answer-only mode before model selection', async () => {
+    const definitions = [definition('read_node'), definition('edit_block', 'write')];
+    const driver = new RecordingDriver(() => endTurn());
+    const runtime = new AgentRuntime({ driver, tools: toolRuntime(definitions) });
+
+    await runtime.runTurn(runInput({ toolSearch: 'off', toolAccess: 'read_only' }));
+
+    expect(driver.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_node']);
+  });
+
   it('keeps the full explicit tool surface when search is off', async () => {
     const definitions = Array.from({ length: 12 }, (_, index) => definition(`tool_${index}`));
     const select = vi.fn<AgentToolSelectionStrategy['select']>(() => ['tool_0']);
@@ -840,12 +850,12 @@ describe('AgentRuntime tool search integration', () => {
     expect(query).not.toContain('original request:\n继续把刚才的任务做完。');
   });
 
-  it('forwards AgentStartInput.toolSearch through the local transport', async () => {
+  it('forwards tool search and the answer-only access boundary through local transport', async () => {
     const select = vi.fn<AgentToolSelectionStrategy['select']>(() => ['read_node']);
     const driver = new RecordingDriver(() => endTurn());
     const transport = new LocalGeneralAgentTransport({
       driver,
-      tools: toolRuntime([definition('read_node')]),
+      tools: toolRuntime([definition('read_node'), definition('edit_block', 'write')]),
       toolSelector: { select },
       createId: (kind) => `${kind}-id`,
     });
@@ -859,6 +869,7 @@ describe('AgentRuntime tool search integration', () => {
       prompt: '读取章节',
       route: { kind: 'chat', projectId: 'project-1' },
       toolSearch: 'on',
+      toolAccess: 'read_only',
     });
     await done;
 
