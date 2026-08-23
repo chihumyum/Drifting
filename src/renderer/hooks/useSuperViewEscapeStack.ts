@@ -1,4 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  MOBILE_WORKSPACE_BACK_EVENT,
+  isMobileWorkspaceBackPreflight,
+  type MobileWorkspaceBackEventDetail,
+} from '../shells/mobile/workspace/mobile-workspace-back';
 
 export interface SuperViewEscapeLayer {
   /** Stable while this specific surface is open. Include an entity id when it can switch in place. */
@@ -78,16 +83,35 @@ export function useSuperViewEscapeStack(
   }, [layers, onRootBack]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
+    const dispatchCurrentLayer = () => {
       const { layers: currentLayers, onRootBack: currentRootBack } = latestRef.current;
       dispatchSuperViewEscape(currentLayers, openedAtRef.current, currentRootBack);
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        isMobileWorkspaceBackPreflight(event)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      dispatchCurrentLayer();
+    };
+    const handleMobileBack = (event: Event) => {
+      const request = event as CustomEvent<MobileWorkspaceBackEventDetail>;
+      request.preventDefault();
+      request.stopImmediatePropagation();
+      dispatchCurrentLayer();
+    };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener(MOBILE_WORKSPACE_BACK_EVENT, handleMobileBack);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener(MOBILE_WORKSPACE_BACK_EVENT, handleMobileBack);
+    };
   }, []);
 }

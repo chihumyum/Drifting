@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPlatformRuntime } from '../platform/runtime';
+import { requestMobileWorkspaceBack } from '../shells/mobile/workspace/mobile-workspace-back';
 import '../../styles/super-view-header.css';
 
 export interface SuperViewHeaderProps {
@@ -44,7 +45,10 @@ export function SuperViewHeader({
           <button
             type="button"
             className="super-view-head__back"
-            onClick={onBack}
+            onClick={() => {
+              if (runtime.isMobileShell) requestMobileWorkspaceBack('visible');
+              else onBack();
+            }}
             title={resolvedBackLabel}
             aria-label={resolvedBackLabel}
           >

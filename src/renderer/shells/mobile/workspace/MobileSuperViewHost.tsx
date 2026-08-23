@@ -3,7 +3,7 @@ import { SuperViewNavigationProvider } from '../../../components/SuperViewNaviga
 import { SuperElementView } from '../../../views/SuperViews/SuperElementView';
 import { StoryGraphView } from '../../../views/StoryGraphView';
 import { SuperMemoMaterialView } from '../../../views/SuperViews/SuperMemoMaterialView';
-import type { MobileSuperViewId } from './MobileTabOverview';
+import type { MobileSuperViewId } from './mobile-workspace-controller';
 
 export function MobileSuperViewHost({
   active,
