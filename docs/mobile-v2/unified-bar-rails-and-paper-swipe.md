@@ -56,13 +56,15 @@ an ordinary paper. Project-wide
 user/settings actions remain on the shelf and in Overview rather than
 consuming either rail.
 
-Both panels retain one continuous boundary handle. Ordinary release preserves
-the exact author-controlled extent, including values above 50%. A panel becomes
-full only when the handle reaches the physical full edge or a deliberate fling
-covers at least 12% of the viewport at the full-screen velocity threshold. The
-same deliberate closing fling or the closed edge collapses it. The panel takes
-space from the corresponding edge by moving the paper-deck boundary. The paper
-remains 100dvw by 100dvh and is cropped; no prose/editor ancestor uses
+Both panels retain one continuous boundary handle. Releases at 72 CSS pixels
+or less snap closed for both top and bottom panels; this fixed physical zone
+prevents a non-useful sliver across phone heights. Above that zone, ordinary
+release preserves the exact author-controlled extent, including values above
+50%. A panel becomes full only when the handle reaches the physical full edge
+or a deliberate fling covers at least 12% of the viewport at the full-screen
+velocity threshold. A deliberate closing fling also collapses it. The panel
+takes space from the corresponding edge by moving the paper-deck boundary. The
+paper remains 100dvw by 100dvh and is cropped; no prose/editor ancestor uses
 `transform: scale(...)`.
 
 ## Stable paper swipe

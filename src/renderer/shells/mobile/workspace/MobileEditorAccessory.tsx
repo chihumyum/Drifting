@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -215,11 +216,19 @@ export function MobileEditorAccessory({
     // Reflowing on pointerdown lets iOS retarget the remaining gesture at the
     // newly exposed navigation row and can produce a ghost editor input.
     event.preventDefault();
+    event.stopPropagation();
   }, []);
 
   if (!active || !editing || !editor || editor.isDestroyed) return null;
 
-  const toggle = () => onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+  const toggle = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    // iOS WebKit may focus a touched button during the click default action
+    // even when pointerdown was consumed. Cancel that action so this control
+    // changes only the accessory level and never dismisses the editor/IME.
+    event.preventDefault();
+    event.stopPropagation();
+    onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+  };
   const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
     event.preventDefault();
     action();
@@ -236,6 +245,7 @@ export function MobileEditorAccessory({
       <button
         type="button"
         className="m-editor-accessory__toggle"
+        data-debug-id="mobile-toggle-formatting"
         aria-expanded={mode === 'formatting'}
         aria-label={t(
           mode === 'formatting'

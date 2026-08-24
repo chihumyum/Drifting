@@ -217,8 +217,6 @@ export function MobileUnifiedBar({
     if (projection.leftAction === 'dismiss-keyboard') getActiveEditor()?.commands.blur();
     requestMobileWorkspaceBack('visible');
   };
-  const editingFormatting =
-    projection.mode === 'edit' && editorAccessoryMode === 'formatting';
   const showPaperNavigation =
     projection.mode === 'read' ||
     (projection.mode === 'edit' && editorAccessoryMode === 'navigation');
@@ -321,16 +319,16 @@ export function MobileUnifiedBar({
                 <Layers3 size={18} aria-hidden="true" /> Drifting
               </span>
             ) : null}
-            {editingFormatting && (
-            <button
-              type="button"
-              className="m-unified-bar__action"
-              data-debug-id="mobile-dismiss-keyboard"
-              onClick={handleBack}
-              aria-label={t('mobileWorkspace.dismissKeyboard', { defaultValue: '收起键盘' })}
-            >
-              <ChevronsDown size={20} aria-hidden="true" />
-            </button>
+            {projection.mode === 'edit' && (
+              <button
+                type="button"
+                className="m-unified-bar__action"
+                data-debug-id="mobile-dismiss-keyboard"
+                onClick={handleBack}
+                aria-label={t('mobileWorkspace.dismissKeyboard', { defaultValue: '收起键盘' })}
+              >
+                <ChevronsDown size={20} aria-hidden="true" />
+              </button>
             )}
           </>
         )}

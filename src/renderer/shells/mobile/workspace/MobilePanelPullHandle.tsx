@@ -79,6 +79,7 @@ export function MobilePanelPullHandle({
       extent: next,
       openingVelocityVhPerSecond: velocity,
       travel: Math.abs(next - pull.startExtent),
+      viewportHeightPx: Math.max(1, window.innerHeight),
     });
   };
 
@@ -139,6 +140,7 @@ export function MobilePanelPullHandle({
           extent: pull.latestExtent,
           openingVelocityVhPerSecond: 0,
           travel: Math.abs(pull.latestExtent - pull.startExtent),
+          viewportHeightPx: Math.max(1, window.innerHeight),
         });
       }}
     >

@@ -8,6 +8,7 @@ describe('resolveMobilePanelGesture', () => {
         extent: 0.72,
         openingVelocityVhPerSecond: 0.18,
         travel: 0.42,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'docked', extent: 0.72 });
   });
@@ -18,6 +19,7 @@ describe('resolveMobilePanelGesture', () => {
         extent: 0.51,
         openingVelocityVhPerSecond: 0.08,
         travel: 0.23,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'docked', extent: 0.51 });
   });
@@ -28,6 +30,7 @@ describe('resolveMobilePanelGesture', () => {
         extent: 0.99,
         openingVelocityVhPerSecond: 0,
         travel: 0.2,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'full', extent: 1 });
     expect(
@@ -35,6 +38,7 @@ describe('resolveMobilePanelGesture', () => {
         extent: 0.44,
         openingVelocityVhPerSecond: 1.5,
         travel: 0.16,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'full', extent: 1 });
   });
@@ -45,23 +49,37 @@ describe('resolveMobilePanelGesture', () => {
         extent: 0.18,
         openingVelocityVhPerSecond: 3,
         travel: 0.03,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'docked', extent: 0.18 });
   });
 
-  it('closes at the edge or after a deliberate closing fling', () => {
+  it('snaps closed inside the 72px edge zone and preserves taller releases', () => {
     expect(
       resolveMobilePanelGesture({
-        extent: 0.03,
+        extent: 0.08,
         openingVelocityVhPerSecond: 0,
         travel: 0.3,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'closed', extent: 0 });
+    expect(
+      resolveMobilePanelGesture({
+        extent: 0.1,
+        openingVelocityVhPerSecond: 0,
+        travel: 0.3,
+        viewportHeightPx: 844,
+      }),
+    ).toEqual({ state: 'docked', extent: 0.1 });
+  });
+
+  it('also closes after a deliberate closing fling', () => {
     expect(
       resolveMobilePanelGesture({
         extent: 0.36,
         openingVelocityVhPerSecond: -1.4,
         travel: 0.14,
+        viewportHeightPx: 844,
       }),
     ).toEqual({ state: 'closed', extent: 0 });
   });

@@ -23,7 +23,11 @@ never opens a Sheet. Pressing the Format label collapses the row and reveals
 the complete entity/status, numbered paper count, Search, and hamburger
 entrances; pressing the label again restores formatting. Pointer down is
 consumed before command dispatch so an existing ProseMirror selection is not
-collapsed before the command runs.
+collapsed before the command runs. The Format label also cancels the button's
+click default action before switching accessory level: iOS must not transfer
+focus away from ProseMirror or dismiss the IME. The right-side down Chevron is
+present in both formatting and navigation accessory levels and is the sole
+explicit keyboard-dismiss control.
 
 Keyboard placement is derived from the greatest reliable inset:
 
