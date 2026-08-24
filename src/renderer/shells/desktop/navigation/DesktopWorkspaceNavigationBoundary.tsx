@@ -8,6 +8,8 @@ import { useDesktopGlobalShortcuts } from '../useDesktopGlobalShortcuts';
 import { useDesktopWorkspaceNavigator } from './useDesktopWorkspaceNavigator';
 import { focusedLeafOf, tabKey, useUiStore } from '../../../store/ui-store';
 import { workspaceUrlFor } from '../../../features/workspace/navigation/workspace-route';
+import { useDesktopTabCloseTransition } from './DesktopTabCloseTransition';
+import { DesktopTabCloseContext } from './DesktopTabCloseContext';
 
 interface DesktopWorkspaceNavigationBoundaryProps {
   projectId: string;
@@ -30,6 +32,7 @@ export function DesktopWorkspaceNavigationBoundary({
 }: DesktopWorkspaceNavigationBoundaryProps) {
   const { navigator, navigate } = useDesktopWorkspaceNavigator(projectId);
   const location = useLocation();
+  const closeWorkspaceTab = useDesktopTabCloseTransition({ projectId, navigator, navigate });
 
   useLayoutEffect(() => {
     const entry = location.state as { projectEntry?: unknown } | null;
@@ -59,11 +62,14 @@ export function DesktopWorkspaceNavigationBoundary({
     openGlobalSearch,
     navigator,
     navigate,
+    closeWorkspaceTab,
   });
 
   return (
     <WorkspaceNavigationProvider navigator={navigator}>
-      {children}
+      <DesktopTabCloseContext.Provider value={closeWorkspaceTab}>
+        {children}
+      </DesktopTabCloseContext.Provider>
     </WorkspaceNavigationProvider>
   );
 }

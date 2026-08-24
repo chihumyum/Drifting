@@ -128,6 +128,54 @@ export function focusedLeafOf(tab: AnyTab): LeafTab | null {
   return tab.focused === 'left' ? tab.left : tab.right;
 }
 
+export interface WorkspaceTabClosePlan {
+  nextOpenTabs: AnyTab[];
+  nextActiveTabKey: string | null;
+  nextActive: LeafTab | null;
+  wasActive: boolean;
+}
+
+/**
+ * Resolves a tab close without mutating the store. Desktop navigation uses the
+ * same plan to place the destination route before an active create draft is
+ * removed, so Router and tab ownership cannot disagree for an intermediate
+ * paint.
+ */
+export function planWorkspaceTabClose(
+  project: ProjectTabsState,
+  closingKey: string,
+): WorkspaceTabClosePlan | null {
+  const idx = project.openTabs.findIndex((tab) => tabKey(tab) === closingKey);
+  if (idx < 0) return null;
+  const closing = project.openTabs[idx];
+  if (closing.kind === 'create' && closing.draft.status === 'creating') return null;
+
+  const nextOpenTabs = project.openTabs.slice();
+  nextOpenTabs.splice(idx, 1);
+  const wasActive = project.activeTabKey === closingKey;
+  let nextActiveTabKey = project.activeTabKey;
+  let nextActive: LeafTab | null = null;
+
+  if (wasActive) {
+    if (nextOpenTabs.length === 0) {
+      nextActiveTabKey = null;
+    } else {
+      const neighbor =
+        idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
+      const successor =
+        closing.kind === 'create'
+          ? closing.returnTabKey === null
+            ? null
+            : (nextOpenTabs.find((tab) => tabKey(tab) === closing.returnTabKey) ?? neighbor)
+          : neighbor;
+      nextActiveTabKey = successor ? tabKey(successor) : null;
+      nextActive = successor ? focusedLeafOf(successor) : null;
+    }
+  }
+
+  return { nextOpenTabs, nextActiveTabKey, nextActive, wasActive };
+}
+
 export function initialCreateTabDraft(): CreateTabDraft {
   return {
     step: 'kind',
@@ -1195,37 +1243,17 @@ export const useUiStore = create<UiState>()(
               : 'createId' in ref
                 ? `create:${ref.createId}`
                 : `${ref.entityType}:${ref.id}`;
-          const idx = project.openTabs.findIndex((t) => tabKey(t) === key);
-          if (idx < 0) return {};
-          const closing = project.openTabs[idx];
-          if (closing.kind === 'create' && closing.draft.status === 'creating') return {};
-          const nextOpenTabs = project.openTabs.slice();
-          nextOpenTabs.splice(idx, 1);
-
-          let nextActiveTabKey: string | null = project.activeTabKey;
-          if (project.activeTabKey === key) {
-            wasActive = true;
-            if (nextOpenTabs.length === 0) {
-              nextActiveTabKey = null;
-            } else {
-              const neighbor =
-                idx < nextOpenTabs.length
-                  ? nextOpenTabs[idx]
-                  : nextOpenTabs[nextOpenTabs.length - 1];
-              const successor =
-                closing.kind === 'create'
-                  ? closing.returnTabKey === null
-                    ? null
-                    : (nextOpenTabs.find((tab) => tabKey(tab) === closing.returnTabKey) ?? neighbor)
-                  : neighbor;
-              nextActiveTabKey = successor ? tabKey(successor) : null;
-              nextActive = successor ? focusedLeafOf(successor) : null;
-            }
-          }
+          const plan = planWorkspaceTabClose(project, key);
+          if (!plan) return {};
+          ({ nextActive, wasActive } = plan);
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
+              [projectId]: withActiveTab(
+                project,
+                plan.nextActiveTabKey,
+                plan.nextOpenTabs,
+              ),
             },
           };
         });

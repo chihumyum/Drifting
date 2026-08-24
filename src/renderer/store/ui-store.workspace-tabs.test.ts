@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   CREATE_TAB_ID,
   focusedLeafOf,
+  planWorkspaceTabClose,
   persistableTabsByProject,
   sanitizePersistedTabsByProject,
   tabKey,
@@ -125,6 +126,25 @@ describe('project-local workspace tabs', () => {
     expect(result).toEqual({ nextActive: null, wasActive: true });
     expect(project.openTabs.map(tabKey)).toEqual(['node:chapter-a']);
     expect(project.activeTabKey).toBeNull();
+  });
+
+  it('plans the create return route without unmounting the active draft', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.setActiveTab('project-a', null);
+    store.openCreateTab('project-a');
+
+    const before = useUiStore.getState().tabsByProject['project-a'];
+    const plan = planWorkspaceTabClose(before, `create:${CREATE_TAB_ID}`);
+    const after = useUiStore.getState().tabsByProject['project-a'];
+
+    expect(plan).toMatchObject({
+      nextActiveTabKey: null,
+      nextActive: null,
+      wasActive: true,
+    });
+    expect(after.activeTabKey).toBe(`create:${CREATE_TAB_ID}`);
+    expect(after.openTabs.map(tabKey)).toEqual(['node:chapter-a', `create:${CREATE_TAB_ID}`]);
   });
 
   it('refreshes the create return target when an existing draft is reopened', () => {

@@ -98,7 +98,12 @@ exact tab and focused leaf. Reopening an existing background draft refreshes
 the return owner to the current context. If that content owner disappeared,
 close falls back to the nearest surviving tab. Store selection and the `/new`
 route transition must resolve the same destination so no intermediate content
-tab or Project Home frame can flash.
+tab or Project Home frame can flash. Closing an active draft is route-first:
+the desktop navigation boundary keeps the draft surface mounted until
+`HashRouter` has committed the return route, then removes the draft in a layout
+effect so the already-matched destination replaces it before paint. Mouse close
+and the global close-tab shortcut share this transition owner; the intentionally
+empty `/new` child route is therefore never exposed as the rendered workspace.
 
 `DesktopUniversalCreateView` collects the entity kind and only the required
 existing parent/group context. It then delegates to `createNode`,

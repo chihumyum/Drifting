@@ -18,6 +18,7 @@ import {
 } from '../../../store/ui-store';
 import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
+import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 
 // Build the editor URL for a leaf — needed when activating a tab, since
 // openEntity is unsuitable for tab activation: it can short-circuit on
@@ -126,7 +127,7 @@ export function TopTimeline() {
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const openCreateTab = useUiStore((s) => s.openCreateTab);
-  const closeTab = useUiStore((s) => s.closeTab);
+  const closeWorkspaceTab = useDesktopTabClose();
   const closeOtherTabs = useUiStore((s) => s.closeOtherTabs);
   const closeTabsToRight = useUiStore((s) => s.closeTabsToRight);
   const closeAllTabs = useUiStore((s) => s.closeAllTabs);
@@ -370,29 +371,9 @@ export function TopTimeline() {
   const handleCloseTab = useCallback(
     (tab: AnyTab) => {
       if (!projectId) return;
-      const closeRef =
-        tab.kind === 'split'
-          ? { splitId: tab.id }
-          : tab.kind === 'create'
-            ? { createId: tab.id }
-            : { entityType: tab.entityType, id: tab.id };
-      const { nextActive, wasActive } = closeTab(projectId, closeRef);
-      // Three cases:
-      //   1. nextActive → closed the active tab AND a sibling took over.
-      //      Sync URL to the new active leaf.
-      //   2. wasActive && !nextActive → closed the LAST tab. Send the URL
-      //      to a blank project route so the URL → tab sync doesn't
-      //      reopen the just-closed entity, and Project Home shows.
-      //   3. !wasActive → closed a non-active tab. URL and active tab are
-      //      unchanged; do nothing. This used to call navigateToHome()
-      //      here, which used to mutate the background tab collection.
-      if (nextActive) {
-        openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-      } else if (wasActive) {
-        navigate(`/project/${projectId}`, { replace: true });
-      }
+      closeWorkspaceTab(tab);
     },
-    [projectId, closeTab, openEntity, navigate],
+    [projectId, closeWorkspaceTab],
   );
 
   const handlePromote = useCallback(

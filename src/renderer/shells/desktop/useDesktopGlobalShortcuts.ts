@@ -9,6 +9,7 @@ import { getActiveEditor, saveActiveEditor } from '../../lib/active-editor';
 import { flushAllYjsDocumentsLocally } from '../../services/yjs-local-durability.service';
 import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
 import type { WorkspaceNavigator } from '../../features/workspace/navigation/workspace-target';
+import type { CloseDesktopWorkspaceTab } from './navigation/DesktopTabCloseTransition';
 
 const log = loglevel.getLogger('DesktopGlobalShortcuts');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -19,6 +20,7 @@ interface DesktopGlobalShortcutOptions {
   openGlobalSearch(): void;
   navigator: WorkspaceNavigator;
   navigate: NavigateFunction;
+  closeWorkspaceTab: CloseDesktopWorkspaceTab;
 }
 
 export function useDesktopGlobalShortcuts({
@@ -27,6 +29,7 @@ export function useDesktopGlobalShortcuts({
   openGlobalSearch,
   navigator,
   navigate,
+  closeWorkspaceTab,
 }: DesktopGlobalShortcutOptions) {
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
@@ -173,22 +176,11 @@ export function useDesktopGlobalShortcuts({
         const activeTab = project.openTabs.find((tab) => tabKey(tab) === activeKey);
         if (!activeTab) return;
         event.preventDefault();
-        const closeRef =
-          activeTab.kind === 'split'
-            ? { splitId: activeTab.id }
-            : activeTab.kind === 'create'
-              ? { createId: activeTab.id }
-            : { entityType: activeTab.entityType, id: activeTab.id };
-        const { nextActive, wasActive } = state.closeTab(projectId, closeRef);
-        if (nextActive) {
-          navigator.open({ entityType: nextActive.entityType, id: nextActive.id });
-        } else if (wasActive) {
-          navigate(`/project/${projectId}`, { replace: true });
-        }
+        closeWorkspaceTab(activeTab);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigate, navigator, openFind, openGlobalSearch, projectId]);
+  }, [closeWorkspaceTab, navigate, navigator, openFind, openGlobalSearch, projectId]);
 }
