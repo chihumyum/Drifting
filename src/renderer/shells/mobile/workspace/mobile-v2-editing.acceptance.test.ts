@@ -73,6 +73,19 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(back).toContain("resolved.effect === 'blur-editor'");
   });
 
+  it('returns a panned iOS visual viewport top edge to the editor scroll range', () => {
+    const geometry = source('shells/mobile/workspace/mobile-keyboard-geometry.ts');
+    const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
+    const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
+    const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
+
+    expect(geometry).toContain('mobileKeyboardViewportOffsetTop');
+    expect(geometry).toContain('Math.max(0, visualViewport.offsetTop)');
+    expect(accessory).toContain('readMobileKeyboardViewportOffsetTop()');
+    expect(deck).toContain("'--m-keyboard-viewport-offset-top'");
+    expect(css).toContain('var(--m-keyboard-viewport-offset-top)');
+  });
+
   it('promotes a touch at its caret only after flushing the previous live chapter', () => {
     const view = source('views/AllChaptersEditorView.tsx');
     const row = source('components/editor/VirtualChapterRow.tsx');
@@ -99,5 +112,19 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(chapters).toContain('options?.preview !== false');
     expect(css).toContain('.m-chapter-panel__create > button');
     expect(css).toContain('min-height: 44px');
+  });
+
+  it('keeps the editor-scroll and persistent-Back device handoff open', () => {
+    const evidence = fs.readFileSync(
+      path.join(
+        repoRoot,
+        'docs/qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md',
+      ),
+      'utf8',
+    );
+
+    expect(evidence).toContain('physical-device acceptance is user-owned and pending');
+    expect(evidence).toContain('chapter/storyline/word-count folio');
+    expect(evidence).toContain('No Simulator, emulator, native build');
   });
 });

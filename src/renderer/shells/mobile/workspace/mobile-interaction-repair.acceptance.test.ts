@@ -55,18 +55,22 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
 
   it('keeps formatting in the accessory row and never opens a formatting sheet', () => {
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
+    const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
     expect(accessory).toContain('m-editor-accessory__actions');
     expect(accessory).toContain("mode === 'formatting'");
-    expect(accessory).toContain("? 'navigation' : 'formatting'");
+    expect(accessory).toContain("mode === 'navigation'");
+    expect(accessory).toContain("onModeChange?.('formatting')");
     expect(accessory).toContain('onPointerDown={keepEditorFocused}');
     expect(accessory).toContain('onPointerUp={toggle}');
     expect(accessory).toContain('onClick={handleToggleClick}');
     expect(accessory).toContain('editor.view.focus();');
     expect(accessory).toContain('role="button"');
+    expect(bar).toContain('backPreservesEditorFocus');
+    expect(bar).toContain("requestMobileWorkspaceBack('visible')");
     expect(accessory).not.toContain('keepEditorFocused(event, toggle)');
     expect(sheet).not.toContain('MobileFormattingSheetContent');
     expect(deck).not.toContain("sheet: 'formatting'");

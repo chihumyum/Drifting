@@ -1,6 +1,11 @@
 # Mobile V2 format-toggle and 144 px panel-snap follow-up — device handoff — 2026-08-25
 
-Status: **follow-up implementation complete; physical-device acceptance is user-owned and pending**
+Status: **superseded by the persistent-Back device handoff**
+
+The black Format-label toggle contract recorded below was replaced on
+2026-08-25. Current behavior and the still-open physical-device boundary are
+recorded in
+[`mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md`](mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md).
 
 ## Checkout and evidence boundary
 
@@ -14,7 +19,7 @@ Status: **follow-up implementation complete; physical-device acceptance is user-
 
 The unrelated dirty checkout is outside this repair and its commit scope.
 
-## Required matrix
+## Superseded required matrix
 
 1. Entering prose editing opens the keyboard and the formatting accessory.
 2. Tapping the Format label collapses only the horizontal formatting row. The

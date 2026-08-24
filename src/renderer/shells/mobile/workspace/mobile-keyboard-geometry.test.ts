@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   mobileKeyboardInset,
+  mobileKeyboardViewportOffsetTop,
   mobileNativeKeyboardInset,
   mobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
@@ -39,5 +40,16 @@ describe('mobileSoftwareKeyboardVisible', () => {
 
   it('does not treat a full-height hardware-keyboard viewport as software input', () => {
     expect(mobileSoftwareKeyboardVisible(763, { height: 763, offsetTop: 0 })).toBe(false);
+  });
+});
+
+describe('mobileKeyboardViewportOffsetTop', () => {
+  it('returns leading scroll space for an iOS viewport panned above the keyboard', () => {
+    expect(mobileKeyboardViewportOffsetTop(763, { height: 509, offsetTop: 254 })).toBe(254);
+  });
+
+  it('does not shift the paper without a visible software keyboard', () => {
+    expect(mobileKeyboardViewportOffsetTop(763, { height: 763, offsetTop: 20 })).toBe(0);
+    expect(mobileKeyboardViewportOffsetTop(763, null)).toBe(0);
   });
 });

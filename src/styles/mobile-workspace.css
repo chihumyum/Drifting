@@ -2,6 +2,7 @@
   --m-panel-extent: 0;
   --m-unified-bar-height: 56px;
   --m-unified-bar-gap: 8px;
+  --m-keyboard-viewport-offset-top: 0px;
   position: fixed;
   inset: 0;
   width: 100dvw;
@@ -230,6 +231,9 @@
 }
 
 .m-workspace[data-controller-keyboard='open'] .m-paper-deck__content {
+  padding-top: calc(
+    env(safe-area-inset-top) + var(--m-keyboard-viewport-offset-top)
+  );
   padding-bottom: calc(
     var(--m-unified-bar-height) + 14px + var(--m-unified-keyboard-inset)
   );

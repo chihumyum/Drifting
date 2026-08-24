@@ -63,6 +63,7 @@ export type MobileBackLayer =
   | 'panel-docked'
   | 'super-view'
   | 'overview'
+  | 'editor-accessory'
   | 'edit-mode'
   | 'paper-root'
   | 'project-root';
@@ -77,7 +78,7 @@ export interface MobileBackResolution {
 export interface MobileUnifiedBarProjection {
   visible: boolean;
   mode: 'read' | 'edit' | 'search' | 'agent-input';
-  leftAction: 'disabled' | 'back' | 'dismiss-keyboard';
+  leftAction: 'back';
   placement: 'safe-bottom' | 'above-bottom-panel';
 }
 
@@ -323,6 +324,12 @@ export function resolveMobileWorkspaceBack(
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
+  if (state.paperMode.kind === 'edit' && state.paperMode.accessory === 'formatting') {
+    return resolution('editor-accessory', {
+      ...state,
+      paperMode: { kind: 'edit', accessory: 'navigation' },
+    });
+  }
   if (state.paperMode.kind === 'edit') {
     return resolution(
       'edit-mode',
@@ -391,17 +398,10 @@ export function selectMobileUnifiedBarProjection(
         : state.paperMode.kind === 'edit'
           ? 'edit'
           : 'read';
-  const atReadRoot = mode === 'read' && state.transient.kind === 'none';
-
   return {
     visible,
     mode,
-    leftAction:
-      state.keyboard === 'open'
-        ? 'dismiss-keyboard'
-        : atReadRoot
-          ? 'back'
-          : 'back',
+    leftAction: 'back',
     placement: state.panel === 'bottom-docked' ? 'above-bottom-panel' : 'safe-bottom',
   };
 }

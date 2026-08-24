@@ -13,7 +13,8 @@ owns complete Planning touch drag.
 
 `MobilePaperDeck` mounts one `MobileUnifiedBar` and passes the M2 workspace
 controller state into `selectMobileUnifiedBarProjection`. The author-visible
-base is a 56 CSS px floating horizontal pill with four complete entrances:
+base is a 56 CSS px floating horizontal pill with a persistent leftmost Back
+control and four complete paper entrances:
 
 - current editor entity, which opens a draggable Stats Sheet backed by the
   shared desktop-right-sidebar `EntityStatsContent`;
@@ -31,8 +32,10 @@ to a second handle. A full panel hides the opposite entry and the pill.
 The pill remains mounted while its projection controls visibility, mode,
 placement, and keyboard ownership. It sits above the safe bottom for an
 ordinary paper, moves above a docked bottom panel, and follows the visual
-keyboard inset while editing. Panel ownership does not suppress or replace the
-keyboard accessory.
+keyboard inset while editing. A panned iOS visual viewport also contributes
+leading editor space equal to `visualViewport.offsetTop`, so the document-start
+folio is not stranded above the visible viewport. Panel ownership does not
+suppress or replace the keyboard accessory.
 
 ## Two one-level vertical rails
 

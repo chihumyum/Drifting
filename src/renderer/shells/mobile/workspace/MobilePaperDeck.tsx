@@ -176,6 +176,7 @@ export function MobilePaperDeck({
   const [panelResizing, setPanelResizing] = useState(false);
   const [panelDragSource, setPanelDragSource] = useState<PanelPosition | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [keyboardViewportOffsetTop, setKeyboardViewportOffsetTop] = useState(0);
 
   const reveal: PanelPosition | 'focused' = workspaceUi.panel.startsWith('top-')
     ? 'top'
@@ -219,6 +220,7 @@ export function MobilePaperDeck({
     previousActiveKeyRef.current = session.activeKey;
     getActiveEditor()?.commands.blur();
     setKeyboardInset(0);
+    setKeyboardViewportOffsetTop(0);
     onWorkspaceUiAction({ type: 'sync-editor', editing: false });
   }, [onWorkspaceUiAction, session.activeKey]);
 
@@ -549,6 +551,7 @@ export function MobilePaperDeck({
         {
           '--m-panel-extent': visibleExtent,
           '--m-unified-keyboard-inset': `${keyboardInset}px`,
+          '--m-keyboard-viewport-offset-top': `${keyboardViewportOffsetTop}px`,
         } as CSSProperties
       }
       onCompositionStartCapture={() => {
@@ -723,6 +726,7 @@ export function MobilePaperDeck({
         onEditingStateChange={syncEditor}
         onKeyboardStateChange={syncKeyboard}
         onKeyboardInsetChange={setKeyboardInset}
+        onKeyboardViewportOffsetTopChange={setKeyboardViewportOffsetTop}
       />
     </main>
   );

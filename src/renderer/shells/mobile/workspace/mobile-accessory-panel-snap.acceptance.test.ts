@@ -8,18 +8,23 @@ const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, rel
 const document = (relative: string) => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
 
 describe('Mobile format-level toggle and panel close snap correction', () => {
-  it('uses a non-native-focus Format target that changes only the accessory level', () => {
+  it('uses persistent Back to collapse formatting and shows Format only at navigation level', () => {
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const controller = source('shells/mobile/workspace/mobile-workspace-controller.ts');
     const styles = document('src/styles/mobile-workspace.css');
 
     expect(accessory).toContain('data-debug-id="mobile-toggle-formatting"');
+    expect(accessory).toMatch(/\{mode === 'navigation' && \([\s\S]*?mobile-toggle-formatting/u);
     expect(accessory).toMatch(/<span\s+role="button"[\s\S]*?className="m-editor-accessory__toggle"/u);
     expect(accessory).not.toMatch(/<button[\s\S]{0,160}m-editor-accessory__toggle/u);
     expect(accessory).toContain('editor.view.focus();');
     expect(accessory).toContain('queueMicrotask(refocusEditor);');
     expect(accessory).toContain('onPointerUp={toggle}');
     expect(accessory).toContain('onClick={handleToggleClick}');
+    expect(bar.match(/data-debug-id="mobile-unified-back"/g)).toHaveLength(2);
+    expect(bar).toContain('backPreservesEditorFocus');
+    expect(controller).toContain("return resolution('editor-accessory'");
     expect(styles).toMatch(/\.m-editor-accessory__toggle \{[\s\S]*?touch-action: none;/u);
     expect(bar).toContain("{projection.mode === 'edit' && (");
     expect(bar).toContain('data-debug-id="mobile-dismiss-keyboard"');
@@ -39,12 +44,12 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     const editing = document('docs/mobile-v2/editing-comments-search-and-all-chapters.md');
     const panels = document('docs/mobile-v2/unified-bar-rails-and-paper-swipe.md');
     const evidence = document(
-      'docs/qa/mobile-v2-format-toggle-panel-snap-simulator-2026-08-25.md',
+      'docs/qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md',
     );
 
-    expect(editing).toContain('explicit keyboard-dismiss control');
+    expect(editing).toContain('right-side down Chevron stays');
     expect(panels).toContain('Releases at 144 CSS pixels');
-    expect(evidence).toContain('No Simulator, device runtime, native build');
+    expect(evidence).toContain('No Simulator, emulator, native build');
     expect(evidence).toContain('physical-device acceptance is user-owned and pending');
   });
 });

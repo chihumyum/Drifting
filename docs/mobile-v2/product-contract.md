@@ -171,12 +171,18 @@ Overview owns its own header and hides the unified bar.
   illegal.
 - On edit entry, formatting is already the active second-level presentation:
   one horizontally scrollable icon row inside the accessory. It is never a
-  Sheet. Pressing the Format label collapses that row and restores the complete
-  paper-context/count/Search/menu presentation; pressing it again restores the
-  formatting row. The label is a non-native-focus pointer target that renews
-  ProseMirror focus before and after changing level, so neither direction may
-  dismiss the keyboard. The right-side down Chevron remains available in both
-  levels and exclusively owns explicit keyboard dismissal.
+  Sheet. A persistent leftmost Back control replaces the Format label while
+  this row is expanded; Back collapses only this level and keeps the caret and
+  keyboard. The collapsed level shows the black Format label alongside the
+  complete paper-context/count/Search/menu presentation. Pressing that label
+  restores formatting and hides the label again. A further Back exits editing;
+  Back at the read-paper root returns to Project Home. The right-side down
+  Chevron remains available in both edit levels and directly dismisses the
+  keyboard.
+- When the software keyboard pans an iOS `visualViewport`, its positive
+  `offsetTop` becomes leading space in the editor viewport. The paper folio at
+  document start must remain reachable at `scrollTop=0`; bottom keyboard inset
+  alone is not sufficient.
 - The keyboard accessory, structure panel, and tool panel have independent
   ownership. An already-open panel does not suppress the accessory above the
   software keyboard.

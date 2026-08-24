@@ -1,8 +1,8 @@
 # Mobile V2 editing, comments, search, and all-chapters
 
-Status: **M4 implementation and Simulator/Emulator acceptance complete**
+Status: **M4 implementation and Simulator/Emulator acceptance complete; current physical-device follow-up pending**
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 
 This document records the implemented M4 writing boundary. It is current
 checkout truth for Mobile Shell editing, shared writing sheets, paper/Project
@@ -19,17 +19,16 @@ There is no supported caret-less pseudo-edit state.
 
 Edit entry defaults directly to a horizontally scrollable single-row format
 level with paragraph, heading, quotation, and inline mark commands. Formatting
-never opens a Sheet. Pressing the Format label collapses the row and reveals
-the complete entity/status, numbered paper count, Search, and hamburger
-entrances; pressing the label again restores formatting. Pointer down is
-consumed before command dispatch so an existing ProseMirror selection is not
-collapsed before the command runs. The Format label is intentionally not a
-native form control: it consumes pointer activation, renews `EditorView` focus
-inside the trusted gesture, switches level on pointer up, and renews focus once
-more after React commits the row replacement. iOS must never transfer focus
-away from ProseMirror or dismiss the IME for this level-only operation. The
-right-side down Chevron is present in both formatting and navigation accessory
-levels and is the sole explicit keyboard-dismiss control.
+never opens a Sheet. The unified Back control is always the leftmost control.
+While formatting is expanded, the black Format label is absent and Back
+collapses only the formatting row, preserving editor focus, caret, keyboard,
+and selection. The collapsed navigation level then shows the black Format
+label plus entity/status, numbered paper count, Search, and hamburger
+entrances. Pressing that non-native-focus label restores formatting and removes
+the label again. A second Back from the collapsed edit level exits editing;
+Back on a read paper returns to Project Home. The right-side down Chevron stays
+available at both edit levels and directly dismisses the keyboard without
+changing the meaning of Back.
 
 Keyboard placement is derived from the greatest reliable inset:
 
@@ -39,16 +38,21 @@ Keyboard placement is derived from the greatest reliable inset:
   `WindowInsetsCompat.Type.ime()` inset as CSS pixels and dispatches
   `drifting:native-keyboard-geometry`;
 - the keyboard accessory subscribes to both sources and uses the
-  larger inset.
+  larger inset;
+- when iOS pans the reduced `visualViewport`, its `offsetTop` becomes leading
+  editor layout space while the keyboard is visible. Therefore `scrollTop=0`
+  can still bring the chapter/storyline/word-count folio into the visible
+  viewport instead of leaving it trapped above the screen.
 
 The keyboard accessory may appear above the IME while a top or bottom panel
 retains its own reducer state. Opening a panel no longer rewrites edit state;
 closing the keyboard returns edit and keyboard ownership to read atomically.
 
-Android hardware Back follows the M2 resolver. In edit mode its first action
-blurs the active editor and dismisses IME; the next action unwinds the next
-workspace layer. It does not leave a focused ProseMirror under read-state
-chrome.
+Android hardware Back follows the M2 resolver. With formatting expanded, its
+first action collapses that accessory level without touching the IME. The next
+action blurs the active editor and returns to read mode; the following action
+unwinds the next workspace layer. It does not leave a focused ProseMirror under
+read-state chrome.
 
 ## Shared Sheet boundary without formatting
 

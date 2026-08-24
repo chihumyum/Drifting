@@ -163,7 +163,7 @@ describe('Mobile V2 Back priority', () => {
     expect(layers).toEqual(['dialog', 'transient', 'panel-full', 'panel-docked']);
   });
 
-  it('leaves editing and its keyboard atomically without a caret-less intermediate state', () => {
+  it('unwinds formatting before leaving editing and its keyboard', () => {
     let state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
@@ -172,6 +172,14 @@ describe('Mobile V2 Back priority', () => {
       keyboard: 'open',
     };
 
+    const accessory = resolveMobileWorkspaceBack(state, 'visible');
+    expect(accessory.layer).toBe('editor-accessory');
+    expect(accessory.effect).toBe('none');
+    expect(accessory.nextState.paperMode).toEqual({ kind: 'edit', accessory: 'navigation' });
+    expect(accessory.nextState.keyboard).toBe('open');
+    expect(accessory.nextState.panel).toBe('bottom-docked');
+
+    state = accessory.nextState;
     const editMode = resolveMobileWorkspaceBack(state, 'visible');
     expect(editMode.layer).toBe('edit-mode');
     expect(editMode.effect).toBe('blur-editor');
@@ -261,7 +269,7 @@ describe('Mobile V2 unified bar projection', () => {
         paperMode: { kind: 'edit', accessory: 'navigation' },
         keyboard: 'open',
       }),
-    ).toMatchObject({ mode: 'edit', leftAction: 'dismiss-keyboard' });
+    ).toMatchObject({ mode: 'edit', leftAction: 'back' });
     expect(
       selectMobileUnifiedBarProjection({
         ...root,

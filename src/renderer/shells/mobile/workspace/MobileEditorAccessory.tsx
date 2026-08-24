@@ -33,6 +33,7 @@ import {
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
+  readMobileKeyboardViewportOffsetTop,
   readMobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
 
@@ -74,12 +75,14 @@ export function MobileEditorAccessory({
   onModeChange,
   onEditingStateChange,
   onKeyboardInsetChange,
+  onKeyboardViewportOffsetTopChange,
 }: {
   active: boolean;
   mode: 'navigation' | 'formatting';
   onModeChange?: (mode: 'navigation' | 'formatting') => void;
   onEditingStateChange?: (editing: boolean) => void;
   onKeyboardInsetChange?: (inset: number) => void;
+  onKeyboardViewportOffsetTopChange?: (offsetTop: number) => void;
 }) {
   const { t } = useTranslation();
   const editor = useSyncExternalStore(subscribeActiveEditor, getActiveEditor, () => null);
@@ -88,6 +91,7 @@ export function MobileEditorAccessory({
     return current?.isFocused ? current : null;
   });
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [keyboardViewportOffsetTop, setKeyboardViewportOffsetTop] = useState(0);
   const [softwareKeyboardVisible, setSoftwareKeyboardVisible] = useState(false);
   const observedKeyboardWhileFocusedRef = useRef(false);
   const [, setRevision] = useState(0);
@@ -118,6 +122,7 @@ export function MobileEditorAccessory({
       setFocusedEditor((current) => (focused ? editor : current === editor ? null : current));
       if (!focused) {
         setKeyboardInset(0);
+        setKeyboardViewportOffsetTop(0);
         setSoftwareKeyboardVisible(false);
       }
       setRevision((revision) => revision + 1);
@@ -149,11 +154,16 @@ export function MobileEditorAccessory({
     onKeyboardInsetChange?.(keyboardInset);
   }, [keyboardInset, onKeyboardInsetChange]);
 
+  useEffect(() => {
+    onKeyboardViewportOffsetTopChange?.(keyboardViewportOffsetTop);
+  }, [keyboardViewportOffsetTop, onKeyboardViewportOffsetTopChange]);
+
   useEffect(
     () => () => {
       onKeyboardInsetChange?.(0);
+      onKeyboardViewportOffsetTopChange?.(0);
     },
-    [onKeyboardInsetChange],
+    [onKeyboardInsetChange, onKeyboardViewportOffsetTopChange],
   );
 
   useEffect(() => {
@@ -164,6 +174,7 @@ export function MobileEditorAccessory({
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         setKeyboardInset(readMobileKeyboardInset());
+        setKeyboardViewportOffsetTop(readMobileKeyboardViewportOffsetTop());
         setSoftwareKeyboardVisible(readMobileSoftwareKeyboardVisible(KEYBOARD_INSET_THRESHOLD));
       });
     };
@@ -230,9 +241,9 @@ export function MobileEditorAccessory({
 
   if (!active || !editing || !editor || editor.isDestroyed) return null;
 
-  const switchMode = () => {
+  const openFormatting = () => {
     refocusEditor();
-    onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+    onModeChange?.('formatting');
     // React commits the sibling-row swap after the pointer handler. Renew focus
     // once more after that commit so layout replacement cannot strand focus on
     // body and trigger the editor/keyboard close synchronizer.
@@ -241,14 +252,14 @@ export function MobileEditorAccessory({
   const toggle = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    switchMode();
+    openFormatting();
   };
   const handleToggleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
     // Pointer activation already switched on pointerup. A zero-detail click is
     // the accessibility activation path and must perform the same operation.
-    if (event.detail === 0) switchMode();
+    if (event.detail === 0) openFormatting();
     else refocusEditor();
   };
   const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
@@ -264,24 +275,23 @@ export function MobileEditorAccessory({
         defaultValue: '编辑样式附件栏',
       })}
     >
-      <span
-        role="button"
-        className="m-editor-accessory__toggle"
-        data-debug-id="mobile-toggle-formatting"
-        aria-expanded={mode === 'formatting'}
-        aria-label={t(
-          mode === 'formatting'
-            ? 'mobileWorkspace.editorAccessory.collapse'
-            : 'mobileWorkspace.editorAccessory.expand',
-          { defaultValue: mode === 'formatting' ? '收起格式栏' : '展开格式栏' },
-        )}
-        onPointerDown={keepEditorFocused}
-        onPointerUp={toggle}
-        onClick={handleToggleClick}
-      >
-        <Type size={18} strokeWidth={1.8} aria-hidden="true" />
-        <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
-      </span>
+      {mode === 'navigation' && (
+        <span
+          role="button"
+          className="m-editor-accessory__toggle"
+          data-debug-id="mobile-toggle-formatting"
+          aria-expanded="false"
+          aria-label={t('mobileWorkspace.editorAccessory.expand', {
+            defaultValue: '展开格式栏',
+          })}
+          onPointerDown={keepEditorFocused}
+          onPointerUp={toggle}
+          onClick={handleToggleClick}
+        >
+          <Type size={18} strokeWidth={1.8} aria-hidden="true" />
+          <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
+        </span>
+      )}
 
       {mode === 'formatting' && (
         <div className="m-editor-accessory__actions" role="toolbar">

@@ -55,18 +55,21 @@ implemented order is:
 
 1. destructive, native, or full-screen Project Trash dialog;
 2. popover, current-paper Stats, entity preview, or bar sheet;
-3. edit mode and its keyboard atomically return to read mode and blur the
-   editor;
-4. Search or Agent input, including its keyboard;
-5. full panel to the corresponding docked panel;
-6. docked panel to the read paper;
-7. Super View child layers, then the Super View root;
-8. Overview root, returning to the Project Home or paper that opened it;
-9. paper read root returns to Project Home;
-10. Project Home returns to the shelf.
+3. expanded formatting collapses to the edit navigation level without
+   blurring the editor or keyboard;
+4. collapsed edit mode and its keyboard atomically return to read mode and
+   blur the editor;
+5. Search or Agent input, including its keyboard;
+6. full panel to the corresponding docked panel;
+7. docked panel to the read paper;
+8. Super View child layers, then the Super View root;
+9. Overview root, returning to the Project Home or paper that opened it;
+10. paper read root returns to Project Home;
+11. Project Home returns to the shelf.
 
 Visible Back, keyboard Escape, and Android hardware Back share this hierarchy.
-The unified bar exposes Back at the paper read root. Project Home is a separate
+The unified bar keeps Back as its leftmost control in read, edit, and Search.
+Project Home is a separate
 safe-area surface outside the paper deck and owns its own visible shelf Back.
 Dashboard is therefore absent from paper ordering, swiping, closing, counts,
 snapshots, and mobile session persistence.

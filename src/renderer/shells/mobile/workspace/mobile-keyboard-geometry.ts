@@ -62,6 +62,22 @@ export function mobileSoftwareKeyboardVisible(
   return layoutViewportHeight - Math.max(0, visualViewport.height) >= Math.max(0, threshold);
 }
 
+/**
+ * Amount of the layout viewport hidden above a panned visual viewport while
+ * the software keyboard is visible. The editor needs this as leading layout
+ * space; otherwise scrollTop=0 can still leave the paper folio above the
+ * author-visible viewport.
+ */
+export function mobileKeyboardViewportOffsetTop(
+  layoutViewportHeight: number,
+  visualViewport: MobileVisualViewportGeometry | null,
+  threshold = 72,
+): number {
+  if (!mobileSoftwareKeyboardVisible(layoutViewportHeight, visualViewport, threshold)) return 0;
+  if (!visualViewport || !Number.isFinite(visualViewport.offsetTop)) return 0;
+  return Math.max(0, visualViewport.offsetTop);
+}
+
 function readMobileVisualViewportGeometry(): {
   layoutHeight: number;
   viewport: MobileVisualViewportGeometry;
@@ -99,4 +115,16 @@ export function readMobileSoftwareKeyboardVisible(threshold = 72): boolean {
   const geometry = readMobileVisualViewportGeometry();
   if (!geometry) return false;
   return mobileSoftwareKeyboardVisible(geometry.layoutHeight, geometry.viewport, threshold);
+}
+
+export function readMobileKeyboardViewportOffsetTop(threshold = 72): number {
+  const geometry = readMobileVisualViewportGeometry();
+  if (!geometry) return 0;
+  const keyboardVisible =
+    readMobileNativeKeyboardInset() >= Math.max(0, threshold) ||
+    mobileSoftwareKeyboardVisible(geometry.layoutHeight, geometry.viewport, threshold);
+  if (!keyboardVisible) return 0;
+  return Number.isFinite(geometry.viewport.offsetTop)
+    ? Math.max(0, geometry.viewport.offsetTop)
+    : 0;
 }
