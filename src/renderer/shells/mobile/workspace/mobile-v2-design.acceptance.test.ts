@@ -51,6 +51,12 @@ describe('Mobile V2 frozen design contract', () => {
   const independentSuperViewsSimulator = read(
     'docs/qa/mobile-v2-m7-independent-super-views-simulator-2026-08-23.md',
   );
+  const googleDriveSettings = read(
+    'docs/mobile-v2/google-drive-settings-and-release-gate.md',
+  );
+  const googleDriveSettingsSimulator = read(
+    'docs/qa/mobile-v2-m8-google-drive-settings-simulator-2026-08-23.md',
+  );
   const current = read('docs/mobile-ui-foundation.md');
   const docsIndex = read('docs/README.md');
 
@@ -65,6 +71,8 @@ describe('Mobile V2 frozen design contract', () => {
     expect(index).toContain('planning_workspace: simulator_accepted');
     expect(index).toContain('tool_workspaces: simulator_accepted');
     expect(index).toContain('independent_super_views: simulator_accepted');
+    expect(index).toContain('google_drive_settings: simulator_accepted');
+    expect(index).toContain('google_drive_real_account_gate: open');
     expect(index).toContain('This directory defines the target. It does not claim');
     expect(current).toContain('current implemented mobile shell');
     expect(current).toContain('mobile-v2/README.md');
@@ -106,7 +114,7 @@ describe('Mobile V2 frozen design contract', () => {
     }
     expect(delivery).toContain('Simulator and Emulator evidence never closes physical-device');
     expect(delivery).toContain('Google Drive cannot be waived');
-    expect(delivery).toContain('M0-M7 complete, M8 not started');
+    expect(delivery).toContain('M0-M7 complete, M8 real-account hard-gate acceptance in progress');
     expect(platformFoundation).toContain('Native capability and UI shell are separate');
     expect(platformFoundation).toContain('target=mobile');
     expect(platformFoundation).toContain('shellMode=desktop');
@@ -165,6 +173,19 @@ describe('Mobile V2 frozen design contract', () => {
       'lastSuperViewRestoreStatus=preserved',
     );
     expect(independentSuperViewsSimulator).toContain('nativeInput=false');
+    expect(googleDriveSettings).toContain(
+      'M8 Settings implementation and Simulator/Emulator acceptance complete',
+    );
+    expect(googleDriveSettings).toContain('Google Drive is a Mobile V2');
+    expect(googleDriveSettings).toContain('all three native');
+    expect(googleDriveSettings).toContain('arbitrary exception messages are never placed');
+    expect(googleDriveSettings).toContain('M8 is not complete');
+    expect(googleDriveSettingsSimulator).toContain(
+      'configuration/status/error UI accepted',
+    );
+    expect(googleDriveSettingsSimulator).toContain('KEYCODE_BACK');
+    expect(googleDriveSettingsSimulator).toContain('nativeInput=false');
+    expect(googleDriveSettingsSimulator).toContain('does not close any real-account');
     expect(simulator).toContain('M0 baseline passed');
     expect(simulator).toContain('does **not** verify the future unified bar');
     expect(simulator).toContain('No new Simulator device or iOS runtime was created');

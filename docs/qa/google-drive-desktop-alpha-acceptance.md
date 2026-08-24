@@ -2,6 +2,12 @@
 
 Status: **NOT RUN — public Alpha release blocker**
 
+For the Mobile V2 Desktop/iOS/Android hard gate and its strict sanitized report
+validator, use
+[`google-drive-three-platform-physical-acceptance.md`](google-drive-three-platform-physical-acceptance.md).
+This desktop matrix remains the detailed two-Mac subset; neither document may
+be passed by simulator or fake-provider evidence.
+
 Use two isolated Apple Silicon Macs and one disposable production Google
 account. Never record content, tokens, credential refs, or absolute paths.
 

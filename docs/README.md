@@ -11,6 +11,7 @@ dated run reports are evidence for one checkout, not product truth.
 - [Google Drive data-use disclosure](google-drive-data-use.md)
 - [Desktop quick start](quick-start.md)
 - [Google Drive two-Mac acceptance](qa/google-drive-desktop-alpha-acceptance.md)
+- [Google Drive Desktop/iOS/Android physical acceptance](qa/google-drive-three-platform-physical-acceptance.md)
 - [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
 - [Known issues](../KNOWN_ISSUES.md)
 - [Support](../SUPPORT.md)
@@ -48,6 +49,8 @@ dated run reports are evidence for one checkout, not product truth.
 | What Mobile V2 Planning/touch boundary is implemented?     | [`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md)                                                                      |
 | What Mobile V2 Agent/Library/TODO/Stats boundary is implemented? | [`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md)                                                        |
 | What Mobile V2 independent Super View boundary is implemented? | [`mobile-v2/independent-super-views.md`](mobile-v2/independent-super-views.md)                                                                                |
+| What Mobile V2 Google Drive Settings boundary is implemented? | [`mobile-v2/google-drive-settings-and-release-gate.md`](mobile-v2/google-drive-settings-and-release-gate.md)                                                 |
+| How is real-account three-platform Drive acceptance run?  | [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md)                                                       |
 | What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
 | What is historically complete?                             | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
 

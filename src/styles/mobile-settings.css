@@ -150,6 +150,24 @@
   width: 100%;
 }
 
+.m-settings__content .set-sync-readiness {
+  min-height: 32px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.m-settings__content .set-sync-issue,
+.m-settings__content .set-sync-message {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.m-settings__content .set-sync-issue code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .m-settings__content .set-theme-grid,
 .m-settings__content .set-font-options {
   grid-template-columns: 1fr;

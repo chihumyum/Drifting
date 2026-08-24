@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
 import { UpdateService } from '../../../services/update/update-service';
 import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
+import { getSanitizedGoogleDriveOperationTraces } from '../../../services/diagnostics/google-drive-operation-trace';
 import {
   SHORTCUT_ACTIONS,
   useShortcutsStore,
@@ -24,6 +25,11 @@ import {
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
 import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
+import {
+  resolveGoogleDriveSettingsIssue,
+  resolveGoogleDriveSettingsReadiness,
+  type GoogleDriveSettingsIssue,
+} from '../google-drive-settings-presentation';
 
 export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -158,14 +164,15 @@ export function SyncPanel({
     | null
   >(null);
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
+  const [cloudIssue, setCloudIssue] = useState<GoogleDriveSettingsIssue | null>(null);
   const [disconnectArmed, setDisconnectArmed] = useState(false);
   const [transitionCancelArmed, setTransitionCancelArmed] = useState(false);
   const operationRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const authority = useProductSyncAuthority();
   const runtime = useProductSyncRuntime();
   const capabilities = getPlatformRuntime().capabilities;
-  const googleDriveOAuthAvailable =
-    capabilities?.featureStatus.googleDriveOAuth === 'available';
+  const googleDriveReadiness = resolveGoogleDriveSettingsReadiness(capabilities);
   const runtimePending = runtime.diagnostics?.generations.reduce(
     (total, generation) => ({
       changeSets: total.changeSets + generation.pending.pendingChangeSets,
@@ -204,37 +211,39 @@ export function SyncPanel({
     authority.status === 'transitioning' && authority.transitionKind
       ? `settings.sync.transition_states.${authority.transitionKind}`
       : `settings.sync.cloud_states.${authority.status}`;
-  useEffect(
-    () => () => {
+  const authorityIssue = resolveGoogleDriveSettingsIssue(authority.errorCode);
+  const runtimeIssue = resolveGoogleDriveSettingsIssue(runtimeFailure?.lastErrorCode ?? null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       operationRef.current?.abort(new DOMException('Sync Settings closed', 'AbortError'));
-    },
-    [],
-  );
+    };
+  }, []);
 
   const runCloudAction = async (
     action: NonNullable<typeof cloudBusy>,
     work: (signal: AbortSignal) => Promise<void>,
     successKey: string | null,
   ) => {
-    if (cloudBusy) return;
+    // State updates are asynchronous; the ref closes the same-frame double-tap
+    // window before a second native OAuth or revoke operation can begin.
+    if (cloudBusy || operationRef.current) return;
     const controller = new AbortController();
     operationRef.current = controller;
     setCloudBusy(action);
     setCloudMessage(null);
+    setCloudIssue(null);
     try {
       await work(controller.signal);
-      if (successKey) setCloudMessage(t(successKey));
+      if (mountedRef.current && successKey) setCloudMessage(t(successKey));
     } catch (error) {
-      if (!controller.signal.aborted) {
-        setCloudMessage(
-          t('settings.sync.operation_failed', {
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
+      if (mountedRef.current && !controller.signal.aborted) {
+        setCloudIssue(resolveGoogleDriveSettingsIssue(error));
       }
     } finally {
       if (operationRef.current === controller) operationRef.current = null;
-      setCloudBusy(null);
+      if (mountedRef.current) setCloudBusy(null);
     }
   };
 
@@ -279,6 +288,23 @@ export function SyncPanel({
             </span>
           }
         />
+        <SettingsRow
+          label={t('settings.sync.device_readiness')}
+          desc={t(googleDriveReadiness.descriptionKey)}
+          control={
+            <span
+              className="set-sync-readiness"
+              data-state={googleDriveReadiness.available ? 'ready' : 'setup-required'}
+              data-missing={googleDriveReadiness.missing.join(',') || undefined}
+            >
+              {t(
+                googleDriveReadiness.available
+                  ? 'settings.sync.device_readiness_ready'
+                  : 'settings.sync.device_readiness_required',
+              )}
+            </span>
+          }
+        />
 
         {cloudProgressKind && (
           <div
@@ -298,6 +324,17 @@ export function SyncPanel({
             </div>
           </div>
         )}
+        {cloudIssue && (
+          <div
+            className="set-sync-issue"
+            role="alert"
+            data-google-drive-issue={cloudIssue.id}
+          >
+            <div className="set-sync-issue__title">{t(cloudIssue.titleKey)}</div>
+            <div className="set-sync-issue__desc">{t(cloudIssue.descriptionKey)}</div>
+            <code>{cloudIssue.code}</code>
+          </div>
+        )}
 
         {authority.mode === 'local' &&
           (authority.status === 'local' ||
@@ -308,15 +345,15 @@ export function SyncPanel({
               <SettingsRow
                 label={t('settings.sync.connect_google_drive')}
                 desc={
-                  !googleDriveOAuthAvailable
-                    ? t('settings.sync.google_drive_unavailable_target')
+                  !googleDriveReadiness.available
+                    ? t(googleDriveReadiness.descriptionKey)
                     : t('settings.sync.connect_google_drive_desc')
                 }
                 control={
                   <button
                     type="button"
                     className="set-btn set-btn--primary"
-                    disabled={!googleDriveOAuthAvailable || cloudBusy !== null}
+                    disabled={!googleDriveReadiness.available || cloudBusy !== null}
                     onClick={() =>
                       void runCloudAction(
                         'connect',
@@ -425,20 +462,34 @@ export function SyncPanel({
             {authority.status === 'cloud-attention' &&
               authority.errorCode === 'needs-reauth' && (
                 <SettingsRow
-                  label={t('settings.sync.reauthorize_google_drive')}
-                  desc={t('settings.sync.reauthorize_google_drive_desc')}
+                  label={t(
+                    authority.transitionKind === 'disconnect'
+                      ? 'settings.sync.reauthorize_disconnect_google_drive'
+                      : 'settings.sync.reauthorize_google_drive',
+                  )}
+                  desc={t(
+                    authority.transitionKind === 'disconnect'
+                      ? 'settings.sync.reauthorize_disconnect_google_drive_desc'
+                      : 'settings.sync.reauthorize_google_drive_desc',
+                  )}
                   control={
                     <button
                       type="button"
                       className="set-btn set-btn--primary"
-                      disabled={!googleDriveOAuthAvailable || cloudBusy !== null}
+                      disabled={!googleDriveReadiness.available || cloudBusy !== null}
                       onClick={() =>
                         void runCloudAction(
                           'reauthorize',
-                          async () => {
+                          async (signal) => {
                             await productSyncCommands.reauthorizeGoogleDrive();
+                            if (authority.transitionKind === 'disconnect') {
+                              await productSyncCommands.disconnectGoogleDrive(signal);
+                              setDisconnectArmed(false);
+                            }
                           },
-                          'settings.sync.reauthorize_done',
+                          authority.transitionKind === 'disconnect'
+                            ? 'settings.sync.disconnect_done'
+                            : 'settings.sync.reauthorize_done',
                         )
                       }
                     >
@@ -447,7 +498,11 @@ export function SyncPanel({
                       )}
                       {cloudBusy === 'reauthorize'
                         ? t('settings.sync.reauthorizing')
-                        : t('settings.sync.reauthorize')}
+                        : t(
+                            authority.transitionKind === 'disconnect'
+                              ? 'settings.sync.reauthorize_and_disconnect'
+                              : 'settings.sync.reauthorize',
+                          )}
                     </button>
                   }
                 />
@@ -463,14 +518,12 @@ export function SyncPanel({
                     disabled={cloudBusy !== null || !runtime.mounted}
                     onClick={() => {
                       try {
+                        setCloudIssue(null);
                         productSyncCommands.triggerManualSync();
                         setCloudMessage(t('settings.sync.sync_requested'));
                       } catch (error) {
-                        setCloudMessage(
-                          t('settings.sync.operation_failed', {
-                            error: error instanceof Error ? error.message : String(error),
-                          }),
-                        );
+                        setCloudMessage(null);
+                        setCloudIssue(resolveGoogleDriveSettingsIssue(error));
                       }
                     }}
                   >
@@ -576,22 +629,26 @@ export function SyncPanel({
 
         {authority.errorCode && (
           <SettingsRow
-            label={t('settings.sync.attention_reason')}
-            desc={t('settings.sync.attention_reason_desc')}
-            control={<span className="set-mono">{authority.errorCode}</span>}
+            label={t(authorityIssue?.titleKey ?? 'settings.sync.attention_reason')}
+            desc={t(authorityIssue?.descriptionKey ?? 'settings.sync.attention_reason_desc')}
+            control={<span className="set-mono">{authorityIssue?.code ?? 'unexpected'}</span>}
           />
         )}
         {runtimeFailure?.lastErrorCode && (
           <SettingsRow
-            label={t('settings.sync.last_sync_error')}
+            label={t(
+              isReadyInternalPublishRequestFailure
+                ? 'settings.sync.last_sync_error'
+                : (runtimeIssue?.titleKey ?? 'settings.sync.last_sync_error'),
+            )}
             desc={t(
               isReadyInternalPublishRequestFailure
                 ? 'settings.sync.last_sync_error_publish_invalid_desc'
-                : 'settings.sync.last_sync_error_desc',
+                : (runtimeIssue?.descriptionKey ?? 'settings.sync.last_sync_error_desc'),
             )}
             control={
               <span className="set-mono">
-                {[runtimeFailure.lastErrorCode, runtimeFailure.lastFailedPhase]
+                {[runtimeIssue?.code ?? 'unexpected', runtimeFailure.lastFailedPhase]
                   .filter(Boolean)
                   .join(' · ')}
               </span>
@@ -609,7 +666,11 @@ export function SyncPanel({
             }
           />
         )}
-        {cloudMessage && <div className="set-row__desc">{cloudMessage}</div>}
+        {cloudMessage && (
+          <div className="set-sync-message" role="status">
+            {cloudMessage}
+          </div>
+        )}
       </div>
 
       <div className="set-sec">
@@ -815,6 +876,7 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
         authority,
         sync: runtime,
         update,
+        googleDriveOperationTraces: getSanitizedGoogleDriveOperationTraces(),
       });
       await navigator.clipboard.writeText(summary);
       setDiagnosticMessage(t('settings.privacy.diagnosticsCopied'));

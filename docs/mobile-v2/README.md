@@ -12,6 +12,9 @@ keyboard-safe writing sheets, read-only search, one-live All Chapters, and the
 complete shared Planning/Plot workspace with deterministic touch arbitration,
 plus a mobile-owned answer-only Agent, portrait Library/TODO/Stats surfaces,
 and three independent full-screen Super Views with exact paper restoration.
+The M8 compact Google Drive Settings surface, safe issue projection, and shared
+Android Back ownership are Simulator/Emulator accepted; the real-account and
+signed physical-device hard gate remains open.
 
 This directory defines the target. It does not claim that the current mobile
 shell already implements or has physically accepted the target interactions.
@@ -41,8 +44,13 @@ device results remain evidence rather than product truth.
 9. [`independent-super-views.md`](independent-super-views.md) records the
    current M7 Story Graph, Element Panorama, Memo and Material, gesture, and
    paper-restoration boundary.
-10. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
+10. [`google-drive-settings-and-release-gate.md`](google-drive-settings-and-release-gate.md)
+    records the M8 Settings, configuration, safe-error, and still-open release
+    boundary.
+11. [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) is the
    current native setup and physical-device runbook.
+12. [`../qa/google-drive-three-platform-physical-acceptance.md`](../qa/google-drive-three-platform-physical-acceptance.md)
+    is the strict M8 real-account three-platform execution and evidence runbook.
 
 If these documents disagree, authority is ordered as follows:
 
@@ -76,6 +84,8 @@ These markers distinguish a frozen target from shipped behavior:
 - `planning_workspace: simulator_accepted`
 - `tool_workspaces: simulator_accepted`
 - `independent_super_views: simulator_accepted`
+- `google_drive_settings: simulator_accepted`
+- `google_drive_real_account_gate: open`
 
 The design markers and phase graph are checked by
 `src/renderer/shells/mobile/workspace/mobile-v2-design.acceptance.test.ts`.

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "drifting.google-drive-physical-acceptance",
+  "recordedAt": "1970-01-01T00:00:00.000Z",
+  "sourceCommit": "0000000000000000000000000000000000000000",
+  "appVersion": "0.0.0",
+  "artifacts": {
+    "desktop": {
+      "sourceCommit": "0000000000000000000000000000000000000000",
+      "artifactSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "systemVersion": "0",
+      "signed": false,
+      "physical": false
+    },
+    "ios": {
+      "sourceCommit": "0000000000000000000000000000000000000000",
+      "artifactSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "systemVersion": "0",
+      "signed": false,
+      "physical": false
+    },
+    "android": {
+      "sourceCommit": "0000000000000000000000000000000000000000",
+      "artifactSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "systemVersion": "0",
+      "signed": false,
+      "physical": false
+    }
+  },
+  "data": {
+    "classification": "synthetic",
+    "projectCount": 3
+  },
+  "scenarios": [
+    { "id": "oauth.connect.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.connect.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.connect.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.refresh-after-restart.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.refresh-after-restart.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.refresh-after-restart.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reauthorize-same-account.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reauthorize-same-account.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reauthorize-same-account.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reject-different-account.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reject-different-account.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.reject-different-account.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.revoke.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.revoke.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.revoke.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.sdk-state-loss.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "oauth.sdk-state-loss.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "discovery.fresh-device.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "discovery.fresh-device.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "discovery.fresh-device.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.three-platform-convergence", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.prose-fields-relations-order", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.assets", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.outbox-restart", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.deletion", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.force-stop-recovery.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.force-stop-recovery.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.concurrent-edits", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.offline-reconnect", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.multi-project-isolation", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.project-switch-under-load", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.background-lock.ios", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.background-lock.android", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.sleep-wake.desktop", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.large-asset-resume", "result": "not-run", "evidenceSha256": [] },
+    { "id": "sync.device-local-tabs", "result": "not-run", "evidenceSha256": [] },
+    { "id": "errors.quota", "result": "not-run", "evidenceSha256": [] },
+    { "id": "errors.rate-limit", "result": "not-run", "evidenceSha256": [] },
+    { "id": "errors.server", "result": "not-run", "evidenceSha256": [] },
+    { "id": "integrity.no-loss-or-duplicates", "result": "not-run", "evidenceSha256": [] }
+  ]
+}

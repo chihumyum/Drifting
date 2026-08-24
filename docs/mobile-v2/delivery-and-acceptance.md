@@ -1,6 +1,6 @@
 # Mobile V2 delivery and acceptance
 
-Status: **normative staged plan; M0-M7 complete, M8 not started**
+Status: **normative staged plan; M0-M7 complete, M8 real-account hard-gate acceptance in progress**
 
 Updated: 2026-08-23
 
@@ -383,6 +383,20 @@ node/card drag, and physical accessibility remain open.
   synthetic or authorized project data.
 - No secret, token, account identifier, or private Project data enters the
   repository evidence.
+
+Current implementation evidence:
+
+- [`google-drive-settings-and-release-gate.md`](google-drive-settings-and-release-gate.md)
+- [`../qa/google-drive-three-platform-physical-acceptance.md`](../qa/google-drive-three-platform-physical-acceptance.md)
+- [`../qa/google-drive-physical-evidence-contract.json`](../qa/google-drive-physical-evidence-contract.json)
+  and its strict validator
+- `google-drive-settings-presentation.test.ts`
+- `mobile-v2-google-drive.acceptance.test.ts`
+- [`../qa/mobile-v2-m8-google-drive-settings-simulator-2026-08-23.md`](../qa/mobile-v2-m8-google-drive-settings-simulator-2026-08-23.md)
+
+The compact Settings surface and configuration/status/error presentation are
+implemented and Simulator/Emulator accepted. M8 remains incomplete: no real
+Google account or physical-device gate has been closed.
 
 ## M9 — Native RC and final MVP acceptance
 

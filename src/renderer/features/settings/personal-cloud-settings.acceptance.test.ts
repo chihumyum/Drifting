@@ -23,13 +23,51 @@ describe('personal-cloud Settings boundary', () => {
     );
   });
 
-  it('gates connection only on native Google OAuth', () => {
+  it('gates connection on the complete native OAuth, transport, and staging boundary', () => {
     const panel = read('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
-    expect(panel).toContain("featureStatus.googleDriveOAuth === 'available'");
-    expect(panel).toContain('disabled={!googleDriveOAuthAvailable || cloudBusy !== null}');
+    const presentation = read(
+      'src/renderer/features/settings/google-drive-settings-presentation.ts',
+    );
+    expect(panel).toContain('resolveGoogleDriveSettingsReadiness(capabilities)');
+    expect(panel).toContain('disabled={!googleDriveReadiness.available || cloudBusy !== null}');
+    expect(panel).toContain('data-state={googleDriveReadiness.available');
+    expect(presentation).toContain('featureStatus.googleDriveOAuth');
+    expect(presentation).toContain('featureStatus.googleDriveTransport');
+    expect(presentation).toContain('featureStatus.syncObjectStore');
     expect(panel).toContain("authority.status === 'local'");
     expect(panel).not.toContain('recoveryConfirmationRequired');
     expect(panel).not.toContain('restoreRecoveryInputRequired');
+  });
+
+  it('localizes account, SDK-state, permission, network, and integrity failures', () => {
+    const panel = read('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
+    const syncPanel = panel.slice(
+      panel.indexOf('export function SyncPanel'),
+      panel.indexOf('export function UpdatePanel'),
+    );
+    const presentation = read(
+      'src/renderer/features/settings/google-drive-settings-presentation.ts',
+    );
+    expect(syncPanel).toContain('data-google-drive-issue={cloudIssue.id}');
+    expect(syncPanel).toContain('resolveGoogleDriveSettingsIssue(error)');
+    const cloudAction = syncPanel.slice(
+      syncPanel.indexOf('const runCloudAction = async'),
+      syncPanel.indexOf('const handleMarkdownExport = async'),
+    );
+    expect(cloudAction).not.toContain('error instanceof Error ? error.message');
+    expect(cloudAction).not.toContain('String(error)');
+    for (const code of [
+      'account-mismatch',
+      'needs-reauth',
+      'permission-denied',
+      'offline',
+      'rate-limited',
+      'quota-exceeded',
+      'blocked-update',
+      'remote-corrupt',
+    ]) {
+      expect(presentation).toContain(code);
+    }
   });
 
   it('has no recovery-code, QR, biometric, or recovery-confirmation surface', () => {
@@ -66,6 +104,22 @@ describe('personal-cloud Settings boundary', () => {
     expect(panel).toContain('disconnect_confirm_desc');
     expect(JSON.stringify(en.settings.sync)).toContain('up to two minutes');
     expect(JSON.stringify(zh.settings.sync)).toContain('最长可能需要两分钟');
+  });
+
+  it('closes the same-frame double-tap window before native cloud operations start', () => {
+    const panel = read('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
+    const cloudAction = panel.slice(
+      panel.indexOf('const runCloudAction = async'),
+      panel.indexOf('const handleMarkdownExport = async'),
+    );
+    expect(cloudAction).toContain('if (cloudBusy || operationRef.current) return');
+    expect(cloudAction).toContain('operationRef.current = controller');
+    expect(cloudAction.indexOf('if (cloudBusy || operationRef.current) return')).toBeLessThan(
+      cloudAction.indexOf('operationRef.current = controller'),
+    );
+    expect(cloudAction).toContain('if (mountedRef.current && successKey)');
+    expect(cloudAction).toContain('if (mountedRef.current && !controller.signal.aborted)');
+    expect(panel).toContain('if (mountedRef.current) setCloudBusy(null)');
   });
 
   it('grants only the native dialog message/confirm permissions used by desktop UI', () => {
@@ -124,14 +178,16 @@ describe('personal-cloud Settings boundary', () => {
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as typeof en;
 
     expect(panel).not.toContain('displayedErrorCode');
-    expect(panel).toContain('control={<span className="set-mono">{authority.errorCode}</span>}');
+    expect(panel).toContain(
+      'control={<span className="set-mono">{authorityIssue?.code ?? \'unexpected\'}</span>}',
+    );
     expect(panel).toContain(
       "generation.lastOutcome === 'failed' && generation.lastErrorCode",
     );
     expect(panel).toContain("authority.status === 'cloud-ready'");
     expect(panel).toContain("runtimeFailure?.lastErrorCode === 'invalid-request'");
     expect(panel).toContain("runtimeFailure.lastFailedPhase === 'publishing-segments'");
-    expect(panel).toContain("t('settings.sync.last_sync_error')");
+    expect(panel).toContain("? 'settings.sync.last_sync_error'");
     expect(panel).toContain('runtimeFailure.lastFailedPhase');
     expect(zh.settings.sync.last_sync_error).toBe('上次同步错误');
     expect(zh.settings.sync.last_sync_error_publish_invalid_desc).toContain('内部发布请求失败');

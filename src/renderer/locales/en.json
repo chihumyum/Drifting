@@ -363,6 +363,13 @@
       "google_drive": "Google Drive",
       "cloud_status": "Sync status",
       "cloud_status_desc": "{{ready}} of {{active}} projects are ready.",
+      "device_readiness": "Google Drive on this device",
+      "device_readiness_ready": "Ready",
+      "device_readiness_required": "Setup required",
+      "device_readiness_ready_desc": "Google sign-in, Drive transport, and safe on-device staging are enabled in this build.",
+      "device_readiness_oauth_desc": "This build has no valid Google sign-in configuration. Local writing is unaffected.",
+      "device_readiness_transport_desc": "This build has no native Google Drive transport. Local writing is unaffected.",
+      "device_readiness_storage_desc": "This build has no on-device sync-object staging, so Google Drive connection will not start.",
       "cloud_states": {
         "loading": "Loading",
         "local": "On-device only",
@@ -421,7 +428,10 @@
       "runtime_unavailable": "The foreground sync runtime is not mounted yet.",
       "reauthorize_google_drive": "Reauthorize Google Drive",
       "reauthorize_google_drive_desc": "Sign in again in the system browser. Drifting accepts the authorization only when Google confirms the same account, then resumes automatic project discovery.",
+      "reauthorize_disconnect_google_drive": "Google authorization expired",
+      "reauthorize_disconnect_google_drive_desc": "Sign in again with the same connected Google account. After Drifting verifies the account, it immediately revokes the renewed grant and continues the original disconnect transaction. Local projects remain available throughout.",
       "reauthorize": "Reauthorize",
+      "reauthorize_and_disconnect": "Reauthorize and disconnect",
       "reauthorizing": "Reauthorizing…",
       "reauthorize_done": "Google Drive authorization was renewed and affected projects are ready to resume.",
       "sync_now": "Sync now",
@@ -451,6 +461,52 @@
       "diagnostics_desc": "Local journal and verified inbox counters; content and credentials are never shown here.",
       "diagnostics_value": "changes {{changeSets}} · segments {{segments}} · transfers {{transfers}} · gaps {{gaps}} · conflicts {{conflicts}} · quarantine {{quarantined}}",
       "operation_failed": "Sync operation failed: {{error}}",
+      "issues": {
+        "configuration": {
+          "title": "This build cannot connect Google Drive yet",
+          "desc": "Google sign-in, Drive transport, or on-device staging is incomplete. Install a fully configured build; local projects are unaffected."
+        },
+        "offline": {
+          "title": "This device is offline",
+          "desc": "Reconnect and try again. Unpublished changes remain safe on this device."
+        },
+        "reauthorize": {
+          "title": "Google Drive needs reauthorization",
+          "desc": "The Google SDK sign-in state expired or was lost. Reauthorize with the same Google account that is already connected."
+        },
+        "account-mismatch": {
+          "title": "A different Google account was selected",
+          "desc": "The existing connection was not replaced. Go back and choose the same Google account originally connected to Drifting."
+        },
+        "permission": {
+          "title": "Google Drive permission was not granted",
+          "desc": "Drifting requests only the hidden appDataFolder permission. Reauthorize and allow that permission before retrying."
+        },
+        "rate-limited": {
+          "title": "Google Drive is temporarily limiting requests",
+          "desc": "Local work is preserved. Wait a little, then run sync again."
+        },
+        "quota": {
+          "title": "Google Drive storage is full",
+          "desc": "Free some Google Drive space before syncing. Local projects and pending work remain complete."
+        },
+        "cancelled": {
+          "title": "Google Drive operation cancelled",
+          "desc": "No account was replaced and no local project was deleted. Start again when ready."
+        },
+        "update-required": {
+          "title": "Drifting needs an update",
+          "desc": "The current sync data requires a newer build for safe handling. Update the app; do not reset local projects."
+        },
+        "data-integrity": {
+          "title": "Google Drive data needs review",
+          "desc": "Suspicious remote objects were not applied. Local content and pending logs remain intact; save diagnostics and stop repeated retries."
+        },
+        "retry": {
+          "title": "Google Drive operation did not finish",
+          "desc": "Local content is safe. Retry later; if it keeps failing, copy the content- and credential-free diagnostics from Settings > Privacy."
+        }
+      },
       "local_data": "Local data",
       "history": "Version history",
       "auto_snapshot": "Auto snapshot",

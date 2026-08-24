@@ -363,6 +363,13 @@
       "google_drive": "Google Drive",
       "cloud_status": "同步状态",
       "cloud_status_desc": "{{active}} 个项目中已有 {{ready}} 个就绪。",
+      "device_readiness": "此设备的 Google Drive 能力",
+      "device_readiness_ready": "已就绪",
+      "device_readiness_required": "需要配置",
+      "device_readiness_ready_desc": "Google 登录、Drive 传输与本机安全暂存均已随此构建启用。",
+      "device_readiness_oauth_desc": "此构建缺少有效的 Google 登录配置；本地写作不受影响。",
+      "device_readiness_transport_desc": "此构建没有可用的原生 Google Drive 传输；本地写作不受影响。",
+      "device_readiness_storage_desc": "此构建没有可用的本机同步对象暂存；不会开始 Google Drive 连接。",
       "cloud_states": {
         "loading": "正在读取",
         "local": "仅本机",
@@ -421,7 +428,10 @@
       "runtime_unavailable": "前台同步 runtime 尚未挂载。",
       "reauthorize_google_drive": "重新授权 Google Drive",
       "reauthorize_google_drive_desc": "通过系统浏览器重新登录；只有 Google 确认仍是同一账号后才接受新授权，并继续自动发现项目。",
+      "reauthorize_disconnect_google_drive": "Google 授权已失效",
+      "reauthorize_disconnect_google_drive_desc": "请用当前已连接的同一 Google 账号重新授权。Drifting 验证账号后会立即撤销这份新授权，并继续完成原来的断开事务；本地项目始终保留。",
       "reauthorize": "重新授权",
+      "reauthorize_and_disconnect": "重新授权并继续断开",
       "reauthorizing": "正在重新授权…",
       "reauthorize_done": "Google Drive 授权已更新；受影响的项目可以恢复同步。",
       "sync_now": "立即同步",
@@ -451,6 +461,52 @@
       "diagnostics_desc": "这里只显示本地 journal 与已验证 inbox 的计数，不展示内容或凭据。",
       "diagnostics_value": "变更 {{changeSets}} · 分段 {{segments}} · 传输 {{transfers}} · 缺口 {{gaps}} · 冲突 {{conflicts}} · 隔离 {{quarantined}}",
       "operation_failed": "同步操作失败：{{error}}",
+      "issues": {
+        "configuration": {
+          "title": "此构建尚不能连接 Google Drive",
+          "desc": "Google 登录、Drive 传输或本机暂存配置不完整。请安装配置完整的构建；本地项目不会受影响。"
+        },
+        "offline": {
+          "title": "当前处于离线状态",
+          "desc": "联网后重试。未发布的更改仍安全保存在本机。"
+        },
+        "reauthorize": {
+          "title": "需要重新授权 Google Drive",
+          "desc": "Google SDK 的登录状态已失效或丢失。请使用当前已连接的同一 Google 账号重新授权。"
+        },
+        "account-mismatch": {
+          "title": "选择了另一个 Google 账号",
+          "desc": "现有连接没有被替换。请返回并选择最初连接 Drifting 的同一 Google 账号。"
+        },
+        "permission": {
+          "title": "Google Drive 权限未授予",
+          "desc": "Drifting 只请求隐藏 appDataFolder 所需的权限。重新授权并允许该权限后再试。"
+        },
+        "rate-limited": {
+          "title": "Google Drive 暂时限制了请求",
+          "desc": "本地工作已保留。等待一会儿，再执行一次同步。"
+        },
+        "quota": {
+          "title": "Google Drive 存储空间不足",
+          "desc": "释放 Google Drive 空间后再同步；本地项目与待发布数据保持完整。"
+        },
+        "cancelled": {
+          "title": "Google Drive 操作已取消",
+          "desc": "没有更换账号或删除本地项目。需要时可以再次开始。"
+        },
+        "update-required": {
+          "title": "需要更新 Drifting",
+          "desc": "当前同步数据需要更新版本才能安全处理。请先更新应用，不要重置本地项目。"
+        },
+        "data-integrity": {
+          "title": "Google Drive 数据需要检查",
+          "desc": "可疑远端对象没有写入项目。本地内容与待发布日志仍保留；请保存诊断信息并停止反复重试。"
+        },
+        "retry": {
+          "title": "Google Drive 操作没有完成",
+          "desc": "本地内容安全。稍后重试；若持续失败，请从「设置 > 隐私」复制不含内容与凭据的诊断信息。"
+        }
+      },
       "local_data": "本地数据",
       "history": "版本历史",
       "auto_snapshot": "自动快照",
