@@ -54,23 +54,24 @@ describe('resolveMobilePanelGesture', () => {
     ).toEqual({ state: 'docked', extent: 0.18 });
   });
 
-  it('snaps closed inside the 72px edge zone and preserves taller releases', () => {
+  it('snaps closed inside the 144px edge zone and preserves taller releases', () => {
+    const viewportHeightPx = 844;
     expect(
       resolveMobilePanelGesture({
-        extent: 0.08,
+        extent: 144 / viewportHeightPx,
         openingVelocityVhPerSecond: 0,
         travel: 0.3,
-        viewportHeightPx: 844,
+        viewportHeightPx,
       }),
     ).toEqual({ state: 'closed', extent: 0 });
     expect(
       resolveMobilePanelGesture({
-        extent: 0.1,
+        extent: 145 / viewportHeightPx,
         openingVelocityVhPerSecond: 0,
         travel: 0.3,
-        viewportHeightPx: 844,
+        viewportHeightPx,
       }),
-    ).toEqual({ state: 'docked', extent: 0.1 });
+    ).toEqual({ state: 'docked', extent: 145 / viewportHeightPx });
   });
 
   it('also closes after a deliberate closing fling', () => {

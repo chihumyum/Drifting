@@ -1,19 +1,16 @@
-# Mobile V2 format-toggle and panel-snap correction — iOS Simulator acceptance — 2026-08-25
+# Mobile V2 format-toggle and 144 px panel-snap follow-up — device handoff — 2026-08-25
 
-Status: **iOS Simulator acceptance passed; physical-device touch remains open**
+Status: **follow-up implementation complete; physical-device acceptance is user-owned and pending**
 
 ## Checkout and evidence boundary
 
-- Baseline commit: `d030b494e1fb81a898e8c9bbae1eb558c3b1d8e5` (including
-  the preceding `08fef5920215468e6d398c47b6c226d0d3b9ca18` mobile
-  single-handle milestone).
-- Source under test: that baseline plus this format-toggle/panel-snap repair.
-- Reuse the existing iPhone 16e / iOS 26.1 Simulator and native build caches;
-  do not create another runtime or device.
-- Renderer inspection and deterministic edge drags use the DEV-only bridge
-  labelled `inputPath=synthetic-dom` and `nativeInput=false`.
-- Native interaction evidence uses Computer Use against the Simulator window;
-  its clicks are not renderer-bridge DOM taps.
+- Follow-up baseline commit: `bc68e063325e91d50ca6c12ae61d027809fa12b2`.
+- Source under test: that baseline plus the non-native Format target and 144 px
+  close-zone follow-up.
+- No Simulator, device runtime, native build, or renderer-bridge interaction was
+  started for this follow-up.
+- The user explicitly owns the current physical-device interaction acceptance;
+  no new Simulator run is part of this follow-up.
 
 The unrelated dirty checkout is outside this repair and its commit scope.
 
@@ -27,11 +24,33 @@ The unrelated dirty checkout is outside this repair and its commit scope.
    dismisses the keyboard and accessory when explicitly tapped.
 4. Tapping Format again restores the formatting row without inserting prose or
    changing the editor selection.
-5. A slow top-panel release at 72 CSS pixels or less closes the panel; a release
+5. A slow top-panel release at 144 CSS pixels or less closes the panel; a release
    above that zone remains docked at the author-controlled height.
 6. The same close-zone behavior applies to the bottom panel.
 
-## Simulator evidence
+## Why the preceding Simulator evidence was insufficient
+
+The previous implementation used a native `<button>` and attempted to prevent
+its click default action. Although one Simulator click kept the keyboard open,
+the user reproduced keyboard dismissal on a physical device. That evidence is
+therefore retained only as a record of the inadequate test boundary; it does
+not accept the current implementation.
+
+The follow-up uses a non-native-focus `role=button` target, switches on
+`pointerup`, consumes the later compatibility click, and calls
+`EditorView.focus()` both inside the trusted activation and after React commits
+the accessory-level change. The resulting navigation level must contain:
+
+- the black Format entry;
+- current paper identity;
+- numbered open-paper entry;
+- Search;
+- hamburger menu;
+- the right down Chevron.
+
+No control except that Chevron owns explicit editor blur or keyboard dismissal.
+
+## Superseded Simulator evidence
 
 - Reused device: iPhone 16e, iOS 26.1,
   `7EC4E9EA-07BF-4BDE-A1BB-672BF8F7A0EA`.
@@ -60,7 +79,7 @@ The unrelated dirty checkout is outside this repair and its commit scope.
    system keyboard and returned the controller to `paperMode=read` and
    `keyboard=closed`.
 
-### Deterministic close-zone interaction
+### Superseded deterministic 72 px close-zone interaction
 
 The following slow synthetic pointer sequences were dispatched directly to the
 live pull handles. Each release idled for more than 80 ms, so velocity resolved
@@ -73,29 +92,30 @@ to zero and could not trigger either fling rule.
 | Bottom | 61 px (`0.07995`) | `panel=none`, extent `0` |
 | Bottom | 84 px (`0.11009`) | `panel=bottom-docked`, exact extent preserved |
 
-Dragging each 84 px docked boundary back by 30 px placed it inside the 72 px
+Dragging each 84 px docked boundary back by 30 px placed it inside the old 72 px
 zone and closed it to `panel=none`, extent `0`.
+
+The current close zone is 144 CSS pixels and is covered by pure resolver tests;
+physical gesture acceptance is left to the user.
 
 ## Automated checks
 
-- Focused Vitest: 5 files, 23 tests passed.
+- Focused Vitest: 5 files, 35 tests passed.
 - Scoped ESLint for the changed TypeScript/TSX files: passed.
 - `pnpm public:check`: passed for 1510 publish candidates.
 - `pnpm lint`: passed with 0 errors and 41 pre-existing repository warnings.
 - `pnpm typecheck`: passed.
 - Repository-wide Vitest with `--maxWorkers=4`: 321 files passed, 1 skipped;
-  1852 tests passed, 1 skipped. The default worker count twice timed out the
-  unrelated 1000-fragment Agent Runtime stress case at its 20 s ceiling; that
-  exact case passed alone in 3.30 s before the bounded-worker full run passed.
+  1853 tests passed, 1 skipped.
 - `pnpm agent:capabilities:check`: capability evidence current; 3 files and 18
   tests passed.
-- Production Vite build: 3687 modules transformed and built in 12.45 s; only
+- Production Vite build: 3687 modules transformed and built in 7.11 s; only
   the repository's existing dependency/chunk-size warnings were reported.
 
 ## Storage and cleanup
 
-The disposable app data, debug artifacts, and any detached validation worktree
-will be removed after final gates. Existing native caches remain reused.
+No Simulator or native-build artifacts were created. Any detached source-only
+validation worktree is removed after final gates; existing caches are untouched.
 
 ## Remaining boundary
 

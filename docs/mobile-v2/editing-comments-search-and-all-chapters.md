@@ -23,11 +23,13 @@ never opens a Sheet. Pressing the Format label collapses the row and reveals
 the complete entity/status, numbered paper count, Search, and hamburger
 entrances; pressing the label again restores formatting. Pointer down is
 consumed before command dispatch so an existing ProseMirror selection is not
-collapsed before the command runs. The Format label also cancels the button's
-click default action before switching accessory level: iOS must not transfer
-focus away from ProseMirror or dismiss the IME. The right-side down Chevron is
-present in both formatting and navigation accessory levels and is the sole
-explicit keyboard-dismiss control.
+collapsed before the command runs. The Format label is intentionally not a
+native form control: it consumes pointer activation, renews `EditorView` focus
+inside the trusted gesture, switches level on pointer up, and renews focus once
+more after React commits the row replacement. iOS must never transfer focus
+away from ProseMirror or dismiss the IME for this level-only operation. The
+right-side down Chevron is present in both formatting and navigation accessory
+levels and is the sole explicit keyboard-dismiss control.
 
 Keyboard placement is derived from the greatest reliable inset:
 

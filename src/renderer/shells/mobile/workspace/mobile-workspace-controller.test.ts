@@ -61,6 +61,21 @@ describe('Mobile V2 workspace controller', () => {
     });
   });
 
+  it('switches accessory levels without leaving edit mode or closing the keyboard', () => {
+    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    state = reduce(state, { type: 'set-editor-accessory', accessory: 'navigation' });
+    expect(state).toMatchObject({
+      paperMode: { kind: 'edit', accessory: 'navigation' },
+      keyboard: 'open',
+    });
+
+    state = reduce(state, { type: 'set-editor-accessory', accessory: 'formatting' });
+    expect(state).toMatchObject({
+      paperMode: { kind: 'edit', accessory: 'formatting' },
+      keyboard: 'open',
+    });
+  });
+
   it('preserves the owning panel under an entity preview sheet', () => {
     let state = reduce(paperRoot(), {
       type: 'set-panel',

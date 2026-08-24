@@ -8,30 +8,34 @@ const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, rel
 const document = (relative: string) => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
 
 describe('Mobile format-level toggle and panel close snap correction', () => {
-  it('changes only the accessory level when the Format label is clicked', () => {
+  it('uses a non-native-focus Format target that changes only the accessory level', () => {
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const styles = document('src/styles/mobile-workspace.css');
 
     expect(accessory).toContain('data-debug-id="mobile-toggle-formatting"');
-    expect(accessory).toMatch(
-      /const toggle = \(event: ReactMouseEvent<HTMLButtonElement>\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?\? 'navigation' : 'formatting'/u,
-    );
-    expect(accessory).toContain('onClick={toggle}');
+    expect(accessory).toMatch(/<span\s+role="button"[\s\S]*?className="m-editor-accessory__toggle"/u);
+    expect(accessory).not.toMatch(/<button[\s\S]{0,160}m-editor-accessory__toggle/u);
+    expect(accessory).toContain('editor.view.focus();');
+    expect(accessory).toContain('queueMicrotask(refocusEditor);');
+    expect(accessory).toContain('onPointerUp={toggle}');
+    expect(accessory).toContain('onClick={handleToggleClick}');
+    expect(styles).toMatch(/\.m-editor-accessory__toggle \{[\s\S]*?touch-action: none;/u);
     expect(bar).toContain("{projection.mode === 'edit' && (");
     expect(bar).toContain('data-debug-id="mobile-dismiss-keyboard"');
   });
 
-  it('uses one 72px close snap zone for top and bottom panel handles', () => {
+  it('uses one 144px close snap zone for top and bottom panel handles', () => {
     const gesture = source('shells/mobile/workspace/mobile-panel-gesture.ts');
     const handle = source('shells/mobile/workspace/MobilePanelPullHandle.tsx');
 
-    expect(gesture).toContain('const CLOSE_SNAP_PX = 72');
+    expect(gesture).toContain('const CLOSE_SNAP_PX = 144');
     expect(gesture).toContain('CLOSE_SNAP_PX / Math.max(1, gesture.viewportHeightPx)');
     expect(gesture).toContain('if (extent <= closeEdge)');
     expect(handle.match(/viewportHeightPx: Math\.max\(1, window\.innerHeight\)/g)).toHaveLength(2);
   });
 
-  it('keeps the product contract and Simulator evidence attached', () => {
+  it('keeps the product contract and device-handoff boundary attached', () => {
     const editing = document('docs/mobile-v2/editing-comments-search-and-all-chapters.md');
     const panels = document('docs/mobile-v2/unified-bar-rails-and-paper-swipe.md');
     const evidence = document(
@@ -39,8 +43,8 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     );
 
     expect(editing).toContain('explicit keyboard-dismiss control');
-    expect(panels).toContain('Releases at 72 CSS pixels');
-    expect(evidence).toContain('inputPath=synthetic-dom');
-    expect(evidence).toContain('physical-device continuous touch remains open');
+    expect(panels).toContain('Releases at 144 CSS pixels');
+    expect(evidence).toContain('No Simulator, device runtime, native build');
+    expect(evidence).toContain('physical-device acceptance is user-owned and pending');
   });
 });

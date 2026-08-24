@@ -56,7 +56,7 @@ an ordinary paper. Project-wide
 user/settings actions remain on the shelf and in Overview rather than
 consuming either rail.
 
-Both panels retain one continuous boundary handle. Releases at 72 CSS pixels
+Both panels retain one continuous boundary handle. Releases at 144 CSS pixels
 or less snap closed for both top and bottom panels; this fixed physical zone
 prevents a non-useful sliver across phone heights. Above that zone, ordinary
 release preserves the exact author-controlled extent, including values above

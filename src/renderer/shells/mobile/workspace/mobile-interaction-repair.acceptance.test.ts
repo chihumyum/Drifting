@@ -63,7 +63,10 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(accessory).toContain("mode === 'formatting'");
     expect(accessory).toContain("? 'navigation' : 'formatting'");
     expect(accessory).toContain('onPointerDown={keepEditorFocused}');
-    expect(accessory).toContain('onClick={toggle}');
+    expect(accessory).toContain('onPointerUp={toggle}');
+    expect(accessory).toContain('onClick={handleToggleClick}');
+    expect(accessory).toContain('editor.view.focus();');
+    expect(accessory).toContain('role="button"');
     expect(accessory).not.toContain('keepEditorFocused(event, toggle)');
     expect(sheet).not.toContain('MobileFormattingSheetContent');
     expect(deck).not.toContain("sheet: 'formatting'");

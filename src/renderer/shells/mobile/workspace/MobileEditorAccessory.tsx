@@ -210,24 +210,46 @@ export function MobileEditorAccessory({
     return () => window.clearTimeout(timer);
   }, [editor, editorFocused, softwareKeyboardVisible]);
 
-  const keepEditorFocused = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    // Prevent the browser from moving focus away from contenteditable, but do
-    // not reflow the whole accessory until this pointer gesture has completed.
-    // Reflowing on pointerdown lets iOS retarget the remaining gesture at the
-    // newly exposed navigation row and can produce a ghost editor input.
-    event.preventDefault();
-    event.stopPropagation();
-  }, []);
+  const refocusEditor = useCallback(() => {
+    if (!editor || editor.isDestroyed) return;
+    // EditorView.focus() preserves the current ProseMirror selection. Keeping
+    // this inside the trusted pointer activation also keeps the iOS IME lease.
+    editor.view.focus();
+  }, [editor]);
+  const keepEditorFocused = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      // The Format label is intentionally not a native form control. Consume
+      // the pointer before WebKit can move focus and renew the editor focus
+      // lease without changing the accessory level until pointerup.
+      event.preventDefault();
+      event.stopPropagation();
+      refocusEditor();
+    },
+    [refocusEditor],
+  );
 
   if (!active || !editing || !editor || editor.isDestroyed) return null;
 
-  const toggle = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    // iOS WebKit may focus a touched button during the click default action
-    // even when pointerdown was consumed. Cancel that action so this control
-    // changes only the accessory level and never dismisses the editor/IME.
+  const switchMode = () => {
+    refocusEditor();
+    onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+    // React commits the sibling-row swap after the pointer handler. Renew focus
+    // once more after that commit so layout replacement cannot strand focus on
+    // body and trigger the editor/keyboard close synchronizer.
+    queueMicrotask(refocusEditor);
+  };
+  const toggle = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    onModeChange?.(mode === 'formatting' ? 'navigation' : 'formatting');
+    switchMode();
+  };
+  const handleToggleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Pointer activation already switched on pointerup. A zero-detail click is
+    // the accessibility activation path and must perform the same operation.
+    if (event.detail === 0) switchMode();
+    else refocusEditor();
   };
   const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
     event.preventDefault();
@@ -242,8 +264,8 @@ export function MobileEditorAccessory({
         defaultValue: '编辑样式附件栏',
       })}
     >
-      <button
-        type="button"
+      <span
+        role="button"
         className="m-editor-accessory__toggle"
         data-debug-id="mobile-toggle-formatting"
         aria-expanded={mode === 'formatting'}
@@ -254,11 +276,12 @@ export function MobileEditorAccessory({
           { defaultValue: mode === 'formatting' ? '收起格式栏' : '展开格式栏' },
         )}
         onPointerDown={keepEditorFocused}
-        onClick={toggle}
+        onPointerUp={toggle}
+        onClick={handleToggleClick}
       >
         <Type size={18} strokeWidth={1.8} aria-hidden="true" />
         <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
-      </button>
+      </span>
 
       {mode === 'formatting' && (
         <div className="m-editor-accessory__actions" role="toolbar">

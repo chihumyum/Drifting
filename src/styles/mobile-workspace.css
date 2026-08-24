@@ -633,6 +633,9 @@
   gap: 4px;
   color: hsl(var(--page));
   background: hsl(var(--ink-1));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .m-editor-accessory__toggle > span {

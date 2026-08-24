@@ -104,7 +104,7 @@ counts, or paper-session entries.
 - Ordinary panel release preserves the author's exact height. Crossing an
   arbitrary percentage never forces full screen; only reaching the full edge
   or a deliberate opening fling may commit full screen. The exception is the
-  final 72 CSS pixels next to the closed edge, which snap fully closed instead
+  final 144 CSS pixels next to the closed edge, which snap fully closed instead
   of preserving a non-useful panel sliver.
 
 ### 4.3 Paper swipe
@@ -173,9 +173,10 @@ Overview owns its own header and hides the unified bar.
   one horizontally scrollable icon row inside the accessory. It is never a
   Sheet. Pressing the Format label collapses that row and restores the complete
   paper-context/count/Search/menu presentation; pressing it again restores the
-  formatting row without blurring ProseMirror or dismissing the keyboard. The
-  right-side down Chevron remains available in both levels and exclusively
-  owns explicit keyboard dismissal.
+  formatting row. The label is a non-native-focus pointer target that renews
+  ProseMirror focus before and after changing level, so neither direction may
+  dismiss the keyboard. The right-side down Chevron remains available in both
+  levels and exclusively owns explicit keyboard dismissal.
 - The keyboard accessory, structure panel, and tool panel have independent
   ownership. An already-open panel does not suppress the accessory above the
   software keyboard.

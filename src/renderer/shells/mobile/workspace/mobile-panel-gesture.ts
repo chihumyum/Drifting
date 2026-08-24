@@ -10,7 +10,7 @@ export type MobilePanelGestureResolution =
   | { state: 'docked'; extent: number }
   | { state: 'full'; extent: 1 };
 
-const CLOSE_SNAP_PX = 72;
+const CLOSE_SNAP_PX = 144;
 const FULL_EDGE = 0.985;
 const FLING_TRAVEL = 0.12;
 const FLING_VELOCITY = 1.2;
@@ -20,10 +20,7 @@ export function resolveMobilePanelGesture(
 ): MobilePanelGestureResolution {
   const extent = Math.max(0, Math.min(1, gesture.extent));
   const travel = Math.max(0, gesture.travel);
-  const closeEdge = Math.min(
-    0.18,
-    CLOSE_SNAP_PX / Math.max(1, gesture.viewportHeightPx),
-  );
+  const closeEdge = Math.min(1, CLOSE_SNAP_PX / Math.max(1, gesture.viewportHeightPx));
 
   if (extent >= FULL_EDGE) return { state: 'full', extent: 1 };
   if (
