@@ -81,9 +81,13 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
 
     expect(geometry).toContain('mobileKeyboardViewportOffsetTop');
     expect(geometry).toContain('Math.max(0, visualViewport.offsetTop)');
+    expect(geometry).toContain('mobileEditorScrollTopAfterReserveChange');
     expect(accessory).toContain('readMobileKeyboardViewportOffsetTop()');
-    expect(deck).toContain("'--m-keyboard-viewport-offset-top'");
-    expect(css).toContain('var(--m-keyboard-viewport-offset-top)');
+    expect(deck).toContain("'--m-editor-top-scroll-reserve'");
+    expect(deck).toContain('mobileEditorScrollTopAfterReserveChange');
+    expect(deck).toContain('mobileEditorLogicalScrollTop');
+    expect(css).toContain('padding-top: var(--m-editor-top-scroll-reserve)');
+    expect(css).not.toContain('env(safe-area-inset-top) + var(--m-editor-top-scroll-reserve)');
   });
 
   it('promotes a touch at its caret only after flushing the previous live chapter', () => {

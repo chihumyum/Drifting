@@ -78,6 +78,26 @@ export function mobileKeyboardViewportOffsetTop(
   return Math.max(0, visualViewport.offsetTop);
 }
 
+export function mobileEditorLogicalScrollTop(scrollTop: number, topReserve: number): number {
+  if (!Number.isFinite(scrollTop) || !Number.isFinite(topReserve)) return 0;
+  return Math.max(0, scrollTop - Math.max(0, topReserve));
+}
+
+export function mobileEditorScrollTopAfterReserveChange(
+  scrollTop: number,
+  previousReserve: number,
+  nextReserve: number,
+): number {
+  if (
+    !Number.isFinite(scrollTop) ||
+    !Number.isFinite(previousReserve) ||
+    !Number.isFinite(nextReserve)
+  ) {
+    return 0;
+  }
+  return Math.max(0, scrollTop + Math.max(0, nextReserve) - Math.max(0, previousReserve));
+}
+
 function readMobileVisualViewportGeometry(): {
   layoutHeight: number;
   viewport: MobileVisualViewportGeometry;

@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mobileEditorLogicalScrollTop,
+  mobileEditorScrollTopAfterReserveChange,
   mobileKeyboardInset,
   mobileKeyboardViewportOffsetTop,
   mobileNativeKeyboardInset,
   mobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
+
+describe('mobile editor top scroll reserve', () => {
+  it('adds reserve without moving the current document position', () => {
+    expect(mobileEditorScrollTopAfterReserveChange(180, 0, 254)).toBe(434);
+    expect(mobileEditorLogicalScrollTop(434, 254)).toBe(180);
+  });
+
+  it('removes reserve without persisting keyboard-only scroll distance', () => {
+    expect(mobileEditorScrollTopAfterReserveChange(434, 254, 0)).toBe(180);
+    expect(mobileEditorLogicalScrollTop(180, 0)).toBe(180);
+  });
+});
 
 describe('mobileKeyboardInset', () => {
   it('tracks the visual viewport bottom one pixel per keyboard pixel', () => {

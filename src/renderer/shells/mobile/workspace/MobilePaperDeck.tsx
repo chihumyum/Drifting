@@ -13,6 +13,10 @@ import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { getActiveEditor } from '../../../lib/active-editor';
+import {
+  mobileEditorLogicalScrollTop,
+  mobileEditorScrollTopAfterReserveChange,
+} from './mobile-keyboard-geometry';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobilePaperContent } from './MobilePaperContent';
 import { MobileBarSheet } from './MobileBarSheet';
@@ -62,17 +66,22 @@ function MobilePaperViewport({
   outlineRailVisible,
   outlinePortalTargetId,
   commentPortalTargetId,
+  topScrollReserve,
   onRememberScroll,
 }: {
   paper: MobilePaper;
   outlineRailVisible: boolean;
   outlinePortalTargetId?: string;
   commentPortalTargetId?: string;
+  topScrollReserve: number;
   onRememberScroll: (key: string, scrollTop: number) => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
   const initialScrollTopRef = useRef(paper.scrollTop);
   const savedScrollRef = useRef(paper.scrollTop);
+  const requestedTopScrollReserveRef = useRef(topScrollReserve);
+  const appliedTopScrollReserveRef = useRef(0);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -87,7 +96,10 @@ function MobilePaperViewport({
     };
     const onScroll = () => {
       if (!scroller) return;
-      savedScrollRef.current = scroller.scrollTop;
+      savedScrollRef.current = mobileEditorLogicalScrollTop(
+        scroller.scrollTop,
+        appliedTopScrollReserveRef.current,
+      );
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(flush, 140);
     };
@@ -96,7 +108,12 @@ function MobilePaperViewport({
       if (!next || next === scroller) return;
       scroller?.removeEventListener('scroll', onScroll);
       scroller = next;
-      scroller.scrollTop = initialScrollTopRef.current;
+      scrollerRef.current = next;
+      const reserve = next.classList.contains('editor-scroll')
+        ? requestedTopScrollReserveRef.current
+        : 0;
+      appliedTopScrollReserveRef.current = reserve;
+      scroller.scrollTop = initialScrollTopRef.current + reserve;
       savedScrollRef.current = initialScrollTopRef.current;
       scroller.addEventListener('scroll', onScroll, { passive: true });
     };
@@ -107,9 +124,35 @@ function MobilePaperViewport({
     return () => {
       observer.disconnect();
       scroller?.removeEventListener('scroll', onScroll);
+      if (scrollerRef.current === scroller) scrollerRef.current = null;
+      appliedTopScrollReserveRef.current = 0;
       flush();
     };
   }, [onRememberScroll, paper.key]);
+
+  useLayoutEffect(() => {
+    requestedTopScrollReserveRef.current = topScrollReserve;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const effectiveReserve = scroller.classList.contains('editor-scroll') ? topScrollReserve : 0;
+    const previous = appliedTopScrollReserveRef.current;
+    if (previous === effectiveReserve) return;
+
+    // Keep WebKit's caret-preserving viewport pan visually untouched. The new
+    // space belongs to the real scroll owner, and scrollTop moves by the same
+    // delta before paint. The author can later scroll through that reserve to
+    // bring the document-start folio into view.
+    appliedTopScrollReserveRef.current = effectiveReserve;
+    scroller.scrollTop = mobileEditorScrollTopAfterReserveChange(
+      scroller.scrollTop,
+      previous,
+      effectiveReserve,
+    );
+    savedScrollRef.current = mobileEditorLogicalScrollTop(
+      scroller.scrollTop,
+      effectiveReserve,
+    );
+  }, [topScrollReserve]);
 
   return (
     <div ref={rootRef} className="m-paper-scroll-memory">
@@ -551,7 +594,7 @@ export function MobilePaperDeck({
         {
           '--m-panel-extent': visibleExtent,
           '--m-unified-keyboard-inset': `${keyboardInset}px`,
-          '--m-keyboard-viewport-offset-top': `${keyboardViewportOffsetTop}px`,
+          '--m-editor-top-scroll-reserve': `${keyboardViewportOffsetTop}px`,
         } as CSSProperties
       }
       onCompositionStartCapture={() => {
@@ -623,6 +666,11 @@ export function MobilePaperDeck({
                             activeRail === 'comments'
                               ? 'mobile-comments-sheet-content'
                               : undefined
+                          }
+                          topScrollReserve={
+                            workspaceUi.paperMode.kind === 'edit'
+                              ? keyboardViewportOffsetTop
+                              : 0
                           }
                           onRememberScroll={onRememberScroll}
                         />
@@ -720,7 +768,7 @@ export function MobilePaperDeck({
         editorAccessoryMode={
           workspaceUi.paperMode.kind === 'edit'
             ? workspaceUi.paperMode.accessory
-            : 'formatting'
+            : 'navigation'
         }
         onEditorAccessoryModeChange={setEditorAccessoryMode}
         onEditingStateChange={syncEditor}

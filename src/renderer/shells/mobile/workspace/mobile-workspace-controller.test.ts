@@ -54,7 +54,7 @@ describe('Mobile V2 workspace controller', () => {
     state = reduce(state, { type: 'set-panel', panel: 'top-full' });
     expect(state).toMatchObject({
       surface: { kind: 'paper' },
-      paperMode: { kind: 'edit', accessory: 'formatting' },
+      paperMode: { kind: 'edit', accessory: 'navigation' },
       panel: 'top-full',
       transient: { kind: 'none' },
       keyboard: 'open',
@@ -63,7 +63,6 @@ describe('Mobile V2 workspace controller', () => {
 
   it('switches accessory levels without leaving edit mode or closing the keyboard', () => {
     let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
-    state = reduce(state, { type: 'set-editor-accessory', accessory: 'navigation' });
     expect(state).toMatchObject({
       paperMode: { kind: 'edit', accessory: 'navigation' },
       keyboard: 'open',

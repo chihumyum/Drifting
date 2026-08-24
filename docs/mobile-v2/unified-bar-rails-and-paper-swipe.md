@@ -33,9 +33,11 @@ The pill remains mounted while its projection controls visibility, mode,
 placement, and keyboard ownership. It sits above the safe bottom for an
 ordinary paper, moves above a docked bottom panel, and follows the visual
 keyboard inset while editing. A panned iOS visual viewport also contributes
-leading editor space equal to `visualViewport.offsetTop`, so the document-start
-folio is not stranded above the visible viewport. Panel ownership does not
-suppress or replace the keyboard accessory.
+an equal reserve inside the actual editor scroller. Its `scrollTop` is adjusted
+by the reserve delta before paint, so WebKit's automatic caret pan remains
+visible while the document-start folio becomes reachable. The reserve is never
+outer paper padding. Panel ownership does not suppress or replace the keyboard
+accessory.
 
 ## Two one-level vertical rails
 

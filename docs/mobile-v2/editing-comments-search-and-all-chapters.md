@@ -17,18 +17,17 @@ mode only when it is focused and the software keyboard is visibly open. Focus
 without a keyboard is read mode; paper activation blurs the outgoing editor.
 There is no supported caret-less pseudo-edit state.
 
-Edit entry defaults directly to a horizontally scrollable single-row format
-level with paragraph, heading, quotation, and inline mark commands. Formatting
-never opens a Sheet. The unified Back control is always the leftmost control.
-While formatting is expanded, the black Format label is absent and Back
-collapses only the formatting row, preserving editor focus, caret, keyboard,
-and selection. The collapsed navigation level then shows the black Format
-label plus entity/status, numbered paper count, Search, and hamburger
-entrances. Pressing that non-native-focus label restores formatting and removes
-the label again. A second Back from the collapsed edit level exits editing;
-Back on a read paper returns to Project Home. The right-side down Chevron stays
-available at both edit levels and directly dismisses the keyboard without
-changing the meaning of Back.
+Edit entry defaults to the navigation accessory level: the black Format label,
+entity/status, numbered paper count, Search, and hamburger entrances. Read mode
+shows the same paper entrances without the Format label. Pressing Format opens
+a horizontally scrollable single-row level with paragraph, heading, quotation,
+and inline mark commands; formatting never opens a Sheet. While that level is
+expanded, the label is absent and the persistent leftmost Back collapses only
+the formatting row, preserving editor focus, caret, keyboard, and selection.
+Editor-owned Back dispatches no synthetic Escape, and the level-only path does
+not refocus the editor. Back from the edit navigation level exits editing and
+closes the keyboard; Back on a read paper returns to Project Home. There is no
+separate keyboard-dismiss Chevron.
 
 Keyboard placement is derived from the greatest reliable inset:
 
@@ -39,10 +38,12 @@ Keyboard placement is derived from the greatest reliable inset:
   `drifting:native-keyboard-geometry`;
 - the keyboard accessory subscribes to both sources and uses the
   larger inset;
-- when iOS pans the reduced `visualViewport`, its `offsetTop` becomes leading
-  editor layout space while the keyboard is visible. Therefore `scrollTop=0`
-  can still bring the chapter/storyline/word-count folio into the visible
-  viewport instead of leaving it trapped above the screen.
+- when iOS pans the reduced `visualViewport`, its `offsetTop` becomes reserve
+  inside the actual `.editor-scroll` owner, never padding outside that owner.
+  `scrollTop` changes by the same reserve delta before paint, so the automatic
+  caret-preserving iOS pan is not visually reversed. The author can then scroll
+  through that reserve to bring the chapter/storyline/word-count folio into the
+  visible viewport.
 
 The keyboard accessory may appear above the IME while a top or bottom panel
 retains its own reducer state. Opening a panel no longer rewrites edit state;

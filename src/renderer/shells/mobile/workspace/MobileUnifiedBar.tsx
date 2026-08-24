@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  ChevronsDown,
   Layers3,
   Search,
 } from 'lucide-react';
@@ -30,7 +29,6 @@ import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
-  readMobileKeyboardViewportOffsetTop,
   readMobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
 import {
@@ -152,12 +150,6 @@ function MobileUnifiedBackAction({
   onBack: () => void;
   label: string;
 }) {
-  const refocusEditor = () => {
-    const editor = getActiveEditor();
-    if (!editor || editor.isDestroyed) return;
-    editor.view.focus();
-  };
-
   if (!preserveEditorFocus) {
     return (
       <button
@@ -172,26 +164,19 @@ function MobileUnifiedBackAction({
     );
   }
 
-  const activate = () => {
-    refocusEditor();
-    onBack();
-    queueMicrotask(refocusEditor);
-  };
   const keepEditorFocused = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    refocusEditor();
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    activate();
+    onBack();
   };
   const handleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (event.detail === 0) activate();
-    else refocusEditor();
+    if (event.detail === 0) onBack();
   };
 
   return (
@@ -269,7 +254,6 @@ export function MobileUnifiedBar({
       frame = requestAnimationFrame(() => {
         const inset = readMobileKeyboardInset();
         onKeyboardInsetChange(inset);
-        onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop());
         onKeyboardStateChange(readMobileSoftwareKeyboardVisible() ? 'open' : 'closed');
       });
     };
@@ -296,16 +280,15 @@ export function MobileUnifiedBar({
     projection.mode,
     searchOwner,
   ]);
-  const handleBack = () => requestMobileWorkspaceBack('visible');
-  const dismissKeyboard = () => {
-    getActiveEditor()?.commands.blur();
-    onEditingStateChange(false);
-  };
   const showPaperNavigation =
     projection.mode === 'read' ||
     (projection.mode === 'edit' && editorAccessoryMode === 'navigation');
   const backPreservesEditorFocus =
     projection.mode === 'edit' && editorAccessoryMode === 'formatting';
+  const handleBack = () =>
+    requestMobileWorkspaceBack('visible', {
+      preflightDom: projection.mode !== 'edit',
+    });
   const backLabel = t('navigation.back');
 
   return (
@@ -408,17 +391,6 @@ export function MobileUnifiedBar({
                 <Layers3 size={18} aria-hidden="true" /> Drifting
               </span>
             ) : null}
-            {projection.mode === 'edit' && (
-              <button
-                type="button"
-                className="m-unified-bar__action"
-                data-debug-id="mobile-dismiss-keyboard"
-                onClick={dismissKeyboard}
-                aria-label={t('mobileWorkspace.dismissKeyboard', { defaultValue: '收起键盘' })}
-              >
-                <ChevronsDown size={20} aria-hidden="true" />
-              </button>
-            )}
           </>
         )}
       </div>

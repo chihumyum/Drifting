@@ -2,7 +2,7 @@
   --m-panel-extent: 0;
   --m-unified-bar-height: 56px;
   --m-unified-bar-gap: 8px;
-  --m-keyboard-viewport-offset-top: 0px;
+  --m-editor-top-scroll-reserve: 0px;
   position: fixed;
   inset: 0;
   width: 100dvw;
@@ -231,9 +231,6 @@
 }
 
 .m-workspace[data-controller-keyboard='open'] .m-paper-deck__content {
-  padding-top: calc(
-    env(safe-area-inset-top) + var(--m-keyboard-viewport-offset-top)
-  );
   padding-bottom: calc(
     var(--m-unified-bar-height) + 14px + var(--m-unified-keyboard-inset)
   );
@@ -2047,9 +2044,16 @@
 }
 
 .m-workspace .editor-scroll {
+  box-sizing: border-box;
+  padding-top: 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+
+.m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
+  .editor-scroll {
+  padding-top: var(--m-editor-top-scroll-reserve);
 }
 
 .m-workspace:not([data-reveal='focused']) .m-paper-deck__content,

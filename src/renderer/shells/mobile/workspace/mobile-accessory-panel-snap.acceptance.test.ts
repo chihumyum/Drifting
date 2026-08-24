@@ -11,6 +11,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
   it('uses persistent Back to collapse formatting and shows Format only at navigation level', () => {
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const backRequest = source('shells/mobile/workspace/mobile-workspace-back.ts');
     const controller = source('shells/mobile/workspace/mobile-workspace-controller.ts');
     const styles = document('src/styles/mobile-workspace.css');
 
@@ -18,16 +19,18 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(accessory).toMatch(/\{mode === 'navigation' && \([\s\S]*?mobile-toggle-formatting/u);
     expect(accessory).toMatch(/<span\s+role="button"[\s\S]*?className="m-editor-accessory__toggle"/u);
     expect(accessory).not.toMatch(/<button[\s\S]{0,160}m-editor-accessory__toggle/u);
-    expect(accessory).toContain('editor.view.focus();');
-    expect(accessory).toContain('queueMicrotask(refocusEditor);');
+    expect(accessory).not.toContain('editor.view.focus();');
+    expect(accessory).not.toContain('queueMicrotask(refocusEditor);');
     expect(accessory).toContain('onPointerUp={toggle}');
     expect(accessory).toContain('onClick={handleToggleClick}');
     expect(bar.match(/data-debug-id="mobile-unified-back"/g)).toHaveLength(2);
     expect(bar).toContain('backPreservesEditorFocus');
+    expect(bar).toContain("preflightDom: projection.mode !== 'edit'");
+    expect(backRequest).toContain('if (preflightDom)');
     expect(controller).toContain("return resolution('editor-accessory'");
+    expect(controller).toContain("paperMode: { kind: 'edit', accessory: 'navigation' }");
     expect(styles).toMatch(/\.m-editor-accessory__toggle \{[\s\S]*?touch-action: none;/u);
-    expect(bar).toContain("{projection.mode === 'edit' && (");
-    expect(bar).toContain('data-debug-id="mobile-dismiss-keyboard"');
+    expect(bar).not.toContain('data-debug-id="mobile-dismiss-keyboard"');
   });
 
   it('uses one 144px close snap zone for top and bottom panel handles', () => {
@@ -47,7 +50,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
       'docs/qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md',
     );
 
-    expect(editing).toContain('right-side down Chevron stays');
+    expect(editing).toContain('keyboard-dismiss Chevron.');
     expect(panels).toContain('Releases at 144 CSS pixels');
     expect(evidence).toContain('No Simulator, emulator, native build');
     expect(evidence).toContain('physical-device acceptance is user-owned and pending');

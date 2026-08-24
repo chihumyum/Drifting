@@ -43,7 +43,7 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
 
     expect(controller).toContain('edit mode requires a visible software keyboard');
-    expect(controller).toContain("accessory: 'formatting'");
+    expect(controller).toContain("paperMode: { kind: 'edit', accessory: 'navigation' }");
     expect(controller).toContain("keyboard: 'open'");
     expect(controller).not.toContain('editing and a context panel are mutually exclusive');
     expect(accessory).toContain('const editing = editorFocused && softwareKeyboardVisible');
@@ -67,10 +67,11 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(accessory).toContain('onPointerDown={keepEditorFocused}');
     expect(accessory).toContain('onPointerUp={toggle}');
     expect(accessory).toContain('onClick={handleToggleClick}');
-    expect(accessory).toContain('editor.view.focus();');
+    expect(accessory).not.toContain('editor.view.focus();');
     expect(accessory).toContain('role="button"');
     expect(bar).toContain('backPreservesEditorFocus');
-    expect(bar).toContain("requestMobileWorkspaceBack('visible')");
+    expect(bar).toContain("requestMobileWorkspaceBack('visible', {");
+    expect(bar).not.toContain('data-debug-id="mobile-dismiss-keyboard"');
     expect(accessory).not.toContain('keepEditorFocused(event, toggle)');
     expect(sheet).not.toContain('MobileFormattingSheetContent');
     expect(deck).not.toContain("sheet: 'formatting'");

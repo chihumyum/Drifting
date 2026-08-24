@@ -79,11 +79,13 @@ snapshots, and mobile session persistence.
 Visible back controls, keyboard Escape, Super View layers, and Android
 hardware Back share `MOBILE_WORKSPACE_BACK_EVENT`.
 
-Before dispatching that request, the bridge sends a tagged synthetic Escape to
-the active DOM owner. Existing dialogs and portaled popovers can therefore
-consume their own topmost layer first. The workspace and Super View listeners
-ignore that tagged preflight and then resolve the shared typed request exactly
-once.
+Before an ordinary request, the bridge sends a tagged synthetic Escape to the
+active DOM owner. Existing dialogs and portaled popovers can therefore consume
+their own topmost layer first. Any editor-owned visible Back explicitly skips
+this DOM preflight: the typed resolver itself decides whether to collapse
+formatting or blur the editor. ProseMirror must not receive an extra synthetic
+Escape. The workspace and Super View listeners ignore tagged preflights and
+resolve the shared typed request exactly once.
 
 The mounted Super View escape stack receives the request before the workspace
 root. While a Super View is active, the workspace hook refuses to close it;
@@ -106,7 +108,7 @@ needed by that existing plugin.
 
 - whether the future bar is visible;
 - read, edit, Search, or Agent-input mode;
-- disabled, Back, or keyboard-dismiss action;
+- persistent Back action;
 - safe-bottom or above-bottom-panel placement.
 
 M3 renders that projection in one 56px `MobileUnifiedBar`; the 2026-08-24

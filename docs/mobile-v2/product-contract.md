@@ -169,20 +169,21 @@ Overview owns its own header and hides the unified bar.
 - Edit state exists only while the live editor is focused and a software
   keyboard is visibly open. Caret-less, keyboard-less pseudo-edit states are
   illegal.
-- On edit entry, formatting is already the active second-level presentation:
-  one horizontally scrollable icon row inside the accessory. It is never a
-  Sheet. A persistent leftmost Back control replaces the Format label while
-  this row is expanded; Back collapses only this level and keeps the caret and
-  keyboard. The collapsed level shows the black Format label alongside the
-  complete paper-context/count/Search/menu presentation. Pressing that label
-  restores formatting and hides the label again. A further Back exits editing;
-  Back at the read-paper root returns to Project Home. The right-side down
-  Chevron remains available in both edit levels and directly dismisses the
-  keyboard.
+- Edit entry starts at the navigation accessory level, which shows the black
+  Format label alongside the complete paper-context/count/Search/menu
+  presentation. Read mode keeps the paper entrances but never shows Format.
+  Pressing Format opens one horizontally scrollable icon row and hides the
+  label; it never opens a Sheet. Editor-owned Back never sends a synthetic
+  Escape. Persistent leftmost Back collapses the formatting level without
+  moving focus or closing the keyboard. Back from the
+  edit navigation level exits editing and closes the keyboard; Back at the
+  read-paper root returns to Project Home. There is no separate right-side
+  keyboard-dismiss control.
 - When the software keyboard pans an iOS `visualViewport`, its positive
-  `offsetTop` becomes leading space in the editor viewport. The paper folio at
-  document start must remain reachable at `scrollTop=0`; bottom keyboard inset
-  alone is not sufficient.
+  `offsetTop` becomes scrollable leading reserve inside `.editor-scroll`.
+  Applying or removing it shifts `scrollTop` by the same delta before paint,
+  preserving WebKit's automatic caret pan while making the document-start folio
+  reachable. It must never become outer paper-deck padding.
 - The keyboard accessory, structure panel, and tool panel have independent
   ownership. An already-open panel does not suppress the accessory above the
   software keyboard.

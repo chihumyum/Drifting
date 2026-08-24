@@ -1,10 +1,10 @@
 # Mobile V2 editor scroll range and persistent Back — device handoff — 2026-08-25
 
-Status: **implementation complete; physical-device acceptance is user-owned and pending**
+Status: **corrective implementation complete; physical-device acceptance is user-owned and pending**
 
 ## Evidence boundary
 
-- Baseline commit: `24eb1b7e00df8e4dbfe678eeddce6cddcbef44f5`.
+- Corrected baseline commit: `b861428a95f231ed7fd60f84a624c42140646c88`.
 - No Simulator, emulator, native build, or renderer-bridge interaction is part
   of this follow-up.
 - Automated evidence covers pure viewport geometry, reducer hierarchy, source
@@ -20,10 +20,14 @@ below layout-viewport zero while its bottom inset becomes zero. In that state,
 `scrollTop=0` still placed the chapter/storyline/word-count folio above the
 author-visible screen, which looked like an artificially short scroll range.
 
-The repair publishes the keyboard-visible visual-viewport top offset as a
-separate CSS variable and adds it to the paper deck's leading padding. It is
-zero when no software keyboard is visible and is independent from the bottom
-keyboard inset used by the floating bar.
+The first repair incorrectly added the offset to outer paper-deck padding. That
+visually cancelled WebKit's automatic caret-preserving pan on edit entry.
+
+The correction puts the offset inside the actual `.editor-scroll` owner as
+scrollable top reserve. Whenever the reserve changes, `scrollTop` moves by the
+same delta in a layout effect. The current document position therefore does not
+jump, while scrolling to the physical start can consume the reserve and expose
+the folio. Persisted paper scroll memory excludes this keyboard-only distance.
 
 ## Required physical-device matrix
 
@@ -33,17 +37,17 @@ keyboard inset used by the floating bar.
    fully visible and must not remain trapped above the screen.
 3. Continue typing, scroll down and back to the start, and confirm that neither
    the caret nor the keyboard disappears unexpectedly.
-4. Enter edit mode. The leftmost Back control is visible, the full horizontal
-   formatting row is expanded, and no black Format label is present.
-5. Tap Back once. Only formatting collapses; caret, selection, and keyboard
-   remain. The black Format label and paper-context/count/Search/menu entries
-   appear.
-6. Tap the black Format label. Formatting expands, the label disappears, and
+4. Enter edit mode. The black Format label and the normal paper entrances are
+   visible; formatting is not expanded automatically. In read mode, Format is
+   absent.
+5. Tap the black Format label. Formatting expands, the label disappears, and
    the editor remains focused.
-7. From collapsed edit navigation, tap Back again. Editing ends and the paper
+6. Tap Back once. Only formatting collapses; caret, selection, and keyboard
+   remain. Editor-owned Back sends no synthetic Escape to ProseMirror.
+7. From edit navigation, tap Back again. Editing ends and the paper
    remains in read state. From the read paper, tap Back and confirm navigation
    to Project Home.
-8. At either edit level, the right Chevron directly dismisses the keyboard.
+8. Confirm there is no separate right-side keyboard-dismiss Chevron.
 9. Enter Search and confirm the same leftmost Back control exits Search before
    any paper or Project navigation.
 
@@ -54,9 +58,9 @@ keyboard inset used by the floating bar.
 - `pnpm typecheck`: passed.
 - `pnpm agent:capabilities:check`: passed, including 18 capability tests.
 - `pnpm exec vitest run --maxWorkers=4`: 321 files passed, 1 skipped;
-  1,857 tests passed, 1 skipped.
+  1,859 tests passed, 1 skipped.
 - `pnpm exec vite build`: passed with 3,687 modules transformed.
-- `git diff --check`: passed for the isolated milestone patch.
+- `git diff --check`: passed for the isolated corrective patch.
 
 ## Storage and cleanup
 

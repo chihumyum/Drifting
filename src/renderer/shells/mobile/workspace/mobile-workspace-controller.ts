@@ -268,7 +268,7 @@ export function mobileWorkspaceReducer(
       }
       return checked({
         ...state,
-        paperMode: { kind: 'edit', accessory: 'formatting' },
+        paperMode: { kind: 'edit', accessory: 'navigation' },
         keyboard: 'open',
       });
     case 'set-editor-accessory':

@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -221,33 +220,18 @@ export function MobileEditorAccessory({
     return () => window.clearTimeout(timer);
   }, [editor, editorFocused, softwareKeyboardVisible]);
 
-  const refocusEditor = useCallback(() => {
-    if (!editor || editor.isDestroyed) return;
-    // EditorView.focus() preserves the current ProseMirror selection. Keeping
-    // this inside the trusted pointer activation also keeps the iOS IME lease.
-    editor.view.focus();
-  }, [editor]);
-  const keepEditorFocused = useCallback(
-    (event: ReactPointerEvent<HTMLElement>) => {
-      // The Format label is intentionally not a native form control. Consume
-      // the pointer before WebKit can move focus and renew the editor focus
-      // lease without changing the accessory level until pointerup.
-      event.preventDefault();
-      event.stopPropagation();
-      refocusEditor();
-    },
-    [refocusEditor],
-  );
+  const keepEditorFocused = (event: ReactPointerEvent<HTMLElement>) => {
+    // The Format label is intentionally not a native form control. Consuming
+    // pointerdown keeps ProseMirror as the DOM focus owner without asking
+    // WebKit to focus it again and potentially repan the visual viewport.
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   if (!active || !editing || !editor || editor.isDestroyed) return null;
 
   const openFormatting = () => {
-    refocusEditor();
     onModeChange?.('formatting');
-    // React commits the sibling-row swap after the pointer handler. Renew focus
-    // once more after that commit so layout replacement cannot strand focus on
-    // body and trigger the editor/keyboard close synchronizer.
-    queueMicrotask(refocusEditor);
   };
   const toggle = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
@@ -260,7 +244,6 @@ export function MobileEditorAccessory({
     // Pointer activation already switched on pointerup. A zero-detail click is
     // the accessibility activation path and must perform the same operation.
     if (event.detail === 0) openFormatting();
-    else refocusEditor();
   };
   const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
     event.preventDefault();
