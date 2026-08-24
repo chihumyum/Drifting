@@ -69,7 +69,8 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(accessory).toContain('onClick={handleToggleClick}');
     expect(accessory).not.toContain('editor.view.focus();');
     expect(accessory).toContain('role="button"');
-    expect(bar).toContain('backPreservesEditorFocus');
+    expect(bar).toContain('backPreservesFocusUntilResolution');
+    expect(bar).toContain("projection.mode === 'edit' || projection.mode === 'search'");
     expect(bar).toContain("requestMobileWorkspaceBack('visible', {");
     expect(bar).not.toContain('data-debug-id="mobile-dismiss-keyboard"');
     expect(accessory).not.toContain('keepEditorFocused(event, toggle)');
