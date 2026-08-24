@@ -1,20 +1,17 @@
-# Mobile search focus regression
+# 移动端搜索焦点与滚动回归
 
-Status: source repair complete; physical-device verification pending.
+状态：待修复，需真机复现与验收。
 
-The regression had three coupled symptoms: Back from edit-owned Search fell to
-read mode, deleting the final query character restored selected prose, and
-Previous/Next dismissed the software keyboard.
+## 问题
 
-The required behavior is:
+1. 从编辑态进入搜索态并聚焦搜索输入框后，点击附件栏返回会收起键盘。正确行为应是退出搜索态、恢复此前的编辑态，并保持键盘与正文编辑焦点连续。
+2. 搜索没有匹配项时，点击上一个或下一个按钮会使搜索输入框失焦并收起键盘。
+3. 搜索存在多个匹配项时，快速连续点击上一个或下一个也会使输入框失焦；慢速点击不一定出现。结果切换不应改变搜索输入框焦点或键盘状态。
+4. 在搜索态手动聚焦正文、使搜索框失焦后，再点击附件栏返回虽然不会收起键盘，但会改变页面的垂直位置。
+5. 从编辑态进入或退出搜索态时，正文都会发生可见的垂直位移。搜索状态切换不应修改或补偿正文滚动坐标。
 
-- read -> Search -> Back returns to read and closes the keyboard;
-- edit -> Search -> Back restores edit navigation, selection, caret, and the
-  already-open keyboard;
-- clearing the query leaves it empty;
-- Previous/Next changes only the highlighted match and paper scroll position;
-  it never focuses ProseMirror or dismisses the search keyboard.
+## 交互边界
 
-Deterministic coverage lives in `mobile-workspace-controller.test.ts`,
-`mobile-paper-search.test.ts`, and `mobile-v2-editing.acceptance.test.ts`.
-Real iOS focus transfer and IME continuity remain user-owned device checks.
+- 搜索态附件栏中的结果切换及其他非返回操作不得触发 `blur`。
+- 从编辑态进入的搜索必须记住编辑态来源；返回时恢复编辑态，而不是先关闭键盘或降级到阅读态。
+- 搜索态切换与返回不得改变正文的垂直滚动位置。
