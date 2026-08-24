@@ -247,9 +247,11 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
   const handleOpen = useCallback(
     (id: string) => {
-      navigate(`/project/${id}`);
+      navigate(`/project/${id}`, {
+        state: presentation === 'desktop' ? { projectEntry: 'resume-last-content' } : null,
+      });
     },
-    [navigate],
+    [navigate, presentation],
   );
 
   const handleCreate = useCallback(

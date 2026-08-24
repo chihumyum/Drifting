@@ -19,6 +19,7 @@ import {
 interface MobileWorkspaceBackOptions {
   state: MobileWorkspaceUiState;
   dispatch: Dispatch<MobileWorkspaceAction>;
+  onShowProjectHome: () => void;
   onLeaveProject: () => void;
 }
 
@@ -60,13 +61,14 @@ function subscribeAndroidHardwareBack(callback: () => void): () => void {
 export function useMobileWorkspaceBack({
   state,
   dispatch,
+  onShowProjectHome,
   onLeaveProject,
 }: MobileWorkspaceBackOptions): void {
-  const latestRef = useRef({ state, dispatch, onLeaveProject });
+  const latestRef = useRef({ state, dispatch, onShowProjectHome, onLeaveProject });
 
   useLayoutEffect(() => {
-    latestRef.current = { state, dispatch, onLeaveProject };
-  }, [dispatch, onLeaveProject, state]);
+    latestRef.current = { state, dispatch, onShowProjectHome, onLeaveProject };
+  }, [dispatch, onLeaveProject, onShowProjectHome, state]);
 
   useEffect(() => {
     const apply = (source: MobileBackSource): boolean => {
@@ -80,6 +82,7 @@ export function useMobileWorkspaceBack({
         latest.dispatch({ type: 'replace', state: resolved.nextState });
       }
       if (resolved.effect === 'blur-editor') getActiveEditor()?.commands.blur();
+      if (resolved.effect === 'navigate-project-home') latest.onShowProjectHome();
       if (resolved.effect === 'leave-project') latest.onLeaveProject();
       return true;
     };

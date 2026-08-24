@@ -83,7 +83,7 @@ The `+` command sits immediately after the rendered tabs inside the horizontal
 tab strip, including when the list is empty, rather than occupying a detached
 right-edge command slot.
 
-Opening the draft navigates the desktop shell to the bare project URL and makes
+Opening the draft navigates the desktop shell to `/project/:projectId/new` and makes
 `focusedLeafOf` return `null`, so URL mirroring, the right sidebar, status
 consumers, and split actions behave as though no entity is focused. A later
 entity/deep-link navigation leaves the draft in the list but moves focus away.
@@ -101,6 +101,25 @@ the draft is still active, so an async completion cannot steal focus from a tab
 the user selected meanwhile. Failure leaves the same draft and error available
 for retry. This surface is desktop-only; mobile creation design remains
 independent and unchanged.
+
+## Project Home authority
+
+`/project/:projectId` is the cross-platform Project Home. Home is shell state,
+not a `WorkspaceTarget`: it never enters desktop tabs, splits, previews, or the
+mobile paper session. Shared features return through
+`WorkspaceNavigator.showProjectHome()`; content navigation remains expressed as
+a typed `WorkspaceTarget`. The legacy `/project/:projectId/home` URL redirects
+to the project root.
+
+Desktop represents Home as `activeTabKey === null` while retaining background
+tabs and `lastActiveContentTabKey`. Opening an existing project from the desktop
+shelf may consume a one-shot `resume-last-content` history marker after runtime
+projection pruning; direct root navigation remains authoritative Home. Mobile
+always enters a project at Home. Its controller owns a distinct
+`project-home` surface, while its persisted `papers` contain only real content.
+Mobile Back unwinds paper to Home and Home to the shelf. UI-storage v4 and
+mobile-session v2 remove the former `dashboard:self` tab/paper without touching
+SQLite, Yjs, or sync state.
 
 ## Shared interaction contracts
 
@@ -174,7 +193,8 @@ pnpm exec vitest run \
   src/renderer/components/ui/EntityCardPopoverShell.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
   src/renderer/shells/desktop/entity-create/desktop-universal-create.test.ts \
-  src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts
+  src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts \
+  src/renderer/app/project-home.acceptance.test.ts
 pnpm exec vite build
 ```
 

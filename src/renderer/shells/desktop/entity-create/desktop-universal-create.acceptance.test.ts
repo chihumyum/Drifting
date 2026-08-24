@@ -31,7 +31,7 @@ describe('desktop universal create acceptance', () => {
       topTimeline.indexOf('{openTabs.map((tab, index) => {'),
     );
     expect(topTimeline).toContain('openCreateTab(projectId);');
-    expect(topTimeline).toContain('navigate(`/project/${projectId}`);');
+    expect(topTimeline).toContain('navigate(`/project/${projectId}/new`);');
     expect(topTimeline).not.toContain('aria-pressed={openTabs.some');
     expect(controls).not.toContain('.top-timeline-create-button:hover');
     expect(controls).toContain('background: transparent;');
@@ -64,6 +64,18 @@ describe('desktop universal create acceptance', () => {
     expect(command).toContain('services.createElement({');
     expect(command).toContain('services.createCategory()');
     expect(command).not.toContain('createGroup');
+  });
+
+  it('preserves the Home-to-create transition when the tab store renders before the router', () => {
+    const routeSync = source(
+      'src/renderer/components/editor/useSyncSplitFocusedUrl.ts',
+    );
+
+    expect(routeSync).toContain('isCreateActivationFromProjectHome({');
+    expect(routeSync).toContain('previousActiveTabKey !== activeTabKey');
+    expect(routeSync.indexOf('isCreateActivationFromProjectHome({')).toBeLessThan(
+      routeSync.indexOf('useUiStore.getState().setActiveTab(projectId, null);'),
+    );
   });
 
   it('documents session-only persistence, navigation, and replacement semantics', () => {

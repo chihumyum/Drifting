@@ -28,8 +28,10 @@ describe('mobile standalone routes', () => {
     const mobileWorkspace = rendererSource('shells/mobile/MobileAppShell.tsx');
     expect(mobileWorkspace).toContain('<ProjectRuntimeProvider');
     expect(mobileWorkspace).toContain('<WorkspaceNavigationProvider navigator={mobileNavigator}>');
+    expect(mobileWorkspace).toContain('<MobileProjectHome');
     expect(mobileWorkspace).toContain('<MobilePaperDeck');
-    expect(mobileWorkspace).toContain("openPaper({ entityType: 'dashboard', id: 'self' })");
+    expect(mobileWorkspace).toContain("dispatchWorkspaceUi({ type: 'show-project-home' })");
+    expect(mobileWorkspace).not.toContain("entityType: 'dashboard'");
     expect(mobileWorkspace).not.toContain('firstChapter');
     expect(mobileWorkspace).toContain('freezeLiveMobilePaperContent(active)');
     expect(mobileWorkspace).toContain('<MobileProjectTrashView');

@@ -37,8 +37,8 @@ describe('mobile paper prose snapshot', () => {
   it('does not invent a snapshot when the paper has no live editor', () => {
     expect(
       freezeLiveMobilePaperContent({
-        key: 'dashboard:self',
-        target: { entityType: 'dashboard', id: 'self' },
+        key: 'category:missing',
+        target: { entityType: 'category', id: 'missing' },
         scrollTop: 0,
       }),
     ).toBeUndefined();

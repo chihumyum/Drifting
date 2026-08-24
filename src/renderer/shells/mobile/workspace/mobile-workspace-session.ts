@@ -31,7 +31,6 @@ const WORKSPACE_ENTITY_TYPES = new Set<WorkspaceTarget['entityType']>([
   'storyline',
   'element',
   'category',
-  'dashboard',
   'all-chapters',
 ]);
 

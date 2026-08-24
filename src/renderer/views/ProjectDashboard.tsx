@@ -105,7 +105,11 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
   );
 }
 
-export function ProjectDashboard() {
+export interface ProjectDashboardProps {
+  onOpenProjectView?: (view: 'graph' | 'element' | 'memo-material') => void;
+}
+
+export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = {}) {
   const { t, i18n } = useTranslation();
   const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
@@ -348,8 +352,10 @@ export function ProjectDashboard() {
     }
   };
 
-  const openStoryGraph = () => setActiveSuperView('graph');
-  const openElementOverview = () => setActiveSuperView('element');
+  const openStoryGraph = () =>
+    onOpenProjectView ? onOpenProjectView('graph') : setActiveSuperView('graph');
+  const openElementOverview = () =>
+    onOpenProjectView ? onOpenProjectView('element') : setActiveSuperView('element');
   const openAllChapters = () => navigateToAllChapters();
 
   const todayDateLabel = new Date().toLocaleDateString(i18n.language, {

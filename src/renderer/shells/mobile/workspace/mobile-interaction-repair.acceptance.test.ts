@@ -22,15 +22,16 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(evidence).toContain('20 files, 105 tests passed');
   });
 
-  it('keeps the Dashboard in the ordinary paper rail and permits card-origin swipes', () => {
+  it('keeps Project Home outside the paper rail and preserves paper swipe exclusions', () => {
     const session = source('shells/mobile/workspace/mobile-workspace-session.ts');
     const hook = source('shells/mobile/workspace/useMobileWorkspaceSession.ts');
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const swipe = source('shells/mobile/workspace/mobile-paper-swipe.ts');
 
-    expect(session).toContain("case 'ensure'");
-    expect(hook).toContain("target: { entityType: 'dashboard', id: 'self' }");
-    expect(deck).toContain("active?.target.entityType === 'dashboard'");
+    expect(session).not.toContain("'dashboard',");
+    expect(hook).not.toContain("entityType: 'dashboard'");
+    expect(deck).toContain('mobilePaperSwipeTargetIsExcluded(');
+    expect(deck).toContain('false,');
     expect(swipe).toContain('allowInteractiveStart ? ALWAYS_EXCLUDED_SELECTOR');
     expect(swipe).toContain("'input'");
     expect(swipe).toContain("'textarea'");

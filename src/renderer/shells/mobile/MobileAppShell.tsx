@@ -13,6 +13,7 @@ import { MobilePaperDeck } from './workspace/MobilePaperDeck';
 import { MobileTabOverview } from './workspace/MobileTabOverview';
 import { MobileSuperViewHost } from './workspace/MobileSuperViewHost';
 import { MobileProjectTrashView } from './workspace/MobileProjectTrashView';
+import { MobileProjectHome } from './workspace/MobileProjectHome';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
 import { requestMobileWorkspaceBack } from './workspace/mobile-workspace-back';
@@ -51,14 +52,25 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const [frozenProseByKey, setFrozenProseByKey] = useState<Record<string, string>>({});
   const [projectSearchQuery, setProjectSearchQuery] = useState<string | null>(null);
   const superViewReturnPointRef = useRef<MobileSuperViewReturnPoint | null>(null);
+  const freezeActivePaperRef = useRef<(() => string | undefined) | null>(null);
   const [lastSuperViewRestoreStatus, setLastSuperViewRestoreStatus] = useState<
     'none' | 'preserved' | 'changed'
   >('none');
   const leaveProject = useCallback(() => navigate('/', { replace: true }), [navigate]);
 
+  const showProjectHome = useCallback(
+    (replace = false) => {
+      freezeActivePaperRef.current?.();
+      dispatchWorkspaceUi({ type: 'show-project-home' });
+      navigate(`/project/${projectId}`, { replace });
+    },
+    [navigate, projectId],
+  );
+
   useMobileWorkspaceBack({
     state: workspaceUi,
     dispatch: dispatchWorkspaceUi,
+    onShowProjectHome: () => showProjectHome(false),
     onLeaveProject: leaveProject,
   });
 
@@ -101,6 +113,9 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
     );
     return contentJson;
   }, [state.activeKey, state.papers]);
+  useEffect(() => {
+    freezeActivePaperRef.current = freezeActivePaper;
+  }, [freezeActivePaper]);
 
   const openPaper = useCallback(
     (target: WorkspaceTarget) => {
@@ -117,12 +132,20 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
     [activate, freezeActivePaper],
   );
   const mobileNavigator = useMemo(
-    () => ({ ...navigator, open: openPaper, activate: activatePaper }),
-    [activatePaper, navigator, openPaper],
+    () => ({
+      ...navigator,
+      open: openPaper,
+      activate: activatePaper,
+      showProjectHome: (options?: { replace?: boolean }) =>
+        showProjectHome(options?.replace ?? false),
+    }),
+    [activatePaper, navigator, openPaper, showProjectHome],
   );
   const closePaper = useCallback(
     (key: string) => {
+      const closesLastPaper = state.papers.length === 1 && state.papers[0]?.key === key;
       close(key);
+      if (closesLastPaper) dispatchWorkspaceUi({ type: 'show-project-home' });
       setFrozenProseByKey((current) => {
         if (!(key in current)) return current;
         const next = { ...current };
@@ -130,7 +153,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         return next;
       });
     },
-    [close],
+    [close, state.papers],
   );
   const clearPapers = useCallback(() => {
     clear();
@@ -138,18 +161,28 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   }, [clear]);
 
   useEffect(() => {
-    if (state.papers.length > 0) return;
-    if (workspaceTargetFromPathname(projectId, location.pathname)) return;
-    const timer = window.setTimeout(() => openPaper({ entityType: 'dashboard', id: 'self' }), 0);
-    return () => window.clearTimeout(timer);
-  }, [location.pathname, openPaper, projectId, state.papers.length]);
+    const root = `/project/${projectId}`;
+    if (location.pathname === `${root}/home`) {
+      dispatchWorkspaceUi({ type: 'show-project-home' });
+      navigate(root, { replace: true });
+      return;
+    }
+    const target = workspaceTargetFromPathname(projectId, location.pathname);
+    if (target) {
+      dispatchWorkspaceUi({ type: 'show-paper' });
+      return;
+    }
+    if (location.pathname === root || location.pathname === `${root}/`) {
+      dispatchWorkspaceUi({ type: 'show-project-home' });
+    }
+  }, [location.pathname, navigate, projectId]);
 
   const activeSuperView =
     workspaceUi.surface.kind === 'super-view' ? workspaceUi.surface.view : null;
   const setSuperView = useCallback(
     (view: MobileSuperViewId | null) => {
       if (view) {
-        if (activeSuperView === null) {
+        if (activeSuperView === null && workspaceUi.surface.kind === 'paper') {
           const liveScrollTop = readActivePaperScrollTop();
           if (state.activeKey && liveScrollTop !== undefined) {
             rememberScroll(state.activeKey, liveScrollTop);
@@ -162,12 +195,24 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             liveScrollTop,
           );
           setLastSuperViewRestoreStatus('none');
+        } else if (activeSuperView === null) {
+          superViewReturnPointRef.current = null;
+          setLastSuperViewRestoreStatus('none');
         }
         dispatchWorkspaceUi({ type: 'show-super-view', view });
         return;
       }
 
+      const returnTo =
+        workspaceUi.surface.kind === 'super-view'
+          ? workspaceUi.surface.returnTo
+          : 'paper';
       const returnPoint = superViewReturnPointRef.current;
+      if (returnTo === 'project-home') {
+        superViewReturnPointRef.current = null;
+        dispatchWorkspaceUi({ type: 'show-project-home' });
+        return;
+      }
       const liveScrollTop = readActivePaperScrollTop();
       if (state.activeKey && liveScrollTop !== undefined) {
         rememberScroll(state.activeKey, liveScrollTop);
@@ -186,16 +231,34 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
       }
       superViewReturnPointRef.current = null;
       dispatchWorkspaceUi({ type: 'show-paper' });
-    }, [activeSuperView, freezeActivePaper, location, rememberScroll, state],
+    }, [activeSuperView, freezeActivePaper, location, rememberScroll, state, workspaceUi.surface],
   );
 
   const overviewOpen = workspaceUi.surface.kind === 'overview';
   const trashOpen =
     workspaceUi.transient.kind === 'dialog' &&
     workspaceUi.transient.dialog === 'project-trash';
+  const activePaper = state.papers.find((paper) => paper.key === state.activeKey) ?? null;
 
   return (
     <WorkspaceNavigationProvider navigator={mobileNavigator}>
+      {workspaceUi.surface.kind === 'project-home' && (
+        <MobileProjectHome
+          activePaper={activePaper}
+          paperCount={state.papers.length}
+          onBackToShelf={leaveProject}
+          onContinuePaper={() => {
+            if (!activePaper) return;
+            activatePaper(activePaper.target);
+            dispatchWorkspaceUi({ type: 'show-paper' });
+          }}
+          onOpenOverview={() => {
+            setProjectSearchQuery(null);
+            dispatchWorkspaceUi({ type: 'show-overview' });
+          }}
+          onOpenProjectView={(view) => setSuperView(view)}
+        />
+      )}
       <MobilePaperDeck
         projectId={projectId}
         session={state}
@@ -232,7 +295,10 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             dispatchWorkspaceUi({ type: 'show-paper' });
           }}
           onClosePaper={closePaper}
-          onCloseAll={clearPapers}
+          onCloseAll={() => {
+            clearPapers();
+            dispatchWorkspaceUi({ type: 'show-project-home' });
+          }}
           onReorder={reorder}
           onOpenSuperView={setSuperView}
           onOpenAllChapters={() => {

@@ -1,5 +1,10 @@
 import type { WorkspaceTarget } from './workspace-target';
 
+export function isProjectHomePathname(projectId: string, pathname: string): boolean {
+  const root = `/project/${projectId}`;
+  return pathname === root || pathname === `${root}/`;
+}
+
 export function workspaceUrlFor(projectId: string, target: WorkspaceTarget): string | null {
   switch (target.entityType) {
     case 'node':
@@ -10,8 +15,6 @@ export function workspaceUrlFor(projectId: string, target: WorkspaceTarget): str
       return `/project/${projectId}/element/${target.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(target.id)}`;
-    case 'dashboard':
-      return `/project/${projectId}/home`;
     case 'all-chapters':
       return `/project/${projectId}/editor/all`;
     default:
@@ -26,7 +29,6 @@ export function workspaceTargetFromPathname(
   const root = `/project/${projectId}`;
   if (!pathname.startsWith(root)) return null;
   const rest = pathname.slice(root.length).replace(/^\/+|\/+$/g, '');
-  if (rest === 'home') return { entityType: 'dashboard', id: 'self' };
   if (rest === 'editor/all') return { entityType: 'all-chapters', id: 'self' };
   if (rest.startsWith('editor/storyline/')) {
     return {

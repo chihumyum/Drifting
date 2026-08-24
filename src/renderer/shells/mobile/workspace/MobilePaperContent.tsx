@@ -8,7 +8,6 @@ import { StorylineEditorView } from '../../../views/StorylineEditorView';
 import { ElementEditorView } from '../../../views/ElementEditorView';
 import { CategoryEditorView } from '../../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../../views/AllChaptersEditorView';
-import { ProjectDashboard } from '../../../views/ProjectDashboard';
 
 export interface MobilePaperPresentation {
   title: string;
@@ -67,12 +66,6 @@ export function useMobilePaperPresentation(target: WorkspaceTarget): MobilePaper
           kicker: t('topTimeline.tabs.allChapters', { defaultValue: '通览全书' }),
           preview: t('rightSidebar.kickers.allChapters'),
         };
-      case 'dashboard':
-        return {
-          title: t('rightSidebar.targets.dashboard'),
-          kicker: 'Drifting',
-          preview: t('dashboard.subtitle', { defaultValue: '项目概览' }),
-        };
     }
   }, [bookElementCategories, bookElements, bookNodes, storylines, t, target]);
 }
@@ -89,7 +82,5 @@ export function MobilePaperContent({ target }: { target: WorkspaceTarget }) {
       return <CategoryEditorView key={target.id} categoryIdOverride={target.id} />;
     case 'all-chapters':
       return <AllChaptersEditorView />;
-    case 'dashboard':
-      return <ProjectDashboard />;
   }
 }

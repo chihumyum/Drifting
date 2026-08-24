@@ -49,6 +49,7 @@ export function useSyncSplitFocusedUrl(): void {
   const setNodeSelection = useUiStore((s) => s.setNodeSelection);
   const setElementSelection = useUiStore((s) => s.setElementSelection);
   const openEntityTab = useUiStore((s) => s.openEntityTab);
+  const activateExistingTarget = useUiStore((s) => s.activateExistingTarget);
   const nodeSelectedId = useUiStore((s) => s.nodeUi.selectedId);
   const nodeSelectedFrom = useUiStore((s) => s.nodeUi.selectedFrom);
   const elementSelectedId = useUiStore((s) => s.elementUi.selectedId);
@@ -70,9 +71,12 @@ export function useSyncSplitFocusedUrl(): void {
     const active = project?.openTabs.find((t) => tabKey(t) === project.activeTabKey);
     const focused = active ? focusedLeafOf(active) : null;
     if (focused?.entityType === 'node' && focused.id === nodeSelectedId) return;
-    openEntityTab(projectId, { entityType: 'node', id: nodeSelectedId }, { preview: true });
+    const target = { entityType: 'node' as const, id: nodeSelectedId };
+    if (!activateExistingTarget(projectId, target)) {
+      openEntityTab(projectId, target, { preview: true });
+    }
     navigate(`/project/${projectId}/editor/${nodeSelectedId}`);
-  }, [nodeSelectedFrom, nodeSelectedId, projectId, openEntityTab, navigate]);
+  }, [activateExistingTarget, nodeSelectedFrom, nodeSelectedId, projectId, openEntityTab, navigate]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -81,9 +85,12 @@ export function useSyncSplitFocusedUrl(): void {
     const active = project?.openTabs.find((t) => tabKey(t) === project.activeTabKey);
     const focused = active ? focusedLeafOf(active) : null;
     if (focused?.entityType === 'element' && focused.id === elementSelectedId) return;
-    openEntityTab(projectId, { entityType: 'element', id: elementSelectedId }, { preview: true });
+    const target = { entityType: 'element' as const, id: elementSelectedId };
+    if (!activateExistingTarget(projectId, target)) {
+      openEntityTab(projectId, target, { preview: true });
+    }
     navigate(`/project/${projectId}/element/${elementSelectedId}`);
-  }, [elementSelectedFrom, elementSelectedId, projectId, openEntityTab, navigate]);
+  }, [activateExistingTarget, elementSelectedFrom, elementSelectedId, projectId, openEntityTab, navigate]);
 
   // Track whether the most recent render came from "tabs were just emptied".
   // Zustand's set() and React Router's setState aren't guaranteed to commit
@@ -96,11 +103,14 @@ export function useSyncSplitFocusedUrl(): void {
   // that stale URL and re-create the tab we just closed, which is the
   // "click X twice to close" bug.
   const prevOpenTabsLenRef = useRef(openTabs.length);
+  const prevActiveTabKeyRef = useRef(activeTabKey);
   const prevFocusedRef = useRef<TabRef | null>(null);
 
   useEffect(() => {
     const prevLen = prevOpenTabsLenRef.current;
+    const previousActiveTabKey = prevActiveTabKeyRef.current;
     prevOpenTabsLenRef.current = openTabs.length;
+    prevActiveTabKeyRef.current = activeTabKey;
     const justEmptied = prevLen > 0 && openTabs.length === 0;
 
     if (!projectId) {
@@ -109,18 +119,29 @@ export function useSyncSplitFocusedUrl(): void {
     }
     const active = openTabs.find((t) => tabKey(t) === activeTabKey);
     const urlEntity = parseEntityFromPath(location.pathname, projectId);
+    const projectRoot = `/project/${projectId}`;
+    const atProjectHome = location.pathname === projectRoot || location.pathname === `${projectRoot}/`;
+    const atCreateRoute = location.pathname === `${projectRoot}/new`;
+    const resumeEntry =
+      (location.state as { projectEntry?: unknown } | null)?.projectEntry ===
+      'resume-last-content';
+
+    if (atProjectHome && resumeEntry) return;
 
     // No active tab and URL points at an entity → open it. This is the
     // "user typed a URL / followed a deep link" path. Skipped on the
     // single render where tabs just dropped to zero — see the ref comment
     // above; otherwise we'd race the URL update and re-spawn the tab.
     if (!active && urlEntity && !justEmptied) {
-      openEntityTab(projectId, urlEntity, { preview: true });
+      if (!activateExistingTarget(projectId, urlEntity)) {
+        openEntityTab(projectId, urlEntity, { preview: true });
+      }
       mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
       prevFocusedRef.current = urlEntity;
       return;
     }
     if (!active) {
+      if (atCreateRoute) navigate(projectRoot, { replace: true });
       // No active tab — the last tab was just closed, or a delete flow
       // emptied the project. Nothing is focused, so clear any lingering
       // node/element selection. Otherwise nodeUi/elementUi.selectedId keeps
@@ -138,18 +159,40 @@ export function useSyncSplitFocusedUrl(): void {
     if (active.kind === 'create') {
       const previousFocused = prevFocusedRef.current;
       if (urlEntity && previousFocused && sameEntity(urlEntity, previousFocused)) {
-        // Activating the transient tab and navigating to the bare project URL
-        // can render in two commits. The old entity URL is stale in that
-        // intermediate frame, so keep the create tab authoritative.
-        navigate(`/project/${projectId}`, { replace: true });
+        navigate(`${projectRoot}/new`, { replace: true });
       } else if (urlEntity) {
         // Back/forward, a deep link, or another entity navigation leaves the
         // draft open but moves focus to the requested real entity.
-        openEntityTab(projectId, urlEntity, { preview: true });
+        if (!activateExistingTarget(projectId, urlEntity)) {
+          openEntityTab(projectId, urlEntity, { preview: true });
+        }
         mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
         prevFocusedRef.current = urlEntity;
         return;
       }
+      if (atProjectHome) {
+        // Opening Universal Create from Home updates the external tab store
+        // and React Router independently. The store notification can render
+        // first, leaving one frame with "newly active create tab + old Home
+        // URL". That is a forward transition, not a request to return Home.
+        // Let the already-requested /new navigation commit; a genuine
+        // browser/history return from /new has create active in both renders
+        // and still clears the active tab below.
+        if (
+          isCreateActivationFromProjectHome({
+            atProjectHome,
+            previousActiveTabKey,
+            activeTabKey,
+          })
+        ) {
+          prevFocusedRef.current = null;
+          return;
+        }
+        useUiStore.getState().setActiveTab(projectId, null);
+        prevFocusedRef.current = null;
+        return;
+      }
+      if (!atCreateRoute) navigate(`${projectRoot}/new`, { replace: true });
       const ui = useUiStore.getState();
       if (ui.nodeUi.selectedId) setNodeSelection(null);
       if (ui.elementUi.selectedId) setElementSelection(null);
@@ -163,21 +206,20 @@ export function useSyncSplitFocusedUrl(): void {
     const focusedChanged =
       prevFocused !== null && !sameEntity(prevFocused, focused);
 
-    // Bare project URL + active tab from persistence → push focused leaf
-    // into the URL. ProjectPickerView navigates to /project/:id (no path)
-    // when opening a project, and after the store rehydrates the tab bar
-    // shows an active tab while the matched index route renders null —
-    // resulting in a white editor surface until the user switches tabs.
-    // The close-last-tab paths also land on bare URL but they leave
-    // openTabs empty, so active is null and we don't reach here.
-    if (!urlEntity) {
-      const expected = expectedPathnameFor(projectId, focused);
-      if (expected && location.pathname !== expected) {
-        navigate(expected, { replace: true });
-        mirrorSelection(focused, setNodeSelection, setElementSelection);
-        prevFocusedRef.current = focused;
-        return;
-      }
+    // The bare project URL is authoritative Project Home. History navigation
+    // can land here while a content tab is still selected, so clear only the
+    // active selection and keep the tab strip/session intact.
+    if (atProjectHome) {
+      useUiStore.getState().setActiveTab(projectId, null);
+      const ui = useUiStore.getState();
+      if (ui.nodeUi.selectedId) setNodeSelection(null);
+      if (ui.elementUi.selectedId) setElementSelection(null);
+      prevFocusedRef.current = null;
+      return;
+    }
+    if (atCreateRoute) {
+      navigate(projectRoot, { replace: true });
+      return;
     }
 
     if (
@@ -227,7 +269,9 @@ export function useSyncSplitFocusedUrl(): void {
           return;
         }
       }
-      openEntityTab(projectId, urlEntity, { preview: true });
+      if (!activateExistingTarget(projectId, urlEntity)) {
+        openEntityTab(projectId, urlEntity, { preview: true });
+      }
       mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
       prevFocusedRef.current = urlEntity;
       return;
@@ -238,14 +282,32 @@ export function useSyncSplitFocusedUrl(): void {
     prevFocusedRef.current = focused;
   }, [
     activeTabKey,
+    activateExistingTarget,
     openTabs,
     location.pathname,
+    location.state,
     projectId,
     openEntityTab,
     navigate,
     setNodeSelection,
     setElementSelection,
   ]);
+}
+
+export function isCreateActivationFromProjectHome({
+  atProjectHome,
+  previousActiveTabKey,
+  activeTabKey,
+}: {
+  atProjectHome: boolean;
+  previousActiveTabKey: string | null;
+  activeTabKey: string | null;
+}): boolean {
+  return (
+    atProjectHome &&
+    activeTabKey !== null &&
+    previousActiveTabKey !== activeTabKey
+  );
 }
 
 function sameEntity(a: TabRef, b: TabRef): boolean {
@@ -260,7 +322,7 @@ function mirrorSelection(
   if (ref.entityType === 'node') setNodeSelection(ref.id, 'system');
   else if (ref.entityType === 'element') setElementSelection(ref.id, 'system');
   else {
-    // dashboard / all-chapters / storyline / category aren't entity
+    // all-chapters / storyline / category aren't entity
     // selections — the left sidebar / timeline listen to nodeUi/elementUi
     // only. Clear any lingering node/element highlight so focusing one of
     // these (e.g. after closing a node tab whose successor is a storyline
@@ -285,8 +347,6 @@ function expectedPathnameFor(projectId: string, ref: TabRef): string | null {
       return `/project/${projectId}/element/${ref.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(ref.id)}`;
-    case 'dashboard':
-      return `/project/${projectId}/home`;
     case 'all-chapters':
       return `/project/${projectId}/editor/all`;
   }
@@ -296,9 +356,6 @@ function expectedPathnameFor(projectId: string, ref: TabRef): string | null {
 // paths that aren't tab-bearing (e.g. /project/p — the bare project URL —
 // or anything that doesn't match an entity route).
 function parseEntityFromPath(pathname: string, projectId: string): TabRef | null {
-  if (pathname === `/project/${projectId}/home`) {
-    return { entityType: 'dashboard', id: SINGLETON_TAB_ID };
-  }
   if (pathname === `/project/${projectId}/editor/all`) {
     return { entityType: 'all-chapters', id: SINGLETON_TAB_ID };
   }

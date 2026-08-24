@@ -30,7 +30,7 @@ export function useDesktopGlobalShortcuts({
 }: DesktopGlobalShortcutOptions) {
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
-  const lastSingletonShortcut = useRef<{ code: 'Digit1' | 'Digit2'; at: number } | null>(null);
+  const lastSingletonShortcut = useRef<{ code: 'Digit2'; at: number } | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -41,7 +41,7 @@ export function useDesktopGlobalShortcuts({
       const toggleSuper = (view: 'graph' | 'element' | 'memo-material') => {
         setActiveSuperView(activeSuperView === view ? 'none' : view);
       };
-      const maybePromote = (code: 'Digit1' | 'Digit2') => {
+      const maybePromote = (code: 'Digit2') => {
         const previous = lastSingletonShortcut.current;
         const now = performance.now();
         if (previous && previous.code === code && now - previous.at <= 500) {
@@ -56,8 +56,7 @@ export function useDesktopGlobalShortcuts({
         case 'Digit1':
           event.preventDefault();
           dismissSuperView();
-          navigator.open({ entityType: 'dashboard', id: SINGLETON_TAB_ID });
-          maybePromote('Digit1');
+          navigator.showProjectHome();
           return;
         case 'Digit2':
           event.preventDefault();
@@ -155,7 +154,7 @@ export function useDesktopGlobalShortcuts({
         const nextTab = project.openTabs[nextIndex];
         if (nextTab.kind === 'create') {
           state.setActiveTab(projectId, { createId: nextTab.id });
-          navigate(`/project/${projectId}`);
+          navigate(`/project/${projectId}/new`);
         } else if (nextTab.kind === 'split') {
           state.setActiveTab(projectId, { splitId: nextTab.id });
           const target = focusedLeafOf(nextTab);

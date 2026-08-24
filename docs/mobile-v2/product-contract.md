@@ -67,7 +67,7 @@ App
         `-- Memo and Material
 ```
 
-Dashboard and all-chapters are ordinary papers. Super Views are independent
+Project Home is a separate project-level surface; all-chapters remains an ordinary paper. Super Views are independent
 full-screen surfaces and must never become papers, tabs, paper cards, paper
 counts, or paper-session entries.
 

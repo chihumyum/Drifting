@@ -15,7 +15,6 @@ export function MobilePaperSearchOwnerMount({ paper }: { paper: MobilePaper | nu
     if (
       !paperKey ||
       entityType === 'all-chapters' ||
-      entityType === 'dashboard' ||
       !editor ||
       editor.isDestroyed
     ) {

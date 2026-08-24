@@ -21,9 +21,6 @@ function statsTarget(
   presentation: ReturnType<typeof useMobilePaperPresentation>,
   data: ReturnType<typeof useDataStore.getState>,
 ): EntityStatsTarget {
-  if (target.entityType === 'dashboard') {
-    return { kind: 'none', id: null, title: presentation.title, kicker: presentation.kicker };
-  }
   if (target.entityType === 'all-chapters') {
     return {
       kind: 'all-chapters',

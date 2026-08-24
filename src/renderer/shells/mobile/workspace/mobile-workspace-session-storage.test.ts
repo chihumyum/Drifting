@@ -56,4 +56,27 @@ describe('mobile workspace restart restoration', () => {
       ),
     ).toBe(false);
   });
+
+  it('migrates the v1 dashboard paper out of the v2 content session', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      'drifting:mobile-workspace:1:project',
+      JSON.stringify({
+        papers: [
+          {
+            key: 'dashboard:self',
+            target: { entityType: 'dashboard', id: 'self' },
+            scrollTop: 0,
+          },
+          { key: 'node:a', target: chapter('a'), scrollTop: 28 },
+        ],
+        activeKey: 'dashboard:self',
+      }),
+    );
+
+    expect(readMobileWorkspaceSession(storage, 'project')).toEqual({
+      papers: [{ key: 'node:a', target: chapter('a'), scrollTop: 28 }],
+      activeKey: 'node:a',
+    });
+  });
 });

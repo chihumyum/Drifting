@@ -21,11 +21,14 @@ function reduce(
   return next;
 }
 
+const paperRoot = () =>
+  mobileWorkspaceReducer(createInitialMobileWorkspaceUiState(), { type: 'show-paper' });
+
 describe('Mobile V2 workspace controller', () => {
-  it('starts at a legal read root', () => {
+  it('starts at the legal Project Home root', () => {
     const state = createInitialMobileWorkspaceUiState();
     expect(state).toEqual({
-      surface: { kind: 'paper' },
+      surface: { kind: 'project-home' },
       paperMode: { kind: 'read' },
       panel: 'none',
       transient: { kind: 'none' },
@@ -36,18 +39,18 @@ describe('Mobile V2 workspace controller', () => {
 
   it('makes Overview and Super Views exclusive surfaces outside the paper session', () => {
     const overview = reduce(createInitialMobileWorkspaceUiState(), { type: 'show-overview' });
-    expect(overview.surface).toEqual({ kind: 'overview' });
+    expect(overview.surface).toEqual({ kind: 'overview', returnTo: 'project-home' });
 
     const superView = reduce(overview, { type: 'show-super-view', view: 'graph' });
     expect(superView).toMatchObject({
-      surface: { kind: 'super-view', view: 'graph' },
+      surface: { kind: 'super-view', view: 'graph', returnTo: 'project-home' },
       panel: 'none',
       transient: { kind: 'none' },
     });
   });
 
   it('keeps the keyboard accessory independent from an existing context panel', () => {
-    let state = reduce(createInitialMobileWorkspaceUiState(), { type: 'sync-editor', editing: true });
+    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
     state = reduce(state, { type: 'set-panel', panel: 'top-full' });
     expect(state).toMatchObject({
       surface: { kind: 'paper' },
@@ -59,7 +62,7 @@ describe('Mobile V2 workspace controller', () => {
   });
 
   it('preserves the owning panel under an entity preview sheet', () => {
-    let state = reduce(createInitialMobileWorkspaceUiState(), {
+    let state = reduce(paperRoot(), {
       type: 'set-panel',
       panel: 'top-docked',
     });
@@ -73,7 +76,7 @@ describe('Mobile V2 workspace controller', () => {
 
   it('rejects impossible combinations with actionable reasons', () => {
     const impossible: MobileWorkspaceUiState = {
-      surface: { kind: 'overview' },
+      surface: { kind: 'overview', returnTo: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'bottom-full',
       transient: { kind: 'search', scope: 'project' },
@@ -182,21 +185,29 @@ describe('Mobile V2 Back priority', () => {
     });
   });
 
-  it('leaves the Project only for Android hardware Back at the read root', () => {
-    const root = createInitialMobileWorkspaceUiState();
-    expect(resolveMobileWorkspaceBack(root, 'visible').handled).toBe(false);
-    expect(resolveMobileWorkspaceBack(root, 'keyboard').handled).toBe(false);
-    expect(resolveMobileWorkspaceBack(root, 'android-hardware')).toMatchObject({
+  it('moves from a paper to Project Home, then from Home to the shelf', () => {
+    const paper = paperRoot();
+    expect(resolveMobileWorkspaceBack(paper, 'visible')).toMatchObject({
+      handled: true,
+      layer: 'paper-root',
+      effect: 'navigate-project-home',
+      nextState: { surface: { kind: 'project-home' } },
+    });
+    const home = createInitialMobileWorkspaceUiState();
+    expect(resolveMobileWorkspaceBack(home, 'android-hardware')).toMatchObject({
       handled: true,
       layer: 'project-root',
       effect: 'leave-project',
     });
   });
 
-  it.each(['overview', 'super-view'] as const)('closes the %s root to the paper', (kind) => {
+  it.each(['overview', 'super-view'] as const)('returns the %s root to its origin', (kind) => {
     const state: MobileWorkspaceUiState = {
-      ...createInitialMobileWorkspaceUiState(),
-      surface: kind === 'overview' ? { kind } : { kind, view: 'element' },
+      ...paperRoot(),
+      surface:
+        kind === 'overview'
+          ? { kind, returnTo: 'paper' }
+          : { kind, view: 'element', returnTo: 'paper' },
     };
     const result = resolveMobileWorkspaceBack(state, 'visible');
     expect(result.layer).toBe(kind);
@@ -206,20 +217,20 @@ describe('Mobile V2 Back priority', () => {
 
 describe('Mobile V2 unified bar projection', () => {
   it('keeps read-root chrome stable while a docked bottom panel moves the pill', () => {
-    const root = createInitialMobileWorkspaceUiState();
+    const root = paperRoot();
     expect(selectMobileUnifiedBarProjection(root)).toEqual({
       visible: true,
       mode: 'read',
-      leftAction: 'disabled',
+      leftAction: 'back',
       placement: 'safe-bottom',
     });
     expect(
       selectMobileUnifiedBarProjection({ ...root, panel: 'bottom-docked' }),
-    ).toMatchObject({ leftAction: 'disabled', placement: 'above-bottom-panel' });
+    ).toMatchObject({ leftAction: 'back', placement: 'above-bottom-panel' });
   });
 
   it('derives search, Agent input, edit, keyboard, and hidden surface states', () => {
-    const root = createInitialMobileWorkspaceUiState();
+    const root = paperRoot();
     expect(
       selectMobileUnifiedBarProjection({
         ...root,
@@ -237,7 +248,10 @@ describe('Mobile V2 unified bar projection', () => {
       }),
     ).toMatchObject({ mode: 'edit', leftAction: 'dismiss-keyboard' });
     expect(
-      selectMobileUnifiedBarProjection({ ...root, surface: { kind: 'overview' } }).visible,
+      selectMobileUnifiedBarProjection({
+        ...root,
+        surface: { kind: 'overview', returnTo: 'paper' },
+      }).visible,
     ).toBe(false);
   });
 });

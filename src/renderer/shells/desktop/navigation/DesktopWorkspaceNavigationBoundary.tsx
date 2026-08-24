@@ -1,10 +1,13 @@
 import type { Editor } from '@tiptap/core';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { useSyncSplitFocusedUrl } from '../../../components/editor/useSyncSplitFocusedUrl';
 import { WorkspaceNavigationProvider } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { useDesktopGlobalShortcuts } from '../useDesktopGlobalShortcuts';
 import { useDesktopWorkspaceNavigator } from './useDesktopWorkspaceNavigator';
+import { focusedLeafOf, tabKey, useUiStore } from '../../../store/ui-store';
+import { workspaceUrlFor } from '../../../features/workspace/navigation/workspace-route';
 
 interface DesktopWorkspaceNavigationBoundaryProps {
   projectId: string;
@@ -26,6 +29,28 @@ export function DesktopWorkspaceNavigationBoundary({
   children,
 }: DesktopWorkspaceNavigationBoundaryProps) {
   const { navigator, navigate } = useDesktopWorkspaceNavigator(projectId);
+  const location = useLocation();
+
+  useLayoutEffect(() => {
+    const entry = location.state as { projectEntry?: unknown } | null;
+    if (entry?.projectEntry !== 'resume-last-content') return;
+    const project = useUiStore.getState().tabsByProject[projectId];
+    const resume = project?.openTabs.find(
+      (tab) => tabKey(tab) === project.lastActiveContentTabKey && tab.kind !== 'create',
+    );
+    const leaf = resume ? focusedLeafOf(resume) : null;
+    const url = leaf ? workspaceUrlFor(projectId, leaf) : null;
+    if (resume && leaf && url) {
+      useUiStore.getState().setActiveTab(
+        projectId,
+        resume.kind === 'split' ? { splitId: resume.id } : leaf,
+      );
+      navigate(url, { replace: true, state: null });
+      return;
+    }
+    useUiStore.getState().setActiveTab(projectId, null);
+    navigate(`/project/${projectId}`, { replace: true, state: null });
+  }, [location.state, navigate, projectId]);
 
   useSyncSplitFocusedUrl();
   useDesktopGlobalShortcuts({

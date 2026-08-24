@@ -58,9 +58,10 @@ export function useDesktopWorkspaceNavigator(projectId: string): DesktopWorkspac
 
   const open = useCallback<WorkspaceNavigator['open']>(
     (target, options) => {
-      useUiStore
-        .getState()
-        .openEntityTab(projectId, target, { preview: options?.preview ?? true });
+      const state = useUiStore.getState();
+      if (!state.activateExistingTarget(projectId, target)) {
+        state.openEntityTab(projectId, target, { preview: options?.preview ?? true });
+      }
       pushTarget(target);
     },
     [projectId, pushTarget],
@@ -68,10 +69,24 @@ export function useDesktopWorkspaceNavigator(projectId: string): DesktopWorkspac
 
   const activate = useCallback<WorkspaceNavigator['activate']>(
     (target) => {
-      useUiStore.getState().setActiveTab(projectId, target);
+      const state = useUiStore.getState();
+      if (!state.activateExistingTarget(projectId, target)) {
+        state.openEntityTab(projectId, target, { preview: true });
+      }
       pushTarget(target);
     },
     [projectId, pushTarget],
+  );
+
+  const showProjectHome = useCallback<WorkspaceNavigator['showProjectHome']>(
+    (options) => {
+      const state = useUiStore.getState();
+      if (state.nodeUi.selectedId) state.setNodeSelection(null);
+      if (state.elementUi.selectedId) state.setElementSelection(null);
+      if (state.activeSuperView !== 'none') state.setActiveSuperView('none');
+      navigate(`/project/${projectId}`, { replace: options?.replace ?? false });
+    },
+    [navigate, projectId],
   );
 
   const leaveDeletedTarget = useCallback(() => {
@@ -86,8 +101,8 @@ export function useDesktopWorkspaceNavigator(projectId: string): DesktopWorkspac
   }, [navigate, projectId, pushTarget]);
 
   const navigator = useMemo<WorkspaceNavigator>(
-    () => ({ projectId, open, activate, leaveDeletedTarget }),
-    [activate, leaveDeletedTarget, open, projectId],
+    () => ({ projectId, open, activate, showProjectHome, leaveDeletedTarget }),
+    [activate, leaveDeletedTarget, open, projectId, showProjectHome],
   );
 
   return useMemo(() => ({ navigator, navigate }), [navigate, navigator]);

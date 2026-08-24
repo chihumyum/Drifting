@@ -61,12 +61,15 @@ implemented order is:
 5. full panel to the corresponding docked panel;
 6. docked panel to the read paper;
 7. Super View child layers, then the Super View root;
-8. Overview root;
-9. Android hardware Back at the read root leaves the Project.
+8. Overview root, returning to the Project Home or paper that opened it;
+9. paper read root returns to Project Home;
+10. Project Home returns to the shelf.
 
-A visible control or keyboard Escape at the read root is intentionally a
-no-op. It cannot leave the Project or switch papers. Android hardware Back is
-the only M2 source that owns the read-root Project-to-shelf transition.
+Visible Back, keyboard Escape, and Android hardware Back share this hierarchy.
+The unified bar exposes Back at the paper read root. Project Home is a separate
+safe-area surface outside the paper deck and owns its own visible shelf Back.
+Dashboard is therefore absent from paper ordering, swiping, closing, counts,
+snapshots, and mobile session persistence.
 
 ## One request bridge across DOM and native input
 
@@ -83,7 +86,7 @@ The mounted Super View escape stack receives the request before the workspace
 root. While a Super View is active, the workspace hook refuses to close it;
 the Super View stack first unwinds its inspector, relation, or other child
 layer and closes the root only when no child remains. Closing the root restores
-the same underlying paper session rather than inserting a paper.
+its recorded origin surface rather than inserting a paper.
 
 On Android, Tauri's existing App plugin owns `OnBackPressedDispatcher` and
 emits `back-button`. The renderer registers through `onBackButtonPress`; it

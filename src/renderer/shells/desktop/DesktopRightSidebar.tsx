@@ -39,19 +39,16 @@ export function DesktopRightSidebar() {
     // leaf or a split. The non-focused half of a split doesn't reflect here.
     const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey);
     if (!activeTab) {
-      return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
-    }
-    const leaf = focusedLeafOf(activeTab);
-    if (!leaf) {
-      return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
-    }
-    if (leaf.entityType === 'dashboard') {
       return {
         kind: 'none',
         id: null,
         title: t('rightSidebar.targets.dashboard'),
         kicker: t('rightSidebar.kickers.dashboard'),
       };
+    }
+    const leaf = focusedLeafOf(activeTab);
+    if (!leaf) {
+      return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
     }
     if (leaf.entityType === 'all-chapters') {
       // kicker only surfaces in the stats tab (library/todo use hardcoded

@@ -4,7 +4,8 @@ import {
   type MobileWorkspaceSessionState,
 } from './mobile-workspace-session';
 
-const MOBILE_WORKSPACE_STORAGE_VERSION = 1;
+const MOBILE_WORKSPACE_STORAGE_VERSION = 2;
+const LEGACY_MOBILE_WORKSPACE_STORAGE_VERSION = 1;
 
 export interface MobileWorkspaceSessionStorage {
   getItem(key: string): string | null;
@@ -15,13 +16,19 @@ export function mobileWorkspaceSessionStorageKey(projectId: string): string {
   return `drifting:mobile-workspace:${MOBILE_WORKSPACE_STORAGE_VERSION}:${projectId}`;
 }
 
+function legacyMobileWorkspaceSessionStorageKey(projectId: string): string {
+  return `drifting:mobile-workspace:${LEGACY_MOBILE_WORKSPACE_STORAGE_VERSION}:${projectId}`;
+}
+
 export function readMobileWorkspaceSession(
   storage: Pick<MobileWorkspaceSessionStorage, 'getItem'> | null,
   projectId: string,
 ): MobileWorkspaceSessionState {
   if (!storage) return EMPTY_MOBILE_WORKSPACE_SESSION;
   try {
-    const raw = storage.getItem(mobileWorkspaceSessionStorageKey(projectId));
+    const raw =
+      storage.getItem(mobileWorkspaceSessionStorageKey(projectId)) ??
+      storage.getItem(legacyMobileWorkspaceSessionStorageKey(projectId));
     return raw ? normalizeMobileWorkspaceSession(JSON.parse(raw)) : EMPTY_MOBILE_WORKSPACE_SESSION;
   } catch {
     return EMPTY_MOBILE_WORKSPACE_SESSION;

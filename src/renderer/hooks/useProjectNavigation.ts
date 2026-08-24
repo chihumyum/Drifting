@@ -33,8 +33,8 @@ export function useProjectNavigation() {
     [openEntity],
   );
   const navigateToHome = useCallback(
-    () => openEntity({ entityType: 'dashboard', id: SINGLETON_TAB_ID }),
-    [openEntity],
+    () => navigator.showProjectHome(),
+    [navigator],
   );
   const navigateToAllChapters = useCallback(
     () => openEntity({ entityType: 'all-chapters', id: SINGLETON_TAB_ID }),

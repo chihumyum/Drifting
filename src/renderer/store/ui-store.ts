@@ -32,7 +32,7 @@ export type TabEntityType = WorkspaceEntityType;
 export const SINGLETON_TAB_ID = 'self';
 
 export function isSingletonTabType(t: TabEntityType): boolean {
-  return t === 'dashboard' || t === 'all-chapters';
+  return t === 'all-chapters';
 }
 
 export type TabRef = WorkspaceTarget;
@@ -96,6 +96,7 @@ export type Tab = LeafTab;
 export interface ProjectTabsState {
   openTabs: AnyTab[];
   activeTabKey: string | null;
+  lastActiveContentTabKey: string | null;
 }
 
 export interface WorkspaceTabInventory {
@@ -144,6 +145,32 @@ function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
   return { kind: 'leaf', entityType: ref.entityType, id: ref.id, isPreview };
 }
 
+function withActiveTab(
+  project: ProjectTabsState,
+  activeTabKey: string | null,
+  openTabs: AnyTab[] = project.openTabs,
+): ProjectTabsState {
+  const active = activeTabKey
+    ? openTabs.find((tab) => tabKey(tab) === activeTabKey)
+    : null;
+  const previousLastStillExists = project.lastActiveContentTabKey
+    ? openTabs.some((tab) => tab.kind !== 'create' && tabKey(tab) === project.lastActiveContentTabKey)
+    : false;
+  const fallbackLast = [...openTabs].reverse().find((tab) => tab.kind !== 'create') ?? null;
+  return {
+    openTabs,
+    activeTabKey,
+    lastActiveContentTabKey:
+      active && active.kind !== 'create'
+        ? activeTabKey
+        : previousLastStillExists
+          ? project.lastActiveContentTabKey
+          : fallbackLast
+            ? tabKey(fallbackLast)
+            : null,
+  };
+}
+
 function isLeafInWorkspace(leaf: LeafTab, inventory: WorkspaceTabInventory): boolean {
   switch (leaf.entityType) {
     case 'node':
@@ -154,7 +181,6 @@ function isLeafInWorkspace(leaf: LeafTab, inventory: WorkspaceTabInventory): boo
       return inventory.elementIds.has(leaf.id);
     case 'category':
       return inventory.categoryIds.has(leaf.id);
-    case 'dashboard':
     case 'all-chapters':
       return leaf.id === SINGLETON_TAB_ID;
   }
@@ -166,18 +192,21 @@ function pruneTabsToWorkspace(
 ): ProjectTabsState {
   const previousActive = project.openTabs.find((tab) => tabKey(tab) === project.activeTabKey);
   let replacementActiveKey: string | null = null;
+  let replacementLastContentKey: string | null = null;
   const openTabs: AnyTab[] = [];
 
   for (const tab of project.openTabs) {
     if (tab.kind === 'create') {
       openTabs.push(tab);
       if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      if (tabKey(tab) === project.lastActiveContentTabKey) replacementLastContentKey = tabKey(tab);
       continue;
     }
     if (tab.kind === 'leaf') {
       if (!isLeafInWorkspace(tab, inventory)) continue;
       openTabs.push(tab);
       if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      if (tabKey(tab) === project.lastActiveContentTabKey) replacementLastContentKey = tabKey(tab);
       continue;
     }
     const leftValid = isLeafInWorkspace(tab.left, inventory);
@@ -185,6 +214,7 @@ function pruneTabsToWorkspace(
     if (leftValid && rightValid) {
       openTabs.push(tab);
       if (tab === previousActive) replacementActiveKey = tabKey(tab);
+      if (tabKey(tab) === project.lastActiveContentTabKey) replacementLastContentKey = tabKey(tab);
       continue;
     }
     const survivor = leftValid ? tab.left : rightValid ? tab.right : null;
@@ -192,11 +222,23 @@ function pruneTabsToWorkspace(
     const collapsed: LeafTab = { ...survivor, isPreview: false };
     openTabs.push(collapsed);
     if (tab === previousActive) replacementActiveKey = tabKey(collapsed);
+    if (tabKey(tab) === project.lastActiveContentTabKey) {
+      replacementLastContentKey = tabKey(collapsed);
+    }
   }
 
   const activeTabKey =
-    replacementActiveKey ?? (openTabs[0] ? tabKey(openTabs[0]) : null);
-  return { openTabs, activeTabKey };
+    project.activeTabKey === null
+      ? null
+      : replacementActiveKey ?? (openTabs[0] ? tabKey(openTabs[0]) : null);
+  const fallbackLast = [...openTabs].reverse().find((tab) => tab.kind !== 'create') ?? null;
+  return {
+    openTabs,
+    activeTabKey,
+    lastActiveContentTabKey:
+      replacementLastContentKey ??
+      (activeTabKey ? activeTabKey : fallbackLast ? tabKey(fallbackLast) : null),
+  };
 }
 
 export function persistableTabsByProject(
@@ -206,16 +248,148 @@ export function persistableTabsByProject(
   for (const [projectId, project] of Object.entries(tabsByProject)) {
     const openTabs = project.openTabs.filter((tab) => tab.kind !== 'create');
     const activeStillExists = openTabs.some((tab) => tabKey(tab) === project.activeTabKey);
+    const lastStillExists = openTabs.some(
+      (tab) => tabKey(tab) === project.lastActiveContentTabKey,
+    );
     persisted[projectId] = {
       openTabs,
-      activeTabKey: activeStillExists
-        ? project.activeTabKey
-        : openTabs.length > 0
-          ? tabKey(openTabs[openTabs.length - 1])
+      activeTabKey: activeStillExists ? project.activeTabKey : null,
+      lastActiveContentTabKey: lastStillExists
+        ? project.lastActiveContentTabKey
+        : activeStillExists
+          ? project.activeTabKey
           : null,
     };
   }
   return persisted;
+}
+
+const PERSISTED_TAB_ENTITY_TYPES = new Set<TabEntityType>([
+  'node',
+  'storyline',
+  'element',
+  'category',
+  'all-chapters',
+]);
+
+function legacyTopLevelKey(tab: Record<string, unknown>): string | null {
+  if (tab.kind === 'split' && typeof tab.id === 'string') return `split:${tab.id}`;
+  if (typeof tab.entityType === 'string' && typeof tab.id === 'string') {
+    return `${tab.entityType}:${tab.id}`;
+  }
+  return null;
+}
+
+function persistedLeaf(candidate: unknown): LeafTab | 'dashboard' | null {
+  if (!candidate || typeof candidate !== 'object') return null;
+  const leaf = candidate as Record<string, unknown>;
+  if (leaf.entityType === 'dashboard' && leaf.id === SINGLETON_TAB_ID) return 'dashboard';
+  if (
+    typeof leaf.entityType !== 'string' ||
+    !PERSISTED_TAB_ENTITY_TYPES.has(leaf.entityType as TabEntityType) ||
+    typeof leaf.id !== 'string' ||
+    !leaf.id
+  ) {
+    return null;
+  }
+  return {
+    kind: 'leaf',
+    entityType: leaf.entityType as TabEntityType,
+    id: leaf.id,
+    isPreview: Boolean(leaf.isPreview),
+  };
+}
+
+export function sanitizePersistedTabsByProject(
+  tabsByProject: Record<string, unknown>,
+): Record<string, ProjectTabsState> {
+  const sanitized: Record<string, ProjectTabsState> = {};
+  for (const [projectId, rawProject] of Object.entries(tabsByProject)) {
+    if (!rawProject || typeof rawProject !== 'object') continue;
+    const raw = rawProject as Record<string, unknown>;
+    const inputTabs = Array.isArray(raw.openTabs) ? raw.openTabs : [];
+    const openTabs: AnyTab[] = [];
+    const keyMap = new Map<string, string>();
+    const survivingByOriginalIndex: Array<{ index: number; key: string }> = [];
+    let activeDashboardIndex: number | null = null;
+
+    inputTabs.forEach((candidate, index) => {
+      if (!candidate || typeof candidate !== 'object') return;
+      const tab = candidate as Record<string, unknown>;
+      const oldKey = legacyTopLevelKey(tab);
+      if (tab.kind === 'create') return;
+      if (tab.kind === 'split') {
+        if (typeof tab.id !== 'string' || !tab.id) return;
+        const left = persistedLeaf(tab.left);
+        const right = persistedLeaf(tab.right);
+        if (left === 'dashboard' && right === 'dashboard') {
+          if (raw.activeTabKey === oldKey) activeDashboardIndex = index;
+          return;
+        }
+        if (left === 'dashboard' || right === 'dashboard') {
+          const survivor = left === 'dashboard' ? right : left;
+          if (!survivor || survivor === 'dashboard') return;
+          const collapsed = { ...survivor, isPreview: false };
+          openTabs.push(collapsed);
+          const nextKey = tabKey(collapsed);
+          if (oldKey) keyMap.set(oldKey, nextKey);
+          survivingByOriginalIndex.push({ index, key: nextKey });
+          const focusedDashboard =
+            (tab.focused === 'left' && left === 'dashboard') ||
+            (tab.focused === 'right' && right === 'dashboard');
+          if (raw.activeTabKey === oldKey && focusedDashboard) activeDashboardIndex = index;
+          return;
+        }
+        if (!left || !right) return;
+        const split: SplitTab = {
+          kind: 'split',
+          id: tab.id,
+          left,
+          right,
+          focused: tab.focused === 'right' ? 'right' : 'left',
+          splitRatio:
+            typeof tab.splitRatio === 'number' && Number.isFinite(tab.splitRatio)
+              ? Math.max(0.15, Math.min(0.85, tab.splitRatio))
+              : 0.5,
+        };
+        openTabs.push(split);
+        const nextKey = tabKey(split);
+        if (oldKey) keyMap.set(oldKey, nextKey);
+        survivingByOriginalIndex.push({ index, key: nextKey });
+        return;
+      }
+
+      const leaf = persistedLeaf(tab);
+      if (leaf === 'dashboard') {
+        if (raw.activeTabKey === oldKey) activeDashboardIndex = index;
+        return;
+      }
+      if (!leaf) return;
+      openTabs.push(leaf);
+      const nextKey = tabKey(leaf);
+      if (oldKey) keyMap.set(oldKey, nextKey);
+      survivingByOriginalIndex.push({ index, key: nextKey });
+    });
+
+    const requestedActive = typeof raw.activeTabKey === 'string' ? raw.activeTabKey : null;
+    const activeTabKey =
+      activeDashboardIndex === null && requestedActive ? (keyMap.get(requestedActive) ?? null) : null;
+    const requestedLast =
+      typeof raw.lastActiveContentTabKey === 'string' ? raw.lastActiveContentTabKey : null;
+    let lastActiveContentTabKey = requestedLast ? (keyMap.get(requestedLast) ?? null) : null;
+    if (!lastActiveContentTabKey && activeTabKey) lastActiveContentTabKey = activeTabKey;
+    if (!lastActiveContentTabKey && activeDashboardIndex !== null) {
+      const dashboardIndex = activeDashboardIndex;
+      lastActiveContentTabKey =
+        survivingByOriginalIndex.find((entry) => entry.index >= dashboardIndex)?.key ??
+        [...survivingByOriginalIndex]
+          .reverse()
+          .find((entry) => entry.index < dashboardIndex)?.key ??
+        null;
+    }
+    sanitized[projectId] = { openTabs, activeTabKey, lastActiveContentTabKey };
+  }
+  return sanitized;
 }
 
 // Generate a synthetic split id without pulling in a uuid dep.
@@ -226,6 +400,7 @@ function generateSplitId(): string {
 const EMPTY_PROJECT_TABS: ProjectTabsState = Object.freeze({
   openTabs: [] as AnyTab[],
   activeTabKey: null,
+  lastActiveContentTabKey: null,
 }) as ProjectTabsState;
 
 export interface SidebarState {
@@ -236,7 +411,6 @@ export interface SidebarState {
 type SelectionSource = 'route' | 'ui' | 'system';
 export type EditorShellView =
   | 'project-home'
-  | 'project-dashboard'
   | 'node-editor'
   | 'storyline-editor'
   | 'element-editor'
@@ -400,6 +574,7 @@ interface UiState {
 
   tabsByProject: Record<string, ProjectTabsState>;
   openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
+  activateExistingTarget: (projectId: string, ref: TabRef) => boolean;
   openCreateTab: (projectId: string) => void;
   updateCreateTabDraft: (projectId: string, patch: Partial<CreateTabDraft>) => void;
   replaceCreateTabWithEntity: (
@@ -753,9 +928,9 @@ export const useUiStore = create<UiState>()(
           const newLeaf = makeLeafTab(ref, preview);
           const key = tabKey(newLeaf);
 
-          // Singletons (dashboard / all-chapters) never silently replace
-          // the focused side of a split — clicking the Home / 通览全书
-          // button should ALWAYS surface a top-level singleton tab, never
+          // All Chapters never silently replaces the focused side of a
+          // split. Project Home is no longer a TabRef at all. Clicking the
+          // whole-book button should ALWAYS surface a top-level singleton tab, never
           // hide it inside the current split. The only way for a singleton
           // to live inside a split is an explicit drag-to-split or context-
           // menu "在右侧打开"; both of those go through splitActiveWith,
@@ -776,7 +951,7 @@ export const useUiStore = create<UiState>()(
               return {
                 tabsByProject: {
                   ...state.tabsByProject,
-                  [projectId]: { ...project, activeTabKey: key },
+                  [projectId]: withActiveTab(project, key),
                 },
               };
             }
@@ -792,7 +967,7 @@ export const useUiStore = create<UiState>()(
               return {
                 tabsByProject: {
                   ...state.tabsByProject,
-                  [projectId]: { openTabs: nextOpenTabs, activeTabKey: tabKey(updated) },
+                  [projectId]: withActiveTab(project, tabKey(updated), nextOpenTabs),
                 },
               };
             }
@@ -856,10 +1031,49 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: key },
+              [projectId]: withActiveTab(project, key, nextOpenTabs),
             },
           };
         }),
+
+      activateExistingTarget: (projectId, ref) => {
+        let activated = false;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const key = tabKey(ref);
+          const index = project.openTabs.findIndex((tab) => {
+            if (tab.kind === 'leaf') return tabKey(tab) === key;
+            if (tab.kind === 'split') {
+              return tabKey(tab.left) === key || tabKey(tab.right) === key;
+            }
+            return false;
+          });
+          if (index < 0) return {};
+          const found = project.openTabs[index];
+          activated = true;
+          if (found.kind === 'leaf') {
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: withActiveTab(project, tabKey(found)),
+              },
+            };
+          }
+          if (found.kind !== 'split') return {};
+          const focused = tabKey(found.left) === key ? 'left' : 'right';
+          const updated: SplitTab = { ...found, focused };
+          const openTabs = project.openTabs.slice();
+          openTabs[index] = updated;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: withActiveTab(project, tabKey(updated), openTabs),
+            },
+          };
+        });
+        return activated;
+      },
 
       openCreateTab: (projectId) =>
         set((state) => {
@@ -869,7 +1083,7 @@ export const useUiStore = create<UiState>()(
             return {
               tabsByProject: {
                 ...state.tabsByProject,
-                [projectId]: { ...project, activeTabKey: tabKey(existing) },
+                [projectId]: withActiveTab(project, tabKey(existing)),
               },
             };
           }
@@ -878,8 +1092,7 @@ export const useUiStore = create<UiState>()(
             tabsByProject: {
               ...state.tabsByProject,
               [projectId]: {
-                openTabs: [...project.openTabs, createTab],
-                activeTabKey: tabKey(createTab),
+                ...withActiveTab(project, tabKey(createTab), [...project.openTabs, createTab]),
               },
             },
           };
@@ -922,8 +1135,11 @@ export const useUiStore = create<UiState>()(
             tabsByProject: {
               ...state.tabsByProject,
               [projectId]: {
-                openTabs,
-                activeTabKey: wasActive ? tabKey(leaf) : project.activeTabKey,
+                ...withActiveTab(
+                  project,
+                  wasActive ? tabKey(leaf) : project.activeTabKey,
+                  openTabs,
+                ),
               },
             },
           };
@@ -987,7 +1203,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1035,7 +1251,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { ...project, activeTabKey: nextKey },
+              [projectId]: withActiveTab(project, nextKey),
             },
           };
         }),
@@ -1079,10 +1295,7 @@ export const useUiStore = create<UiState>()(
             return {
               tabsByProject: {
                 ...state.tabsByProject,
-                [projectId]: {
-                  openTabs: [newLeaf],
-                  activeTabKey: tabKey(newLeaf),
-                },
+                [projectId]: withActiveTab(project, tabKey(newLeaf), [newLeaf]),
               },
             };
           }
@@ -1119,7 +1332,7 @@ export const useUiStore = create<UiState>()(
             return {
               tabsByProject: {
                 ...state.tabsByProject,
-                [projectId]: { openTabs: restored, activeTabKey: tabKey(sourceLeaf) },
+                [projectId]: withActiveTab(project, tabKey(sourceLeaf), restored),
               },
             };
           }
@@ -1131,7 +1344,7 @@ export const useUiStore = create<UiState>()(
             return {
               tabsByProject: {
                 ...state.tabsByProject,
-                [projectId]: { openTabs: workingTabs, activeTabKey: tabKey(sourceLeaf) },
+                [projectId]: withActiveTab(project, tabKey(sourceLeaf), workingTabs),
               },
             };
           }
@@ -1174,7 +1387,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: workingTabs, activeTabKey: tabKey(newSplit) },
+              [projectId]: withActiveTab(project, tabKey(newSplit), workingTabs),
             },
           };
         }),
@@ -1256,7 +1469,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1283,7 +1496,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1309,7 +1522,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1332,7 +1545,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs, activeTabKey: keepKey },
+              [projectId]: withActiveTab(project, keepKey, openTabs),
             },
           };
         });
@@ -1364,7 +1577,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1382,8 +1595,12 @@ export const useUiStore = create<UiState>()(
             tabsByProject: {
               ...state.tabsByProject,
               [projectId]: protectedCreate
-                ? { openTabs: [protectedCreate], activeTabKey: tabKey(protectedCreate) }
-                : { openTabs: [], activeTabKey: null },
+                ? withActiveTab(
+                    project,
+                    project.activeTabKey === null ? null : tabKey(protectedCreate),
+                    [protectedCreate],
+                  )
+                : { openTabs: [], activeTabKey: null, lastActiveContentTabKey: null },
             },
           };
         }),
@@ -1474,7 +1691,7 @@ export const useUiStore = create<UiState>()(
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+              [projectId]: withActiveTab(project, nextActiveTabKey, nextOpenTabs),
             },
           };
         });
@@ -1483,7 +1700,7 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'ui-storage', // unique name
-      version: 3,
+      version: 4,
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
@@ -1510,52 +1727,18 @@ export const useUiStore = create<UiState>()(
         driftCellMeta: state.driftCellMeta,
         chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
       }),
-      // v1 → v2 migration adds the `kind` discriminator to every tab so the
-      // store can tell leaf tabs from split tabs. v1 only had flat Tab[]
-      // entries shaped like { entityType, id, isPreview } — coerce them to
-      // LeafTab. Unrecognised shapes are dropped rather than crashing the
-      // tab bar.
+      // v4 removes the historical dashboard tab and makes a null active key
+      // the durable representation of Project Home. The sanitizer also
+      // accepts v1 kindless leaves and v2/v3 split shapes.
       migrate: (persisted, version) => {
+        void version;
         if (!persisted || typeof persisted !== 'object') return persisted;
         const state = persisted as { tabsByProject?: Record<string, unknown> };
         if (!state.tabsByProject) return persisted;
-        if (version >= 2) {
-          return {
-            ...state,
-            tabsByProject: persistableTabsByProject(
-              state.tabsByProject as Record<string, ProjectTabsState>,
-            ),
-          };
-        }
-        const migrated: Record<string, ProjectTabsState> = {};
-        for (const [projectId, raw] of Object.entries(state.tabsByProject)) {
-          if (!raw || typeof raw !== 'object') continue;
-          const proj = raw as { openTabs?: unknown[]; activeTabKey?: string | null };
-          const openTabs: AnyTab[] = [];
-          for (const tab of proj.openTabs ?? []) {
-            if (!tab || typeof tab !== 'object') continue;
-            const t = tab as Partial<LeafTab> & { kind?: string };
-            // Future-proof: if a persisted entry already has `kind`, trust it
-            // (e.g. a downgrade-then-upgrade cycle).
-            if (t.kind === 'leaf' || t.kind === 'split') {
-              openTabs.push(t as AnyTab);
-              continue;
-            }
-            if (typeof t.entityType === 'string' && typeof t.id === 'string') {
-              openTabs.push({
-                kind: 'leaf',
-                entityType: t.entityType as TabEntityType,
-                id: t.id,
-                isPreview: Boolean(t.isPreview),
-              });
-            }
-          }
-          migrated[projectId] = {
-            openTabs,
-            activeTabKey: proj.activeTabKey ?? null,
-          };
-        }
-        return { ...state, tabsByProject: migrated };
+        return {
+          ...state,
+          tabsByProject: sanitizePersistedTabsByProject(state.tabsByProject),
+        };
       },
       // Older persisted state used 'references' | 'inspirations' | 'ai' and
       // later 'fragments' for activeRightPanel. After the TODO/Library split

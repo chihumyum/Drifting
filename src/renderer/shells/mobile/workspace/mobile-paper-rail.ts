@@ -10,7 +10,7 @@ export interface MobilePaperRailAvailability {
 export function mobilePaperRailAvailability(
   target: WorkspaceTarget | null,
 ): MobilePaperRailAvailability {
-  if (!target || target.entityType === 'dashboard') return { toc: false, comments: false };
+  if (!target) return { toc: false, comments: false };
   if (target.entityType === 'all-chapters') return { toc: true, comments: false };
   return { toc: true, comments: true };
 }

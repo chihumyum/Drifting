@@ -84,7 +84,7 @@ describe('Mobile V2 frozen design contract', () => {
   });
 
   it('keeps paper, panel, and Super View ownership unambiguous', () => {
-    expect(product).toContain('Dashboard and all-chapters are ordinary papers.');
+    expect(product).toContain('Project Home is a separate project-level surface; all-chapters remains an ordinary paper.');
     expect(product).toMatch(/Super Views are independent\s+full-screen surfaces/);
     expect(product).toContain('A live editor must never be inside `transform: scale(...)`.');
     expect(product).toContain('Both structure and tool workspaces use one 56px left vertical rail.');

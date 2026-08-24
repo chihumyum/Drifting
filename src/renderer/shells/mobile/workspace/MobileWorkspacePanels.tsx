@@ -42,7 +42,7 @@ type LibraryMode = 'todo' | 'library';
 type PanelPosition = 'top' | 'bottom';
 
 function focusedEntity(target: WorkspaceTarget | null): FocusedEntity {
-  if (!target || target.entityType === 'dashboard' || target.entityType === 'all-chapters') {
+  if (!target || target.entityType === 'all-chapters') {
     return { kind: null, id: null };
   }
   return { kind: target.entityType as EntityKind, id: target.id };

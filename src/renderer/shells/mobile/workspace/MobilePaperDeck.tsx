@@ -331,7 +331,7 @@ export function MobilePaperDeck({
       mobilePaperSwipeTargetIsExcluded(
         event.target,
         row,
-        active?.target.entityType === 'dashboard',
+        false,
       )
     ) {
       return;

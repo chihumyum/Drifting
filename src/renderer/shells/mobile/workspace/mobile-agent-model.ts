@@ -38,7 +38,7 @@ export function buildMobileAgentTurnContext(input: {
     },
   ];
   const target = input.target;
-  if (!target || target.entityType === 'dashboard') return refs;
+  if (!target) return refs;
   if (target.entityType === 'all-chapters') {
     refs.push({
       kind: 'workspace',

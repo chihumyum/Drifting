@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialMobileWorkspaceUiState } from './mobile-workspace-controller';
+import {
+  createInitialMobileWorkspaceUiState,
+  mobileWorkspaceReducer,
+} from './mobile-workspace-controller';
 import {
   MOBILE_PAPER_SWIPE_AXIS_LOCK_PX,
   canStartMobilePaperSwipe,
@@ -8,7 +11,9 @@ import {
 } from './mobile-paper-swipe';
 
 describe('Mobile V2 paper swipe arbitration', () => {
-  const root = createInitialMobileWorkspaceUiState();
+  const root = mobileWorkspaceReducer(createInitialMobileWorkspaceUiState(), {
+    type: 'show-paper',
+  });
 
   it('starts only from the read-paper root with no competing owner', () => {
     expect(
@@ -24,7 +29,7 @@ describe('Mobile V2 paper swipe arbitration', () => {
       { workspace: { ...root, paperMode: { kind: 'edit', accessory: 'navigation' } as const } },
       { workspace: { ...root, panel: 'top-docked' as const } },
       { workspace: { ...root, transient: { kind: 'search', scope: 'paper' } as const } },
-      { workspace: { ...root, surface: { kind: 'overview' } as const } },
+      { workspace: { ...root, surface: { kind: 'overview', returnTo: 'paper' } as const } },
     ]) {
       expect(
         canStartMobilePaperSwipe({

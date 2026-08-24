@@ -4,6 +4,7 @@ import {
   CREATE_TAB_ID,
   focusedLeafOf,
   persistableTabsByProject,
+  sanitizePersistedTabsByProject,
   tabKey,
   useUiStore,
 } from './ui-store';
@@ -177,7 +178,8 @@ describe('project-local workspace tabs', () => {
     const persisted = persistableTabsByProject(useUiStore.getState().tabsByProject);
 
     expect(persisted['project-a'].openTabs.map(tabKey)).toEqual(['node:chapter-a']);
-    expect(persisted['project-a'].activeTabKey).toBe('node:chapter-a');
+    expect(persisted['project-a'].activeTabKey).toBeNull();
+    expect(persisted['project-a'].lastActiveContentTabKey).toBe('node:chapter-a');
   });
 
   it('never folds the transient draft into a split', () => {
@@ -195,5 +197,51 @@ describe('project-local workspace tabs', () => {
       'node:chapter-a',
       `create:${CREATE_TAB_ID}`,
     ]);
+  });
+
+  it('keeps Project Home outside the tab collection while preserving background tabs', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.setActiveTab('project-a', null);
+
+    const project = useUiStore.getState().tabsByProject['project-a'];
+    expect(project.openTabs.map(tabKey)).toEqual(['node:chapter-a']);
+    expect(project.activeTabKey).toBeNull();
+    expect(project.lastActiveContentTabKey).toBe('node:chapter-a');
+  });
+
+  it('activates an existing split side without creating a duplicate preview', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'a' }, { preview: false });
+    store.splitActiveWith('project-a', { entityType: 'node', id: 'b' }, 'right');
+    expect(store.activateExistingTarget('project-a', { entityType: 'node', id: 'a' })).toBe(true);
+    const project = useUiStore.getState().tabsByProject['project-a'];
+    expect(project.openTabs).toHaveLength(1);
+    expect(project.openTabs[0]).toMatchObject({ kind: 'split', focused: 'left' });
+  });
+
+  it('migrates legacy dashboard leaves and mixed splits into Project Home state', () => {
+    const migrated = sanitizePersistedTabsByProject({
+      project: {
+        openTabs: [
+          { kind: 'leaf', entityType: 'node', id: 'left', isPreview: false },
+          { kind: 'leaf', entityType: 'dashboard', id: 'self', isPreview: false },
+          {
+            kind: 'split',
+            id: 'legacy',
+            left: { kind: 'leaf', entityType: 'dashboard', id: 'self', isPreview: false },
+            right: { kind: 'leaf', entityType: 'storyline', id: 'story', isPreview: true },
+            focused: 'left',
+            splitRatio: 0.5,
+          },
+        ],
+        activeTabKey: 'split:legacy',
+      },
+    }).project;
+
+    expect(migrated.openTabs.map(tabKey)).toEqual(['node:left', 'storyline:story']);
+    expect(migrated.openTabs[1]).toMatchObject({ kind: 'leaf', isPreview: false });
+    expect(migrated.activeTabKey).toBeNull();
+    expect(migrated.lastActiveContentTabKey).toBe('storyline:story');
   });
 });

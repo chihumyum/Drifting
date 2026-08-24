@@ -3,7 +3,6 @@ export type WorkspaceEntityType =
   | 'storyline'
   | 'element'
   | 'category'
-  | 'dashboard'
   | 'all-chapters';
 
 /** Shell-neutral description of content the user wants to open. */
@@ -20,5 +19,6 @@ export interface WorkspaceNavigator {
   projectId: string;
   open(target: WorkspaceTarget, options?: { preview?: boolean }): void;
   activate(target: WorkspaceTarget): void;
+  showProjectHome(options?: { replace?: boolean }): void;
   leaveDeletedTarget(): void;
 }

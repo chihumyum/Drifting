@@ -16,7 +16,6 @@ import { StorylineEditorView } from '../../views/StorylineEditorView';
 import { ElementEditorView } from '../../views/ElementEditorView';
 import { CategoryEditorView } from '../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
-import { ProjectDashboard } from '../../views/ProjectDashboard';
 import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
@@ -32,7 +31,7 @@ import { DesktopUniversalCreateView } from '../../shells/desktop/entity-create/D
 //
 // Single-pane:
 //   The active top-level tab is a leaf (or there's no active tab — e.g. the
-//   project dashboard or the all-chapters editor). React Router takes over:
+//   Project Home or the all-chapters editor). React Router takes over:
 //   we render <Outlet />, which mounts <EditorShell><SomeView/></EditorShell>
 //   per the matched route. Behaviour is identical to before the split-pane
 //   work.
@@ -51,7 +50,7 @@ import { DesktopUniversalCreateView } from '../../shells/desktop/entity-create/D
 //   Dragging within the bar without crossing into the editor area just
 //   reorders tabs (handled in TopTimeline).
 export function EditorMainArea() {
-  const { projectId, openEntity, navigateToHome } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setSplitFocus = useUiStore((s) => s.setSplitFocus);
   const setSplitRatio = useUiStore((s) => s.setSplitRatio);
@@ -61,7 +60,6 @@ export function EditorMainArea() {
   const isSplit = activeTab?.kind === 'split';
   const split = isSplit ? (activeTab as SplitTab) : null;
   const createTab = activeTab?.kind === 'create' ? (activeTab as CreateTab) : null;
-  const hasNoTabs = openTabs.length === 0;
 
   useEffect(() => {
     if (!projectId) return;
@@ -113,7 +111,7 @@ export function EditorMainArea() {
       // Only react to drags that carry the tab payload — we don't want to
       // hijack text/file drops the editor might want.
       if (!event.dataTransfer.types.includes('application/x-drifting-tab')) return;
-      if (createTab) {
+      if (createTab || !activeTab) {
         setDropSide(null);
         return;
       }
@@ -130,7 +128,7 @@ export function EditorMainArea() {
       else if (x > rect.width * 0.67) setDropSide('right');
       else setDropSide(null);
     },
-    [createTab],
+    [activeTab, createTab],
   );
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -184,15 +182,10 @@ export function EditorMainArea() {
             setSplitRatio(projectId, split.id, ratio);
           }}
         />
-      ) : hasNoTabs ? (
-        // No tabs open at all → blank editor surface with a one-line hint.
-        // Routes still match (Outlet would render the route's view), but
-        // displaying nothing here is the intended UX per the new "no tabs
-        // means empty" rule — dashboard / all-chapters are their own tabs
-        // now and won't auto-mount when the user has closed everything.
-        <EmptyEditorState onOpenDashboard={navigateToHome} />
       ) : (
-        // Legacy single-pane path — Outlet renders the matched route element.
+        // Project Home and single-pane routes are both owned by the Outlet.
+        // Home is represented by activeTabKey === null, so background tabs
+        // remain mounted in the strip without turning Home into a tab itself.
         <div style={{ height: '100%', width: '100%' }}>
           <Outlet />
         </div>
@@ -336,8 +329,7 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
   // for the case when it's rendered outside the matched-route Outlet path.
   // projectId is read from useParams inside the views (the parent route
   // /project/:projectId always matches), so we don't need to thread it.
-  // Singleton views (dashboard / all-chapters) have no per-entity id, so
-  // they take no override.
+  // All Chapters has no per-entity id, so it takes no override.
   void projectId;
   switch (leaf.entityType) {
     case 'node':
@@ -348,44 +340,9 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
       return <ElementEditorView key={leaf.id} elementIdOverride={leaf.id} />;
     case 'category':
       return <CategoryEditorView key={leaf.id} categoryIdOverride={leaf.id} />;
-    case 'dashboard':
-      return <ProjectDashboard />;
     case 'all-chapters':
       return <AllChaptersEditorView />;
   }
-}
-
-function EmptyEditorState({ onOpenDashboard }: { onOpenDashboard: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <div
-      style={{
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-      }}
-    >
-      <button
-        type="button"
-        onClick={onOpenDashboard}
-        style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          fontSize: 13,
-          color: 'hsl(var(--accent))',
-        }}
-      >
-        {t('editorMainArea.openDashboard')}
-      </button>
-      <div style={{ fontSize: 12, color: 'hsl(var(--ink-5))' }}>{t('editorMainArea.emptyHint')}</div>
-    </div>
-  );
 }
 
 function DropOverlay({ side }: { side: 'left' | 'right' }) {

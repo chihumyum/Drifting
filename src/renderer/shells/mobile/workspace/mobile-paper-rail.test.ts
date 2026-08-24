@@ -17,12 +17,12 @@ describe('mobile paper rail', () => {
     });
   });
 
-  it('keeps TOC on whole-book papers and hides rail controls on dashboards', () => {
+  it('keeps TOC on whole-book papers and hides rails without a paper', () => {
     expect(mobilePaperRailAvailability({ entityType: 'all-chapters', id: 'all' })).toEqual({
       toc: true,
       comments: false,
     });
-    expect(mobilePaperRailAvailability({ entityType: 'dashboard', id: 'self' })).toEqual({
+    expect(mobilePaperRailAvailability(null)).toEqual({
       toc: false,
       comments: false,
     });

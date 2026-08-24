@@ -35,8 +35,6 @@ function urlForLeaf(
       return `/project/${projectId}/element/${leaf.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(leaf.id)}`;
-    case 'dashboard':
-      return `/project/${projectId}/home`;
     case 'all-chapters':
       return `/project/${projectId}/editor/all`;
   }
@@ -102,8 +100,7 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 // Tab bar glyph. For node entities, the caller passes isDrift so chapters
 // (§) can be distinguished from drift nodes (❦ — matches the
-// "灵感" button in LeftSidebarHeader). Dashboard and all-chapters use ⌂ and
-// ☰ respectively so the bar reads "home / whole-book / chapter / ..." at a
+// "灵感" button in LeftSidebarHeader). All-chapters uses ☰ so the bar
 // glance.
 function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): string {
   switch (entityType) {
@@ -115,8 +112,6 @@ function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): st
       return '◆';
     case 'category':
       return '⌘';
-    case 'dashboard':
-      return '⌂';
     case 'all-chapters':
       return '☰';
   }
@@ -214,8 +209,6 @@ export function TopTimeline() {
             bookElementCategories.find((c) => c.id === leaf.id)?.name ||
             t('topTimeline.untitled.category')
           );
-        case 'dashboard':
-          return t('topTimeline.singletons.dashboard');
         case 'all-chapters':
           return t('topTimeline.singletons.allChapters');
       }
@@ -237,7 +230,6 @@ export function TopTimeline() {
         }
         case 'category':
           return bookElementCategories.find((c) => c.id === leaf.id)?.color;
-        case 'dashboard':
         case 'all-chapters':
           // Singletons share the neutral ink color — no entity behind them
           // that carries a palette, and a fixed accent would compete with
@@ -356,7 +348,7 @@ export function TopTimeline() {
       if (!projectId) return;
       if (tab.kind === 'create') {
         setActiveTab(projectId, { createId: tab.id });
-        navigate(`/project/${projectId}`);
+        navigate(`/project/${projectId}/new`);
         return;
       }
       if (tab.kind === 'split') {
@@ -388,11 +380,10 @@ export function TopTimeline() {
       //      Sync URL to the new active leaf.
       //   2. wasActive && !nextActive → closed the LAST tab. Send the URL
       //      to a blank project route so the URL → tab sync doesn't
-      //      reopen the just-closed entity, and the empty editor shows.
+      //      reopen the just-closed entity, and Project Home shows.
       //   3. !wasActive → closed a non-active tab. URL and active tab are
       //      unchanged; do nothing. This used to call navigateToHome()
-      //      here, which silently re-spawned the dashboard singleton tab
-      //      every time the user closed any background tab.
+      //      here, which used to mutate the background tab collection.
       if (nextActive) {
         openEntity({ entityType: nextActive.entityType, id: nextActive.id });
       } else if (wasActive) {
@@ -522,8 +513,7 @@ export function TopTimeline() {
             closeAllTabs(projectId);
             // Land on the bare project URL so the Layout URL → tab sync
             // doesn't reopen whatever the URL had been pointing at, and
-            // the empty editor state renders. navigateToHome() would
-            // re-spawn a dashboard tab.
+            // Project Home renders without creating another tab.
             navigate(`/project/${projectId}`, { replace: true });
           },
           disabled: openTabs.length === 0,
@@ -721,7 +711,7 @@ export function TopTimeline() {
         onClick={() => {
           if (!projectId) return;
           openCreateTab(projectId);
-          navigate(`/project/${projectId}`);
+          navigate(`/project/${projectId}/new`);
         }}
       >
         <Plus size={16} strokeWidth={1.8} aria-hidden />

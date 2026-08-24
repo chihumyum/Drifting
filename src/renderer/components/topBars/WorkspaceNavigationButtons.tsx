@@ -1,7 +1,9 @@
 import { Home } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { isProjectHomePathname } from '../../features/workspace/navigation/workspace-route';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { focusedLeafOf, tabKey, usePromoteCurrentTab, useUiStore } from '../../store/ui-store';
+import { focusedLeafOf, tabKey, useUiStore } from '../../store/ui-store';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip';
 
@@ -14,8 +16,8 @@ type SuperViewId = 'element' | 'graph' | 'memo-material';
  */
 export function WorkspaceNavigationButtons() {
   const { t } = useTranslation();
+  const location = useLocation();
   const { projectId, navigateToHome, navigateToAllChapters } = useProjectNavigation();
-  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const projectTabs = useUiStore((state) => state.tabsByProject[projectId]);
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const lastActiveSuperView = useUiStore((state) => state.lastActiveSuperView);
@@ -24,6 +26,8 @@ export function WorkspaceNavigationButtons() {
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
   const baseViewVisible = activeSuperView === 'none';
+  const projectHomeActive =
+    baseViewVisible && isProjectHomePathname(projectId, location.pathname);
   const allChaptersActive = baseViewVisible && activeLeaf?.entityType === 'all-chapters';
   const superDestinationActive = activeSuperView !== 'none';
 
@@ -37,12 +41,11 @@ export function WorkspaceNavigationButtons() {
     <div className="app-topbar__workspace-nav" aria-label={t('bottomStatusBar.workspaceViews')}>
       <GhostIconButton
         className="workspace-header-action"
-        aria-pressed={baseViewVisible && activeLeaf?.entityType === 'dashboard'}
+        aria-pressed={projectHomeActive}
         onClick={() => {
           dismissSuperView();
           navigateToHome();
         }}
-        onDoubleClick={() => promoteCurrentTab()}
         title={t('bottomStatusBar.projectHome')}
         aria-label={t('bottomStatusBar.projectHome')}
         icon={<Home size={16} strokeWidth={1.6} />}

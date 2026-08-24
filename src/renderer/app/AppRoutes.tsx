@@ -112,15 +112,16 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={null} />
         <Route
-          path="home"
+          index
           element={
-            <EditorShell view="project-dashboard">
+            <EditorShell view="project-home">
               <ProjectDashboard />
             </EditorShell>
           }
         />
+        <Route path="home" element={<Navigate to=".." replace />} />
+        <Route path="new" element={null} />
         <Route path="editor" element={<Navigate to=".." replace />} />
         <Route
           path="editor/all"

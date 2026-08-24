@@ -66,7 +66,11 @@ describe('workspace surface language acceptance', () => {
       'Iconoir `page-flip`, MIT licensed',
     );
     expect(workspaceNavigation).toContain(
-      "aria-pressed={baseViewVisible && activeLeaf?.entityType === 'dashboard'}",
+      'baseViewVisible && isProjectHomePathname(projectId, location.pathname)',
+    );
+    expect(workspaceNavigation).toContain('aria-pressed={projectHomeActive}');
+    expect(workspaceNavigationCss).toContain(
+      ".workspace-header-action[aria-pressed='true']",
     );
     expect(workspaceNavigation).toContain(
       'className="workspace-all-chapters-trigger workspace-header-action"',

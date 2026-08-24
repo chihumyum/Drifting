@@ -3,9 +3,10 @@ import type { WorkspaceTarget } from '../../../features/workspace/navigation/wor
 export type MobileSuperViewId = 'element' | 'graph' | 'memo-material';
 
 export type MobileWorkspaceSurface =
+  | { kind: 'project-home' }
   | { kind: 'paper' }
-  | { kind: 'overview' }
-  | { kind: 'super-view'; view: MobileSuperViewId };
+  | { kind: 'overview'; returnTo: 'project-home' | 'paper' }
+  | { kind: 'super-view'; view: MobileSuperViewId; returnTo: 'project-home' | 'paper' };
 
 export type MobilePaperMode =
   | { kind: 'read' }
@@ -40,6 +41,7 @@ export interface MobileWorkspaceUiState {
 
 export type MobileWorkspaceAction =
   | { type: 'show-paper' }
+  | { type: 'show-project-home' }
   | { type: 'show-overview' }
   | { type: 'show-super-view'; view: MobileSuperViewId }
   | { type: 'open-project-trash' }
@@ -62,13 +64,14 @@ export type MobileBackLayer =
   | 'super-view'
   | 'overview'
   | 'edit-mode'
+  | 'paper-root'
   | 'project-root';
 
 export interface MobileBackResolution {
   handled: boolean;
   layer: MobileBackLayer | null;
   nextState: MobileWorkspaceUiState;
-  effect: 'none' | 'blur-editor' | 'leave-project';
+  effect: 'none' | 'blur-editor' | 'navigate-project-home' | 'leave-project';
 }
 
 export interface MobileUnifiedBarProjection {
@@ -84,7 +87,7 @@ const NO_TRANSIENT: MobileWorkspaceTransient = { kind: 'none' };
 
 export function createInitialMobileWorkspaceUiState(): MobileWorkspaceUiState {
   return {
-    surface: PAPER_SURFACE,
+    surface: { kind: 'project-home' },
     paperMode: READ_MODE,
     panel: 'none',
     transient: NO_TRANSIENT,
@@ -97,6 +100,12 @@ function resetToSurface(surface: MobileWorkspaceSurface): MobileWorkspaceUiState
     ...createInitialMobileWorkspaceUiState(),
     surface,
   };
+}
+
+function returnSurfaceFor(surface: MobileWorkspaceSurface): 'project-home' | 'paper' {
+  if (surface.kind === 'project-home') return 'project-home';
+  if (surface.kind === 'overview' || surface.kind === 'super-view') return surface.returnTo;
+  return 'paper';
 }
 
 function transientOwnsInput(transient: MobileWorkspaceTransient): boolean {
@@ -170,10 +179,19 @@ export function mobileWorkspaceReducer(
   switch (action.type) {
     case 'show-paper':
       return resetToSurface(PAPER_SURFACE);
+    case 'show-project-home':
+      return resetToSurface({ kind: 'project-home' });
     case 'show-overview':
-      return resetToSurface({ kind: 'overview' });
+      return resetToSurface({
+        kind: 'overview',
+        returnTo: returnSurfaceFor(state.surface),
+      });
     case 'show-super-view':
-      return resetToSurface({ kind: 'super-view', view: action.view });
+      return resetToSurface({
+        kind: 'super-view',
+        view: action.view,
+        returnTo: returnSurfaceFor(state.surface),
+      });
     case 'open-project-trash':
       return checked({
         ...createInitialMobileWorkspaceUiState(),
@@ -293,6 +311,7 @@ export function resolveMobileWorkspaceBack(
   state: MobileWorkspaceUiState,
   source: MobileBackSource,
 ): MobileBackResolution {
+  void source;
   if (state.transient.kind === 'dialog') {
     return resolution('dialog', { ...state, transient: NO_TRANSIENT });
   }
@@ -332,12 +351,29 @@ export function resolveMobileWorkspaceBack(
     return resolution('panel-docked', { ...state, panel: 'none' });
   }
   if (state.surface.kind === 'super-view') {
-    return resolution('super-view', createInitialMobileWorkspaceUiState());
+    return resolution(
+      'super-view',
+      resetToSurface(
+        state.surface.returnTo === 'project-home' ? { kind: 'project-home' } : PAPER_SURFACE,
+      ),
+    );
   }
   if (state.surface.kind === 'overview') {
-    return resolution('overview', createInitialMobileWorkspaceUiState());
+    return resolution(
+      'overview',
+      resetToSurface(
+        state.surface.returnTo === 'project-home' ? { kind: 'project-home' } : PAPER_SURFACE,
+      ),
+    );
   }
-  if (source === 'android-hardware') {
+  if (state.surface.kind === 'paper') {
+    return resolution(
+      'paper-root',
+      resetToSurface({ kind: 'project-home' }),
+      'navigate-project-home',
+    );
+  }
+  if (state.surface.kind === 'project-home') {
     return resolution('project-root', state, 'leave-project');
   }
   return { handled: false, layer: null, nextState: state, effect: 'none' };
@@ -364,7 +400,7 @@ export function selectMobileUnifiedBarProjection(
       state.keyboard === 'open'
         ? 'dismiss-keyboard'
         : atReadRoot
-          ? 'disabled'
+          ? 'back'
           : 'back',
     placement: state.panel === 'bottom-docked' ? 'above-bottom-panel' : 'safe-bottom',
   };

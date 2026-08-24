@@ -86,7 +86,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - Header、左右栏、编辑器外侧、Bottom Timeline 与 `BottomStatusBar` 在所有平台都直接使用不透明 `--workspace-ui-bg`。macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`；Tauri 窗口配置显式保持 `transparent: false`，renderer 不再加载单独的原生材质样式。这样三处灰色底色来自同一个普通颜色 token，不依赖桌面壁纸、窗口激活状态或系统材质变化。
 - macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。renderer 顶栏高 `42px`，同排图标与文字按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。
 - 桌面顶栏在红绿灯（其他桌面平台为普通 leading inset）之后持续显示当前 Project 名称。macOS leading inset 固定为 `94px`，在第三个红绿灯之后留下独立呼吸空间。名称直接订阅已发布的 `currentProject.name`，重命名后即时更新；它按文本自身宽度占位，最大不超过 `min(220px, 22vw)`，保持单行并在溢出时省略，`title` 暴露完整名称。Project 文字显式退出 Tauri drag region 并保持 `user-select: text`，鼠标可在字面区域拖选；名称左右的空白仍属于父级窗口拖动面。左侧 section 使用 intrinsic width，命令组禁止收缩，因此搜索、导航和文档 Tabs 会紧跟实际项目名而不是对齐固定栏宽；移动端不复用这一桌面标识。
-- Project Dashboard 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受 editor pane 约束，并使用 `overflow-y: auto`。隐藏的只是 scrollbar chrome，不是滚动能力；不能依赖处于非 flex parent 内时无效的 `flex: 1` 来建立滚动高度。
+- Project Home 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受当前 shell 约束，并使用 `overflow-y: auto`。桌面 Home 保留完整 workspace chrome，但不绘制 Tab 外观；移动 Home 是 paper row 之外的独立 safe-area surface，仅增加项目级 Back、paper overview 和继续当前 paper 入口。隐藏的只是 scrollbar chrome，不是滚动能力。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
 - Super View overlay 停在全宽 `BottomStatusBar` 上方；工作区入口已经迁到 topbar。
 

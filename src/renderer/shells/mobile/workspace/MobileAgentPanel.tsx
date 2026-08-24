@@ -50,7 +50,7 @@ import {
 
 function targetLabel(target: WorkspaceTarget | null, t: (key: string) => string): string {
   const data = useDataStore.getState();
-  if (!target || target.entityType === 'dashboard') return t('agentPanel.mobile.target.dashboard');
+  if (!target) return t('agentPanel.mobile.target.dashboard');
   if (target.entityType === 'all-chapters') return t('agentPanel.mobile.target.allChapters');
   if (target.entityType === 'node') {
     return data.bookNodes.find((item) => item.id === target.id)?.title || t('agentPanel.mobile.target.untitledNode');

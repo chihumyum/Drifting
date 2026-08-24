@@ -18,16 +18,9 @@ import {
 } from './mobile-workspace-session-storage';
 
 function readInitial(projectId: string) {
-  return mobileWorkspaceSessionReducer(
-    readMobileWorkspaceSession(
-      typeof localStorage === 'undefined' ? null : localStorage,
-      projectId,
-    ),
-    {
-      type: 'ensure',
-      target: { entityType: 'dashboard', id: 'self' },
-      position: 'start',
-    },
+  return readMobileWorkspaceSession(
+    typeof localStorage === 'undefined' ? null : localStorage,
+    projectId,
   );
 }
 
@@ -94,6 +87,11 @@ export function useMobileWorkspaceSession(projectId: string) {
     navigate(`/project/${projectId}`, { replace: true });
   }, [navigate, projectId]);
 
+  const showProjectHome = useCallback<WorkspaceNavigator['showProjectHome']>(
+    (options) => navigate(`/project/${projectId}`, { replace: options?.replace ?? false }),
+    [navigate, projectId],
+  );
+
   const rememberScroll = useCallback((key: string, scrollTop: number) => {
     dispatch({ type: 'remember-scroll', key, scrollTop });
   }, []);
@@ -103,9 +101,10 @@ export function useMobileWorkspaceSession(projectId: string) {
       projectId,
       open,
       activate,
+      showProjectHome,
       leaveDeletedTarget,
     }),
-    [activate, leaveDeletedTarget, open, projectId],
+    [activate, leaveDeletedTarget, open, projectId, showProjectHome],
   );
 
   useEffect(() => {

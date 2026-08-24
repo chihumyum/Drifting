@@ -8,24 +8,16 @@ import {
 const chapter = (id: string) => ({ entityType: 'node' as const, id });
 
 describe('mobile workspace paper session', () => {
-  it('ensures the Project dashboard is an ordinary first paper without stealing activation', () => {
-    const chapterState = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
-      type: 'open',
-      target: chapter('a'),
-    });
-    const withDashboard = mobileWorkspaceSessionReducer(chapterState, {
-      type: 'ensure',
-      target: { entityType: 'dashboard', id: 'self' },
-      position: 'start',
-    });
-    expect(withDashboard.papers.map((paper) => paper.key)).toEqual(['dashboard:self', 'node:a']);
-    expect(withDashboard.activeKey).toBe('node:a');
-    expect(
-      mobileWorkspaceSessionReducer(withDashboard, {
-        type: 'ensure',
-        target: { entityType: 'dashboard', id: 'self' },
-      }),
-    ).toBe(withDashboard);
+  it('filters the legacy Project dashboard because Home is not a paper', () => {
+    const normalized = normalizeMobileWorkspaceSession({
+      papers: [
+        { key: 'dashboard:self', target: { entityType: 'dashboard', id: 'self' }, scrollTop: 0 },
+        { key: 'node:a', target: chapter('a'), scrollTop: 12 },
+      ],
+      activeKey: 'dashboard:self',
+    } as never);
+    expect(normalized.papers.map((paper) => paper.key)).toEqual(['node:a']);
+    expect(normalized.activeKey).toBe('node:a');
   });
 
   it('inserts a new paper to the right and activates an existing paper without duplicating it', () => {
