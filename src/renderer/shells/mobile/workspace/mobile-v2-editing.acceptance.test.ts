@@ -71,6 +71,7 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(geometry).toContain('Math.max(visualInset, readMobileNativeKeyboardInset())');
     expect(accessory).toContain('MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT');
     expect(back).toContain("resolved.effect === 'blur-editor'");
+    expect(back).toContain("resolved.effect === 'focus-editor'");
   });
 
   it('returns a panned iOS visual viewport top edge to the editor scroll range', () => {

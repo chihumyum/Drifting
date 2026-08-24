@@ -93,7 +93,7 @@ describe('Mobile V2 workspace controller', () => {
       surface: { kind: 'overview', returnTo: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'bottom-full',
-      transient: { kind: 'search', scope: 'project' },
+      transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
     };
     expect(mobileWorkspaceStateIssues(impossible)).toEqual(
@@ -116,30 +116,35 @@ describe('Mobile V2 workspace controller', () => {
 
   it('keeps Search input ownership out of paper edit mode', () => {
     const readingSearch = reduce(paperRoot(), {
-      type: 'set-transient',
-      transient: { kind: 'search', scope: 'paper' },
+      type: 'open-search',
+      scope: 'paper',
     });
     expect(readingSearch).toMatchObject({
       paperMode: { kind: 'read' },
-      transient: { kind: 'search', scope: 'paper' },
+      transient: { kind: 'search', scope: 'paper', returnTo: { kind: 'read' } },
       keyboard: 'closed',
     });
     expect(reduce(readingSearch, { type: 'sync-keyboard', keyboard: 'open' })).toMatchObject({
       paperMode: { kind: 'read' },
-      transient: { kind: 'search', scope: 'paper' },
+      transient: { kind: 'search', scope: 'paper', returnTo: { kind: 'read' } },
       keyboard: 'open',
     });
 
     const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
     const editingSearch = reduce(editing, {
-      type: 'set-transient',
-      transient: { kind: 'search', scope: 'paper' },
+      type: 'open-search',
+      scope: 'paper',
     });
     expect(editingSearch).toMatchObject({
       paperMode: { kind: 'read' },
-      transient: { kind: 'search', scope: 'paper' },
+      transient: {
+        kind: 'search',
+        scope: 'paper',
+        returnTo: { kind: 'edit', accessory: 'navigation' },
+      },
       keyboard: 'closed',
     });
+    expect(reduce(editingSearch, { type: 'sync-editor', editing: false })).toBe(editingSearch);
   });
 
   it('rejects the caret-less pseudo-edit state', () => {
@@ -219,12 +224,12 @@ describe('Mobile V2 Back priority', () => {
     expect(panel.layer).toBe('panel-docked');
   });
 
-  it('closes search before the panel and normalizes its keyboard', () => {
+  it('closes read-owned search before the panel and normalizes its keyboard', () => {
     const state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
       paperMode: { kind: 'read' },
       panel: 'none',
-      transient: { kind: 'search', scope: 'project' },
+      transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
     };
     const result = resolveMobileWorkspaceBack(state, 'visible');
@@ -232,6 +237,23 @@ describe('Mobile V2 Back priority', () => {
     expect(result.nextState).toMatchObject({
       transient: { kind: 'none' },
       keyboard: 'closed',
+    });
+  });
+
+  it('returns edit-owned search to the focused editor and open keyboard', () => {
+    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    state = reduce(state, { type: 'open-search', scope: 'paper' });
+    state = reduce(state, { type: 'sync-keyboard', keyboard: 'open' });
+
+    const result = resolveMobileWorkspaceBack(state, 'visible');
+    expect(result).toMatchObject({
+      layer: 'input',
+      effect: 'focus-editor',
+      nextState: {
+        paperMode: { kind: 'edit', accessory: 'navigation' },
+        transient: { kind: 'none' },
+        keyboard: 'open',
+      },
     });
   });
 
@@ -284,7 +306,7 @@ describe('Mobile V2 unified bar projection', () => {
     expect(
       selectMobileUnifiedBarProjection({
         ...root,
-        transient: { kind: 'search', scope: 'paper' },
+        transient: { kind: 'search', scope: 'paper', returnTo: { kind: 'read' } },
       }).mode,
     ).toBe('search');
     expect(

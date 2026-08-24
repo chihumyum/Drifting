@@ -24,9 +24,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(accessory).toContain('onPointerUp={toggle}');
     expect(accessory).toContain('onClick={handleToggleClick}');
     expect(bar.match(/data-debug-id="mobile-unified-back"/g)).toHaveLength(2);
-    expect(bar).toContain('backPreservesEditorFocus');
-    expect(bar).toContain("const backPreservesEditorFocus = projection.mode === 'edit'");
-    expect(bar).toContain("preflightDom: projection.mode !== 'edit'");
+    expect(bar).toContain('backPreservesFocusUntilResolution');
+    expect(bar).toContain("projection.mode === 'edit' || projection.mode === 'search'");
+    expect(bar).toContain(
+      "preflightDom: projection.mode !== 'edit' && projection.mode !== 'search'",
+    );
     expect(backRequest).toContain('if (preflightDom)');
     expect(controller).toContain("return resolution('editor-accessory'");
     expect(controller).toContain("paperMode: { kind: 'edit', accessory: 'navigation' }");
@@ -38,6 +40,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const controller = source('shells/mobile/workspace/mobile-workspace-controller.ts');
+    const back = source('shells/mobile/workspace/useMobileWorkspaceBack.ts');
     const styles = document('src/styles/mobile-workspace.css');
 
     expect(bar).toContain('focus({ preventScroll: true })');
@@ -47,6 +50,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
       /data-debug-id="mobile-open-search"[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\)/u,
     );
     expect(controller).toContain('paperMode: READ_MODE');
+    expect(controller).toContain("type: 'open-search'");
+    expect(controller).toContain('returnTo: state.paperMode');
+    expect(controller).toContain("returnToEditing ? 'focus-editor' : 'none'");
+    expect(back).toContain("resolved.effect === 'focus-editor'");
+    expect(back).toContain('scrollIntoView: false');
     expect(styles).toContain(
       ".m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']",
     );

@@ -550,8 +550,8 @@ export function MobilePaperDeck({
   const openSearch = useCallback(
     () =>
       onWorkspaceUiAction({
-        type: 'set-transient',
-        transient: { kind: 'search', scope: 'paper' },
+        type: 'open-search',
+        scope: 'paper',
       }),
     [onWorkspaceUiAction],
   );

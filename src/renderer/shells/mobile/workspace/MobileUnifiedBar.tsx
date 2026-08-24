@@ -153,15 +153,15 @@ function MobileUnifiedBarPaperIdentity({
 }
 
 function MobileUnifiedBackAction({
-  preserveEditorFocus,
+  preserveFocusUntilBack,
   onBack,
   label,
 }: {
-  preserveEditorFocus: boolean;
+  preserveFocusUntilBack: boolean;
   onBack: () => void;
   label: string;
 }) {
-  if (!preserveEditorFocus) {
+  if (!preserveFocusUntilBack) {
     return (
       <button
         type="button"
@@ -281,9 +281,6 @@ export function MobileUnifiedBar({
       window.removeEventListener('resize', sync);
       window.removeEventListener(MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT, sync);
       searchOwner?.clear();
-      onKeyboardInsetChange(0);
-      onKeyboardViewportOffsetTopChange(0);
-      onKeyboardStateChange('closed');
     };
   }, [
     onKeyboardInsetChange,
@@ -298,10 +295,11 @@ export function MobileUnifiedBar({
   // Every editor-owned Back must keep ProseMirror focused until the typed Back
   // request resolves. Otherwise pointerdown emits blur first, the controller
   // becomes read, and the later click is incorrectly resolved as paper-root.
-  const backPreservesEditorFocus = projection.mode === 'edit';
+  const backPreservesFocusUntilResolution =
+    projection.mode === 'edit' || projection.mode === 'search';
   const handleBack = () =>
     requestMobileWorkspaceBack('visible', {
-      preflightDom: projection.mode !== 'edit',
+      preflightDom: projection.mode !== 'edit' && projection.mode !== 'search',
     });
   const backLabel = t('navigation.back');
 
@@ -328,7 +326,7 @@ export function MobileUnifiedBar({
         {projection.mode === 'search' ? (
           <>
             <MobileUnifiedBackAction
-              preserveEditorFocus={false}
+              preserveFocusUntilBack={backPreservesFocusUntilResolution}
               onBack={handleBack}
               label={backLabel}
             />
@@ -357,7 +355,7 @@ export function MobileUnifiedBar({
         ) : (
           <>
             <MobileUnifiedBackAction
-              preserveEditorFocus={backPreservesEditorFocus}
+              preserveFocusUntilBack={backPreservesFocusUntilResolution}
               onBack={handleBack}
               label={backLabel}
             />

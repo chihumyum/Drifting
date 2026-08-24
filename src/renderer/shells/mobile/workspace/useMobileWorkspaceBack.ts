@@ -82,6 +82,9 @@ export function useMobileWorkspaceBack({
         latest.dispatch({ type: 'replace', state: resolved.nextState });
       }
       if (resolved.effect === 'blur-editor') getActiveEditor()?.commands.blur();
+      if (resolved.effect === 'focus-editor') {
+        getActiveEditor()?.commands.focus(undefined, { scrollIntoView: false });
+      }
       if (resolved.effect === 'navigate-project-home') latest.onShowProjectHome();
       if (resolved.effect === 'leave-project') latest.onLeaveProject();
       return true;

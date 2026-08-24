@@ -12,6 +12,8 @@ export type MobilePaperMode =
   | { kind: 'read' }
   | { kind: 'edit'; accessory: 'navigation' | 'formatting' };
 
+export type MobileSearchReturnMode = MobilePaperMode;
+
 export type MobileWorkspacePanel =
   | 'none'
   | 'top-docked'
@@ -21,7 +23,11 @@ export type MobileWorkspacePanel =
 
 export type MobileWorkspaceTransient =
   | { kind: 'none' }
-  | { kind: 'search'; scope: 'paper' | 'project' }
+  | {
+      kind: 'search';
+      scope: 'paper' | 'project';
+      returnTo: MobileSearchReturnMode;
+    }
   | { kind: 'agent-input' }
   | { kind: 'popover'; id: string }
   | { kind: 'bar-sheet'; sheet: 'outline' | 'comments' | 'actions' }
@@ -46,7 +52,11 @@ export type MobileWorkspaceAction =
   | { type: 'show-super-view'; view: MobileSuperViewId }
   | { type: 'open-project-trash' }
   | { type: 'set-panel'; panel: MobileWorkspacePanel }
-  | { type: 'set-transient'; transient: MobileWorkspaceTransient }
+  | { type: 'open-search'; scope: 'paper' | 'project' }
+  | {
+      type: 'set-transient';
+      transient: Exclude<MobileWorkspaceTransient, { kind: 'search' }>;
+    }
   | { type: 'sync-editor'; editing: boolean }
   | { type: 'set-editor-accessory'; accessory: 'navigation' | 'formatting' }
   | { type: 'sync-keyboard'; keyboard: MobileKeyboardState }
@@ -72,7 +82,12 @@ export interface MobileBackResolution {
   handled: boolean;
   layer: MobileBackLayer | null;
   nextState: MobileWorkspaceUiState;
-  effect: 'none' | 'blur-editor' | 'navigate-project-home' | 'leave-project';
+  effect:
+    | 'none'
+    | 'blur-editor'
+    | 'focus-editor'
+    | 'navigate-project-home'
+    | 'leave-project';
 }
 
 export interface MobileUnifiedBarProjection {
@@ -207,6 +222,20 @@ export function mobileWorkspaceReducer(
         transient: NO_TRANSIENT,
         keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
       });
+    case 'open-search':
+      if (state.surface.kind !== 'paper' || state.transient.kind !== 'none') return state;
+      return checked({
+        ...state,
+        surface: PAPER_SURFACE,
+        paperMode: READ_MODE,
+        panel: 'none',
+        transient: {
+          kind: 'search',
+          scope: action.scope,
+          returnTo: state.paperMode,
+        },
+        keyboard: 'closed',
+      });
     case 'set-transient': {
       if (
         action.transient.kind === 'dialog' &&
@@ -257,7 +286,9 @@ export function mobileWorkspaceReducer(
     }
     case 'sync-editor':
       if (!action.editing) {
-        if (state.paperMode.kind === 'read' && state.keyboard === 'closed') return state;
+        // Search and Agent input own their own keyboard while the paper remains
+        // read-only. A delayed editor blur must not close that input keyboard.
+        if (state.paperMode.kind === 'read') return state;
         return checked({ ...state, paperMode: READ_MODE, keyboard: 'closed' });
       }
       if (
@@ -324,6 +355,20 @@ export function resolveMobileWorkspaceBack(
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
+  if (state.transient.kind === 'search') {
+    const returnTo = state.transient.returnTo;
+    const returnToEditing = returnTo.kind === 'edit';
+    return resolution(
+      'input',
+      {
+        ...state,
+        paperMode: returnTo,
+        transient: NO_TRANSIENT,
+        keyboard: returnToEditing ? 'open' : 'closed',
+      },
+      returnToEditing ? 'focus-editor' : 'none',
+    );
+  }
   if (state.paperMode.kind === 'edit' && state.paperMode.accessory === 'formatting') {
     return resolution('editor-accessory', {
       ...state,
@@ -337,7 +382,7 @@ export function resolveMobileWorkspaceBack(
       'blur-editor',
     );
   }
-  if (transientOwnsInput(state.transient)) {
+  if (state.transient.kind === 'agent-input') {
     return resolution('input', {
       ...state,
       transient: NO_TRANSIENT,
