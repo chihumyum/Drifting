@@ -25,9 +25,12 @@ and inline mark commands; formatting never opens a Sheet. While that level is
 expanded, the label is absent and the persistent leftmost Back collapses only
 the formatting row, preserving editor focus, caret, keyboard, and selection.
 Editor-owned Back dispatches no synthetic Escape, and the level-only path does
-not refocus the editor. Back from the edit navigation level exits editing and
-closes the keyboard; Back on a read paper returns to Project Home. There is no
-separate keyboard-dismiss Chevron.
+not refocus the editor. Both edit levels consume pointer focus until the typed
+Back request resolves: a pointerdown cannot first blur the editor and turn the
+same tap into a read-root navigation. Back from the edit navigation level exits
+editing and closes the keyboard while keeping the current paper open; only a
+later Back on that read paper returns to Project Home. There is no separate
+keyboard-dismiss Chevron.
 
 Keyboard placement is derived from the greatest reliable inset:
 
@@ -90,7 +93,13 @@ Current-paper search and Project search are separate, headless owners:
 - opening a Project result adds or activates the corresponding ordinary paper.
 
 Search state is transient workspace state. It never creates a paper, mutates
-Yjs, or changes paper order merely because a query ran.
+Yjs, or changes paper order merely because a query ran. Its focused query field
+owns the software keyboard without putting the paper in edit mode. Search focus
+uses `preventScroll`. Search-owned keyboard geometry sizes the read-only paper
+scroll viewport above the keyboard and exposes any panned-off top distance as
+temporary scroll reserve. The same reserve-delta compensation preserves the
+current prose position; it is geometry for full scroll reachability, not editor
+focus, a caret, or paper edit mode.
 
 ## All Chapters is an editable ordinary paper
 

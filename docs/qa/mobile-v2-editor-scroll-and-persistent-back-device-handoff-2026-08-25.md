@@ -4,7 +4,9 @@ Status: **corrective implementation complete; physical-device acceptance is user
 
 ## Evidence boundary
 
-- Corrected baseline commit: `b861428a95f231ed7fd60f84a624c42140646c88`.
+- Previous correction commits: `b861428a95f231ed7fd60f84a624c42140646c88`
+  and `616163966fddfc076cf90c38996971dad48e7f97`; this follow-up is committed
+  separately.
 - No Simulator, emulator, native build, or renderer-bridge interaction is part
   of this follow-up.
 - Automated evidence covers pure viewport geometry, reducer hierarchy, source
@@ -50,17 +52,21 @@ the folio. Persisted paper scroll memory excludes this keyboard-only distance.
 8. Confirm there is no separate right-side keyboard-dismiss Chevron.
 9. Enter Search and confirm the same leftmost Back control exits Search before
    any paper or Project navigation.
+10. From both reading and editing, enter Search. The query field may open its
+    keyboard, but the paper must remain in read presentation and must not jump
+    or acquire a caret. Scroll all the way to both document boundaries: keyboard
+    occlusion and a panned visual viewport must not trap either edge offscreen.
 
 ## Automated checks
 
-- `pnpm public:check`: passed for 1,511 publish candidates.
-- `pnpm lint`: passed with 0 errors and the existing 41 warnings.
+- `pnpm public:check`: passed for 1,531 current-checkout publish candidates.
+- `pnpm lint`: passed with 0 errors and 38 existing warnings.
 - `pnpm typecheck`: passed.
 - `pnpm agent:capabilities:check`: passed, including 18 capability tests.
-- `pnpm exec vitest run --maxWorkers=4`: 321 files passed, 1 skipped;
-  1,859 tests passed, 1 skipped.
-- `pnpm exec vite build`: passed with 3,687 modules transformed.
-- `git diff --check`: passed for the isolated corrective patch.
+- `pnpm test`: 326 files passed, 1 skipped; 1,915 tests passed, 1 skipped.
+- No renderer or native build was added to this follow-up; the user owns the
+  requested physical-device interaction check.
+- `git diff --check`: passed for the scoped corrective patch.
 
 ## Storage and cleanup
 

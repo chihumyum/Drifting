@@ -114,6 +114,34 @@ describe('Mobile V2 workspace controller', () => {
     expect(reduce(root, { type: 'sync-keyboard', keyboard: 'open' })).toBe(root);
   });
 
+  it('keeps Search input ownership out of paper edit mode', () => {
+    const readingSearch = reduce(paperRoot(), {
+      type: 'set-transient',
+      transient: { kind: 'search', scope: 'paper' },
+    });
+    expect(readingSearch).toMatchObject({
+      paperMode: { kind: 'read' },
+      transient: { kind: 'search', scope: 'paper' },
+      keyboard: 'closed',
+    });
+    expect(reduce(readingSearch, { type: 'sync-keyboard', keyboard: 'open' })).toMatchObject({
+      paperMode: { kind: 'read' },
+      transient: { kind: 'search', scope: 'paper' },
+      keyboard: 'open',
+    });
+
+    const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    const editingSearch = reduce(editing, {
+      type: 'set-transient',
+      transient: { kind: 'search', scope: 'paper' },
+    });
+    expect(editingSearch).toMatchObject({
+      paperMode: { kind: 'read' },
+      transient: { kind: 'search', scope: 'paper' },
+      keyboard: 'closed',
+    });
+  });
+
   it('rejects the caret-less pseudo-edit state', () => {
     expect(
       mobileWorkspaceStateIssues({

@@ -230,7 +230,10 @@
   background: hsl(var(--page));
 }
 
-.m-workspace[data-controller-keyboard='open'] .m-paper-deck__content {
+.m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
+  .m-paper-deck__content,
+.m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
+  .m-paper-deck__content {
   padding-bottom: calc(
     var(--m-unified-bar-height) + 14px + var(--m-unified-keyboard-inset)
   );
@@ -2052,6 +2055,8 @@
 }
 
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
+  .editor-scroll,
+.m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
   .editor-scroll {
   padding-top: var(--m-editor-top-scroll-reserve);
 }

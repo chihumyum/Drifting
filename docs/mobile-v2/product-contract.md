@@ -175,10 +175,11 @@ Overview owns its own header and hides the unified bar.
   Pressing Format opens one horizontally scrollable icon row and hides the
   label; it never opens a Sheet. Editor-owned Back never sends a synthetic
   Escape. Persistent leftmost Back collapses the formatting level without
-  moving focus or closing the keyboard. Back from the
-  edit navigation level exits editing and closes the keyboard; Back at the
-  read-paper root returns to Project Home. There is no separate right-side
-  keyboard-dismiss control.
+  moving focus or closing the keyboard. Pointerdown on either editor-owned Back
+  level must not blur ProseMirror before the typed Back request resolves. Back
+  from the edit navigation level exits editing and closes the keyboard while
+  retaining the current paper; Back at the read-paper root returns to Project
+  Home. There is no separate right-side keyboard-dismiss control.
 - When the software keyboard pans an iOS `visualViewport`, its positive
   `offsetTop` becomes scrollable leading reserve inside `.editor-scroll`.
   Applying or removing it shifts `scrollTop` by the same delta before paint,
@@ -187,7 +188,11 @@ Overview owns its own header and hides the unified bar.
 - The keyboard accessory, structure panel, and tool panel have independent
   ownership. An already-open panel does not suppress the accessory above the
   software keyboard.
-- Search state owns query scope, current match, and previous/next actions.
+- Search state owns query scope, current match, previous/next actions, and its
+  own input keyboard. It leaves paper mode at read, focuses without scrolling,
+  and never acquires editor focus or a caret. Search keyboard geometry may size
+  the read-only scroll viewport and add compensated top reserve solely so both
+  document boundaries remain reachable; that geometry is not edit state.
 - Agent input shows explicit context chips and send/cancel state.
 - A docked bottom panel places the bar immediately above the panel; a full
   panel returns it to the safe bottom edge.

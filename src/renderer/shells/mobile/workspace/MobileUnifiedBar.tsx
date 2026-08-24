@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import {
   useEffect,
+  useLayoutEffect,
+  useRef,
   useSyncExternalStore,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
@@ -29,6 +31,7 @@ import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
+  readMobileKeyboardViewportOffsetTop,
   readMobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
 import {
@@ -52,11 +55,19 @@ function MobileUnifiedSearch({
   onProjectSearch: (query: string) => void;
 }) {
   const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const snapshot = useSyncExternalStore(
     owner?.subscribe ?? subscribeNothing,
     owner?.getSnapshot ?? emptyMobilePaperSearchSnapshot,
     emptyMobilePaperSearchSnapshot,
   );
+  useLayoutEffect(() => {
+    // Search owns this input, not the prose editor. Native `autoFocus` lets
+    // WebKit scroll the paper to expose a bottom-edge control before the IME
+    // geometry arrives. Focus explicitly without scrolling so opening Search
+    // never masquerades as an editor/caret transition.
+    inputRef.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     if (!owner || snapshot.query) return;
     const editor = getActiveEditor();
@@ -79,7 +90,7 @@ function MobileUnifiedSearch({
         {t('mobileWorkspace.search.paperScope', { defaultValue: '本纸' })}
       </button>
       <input
-        autoFocus
+        ref={inputRef}
         value={snapshot.query}
         onChange={(event) => owner?.setQuery(event.target.value)}
         onKeyDown={(event) => {
@@ -254,6 +265,7 @@ export function MobileUnifiedBar({
       frame = requestAnimationFrame(() => {
         const inset = readMobileKeyboardInset();
         onKeyboardInsetChange(inset);
+        onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop());
         onKeyboardStateChange(readMobileSoftwareKeyboardVisible() ? 'open' : 'closed');
       });
     };
@@ -283,8 +295,10 @@ export function MobileUnifiedBar({
   const showPaperNavigation =
     projection.mode === 'read' ||
     (projection.mode === 'edit' && editorAccessoryMode === 'navigation');
-  const backPreservesEditorFocus =
-    projection.mode === 'edit' && editorAccessoryMode === 'formatting';
+  // Every editor-owned Back must keep ProseMirror focused until the typed Back
+  // request resolves. Otherwise pointerdown emits blur first, the controller
+  // becomes read, and the later click is incorrectly resolved as paper-root.
+  const backPreservesEditorFocus = projection.mode === 'edit';
   const handleBack = () =>
     requestMobileWorkspaceBack('visible', {
       preflightDom: projection.mode !== 'edit',
@@ -374,6 +388,9 @@ export function MobileUnifiedBar({
                 type="button"
                 className="m-unified-bar__action"
                 data-debug-id="mobile-open-search"
+                onPointerDown={(event) => {
+                  if (projection.mode === 'edit') event.preventDefault();
+                }}
                 onClick={onOpenSearch}
                 aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
               >

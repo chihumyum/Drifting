@@ -668,7 +668,9 @@ export function MobilePaperDeck({
                               : undefined
                           }
                           topScrollReserve={
-                            workspaceUi.paperMode.kind === 'edit'
+                            workspaceUi.keyboard === 'open' &&
+                            (workspaceUi.paperMode.kind === 'edit' ||
+                              workspaceUi.transient.kind === 'search')
                               ? keyboardViewportOffsetTop
                               : 0
                           }

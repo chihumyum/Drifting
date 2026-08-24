@@ -25,12 +25,39 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(accessory).toContain('onClick={handleToggleClick}');
     expect(bar.match(/data-debug-id="mobile-unified-back"/g)).toHaveLength(2);
     expect(bar).toContain('backPreservesEditorFocus');
+    expect(bar).toContain("const backPreservesEditorFocus = projection.mode === 'edit'");
     expect(bar).toContain("preflightDom: projection.mode !== 'edit'");
     expect(backRequest).toContain('if (preflightDom)');
     expect(controller).toContain("return resolution('editor-accessory'");
     expect(controller).toContain("paperMode: { kind: 'edit', accessory: 'navigation' }");
     expect(styles).toMatch(/\.m-editor-accessory__toggle \{[\s\S]*?touch-action: none;/u);
     expect(bar).not.toContain('data-debug-id="mobile-dismiss-keyboard"');
+  });
+
+  it('keeps Search input ownership separate from editor focus and paper geometry', () => {
+    const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
+    const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
+    const controller = source('shells/mobile/workspace/mobile-workspace-controller.ts');
+    const styles = document('src/styles/mobile-workspace.css');
+
+    expect(bar).toContain('focus({ preventScroll: true })');
+    expect(bar).not.toMatch(/<input[\s\S]{0,160}\sautoFocus(?:=|\s|>)/u);
+    expect(bar).toContain('readMobileKeyboardViewportOffsetTop()');
+    expect(bar).toMatch(
+      /data-debug-id="mobile-open-search"[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\)/u,
+    );
+    expect(controller).toContain('paperMode: READ_MODE');
+    expect(styles).toContain(
+      ".m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']",
+    );
+    expect(styles).toContain(
+      ".m-workspace[data-controller-transient='search'][data-controller-keyboard='open']",
+    );
+    expect(deck).toContain("workspaceUi.transient.kind === 'search'");
+    expect(deck).toContain('keyboardViewportOffsetTop');
+    expect(styles).not.toContain(
+      ".m-workspace[data-controller-keyboard='open'] .m-paper-deck__content",
+    );
   });
 
   it('uses one 144px close snap zone for top and bottom panel handles', () => {
