@@ -54,6 +54,7 @@ describe('mobile standalone routes', () => {
       'shells/mobile/workspace/useMobileWorkspaceSession.ts',
     );
     const previewSheet = rendererSource('shells/mobile/workspace/MobileEntityPreviewSheet.tsx');
+    const statsSheet = rendererSource('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const paperRailMenu = rendererSource('shells/mobile/workspace/MobilePaperRailMenu.tsx');
     const railPresentation = rendererSource('components/editor/editor-rail-presentation.ts');
@@ -98,7 +99,7 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).not.toContain('paperCluster');
     expect(paperDeck).not.toContain('VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE');
     expect(paperDeck).toContain("data-full-panel={fullPanel ?? 'none'}");
-    expect(panels).toContain('<PanelResizeHandle');
+    expect(panels).toContain('variant="boundary"');
     expect(panels).toContain('m-context-tab-rail--structure');
     expect(panels).toContain('m-context-tab-rail--tools');
     expect(panels).toContain('<ChapterPanel');
@@ -107,7 +108,10 @@ describe('mobile standalone routes', () => {
     expect(panels).toContain('presentation="mobile"');
     expect(panels).not.toContain('m-context-tab-rail__dashboard');
     expect(panels).not.toContain('<Home');
-    expect(panels).toContain("type ToolTab = 'planning' | 'agent' | 'library' | 'stats'");
+    expect(panels).toContain("type ToolTab = 'planning' | 'agent' | 'library'");
+    expect(panels).not.toContain("| 'stats'");
+    expect(statsSheet).toContain('<EntityStatsContent');
+    expect(statsSheet).toContain('onPointerMove={(event) =>');
     expect(panels).toContain("type PlanningMode = 'timeline' | 'plot'");
     expect(panels).toContain("type LibraryMode = 'todo' | 'library'");
     expect(panels).toContain('className="m-tool-workspace__subtabs"');
@@ -184,8 +188,9 @@ describe('mobile standalone routes', () => {
     expect(nativeEntry).toContain('tauri::WebviewWindowBuilder::from_config');
     expect(nativeEntry).toContain('.with_input_accessory_view_builder(|_| None)');
     expect(nativeEntry).toContain('.build(context)');
-    expect(panels).toContain('onExtentChange(next)');
-    expect(paperDeck).toContain('extent >= 0.5');
+    expect(panels).toContain('onExtentChange={(_panel, nextExtent)');
+    expect(paperDeck).toContain('resolveMobilePanelGesture(gesture)');
+    expect(paperDeck).not.toContain('extent >= 0.5');
     expect(css).toContain('touch-action: pan-y');
     expect(css).toContain(".m-workspace[data-reveal='bottom']");
     expect(css).toContain('visibility: hidden');

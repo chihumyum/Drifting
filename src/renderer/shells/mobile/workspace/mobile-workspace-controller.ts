@@ -24,7 +24,7 @@ export type MobileWorkspaceTransient =
   | { kind: 'agent-input' }
   | { kind: 'popover'; id: string }
   | { kind: 'bar-sheet'; sheet: 'outline' | 'comments' | 'actions' }
-  | { kind: 'paper-status' }
+  | { kind: 'paper-stats' }
   | { kind: 'entity-preview'; target: WorkspaceTarget }
   | { kind: 'dialog'; dialog: 'project-trash' | 'destructive' | 'native' };
 
@@ -206,7 +206,7 @@ export function mobileWorkspaceReducer(
       }
       if (
         action.transient.kind === 'entity-preview' ||
-        action.transient.kind === 'paper-status' ||
+        action.transient.kind === 'paper-stats' ||
         action.transient.kind === 'popover'
       ) {
         return checked({
@@ -298,7 +298,7 @@ export function resolveMobileWorkspaceBack(
   }
   if (
     state.transient.kind === 'popover' ||
-    state.transient.kind === 'paper-status' ||
+    state.transient.kind === 'paper-stats' ||
     state.transient.kind === 'entity-preview' ||
     state.transient.kind === 'bar-sheet'
   ) {

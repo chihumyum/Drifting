@@ -58,8 +58,8 @@ App
     |-- Bottom tool workspace
     |   |-- Planning: Timeline and Plot Grid
     |   |-- General Agent
-    |   |-- Library and TODO
-    |   `-- Stats
+    |   `-- Library and TODO
+    |-- Current-entity Stats Sheet: shared desktop right-sidebar content
     |-- Paper overview and search results
     `-- Independent Super Views
         |-- Story Graph
@@ -98,6 +98,12 @@ counts, or paper-session entries.
 - The paper strip may expose a 6px neighbor cue, derived from the real viewport
   instead of a fixed 402x874 production geometry.
 - Safe-area and `visualViewport` geometry are authoritative for placement.
+- A closed workspace exposes one entry grabber per edge. Once a panel moves,
+  its own boundary grabber becomes the only visible and interactive handle;
+  the initiating accessory hides during the drag and returns after settlement.
+- Ordinary panel release preserves the author's exact height. Crossing an
+  arbitrary percentage never forces full screen; only reaching the full edge
+  or a deliberate opening fling may commit full screen.
 
 ### 4.3 Paper swipe
 
@@ -125,7 +131,7 @@ The shell stores orthogonal state rather than one flat bar enum:
 surface: paper | overview | super-view
 paperMode: read | edit
 panel: none | top-docked | top-full | bottom-docked | bottom-full
-transient: none | search | agent-input | bar-sheet | entity-preview | dialog
+transient: none | search | agent-input | bar-sheet | paper-stats | entity-preview | dialog
 keyboard: closed | open
 ```
 
@@ -134,7 +140,7 @@ The unified bar is a pure controlled projection of these states.
 Back resolves one visible layer at a time in this order:
 
 1. destructive/native dialog;
-2. popover, current-paper status, entity preview, or bar sheet;
+2. popover, current-paper Stats, entity preview, or bar sheet;
 3. edit mode and its software keyboard atomically return to read mode;
 4. search or Agent input, including its keyboard;
 5. full panel to docked panel;
@@ -152,10 +158,12 @@ Overview owns its own header and hides the unified bar.
 - The base bar is a floating horizontal 56px pill, never a full-width footer.
 - Read state always shows the current editor entity, a separate paper-count
   button, Search, and the hamburger menu. The entity opens a current-paper
-  status sheet; only the count button opens paper Overview.
+  Stats Sheet using shared desktop-right-sidebar content; only the count button
+  opens paper Overview.
 - The pill contains no top-panel or bottom-panel buttons. A safe-top grabber
   pulls down the structure panel; the pill's own grabber pulls up the tool
-  panel. Settled panels retain their continuous resize handle.
+  panel. During either drag the pill hides, and the moving panel owns the only
+  visible boundary handle. Full panels hide the opposite entry and the pill.
 - Edit state exists only while the live editor is focused and a software
   keyboard is visibly open. Caret-less, keyboard-less pseudo-edit states are
   illegal.

@@ -18,7 +18,7 @@ import { MobilePaperContent } from './MobilePaperContent';
 import { MobileBarSheet } from './MobileBarSheet';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
-import { MobilePaperStatusSheet } from './MobilePaperStatusSheet';
+import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
 import { MobilePanelPullHandle } from './MobilePanelPullHandle';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
@@ -29,6 +29,10 @@ import {
   resolveMobilePaperSwipe,
 } from './mobile-paper-swipe';
 import type { MobilePaperRail } from './mobile-paper-rail';
+import {
+  resolveMobilePanelGesture,
+  type MobilePanelGestureCommit,
+} from './mobile-panel-gesture';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import {
   type MobileWorkspaceAction,
@@ -170,6 +174,7 @@ export function MobilePaperDeck({
     bottom: DEFAULT_PANEL_EXTENT,
   });
   const [panelResizing, setPanelResizing] = useState(false);
+  const [panelDragSource, setPanelDragSource] = useState<PanelPosition | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
 
   const reveal: PanelPosition | 'focused' = workspaceUi.panel.startsWith('top-')
@@ -231,6 +236,7 @@ export function MobilePaperDeck({
         panelExtent,
         visibleExtent,
         panelResizing,
+        panelDragSource,
         fullPanel,
         editorActive,
         activeRail,
@@ -247,6 +253,7 @@ export function MobilePaperDeck({
     fullPanel,
     panelExtent,
     panelResizing,
+    panelDragSource,
     paperSwipePhase,
     reveal,
     session.activeKey,
@@ -431,7 +438,7 @@ export function MobilePaperDeck({
     (nextReveal: PanelPosition | 'focused', extent = DEFAULT_PANEL_EXTENT) => {
       setPanelResizing(false);
       if (nextReveal !== 'focused') {
-        const nextExtent = Math.max(0.08, Math.min(0.48, extent));
+        const nextExtent = Math.max(0.04, Math.min(0.98, extent));
         setDockedExtent((current) =>
           current[nextReveal] === nextExtent
             ? current
@@ -456,19 +463,27 @@ export function MobilePaperDeck({
     }
   };
 
-  const commitExtentFromHandle = (panel: PanelPosition, extent: number) => {
+  const setPanelDragState = (panel: PanelPosition, dragging: boolean) => {
+    setPanelResizing(dragging);
+    setPanelDragSource(dragging ? panel : null);
+  };
+
+  const commitExtentFromHandle = (panel: PanelPosition, gesture: MobilePanelGestureCommit) => {
     setPanelResizing(false);
-    if (extent <= 0.08) {
+    const resolution = resolveMobilePanelGesture(gesture);
+    if (resolution.state === 'closed') {
       commitPanel('focused');
       return;
     }
-    if (extent >= 0.5) {
+    if (resolution.state === 'full') {
       setPanelExtentOverride(null);
       onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-full` });
       return;
     }
     setDockedExtent((current) =>
-      current[panel] === extent ? current : { ...current, [panel]: extent },
+      current[panel] === resolution.extent
+        ? current
+        : { ...current, [panel]: resolution.extent },
     );
     setPanelExtentOverride(null);
     onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-docked` });
@@ -519,6 +534,7 @@ export function MobilePaperDeck({
       data-debug-id="mobile-workspace"
       data-reveal={reveal}
       data-preview={panelResizing ? 'true' : 'false'}
+      data-panel-drag-source={panelDragSource ?? 'none'}
       data-full-panel={fullPanel ?? 'none'}
       data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
@@ -546,6 +562,7 @@ export function MobilePaperDeck({
         panel="top"
         extent={workspaceUi.panel.startsWith('top-') ? panelExtent : 0}
         disabled={workspaceUi.surface.kind !== 'paper'}
+        onDragStateChange={setPanelDragState}
         onExtentChange={setExtentFromHandle}
         onExtentCommit={commitExtentFromHandle}
       />
@@ -555,6 +572,7 @@ export function MobilePaperDeck({
         panelExtent={panelExtent}
         onPanelExtentChange={setExtentFromHandle}
         onPanelExtentCommit={commitExtentFromHandle}
+        onPanelDragStateChange={setPanelDragState}
         onPreviewTarget={(target) =>
           onWorkspaceUiAction({
             type: 'set-transient',
@@ -660,11 +678,9 @@ export function MobilePaperDeck({
         />
       )}
 
-      {workspaceUi.transient.kind === 'paper-status' && active && activeIndex >= 0 && (
-        <MobilePaperStatusSheet
+      {workspaceUi.transient.kind === 'paper-stats' && active && activeIndex >= 0 && (
+        <MobilePaperStatsSheet
           target={active.target}
-          paperIndex={activeIndex}
-          paperCount={session.papers.length}
           onClose={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
           }
@@ -688,11 +704,12 @@ export function MobilePaperDeck({
         activeRail={activeRail}
         keyboardInset={keyboardInset}
         panelExtent={panelExtent}
+        onPanelDragStateChange={setPanelDragState}
         onPanelExtentChange={setExtentFromHandle}
         onPanelExtentCommit={commitExtentFromHandle}
         onOpenOverview={onOpenOverview}
-        onOpenStatus={() =>
-          onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-status' } })
+        onOpenStats={() =>
+          onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
         }
         onOpenSearch={openSearch}
         onProjectSearch={onProjectSearch}

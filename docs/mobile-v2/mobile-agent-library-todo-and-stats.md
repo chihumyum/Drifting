@@ -80,17 +80,20 @@ minimum touch area and 16px text input.
 
 ## Statistics
 
-Stats has two internal modes:
+Stats no longer occupies a duplicate item in the bottom tool rail. Tapping the
+current entity in the floating accessory opens a draggable mobile Sheet whose
+body is the same shared `EntityStatsContent` used by the desktop right sidebar.
+There is no mobile-only statistics calculation or hand-built status summary.
 
-- Current paper preserves the shared `EntityStatsContent` semantics for an
-  ordinary chapter/drift, storyline, element, category, or All Chapters.
-- Whole book supplies the canonical All Chapters target to the same shared
-  statistics component.
+The current target preserves shared Stats semantics for an ordinary
+chapter/drift, storyline, element, category, or All Chapters. Project Home
+shows the shared empty explanation rather than invented numbers. The Sheet has
+one scroll owner, a close action, backdrop dismissal, and a grabber that can be
+dragged downward or flung down to close.
 
-Project Home shows a deliberate empty explanation instead of invented entity
-numbers. A Project with no chapters shows the shared whole-book empty state.
-Both mode controls are 44px and the results use one vertical scroll owner;
-long titles truncate in the header instead of widening the viewport.
+A Project with no chapters shows the shared whole-book empty state. Long titles
+truncate rather than widening the viewport, and navigable Stats rows retain
+44px mobile targets.
 
 ## Deterministic evidence
 

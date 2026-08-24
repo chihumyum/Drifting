@@ -19,7 +19,7 @@ surface    = paper | overview | super-view(view)
 paperMode  = read | edit(accessory: navigation | formatting)
 panel      = none | top-docked | top-full | bottom-docked | bottom-full
 transient  = none | search | agent-input | popover | bar-sheet
-             | paper-status | entity-preview | dialog
+             | paper-stats | entity-preview | dialog
 keyboard   = closed | open
 ```
 
@@ -54,7 +54,7 @@ returns exactly one layer, one legal next state, and at most one effect. The
 implemented order is:
 
 1. destructive, native, or full-screen Project Trash dialog;
-2. popover, current-paper status, entity preview, or bar sheet;
+2. popover, current-paper Stats, entity preview, or bar sheet;
 3. edit mode and its keyboard atomically return to read mode and blur the
    editor;
 4. Search or Agent input, including its keyboard;

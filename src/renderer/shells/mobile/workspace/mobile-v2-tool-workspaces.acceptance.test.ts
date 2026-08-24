@@ -71,15 +71,18 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(css).toContain('min-height: 44px');
   });
 
-  it('keeps current-paper and whole-book Stats in the vertical tool workspace', () => {
+  it('reuses desktop-right-sidebar Stats in a draggable entity-owned Sheet', () => {
     const panels = source('shells/mobile/workspace/MobileWorkspacePanels.tsx');
+    const statsSheet = source('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    expect(panels).toContain("type StatsMode = 'current' | 'book'");
-    expect(panels).toContain("statsMode === 'book'");
-    expect(panels).toContain('<EntityStatsContent');
-    expect(panels).toContain("data-mobile-stats={currentStatsTarget.kind === 'none' ? 'empty' : 'ready'}");
-    expect(css).toContain('.m-context-workspace__stats');
-    expect(css).toContain('.m-stats-navigation');
+    expect(panels).not.toContain("| 'stats'");
+    expect(panels).not.toContain('<EntityStatsContent');
+    expect(statsSheet).toContain("from '../../../features/stats/EntityStatsContent'");
+    expect(statsSheet).toContain('<EntityStatsContent');
+    expect(statsSheet).toContain('setPointerCapture');
+    expect(statsSheet).toContain('offset >= 96 || velocity >= 0.75');
+    expect(css).toContain('.m-paper-stats-sheet__grab');
+    expect(css).toContain('.m-paper-stats-sheet__content [role=\'button\']');
   });
 });

@@ -2890,17 +2890,9 @@
     "unifiedBar": "移动工作栏",
     "openPapers": "打开的纸张",
     "dismissKeyboard": "收起键盘",
-    "paperStatus": {
-      "open": "查看当前纸张状态",
-      "current": "当前纸张",
-      "position": "纸张位置",
-      "writingStatus": "写作状态",
-      "words": "字数",
-      "storyline": "故事线",
-      "chapters": "章节",
-      "category": "类目",
-      "elements": "元素",
-      "updated": "最近更新"
+    "paperStats": {
+      "open": "查看当前纸张统计",
+      "dismiss": "下拉关闭统计"
     },
     "editorAccessory": {
       "label": "编辑格式附件栏",

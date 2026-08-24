@@ -160,10 +160,15 @@ resolver.
 
 - Remove paper pinch, paper scaling, cluster quick switch, and floating paper
   rail control.
-- Add one controlled 56px floating pill with separate entity-status,
+- Add one controlled 56px floating pill with separate entity-Stats,
   paper-count, Search, and hamburger entrances.
 - Open panels only through the safe-top pull handle, floating-pill pull handle,
   and settled resize handles; do not add panel buttons to the pill.
+- Enforce one visible handle owner: hide the pill while a panel moves, replace
+  an entry grabber with the panel boundary grabber, and hide opposite chrome
+  while a panel is full.
+- Preserve arbitrary settled panel height; full-screen commitment requires the
+  physical edge or a deliberate fling, never a fixed percentage crossing.
 - Add 56px one-level vertical rails to top and bottom workspaces.
 - Add read-state paper swipe with nested-interaction exclusions.
 - Preserve ordered session, active-only live editor, static snapshots, URL
@@ -289,8 +294,10 @@ remain open.
   shared runtime/use cases.
 - Show explicit context chips, durable conversations, streaming/cancel/retry,
   stable evidence links, and author-controlled output actions.
-- Reflow Library/TODO and Stats to the vertical-rail workspace without domain
-  capability loss.
+- Reflow Library/TODO to the vertical-rail workspace without domain capability
+  loss. Present current-entity Stats from the floating pill by reusing the
+  desktop-right-sidebar `EntityStatsContent`; do not duplicate Stats in the
+  bottom rail.
 
 ### Exit gates
 
@@ -299,7 +306,8 @@ remain open.
 - Copy, inspiration, TODO, and approved review/write paths have deterministic
   tests.
 - iOS Simulator verifies local fixture conversations, context, outputs,
-  Library/TODO CRUD, Stats navigation, empty/loading/error states, and dark mode.
+  Library/TODO CRUD, draggable shared Stats, empty/loading/error states, and
+  dark mode.
 - Live provider/device acceptance remains separately identified.
 
 Current implementation evidence:

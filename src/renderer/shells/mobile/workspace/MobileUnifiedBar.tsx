@@ -20,6 +20,7 @@ import {
   type MobileWorkspaceUiState,
 } from './mobile-workspace-controller';
 import type { MobilePaperRail } from './mobile-paper-rail';
+import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
@@ -98,10 +99,10 @@ function MobileUnifiedSearch({
 
 function MobileUnifiedBarPaperIdentity({
   paper,
-  onOpenStatus,
+  onOpenStats,
 }: {
   paper: MobilePaper;
-  onOpenStatus: () => void;
+  onOpenStats: () => void;
 }) {
   const presentation = useMobilePaperPresentation(paper.target);
   const allChaptersContext = useSyncExternalStore(
@@ -114,9 +115,9 @@ function MobileUnifiedBarPaperIdentity({
     <button
       type="button"
       className="m-unified-bar__paper"
-      data-debug-id="mobile-open-paper-status"
-      onClick={onOpenStatus}
-      aria-label={t('mobileWorkspace.paperStatus.open', { defaultValue: '查看当前纸张状态' })}
+      data-debug-id="mobile-open-paper-stats"
+      onClick={onOpenStats}
+      aria-label={t('mobileWorkspace.paperStats.open', { defaultValue: '查看当前纸张统计' })}
     >
       <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
       <span>
@@ -142,10 +143,11 @@ export function MobileUnifiedBar({
   activeRail,
   keyboardInset,
   panelExtent,
+  onPanelDragStateChange,
   onPanelExtentChange,
   onPanelExtentCommit,
   onOpenOverview,
-  onOpenStatus,
+  onOpenStats,
   onOpenSearch,
   onProjectSearch,
   onActiveRailChange,
@@ -161,10 +163,11 @@ export function MobileUnifiedBar({
   activeRail: MobilePaperRail | null;
   keyboardInset: number;
   panelExtent: number;
+  onPanelDragStateChange: (panel: 'top' | 'bottom', dragging: boolean) => void;
   onPanelExtentChange: (panel: 'top' | 'bottom', extent: number) => void;
-  onPanelExtentCommit: (panel: 'top' | 'bottom', extent: number) => void;
+  onPanelExtentCommit: (panel: 'top' | 'bottom', gesture: MobilePanelGestureCommit) => void;
   onOpenOverview: () => void;
-  onOpenStatus: () => void;
+  onOpenStats: () => void;
   onOpenSearch: () => void;
   onProjectSearch: (query: string) => void;
   onActiveRailChange: (rail: MobilePaperRail | null) => void;
@@ -235,6 +238,7 @@ export function MobileUnifiedBar({
         panel="bottom"
         extent={workspaceUi.panel.startsWith('bottom-') ? panelExtent : 0}
         disabled={projection.mode === 'search'}
+        onDragStateChange={onPanelDragStateChange}
         onExtentChange={onPanelExtentChange}
         onExtentCommit={onPanelExtentCommit}
       />
@@ -285,7 +289,7 @@ export function MobileUnifiedBar({
             <div className="m-unified-bar__read-center">
               <MobileUnifiedBarPaperIdentity
                 paper={activePaper}
-                onOpenStatus={onOpenStatus}
+                onOpenStats={onOpenStats}
               />
               <button
                 type="button"

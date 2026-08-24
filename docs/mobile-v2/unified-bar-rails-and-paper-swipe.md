@@ -15,15 +15,18 @@ owns complete Planning touch drag.
 controller state into `selectMobileUnifiedBarProjection`. The author-visible
 base is a 56 CSS px floating horizontal pill with four complete entrances:
 
-- current editor entity, which opens a dedicated read-only status Sheet;
+- current editor entity, which opens a draggable Stats Sheet backed by the
+  shared desktop-right-sidebar `EntityStatsContent`;
 - a separate numbered paper-count button, which alone opens Overview;
 - current-paper Search;
 - a persistent hamburger menu for paper actions, including on Dashboard.
 
-The rejected structure/tool buttons are absent. A small safe-top grabber pulls
-down the structure panel. A grabber belonging to the floating pill pulls up the
-tool panel. Existing settled panel handles continue continuous resize and
-dock/full/close commitment.
+The rejected structure/tool buttons are absent. At the closed root, one small
+safe-top entry grabber pulls down the structure panel and one pill-owned entry
+grabber pulls up the tool panel. As soon as either panel begins moving, the
+entry grabber yields to that panel's single boundary grabber. The pill hides
+for the active drag and returns only after settlement, so it never travels next
+to a second handle. A full panel hides the opposite entry and the pill.
 
 The pill remains mounted while its projection controls visibility, mode,
 placement, and keyboard ownership. It sits above the safe bottom for an
@@ -44,19 +47,23 @@ The bottom tool workspace has one 56px left rail:
 1. Planning
 2. Agent
 3. Library
-4. Stats
 
 Planning owns Timeline and Plot Grid as internal subtabs. Library owns TODO and
 material library as internal subtabs. Those choices do not become a second
-workspace rail. Dashboard remains an ordinary paper. Project-wide
+workspace rail. Stats is not duplicated in this rail: tapping the current
+entity opens the shared Stats content in its draggable Sheet. Dashboard remains
+an ordinary paper. Project-wide
 user/settings actions remain on the shelf and in Overview rather than
 consuming either rail.
 
-Both panels retain their continuous boundary handle. A settled extent at or
-below 8% closes the panel, at or above 50% promotes it to full, and intermediate
-values remain docked. The panel takes space from the corresponding edge by
-moving the paper-deck boundary. The paper remains 100dvw by 100dvh and is
-cropped; no prose/editor ancestor uses `transform: scale(...)`.
+Both panels retain one continuous boundary handle. Ordinary release preserves
+the exact author-controlled extent, including values above 50%. A panel becomes
+full only when the handle reaches the physical full edge or a deliberate fling
+covers at least 12% of the viewport at the full-screen velocity threshold. The
+same deliberate closing fling or the closed edge collapses it. The panel takes
+space from the corresponding edge by moving the paper-deck boundary. The paper
+remains 100dvw by 100dvh and is cropped; no prose/editor ancestor uses
+`transform: scale(...)`.
 
 ## Stable paper swipe
 
@@ -115,6 +122,8 @@ live editors are never mounted during a swipe.
 ## Deterministic evidence
 
 - `src/renderer/shells/mobile/workspace/mobile-paper-swipe.test.ts`
+- `src/renderer/shells/mobile/workspace/mobile-panel-gesture.test.ts`
+- `src/renderer/shells/mobile/workspace/mobile-panel-stats-repair.acceptance.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-interaction-repair.acceptance.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-workspace-session.test.ts`
 - `src/renderer/shells/mobile/workspace/mobile-workspace-session-storage.test.ts`

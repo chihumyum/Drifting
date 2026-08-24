@@ -75,11 +75,11 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    expect(bar).toContain('data-debug-id="mobile-open-paper-status"');
+    expect(bar).toContain('data-debug-id="mobile-open-paper-stats"');
     expect(bar).toContain('data-debug-id="mobile-open-overview"');
     expect(bar).toContain('<MobilePanelPullHandle');
     expect(deck).toContain('panel="top"');
-    expect(deck).toContain('<MobilePaperStatusSheet');
+    expect(deck).toContain('<MobilePaperStatsSheet');
     expect(bar).not.toContain('PanelTop');
     expect(bar).not.toContain('PanelBottom');
     expect(bar).not.toContain('mobile-structure-panel');

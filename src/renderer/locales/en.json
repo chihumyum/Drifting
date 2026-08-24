@@ -2890,17 +2890,9 @@
     "unifiedBar": "Mobile workspace bar",
     "openPapers": "Open papers",
     "dismissKeyboard": "Dismiss keyboard",
-    "paperStatus": {
-      "open": "View current paper status",
-      "current": "Current paper",
-      "position": "Paper position",
-      "writingStatus": "Writing status",
-      "words": "Words",
-      "storyline": "Storyline",
-      "chapters": "Chapters",
-      "category": "Category",
-      "elements": "Elements",
-      "updated": "Last updated"
+    "paperStats": {
+      "open": "View current paper statistics",
+      "dismiss": "Pull down to dismiss statistics"
     },
     "editorAccessory": {
       "label": "Editing format accessory",

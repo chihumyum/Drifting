@@ -3,11 +3,9 @@ import {
   useEffect,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  BarChart3,
   BookOpen,
   Bot,
   Boxes,
@@ -16,14 +14,12 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import { useDataStore } from '../../../store/data-store';
-import { isDrift } from '../../../domain/book-node';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { TodoPanel } from '../../../components/rightBars/TodoPanel';
 import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
-import { EntityStatsContent } from '../../../features/stats/EntityStatsContent';
-import type { EntityStatsTarget } from '../../../features/stats/entity-stats-types';
 import { MobileAgentPanel } from './MobileAgentPanel';
+import { MobilePanelPullHandle } from './MobilePanelPullHandle';
+import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import { PlotGridEditor } from '../../../components/editor/PlotGrid';
 import {
   clonePlotGrid,
@@ -40,69 +36,10 @@ import { DriftPanel } from '../../../components/leftBars/DriftPanel';
 import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
 
 type StructureTab = 'chapters' | 'elements' | 'inspiration';
-type ToolTab = 'planning' | 'agent' | 'library' | 'stats';
+type ToolTab = 'planning' | 'agent' | 'library';
 type PlanningMode = 'timeline' | 'plot';
 type LibraryMode = 'todo' | 'library';
-type StatsMode = 'current' | 'book';
 type PanelPosition = 'top' | 'bottom';
-
-function PanelResizeHandle({
-  panel,
-  extent,
-  onExtentChange,
-  onExtentCommit,
-}: {
-  panel: PanelPosition;
-  extent: number;
-  onExtentChange: (extent: number) => void;
-  onExtentCommit: (extent: number) => void;
-}) {
-  const dragRef = useRef<{ y: number; extent: number; latest: number } | null>(null);
-
-  const extentForPointer = (clientY: number) => {
-    const drag = dragRef.current;
-    if (!drag) return extent;
-    const direction = panel === 'top' ? 1 : -1;
-    return Math.max(
-      0,
-      Math.min(1, drag.extent + (direction * (clientY - drag.y)) / window.innerHeight),
-    );
-  };
-
-  const finish = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const next = extentForPointer(event.clientY);
-    dragRef.current = null;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    onExtentCommit(next);
-  };
-
-  return (
-    <button
-      type="button"
-      className="m-context-workspace__handle"
-      aria-label={panel === 'top' ? '调整顶部面板高度' : '调整底部面板高度'}
-      onPointerDown={(event) => {
-        dragRef.current = { y: event.clientY, extent, latest: extent };
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerMove={(event) => {
-        const drag = dragRef.current;
-        if (!drag) return;
-        const next = extentForPointer(event.clientY);
-        drag.latest = next;
-        onExtentChange(next);
-      }}
-      onPointerUp={finish}
-      onPointerCancel={() => {
-        const drag = dragRef.current;
-        dragRef.current = null;
-        if (drag) onExtentCommit(drag.latest);
-      }}
-    />
-  );
-}
 
 function focusedEntity(target: WorkspaceTarget | null): FocusedEntity {
   if (!target || target.entityType === 'dashboard' || target.entityType === 'all-chapters') {
@@ -116,12 +53,14 @@ function MobileStructureWorkspace({
   extent,
   onExtentChange,
   onExtentCommit,
+  onDragStateChange,
   onPreviewTarget,
 }: {
   target: WorkspaceTarget | null;
   extent: number;
   onExtentChange: (extent: number) => void;
-  onExtentCommit: (extent: number) => void;
+  onExtentCommit: (gesture: MobilePanelGestureCommit) => void;
+  onDragStateChange: (panel: PanelPosition, dragging: boolean) => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   const { t } = useTranslation();
@@ -179,55 +118,16 @@ function MobileStructureWorkspace({
           )}
         </div>
       </div>
-      <PanelResizeHandle
+      <MobilePanelPullHandle
         panel="top"
+        variant="boundary"
         extent={extent}
-        onExtentChange={onExtentChange}
-        onExtentCommit={onExtentCommit}
+        onDragStateChange={onDragStateChange}
+        onExtentChange={(_panel, nextExtent) => onExtentChange(nextExtent)}
+        onExtentCommit={(_panel, gesture) => onExtentCommit(gesture)}
       />
     </section>
   );
-}
-
-function statsTarget(target: WorkspaceTarget | null): EntityStatsTarget {
-  const data = useDataStore.getState();
-  if (!target || target.entityType === 'dashboard') {
-    return { kind: 'none', id: null, title: '—', kicker: '—' };
-  }
-  if (target.entityType === 'all-chapters') {
-    return { kind: 'all-chapters', id: null, title: '通览全书', kicker: '全项目' };
-  }
-  if (target.entityType === 'node') {
-    const node = data.bookNodes.find((item) => item.id === target.id);
-    return {
-      kind: node && isDrift(node) ? 'drift' : 'chapter',
-      id: target.id,
-      title: node?.title || '—',
-      kicker: node && isDrift(node) ? '灵感' : '章节',
-    };
-  }
-  if (target.entityType === 'storyline') {
-    const storyline = data.storylines.find((item) => item.id === target.id);
-    return {
-      kind: 'storyline',
-      id: target.id,
-      title: storyline?.name || '—',
-      kicker: '故事线',
-      color: storyline?.color,
-    };
-  }
-  if (target.entityType === 'element') {
-    const element = data.bookElements.find((item) => item.id === target.id);
-    return { kind: 'element', id: target.id, title: element?.name || '—', kicker: '元素' };
-  }
-  const category = data.bookElementCategories.find((item) => item.id === target.id);
-  return {
-    kind: 'category',
-    id: target.id,
-    title: category?.name || '—',
-    kicker: '类目',
-    color: category?.color,
-  };
 }
 
 function MobilePlotPlannerWorkspace({
@@ -340,29 +240,24 @@ function MobileToolWorkspace({
   extent,
   onExtentChange,
   onExtentCommit,
+  onDragStateChange,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
   extent: number;
   onExtentChange: (extent: number) => void;
-  onExtentCommit: (extent: number) => void;
+  onExtentCommit: (gesture: MobilePanelGestureCommit) => void;
+  onDragStateChange: (panel: PanelPosition, dragging: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<ToolTab>('planning');
   const [planningMode, setPlanningMode] = useState<PlanningMode>('timeline');
   const [libraryMode, setLibraryMode] = useState<LibraryMode>('todo');
-  const [statsMode, setStatsMode] = useState<StatsMode>('current');
   const focused = focusedEntity(target);
-  const data = useDataStore();
-  const currentStatsTarget =
-    statsMode === 'book'
-      ? ({ kind: 'all-chapters', id: null, title: '通览全书', kicker: '全项目' } as const)
-      : statsTarget(target);
   const tabs = [
     ['planning', t('mobileWorkspace.planning', { defaultValue: '规划' }), CalendarRange],
     ['agent', 'Agent', Bot],
     ['library', t('rightSidebar.tabs.library'), LibraryBig],
-    ['stats', t('rightSidebar.tabs.stats'), BarChart3],
   ] as const;
 
   return (
@@ -370,11 +265,13 @@ function MobileToolWorkspace({
       className="m-context-workspace m-context-workspace--tools"
       aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
     >
-      <PanelResizeHandle
+      <MobilePanelPullHandle
         panel="bottom"
+        variant="boundary"
         extent={extent}
-        onExtentChange={onExtentChange}
-        onExtentCommit={onExtentCommit}
+        onDragStateChange={onDragStateChange}
+        onExtentChange={(_panel, nextExtent) => onExtentChange(nextExtent)}
+        onExtentCommit={(_panel, gesture) => onExtentCommit(gesture)}
       />
       <div className="m-context-workspace__landscape m-tool-workspace">
         <aside className="m-context-tab-rail m-context-tab-rail--tools">
@@ -462,42 +359,6 @@ function MobileToolWorkspace({
               </div>
             </>
           )}
-          {tab === 'stats' && (
-            <>
-              <header className="m-tool-workspace__subtabs m-stats-navigation">
-                <button
-                  type="button"
-                  aria-current={statsMode === 'current' ? 'page' : undefined}
-                  onClick={() => setStatsMode('current')}
-                >
-                  当前纸张
-                </button>
-                <button
-                  type="button"
-                  aria-current={statsMode === 'book' ? 'page' : undefined}
-                  onClick={() => setStatsMode('book')}
-                >
-                  全书
-                </button>
-                <span title={currentStatsTarget.title}>{currentStatsTarget.title}</span>
-              </header>
-              <div
-                className="m-context-workspace__pane m-context-workspace__scroll m-context-workspace__stats"
-                data-mobile-stats={currentStatsTarget.kind === 'none' ? 'empty' : 'ready'}
-              >
-                <EntityStatsContent
-                  target={currentStatsTarget}
-                  bookNodes={data.bookNodes}
-                  bookActs={data.bookActs}
-                  bookElements={data.bookElements}
-                  storylines={data.storylines}
-                  categories={data.bookElementCategories}
-                  storylineNodeMapping={data.storylineNodeMapping}
-                  primaryStorylineByNode={data.primaryStorylineByNode}
-                />
-              </div>
-            </>
-          )}
         </div>
       </div>
     </section>
@@ -510,13 +371,15 @@ export function MobileWorkspacePanels({
   panelExtent,
   onPanelExtentChange,
   onPanelExtentCommit,
+  onPanelDragStateChange,
   onPreviewTarget,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
   panelExtent: number;
   onPanelExtentChange: (panel: PanelPosition, extent: number) => void;
-  onPanelExtentCommit: (panel: PanelPosition, extent: number) => void;
+  onPanelExtentCommit: (panel: PanelPosition, gesture: MobilePanelGestureCommit) => void;
+  onPanelDragStateChange: (panel: PanelPosition, dragging: boolean) => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   return (
@@ -525,7 +388,8 @@ export function MobileWorkspacePanels({
         target={target}
         extent={panelExtent}
         onExtentChange={(extent) => onPanelExtentChange('top', extent)}
-        onExtentCommit={(extent) => onPanelExtentCommit('top', extent)}
+        onExtentCommit={(gesture) => onPanelExtentCommit('top', gesture)}
+        onDragStateChange={onPanelDragStateChange}
         onPreviewTarget={onPreviewTarget}
       />
       <MobileToolWorkspace
@@ -533,7 +397,8 @@ export function MobileWorkspacePanels({
         target={target}
         extent={panelExtent}
         onExtentChange={(extent) => onPanelExtentChange('bottom', extent)}
-        onExtentCommit={(extent) => onPanelExtentCommit('bottom', extent)}
+        onExtentCommit={(gesture) => onPanelExtentCommit('bottom', gesture)}
+        onDragStateChange={onPanelDragStateChange}
       />
     </>
   );
