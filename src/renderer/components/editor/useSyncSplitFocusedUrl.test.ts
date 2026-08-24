@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isCreateActivationFromProjectHome } from './useSyncSplitFocusedUrl';
+import {
+  isContentActivationFromCreateRoute,
+  isCreateActivationFromProjectHome,
+} from './useSyncSplitFocusedUrl';
 
 describe('Project Home route synchronization', () => {
   it('lets a newly activated create tab advance from Home to the create route', () => {
@@ -37,6 +40,33 @@ describe('Project Home route synchronization', () => {
         atProjectHome: false,
         previousActiveTabKey: null,
         activeTabKey: 'create:universal-new',
+      }),
+    ).toBe(false);
+  });
+
+  it('routes a create-to-content transition to the selected content instead of Home', () => {
+    expect(
+      isContentActivationFromCreateRoute({
+        atCreateRoute: true,
+        previousActiveTabKey: 'create:universal-new',
+        activeTabKey: 'node:chapter-a',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not reinterpret an ordinary visit to the create route as a draft close', () => {
+    expect(
+      isContentActivationFromCreateRoute({
+        atCreateRoute: true,
+        previousActiveTabKey: 'node:chapter-a',
+        activeTabKey: 'node:chapter-a',
+      }),
+    ).toBe(false);
+    expect(
+      isContentActivationFromCreateRoute({
+        atCreateRoute: false,
+        previousActiveTabKey: 'create:universal-new',
+        activeTabKey: 'node:chapter-a',
       }),
     ).toBe(false);
   });

@@ -60,6 +60,10 @@ export const CREATE_TAB_ID = 'universal-new';
 export interface CreateTab {
   kind: 'create';
   id: typeof CREATE_TAB_ID;
+  /** Session-only destination restored when an idle draft is closed. `null`
+   * means the draft was entered from Project Home; otherwise this is the
+   * exact content/split tab that owned focus at entry time. */
+  returnTabKey: string | null;
   draft: CreateTabDraft;
 }
 
@@ -137,8 +141,8 @@ export function initialCreateTabDraft(): CreateTabDraft {
   };
 }
 
-function makeCreateTab(): CreateTab {
-  return { kind: 'create', id: CREATE_TAB_ID, draft: initialCreateTabDraft() };
+function makeCreateTab(returnTabKey: string | null): CreateTab {
+  return { kind: 'create', id: CREATE_TAB_ID, returnTabKey, draft: initialCreateTabDraft() };
 }
 
 function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
@@ -1079,15 +1083,27 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
           const existing = project.openTabs.find((tab) => tab.kind === 'create');
+          const active = project.activeTabKey
+            ? project.openTabs.find((tab) => tabKey(tab) === project.activeTabKey)
+            : null;
+          const returnTabKey =
+            active?.kind === 'create'
+              ? active.returnTabKey
+              : active
+                ? tabKey(active)
+                : null;
           if (existing) {
+            const openTabs = project.openTabs.map((tab) =>
+              tab === existing ? { ...existing, returnTabKey } : tab,
+            );
             return {
               tabsByProject: {
                 ...state.tabsByProject,
-                [projectId]: withActiveTab(project, tabKey(existing)),
+                [projectId]: withActiveTab(project, tabKey(existing), openTabs),
               },
             };
           }
-          const createTab = makeCreateTab();
+          const createTab = makeCreateTab(returnTabKey);
           return {
             tabsByProject: {
               ...state.tabsByProject,
@@ -1192,12 +1208,18 @@ export const useUiStore = create<UiState>()(
             if (nextOpenTabs.length === 0) {
               nextActiveTabKey = null;
             } else {
-              const successor =
+              const neighbor =
                 idx < nextOpenTabs.length
                   ? nextOpenTabs[idx]
                   : nextOpenTabs[nextOpenTabs.length - 1];
-              nextActiveTabKey = tabKey(successor);
-              nextActive = focusedLeafOf(successor);
+              const successor =
+                closing.kind === 'create'
+                  ? closing.returnTabKey === null
+                    ? null
+                    : (nextOpenTabs.find((tab) => tabKey(tab) === closing.returnTabKey) ?? neighbor)
+                  : neighbor;
+              nextActiveTabKey = successor ? tabKey(successor) : null;
+              nextActive = successor ? focusedLeafOf(successor) : null;
             }
           }
           return {

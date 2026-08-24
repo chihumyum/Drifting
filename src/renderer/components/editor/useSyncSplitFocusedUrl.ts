@@ -6,6 +6,7 @@ import {
   useUiStore,
   tabKey,
   focusedLeafOf,
+  CREATE_TAB_ID,
   SINGLETON_TAB_ID,
   type TabRef,
 } from '../../store/ui-store';
@@ -218,6 +219,19 @@ export function useSyncSplitFocusedUrl(): void {
       return;
     }
     if (atCreateRoute) {
+      if (
+        isContentActivationFromCreateRoute({
+          atCreateRoute,
+          previousActiveTabKey,
+          activeTabKey,
+        })
+      ) {
+        const expected = expectedPathnameFor(projectId, focused);
+        if (expected) navigate(expected, { replace: true });
+        mirrorSelection(focused, setNodeSelection, setElementSelection);
+        prevFocusedRef.current = focused;
+        return;
+      }
       navigate(projectRoot, { replace: true });
       return;
     }
@@ -307,6 +321,23 @@ export function isCreateActivationFromProjectHome({
     atProjectHome &&
     activeTabKey !== null &&
     previousActiveTabKey !== activeTabKey
+  );
+}
+
+export function isContentActivationFromCreateRoute({
+  atCreateRoute,
+  previousActiveTabKey,
+  activeTabKey,
+}: {
+  atCreateRoute: boolean;
+  previousActiveTabKey: string | null;
+  activeTabKey: string | null;
+}): boolean {
+  return (
+    atCreateRoute &&
+    previousActiveTabKey === `create:${CREATE_TAB_ID}` &&
+    activeTabKey !== null &&
+    activeTabKey !== previousActiveTabKey
   );
 }
 

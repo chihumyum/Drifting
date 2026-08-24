@@ -91,6 +91,15 @@ The draft cannot be previewed, reordered, or fused into a split. Inventory
 pruning preserves it during the current session, but it does not enter
 `ui-storage`, SQLite, Yjs, sync, or restart restoration.
 
+The draft also records a session-only return owner when it is activated. A
+draft opened from Project Home closes directly back to Home even when dormant
+content tabs remain; a draft opened from a content tab or split restores that
+exact tab and focused leaf. Reopening an existing background draft refreshes
+the return owner to the current context. If that content owner disappeared,
+close falls back to the nearest surviving tab. Store selection and the `/new`
+route transition must resolve the same destination so no intermediate content
+tab or Project Home frame can flash.
+
 `DesktopUniversalCreateView` collects the entity kind and only the required
 existing parent/group context. It then delegates to `createNode`,
 `createStoryline`, `createElement`, or `createCategory`; those authored use cases

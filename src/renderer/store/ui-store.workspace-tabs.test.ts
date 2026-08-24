@@ -86,9 +86,11 @@ describe('project-local workspace tabs', () => {
     expect(project.activeTabKey).toBe('storyline:story-a');
   });
 
-  it('closes an active create draft using the existing right-then-left successor rule', () => {
+  it('returns an active create draft to the content tab that opened it', () => {
     const store = useUiStore.getState();
     store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-b' }, { preview: false });
+    store.setActiveTab('project-a', { entityType: 'node', id: 'chapter-a' });
     store.openCreateTab('project-a');
 
     const result = useUiStore
@@ -99,7 +101,73 @@ describe('project-local workspace tabs', () => {
     expect(result.nextActive).toMatchObject({ entityType: 'node', id: 'chapter-a' });
     expect(useUiStore.getState().tabsByProject['project-a'].openTabs.map(tabKey)).toEqual([
       'node:chapter-a',
+      'node:chapter-b',
     ]);
+    expect(useUiStore.getState().tabsByProject['project-a'].activeTabKey).toBe('node:chapter-a');
+  });
+
+  it('returns an active create draft to Project Home even when background tabs remain', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.setActiveTab('project-a', null);
+    store.openCreateTab('project-a');
+
+    const createTab = useUiStore
+      .getState()
+      .tabsByProject['project-a'].openTabs.find((tab) => tab.kind === 'create');
+    expect(createTab).toMatchObject({ returnTabKey: null });
+
+    const result = useUiStore
+      .getState()
+      .closeTab('project-a', { createId: CREATE_TAB_ID });
+    const project = useUiStore.getState().tabsByProject['project-a'];
+
+    expect(result).toEqual({ nextActive: null, wasActive: true });
+    expect(project.openTabs.map(tabKey)).toEqual(['node:chapter-a']);
+    expect(project.activeTabKey).toBeNull();
+  });
+
+  it('refreshes the create return target when an existing draft is reopened', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.openCreateTab('project-a');
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-b' }, { preview: false });
+    store.openCreateTab('project-a');
+
+    const createTab = useUiStore
+      .getState()
+      .tabsByProject['project-a'].openTabs.find((tab) => tab.kind === 'create');
+    expect(createTab).toMatchObject({ returnTabKey: 'node:chapter-b' });
+
+    const result = useUiStore
+      .getState()
+      .closeTab('project-a', { createId: CREATE_TAB_ID });
+    expect(result.nextActive).toMatchObject({ entityType: 'node', id: 'chapter-b' });
+    expect(useUiStore.getState().tabsByProject['project-a'].activeTabKey).toBe('node:chapter-b');
+  });
+
+  it('restores the exact split and focused leaf that opened the create draft', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'chapter-a' }, { preview: false });
+    store.splitActiveWith('project-a', { entityType: 'node', id: 'chapter-b' }, 'right');
+    const before = useUiStore.getState().tabsByProject['project-a'];
+    const returnTabKey = before.activeTabKey;
+    const returnTab = before.openTabs.find((tab) => tabKey(tab) === returnTabKey);
+    const returnLeaf = returnTab ? focusedLeafOf(returnTab) : null;
+    expect(returnTabKey).toMatch(/^split:/);
+    expect(returnLeaf).not.toBeNull();
+
+    useUiStore.getState().openCreateTab('project-a');
+    const result = useUiStore
+      .getState()
+      .closeTab('project-a', { createId: CREATE_TAB_ID });
+    const after = useUiStore.getState().tabsByProject['project-a'];
+
+    expect(after.activeTabKey).toBe(returnTabKey);
+    expect(result.nextActive).toMatchObject({
+      entityType: returnLeaf?.entityType,
+      id: returnLeaf?.id,
+    });
   });
 
   it('keeps an in-flight create draft safe from direct and bulk close actions', () => {

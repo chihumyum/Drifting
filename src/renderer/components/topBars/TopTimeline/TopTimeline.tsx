@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
@@ -17,6 +17,7 @@ import {
   type TabEntityType,
 } from '../../../store/ui-store';
 import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
+import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 
 // Build the editor URL for a leaf — needed when activating a tab, since
 // openEntity is unsuitable for tab activation: it can short-circuit on
@@ -119,6 +120,7 @@ function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): st
 
 export function TopTimeline() {
   const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
   const { projectId, openEntity } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
@@ -710,6 +712,9 @@ export function TopTimeline() {
         title={t('topTimeline.newEntity')}
         onClick={() => {
           if (!projectId) return;
+          if (isProjectHomePathname(projectId, location.pathname)) {
+            setActiveTab(projectId, null);
+          }
           openCreateTab(projectId);
           navigate(`/project/${projectId}/new`);
         }}
