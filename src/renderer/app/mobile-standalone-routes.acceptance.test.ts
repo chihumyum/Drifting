@@ -288,6 +288,7 @@ describe('mobile standalone routes', () => {
     expect(settings).not.toContain('ProjectRuntimeProvider');
     expect(settings).toContain('className="m-settings set-overlay"');
     expect(settings).toContain('className="m-settings__content set-main"');
+    expect(settings).toContain('useMobileAndroidBack(handleBack)');
     expect(settings).not.toContain('LucideIcon');
   });
 

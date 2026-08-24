@@ -1,8 +1,6 @@
-import { onBackButtonPress } from '@tauri-apps/api/app';
-import type { PluginListener } from '@tauri-apps/api/core';
 import { useEffect, useLayoutEffect, useRef, type Dispatch } from 'react';
 import { getActiveEditor } from '../../../lib/active-editor';
-import { getPlatformRuntime } from '../../../platform/runtime';
+import { useMobileAndroidBack } from '../useMobileAndroidBack';
 import {
   MOBILE_WORKSPACE_BACK_EVENT,
   isMobileWorkspaceBackPreflight,
@@ -21,41 +19,6 @@ interface MobileWorkspaceBackOptions {
   dispatch: Dispatch<MobileWorkspaceAction>;
   onShowProjectHome: () => void;
   onLeaveProject: () => void;
-}
-
-const androidBackConsumers = new Set<() => void>();
-let androidBackRegistration: Promise<PluginListener> | null = null;
-
-function ensureAndroidBackRegistration(): void {
-  if (androidBackRegistration) return;
-  androidBackRegistration = onBackButtonPress(() => {
-    const consumers = [...androidBackConsumers];
-    const latest = consumers[consumers.length - 1];
-    latest?.();
-  });
-  void androidBackRegistration.catch((error) => {
-    androidBackRegistration = null;
-    console.error('[mobile workspace] Android hardware Back listener failed:', error);
-  });
-}
-
-function removeAndroidBackRegistrationWhenIdle(): void {
-  const registration = androidBackRegistration;
-  if (!registration || androidBackConsumers.size > 0) return;
-  void registration.then(async (listener) => {
-    if (androidBackRegistration !== registration || androidBackConsumers.size > 0) return;
-    androidBackRegistration = null;
-    await listener.unregister();
-  });
-}
-
-function subscribeAndroidHardwareBack(callback: () => void): () => void {
-  androidBackConsumers.add(callback);
-  ensureAndroidBackRegistration();
-  return () => {
-    androidBackConsumers.delete(callback);
-    removeAndroidBackRegistrationWhenIdle();
-  };
 }
 
 export function useMobileWorkspaceBack({
@@ -117,8 +80,5 @@ export function useMobileWorkspaceBack({
     };
   }, []);
 
-  useEffect(() => {
-    if (getPlatformRuntime().nativePlatform !== 'android') return undefined;
-    return subscribeAndroidHardwareBack(() => requestMobileWorkspaceBack('android-hardware'));
-  }, []);
+  useMobileAndroidBack(() => requestMobileWorkspaceBack('android-hardware'));
 }

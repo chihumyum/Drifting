@@ -23,6 +23,7 @@ import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
 } from '../../../features/settings/hosted-settings-policy';
+import { useMobileAndroidBack } from '../useMobileAndroidBack';
 import '../../../../styles/mobile-settings.css';
 
 type MobileSettingsId =
@@ -156,6 +157,8 @@ export function MobileSettingsView() {
       navigate(typeof from === 'string' && from.startsWith('/') ? from : '/', { replace: true });
     }
   };
+
+  useMobileAndroidBack(handleBack);
 
   return (
     <div className="m-settings set-overlay">

@@ -32,11 +32,14 @@ describe('Mobile V2 workspace controller architecture', () => {
 
   it('routes visible, Escape, Super View, and Android hardware Back through one request', () => {
     const hook = source('shells/mobile/workspace/useMobileWorkspaceBack.ts');
+    const androidBack = source('shells/mobile/useMobileAndroidBack.ts');
     const superStack = source('hooks/useSuperViewEscapeStack.ts');
     const superHeader = source('components/SuperViewHeader.tsx');
     const overview = source('shells/mobile/MobileAppShell.tsx');
-    expect(hook).toContain('androidBackRegistration = onBackButtonPress(() =>');
-    expect(hook).toContain("subscribeAndroidHardwareBack(() => requestMobileWorkspaceBack('android-hardware'))");
+    expect(androidBack).toContain('androidBackRegistration = onBackButtonPress(() =>');
+    expect(androidBack).toContain('const androidBackConsumers = new Set<() => void>()');
+    expect(androidBack).toContain("an unregister failure must not become an unhandled rejection");
+    expect(hook).toContain("useMobileAndroidBack(() => requestMobileWorkspaceBack('android-hardware'))");
     expect(hook).toContain('resolveMobileWorkspaceBack');
     expect(superStack).toContain('MOBILE_WORKSPACE_BACK_EVENT');
     expect(superHeader).toContain("requestMobileWorkspaceBack('visible')");
