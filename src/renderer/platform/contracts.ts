@@ -139,11 +139,31 @@ export type GoogleDriveNativeErrorCode =
   | 'account-mismatch'
   | 'unsupported-platform';
 
+export interface GoogleDriveNativeDiagnosticError {
+  /** Allowlisted family/domain labels only; raw NSError text and userInfo never cross IPC. */
+  family: string;
+  domain: string;
+  code: number;
+  reason: string | null;
+  httpStatus: number | null;
+}
+
+export interface GoogleDriveNativeDiagnostics {
+  schemaVersion: 1;
+  operation: string;
+  platform: string;
+  phase: string;
+  elapsedMs: number;
+  completedPhases: string[];
+  errorChain: GoogleDriveNativeDiagnosticError[];
+}
+
 export interface GoogleDriveNativeError {
   code: GoogleDriveNativeErrorCode;
   message: string;
   retryable: boolean;
   retryAfterMs: number | null;
+  diagnostics?: GoogleDriveNativeDiagnostics | null;
 }
 
 export type GoogleDriveNativeResult<T> =
@@ -179,6 +199,7 @@ export interface GoogleDriveNativeOAuthResult {
 
 export interface GoogleDriveNativeRevokeResult {
   status: 'revoked' | 'already-revoked' | 'already-missing';
+  diagnostics?: GoogleDriveNativeDiagnostics | null;
 }
 
 export interface DeepLinkEventPayload {

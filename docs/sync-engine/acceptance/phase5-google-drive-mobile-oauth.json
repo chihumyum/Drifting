@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "milestone": "sync-engine-phase5-google-drive-mobile-oauth",
-  "recordedAt": "2026-08-15",
+  "recordedAt": "2026-08-24",
   "status": "machine-implementation-complete",
   "rendererContract": {
     "connectAccountOpaque": true,
@@ -30,6 +30,11 @@
     "freshTokenSource": "GIDGoogleUser.refreshTokensIfNeeded",
     "revokeSource": "GIDSignIn.disconnect",
     "callback": "native-GIDSignIn.handle",
+    "errorMapping": "GoogleSignIn-9.2-GIDSignInError-enum",
+    "keychainErrorIsConfiguration": false,
+    "jsonSerializationErrorIsConfiguration": false,
+    "missingKeychainAuthRequiresReauthorization": true,
+    "expiredRefreshRequiresReauthorization": true,
     "webViewFlow": false
   },
   "android": {
@@ -39,6 +44,11 @@
     "subjectSource": "AuthorizationResult.toGoogleSignInAccount.id",
     "revokeSource": "AuthorizationClient.revokeAccess",
     "resultBridge": "PendingIntent-activity-result",
+    "apiExceptionMapping": "official-CommonStatusCodes",
+    "cancelStatus": "CommonStatusCodes.CANCELED",
+    "genericErrorIsCancelled": false,
+    "apiNotConnectedIsPermissionDenied": false,
+    "permissionDeniedSource": "missing-drive.appdata-grant",
     "webViewFlow": false
   },
   "scope": {
@@ -69,7 +79,7 @@
       "failed": 0
     },
     "mobileArchitectureTests": {
-      "passed": 6,
+      "passed": 8,
       "failed": 0
     },
     "mobileLauncherEnvironmentTests": {
@@ -80,7 +90,9 @@
     "cargoFmtCheck": "passed",
     "typescriptTypecheck": "passed",
     "iosArm64SimulatorDebugBuild": "passed",
+    "iosArm64SimulatorCargoCheck": "passed",
     "androidUniversalDebugApkBuild": "passed",
+    "androidOAuthPluginDebugKotlinCompile": "passed",
     "androidRustAbis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
   },
   "realAccountGates": {
@@ -96,9 +108,11 @@
   "commands": [
     "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check",
     "cargo check --manifest-path src-tauri/Cargo.toml --lib",
+    "cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-apple-ios-sim --lib",
     "cargo test --manifest-path src-tauri/Cargo.toml --lib google_drive_sync::tests",
     "pnpm exec vitest run src/renderer/platform/mobile-tauri-launcher.acceptance.test.ts src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts --reporter=verbose",
     "pnpm typecheck",
+    "src-tauri/gen/android/gradlew -p src-tauri/gen/android :tauri-plugin-drifting-google-drive-oauth:compileDebugKotlin --no-daemon",
     "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri ios build --debug --target aarch64-sim --ci",
     "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri android build --debug --apk"
   ]

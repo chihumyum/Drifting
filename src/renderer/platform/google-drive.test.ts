@@ -75,6 +75,18 @@ describe('Tauri native Google Drive platform boundary', () => {
         message: 'Google Drive rate limit was reached',
         retryable: true,
         retryAfterMs: 17_000,
+        diagnostics: {
+          schemaVersion: 1,
+          operation: 'revoke',
+          platform: 'ios',
+          phase: 'disconnect-revoke-request',
+          elapsedMs: 20,
+          completedPhases: ['revoke-request-started'],
+          errorChain: [{
+            family: 'network', domain: 'ns-url', code: -1001,
+            reason: 'timeout', httpStatus: null,
+          }],
+        },
       },
     });
 
@@ -86,6 +98,10 @@ describe('Tauri native Google Drive platform boundary', () => {
       code: 'rate-limited',
       retryable: true,
       retryAfterMs: 17_000,
+      diagnostics: {
+        phase: 'disconnect-revoke-request',
+        errorChain: [{ domain: 'ns-url', code: -1001 }],
+      },
     });
   });
 

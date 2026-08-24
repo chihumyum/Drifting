@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "milestone": "sync-engine-phase5-google-drive-native",
-  "recordedAt": "2026-08-16",
+  "recordedAt": "2026-08-24",
   "currentContract": true,
   "status": "native-transport-foundation-complete",
   "productAvailability": "settings-connect-path-machine-covered-real-account-gated",
@@ -49,6 +49,8 @@
     "refresh401Once": true,
     "second401": "needs-reauth",
     "separate403PermissionRateQuota": true,
+    "retry408RequestTimeout": true,
+    "retry425TooEarly": true,
     "retry429And5xx": true,
     "retryAfterProjected": true,
     "upstreamBodyProjected": false
@@ -70,6 +72,7 @@
   },
   "commands": [
     "cargo test google_drive_sync --lib --manifest-path src-tauri/Cargo.toml",
+    "cargo test --manifest-path src-tauri/Cargo.toml --lib google_drive_sync::tests::injectable_http_fake_exercises_sanitized_quota_mapping",
     "cargo test --lib --manifest-path src-tauri/Cargo.toml",
     "cargo check --manifest-path src-tauri/Cargo.toml",
     "pnpm exec vitest run src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts --reporter=verbose",

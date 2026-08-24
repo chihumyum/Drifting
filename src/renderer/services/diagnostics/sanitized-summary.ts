@@ -2,6 +2,7 @@ import type { PlatformRuntimeSnapshot } from '../../platform/runtime';
 import type { ProductSyncAuthoritySnapshot } from '../../sync/product-authority-store';
 import type { ProductSyncRuntimeSnapshot } from '../../sync/product-runtime-control';
 import type { UpdateServiceState } from '../update/update-service';
+import type { SanitizedGoogleDriveOperationTrace } from './google-drive-operation-trace';
 
 const SAFE_CODE = /^[A-Za-z0-9._-]{1,128}$/u;
 
@@ -15,6 +16,7 @@ export function createSanitizedDiagnosticSummary(input: {
   authority: ProductSyncAuthoritySnapshot;
   sync: ProductSyncRuntimeSnapshot;
   update: UpdateServiceState;
+  googleDriveOperationTraces?: readonly SanitizedGoogleDriveOperationTrace[];
   generatedAt?: string;
 }): string {
   const pending = input.sync.diagnostics?.generations.reduce(
@@ -39,7 +41,7 @@ export function createSanitizedDiagnosticSummary(input: {
   return `${JSON.stringify(
     {
       format: 'drifting.sanitized-diagnostics',
-      formatVersion: 1,
+      formatVersion: 2,
       generatedAt: input.generatedAt ?? new Date().toISOString(),
       app: {
         version: input.runtime.appInfo?.version ?? 'unknown',
@@ -61,6 +63,7 @@ export function createSanitizedDiagnosticSummary(input: {
         suspended: input.sync.diagnostics?.suspended ?? null,
         pending,
         errorCodes: [...new Set(errorCodes)].sort(),
+        googleDriveOperationTraces: input.googleDriveOperationTraces ?? [],
       },
       updater: {
         phase: input.update.phase,
@@ -74,6 +77,8 @@ export function createSanitizedDiagnosticSummary(input: {
         manuscriptIncluded: false,
         credentialsIncluded: false,
         absolutePathsIncluded: false,
+        rawErrorTextIncluded: false,
+        nativeErrorChainSanitized: true,
       },
     },
     null,

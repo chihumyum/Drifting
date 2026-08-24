@@ -40,6 +40,13 @@ Google Sign-In and Android uses `AuthorizationClient`. All return only an
 opaque native credential reference and Google account subject. Missing build
 configuration advertises OAuth as unsupported.
 
+Native HTTP errors preserve safe recovery semantics without projecting response
+bodies: 401 refreshes once then requires reauthorization; 403 distinguishes
+permission, rate, and quota reasons; 429 and 5xx retry with bounded
+`Retry-After`; 408 and 425 are also transient retries rather than permanent
+invalid requests. A missing immutable object remains a fail-closed integrity
+result.
+
 The desktop `pnpm dev`, `tauri:build`, and `tauri:build:debug` entrypoints use
 `scripts/run-desktop-tauri.mjs`. It loads the ignored repository `.env.local`
 before spawning Tauri so native compile-time OAuth settings match the renderer

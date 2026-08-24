@@ -52,12 +52,35 @@ pub struct MobileOAuthResponse {
     pub error_code: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileDiagnosticError {
+    pub family: String,
+    pub domain: String,
+    pub code: i64,
+    pub reason: Option<String>,
+    pub http_status: Option<u16>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileOperationDiagnostics {
+    pub schema_version: u8,
+    pub operation: String,
+    pub platform: String,
+    pub phase: String,
+    pub elapsed_ms: u64,
+    pub completed_phases: Vec<String>,
+    pub error_chain: Vec<MobileDiagnosticError>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MobileRevokeResponse {
     pub ok: bool,
     pub already_missing: bool,
     pub error_code: Option<String>,
+    pub diagnostics: Option<MobileOperationDiagnostics>,
 }
 
 pub struct GoogleDriveOAuth<R: Runtime>(PluginHandle<R>);

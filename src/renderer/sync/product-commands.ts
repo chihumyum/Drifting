@@ -5,6 +5,7 @@ import { events } from '../lib/events';
 import { platform } from '../platform';
 import {
   SyncAppAuthorityTable,
+  SyncConnectAttemptTable,
   SyncProviderAccountTable,
   SyncProviderBindingTable,
 } from '../schema/drizzle';
@@ -85,6 +86,8 @@ export class ProductSyncCommandService {
         mode: SyncAppAuthorityTable.mode,
         generation: SyncAppAuthorityTable.generation,
         transitionState: SyncAppAuthorityTable.transitionState,
+        targetMode: SyncAppAuthorityTable.targetMode,
+        attemptId: SyncAppAuthorityTable.attemptId,
         accountId: SyncProviderAccountTable.id,
         accountSubject: SyncProviderAccountTable.accountSubjectId,
         credentialSecretRef: SyncProviderAccountTable.credentialSecretRef,
@@ -101,19 +104,49 @@ export class ProductSyncCommandService {
         ),
       )
       .limit(1);
-    if (
-      !current ||
-      current.mode !== 'google-drive' ||
-      current.transitionState !== 'stable'
-    ) {
-      throw new Error('Google Drive reauthorization requires stable cloud authority');
+    if (!current || current.mode !== 'google-drive') {
+      throw new Error('Google Drive reauthorization requires owned cloud authority');
     }
-    const [needsReauth] = await database
-      .select({ syncGenerationId: SyncProviderBindingTable.syncGenerationId })
-      .from(SyncProviderBindingTable)
-      .where(eq(SyncProviderBindingTable.state, 'needs-reauth'))
-      .limit(1);
-    if (!needsReauth) throw new Error('No Google Drive SyncGeneration needs reauthorization');
+    const blockedDisconnectAttemptId =
+      current.transitionState === 'blocked' &&
+      current.targetMode === 'local' &&
+      current.attemptId
+        ? current.attemptId
+        : null;
+    if (current.transitionState !== 'stable' && !blockedDisconnectAttemptId) {
+      throw new Error('Google Drive reauthorization requires stable cloud authority or an owned blocked disconnect');
+    }
+    if (blockedDisconnectAttemptId) {
+      const [attempt] = await database
+        .select({
+          authorityGeneration: SyncConnectAttemptTable.authorityGeneration,
+          kind: SyncConnectAttemptTable.kind,
+          targetMode: SyncConnectAttemptTable.targetMode,
+          state: SyncConnectAttemptTable.state,
+          errorCode: SyncConnectAttemptTable.errorCode,
+        })
+        .from(SyncConnectAttemptTable)
+        .where(eq(SyncConnectAttemptTable.attemptId, blockedDisconnectAttemptId))
+        .limit(1);
+      if (
+        attempt?.authorityGeneration !== current.generation ||
+        attempt.kind !== 'disconnect' ||
+        attempt.targetMode !== 'local' ||
+        attempt.state !== 'blocked' ||
+        attempt.errorCode !== 'needs-reauth'
+      ) {
+        throw new Error('Google Drive reauthorization does not own the blocked disconnect attempt');
+      }
+    } else {
+      const [needsReauth] = await database
+        .select({ syncGenerationId: SyncProviderBindingTable.syncGenerationId })
+        .from(SyncProviderBindingTable)
+        .where(eq(SyncProviderBindingTable.state, 'needs-reauth'))
+        .limit(1);
+      if (!needsReauth) {
+        throw new Error('No Google Drive SyncGeneration needs reauthorization');
+      }
+    }
 
     const refreshed = await this.dependencies.reauthorizeGoogleDrive(
       current.credentialSecretRef,
@@ -133,23 +166,47 @@ export class ProductSyncCommandService {
         .from(SyncProviderAccountTable)
         .where(eq(SyncProviderAccountTable.id, current.accountId))
         .limit(1);
+      const [disconnectAttempt] = blockedDisconnectAttemptId
+        ? await tx
+            .select()
+            .from(SyncConnectAttemptTable)
+            .where(eq(SyncConnectAttemptTable.attemptId, blockedDisconnectAttemptId))
+            .limit(1)
+        : [];
       if (
         authority?.mode !== 'google-drive' ||
-        authority.transitionState !== 'stable' ||
         authority.generation !== current.generation ||
         account?.accountSubjectId !== current.accountSubject ||
         account.credentialSecretRef !== current.credentialSecretRef
       ) {
         throw new Error('Google Drive authority changed during reauthorization');
       }
+      if (blockedDisconnectAttemptId) {
+        if (
+          authority.transitionState !== 'blocked' ||
+          authority.targetMode !== 'local' ||
+          authority.attemptId !== blockedDisconnectAttemptId ||
+          disconnectAttempt?.authorityGeneration !== current.generation ||
+          disconnectAttempt.kind !== 'disconnect' ||
+          disconnectAttempt.targetMode !== 'local' ||
+          disconnectAttempt.state !== 'blocked' ||
+          disconnectAttempt.errorCode !== 'needs-reauth'
+        ) {
+          throw new Error('Google Drive disconnect changed during reauthorization');
+        }
+      } else if (authority.transitionState !== 'stable') {
+        throw new Error('Google Drive authority changed during reauthorization');
+      }
       await tx
         .update(SyncProviderAccountTable)
         .set({ updatedAt })
         .where(eq(SyncProviderAccountTable.id, current.accountId));
-      await tx
-        .update(SyncProviderBindingTable)
-        .set({ state: 'ready', updatedAt })
-        .where(eq(SyncProviderBindingTable.state, 'needs-reauth'));
+      if (!blockedDisconnectAttemptId) {
+        await tx
+          .update(SyncProviderBindingTable)
+          .set({ state: 'ready', updatedAt })
+          .where(eq(SyncProviderBindingTable.state, 'needs-reauth'));
+      }
     });
     this.dependencies.emitAuthorityChanged();
   }

@@ -69,13 +69,47 @@ describe('sanitized diagnostic summary', () => {
         totalBytes: null,
         error: 'failed at /private/writer/secret',
       },
+      googleDriveOperationTraces: [
+        {
+          operation: 'disconnect-google-drive',
+          startedAt: '2026-08-20T00:00:00.000Z',
+          status: 'failed',
+          durationMs: 125,
+          events: [
+            {
+              offsetMs: 125,
+              layer: 'ios-google-sign-in',
+              phase: 'disconnect-revoke-request',
+              outcome: 'failed',
+              code: 'transient',
+              native: {
+                schemaVersion: 1,
+                operation: 'revoke',
+                platform: 'ios',
+                phase: 'disconnect-revoke-request',
+                elapsedMs: 125,
+                completedPhases: ['revoke-request-started'],
+                errorChain: [{
+                  family: 'network', domain: 'ns-url', code: -1001,
+                  reason: 'timeout', httpStatus: null,
+                }],
+              },
+            },
+          ],
+        },
+      ],
     });
 
+    expect(summary).toContain('"formatVersion": 2');
     expect(summary).toContain('"rate-limited"');
     expect(summary).toContain('"redacted-error"');
     expect(summary).toContain('"transfers": 3');
     expect(summary).not.toContain('private-generation-id');
     expect(summary).not.toContain('/private/writer');
     expect(summary).not.toContain('private manuscript');
+    expect(summary).toContain('"phase": "disconnect-revoke-request"');
+    expect(summary).toContain('"domain": "ns-url"');
+    expect(summary).toContain('"code": -1001');
+    expect(summary).toContain('"rawErrorTextIncluded": false');
   });
 });

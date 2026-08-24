@@ -15,12 +15,23 @@ refresh token, authorization code, SDK session, or email enters renderer IPC.
   SDK, `GIDGoogleUser.userID` is the account subject, and
   `refreshTokensIfNeeded` supplies a fresh token immediately before a Drive
   request. `GIDSignIn.disconnect` is the revoke operation.
+- iOS maps `NSError` through GoogleSignIn 9.2.0's imported `GIDSignInError`
+  cases rather than duplicated negative integers. Missing Keychain auth and an
+  expired refresh token require reauthorization; cancellation, EMM policy,
+  account mismatch, build/configuration faults, and transient Keychain/JSON
+  failures remain distinct.
 - Android uses `play-services-auth` 21.6.0 and
   `Identity.getAuthorizationClient`. It requests an
   `AuthorizationRequest` for `drive.appdata`, completes any required
   `PendingIntent` through Tauri's Activity Result bridge, reads the subject
   from `AuthorizationResult.toGoogleSignInAccount().id`, and uses
   `RevokeAccessRequest` for the same account and scope.
+- Android maps `ApiException` through the SDK's `CommonStatusCodes`: real
+  cancellation is `CANCELED`, network failure is `NETWORK_ERROR`, and SDK
+  identity/resolution loss requires reauthorization. Generic `ERROR` and
+  `API_NOT_CONNECTED` remain transient; neither is mislabeled as cancellation
+  or permission denial. Permission denial is derived only from the returned
+  authorization result actually missing `drive.appdata`.
 - The only Google data scope requested by either mobile adapter is
   `https://www.googleapis.com/auth/drive.appdata`. Google Sign-In's intrinsic
   identity state is not widened into Drive, Drive File, profile, email, or any
@@ -39,6 +50,58 @@ match. Revoke removes the record only after the SDK reports success. Missing
 SDK account state is treated as `needs-reauth`, not as proof of remote
 revocation, so cancellation, account mismatch, SDK failure, or lost SDK state
 preserves ownership.
+
+## Revoke call-chain diagnostics
+
+A physical iOS retry exposed that the former format-v1 diagnostic collapsed
+every non-`kGIDSignInErrorDomain` revoke failure into `transient`. Format v2
+now persists the latest three bounded disconnect traces across renderer
+restarts. Each trace records Settings dispatch, product command, durable
+disconnect preparation, Tauri invocation, Rust credential/cache/storage
+phases, and the iOS Google Sign-In phase. A trace has at most 48 events; an
+`NSError` chain has at most four entries.
+
+If revoke fails after the durable transition has begun, the renderer also
+records `persist-blocked-attempt` as `passed`, `failed`, or `skipped`. This
+distinguishes the upstream revoke failure from the local recovery-boundary
+write without exporting the durable attempt identifier.
+
+The iOS bridge records only allowlisted domain families, numeric codes,
+normalized network reasons, optional HTTP status, completed phase names, and
+elapsed milliseconds. It never serializes `localizedDescription`, arbitrary
+`userInfo`, a URL, token, account subject, email, path, or exported trace ID.
+Debug console output uses the same structured fields. `NSURLErrorDomain`
+offline/DNS/connectivity failures now map to `offline`; timeouts and other
+network/HTTP failures remain retryable `transient` until the numeric chain can
+classify them.
+
+The first format-v2 physical trace reached `resolve-sdk-user` after Rust had
+cleared its token cache, loaded and validated the opaque mobile credential, and
+invoked the iOS plugin. AppAuth then returned OAuth token error `-10` with an
+underlying HTTP 400: `invalid_grant`. This is an unusable saved authorization,
+not a local database, Keychain-reference, Tauri invocation, or generic network
+failure. The same trace confirmed that `persist-blocked-attempt` passed.
+
+iOS now maps only the exact AppAuth OAuth-token domain and `-10` code, including
+a bounded underlying-error chain, to `needs-reauth`; the sanitized reason is
+`invalid-grant`. For a blocked disconnect, reauthorization is fenced to the
+same authority generation, disconnect attempt, Google account subject, and
+opaque credential reference. A successful match leaves paused bindings
+untouched and immediately resumes the existing disconnect so the renewed grant
+can be revoked. Cancellation, account mismatch, concurrent authority change, or
+any other blocked reason leaves the durable disconnect blocked and local content
+available.
+
+The renderer stores at most three traces in a dedicated, non-secret
+`localStorage` envelope. Storage denial or a malformed trace is ignored and
+cannot alter the provider transition. The durable disconnect still fails
+closed: native failure keeps provider ownership and local authored data, while
+the v2 summary makes the exact failed layer copyable from Settings > Privacy.
+
+Machine evidence is recorded in
+[`acceptance/phase5-google-drive-revoke-diagnostics.json`](acceptance/phase5-google-drive-revoke-diagnostics.json).
+The implementation and simulator build do not close the physical-device gate;
+the same blocked attempt must be retried with the new binary.
 
 ## Configuration and callback boundary
 
@@ -100,12 +163,16 @@ contracts.
 ```bash
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo check --manifest-path src-tauri/Cargo.toml --lib
+cargo check --manifest-path src-tauri/Cargo.toml \
+  --target aarch64-apple-ios-sim --lib
 cargo test --manifest-path src-tauri/Cargo.toml --lib google_drive_sync::tests
 pnpm exec vitest run \
   src/renderer/platform/mobile-tauri-launcher.acceptance.test.ts \
   src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts \
   --reporter=verbose
 pnpm typecheck
+src-tauri/gen/android/gradlew -p src-tauri/gen/android \
+  :tauri-plugin-drifting-google-drive-oauth:compileDebugKotlin --no-daemon
 pnpm exec cross-env \
   VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct \
   VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 \

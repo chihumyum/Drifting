@@ -8,6 +8,7 @@ import type {
   AppUpdateDownloadEvent,
   GoogleDriveNativeError,
   GoogleDriveNativeErrorCode,
+  GoogleDriveNativeDiagnostics,
   GoogleDriveNativeResult,
   ImageVariantResult,
   LifecycleEventPayload,
@@ -21,6 +22,7 @@ import type {
   TauriCommandResult,
   TauriEventContract,
 } from './contracts';
+import { recordActiveGoogleDriveNativeDiagnostics } from '../services/diagnostics/google-drive-operation-trace';
 import type { PlatformApi, Unsubscribe } from './types';
 
 const DEEP_LINK_EVENT = 'drifting:deep-link' as const;
@@ -54,6 +56,7 @@ export class GoogleDrivePlatformError extends Error {
   readonly code: GoogleDriveNativeErrorCode;
   readonly retryable: boolean;
   readonly retryAfterMs: number | null;
+  readonly diagnostics: GoogleDriveNativeDiagnostics | null;
 
   constructor(error: GoogleDriveNativeError) {
     super(error.message);
@@ -61,6 +64,7 @@ export class GoogleDrivePlatformError extends Error {
     this.code = error.code;
     this.retryable = error.retryable;
     this.retryAfterMs = error.retryAfterMs;
+    this.diagnostics = error.diagnostics ?? null;
   }
 }
 
@@ -80,6 +84,7 @@ async function invokeGoogleDriveTransfer<T>(
       message: 'Google Drive transfer was cancelled',
       retryable: false,
       retryAfterMs: null,
+      diagnostics: null,
     });
   }
   let aborted = false;
@@ -96,6 +101,7 @@ async function invokeGoogleDriveTransfer<T>(
         message: 'Google Drive transfer was cancelled',
         retryable: false,
         retryAfterMs: null,
+        diagnostics: null,
       });
     }
     return unwrapGoogleDriveResult(result);
@@ -684,7 +690,7 @@ export const tauriPlatform: PlatformApi = {
       signal = new AbortController().signal,
     ): Promise<void> => {
       const transferId = googleDriveRevokeTransferId();
-      await invokeGoogleDriveTransfer(
+      const result = await invokeGoogleDriveTransfer(
         () =>
           invokeContract('google_drive_revoke_account', {
             credentialSecretRef,
@@ -693,6 +699,7 @@ export const tauriPlatform: PlatformApi = {
         transferId,
         signal,
       );
+      recordActiveGoogleDriveNativeDiagnostics(result.diagnostics);
     },
     discoverProjectSnapshots: async (input) =>
       unwrapGoogleDriveResult(

@@ -2,9 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
+import {
+  clearGoogleDriveOperationTracesForTests,
+  getSanitizedGoogleDriveOperationTraces,
+} from '../../services/diagnostics/google-drive-operation-trace';
 import {
   ProjectTable,
   SyncProviderAccountTable,
@@ -19,6 +23,8 @@ const NOW = '2026-08-15T12:00:00.000Z';
 const LATER = '2026-08-15T12:01:00.000Z';
 const directories: string[] = [];
 const gateways: ProductFileBackedSqliteGateway[] = [];
+
+beforeEach(() => clearGoogleDriveOperationTracesForTests());
 
 async function setup() {
   const directory = await mkdtemp(path.join(tmpdir(), 'drifting-disconnect-'));
@@ -93,6 +99,14 @@ describe('CloudDisconnectOrchestrator', () => {
       targetMode: 'local',
       transitionState: 'blocked',
     });
+    const traces = getSanitizedGoogleDriveOperationTraces();
+    expect(traces[traces.length - 1]?.events).toContainEqual(
+      expect.objectContaining({
+        layer: 'renderer-disconnect',
+        phase: 'persist-blocked-attempt',
+        outcome: 'passed',
+      }),
+    );
     await expect(orchestrator.disconnect()).resolves.toMatchObject({ status: 'disconnected' });
     expect(revoke).toHaveBeenCalledTimes(2);
     expect(input.dependencies.waitForConvergence).toHaveBeenCalledTimes(1);

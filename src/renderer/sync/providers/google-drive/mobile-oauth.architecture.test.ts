@@ -122,8 +122,70 @@ describe('Google Drive official mobile OAuth architecture', () => {
   it('keeps ambiguous SDK revoke state non-terminal so ownership survives', () => {
     expect(kotlin).toContain('resolveRevokeError(invoke, "needs-reauth")');
     expect(kotlin).not.toContain('resolveRevokeMissing');
-    expect(swift).toContain('self.resolveRevokeError(invoke, code: code)');
+    expect(swift).toContain('self.resolveRevokeError(');
+    expect(swift).toContain('phase: "resolve-sdk-user"');
     expect(swift).toContain('Missing SDK state is not proof');
+  });
+
+  it('maps Android SDK failures by official status constants without inventing permission denial', () => {
+    const failureMap = kotlin.slice(
+      kotlin.indexOf('private fun mapFailure'),
+      kotlin.indexOf('private fun validClientId'),
+    );
+    expect(kotlin).toContain('import com.google.android.gms.common.api.CommonStatusCodes');
+    expect(failureMap).toContain('CommonStatusCodes.CANCELED');
+    expect(failureMap).toContain('CommonStatusCodes.NETWORK_ERROR -> "offline"');
+    expect(failureMap).not.toContain('13 -> "cancelled"');
+    expect(failureMap).not.toContain('17 -> "permission-denied"');
+    expect(kotlin).toContain('if (!granted.contains(DRIVE_APPDATA_SCOPE))');
+    expect(kotlin).toContain('resolveError(invoke, "permission-denied")');
+  });
+
+  it('maps iOS SDK failures by GoogleSignIn 9.2 enum cases instead of stale integers', () => {
+    const errorMap = swift.slice(
+      swift.indexOf('private func mapError'),
+      swift.indexOf('private func validClientId'),
+    );
+    for (const sdkCase of [
+      'hasNoAuthInKeychain',
+      'refreshTokenExpired',
+      'canceled',
+      'EMM',
+      'ambiguousClaims',
+      'mismatchWithCurrentUser',
+      'keychain',
+      'scopesAlreadyGranted',
+      'jsonSerializationFailure',
+    ]) {
+      expect(errorMap).toContain(`GIDSignInError.${sdkCase}.rawValue`);
+    }
+    expect(errorMap).not.toMatch(/case\s+-\d/u);
+    expect(errorMap).toContain('GIDSignInError.keychain.rawValue,');
+    expect(errorMap).toContain('GIDSignInError.jsonSerializationFailure.rawValue:');
+    expect(errorMap).toContain('return "transient"');
+  });
+
+  it('classifies AppAuth invalid_grant as same-account reauthorization', () => {
+    expect(swift).toContain(
+      'private let appAuthOAuthTokenErrorDomain = "org.openid.appauth.oauth_token"',
+    );
+    expect(swift).toContain('private let appAuthInvalidGrantErrorCode = -10');
+    expect(swift).toContain('containsAppAuthInvalidGrant(nsError)');
+    expect(swift).toContain('return "needs-reauth"');
+    expect(swift).toContain('return "invalid-grant"');
+    expect(swift).not.toContain('invalid_grant');
+  });
+
+  it('captures only allowlisted iOS revoke error-chain fields', () => {
+    expect(swift).toContain('NSUnderlyingErrorKey');
+    expect(swift).toContain('domain == NSURLErrorDomain');
+    expect(swift).toContain('domain == NSOSStatusErrorDomain');
+    expect(swift).toContain('"disconnect-revoke-request"');
+    expect(swift).toContain('errorChain: diagnosticErrorChain(error, productCode: code)');
+    expect(swift).not.toContain('localizedDescription');
+    expect(swift).not.toMatch(/userInfo\s*\.description/u);
+    expect(rust).toContain('native_revoke_diagnostics(');
+    expect(contracts).toContain('raw NSError text and userInfo never cross IPC');
   });
 
   it('consumes iOS Google callback URLs natively before the renderer deep-link queue', () => {

@@ -2,6 +2,11 @@ import { eq } from 'drizzle-orm';
 
 import type { DbClient } from '../../lib/db';
 import {
+  beginGoogleDriveDisconnectTrace,
+  finishGoogleDriveDisconnectTrace,
+  recordGoogleDriveTraceEvent,
+} from '../../services/diagnostics/google-drive-operation-trace';
+import {
   SyncConnectAttemptTable,
   SyncConnectGenerationAttemptTable,
   SyncProviderAccountTable,
@@ -74,17 +79,47 @@ export class CloudDisconnectOrchestrator {
 
   disconnect(signal: AbortSignal = new AbortController().signal): Promise<CloudDisconnectResult> {
     if (this.inFlight) return this.inFlight;
-    const operation = this.run(signal).finally(() => {
-      if (this.inFlight === operation) this.inFlight = null;
+    const traceId = beginGoogleDriveDisconnectTrace();
+    recordGoogleDriveTraceEvent(traceId, {
+      layer: 'renderer-settings',
+      phase: 'confirmed-disconnect',
+      outcome: 'passed',
     });
+    recordGoogleDriveTraceEvent(traceId, {
+      layer: 'renderer-product-command',
+      phase: 'dispatch-disconnect',
+      outcome: 'passed',
+    });
+    const operation = this.run(signal, traceId)
+      .then((result) => {
+        finishGoogleDriveDisconnectTrace(traceId, 'succeeded');
+        return result;
+      })
+      .catch((error: unknown) => {
+        finishGoogleDriveDisconnectTrace(traceId, 'failed', error);
+        throw error;
+      })
+      .finally(() => {
+        if (this.inFlight === operation) this.inFlight = null;
+      });
     this.inFlight = operation;
     return operation;
   }
 
-  private async run(signal: AbortSignal): Promise<CloudDisconnectResult> {
+  private async run(signal: AbortSignal, traceId: string): Promise<CloudDisconnectResult> {
     const repository = createSyncAppAuthorityRepository(this.dependencies.db);
     let authority = await repository.read();
+    recordGoogleDriveTraceEvent(traceId, {
+      layer: 'renderer-disconnect',
+      phase: 'read-authority',
+      outcome: 'passed',
+    });
     if (authority.transitionState === 'stable' && authority.mode === 'local') {
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'already-local',
+        outcome: 'skipped',
+      });
       return { status: 'already-local', attemptId: null };
     }
 
@@ -94,6 +129,11 @@ export class CloudDisconnectOrchestrator {
         throw new Error('The connected provider does not match this disconnect operation');
       }
       await this.dependencies.flushLocalDurability();
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'flush-local-durability',
+        outcome: 'passed',
+      });
       const [readyBinding] = await this.dependencies.db
         .select({ syncGenerationId: SyncProviderBindingTable.syncGenerationId })
         .from(SyncProviderBindingTable)
@@ -102,11 +142,29 @@ export class CloudDisconnectOrchestrator {
       // Ready SyncGenerations get a final clean frontier. A provider-stalled SyncGeneration has
       // no active runtime to wait on; disconnect still preserves its complete
       // local replica and may intentionally leave remote state stale.
-      if (readyBinding) await this.dependencies.waitForConvergence(signal);
+      if (readyBinding) {
+        await this.dependencies.waitForConvergence(signal);
+        recordGoogleDriveTraceEvent(traceId, {
+          layer: 'renderer-disconnect',
+          phase: 'wait-for-convergence',
+          outcome: 'passed',
+        });
+      } else {
+        recordGoogleDriveTraceEvent(traceId, {
+          layer: 'renderer-disconnect',
+          phase: 'wait-for-convergence',
+          outcome: 'skipped',
+        });
+      }
       if (signal.aborted) throw signal.reason;
       attempt = await repository.begin({
         targetMode: 'local',
         nowIso: this.dependencies.nowIso(),
+      });
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'begin-durable-transition',
+        outcome: 'passed',
       });
       this.dependencies.emitAuthorityChanged();
     } else {
@@ -114,10 +172,20 @@ export class CloudDisconnectOrchestrator {
         throw new Error('Another App-wide provider transition owns sync authority');
       }
       attempt = await readOwnedDisconnectAttempt(this.dependencies, authority.attemptId);
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'read-durable-attempt',
+        outcome: 'passed',
+      });
       if (authority.transitionState === 'blocked') {
         await repository.resume({
           attemptId: attempt.attemptId,
           nowIso: this.dependencies.nowIso(),
+        });
+        recordGoogleDriveTraceEvent(traceId, {
+          layer: 'renderer-disconnect',
+          phase: 'resume-durable-attempt',
+          outcome: 'passed',
         });
         authority = await repository.read();
         this.dependencies.emitAuthorityChanged();
@@ -132,7 +200,22 @@ export class CloudDisconnectOrchestrator {
       if (!account?.credentialSecretRef) {
         throw new Error('Connected provider credential reference is unavailable');
       }
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'read-credential-reference',
+        outcome: 'passed',
+      });
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'tauri-adapter',
+        phase: 'invoke-native-revoke',
+        outcome: 'started',
+      });
       await this.dependencies.revokeCredential(account.credentialSecretRef, signal);
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'tauri-adapter',
+        phase: 'invoke-native-revoke',
+        outcome: 'passed',
+      });
       for (const generation of attempt.generations) {
         await repository.markSyncGenerationCommitted({
           attemptId: attempt.attemptId,
@@ -140,23 +223,46 @@ export class CloudDisconnectOrchestrator {
           nowIso: this.dependencies.nowIso(),
         });
       }
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'commit-generation-receipts',
+        outcome: 'passed',
+      });
       await repository.complete({
         attemptId: attempt.attemptId,
         nowIso: this.dependencies.nowIso(),
+      });
+      recordGoogleDriveTraceEvent(traceId, {
+        layer: 'renderer-disconnect',
+        phase: 'complete-local-authority',
+        outcome: 'passed',
       });
       this.dependencies.emitAuthorityChanged();
       return { status: 'disconnected', attemptId: attempt.attemptId };
     } catch (error) {
       const current = await repository.read().catch(() => null);
       if (current?.transitionState !== 'stable' && current?.attemptId === attempt.attemptId) {
-        await repository
+        const blocked = await repository
           .block({
             attemptId: attempt.attemptId,
             errorCode: errorCode(error),
             nowIso: this.dependencies.nowIso(),
           })
-          .catch(() => undefined);
+          .then(() => true)
+          .catch(() => false);
+        recordGoogleDriveTraceEvent(traceId, {
+          layer: 'renderer-disconnect',
+          phase: 'persist-blocked-attempt',
+          outcome: blocked ? 'passed' : 'failed',
+          ...(!blocked ? { code: 'persist-blocked-failed' } : {}),
+        });
         this.dependencies.emitAuthorityChanged();
+      } else {
+        recordGoogleDriveTraceEvent(traceId, {
+          layer: 'renderer-disconnect',
+          phase: 'persist-blocked-attempt',
+          outcome: 'skipped',
+        });
       }
       throw error;
     }

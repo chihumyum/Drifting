@@ -8,7 +8,9 @@ import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/
 import { events } from '../lib/events';
 import {
   ProjectTable,
+  SyncConnectAttemptTable,
   SyncProviderBindingTable,
+  SyncProviderAccountTable,
   SyncRemoteObjectTable,
   SyncGenerationTable,
 } from '../schema/drizzle';
@@ -204,5 +206,70 @@ describe('ProductSyncCommandService', () => {
       { state: 'needs-reauth' },
     ]);
     expect(input.dependencies.emitAuthorityChanged).not.toHaveBeenCalled();
+  });
+
+  it('reauthorizes an owned invalid-grant disconnect without mutating its paused bindings', async () => {
+    const input = await setup();
+    await input.db
+      .update(SyncProviderBindingTable)
+      .set({ state: 'paused', updatedAt: NOW });
+    const authority = createSyncAppAuthorityRepository(input.db);
+    const attempt = await authority.begin({
+      targetMode: 'local',
+      attemptId: 'disconnect-needs-reauth',
+      nowIso: NOW,
+    });
+    await authority.block({
+      attemptId: attempt.attemptId,
+      errorCode: 'needs-reauth',
+      nowIso: NOW,
+    });
+
+    await input.service.reauthorizeGoogleDrive();
+
+    expect(input.dependencies.reauthorizeGoogleDrive).toHaveBeenCalledWith('secret:credential');
+    expect(await authority.read()).toMatchObject({
+      mode: 'google-drive',
+      transitionState: 'blocked',
+      targetMode: 'local',
+      attemptId: 'disconnect-needs-reauth',
+    });
+    expect(await input.db.select().from(SyncConnectAttemptTable)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          attemptId: 'disconnect-needs-reauth',
+          kind: 'disconnect',
+          state: 'blocked',
+          errorCode: 'needs-reauth',
+        }),
+      ]),
+    );
+    expect(await input.db.select().from(SyncProviderBindingTable)).toMatchObject([
+      { state: 'paused', updatedAt: NOW },
+    ]);
+    expect(await input.db.select().from(SyncProviderAccountTable)).toMatchObject([
+      { accountSubjectId: 'subject-1', updatedAt: LATER },
+    ]);
+    expect(input.dependencies.emitAuthorityChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects reauthorization when a blocked disconnect is not classified needs-reauth', async () => {
+    const input = await setup();
+    const authority = createSyncAppAuthorityRepository(input.db);
+    const attempt = await authority.begin({
+      targetMode: 'local',
+      attemptId: 'disconnect-transient',
+      nowIso: NOW,
+    });
+    await authority.block({
+      attemptId: attempt.attemptId,
+      errorCode: 'transient',
+      nowIso: NOW,
+    });
+
+    await expect(input.service.reauthorizeGoogleDrive()).rejects.toThrow(
+      'does not own the blocked disconnect attempt',
+    );
+    expect(input.dependencies.reauthorizeGoogleDrive).not.toHaveBeenCalled();
   });
 });

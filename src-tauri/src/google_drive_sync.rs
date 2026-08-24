@@ -11,7 +11,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -30,7 +30,9 @@ use sha2::{Digest, Sha256};
 use tauri::Manager as _;
 use tauri::{AppHandle, State};
 #[cfg(any(target_os = "ios", target_os = "android"))]
-use tauri_plugin_drifting_google_drive_oauth::{GoogleDriveOAuthExt as _, MobileOAuthResponse};
+use tauri_plugin_drifting_google_drive_oauth::{
+    GoogleDriveOAuthExt as _, MobileOAuthResponse, MobileOperationDiagnostics,
+};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -350,6 +352,124 @@ enum NativeErrorCode {
     UnsupportedPlatform,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeDiagnosticError {
+    family: String,
+    domain: String,
+    code: i64,
+    reason: Option<String>,
+    http_status: Option<u16>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeOperationDiagnostics {
+    schema_version: u8,
+    operation: String,
+    platform: String,
+    phase: String,
+    elapsed_ms: u64,
+    completed_phases: Vec<String>,
+    error_chain: Vec<NativeDiagnosticError>,
+}
+
+fn safe_diagnostic_token(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+#[cfg(target_os = "ios")]
+const NATIVE_DIAGNOSTIC_PLATFORM: &str = "ios";
+#[cfg(target_os = "android")]
+const NATIVE_DIAGNOSTIC_PLATFORM: &str = "android";
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+const NATIVE_DIAGNOSTIC_PLATFORM: &str = "desktop";
+
+fn rust_revoke_diagnostics(
+    started_at: Instant,
+    phase: &str,
+    completed_phases: &[&str],
+) -> NativeOperationDiagnostics {
+    NativeOperationDiagnostics {
+        schema_version: 1,
+        operation: "revoke".to_owned(),
+        platform: NATIVE_DIAGNOSTIC_PLATFORM.to_owned(),
+        phase: phase.to_owned(),
+        elapsed_ms: started_at.elapsed().as_millis().min(1_800_000) as u64,
+        completed_phases: completed_phases
+            .iter()
+            .filter(|item| safe_diagnostic_token(item))
+            .take(24)
+            .map(|item| (*item).to_owned())
+            .collect(),
+        error_chain: Vec::new(),
+    }
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn native_revoke_diagnostics(
+    started_at: Instant,
+    rust_phase: &str,
+    rust_completed_phases: &[&str],
+    mobile: Option<MobileOperationDiagnostics>,
+) -> NativeOperationDiagnostics {
+    let mut completed_phases = rust_completed_phases
+        .iter()
+        .filter(|phase| safe_diagnostic_token(phase))
+        .map(|phase| (*phase).to_owned())
+        .collect::<Vec<_>>();
+    let mut phase = rust_phase.to_owned();
+    let mut error_chain = Vec::new();
+    if let Some(mobile) = mobile.filter(|value| {
+        value.schema_version == 1
+            && safe_diagnostic_token(&value.operation)
+            && safe_diagnostic_token(&value.platform)
+            && safe_diagnostic_token(&value.phase)
+            && value.completed_phases.len() <= 24
+            && value
+                .completed_phases
+                .iter()
+                .all(|item| safe_diagnostic_token(item))
+            && value.error_chain.len() <= 4
+    }) {
+        phase = mobile.phase;
+        completed_phases.extend(mobile.completed_phases);
+        error_chain = mobile
+            .error_chain
+            .into_iter()
+            .filter(|item| {
+                safe_diagnostic_token(&item.family)
+                    && safe_diagnostic_token(&item.domain)
+                    && item.reason.as_deref().map_or(true, safe_diagnostic_token)
+                    && item
+                        .http_status
+                        .map_or(true, |status| (100..=599).contains(&status))
+            })
+            .map(|item| NativeDiagnosticError {
+                family: item.family,
+                domain: item.domain,
+                code: item.code,
+                reason: item.reason,
+                http_status: item.http_status,
+            })
+            .collect();
+    }
+    completed_phases.truncate(24);
+    NativeOperationDiagnostics {
+        schema_version: 1,
+        operation: "revoke".to_owned(),
+        platform: NATIVE_DIAGNOSTIC_PLATFORM.to_owned(),
+        phase,
+        elapsed_ms: started_at.elapsed().as_millis().min(1_800_000) as u64,
+        completed_phases,
+        error_chain,
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NativeError {
@@ -357,6 +477,8 @@ pub(crate) struct NativeError {
     message: String,
     retryable: bool,
     retry_after_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostics: Option<NativeOperationDiagnostics>,
 }
 
 impl NativeError {
@@ -366,6 +488,7 @@ impl NativeError {
             message: message.into(),
             retryable,
             retry_after_ms: None,
+            diagnostics: None,
         }
     }
 
@@ -387,6 +510,11 @@ impl NativeError {
 
     fn retry_after(mut self, retry_after_ms: Option<u64>) -> Self {
         self.retry_after_ms = retry_after_ms;
+        self
+    }
+
+    fn diagnostics(mut self, diagnostics: NativeOperationDiagnostics) -> Self {
+        self.diagnostics = Some(diagnostics);
         self
     }
 }
@@ -450,6 +578,8 @@ enum RevokeAccountStatus {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RevokeAccountResult {
     status: RevokeAccountStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostics: Option<NativeOperationDiagnostics>,
 }
 
 #[derive(Debug, Serialize)]
@@ -958,6 +1088,10 @@ async fn response_error(response: Response) -> NativeError {
             true,
         )
         .retry_after(retry_after),
+        StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_EARLY => {
+            NativeError::transient("Google Drive asked to retry the request")
+                .retry_after(retry_after)
+        }
         StatusCode::NOT_FOUND => NativeError::new(
             NativeErrorCode::RemoteObjectMissing,
             "Google Drive object is missing",
@@ -1492,6 +1626,7 @@ where
     let Some(credential) = credential else {
         return Ok(RevokeAccountResult {
             status: RevokeAccountStatus::AlreadyMissing,
+            diagnostics: None,
         });
     };
     let GoogleCredentialMaterialV1::DesktopRefreshToken(material) = &credential.material else {
@@ -1501,7 +1636,10 @@ where
     };
     let status = revoke_google_token(state, &material.refresh_token).await?;
     remove().await?;
-    Ok(RevokeAccountResult { status })
+    Ok(RevokeAccountResult {
+        status,
+        diagnostics: None,
+    })
 }
 
 async fn revoke_account_impl(
@@ -1509,21 +1647,54 @@ async fn revoke_account_impl(
     state: &GoogleDriveState,
     credential_secret_ref: String,
 ) -> Result<RevokeAccountResult, NativeError> {
+    let started_at = Instant::now();
     let _guard = state.refresh_lock.lock().await;
     // Revocation is an explicit authority transition. Stop using the bearer
     // immediately even if the remote revoke later needs a durable retry.
-    state.clear_cached_access_token(&credential_secret_ref)?;
+    state
+        .clear_cached_access_token(&credential_secret_ref)
+        .map_err(|error| {
+            error.diagnostics(rust_revoke_diagnostics(
+                started_at,
+                "clear-token-cache",
+                &["rust-invoke-received"],
+            ))
+        })?;
     let app_for_read = app.clone();
     let secret_for_read = credential_secret_ref.clone();
     let credential = tauri::async_runtime::spawn_blocking(move || {
         read_optional_credentials(&app_for_read, &secret_for_read)
     })
     .await
-    .map_err(|_| NativeError::configuration("Secure storage worker failed"))??;
+    .map_err(|_| {
+        NativeError::configuration("Secure storage worker failed").diagnostics(
+            rust_revoke_diagnostics(
+                started_at,
+                "read-secure-storage-worker",
+                &["rust-invoke-received", "rust-cache-cleared"],
+            ),
+        )
+    })?
+    .map_err(|error| {
+        error.diagnostics(rust_revoke_diagnostics(
+            started_at,
+            "read-secure-storage",
+            &["rust-invoke-received", "rust-cache-cleared"],
+        ))
+    })?;
 
     let Some(credential) = credential else {
         return Ok(RevokeAccountResult {
             status: RevokeAccountStatus::AlreadyMissing,
+            diagnostics: Some(rust_revoke_diagnostics(
+                started_at,
+                "already-missing",
+                &[
+                    "rust-invoke-received",
+                    "rust-cache-cleared",
+                    "rust-credential-checked",
+                ],
+            )),
         });
     };
 
@@ -1550,22 +1721,77 @@ async fn revoke_account_impl(
                 else {
                     unreachable!()
                 };
-                validate_desktop_material_for_build(material)?;
-                revoke_loaded_credential(state, Some(credential), remove).await
+                validate_desktop_material_for_build(material).map_err(|error| {
+                    error.diagnostics(rust_revoke_diagnostics(
+                        started_at,
+                        "validate-desktop-material",
+                        &[
+                            "rust-invoke-received",
+                            "rust-cache-cleared",
+                            "rust-credential-loaded",
+                        ],
+                    ))
+                })?;
+                let mut result = revoke_loaded_credential(state, Some(credential), remove)
+                    .await
+                    .map_err(|error| {
+                        error.diagnostics(rust_revoke_diagnostics(
+                            started_at,
+                            "desktop-revoke-or-delete",
+                            &[
+                                "rust-invoke-received",
+                                "rust-cache-cleared",
+                                "rust-credential-loaded",
+                                "rust-material-validated",
+                            ],
+                        ))
+                    })?;
+                result.diagnostics = Some(rust_revoke_diagnostics(
+                    started_at,
+                    "complete",
+                    &[
+                        "rust-invoke-received",
+                        "rust-cache-cleared",
+                        "rust-credential-loaded",
+                        "rust-material-validated",
+                        "rust-revoke-completed",
+                        "rust-secure-storage-deleted",
+                    ],
+                ));
+                Ok(result)
             }
 
             #[cfg(any(target_os = "ios", target_os = "android"))]
             {
                 Err(NativeError::configuration(
                     "Desktop Google OAuth binding cannot be used on mobile",
-                ))
+                )
+                .diagnostics(rust_revoke_diagnostics(
+                    started_at,
+                    "credential-platform-mismatch",
+                    &[
+                        "rust-invoke-received",
+                        "rust-cache-cleared",
+                        "rust-credential-loaded",
+                    ],
+                )))
             }
         }
         GoogleCredentialMaterialV1::MobileSdkAccount(material) => {
             #[cfg(any(target_os = "ios", target_os = "android"))]
             {
-                validate_mobile_material_for_build(material)?;
-                let response = app_for_mobile
+                validate_mobile_material_for_build(material).map_err(|error| {
+                    error.diagnostics(rust_revoke_diagnostics(
+                        started_at,
+                        "validate-mobile-material",
+                        &[
+                            "rust-invoke-received",
+                            "rust-cache-cleared",
+                            "rust-credential-loaded",
+                        ],
+                    ))
+                })?;
+                let mut response = app_for_mobile
                     .drifting_google_drive_oauth()
                     .revoke(&material.client_id, &credential.account_subject)
                     .await
@@ -1573,17 +1799,69 @@ async fn revoke_account_impl(
                         NativeError::configuration(
                             "The official Google OAuth client is unavailable",
                         )
+                        .diagnostics(rust_revoke_diagnostics(
+                            started_at,
+                            "invoke-mobile-plugin",
+                            &[
+                                "rust-invoke-received",
+                                "rust-cache-cleared",
+                                "rust-credential-loaded",
+                                "rust-material-validated",
+                            ],
+                        ))
                     })?;
                 if !response.ok {
-                    return Err(mobile_oauth_error(response.error_code.as_deref()));
+                    let diagnostics = native_revoke_diagnostics(
+                        started_at,
+                        "mobile-plugin-error",
+                        &[
+                            "rust-invoke-received",
+                            "rust-cache-cleared",
+                            "rust-credential-loaded",
+                            "rust-material-validated",
+                            "rust-mobile-plugin-invoked",
+                        ],
+                        response.diagnostics.take(),
+                    );
+                    return Err(
+                        mobile_oauth_error(response.error_code.as_deref()).diagnostics(diagnostics)
+                    );
                 }
                 let status = if response.already_missing {
                     RevokeAccountStatus::AlreadyRevoked
                 } else {
                     RevokeAccountStatus::Revoked
                 };
-                remove().await?;
-                Ok(RevokeAccountResult { status })
+                remove().await.map_err(|error| {
+                    error.diagnostics(rust_revoke_diagnostics(
+                        started_at,
+                        "delete-secure-storage",
+                        &[
+                            "rust-invoke-received",
+                            "rust-cache-cleared",
+                            "rust-credential-loaded",
+                            "rust-material-validated",
+                            "rust-mobile-plugin-invoked",
+                            "rust-revoke-completed",
+                        ],
+                    ))
+                })?;
+                Ok(RevokeAccountResult {
+                    status,
+                    diagnostics: Some(native_revoke_diagnostics(
+                        started_at,
+                        "complete",
+                        &[
+                            "rust-invoke-received",
+                            "rust-cache-cleared",
+                            "rust-credential-loaded",
+                            "rust-material-validated",
+                            "rust-mobile-plugin-invoked",
+                            "rust-secure-storage-deleted",
+                        ],
+                        response.diagnostics.take(),
+                    )),
+                })
             }
 
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
@@ -1591,7 +1869,16 @@ async fn revoke_account_impl(
                 let _ = material;
                 Err(NativeError::configuration(
                     "Mobile Google OAuth binding cannot be used on desktop",
-                ))
+                )
+                .diagnostics(rust_revoke_diagnostics(
+                    started_at,
+                    "credential-platform-mismatch",
+                    &[
+                        "rust-invoke-received",
+                        "rust-cache-cleared",
+                        "rust-credential-loaded",
+                    ],
+                )))
             }
         }
     }
@@ -4168,6 +4455,11 @@ mod tests {
                     headers: vec![],
                     body: r#"{"error":{"errors":[{"reason":"insufficientPermissions"}]}}"#.into(),
                 },
+                FakeResponse {
+                    status: 408,
+                    headers: vec![("retry-after", "5")],
+                    body: r#"{"error":{"message":"request timed out"}}"#.into(),
+                },
             ]));
             let mut state = GoogleDriveState::default();
             state.http = fake.clone();
@@ -4191,8 +4483,13 @@ mod tests {
             assert_eq!(permission.code, NativeErrorCode::PermissionDenied);
             assert!(!permission.retryable);
 
+            let timeout = response_error(state.http.send(request()).await.unwrap()).await;
+            assert_eq!(timeout.code, NativeErrorCode::Transient);
+            assert!(timeout.retryable);
+            assert_eq!(timeout.retry_after_ms, Some(5_000));
+
             let requests = fake.requests.lock().unwrap();
-            assert_eq!(requests.len(), 3);
+            assert_eq!(requests.len(), 4);
             assert_eq!(requests[0].0, "GET");
             assert_eq!(requests[0].1, "/drive/v3/files");
             assert!(requests[0].2.iter().any(|name| name == "authorization"));
@@ -4383,6 +4680,42 @@ mod tests {
             "expiresAtMs": 1
         });
         assert!(decode_credentials(&old_shape.to_string()).is_err());
+    }
+
+    #[test]
+    fn native_revoke_diagnostics_serialize_only_structured_safe_fields() {
+        let diagnostics = NativeOperationDiagnostics {
+            schema_version: 1,
+            operation: "revoke".into(),
+            platform: "ios".into(),
+            phase: "disconnect-revoke-request".into(),
+            elapsed_ms: 125,
+            completed_phases: vec!["rust-mobile-plugin-invoked".into()],
+            error_chain: vec![NativeDiagnosticError {
+                family: "network".into(),
+                domain: "ns-url".into(),
+                code: -1001,
+                reason: Some("timeout".into()),
+                http_status: None,
+            }],
+        };
+        let serialized = serde_json::to_string(&NativeResult::<()>::from_result(Err(
+            NativeError::transient("Google OAuth failed temporarily").diagnostics(diagnostics),
+        )))
+        .unwrap();
+        assert!(serialized.contains("disconnect-revoke-request"));
+        assert!(serialized.contains("ns-url"));
+        assert!(serialized.contains("-1001"));
+        for forbidden in [
+            "accessToken",
+            "refreshToken",
+            "accountSubject",
+            "localizedDescription",
+            "userInfo",
+            "/Users/example/",
+        ] {
+            assert!(!serialized.contains(forbidden));
+        }
     }
 
     #[test]

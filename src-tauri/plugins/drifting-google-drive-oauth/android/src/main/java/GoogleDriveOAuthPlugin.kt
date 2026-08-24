@@ -18,6 +18,7 @@ import com.google.android.gms.auth.api.identity.RevokeAccessRequest
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 
 private const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
@@ -227,11 +228,12 @@ class GoogleDriveOAuthPlugin(private val activity: Activity) : Plugin(activity) 
 
     private fun mapFailure(error: Exception): String = when (error) {
         is ApiException -> when (error.statusCode) {
-            4 -> "needs-reauth"
-            7 -> "offline"
-            10 -> "configuration-required"
-            13 -> "cancelled"
-            17 -> "permission-denied"
+            CommonStatusCodes.SIGN_IN_REQUIRED,
+            CommonStatusCodes.INVALID_ACCOUNT,
+            CommonStatusCodes.RESOLUTION_REQUIRED -> "needs-reauth"
+            CommonStatusCodes.NETWORK_ERROR -> "offline"
+            CommonStatusCodes.DEVELOPER_ERROR -> "configuration-required"
+            CommonStatusCodes.CANCELED -> "cancelled"
             else -> "transient"
         }
         else -> "transient"

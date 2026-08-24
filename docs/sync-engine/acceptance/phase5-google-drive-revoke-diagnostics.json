@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase5-google-drive-revoke-diagnostics",
+  "recordedAt": "2026-08-24",
+  "status": "physical-root-cause-classified-repair-in-validation",
+  "diagnosticFormat": {
+    "name": "drifting.sanitized-diagnostics",
+    "version": 2,
+    "persistedTraceCount": 3,
+    "maximumEventsPerTrace": 48,
+    "maximumNativeErrorDepth": 4,
+    "survivesRendererRestart": true
+  },
+  "callChain": [
+    "renderer-settings",
+    "renderer-product-command",
+    "renderer-disconnect",
+    "tauri-adapter",
+    "rust-native",
+    "ios-google-sign-in"
+  ],
+  "nativeRevokePhases": [
+    "clear-token-cache",
+    "read-secure-storage",
+    "validate-mobile-material",
+    "invoke-mobile-plugin",
+    "resolve-sdk-user",
+    "disconnect-revoke-request",
+    "delete-secure-storage",
+    "complete"
+  ],
+  "durableFailureBoundary": {
+    "phase": "persist-blocked-attempt",
+    "outcomes": ["passed", "failed", "skipped"],
+    "attemptIdentifierExported": false
+  },
+  "privacy": {
+    "rawErrorText": false,
+    "localizedDescription": false,
+    "nserrorUserInfo": false,
+    "token": false,
+    "accountSubject": false,
+    "email": false,
+    "url": false,
+    "absolutePath": false,
+    "traceIdentifierExported": false,
+    "allowlistedDomainFamily": true,
+    "numericErrorCode": true,
+    "boundedUnderlyingErrorChain": true
+  },
+  "machineAcceptance": {
+    "focusedVitest": { "passed": 24, "failed": 0 },
+    "googleDriveRustTests": { "passed": 20, "failed": 0 },
+    "focusedEslint": "passed",
+    "cargoCheck": "passed",
+    "cargoFmtCheck": "passed",
+    "iosArm64SimulatorArchiveBuild": "passed",
+    "invalidGrantRepair": {
+      "focusedVitest": { "files": 5, "passed": 40, "failed": 0 },
+      "focusedEslint": "passed",
+      "typecheck": "passed",
+      "iosArm64SimulatorArchiveBuild": "passed",
+      "existingSimulatorInstallAndLaunch": "passed",
+      "portraitSyncSettingsNavigation": "passed",
+      "realGoogleAccountUsed": false
+    },
+    "fullRepository": {
+      "vitest": {
+        "filesPassed": 318,
+        "filesSkipped": 1,
+        "testsPassed": 1867,
+        "testsSkipped": 1,
+        "failed": 0
+      },
+      "eslint": "passed-with-existing-warnings",
+      "typecheck": "passed",
+      "publicBoundaryCandidates": 1510,
+      "publicBoundaryCheck": "passed",
+      "agentCapabilityFiles": 3,
+      "agentCapabilityTests": 18,
+      "agentCapabilityCheck": "passed",
+      "googleDriveRustTests": 20,
+      "cargoFmtCheck": "passed"
+    },
+    "iosSimulatorDiagnosticCopy": {
+      "status": "passed",
+      "device": "existing-iphone-16e",
+      "inputPath": "synthetic-dom",
+      "clipboardBoundary": "captured-with-debug-writeText-stub-because-synthetic-input-is-not-a-trusted-user-gesture",
+      "formatVersion": 2,
+      "nativeErrorChainPreserved": true,
+      "rawErrorTextExcluded": true,
+      "internalTraceIdentifierExcluded": true,
+      "syntheticTraceRemovedAfterAcceptance": true
+    }
+  },
+  "physicalDevice": {
+    "newDiagnosticBuildInstalled": true,
+    "installMode": "signed-bundled-debug-archive-direct-devicectl-overwrite",
+    "bundledRenderer": true,
+    "bundledRendererAssetEmbedded": true,
+    "devUrlConfigurationLiteralPresent": true,
+    "viteDevServerListeningAtLaunch": false,
+    "devUrlAbsentFromInstalledArtifact": false,
+    "applicationDataReset": false,
+    "applicationProcessConfirmed": true,
+    "sameDurableDisconnectAttemptRetried": true,
+    "rootCauseClassified": true,
+    "rootCause": {
+      "productCodeBeforeRepair": "transient",
+      "classifiedCode": "needs-reauth",
+      "nativePhase": "resolve-sdk-user",
+      "oauthFamilyCode": -10,
+      "httpStatus": 400,
+      "normalizedReason": "invalid-grant",
+      "localBlockedAttemptPersisted": true
+    },
+    "repairBuildInstalled": true,
+    "sameAccountReauthorizationCompleted": false,
+    "disconnectCompleted": false
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/services/diagnostics/google-drive-operation-trace.test.ts src/renderer/services/diagnostics/sanitized-summary.test.ts src/renderer/platform/google-drive.test.ts src/renderer/sync/disconnect/cloud-disconnect.integration.test.ts src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/services/diagnostics/google-drive-operation-trace.ts src/renderer/services/diagnostics/google-drive-operation-trace.test.ts src/renderer/services/diagnostics/sanitized-summary.ts src/renderer/services/diagnostics/sanitized-summary.test.ts src/renderer/platform/contracts.ts src/renderer/platform/tauri.ts src/renderer/platform/google-drive.test.ts src/renderer/sync/disconnect/cloud-disconnect.ts src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts src/renderer/features/settings/panels/ControlSettingsPanels.tsx",
+    "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "cargo check --manifest-path src-tauri/Cargo.toml",
+    "cargo test google_drive_sync --lib --manifest-path src-tauri/Cargo.toml",
+    "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri ios build --debug --target aarch64-sim --no-sign --archive-only --ci",
+    "pnpm mobile:ios:debug -- --device <existing-simulator-udid>",
+    "pnpm drifting frontend tap --input <privacy-copy-diagnostics-locator>",
+    "pnpm drifting frontend evaluate --expression <strictly-synthetic-trace-and-sanitized-output-assertions>",
+    "codesign --verify --deep --strict <debug-iphoneos-app>",
+    "xcrun devicectl device install app --device <paired-device-id> <debug-iphoneos-app>",
+    "xcrun devicectl device process launch --console --device <paired-device-id> --terminate-existing cc.drifting.client",
+    "node --env-file=.env.local node_modules/@tauri-apps/cli/tauri.js ios build --debug --target aarch64 --archive-only --ci",
+    "codesign --verify --deep --strict <bundled-debug-archive-app>",
+    "strings <bundled-debug-archive-binary> | verify-current-frontendDist-asset-embedded",
+    "lsof -nP -iTCP:5173 -sTCP:LISTEN | verify-no-Vite-server-at-launch"
+  ]
+}
