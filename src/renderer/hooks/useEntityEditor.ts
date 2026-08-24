@@ -3,7 +3,6 @@ import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
-import { Node as PMNode } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -72,11 +71,15 @@ import {
   buildEntityLinkColorSignature,
   resolveEntityLinkTargetColor,
 } from '../lib/entity-link-appearance';
+import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
 
-const DEFAULT_DOC: JSONContent = { type: 'doc', content: [] };
+const DEFAULT_DOC: JSONContent = {
+  type: 'doc',
+  content: [{ type: 'paragraph' }],
+};
 const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
 
 // Trailing-debounce window for the heavy derive+persist pipeline (projection
@@ -99,17 +102,6 @@ export interface EditorCommentRequest {
   anchorJson: string;
   clientX: number;
   clientY: number;
-}
-
-// Replace editor content with a transaction marked `addToHistory: false` so
-// the initial load doesn't enter the undo stack. Without this, Cmd+Z all the
-// way back tries to revert to a pre-seed empty doc, which fails the `doc`
-// schema's `content: 'block+'` constraint and raises "Invalid content".
-function loadDocWithoutHistory(editor: Editor, json: JSONContent): void {
-  const docNode = PMNode.fromJSON(editor.schema, json);
-  const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, docNode.content);
-  tr.setMeta('addToHistory', false);
-  editor.view.dispatch(tr);
 }
 
 function parseContentJson(content: string | null): JSONContent {
@@ -529,8 +521,14 @@ export interface UseEntityEditorConfig {
   parentElementId?: string;
 
   // Initial document JSON string from the persisted row. Null = empty doc.
-  // Ignored when `ydoc` is provided — Collaboration extension owns content.
+  // JSON-backed editors receive this in their TipTap constructor so an empty
+  // editor/placeholder can never paint before the real content is installed.
   content: string | null;
+
+  // Yjs editors must declare their authority even while the Y.Doc is loading.
+  // This keeps readiness false until the TipTap instance carrying the actual
+  // Collaboration extension has replaced its temporary, never-visible shell.
+  documentMode?: 'json' | 'yjs';
 
   // Optional Y.Doc backing this editor. When set, the Collaboration extension
   // binds Tiptap directly to ydoc's default fragment, replacing the legacy
@@ -588,6 +586,8 @@ export interface UseEntityEditorConfig {
 
 export interface UseEntityEditorResult {
   editor: Editor | null;
+  /** True only when this exact TipTap instance owns its canonical document. */
+  ready: boolean;
   // Live outline derived from the editor's current doc (h1/h2/h3 nodes).
   // Updates on every edit and once on load. Empty array before the editor
   // mounts or when the doc has no headings.
@@ -602,8 +602,7 @@ export interface UseEntityEditorResult {
 //   • the full extension set (StarterKit + Underline + Link + TextAlign
 //     + BlockId + EntityLink + EntityMentionSuggestion + SlashMenu
 //     + optional Placeholder),
-//   • the load pipeline (loadDocWithoutHistory + (editor, sourceId) token
-//     sentinel so a useEditor rebuild forces a reload),
+//   • constructor-time JSON loading plus a canonical-document readiness signal,
 //   • the persist pipeline (onUpdate dispatches projection + onPersist),
 //   • the entity-link config sync (auto-detect map + enabled flag),
 //   • the @-picker (mentionable entities and "+ create element" affordance),
@@ -616,6 +615,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     projectId,
     parentElementId,
     content,
+    documentMode: requestedDocumentMode,
     ydoc,
     onPersist,
     slashExtraItems,
@@ -631,6 +631,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     enableInlineCopilot = false,
     editable = true,
   } = config;
+  const documentMode = requestedDocumentMode ?? (ydoc ? 'yjs' : 'json');
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
   const onPersistRef = useLatestRef(onPersist);
@@ -640,6 +641,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
+  const { isCommandActive } = useEditorSurfaceLifecycle();
   // Latest editor instance, read inside the (later-firing) contextmenu handler
   // to run「格式」block-transform commands on the live selection. Declared up
   // here because the handler closure lives inside the useEditor config below;
@@ -964,6 +966,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return extraItems ? [...extraItems] : [];
   }, [slashExtraItemsRef]);
 
+  const initialContent = documentMode === 'json' ? parseContentJson(content) : null;
+  const jsonDocumentKey =
+    documentMode === 'json' ? `${projectId}:${sourceKind}:${sourceId}` : null;
+
   const editor = useEditor(
     {
       extensions: [
@@ -992,7 +998,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           alignments: ['left', 'center', 'right'],
           defaultAlignment: 'left',
         }),
-        ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
+        ...(placeholder && (documentMode === 'json' || ydoc)
+          ? [Placeholder.configure({ placeholder })]
+          : []),
         // Collaboration must come AFTER StarterKit so it can swap the doc
         // contents. The default fragment name 'default' matches the one the
         // double-write hook in useYjsSync serializes from.
@@ -1029,7 +1037,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // eslint-disable-next-line react-hooks/refs
         createDefaultSlashMenu({ extraItems: getSlashItems }),
       ],
-      content: null,
+      content: initialContent,
       autofocus: autoFocus ? 'end' : false,
       editable,
       editorProps: {
@@ -1276,13 +1284,21 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       minHeight,
       t,
       saveSelection,
-      // Rebuild the editor when ydoc flips between undefined and a real
-      // instance — useYjsDoc starts with isReady=false (no ydoc passed yet)
-      // and the caller flips to the real Y.Doc once load completes. Without
-      // this dep the Collaboration extension would never attach.
+      documentMode,
+      jsonDocumentKey,
+      // Yjs surfaces remain hidden until the rebuilt instance below carries
+      // this exact document's Collaboration extension.
       ydoc,
     ],
   );
+
+  const collaboration = editor?.extensionManager.extensions.find(
+    (extension) => extension.name === 'collaboration',
+  );
+  const ready =
+    documentMode === 'json'
+      ? Boolean(editor)
+      : Boolean(editor && ydoc && collaboration?.options.document === ydoc);
 
   useTypewriterScrolling(editor, typewriterScrolling);
 
@@ -1440,10 +1456,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => events.off('element:element-created', onElementCreated);
   }, [editor, sourceRef]);
 
-  // Load content into the editor whenever the (editor instance, sourceId)
-  // pair changes. Don't depend on `content` — that would re-load on every
-  // save round-trip and reset the cursor. Source-of-truth for "what's in the
-  // editor" is the editor itself once loaded.
+  // Stamp and project a newly-created canonical editor. JSON content was
+  // supplied to the TipTap constructor above; Collaboration owns Yjs content.
+  // Neither mode performs a post-paint setContent transaction.
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     let outlineFrame = 0;
@@ -1457,12 +1472,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       return;
     }
     try {
-      // ydoc mode: Collaboration owns the document. Don't setContent — that
-      // would race the Yjs binding and produce ghost content. Just stamp the
-      // loaded token so onUpdate starts firing.
-      if (!ydoc) {
-        loadDocWithoutHistory(editor, parseContentJson(content));
-      }
       loadedTokenRef.current = {
         editor,
         projectId: source.projectId,
@@ -1499,9 +1508,17 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => {
       if (outlineFrame) cancelAnimationFrame(outlineFrame);
     };
-    // content is intentionally NOT in deps — see comment above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, projectId, sourceKind, sourceId, projectReferences, recomputeOutline]);
+  }, [
+    autoFocus,
+    editor,
+    projectId,
+    projectReferences,
+    recomputeOutline,
+    selectionKeyRef,
+    sourceId,
+    sourceKind,
+    sourceRef,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1514,25 +1531,34 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
 
   // Register with the global active-editor registry: Cmd+F finds this
   // instance, Cmd+S runs the same persistence path as onUpdate.
-  useRegisterActiveEditor(editor, () => {
-    if (!editor || editor.isDestroyed) return;
-    const source = sourceRef.current;
-    if (!source.sourceId) return;
-    if (
-      loadedTokenRef.current.editor !== editor ||
-      loadedTokenRef.current.projectId !== source.projectId ||
-      loadedTokenRef.current.sourceKind !== source.sourceKind ||
-      loadedTokenRef.current.sourceId !== source.sourceId
-    ) {
-      return;
-    }
-    // Cmd+S: persist immediately and cancel any pending debounced run.
-    if (persistTimerRef.current) {
-      clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = null;
-    }
-    persistEditorContent(editor);
-  });
+  useRegisterActiveEditor(
+    editor,
+    () => {
+      if (!editor || editor.isDestroyed) return;
+      const source = sourceRef.current;
+      if (!source.sourceId) return;
+      if (
+        loadedTokenRef.current.editor !== editor ||
+        loadedTokenRef.current.projectId !== source.projectId ||
+        loadedTokenRef.current.sourceKind !== source.sourceKind ||
+        loadedTokenRef.current.sourceId !== source.sourceId
+      ) {
+        return;
+      }
+      // Cmd+S: persist immediately and cancel any pending debounced run.
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      persistEditorContent(editor);
+    },
+    {
+      isSurfaceActive: isCommandActive,
+      // Nested patch cards become active on focus, not merely because their
+      // parent element surface was revealed.
+      activateOnMount: sourceKind !== 'patch',
+    },
+  );
 
-  return { editor, outline };
+  return { editor, outline, ready };
 }

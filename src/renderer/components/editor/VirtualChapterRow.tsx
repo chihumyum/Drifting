@@ -15,6 +15,7 @@ import { editorTabSelectionKey } from '../../lib/editor-selection-memory';
 import { isMobileAllChaptersTap } from '../../shells/mobile/workspace/mobile-all-chapters';
 import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
+import { EditorDocumentLoadError } from './EditorDocumentLoadError';
 
 const log = loglevel.getLogger('VirtualChapterRow');
 log.setLevel(loglevel.levels.WARN);
@@ -38,11 +39,13 @@ interface VirtualChapterRowProps {
   projectId: string;
   index: number;
 
-  // Returns persisted content for this chapter, or null if none yet. Every row
-  // loads its content up front (not gated on proximity) so the read-through
-  // always shows real prose at its real height — that's what keeps fast scrolls
-  // from jumping.
+  // Returns persisted content for this chapter, or null if none yet. Rows load
+  // on entering the generous viewport margin; until then their measured body
+  // reserve keeps the read-through geometry stable.
   fetchContent: (nodeId: string) => Promise<NodeContent | null>;
+  // Lets the desktop surface stage wait for canonical prose instead of
+  // revealing a row-height placeholder on first activation.
+  onContentReady?: (nodeId: string) => void;
 
   // True for the one chapter the user is actively editing. Only that row mounts
   // the heavy ChapterEditor (TipTap + per-chapter Yjs sync + Copilot); everyone
@@ -88,6 +91,7 @@ function VirtualChapterRowImpl({
   projectId,
   index,
   fetchContent,
+  onContentReady,
   isFocused,
   onActivate,
   activateCaret,
@@ -104,7 +108,9 @@ function VirtualChapterRowImpl({
   const { t } = useTranslation();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
+  const [contentLoadError, setContentLoadError] = useState(false);
   const [nearViewport, setNearViewport] = useState(false);
+  const [liveReady, setLiveReady] = useState(false);
 
   const intrinsicHeight = estimateChapterHeight(node.wordCount || 0);
 
@@ -138,16 +144,24 @@ function VirtualChapterRowImpl({
     let cancelled = false;
     void fetchContent(node.id)
       .then((c) => {
-        if (!cancelled) setContent(c);
+        if (!cancelled) {
+          setContentLoadError(false);
+          setContent(c);
+          onContentReady?.(node.id);
+        }
       })
       .catch((error) => {
         log.error(`[VirtualChapterRow] fetch content failed for ${node.id}`, error);
-        if (!cancelled) setContent((prev) => (prev === undefined ? null : prev));
+        if (!cancelled) {
+          setContentLoadError(true);
+          setContent((prev) => (prev === undefined ? null : prev));
+          onContentReady?.(node.id);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [content, isFocused, fetchContent, nearViewport, node.id]);
+  }, [content, isFocused, fetchContent, nearViewport, node.id, onContentReady]);
 
   const staticHtml = useMemo(
     () =>
@@ -208,36 +222,68 @@ function VirtualChapterRowImpl({
 
           {storylineName && <div className="page__chapter-mark">— {storylineName} —</div>}
 
-          {isFocused && content !== undefined ? (
-            <ChapterEditor
-              nodeId={node.id}
-              projectId={projectId}
-              content={content?.contentJson ?? null}
-              title={node.title}
-              summary={node.summary || ''}
-              onContentUpdate={handleContentUpdate}
-              onTitleUpdate={onTitleUpdate}
-              onSummaryUpdate={onSummaryUpdate}
-              onEntityClick={onEntityClick}
-              onOutlineChange={handleOutlineChange}
-              showTitle={true}
-              showSummary={true}
-              editableTitle={true}
-              editableSummary={true}
-              autoFocus={false}
-              activateCaret={activateCaret ?? null}
-              minHeight="240px"
-              selectionKey={editorTabSelectionKey(projectId, {
-                entityType: 'node',
-                id: node.id,
-              })}
-            />
+          {isFocused && content !== undefined && !contentLoadError ? (
+            <div style={{ display: 'grid' }}>
+              <div
+                aria-hidden={liveReady}
+                style={{
+                  gridArea: '1 / 1',
+                  visibility: liveReady ? 'hidden' : 'visible',
+                  pointerEvents: liveReady ? 'none' : 'auto',
+                }}
+              >
+                <StaticChapterBody
+                  title={node.title}
+                  summary={node.summary || ''}
+                  html={staticHtml}
+                  ready={content !== undefined}
+                  loadError={contentLoadError}
+                  bodyEstimate={Math.max(240, intrinsicHeight - CHROME_HEIGHT)}
+                  onActivate={(coords) => onActivate(node.id, coords)}
+                  onEntityClick={onEntityClick}
+                />
+              </div>
+              <div
+                aria-hidden={!liveReady}
+                style={{
+                  gridArea: '1 / 1',
+                  visibility: liveReady ? 'visible' : 'hidden',
+                  pointerEvents: liveReady ? 'auto' : 'none',
+                }}
+              >
+                <ChapterEditor
+                  nodeId={node.id}
+                  projectId={projectId}
+                  content={content?.contentJson ?? null}
+                  title={node.title}
+                  summary={node.summary || ''}
+                  onContentUpdate={handleContentUpdate}
+                  onTitleUpdate={onTitleUpdate}
+                  onSummaryUpdate={onSummaryUpdate}
+                  onEntityClick={onEntityClick}
+                  onOutlineChange={handleOutlineChange}
+                  showTitle={true}
+                  showSummary={true}
+                  editableTitle={true}
+                  editableSummary={true}
+                  autoFocus={false}
+                  activateCaret={activateCaret ?? null}
+                  minHeight="240px"
+                  onReadyChange={setLiveReady}
+                  selectionKey={editorTabSelectionKey(projectId, {
+                    entityType: 'node',
+                    id: node.id,
+                  })}
+                />
+              </div>
+            </div>
           ) : (
             <StaticChapterBody
               title={node.title}
               summary={node.summary || ''}
               html={staticHtml}
               ready={content !== undefined}
+              loadError={contentLoadError}
               bodyEstimate={Math.max(240, intrinsicHeight - CHROME_HEIGHT)}
               onActivate={(coords) => onActivate(node.id, coords)}
               onEntityClick={onEntityClick}
@@ -262,6 +308,7 @@ function StaticChapterBody({
   summary,
   html,
   ready,
+  loadError,
   bodyEstimate,
   onActivate,
   onEntityClick,
@@ -270,6 +317,7 @@ function StaticChapterBody({
   summary: string;
   html: string;
   ready: boolean;
+  loadError: boolean;
   bodyEstimate: number;
   onActivate: (coords: { clientX: number; clientY: number }) => void;
   onEntityClick?: (ref: EntityLinkRef) => void;
@@ -366,7 +414,9 @@ function StaticChapterBody({
       ) : null}
       <hr className="page__rule" />
       <div className="page__body">
-        {ready ? (
+        {loadError ? (
+          <EditorDocumentLoadError />
+        ) : ready ? (
           <div
             className="tiptap ProseMirror prose max-w-none all-chap-static"
             style={{ minHeight: 240 }}

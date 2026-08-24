@@ -12,6 +12,7 @@ import {
   type EntityCardAnchorRect,
 } from '../../../components/ui/EntityCardPopoverShell';
 import { GhostIconButton } from '../../../components/ui/GhostIconButton';
+import { EditorDocumentLoadError } from '../../../components/editor/EditorDocumentLoadError';
 import { X } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -39,8 +40,8 @@ interface ElementPopoverBodyEditorProps {
  * Mount the rich-text hooks only while the expanded body is visible. The
  * process-level Yjs session registry makes this reuse the full editor's live
  * Y.Doc when it is already open; otherwise it performs the same guarded load.
- * A failed replay intentionally falls back to a read-only legacy projection,
- * so corrupt/partial state can never be overwritten from this transient UI.
+ * A failed replay stays fail-closed; a legacy projection is never mounted as
+ * an editable or visually authoritative replacement for canonical Yjs prose.
  */
 function ElementPopoverBodyEditor({
   element,
@@ -60,11 +61,12 @@ function ElementPopoverBodyEditor({
     [onPersist],
   );
 
-  const { editor } = useEntityEditor({
+  const { editor, ready: editorReady } = useEntityEditor({
     sourceKind: 'element',
     sourceId: element.id,
     projectId,
     content: element.contentJson ?? null,
+    documentMode: 'yjs',
     ydoc,
     onPersist: handlePersist,
     editable: Boolean(ydoc) && !ydocError,
@@ -74,34 +76,10 @@ function ElementPopoverBodyEditor({
   });
 
   if (ydocError) {
-    return (
-      <>
-        <div
-          role="alert"
-          style={{
-            margin: '0 0 12px',
-            padding: '9px 10px',
-            border: '1px solid hsl(var(--destructive) / 0.3)',
-            borderRadius: 4,
-            background: 'hsl(var(--destructive) / 0.08)',
-            color: 'hsl(var(--destructive))',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            lineHeight: 1.5,
-          }}
-        >
-          {t('elementCardPopover.bodyLoadError')}
-        </div>
-        {editor && (
-          <div aria-readonly="true">
-            <EditorContent editor={editor} />
-          </div>
-        )}
-      </>
-    );
+    return <EditorDocumentLoadError />;
   }
 
-  if (!ydocReady || !ydoc || !editor) {
+  if (!ydocReady || !ydoc || !editor || !editorReady) {
     return (
       <div
         role="status"

@@ -19,6 +19,8 @@ export interface UseYjsDocOptions {
    * per process session.
    */
   seedFromContentJson?: YjsDocumentSeed;
+  /** Do not retain, register, or persist a session until its entity exists. */
+  enabled?: boolean;
 }
 
 export interface UseYjsDocResult {
@@ -40,13 +42,18 @@ export function useYjsDoc({
   docId,
   userId,
   seedFromContentJson,
+  enabled = true,
 }: UseYjsDocOptions): UseYjsDocResult {
-  if (!projectId) throw new Error('useYjsDoc requires projectId');
-  if (!userId) throw new Error('useYjsDoc requires userId');
+  if (enabled && !projectId) throw new Error('useYjsDoc requires projectId');
+  if (enabled && !userId) throw new Error('useYjsDoc requires userId');
+
+  const sessionProjectId = enabled ? projectId : '__disabled_project__';
+  const sessionDocId = enabled ? docId : '__disabled_doc__';
+  const sessionUserId = enabled ? userId : '__disabled_user__';
 
   const session = useMemo(
-    () => getYjsDocumentSession(projectId, docId, userId),
-    [docId, projectId, userId],
+    () => getYjsDocumentSession(sessionProjectId, sessionDocId, sessionUserId),
+    [sessionDocId, sessionProjectId, sessionUserId],
   );
   const seedRef = useRef(seedFromContentJson);
   useEffect(() => {
@@ -60,6 +67,7 @@ export function useYjsDoc({
   );
 
   useEffect(() => {
+    if (!enabled) return undefined;
     const currentSeed = seedRef.current;
     return session.retain(
       currentSeed
@@ -69,27 +77,36 @@ export function useYjsDoc({
           }
         : undefined,
     );
-  }, [session]);
+  }, [enabled, session]);
 
   useEffect(() => {
-    if (!state.isReady) return;
+    if (!enabled || !state.isReady) return;
     return registerLiveYDoc(docId, session.ydoc);
-  }, [docId, session, state.isReady]);
+  }, [docId, enabled, session, state.isReady]);
 
-  const flushPendingWrites = useCallback(() => session.flushPendingWrites(), [session]);
-  const flushLocalState = useCallback(() => session.flushLocalState(), [session]);
-  const flushForLifecycle = useCallback(() => session.flushForLifecycle(), [session]);
+  const flushPendingWrites = useCallback(
+    () => (enabled ? session.flushPendingWrites() : Promise.resolve()),
+    [enabled, session],
+  );
+  const flushLocalState = useCallback(
+    () => (enabled ? session.flushLocalState() : Promise.resolve()),
+    [enabled, session],
+  );
+  const flushForLifecycle = useCallback(
+    () => (enabled ? session.flushForLifecycle() : Promise.resolve()),
+    [enabled, session],
+  );
 
   return useMemo(
     () => ({
       ydoc: session.ydoc,
-      isReady: state.isReady,
-      hasLocalState: state.hasLocalState,
-      error: state.error,
+      isReady: enabled && state.isReady,
+      hasLocalState: enabled && state.hasLocalState,
+      error: enabled ? state.error : null,
       flushPendingWrites,
       flushLocalState,
       flushForLifecycle,
     }),
-    [flushForLifecycle, flushLocalState, flushPendingWrites, session, state],
+    [enabled, flushForLifecycle, flushLocalState, flushPendingWrites, session, state],
   );
 }

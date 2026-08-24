@@ -13,6 +13,10 @@ import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import {
+  useEditorSurfaceLifecycle,
+  useReportEditorSurfaceReady,
+} from '../components/editor/editor-surface-lifecycle-context';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
@@ -30,6 +34,7 @@ import {
   type EditorPersistDerived,
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
+import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -53,6 +58,7 @@ export function StorylineEditorView({
   storylineIdOverride,
 }: { storylineIdOverride?: string } = {}) {
   const { t } = useTranslation();
+  const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const params = useParams<{ projectId: string; storylineId: string }>();
   const projectId = params.projectId;
   const storylineId = storylineIdOverride ?? params.storylineId;
@@ -212,7 +218,7 @@ export function StorylineEditorView({
     [storylineId, currentStoryline?.nodeContentTemplateJson, storylineUsecases, promoteCurrentTab],
   );
 
-  const { ydoc } = useEntityYjsDoc({
+  const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'storyline',
     entityId: currentStoryline?.id ?? '',
     projectId,
@@ -224,19 +230,27 @@ export function StorylineEditorView({
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!storylineId) return;
       if (pmJson === currentStoryline?.contentJson) return;
-      if (canPromoteOnEdit()) promoteCurrentTab();
+      if (isCommandActive && canPromoteOnEdit()) promoteCurrentTab();
       void storylineUsecases.updateStoryline({
         id: storylineId,
         contentJson: pmJson,
       });
     },
-    [storylineId, currentStoryline?.contentJson, canPromoteOnEdit, storylineUsecases, promoteCurrentTab],
+    [
+      storylineId,
+      currentStoryline?.contentJson,
+      canPromoteOnEdit,
+      isCommandActive,
+      storylineUsecases,
+      promoteCurrentTab,
+    ],
   );
-  const { editor, outline } = useEntityEditor({
+  const { editor, outline, ready: editorReady } = useEntityEditor({
     sourceKind: 'storyline',
     sourceId: currentStoryline?.id ?? '',
     projectId,
     content: currentStoryline?.contentJson ?? null,
+    documentMode: 'yjs',
     ydoc,
     onPersist: handlePersist,
     placeholder: t('storylineEditor.scratchPlaceholder'),
@@ -247,6 +261,7 @@ export function StorylineEditorView({
       : null,
     editable: Boolean(ydoc),
   });
+  useReportEditorSurfaceReady(Boolean(currentStoryline && (editorReady || ydocError)));
 
   // TOC framework anchors in document order: 概述 → 札记 (with its body
   // headings nested as sub-structure) → 字段 → 章节模版 → 章节序列. Sections carry
@@ -263,7 +278,7 @@ export function StorylineEditorView({
   }
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this storyline's body (ticks + reveal/approve).
-  useAgentChangeMarks(scrollEl, 'storyline', storylineId);
+  useAgentChangeMarks(scrollEl, 'storyline', storylineId, isVisible);
   const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
     // Flat id list (framework anchors + every body heading).
@@ -292,11 +307,13 @@ export function StorylineEditorView({
   const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
   const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
   useEffect(() => {
+    if (!isCommandActive) return;
     if (!storylineId || !currentStoryline) return;
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('storyline', storylineId);
     if (queued) void handleContextAction(queued);
   }, [
+    isCommandActive,
     storylineId,
     currentStoryline,
     pendingEntityAction,
@@ -478,7 +495,7 @@ export function StorylineEditorView({
               <span className="page__scene-title">{t('storylineEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
-              <EditorContent editor={editor} />
+              {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
             </div>
 
             {/* 字段 — storyline's own KV facts (seeded from project's storyline

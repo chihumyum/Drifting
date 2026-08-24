@@ -7,7 +7,6 @@ import { useShortcutsStore } from '../../store/shortcuts-store';
 import { matchesAccelerator } from '../../lib/shortcuts';
 import { getActiveEditor, saveActiveEditor } from '../../lib/active-editor';
 import { flushAllYjsDocumentsLocally } from '../../services/yjs-local-durability.service';
-import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
 import type { WorkspaceNavigator } from '../../features/workspace/navigation/workspace-target';
 import type { CloseDesktopWorkspaceTab } from './navigation/DesktopTabCloseTransition';
 
@@ -158,13 +157,9 @@ export function useDesktopGlobalShortcuts({
         if (nextTab.kind === 'create') {
           state.setActiveTab(projectId, { createId: nextTab.id });
           navigate(`/project/${projectId}/new`);
-        } else if (nextTab.kind === 'split') {
-          state.setActiveTab(projectId, { splitId: nextTab.id });
-          const target = focusedLeafOf(nextTab);
-          const url = target ? workspaceUrlFor(projectId, target) : null;
-          if (url) navigate(url);
         } else {
-          navigator.activate(nextTab);
+          const target = focusedLeafOf(nextTab);
+          if (target) navigator.activate(target);
         }
       }
 

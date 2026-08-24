@@ -83,8 +83,15 @@ interface ProjectProfileEditorProps {
 function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(summary);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [syncedSummary, setSyncedSummary] = useState(summary);
+  if (syncedSummary !== summary) {
+    setSyncedSummary(summary);
+    if (!draftDirty) setDraft(summary);
+  }
 
   const persistDraft = () => {
+    setDraftDirty(false);
     const nextSummary = draft.trim();
     if (nextSummary !== summary) onPersist(nextSummary);
   };
@@ -95,7 +102,10 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
         <textarea
           className="dash-profile__textarea"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraftDirty(true);
+            setDraft(e.target.value);
+          }}
           onBlur={persistDraft}
           placeholder={t('dashboard.profilePlaceholder')}
           rows={5}

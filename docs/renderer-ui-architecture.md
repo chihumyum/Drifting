@@ -50,9 +50,64 @@ project. The boundary must pass the route `projectId` into the desktop adapter;
 an unscoped navigator is invalid because child write use cases deliberately
 fail closed without project authority. Shared and desktop workspace consumers
 must not subscribe to `useLocation()` through compatibility navigation helpers.
-A tab switch may update the editor outlet, tab selection, and entity-dependent
-panels, but it must not restart `ProjectRuntimeProvider` or invalidate the
-surrounding shell.
+A tab switch may update route selection and entity-dependent panels, but it
+must not restart `ProjectRuntimeProvider`, invalidate the surrounding shell, or
+destroy the editor session owned by another still-open desktop tab.
+
+### Desktop editor-session continuity
+
+`EditorMainArea` is the desktop editor-session stage. It mounts Project Home
+plus one absolute surface for every open top-level leaf, split, and create tab.
+The URL remains the address/selection authority, but React Router no longer
+owns the lifetime of desktop editor views: inactive surfaces stay mounted with
+`visibility: hidden`, `inert`, and no pointer or command ownership. Their
+TipTap instances, Yjs sessions, scroll positions, selections, and field drafts
+therefore survive ordinary tab switches.
+
+Each surface has a content revision key. A new entity, replaced preview slot,
+or changed split mounts behind the currently committed surface. The incoming
+view reports ready only after its canonical document is present in the exact
+TipTap instance that will be shown. `EditorMainArea` keeps the outgoing surface
+visible but inert until then and commits visibility in a layout effect, before
+the next browser paint. Project Home and the create chooser are synchronously
+ready; a split is ready only when both panes are ready. A removed active tab is
+retained as the outgoing visual cover until its successor commits, which also
+covers create completion and close transitions without a gray/empty frame.
+
+`EditorSurfaceLifecycle` separates pixel visibility from command ownership.
+Only the interactive committed surface can own Cmd+F/Cmd+S, Copilot, global
+whole-book search, or a queued entity action. In a visible split, only its
+focused pane owns commands. Hidden surfaces can continue receiving canonical
+Yjs/store updates without consuming user-facing side effects. Tabs whose entity
+projection has not materialized yet keep Yjs session retention disabled, so
+persistence never receives a synthetic empty entity id.
+
+Yjs-backed prose declares `documentMode: 'yjs'`. Its surface cannot become
+ready merely because a temporary TipTap object exists: readiness requires the
+Collaboration extension on that exact instance to reference the replayed
+`Y.Doc`. JSON-backed Patch content is parsed into TipTap's constructor instead
+of being installed from a post-paint effect. Category/storyline templates use
+the same constructor-time rule and apply later external projection changes in
+a layout transaction. Placeholder decoration is omitted from the temporary
+pre-Yjs shell, so loading is never presented as a genuinely empty document.
+Read-only material previews follow the constructor-time JSON rule as well.
+Canonical replay or content-row failures commit an explicit read-only error
+surface; they never reveal an editable empty fallback and never leave the
+outgoing surface covering the workspace indefinitely.
+
+Chapter and inspiration routes keep `NodeEditorView` and its `EditorTopBar`
+mounted while the target node's `NodeContent` row is materialized. Loaded
+content is keyed by `nodeId`, so a previous node can never seed the next one;
+only the keyed prose body and plot-planner dock wait for the matching row. This
+keeps editor chrome continuous across node-to-node switches while still giving
+each node its own `ChapterEditor`/Yjs lifetime and resetting the native prose
+scroll surface at the body boundary. `ChapterEditor` reports ready only from
+the final collaboration-bound TipTap instance. In 通览全书, the already-rendered
+static chapter remains as a grid-aligned visual cover until the promoted live
+chapter reports the same readiness, so title, summary, placeholder, and prose
+swap atomically. On first activation, the whole-book surface also waits until a
+current chapter row has loaded its canonical static prose instead of presenting
+the estimated-height spacer as finished content.
 
 `src/renderer/architecture/renderer-boundaries.test.ts` and restricted-import
 lint rules enforce these directions.
@@ -98,23 +153,25 @@ exact tab and focused leaf. Reopening an existing background draft refreshes
 the return owner to the current context. If that content owner disappeared,
 close falls back to the nearest surviving tab. Store selection and the `/new`
 route transition must resolve the same destination so no intermediate content
-tab or Project Home frame can flash. Closing an active draft is route-first:
-the desktop navigation boundary keeps the draft surface mounted until
-`HashRouter` has committed the return route, then removes the draft in a layout
-effect so the already-matched destination replaces it before paint. Mouse close
-and the global close-tab shortcut share this transition owner; the intentionally
-empty `/new` child route is therefore never exposed as the rendered workspace.
+tab or Project Home frame can flash. Every outbound transition from an active
+draft is route-first: close, content-tab activation, Project Home navigation,
+and successful creation all use the same ordering. The desktop navigation
+boundary still commits route/store ownership in layout effects, while the
+editor-session stage keeps the draft surface mounted until the prepared
+destination surface reports ready, then swaps before paint. Mouse and keyboard activation/close paths
+share these transition owners; the intentionally empty `/new` child route is
+therefore never exposed as the rendered workspace.
 
 `DesktopUniversalCreateView` collects the entity kind and only the required
 existing parent/group context. It then delegates to `createNode`,
 `createStoryline`, `createElement`, or `createCategory`; those authored use cases
 remain responsible for unique defaults, templates, Yjs seeding, SQLite atomic
 transactions, optimistic rollback, and sync journal entries. Success replaces
-the transient slot in place with a dedicated leaf. The URL changes only when
-the draft is still active, so an async completion cannot steal focus from a tab
-the user selected meanwhile. Failure leaves the same draft and error available
-for retry. This surface is desktop-only; mobile creation design remains
-independent and unchanged.
+the transient slot in place with a dedicated leaf after its editor route has
+matched. The URL changes only when the draft is still active, so an async
+completion cannot steal focus from a tab the user selected meanwhile. Failure
+leaves the same draft and error available for retry. This surface is
+desktop-only; mobile creation design remains independent and unchanged.
 
 ## Project Home authority
 
@@ -208,6 +265,8 @@ pnpm exec vitest run \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
   src/renderer/shells/desktop/entity-create/desktop-universal-create.test.ts \
   src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts \
+  src/renderer/shells/desktop/navigation/desktop-editor-continuity.acceptance.test.ts \
+  src/renderer/shells/desktop/navigation/desktop-tab-close-transition.acceptance.test.ts \
   src/renderer/app/project-home.acceptance.test.ts
 pnpm exec vite build
 ```

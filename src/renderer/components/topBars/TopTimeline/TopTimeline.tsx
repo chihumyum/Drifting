@@ -20,28 +20,6 @@ import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 
-// Build the editor URL for a leaf — needed when activating a tab, since
-// openEntity is unsuitable for tab activation: it can short-circuit on
-// the all-chapters singleton fast-path, and in split mode it would mutate
-// the *current* active split's focused side instead of switching.
-function urlForLeaf(
-  projectId: string,
-  leaf: { entityType: TabEntityType; id: string },
-): string | null {
-  switch (leaf.entityType) {
-    case 'node':
-      return `/project/${projectId}/editor/${leaf.id}`;
-    case 'storyline':
-      return `/project/${projectId}/editor/storyline/${leaf.id}`;
-    case 'element':
-      return `/project/${projectId}/element/${leaf.id}`;
-    case 'category':
-      return `/project/${projectId}/category/${encodeURIComponent(leaf.id)}`;
-    case 'all-chapters':
-      return `/project/${projectId}/editor/all`;
-  }
-}
-
 // Floor: absolute survival width — chrome (icon + close) just fits, label
 // area collapses. Tabs may dip below this only if their idealW is naturally
 // smaller (which can't happen since idealW ≥ chrome).
@@ -57,7 +35,9 @@ const TAB_MAX_WIDTH = 320;
 // Tauri excludes each role="tab" descendant from native dragging, while a 2px
 // empty seam could still start a window drag and swallow horizontal scrolling.
 const TAB_GAP = 0;
-const CONTAINER_PADDING_X = 20;
+// The first tab meets the left chrome hairline directly. Only the strip end
+// keeps breathing room for horizontal overflow and the trailing create action.
+const TAB_STRIP_END_PADDING = 16;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
 
@@ -123,7 +103,7 @@ export function TopTimeline() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { projectId, openEntity } = useProjectNavigation();
+  const { projectId, openEntity, activateLeafTab } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const openCreateTab = useUiStore((s) => s.openCreateTab);
@@ -136,7 +116,6 @@ export function TopTimeline() {
   const unsplitTab = useUiStore((s) => s.unsplitTab);
   const swapSplitPanes = useUiStore((s) => s.swapSplitPanes);
   const extractFromSplit = useUiStore((s) => s.extractFromSplit);
-  const setSplitFocus = useUiStore((s) => s.setSplitFocus);
   const promoteTab = useUiStore((s) => s.promoteTab);
   const reorderTabs = useUiStore((s) => s.reorderTabs);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -288,7 +267,7 @@ export function TopTimeline() {
     // Preserve the document-tab sizing contract. The adjacent `+` is a
     // separate strip item and may extend the scrollable content; it must not
     // make every existing tab enter proportional shrink earlier.
-    const availableW = Math.max(0, containerWidth - CONTAINER_PADDING_X - totalGaps);
+    const availableW = Math.max(0, containerWidth - TAB_STRIP_END_PADDING - totalGaps);
     const idealTotal = ideals.reduce((a, b) => a + b, 0);
 
     // Phase A — or initial render before ResizeObserver fires.
@@ -340,12 +319,9 @@ export function TopTimeline() {
     }
   }, [activeTabKey, tabWidths, containerWidth, containerRef]);
 
-  // Click a top-level tab. Tab activation always bypasses openEntity:
-  //   - splits would otherwise have their focused side replaced (openEntity
-  //     treats them as "active is split → swap focused side"),
-  //   - node leaves would short-circuit when the current active is the
-  //     all-chapters singleton (openEntity scrolls instead of switching).
-  // setActiveTab + navigate(url) keeps both flows clean and uniform.
+  // Tab activation uses the shell navigator rather than openEntity. Besides
+  // preserving split/all-chapters semantics, the desktop adapter can keep an
+  // active create draft mounted until the destination route is ready.
   const handleSelectTab = useCallback(
     (tab: AnyTab) => {
       if (!projectId) return;
@@ -354,18 +330,10 @@ export function TopTimeline() {
         navigate(`/project/${projectId}/new`);
         return;
       }
-      if (tab.kind === 'split') {
-        setActiveTab(projectId, { splitId: tab.id });
-        const focused = focusedLeafOf(tab);
-        const url = focused ? urlForLeaf(projectId, focused) : null;
-        if (url) navigate(url);
-        return;
-      }
-      setActiveTab(projectId, { entityType: tab.entityType, id: tab.id });
-      const url = urlForLeaf(projectId, tab);
-      if (url) navigate(url);
+      const target = focusedLeafOf(tab);
+      if (target) activateLeafTab(target);
     },
-    [projectId, setActiveTab, navigate],
+    [activateLeafTab, navigate, projectId, setActiveTab],
   );
 
   const handleCloseTab = useCallback(
@@ -536,8 +504,8 @@ export function TopTimeline() {
         overflowX: 'auto',
         overflowY: 'hidden',
         width: '100%',
-        paddingLeft: 4,
-        paddingRight: 16,
+        paddingLeft: 0,
+        paddingRight: TAB_STRIP_END_PADDING,
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
@@ -664,15 +632,8 @@ export function TopTimeline() {
             onDropSlot={onDropSlot}
             onDragEndSlot={onDragEndSlot}
             onSelectSide={(side) => {
-              if (!projectId) return;
-              // Always activate the split first (no-op when it's already
-              // active), so when we navigate the URL change lands on this
-              // split's focused side and not the previously-active split's.
-              setActiveTab(projectId, { splitId: tab.id });
-              setSplitFocus(projectId, tab.id, side);
               const leaf = side === 'left' ? tab.left : tab.right;
-              const url = urlForLeaf(projectId, leaf);
-              if (url) navigate(url);
+              activateLeafTab(leaf);
             }}
             onCloseSide={(side) => {
               if (!projectId) return;

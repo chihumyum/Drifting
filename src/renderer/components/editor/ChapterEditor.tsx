@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useState,
+  type Ref,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
@@ -11,6 +18,7 @@ import {
   type EditorPersistDerived,
 } from '../../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
+import { EditorDocumentLoadError } from './EditorDocumentLoadError';
 import { useFieldReview } from '../../hooks/useFieldReview';
 import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
@@ -23,6 +31,7 @@ import {
 } from './patch-create-request';
 import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
 import { CopilotInlinePopover } from '../copilot/CopilotInlinePopover';
+import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -73,6 +82,8 @@ interface ChapterEditorProps {
   // editor, so the cursor lands where the user pressed rather than at the doc
   // edge. Cleared (null) the rest of the time.
   activateCaret?: { clientX: number; clientY: number } | null;
+  /** Top-level/staged callers use this to atomically reveal canonical prose. */
+  onReadyChange?: (ready: boolean) => void;
 }
 
 export interface ChapterEditorRef {
@@ -103,8 +114,10 @@ export function ChapterEditor({
   compact = false,
   selectionKey,
   activateCaret = null,
+  onReadyChange,
 }: ChapterEditorProps) {
   const { t } = useTranslation();
+  const { isCommandActive } = useEditorSurfaceLifecycle();
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
   }
@@ -134,7 +147,7 @@ export function ChapterEditor({
 
   // Yjs binding — all Yjs concerns (docId, seed, sync, snapshot) live in
   // useEntityYjsDoc. Editor views don't talk to useYjsSync directly.
-  const { ydoc } = useEntityYjsDoc({
+  const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'node-content',
     entityId: nodeId,
     projectId,
@@ -177,11 +190,12 @@ export function ChapterEditor({
     [nodeId, projectId, onContentUpdate],
   );
 
-  const { editor, outline } = useEntityEditor({
+  const { editor, outline, ready } = useEntityEditor({
     sourceKind: 'node',
     sourceId: nodeId,
     projectId,
     content,
+    documentMode: 'yjs',
     ydoc,
     onPersist: handlePersist,
     onEntityClick,
@@ -196,6 +210,11 @@ export function ChapterEditor({
     // loading or has failed replay: those edits would have no durable owner.
     editable: Boolean(ydoc) && !readOnly,
   });
+
+  useLayoutEffect(() => {
+    onReadyChange?.(ready || Boolean(ydocError));
+    return () => onReadyChange?.(false);
+  }, [onReadyChange, ready, ydocError]);
 
   // Forward the live outline up to NodeEditorView so it can render the TOC.
   useEffect(() => {
@@ -407,7 +426,7 @@ export function ChapterEditor({
 
       {/* Editor Content */}
       <div className={literary ? 'page__body' : undefined} style={{ padding: compact ? '16px 24px' : '0' }}>
-        <EditorContent editor={editor} />
+        {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
       </div>
 
       <PatchCreateModal
@@ -417,11 +436,13 @@ export function ChapterEditor({
       />
 
       {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
-      <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
+      {isCommandActive && !ydocError && (
+        <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
+      )}
 
       {/* Cmd+Shift+I inline-Copilot popover (input box + capability menu). Renders
           only when its nodeId matches the active invocation. */}
-      <CopilotInlinePopover editor={editor} nodeId={nodeId} />
+      {isCommandActive && !ydocError && <CopilotInlinePopover editor={editor} nodeId={nodeId} />}
     </div>
   );
 }

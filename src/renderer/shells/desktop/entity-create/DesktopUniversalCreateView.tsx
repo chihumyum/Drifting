@@ -13,6 +13,7 @@ import loglevel from 'loglevel';
 
 import { ROOT_GROUP_KEY, buildDriftGroupChildren } from '../../../domain/drift-group';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
+import { useDesktopCreateCompletion } from '../navigation/DesktopCreateCompletionContext';
 import { useAuthStore } from '../../../store/auth';
 import { useDataStore } from '../../../store/data-store';
 import {
@@ -54,7 +55,8 @@ const KIND_ORDER: UniversalCreateEntityKind[] = [
 
 export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewProps) {
   const { t } = useTranslation();
-  const { projectId, activateLeafTab } = useProjectNavigation();
+  const { projectId } = useProjectNavigation();
+  const completeCreateTab = useDesktopCreateCompletion();
   const userId = useAuthStore((state) => state.user?.id) ?? '';
   const bookNodes = useDataStore((state) => state.bookNodes);
   const storylines = useDataStore((state) => state.storylines);
@@ -62,7 +64,6 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
   const bookElements = useDataStore((state) => state.bookElements);
   const categories = useDataStore((state) => state.bookElementCategories);
   const updateDraft = useUiStore((state) => state.updateCreateTabDraft);
-  const replaceCreateTab = useUiStore((state) => state.replaceCreateTabWithEntity);
   const submissionGateRef = useRef(createUniversalSubmissionGate());
 
   const { createNode } = useBookNode({ projectId: projectId ?? '', userId });
@@ -124,8 +125,7 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
             bookNodes,
             services: { createNode, createStoryline, createElement, createCategory },
           });
-          const result = replaceCreateTab(projectId, target);
-          if (result.wasActive) activateLeafTab(target);
+          completeCreateTab(target);
         });
       } catch (error) {
         log.error('Universal create failed', error);
@@ -136,15 +136,14 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
       }
     },
     [
-      activateLeafTab,
       bookNodes,
+      completeCreateTab,
       createCategory,
       createElement,
       createNode,
       createStoryline,
       patchDraft,
       projectId,
-      replaceCreateTab,
       t,
       tab.draft,
     ],

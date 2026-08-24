@@ -2624,6 +2624,7 @@
     }
   },
   "entityEditor": {
+    "bodyLoadError": "正文加载失败，已切换为只读。为避免覆盖现有内容，这里不会保存正文改动。",
     "contextMenu": {
       "format": "格式",
       "addComment": "添加批注",
@@ -2636,7 +2637,6 @@
       "card": "元素卡片"
     },
     "summaryShortPlaceholder": "摘要…",
-    "bodyLoadError": "正文加载失败，已切换为只读。为避免覆盖现有内容，这里不会保存正文改动。",
     "syncNote": "改动会同步到完整编辑器"
   },
   "superElement": {

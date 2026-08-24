@@ -56,9 +56,10 @@ export interface UseEntityYjsDocOptions<K extends DocKind> {
 export interface UseEntityYjsDocResult {
   /**
    * The live Y.Doc, or `undefined` until userId is known + initial load done.
-   * Pass directly to `useEntityEditor({ ydoc })`. Tiptap's Collaboration
-   * extension binds to ydoc once it's defined; before that the editor mounts
-   * in "no-Yjs" mode and is rebuilt as soon as ydoc resolves.
+   * Pass to `useEntityEditor({ documentMode: 'yjs', ydoc })`. The shared editor
+   * readiness contract keeps any temporary pre-Collaboration instance hidden;
+   * a surface can be revealed only after the rebuilt instance is bound to this
+   * exact Y.Doc.
    */
   ydoc: Y.Doc | undefined;
   ydocReady: boolean;
@@ -73,6 +74,7 @@ export function useEntityYjsDoc<K extends DocKind>({
   seedContentJson,
 }: UseEntityYjsDocOptions<K>): UseEntityYjsDocResult {
   const userId = useAuthStore((s) => s.user?.id);
+  const enabled = Boolean(userId && projectId && entityId);
 
   // Convert the entity's contentJson seed into Yjs ops on first load. Only
   // runs when useYjsDoc finds zero local Yjs state. Remote restore must finish
@@ -101,19 +103,20 @@ export function useEntityYjsDoc<K extends DocKind>({
   );
 
   const { ydoc, isReady, error } = useYjsSync({
-    docId: makeDocId(kind, entityId),
+    docId: enabled ? makeDocId(kind, entityId) : '__disabled_entity_doc__',
     userId: userId ?? '',
     projectId,
+    enabled,
     // No onMaterialize: the editor's onPersist path (useEntityEditor →
     // editor.onUpdate → caller's onPersist) already writes the materialized
     // contentJson via the domain transaction path. Doing it from here too
     // would double the writes for the same value.
-    seedFromContentJson: userId ? seedFromContentJson : undefined,
+    seedFromContentJson: enabled ? seedFromContentJson : undefined,
   });
 
   return {
-    ydoc: userId && isReady ? ydoc : undefined,
-    ydocReady: isReady,
+    ydoc: enabled && isReady ? ydoc : undefined,
+    ydocReady: enabled && isReady,
     ydocError: error,
   };
 }

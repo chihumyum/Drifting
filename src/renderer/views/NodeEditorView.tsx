@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
@@ -15,8 +15,10 @@ import {
 } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
+import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
 import type { PlotGridMutation } from '../domain/plot-grid';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
@@ -101,6 +103,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   } = useProjectNavigation();
   const params = useParams<{ nodeId: string; projectId: string }>();
   const nodeId = nodeIdOverride ?? params.nodeId;
+  const { isCommandActive, isVisible, reportReady } = useEditorSurfaceLifecycle();
   const projectId = params.projectId;
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
@@ -124,16 +127,22 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     primaryStorylineByNode,
   } = useDataStore();
   const driftGroups = useDataStore((s) => s.driftGroups);
-  // this component only render one node
-  const [bookContent, setBookContent] = useState<NodeContent | null>(null);
-  const [isContentLoaded, setIsContentLoaded] = useState(false);
-  const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
+  // Keep the loaded seed keyed to its owner. During A -> B navigation the
+  // previous row must never be passed to B while its SQLite/Yjs seed is still
+  // materializing (or when that load fails).
+  const [loadedNodeContent, setLoadedNodeContent] = useState<{
+    nodeId: string;
+    content: NodeContent | null;
+    loadError: boolean;
+  } | null>(null);
+  const bookContent =
+    loadedNodeContent?.nodeId === nodeId ? (loadedNodeContent?.content ?? null) : null;
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
   // Highlight agent-changed blocks/summary and clear the cell's "M" as the user
   // reads each spot in place (#17).
-  useAgentChangeMarks(scrollEl, 'node', nodeId);
+  useAgentChangeMarks(scrollEl, 'node', nodeId, isVisible);
   const [marginNotes, setMarginNotes] = useEntityMarginNotes('node', nodeId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
@@ -355,18 +364,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             targetNodeId,
           );
         }
-        setBookContent(cont);
+        setLoadedNodeContent({ nodeId: targetNodeId, content: cont, loadError: false });
       } catch (error) {
         if (!cancelled && activeNodeIdRef.current === targetNodeId) {
           log.error('[NodeEditor] Failed to load/create chapter content', error);
+          setLoadedNodeContent({ nodeId: targetNodeId, content: null, loadError: true });
         }
       }
-
-      if (cancelled || activeNodeIdRef.current !== targetNodeId) {
-        return;
-      }
-      setLoadedNodeId(targetNodeId);
-      setIsContentLoaded(true);
     };
 
     void fetchContent();
@@ -411,22 +415,36 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       // out phantom onUpdate fires (Yjs initial sync, etc.) that would otherwise
       // silently promote a preview tab on mount.
       if (pmJson === bookContent?.contentJson) return;
-      if (canPromoteOnEdit()) promoteCurrentTab();
+      if (isCommandActive && canPromoteOnEdit()) promoteCurrentTab();
       try {
         const persisted = await getContentByNodeId(targetNodeId);
         if (persisted && activeNodeIdRef.current === targetNodeId) {
-          setBookContent(persisted);
+          setLoadedNodeContent({ nodeId: targetNodeId, content: persisted, loadError: false });
         }
       } catch (error) {
         log.error('[NodeEditor] Failed to reload materialized content:', error);
       }
     },
-    [bookContent?.contentJson, canPromoteOnEdit, getContentByNodeId, promoteCurrentTab],
+    [
+      bookContent?.contentJson,
+      canPromoteOnEdit,
+      getContentByNodeId,
+      isCommandActive,
+      promoteCurrentTab,
+    ],
   );
 
   const isActiveNodeReady = Boolean(
-    nodeId && curNode && isContentLoaded && loadedNodeId === nodeId,
+    nodeId && curNode && loadedNodeContent?.nodeId === nodeId,
   );
+  const isActiveNodeLoadError = Boolean(
+    isActiveNodeReady && loadedNodeContent?.loadError,
+  );
+  useLayoutEffect(() => {
+    if (!isActiveNodeLoadError) return undefined;
+    reportReady(true);
+    return () => reportReady(false);
+  }, [isActiveNodeLoadError, reportReady]);
 
   const handleEntityClick = useCallback(
     (ref: EntityLinkRef) => {
@@ -527,7 +545,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       updateNode,
       storylines,
       bookElementCategories,
-      activeProjectId,
       t,
     ],
   );
@@ -541,11 +558,19 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
   const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
   useEffect(() => {
+    if (!isCommandActive) return;
     if (!nodeId || !curNode) return;
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('node', nodeId);
-    if (queued) void handleContextAction(queued);
-  }, [nodeId, curNode, pendingEntityAction, consumeEntityAction, handleContextAction]);
+    if (queued) queueMicrotask(() => void handleContextAction(queued));
+  }, [
+    isCommandActive,
+    nodeId,
+    curNode,
+    pendingEntityAction,
+    consumeEntityAction,
+    handleContextAction,
+  ]);
 
   const handleConfirmConversion = useCallback(async () => {
     if (!curNode || !nodeId || !conversionTarget || !conversionPickedId) return;
@@ -653,7 +678,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         position: 'relative',
       }}
     >
-      {isActiveNodeReady && nodeId && curNode && (
+      {nodeId && curNode && (
         <>
           <EditorTopBar
             editorType="node"
@@ -759,9 +784,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
           {/* In-chapter plot planner: a top dock between the bar and the prose,
               pushing the editor down. Keyed by nodeId so each chapter/drift
-              seeds its own grid. Gated on loadedNodeId so it mounts only once
-              this node's plotGridJson is in hand. */}
-          {plotPlannerOpen && nodeId && loadedNodeId === nodeId && (
+              seeds its own grid only after that node's content row is ready. */}
+          {plotPlannerOpen && isActiveNodeReady && (
             <PlotPlannerDock
               key={nodeId}
               nodeId={nodeId}
@@ -772,10 +796,10 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
           {/* The semantic TOC stays outside the native scroll tree on the left;
               review markers independently overlay the native scrollbar on the right. */}
-          <div className="editor-body">
+          <div className="editor-body" key={nodeId}>
             <EditorOutlineRail
               title={t('nodeEditor.outline.title')}
-              items={outlineTree}
+              items={isActiveNodeReady ? outlineTree : []}
               activeId={activeOutlineId}
               onItemClick={(id) => {
                 pinOutline(id);
@@ -821,31 +845,38 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                     </div>
                   )}
 
-                  <ChapterEditor
-                    key={nodeId}
-                    ref={editorRef}
-                    nodeId={nodeId}
-                    projectId={activeProjectId}
-                    content={bookContent?.contentJson ?? null}
-                    title={curNode.title}
-                    summary={curNode.summary || ''}
-                    onContentUpdate={handleContentUpdate}
-                    onTitleUpdate={handleTitleUpdate}
-                    onSummaryUpdate={handleSummaryUpdate}
-                    onEntityClick={handleEntityClick}
-                    onOutlineChange={setOutline}
-                    onAddCommentRequest={handleAddCommentRequest}
-                    showTitle={true}
-                    showSummary={true}
-                    editableTitle={true}
-                    editableSummary={true}
-                    autoFocus={false}
-                    minHeight="400px"
-                    selectionKey={editorTabSelectionKey(activeProjectId, {
-                      entityType: 'node',
-                      id: nodeId,
-                    })}
-                  />
+                  {isActiveNodeReady && !isActiveNodeLoadError ? (
+                    <ChapterEditor
+                      key={nodeId}
+                      ref={editorRef}
+                      nodeId={nodeId}
+                      projectId={activeProjectId}
+                      content={bookContent?.contentJson ?? null}
+                      title={curNode.title}
+                      summary={curNode.summary || ''}
+                      onContentUpdate={handleContentUpdate}
+                      onTitleUpdate={handleTitleUpdate}
+                      onSummaryUpdate={handleSummaryUpdate}
+                      onEntityClick={handleEntityClick}
+                      onOutlineChange={setOutline}
+                      onAddCommentRequest={handleAddCommentRequest}
+                      showTitle={true}
+                      showSummary={true}
+                      editableTitle={true}
+                      editableSummary={true}
+                      autoFocus={false}
+                      minHeight="400px"
+                      onReadyChange={reportReady}
+                      selectionKey={editorTabSelectionKey(activeProjectId, {
+                        entityType: 'node',
+                        id: nodeId,
+                      })}
+                    />
+                  ) : isActiveNodeLoadError ? (
+                    <EditorDocumentLoadError />
+                  ) : (
+                    <div aria-hidden style={{ minHeight: 400 }} />
+                  )}
 
                   <div className="page__ornament" aria-hidden="true">⁂</div>
                 </article>

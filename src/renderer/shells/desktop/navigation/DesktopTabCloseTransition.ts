@@ -56,9 +56,9 @@ export function useDesktopTabCloseTransition({
     [navigate, navigator, projectId],
   );
 
-  // Keep the create surface mounted while HashRouter completes its transition.
-  // Closing from this layout effect makes the already-matched destination
-  // Outlet replace the draft before the browser can paint an empty /new frame.
+  // Keep create ownership until HashRouter completes its transition. The
+  // persistent editor stage independently retains the draft pixels until the
+  // selected destination reports ready.
   useLayoutEffect(() => {
     const pending = pendingCreateCloseRef.current;
     if (!pending || location.pathname === pending.createRoute) return;

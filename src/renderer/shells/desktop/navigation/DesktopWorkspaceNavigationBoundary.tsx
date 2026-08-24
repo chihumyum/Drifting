@@ -10,6 +10,8 @@ import { focusedLeafOf, tabKey, useUiStore } from '../../../store/ui-store';
 import { workspaceUrlFor } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabCloseTransition } from './DesktopTabCloseTransition';
 import { DesktopTabCloseContext } from './DesktopTabCloseContext';
+import { useDesktopCreateCompletionTransition } from './DesktopCreateCompletionTransition';
+import { DesktopCreateCompletionContext } from './DesktopCreateCompletionContext';
 
 interface DesktopWorkspaceNavigationBoundaryProps {
   projectId: string;
@@ -21,8 +23,8 @@ interface DesktopWorkspaceNavigationBoundaryProps {
 /**
  * The only desktop shell layer that subscribes to child editor routes. Its
  * WorkspaceNavigator value remains stable across pathname changes, so Router
- * updates can flow to the editor Outlet without invalidating the surrounding
- * workspace context.
+ * updates can select the persistent editor stage without invalidating the
+ * surrounding workspace context.
  */
 export function DesktopWorkspaceNavigationBoundary({
   projectId,
@@ -33,6 +35,7 @@ export function DesktopWorkspaceNavigationBoundary({
   const { navigator, navigate } = useDesktopWorkspaceNavigator(projectId);
   const location = useLocation();
   const closeWorkspaceTab = useDesktopTabCloseTransition({ projectId, navigator, navigate });
+  const completeCreateTab = useDesktopCreateCompletionTransition({ projectId, navigate });
 
   useLayoutEffect(() => {
     const entry = location.state as { projectEntry?: unknown } | null;
@@ -55,7 +58,7 @@ export function DesktopWorkspaceNavigationBoundary({
     navigate(`/project/${projectId}`, { replace: true, state: null });
   }, [location.state, navigate, projectId]);
 
-  useSyncSplitFocusedUrl();
+  useSyncSplitFocusedUrl(navigator);
   useDesktopGlobalShortcuts({
     projectId,
     openFind,
@@ -67,9 +70,11 @@ export function DesktopWorkspaceNavigationBoundary({
 
   return (
     <WorkspaceNavigationProvider navigator={navigator}>
-      <DesktopTabCloseContext.Provider value={closeWorkspaceTab}>
-        {children}
-      </DesktopTabCloseContext.Provider>
+      <DesktopCreateCompletionContext.Provider value={completeCreateTab}>
+        <DesktopTabCloseContext.Provider value={closeWorkspaceTab}>
+          {children}
+        </DesktopTabCloseContext.Provider>
+      </DesktopCreateCompletionContext.Provider>
     </WorkspaceNavigationProvider>
   );
 }

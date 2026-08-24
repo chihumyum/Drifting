@@ -24,11 +24,12 @@ export function useAgentChangeMarks(
   scrollEl: HTMLElement | null,
   entityType: ActivityEntityType,
   id: string | null | undefined,
+  enabled = true,
 ) {
   const markSpotSeen = useAgentActivityStore((s) => s.markSpotSeen);
 
   useEffect(() => {
-    if (!scrollEl || !id) return undefined;
+    if (!enabled || !scrollEl || !id) return undefined;
     const key = entityKey(entityType, id);
     const getEntry = () => useAgentActivityStore.getState().touched[key];
 
@@ -198,5 +199,5 @@ export function useAgentChangeMarks(
       unsub();
       stop();
     };
-  }, [scrollEl, entityType, id, markSpotSeen]);
+  }, [enabled, scrollEl, entityType, id, markSpotSeen]);
 }

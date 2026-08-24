@@ -24,6 +24,7 @@ export interface UseYjsSyncOptions {
   onMaterialize?: (contentJson: string) => void;
   /** Seed from contentJson only when no persisted Yjs state exists. */
   seedFromContentJson?: Parameters<typeof useYjsDoc>[0]['seedFromContentJson'];
+  enabled?: boolean;
 }
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';
@@ -42,8 +43,9 @@ export function useYjsSync({
   projectId,
   onMaterialize,
   seedFromContentJson,
+  enabled = true,
 }: UseYjsSyncOptions): UseYjsSyncResult {
-  const yjsResult = useYjsDoc({ projectId, docId, userId, seedFromContentJson });
+  const yjsResult = useYjsDoc({ projectId, docId, userId, seedFromContentJson, enabled });
   const { ydoc, isReady, error, flushPendingWrites, flushForLifecycle } = yjsResult;
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function useYjsSync({
   }, [onMaterialize]);
 
   const drainLocal = useCallback(async () => {
+    if (!enabled) return;
     if (error) throw error;
     if (!isReady) return;
     if (flushPromiseRef.current) return flushPromiseRef.current;
@@ -76,16 +79,17 @@ export function useYjsSync({
     } finally {
       if (flushPromiseRef.current === operation) flushPromiseRef.current = null;
     }
-  }, [docId, error, flushPendingWrites, isReady]);
+  }, [docId, enabled, error, flushPendingWrites, isReady]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     // Register while loading too. Database-switch teardown must wait for an
     // in-flight SQLite replay/seed before another local database can open.
     return registerLocalYjsDocument(projectId, docId, flushForLifecycle);
-  }, [docId, flushForLifecycle, projectId]);
+  }, [docId, enabled, flushForLifecycle, projectId]);
 
   useEffect(() => {
-    if (!isReady || !onMaterializeRef.current) return;
+    if (!enabled || !isReady || !onMaterializeRef.current) return;
 
     const flushProjection = async () => {
       const callback = onMaterializeRef.current;
@@ -111,7 +115,7 @@ export function useYjsSync({
       ydoc.off('update', handleUpdate);
       if (materializeTimerRef.current) clearTimeout(materializeTimerRef.current);
     };
-  }, [isReady, ydoc]);
+  }, [enabled, isReady, ydoc]);
 
   const triggerSync = useCallback(() => {
     void drainLocal().catch(() => undefined);

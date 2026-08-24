@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Outlet } from 'react-router-dom';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -7,6 +14,7 @@ import {
   useProjectTabs,
   useUiStore,
   tabKey,
+  type AnyTab,
   type LeafTab,
   type CreateTab,
   type SplitTab,
@@ -16,6 +24,7 @@ import { StorylineEditorView } from '../../views/StorylineEditorView';
 import { ElementEditorView } from '../../views/ElementEditorView';
 import { CategoryEditorView } from '../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
+import { ProjectDashboard } from '../../views/ProjectDashboard';
 import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
@@ -24,24 +33,30 @@ import {
   type EntityHoverTarget,
 } from '../../features/entities/hover/entity-hover-card-model';
 import { DesktopUniversalCreateView } from '../../shells/desktop/entity-create/DesktopUniversalCreateView';
+import {
+  EditorSurfaceLifecycleProvider,
+  ImmediateEditorSurfaceReady,
+} from './EditorSurfaceLifecycle';
 
-// EditorMainArea sits where <Outlet /> used to be. Its job is to decide
-// whether the editor surface should render a single matched route element
-// (the legacy single-pane behavior) or a side-by-side split.
-//
-// Single-pane:
-//   The active top-level tab is a leaf (or there's no active tab — e.g. the
-//   Project Home or the all-chapters editor). React Router takes over:
-//   we render <Outlet />, which mounts <EditorShell><SomeView/></EditorShell>
-//   per the matched route. Behaviour is identical to before the split-pane
-//   work.
-//
-// Split-pane:
-//   The active top-level tab is a SplitTab. Outlet is NOT rendered (so the
-//   matched route's element doesn't mount); instead each side is rendered
-//   directly via PaneRenderer with an idOverride prop so the views know
-//   which entity to load. A draggable divider between the panes drives the
-//   stored splitRatio.
+const PROJECT_HOME_SURFACE_KEY = 'project-home';
+
+interface WorkspaceSurfaceDescriptor {
+  revisionKey: string;
+  tab: AnyTab | null;
+}
+
+function surfaceRevisionKey(tab: AnyTab): string {
+  if (tab.kind === 'split') {
+    return `${tabKey(tab)}|left=${tabKey(tab.left)}|right=${tabKey(tab.right)}`;
+  }
+  return tabKey(tab);
+}
+
+// EditorMainArea is the desktop editor-session owner. Every open top-level tab
+// remains mounted in an absolute surface; switching tabs changes visibility,
+// not the React/TipTap/Yjs lifetime. A newly-created/replaced surface mounts
+// behind the currently committed one and is revealed only after its canonical
+// editor reports ready, so Router/store timing can never expose an empty frame.
 //
 // Drag-to-split:
 //   The whole surface watches drags carrying our `application/x-drifting-tab`
@@ -57,9 +72,38 @@ export function EditorMainArea() {
   const splitActiveWith = useUiStore((s) => s.splitActiveWith);
 
   const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey) ?? null;
-  const isSplit = activeTab?.kind === 'split';
-  const split = isSplit ? (activeTab as SplitTab) : null;
   const createTab = activeTab?.kind === 'create' ? (activeTab as CreateTab) : null;
+  const currentSurfaces = useMemo<WorkspaceSurfaceDescriptor[]>(
+    () => [
+      { revisionKey: PROJECT_HOME_SURFACE_KEY, tab: null },
+      ...openTabs.map((tab) => ({ revisionKey: surfaceRevisionKey(tab), tab })),
+    ],
+    [openTabs],
+  );
+  const desiredRevisionKey = activeTab
+    ? surfaceRevisionKey(activeTab)
+    : PROJECT_HOME_SURFACE_KEY;
+  const [committedSurface, setCommittedSurface] =
+    useState<WorkspaceSurfaceDescriptor | null>(null);
+  const committedRevisionKey = committedSurface?.revisionKey ?? null;
+
+  const handleSurfaceReadyChange = useCallback(
+    (descriptor: WorkspaceSurfaceDescriptor, ready: boolean, isDesired: boolean) => {
+      if (ready && isDesired) setCommittedSurface(descriptor);
+    },
+    [],
+  );
+
+  const renderedSurfaces = useMemo(() => {
+    const next = [...currentSurfaces];
+    if (
+      committedSurface &&
+      !next.some((surface) => surface.revisionKey === committedSurface.revisionKey)
+    ) {
+      next.push(committedSurface);
+    }
+    return next;
+  }, [committedSurface, currentSurfaces]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -163,33 +207,32 @@ export function EditorMainArea() {
       onMouseOut={handleEntityLinkMouseOut}
       style={{ position: 'relative', height: '100%', width: '100%' }}
     >
-      {createTab ? (
-        <DesktopUniversalCreateView tab={createTab} />
-      ) : isSplit && split ? (
-        <SplitView
-          split={split}
+      {renderedSurfaces.map((surface) => (
+        <WorkspaceSurface
+          key={surface.revisionKey}
+          descriptor={surface}
           projectId={projectId ?? ''}
-          onSetFocus={(side) => {
+          isVisible={surface.revisionKey === committedRevisionKey}
+          isDesired={surface.revisionKey === desiredRevisionKey}
+          isInteractive={
+            surface.revisionKey === committedRevisionKey &&
+            surface.revisionKey === desiredRevisionKey
+          }
+          onReadyChange={handleSurfaceReadyChange}
+          onSetSplitFocus={(split, side) => {
             if (!projectId) return;
             setSplitFocus(projectId, split.id, side);
-            // Reflect focused side in URL too (keeps sidebar / timeline
-            // tracking the focused leaf).
             const leaf = side === 'left' ? split.left : split.right;
             openEntity({ entityType: leaf.entityType, id: leaf.id });
           }}
-          onSetRatio={(ratio) => {
+          onSetSplitRatio={(split, ratio) => {
             if (!projectId) return;
             setSplitRatio(projectId, split.id, ratio);
           }}
         />
-      ) : (
-        // Project Home and single-pane routes are both owned by the Outlet.
-        // Home is represented by activeTabKey === null, so background tabs
-        // remain mounted in the strip without turning Home into a tab itself.
-        <div style={{ height: '100%', width: '100%' }}>
-          <Outlet />
-        </div>
-      )}
+      ))}
+
+      {committedRevisionKey === null && <EditorStageLoadingSurface />}
 
       {entityHoverPreview && (
         <EntityHoverCard
@@ -204,16 +247,149 @@ export function EditorMainArea() {
   );
 }
 
+function WorkspaceSurface({
+  descriptor,
+  projectId,
+  isVisible,
+  isDesired,
+  isInteractive,
+  onReadyChange,
+  onSetSplitFocus,
+  onSetSplitRatio,
+}: {
+  descriptor: WorkspaceSurfaceDescriptor;
+  projectId: string;
+  isVisible: boolean;
+  isDesired: boolean;
+  isInteractive: boolean;
+  onReadyChange(
+    descriptor: WorkspaceSurfaceDescriptor,
+    ready: boolean,
+    isDesired: boolean,
+  ): void;
+  onSetSplitFocus(split: SplitTab, side: 'left' | 'right'): void;
+  onSetSplitRatio(split: SplitTab, ratio: number): void;
+}) {
+  const { revisionKey, tab } = descriptor;
+  const reportReady = useCallback(
+    (ready: boolean) => onReadyChange({ revisionKey, tab }, ready, isDesired),
+    [isDesired, onReadyChange, revisionKey, tab],
+  );
+
+  let content: ReactNode;
+  if (!tab) {
+    content = (
+      <EditorSurfaceLifecycleProvider
+        isVisible={isVisible}
+        isCommandActive={isInteractive}
+        onReadyChange={reportReady}
+      >
+        <ImmediateEditorSurfaceReady>
+          <ProjectDashboard />
+        </ImmediateEditorSurfaceReady>
+      </EditorSurfaceLifecycleProvider>
+    );
+  } else if (tab.kind === 'create') {
+    content = (
+      <EditorSurfaceLifecycleProvider
+        isVisible={isVisible}
+        isCommandActive={isInteractive}
+        onReadyChange={reportReady}
+      >
+        <ImmediateEditorSurfaceReady>
+          <DesktopUniversalCreateView tab={tab} />
+        </ImmediateEditorSurfaceReady>
+      </EditorSurfaceLifecycleProvider>
+    );
+  } else if (tab.kind === 'split') {
+    content = (
+      <SplitView
+        split={tab}
+        projectId={projectId}
+        isSurfaceVisible={isVisible}
+        isSurfaceInteractive={isInteractive}
+        onReadyChange={reportReady}
+        onSetFocus={(side) => onSetSplitFocus(tab, side)}
+        onSetRatio={(ratio) => onSetSplitRatio(tab, ratio)}
+      />
+    );
+  } else {
+    content = (
+      <EditorSurfaceLifecycleProvider
+        isVisible={isVisible}
+        isCommandActive={isInteractive}
+        onReadyChange={reportReady}
+      >
+        <PaneRenderer leaf={tab} projectId={projectId} />
+      </EditorSurfaceLifecycleProvider>
+    );
+  }
+
+  return (
+    <div
+      data-editor-surface={revisionKey}
+      data-editor-surface-visible={isVisible ? 'true' : 'false'}
+      aria-hidden={!isVisible}
+      inert={!isInteractive}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        minWidth: 0,
+        overflow: 'hidden',
+        visibility: isVisible ? 'visible' : 'hidden',
+        pointerEvents: isInteractive ? 'auto' : 'none',
+        zIndex: isVisible ? 1 : 0,
+      }}
+    >
+      {content}
+    </div>
+  );
+}
+
+function EditorStageLoadingSurface() {
+  return (
+    <div
+      aria-hidden
+      data-editor-stage-loading
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 2,
+        background: 'hsl(var(--paper))',
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
 interface SplitViewProps {
   split: SplitTab;
   projectId: string;
+  isSurfaceVisible: boolean;
+  isSurfaceInteractive: boolean;
+  onReadyChange(ready: boolean): void;
   onSetFocus: (side: 'left' | 'right') => void;
   onSetRatio: (ratio: number) => void;
 }
 
-function SplitView({ split, projectId, onSetFocus, onSetRatio }: SplitViewProps) {
+function SplitView({
+  split,
+  projectId,
+  isSurfaceVisible,
+  isSurfaceInteractive,
+  onReadyChange,
+  onSetFocus,
+  onSetRatio,
+}: SplitViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
+  const [leftReady, setLeftReady] = useState(false);
+  const [rightReady, setRightReady] = useState(false);
+
+  useLayoutEffect(() => {
+    onReadyChange(leftReady && rightReady);
+    return () => onReadyChange(false);
+  }, [leftReady, onReadyChange, rightReady]);
 
   // Mouse-driven divider drag. We use ref-tracked container width so the
   // listener doesn't capture stale state from a closure.
@@ -254,7 +430,13 @@ function SplitView({ split, projectId, onSetFocus, onSetRatio }: SplitViewProps)
         width={leftPct}
         onFocusRequest={() => onSetFocus('left')}
       >
-        <PaneRenderer leaf={split.left} projectId={projectId} />
+        <EditorSurfaceLifecycleProvider
+          isVisible={isSurfaceVisible}
+          isCommandActive={isSurfaceInteractive && split.focused === 'left'}
+          onReadyChange={setLeftReady}
+        >
+          <PaneRenderer leaf={split.left} projectId={projectId} />
+        </EditorSurfaceLifecycleProvider>
       </PaneWrapper>
       <PaneDivider onMouseDown={onDividerMouseDown} />
       <PaneWrapper
@@ -262,7 +444,13 @@ function SplitView({ split, projectId, onSetFocus, onSetRatio }: SplitViewProps)
         width={rightPct}
         onFocusRequest={() => onSetFocus('right')}
       >
-        <PaneRenderer leaf={split.right} projectId={projectId} />
+        <EditorSurfaceLifecycleProvider
+          isVisible={isSurfaceVisible}
+          isCommandActive={isSurfaceInteractive && split.focused === 'right'}
+          onReadyChange={setRightReady}
+        >
+          <PaneRenderer leaf={split.right} projectId={projectId} />
+        </EditorSurfaceLifecycleProvider>
       </PaneWrapper>
     </div>
   );
@@ -326,7 +514,7 @@ function PaneDivider({ onMouseDown }: { onMouseDown: (e: React.MouseEvent<HTMLDi
 
 function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string }) {
   // Dispatch on entityType — each entity view accepts an idOverride prop
-  // for the case when it's rendered outside the matched-route Outlet path.
+  // because the desktop stage, not the matched child-route element, owns it.
   // projectId is read from useParams inside the views (the parent route
   // /project/:projectId always matches), so we don't need to thread it.
   // All Chapters has no per-entity id, so it takes no override.

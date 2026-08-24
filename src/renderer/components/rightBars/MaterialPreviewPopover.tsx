@@ -1,8 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Node as PMNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/core';
 import type { LibraryItem } from '../../domain/library-item';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
@@ -10,6 +8,18 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 interface Props {
   item: LibraryItem;
   onClose: () => void;
+}
+
+function parsePreviewBody(bodyJson: string | null): JSONContent {
+  const empty: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
+  if (!bodyJson || bodyJson === '{}' || bodyJson === 'null') return empty;
+  try {
+    const parsed = JSON.parse(bodyJson) as JSONContent;
+    if (parsed && parsed.type === 'doc' && Array.isArray(parsed.content)) return parsed;
+  } catch {
+    // A malformed legacy projection is displayed as an empty read-only preview.
+  }
+  return empty;
 }
 
 /**
@@ -24,47 +34,28 @@ interface Props {
  */
 export function MaterialPreviewPopover({ item, onClose }: Props) {
   const { t } = useTranslation();
-  const editor = useEditor({
-    editable: false,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-      }),
-    ],
-    content: null,
-    editorProps: {
-      attributes: {
-        class: 'prose max-w-none focus:outline-none',
-        spellcheck: 'false',
+  const editor = useEditor(
+    {
+      editable: false,
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+          bulletList: { keepMarks: true },
+          orderedList: { keepMarks: true },
+        }),
+      ],
+      // The preview is born with its real document; a post-paint transaction
+      // would briefly reveal an empty modal body before installing the prose.
+      content: parsePreviewBody(item.bodyJson),
+      editorProps: {
+        attributes: {
+          class: 'prose max-w-none focus:outline-none',
+          spellcheck: 'false',
+        },
       },
     },
-  });
-
-  useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
-    let json: JSONContent = { type: 'doc', content: [] };
-    const raw = item.bodyJson;
-    if (raw && raw !== '{}' && raw !== 'null') {
-      try {
-        const parsed = JSON.parse(raw) as JSONContent;
-        if (parsed && parsed.type === 'doc' && Array.isArray(parsed.content)) {
-          json = parsed;
-        }
-      } catch {
-        /* fall through to empty doc */
-      }
-    }
-    try {
-      const node = PMNode.fromJSON(editor.schema, json);
-      const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, node.content);
-      tr.setMeta('addToHistory', false);
-      editor.view.dispatch(tr);
-    } catch {
-      /* leave editor empty */
-    }
-  }, [editor, item.bodyJson]);
+    [item.id],
+  );
 
   return (
     <ModalRoot onClose={onClose} ariaLabel={item.title || 'Untitled'}>

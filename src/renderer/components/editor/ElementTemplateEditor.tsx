@@ -1,9 +1,9 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import { useEffect } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
-import { Node as PMNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/core';
+import { Node as PMNode } from '@tiptap/pm/model';
 import { createDefaultSlashMenu } from '../../lib/slash-menu';
 import loglevel from 'loglevel';
 
@@ -16,11 +16,24 @@ interface Props {
   placeholder?: string;
 }
 
+function parseTemplateJson(templateJson: string | null): JSONContent {
+  const empty: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
+  if (!templateJson || templateJson === '{}') return empty;
+  try {
+    const parsed = JSON.parse(templateJson) as JSONContent;
+    if (parsed && parsed.type === 'doc' && Array.isArray(parsed.content)) return parsed;
+  } catch (error) {
+    log.warn('Failed to parse template JSON, falling back to empty doc:', error);
+  }
+  return empty;
+}
+
 // Plain TipTap editor for a category's element template. Intentionally simpler
 // than useEntityEditor: no entity links, no mentions, no slash menu, no
 // reference projection — this doc is structural (a default heading skeleton
 // for new elements), not user-facing content. Persist on every update.
 export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: Props) {
+  const initialContent = parseTemplateJson(templateJson);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -42,7 +55,10 @@ export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: 
       // the template skeleton, no entity links / patches / markdown export.
       createDefaultSlashMenu(),
     ],
-    content: null,
+    // Constructor-time content is essential here: effect-time seeding paints
+    // the empty-editor placeholder for one frame on every category/storyline
+    // mount before replacing it with the real template.
+    content: initialContent,
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
@@ -55,32 +71,25 @@ export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: 
     },
   });
 
-  // Load templateJson into the editor without polluting undo history.
-  useEffect(() => {
+  const appliedTemplateRef = useRef(templateJson);
+  useLayoutEffect(() => {
+    if (appliedTemplateRef.current === templateJson) return;
+    appliedTemplateRef.current = templateJson;
     if (!editor || editor.isDestroyed) return;
-    let json: JSONContent = { type: 'doc', content: [] };
-    if (templateJson && templateJson !== '{}') {
-      try {
-        const parsed = JSON.parse(templateJson) as JSONContent;
-        if (parsed && parsed.type === 'doc' && Array.isArray(parsed.content)) {
-          json = parsed;
-        }
-      } catch (error) {
-        log.warn('Failed to parse template JSON, falling back to empty doc:', error);
-      }
-    }
     try {
-      const docNode = PMNode.fromJSON(editor.schema, json);
-      const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, docNode.content);
+      const docNode = PMNode.fromJSON(editor.schema, parseTemplateJson(templateJson));
+      const tr = editor.state.tr.replaceWith(
+        0,
+        editor.state.doc.content.size,
+        docNode.content,
+      );
       tr.setMeta('addToHistory', false);
+      tr.setMeta('preventUpdate', true);
       editor.view.dispatch(tr);
     } catch (error) {
-      log.warn('Failed to seed template editor:', error);
+      log.warn('Failed to apply updated template JSON:', error);
     }
-    // templateJson is intentionally NOT in deps — we only seed once per editor
-    // instance. Subsequent edits live in the editor's own state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
+  }, [editor, templateJson]);
 
   return <EditorContent editor={editor} />;
 }

@@ -12,6 +12,10 @@ import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import {
+  useEditorSurfaceLifecycle,
+  useReportEditorSurfaceReady,
+} from '../components/editor/editor-surface-lifecycle-context';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
@@ -28,6 +32,7 @@ import {
   type EditorPersistDerived,
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
+import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -52,6 +57,7 @@ export function CategoryEditorView({
   categoryIdOverride,
 }: { categoryIdOverride?: string } = {}) {
   const { t } = useTranslation();
+  const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const params = useParams<{ projectId: string; categoryId: string }>();
   const projectId = params.projectId;
   const categoryId = categoryIdOverride ?? params.categoryId;
@@ -196,7 +202,7 @@ export function CategoryEditorView({
     },
   );
 
-  const { ydoc } = useEntityYjsDoc({
+  const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'category',
     entityId: curCategory?.id ?? '',
     projectId,
@@ -208,16 +214,23 @@ export function CategoryEditorView({
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!curCategory) return;
       if (pmJson === curCategory.contentJson) return;
-      if (canPromoteOnEdit()) promoteCurrentTab();
+      if (isCommandActive && canPromoteOnEdit()) promoteCurrentTab();
       void categoryUsecases.updateCategory(curCategory.id, { contentJson: pmJson });
     },
-    [curCategory, canPromoteOnEdit, categoryUsecases, promoteCurrentTab],
+    [
+      curCategory,
+      canPromoteOnEdit,
+      categoryUsecases,
+      isCommandActive,
+      promoteCurrentTab,
+    ],
   );
-  const { editor, outline } = useEntityEditor({
+  const { editor, outline, ready: editorReady } = useEntityEditor({
     sourceKind: 'category',
     sourceId: curCategory?.id ?? '',
     projectId,
     content: curCategory?.contentJson ?? null,
+    documentMode: 'yjs',
     ydoc,
     onPersist: handlePersist,
     placeholder: t('categoryEditor.scratchPlaceholder'),
@@ -228,6 +241,7 @@ export function CategoryEditorView({
       : null,
     editable: Boolean(ydoc),
   });
+  useReportEditorSurfaceReady(Boolean(curCategory && (editorReady || ydocError)));
 
   // TOC framework anchors in document order: 概述 → 札记 (with its body headings
   // nested as sub-structure) → 元素模版 → 字段模版 → 元素清单. Sections carry no
@@ -244,7 +258,7 @@ export function CategoryEditorView({
   }
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this category's body (ticks + reveal/approve).
-  useAgentChangeMarks(scrollEl, 'category', categoryId);
+  useAgentChangeMarks(scrollEl, 'category', categoryId, isVisible);
   const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
     // Flat id list (framework anchors + every body heading).
@@ -275,11 +289,18 @@ export function CategoryEditorView({
   const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
   const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
   useEffect(() => {
+    if (!isCommandActive) return;
     if (!curCategory) return;
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('category', curCategory.id);
     if (queued) void handleContextAction(queued);
-  }, [curCategory, pendingEntityAction, consumeEntityAction, handleContextAction]);
+  }, [
+    isCommandActive,
+    curCategory,
+    pendingEntityAction,
+    consumeEntityAction,
+    handleContextAction,
+  ]);
 
   if (!curCategory) {
     return (
@@ -426,7 +447,7 @@ export function CategoryEditorView({
               <span className="page__scene-title">{t('categoryEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
-              <EditorContent editor={editor} />
+              {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
             </div>
 
             {/* 元素模版 — TipTap doc seeded into newly-created elements under

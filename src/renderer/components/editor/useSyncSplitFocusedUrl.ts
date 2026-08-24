@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
+import type { WorkspaceNavigator } from '../../features/workspace/navigation/workspace-target';
+
 import {
   useProjectTabs,
   useUiStore,
@@ -42,7 +44,7 @@ const CATEGORY_RE = /^\/project\/[^/]+\/category\/([^/]+)$/;
 // activations — every call site that changes focus already calls navigate()
 // itself (TopTimeline tab/sub-label clicks, PaneWrapper mouseDown handler).
 // Pushing here would create circular updates with the same destination.
-export function useSyncSplitFocusedUrl(): void {
+export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
   const { projectId } = useParams<{ projectId?: string }>();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const location = useLocation();
@@ -73,11 +75,8 @@ export function useSyncSplitFocusedUrl(): void {
     const focused = active ? focusedLeafOf(active) : null;
     if (focused?.entityType === 'node' && focused.id === nodeSelectedId) return;
     const target = { entityType: 'node' as const, id: nodeSelectedId };
-    if (!activateExistingTarget(projectId, target)) {
-      openEntityTab(projectId, target, { preview: true });
-    }
-    navigate(`/project/${projectId}/editor/${nodeSelectedId}`);
-  }, [activateExistingTarget, nodeSelectedFrom, nodeSelectedId, projectId, openEntityTab, navigate]);
+    navigator.open(target);
+  }, [navigator, nodeSelectedFrom, nodeSelectedId, projectId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -87,11 +86,8 @@ export function useSyncSplitFocusedUrl(): void {
     const focused = active ? focusedLeafOf(active) : null;
     if (focused?.entityType === 'element' && focused.id === elementSelectedId) return;
     const target = { entityType: 'element' as const, id: elementSelectedId };
-    if (!activateExistingTarget(projectId, target)) {
-      openEntityTab(projectId, target, { preview: true });
-    }
-    navigate(`/project/${projectId}/element/${elementSelectedId}`);
-  }, [activateExistingTarget, elementSelectedFrom, elementSelectedId, projectId, openEntityTab, navigate]);
+    navigator.open(target);
+  }, [elementSelectedFrom, elementSelectedId, navigator, projectId]);
 
   // Track whether the most recent render came from "tabs were just emptied".
   // Zustand's set() and React Router's setState aren't guaranteed to commit

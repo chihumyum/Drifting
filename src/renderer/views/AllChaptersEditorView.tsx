@@ -15,6 +15,10 @@ import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
+import {
+  useEditorSurfaceLifecycle,
+  useReportEditorSurfaceReady,
+} from '../components/editor/editor-surface-lifecycle-context';
 import { AllChaptersFindPanel, type FindChapter } from '../components/search/AllChaptersFindPanel';
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { matchesAccelerator } from '../lib/shortcuts';
@@ -80,15 +84,15 @@ function actTocId(actId: string): string {
   return `${ACT_TOC_PREFIX}${actId}`;
 }
 
-// Where the reader was in 通览全书, kept in module scope so it survives the
-// view unmounting on a tab switch (this view is torn down when you leave the
-// tab, not just hidden). Keyed by project. Restored on return.
+// Where the reader was in 通览全书, kept in module scope so it survives closing
+// and reopening the tab (and the mobile shell's paper unmounts). Ordinary
+// desktop tab switches now preserve the mounted view directly. Keyed by project.
 const readPositionByProject = new Map<string, MobileAllChaptersReadPosition>();
 
 // "Read the whole book" mode — every chapter in bookOrder concatenated into
-// one vertical scroller. Each chapter is a full ChapterEditor instance
-// (matching NodeEditorView's literary page styling) but mounted lazily via
-// IntersectionObserver so 100+ chapter books stay responsive.
+// one vertical scroller. Rows render canonical static prose in the same page
+// geometry as ChapterEditor; only the focused row upgrades to a live TipTap/Yjs
+// editor, and content reads are admitted through the bounded loader.
 //
 // Sidebar / timeline chapter clicks land here as scrolls instead of route
 // changes: useProjectNavigation.openEntity and EditorShell's nav effect both
@@ -96,6 +100,10 @@ const readPositionByProject = new Map<string, MobileAllChaptersReadPosition>();
 // place. This view watches that selection and scrolls to the matching row.
 export function AllChaptersEditorView() {
   const { t } = useTranslation();
+  const { isCommandActive } = useEditorSurfaceLifecycle();
+  const [readyContentNodeIds, setReadyContentNodeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const userId = useAuthStore((s) => s.user?.id);
   const { projectId, navigateToHome, navigateToStoryline, navigateToElement, navigateToNode, navigateToCategory } =
     useProjectNavigation();
@@ -240,6 +248,19 @@ export function AllChaptersEditorView() {
     () => bookNodes.filter(isChapter).sort((a, b) => a.bookOrder - b.bookOrder),
     [bookNodes],
   );
+  const hasCanonicalProseForCurrentBook =
+    orderedNodes.length === 0 ||
+    orderedNodes.some((node) => readyContentNodeIds.has(node.id));
+  useReportEditorSurfaceReady(hasCanonicalProseForCurrentBook);
+
+  const handleContentReady = useCallback((nodeId: string) => {
+    setReadyContentNodeIds((current) => {
+      if (current.has(nodeId)) return current;
+      const next = new Set(current);
+      next.add(nodeId);
+      return next;
+    });
+  }, []);
 
   // Interleave act dividers into the read-through. Chapter indices keep
   // counting straight through (the Roman numeral sequence ignores acts);
@@ -363,6 +384,7 @@ export function AllChaptersEditorView() {
     hasChaptersRef.current = orderedNodes.length > 0;
   }, [orderedNodes.length]);
   useEffect(() => {
+    if (!isCommandActive) return;
     const onKey = (e: KeyboardEvent) => {
       if (!hasChaptersRef.current) return;
       if (!matchesAccelerator(e, useShortcutsStore.getState().bindings.findInEditor)) return;
@@ -372,7 +394,7 @@ export function AllChaptersEditorView() {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
+  }, [isCommandActive]);
 
   // Chapter snapshot for the find panel: reading order + title/summary; prose is
   // pulled from the content cache (already prefetched per row) on demand.
@@ -388,6 +410,7 @@ export function AllChaptersEditorView() {
   );
 
   useEffect(() => {
+    if (!isCommandActive) return;
     const mobileSearchOwner = createMobileAllChaptersSearchOwner({
       chapters: findChapters,
       fetchContent,
@@ -398,7 +421,7 @@ export function AllChaptersEditorView() {
       unregister();
       mobileSearchOwner.destroy?.();
     };
-  }, [fetchContent, findChapters]);
+  }, [fetchContent, findChapters, isCommandActive]);
 
   // Snapshot the saved read-position ONCE at mount, before any effect (the
   // scroll-spy fires on mount and would overwrite the shared map with the
@@ -618,9 +641,9 @@ export function AllChaptersEditorView() {
     requestAnimationFrame(restore);
   }, [orderedNodes, armSpySuppression, setActiveOutline]);
 
-  // Persist the read-position whenever it changes, so the next tab switch (which
-  // unmounts this view) restores it. The reading anchor comes from the spy
-  // (updates as you scroll); focusNodeId tracks the chapter open for editing.
+  // Persist the read-position whenever it changes, so tab close/reopen and the
+  // mobile paper lifecycle restore it. The reading anchor comes from the spy;
+  // focusNodeId tracks the chapter open for editing.
   useEffect(() => {
     const position: MobileAllChaptersReadPosition = {
       outlineId: activeOutlineId,
@@ -700,13 +723,14 @@ export function AllChaptersEditorView() {
     );
   }, [bookActs, menuTargetNode, orderedNodes]);
   useEffect(() => {
+    if (!isCommandActive) return;
     publishMobileAllChaptersContext({
       actName: mobileActName,
       chapterId: menuTargetNode?.id ?? null,
       chapterTitle: menuTargetNode?.title || null,
     });
     return () => publishMobileAllChaptersContext(null);
-  }, [menuTargetNode?.id, menuTargetNode?.title, mobileActName]);
+  }, [isCommandActive, menuTargetNode?.id, menuTargetNode?.title, mobileActName]);
   const handleChapterMenuAction = useCallback(
     async (action: string) => {
       const target = menuTargetNode;
@@ -740,7 +764,7 @@ export function AllChaptersEditorView() {
         }
       }
     },
-    [menuTargetNode, setChapterStorylineEditorNodeId, updateNode, deleteNode, projectId],
+    [menuTargetNode, setChapterStorylineEditorNodeId, updateNode, deleteNode],
   );
 
   // Whole-book outline → a flat sequence of act dividers (L1) interleaved
@@ -939,6 +963,7 @@ export function AllChaptersEditorView() {
                   projectId={projectId}
                   index={idx}
                   fetchContent={fetchContent}
+                  onContentReady={handleContentReady}
                   isFocused={focus?.nodeId === node.id}
                   onActivate={handleActivate}
                   activateCaret={focus?.nodeId === node.id ? focus.caret : null}

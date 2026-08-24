@@ -58,7 +58,7 @@ describe('renderer ownership boundaries', () => {
       'shells/desktop/navigation/DesktopWorkspaceNavigationBoundary.tsx',
     );
     expect(boundary).toContain('useDesktopWorkspaceNavigator(projectId)');
-    expect(boundary).toContain('useSyncSplitFocusedUrl()');
+    expect(boundary).toContain('useSyncSplitFocusedUrl(navigator)');
     expect(boundary).toContain('<WorkspaceNavigationProvider navigator={navigator}>');
 
     const adapter = source('shells/desktop/navigation/useDesktopWorkspaceNavigator.ts');

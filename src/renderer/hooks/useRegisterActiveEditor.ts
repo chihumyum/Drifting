@@ -17,19 +17,27 @@ import {
 export function useRegisterActiveEditor(
   editor: Editor | null,
   save?: () => void | Promise<void>,
+  options: {
+    isSurfaceActive?: boolean;
+    activateOnMount?: boolean;
+  } = {},
 ): void {
+  const { isSurfaceActive = true, activateOnMount = true } = options;
   const saveRef = useRef(save);
+  const surfaceActiveRef = useRef(isSurfaceActive);
   useLayoutEffect(() => {
     saveRef.current = save;
-  }, [save]);
+    surfaceActiveRef.current = isSurfaceActive;
+  }, [isSurfaceActive, save]);
 
   useEffect(() => {
     if (!editor) return;
 
-    setActiveEditor(editor);
     setEditorSaveCallback(editor, () => saveRef.current?.());
 
-    const onFocus = () => setActiveEditor(editor);
+    const onFocus = () => {
+      if (surfaceActiveRef.current) setActiveEditor(editor);
+    };
     editor.on('focus', onFocus);
 
     return () => {
@@ -38,4 +46,13 @@ export function useRegisterActiveEditor(
       clearIfActive(editor);
     };
   }, [editor]);
+
+  useLayoutEffect(() => {
+    if (!editor) return;
+    if (!isSurfaceActive) {
+      clearIfActive(editor);
+      return;
+    }
+    if (activateOnMount) setActiveEditor(editor);
+  }, [activateOnMount, editor, isSurfaceActive]);
 }

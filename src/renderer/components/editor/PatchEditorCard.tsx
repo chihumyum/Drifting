@@ -46,22 +46,25 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const { navigateToNode } = useProjectNavigation();
 
   const [titleValue, setTitleValue] = useState(patch.title ?? '');
-  const titleInputRef = useRef<HTMLInputElement>(null);
   // Tracks whether the CURRENT draft came from the user typing (vs. a sync from
   // patch.title). handleSaveTitle only persists when this is true — so a blur
   // that the user never typed into can NEVER write null over a stored title (the
   // bug that nulled agent-created titles).
-  const titleDirtyRef = useRef(false);
-  // Re-sync the draft when the stored title changes underneath us — e.g. the
-  // agent created this patch WITH a title, or a sync brought a newer one. Without
-  // this, titleValue stays at its mount value and the title never shows. Skip
-  // while the user is mid-edit so we don't clobber typing.
-  useEffect(() => {
-    if (document.activeElement !== titleInputRef.current) {
+  const [titleDirty, setTitleDirty] = useState(false);
+  const [titleSnapshot, setTitleSnapshot] = useState({
+    patchId: patch.id,
+    title: patch.title,
+  });
+  // Reconcile before commit so a newly-synced title never spends one paint as
+  // an empty placeholder. Preserve a real in-progress user draft.
+  const titleEntityChanged = titleSnapshot.patchId !== patch.id;
+  if (titleEntityChanged || titleSnapshot.title !== patch.title) {
+    setTitleSnapshot({ patchId: patch.id, title: patch.title });
+    if (titleEntityChanged || !titleDirty) {
+      setTitleDirty(false);
       setTitleValue(patch.title ?? '');
-      titleDirtyRef.current = false; // synced value, not a user edit
     }
-  }, [patch.title]);
+  }
   // Default expanded so the patch body (the actual content) is the visual
   // anchor. Toggle remains for users who want to collapse long bodies.
   const [collapsed, setCollapsed] = useState(false);
@@ -98,8 +101,8 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const handleSaveTitle = useCallback(async () => {
     // Only persist a title the USER actually typed — never a blur over a synced
     // value, which could write null over a stored (e.g. agent-created) title.
-    if (!titleDirtyRef.current) return;
-    titleDirtyRef.current = false;
+    if (!titleDirty) return;
+    setTitleDirty(false);
     if ((patch.title ?? '') === titleValue) return;
     try {
       const nextTitle = titleValue || null;
@@ -108,7 +111,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     } catch (error) {
       log.error('Failed to save patch title:', error);
     }
-  }, [patch.id, patch.title, titleValue, projectId, onChange]);
+  }, [patch.id, patch.title, titleDirty, titleValue, projectId, onChange]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -501,11 +504,10 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         </button>
         {/* Title leads the row — it's the patch's primary identifier. */}
         <input
-          ref={titleInputRef}
           type="text"
           value={titleValue}
           onChange={(e) => {
-            titleDirtyRef.current = true;
+            setTitleDirty(true);
             setTitleValue(e.target.value);
           }}
           onBlur={handleSaveTitle}

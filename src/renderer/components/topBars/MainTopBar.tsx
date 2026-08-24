@@ -17,7 +17,7 @@ export function MainTopBar({ children, leftContent }: MainTopBarProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingLeft: 12,
+          paddingLeft: 0,
           paddingRight: 12,
           flexShrink: 0,
           borderBottom: '1px solid hsl(var(--rule))',

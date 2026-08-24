@@ -2624,6 +2624,7 @@
     }
   },
   "entityEditor": {
+    "bodyLoadError": "The body failed to load and is now read-only. Body changes will not be saved here, protecting the existing content.",
     "contextMenu": {
       "format": "Format",
       "addComment": "Add comment",
@@ -2636,7 +2637,6 @@
       "card": "Element card"
     },
     "summaryShortPlaceholder": "Summary…",
-    "bodyLoadError": "The body failed to load and is now read-only. Body changes will not be saved here, protecting the existing content.",
     "syncNote": "Changes sync to the full editor"
   },
   "superElement": {

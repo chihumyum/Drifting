@@ -24,6 +24,7 @@ describe('desktop universal create acceptance', () => {
     const topTimeline = source(
       'src/renderer/components/topBars/TopTimeline/TopTimeline.tsx',
     );
+    const mainTopbar = source('src/renderer/components/topBars/MainTopBar.tsx');
     const controls = source('src/styles/ui-controls.css');
 
     expect(topTimeline).toContain('className="top-timeline-create-button"');
@@ -35,9 +36,11 @@ describe('desktop universal create acceptance', () => {
     expect(topTimeline).not.toContain('aria-pressed={openTabs.some');
     expect(controls).not.toContain('.top-timeline-create-button:hover');
     expect(controls).toContain('background: transparent;');
-    expect(topTimeline).toContain(
-      'containerWidth - CONTAINER_PADDING_X - totalGaps',
-    );
+    expect(mainTopbar).toContain('paddingLeft: 0');
+    expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = 16;');
+    expect(topTimeline).toContain('paddingLeft: 0');
+    expect(topTimeline).toContain('paddingRight: TAB_STRIP_END_PADDING');
+    expect(topTimeline).toContain('containerWidth - TAB_STRIP_END_PADDING - totalGaps');
     expect(topTimeline).not.toContain('CREATE_BUTTON_WIDTH');
   });
 
@@ -50,7 +53,7 @@ describe('desktop universal create acceptance', () => {
       'src/renderer/shells/desktop/entity-create/desktop-universal-create.ts',
     );
 
-    expect(editorMain).toContain('<DesktopUniversalCreateView tab={createTab} />');
+    expect(editorMain).toContain('<DesktopUniversalCreateView tab={tab} />');
     expect(view).toContain("const KIND_ORDER: UniversalCreateEntityKind[] = [");
     expect(view).toContain("'chapter'");
     expect(view).toContain("'drift'");

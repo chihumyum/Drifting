@@ -14,6 +14,10 @@ import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import {
+  useEditorSurfaceLifecycle,
+  useReportEditorSurfaceReady,
+} from '../components/editor/editor-surface-lifecycle-context';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { KvEditor } from '../components/editor/KvEditor';
@@ -34,6 +38,7 @@ import {
   type EditorPersistDerived,
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
+import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -54,6 +59,7 @@ log.setLevel(loglevel.levels.ERROR);
 
 export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: string } = {}) {
   const { t } = useTranslation();
+  const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const navigate = useNavigate();
   const { leaveDeletedEntity } = useProjectNavigation();
   const params = useParams<{ elementId: string; projectId: string }>();
@@ -91,6 +97,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const [editingCategory, setEditingCategory] = useState(false);
   const [nameValue, setNameValue] = useState(curElement?.name || '');
   const [summaryValue, setSummaryValue] = useState(curElement?.summary || '');
+  const [nameDirty, setNameDirty] = useState(false);
+  const [summaryDirty, setSummaryDirty] = useState(false);
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -140,7 +148,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   }, [projectId, curElement, portraitAsset, portraitUrl, t]);
   // Clear the cell's "M" once the user opens this element (coarse — element
   // writes arrive as structural changes; see useAgentChangeMarks).
-  useAgentChangeMarks(scrollEl, 'element', elementId);
+  useAgentChangeMarks(scrollEl, 'element', elementId, isVisible);
   const [marginNotes, setMarginNotes] = useEntityMarginNotes('element', elementId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
@@ -194,20 +202,35 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const [syncedElementKey, setSyncedElementKey] = useState({
     routeId: elementId ?? null,
     entityId: curElement?.id ?? null,
+    name: curElement?.name ?? '',
+    summary: curElement?.summary ?? '',
   });
   if (
     syncedElementKey.routeId !== (elementId ?? null) ||
-    syncedElementKey.entityId !== (curElement?.id ?? null)
+    syncedElementKey.entityId !== (curElement?.id ?? null) ||
+    syncedElementKey.name !== (curElement?.name ?? '') ||
+    syncedElementKey.summary !== (curElement?.summary ?? '')
   ) {
+    const entityChanged =
+      syncedElementKey.routeId !== (elementId ?? null) ||
+      syncedElementKey.entityId !== (curElement?.id ?? null);
     setSyncedElementKey({
       routeId: elementId ?? null,
       entityId: curElement?.id ?? null,
+      name: curElement?.name ?? '',
+      summary: curElement?.summary ?? '',
     });
-    setNameValue(curElement?.name || '');
-    setSummaryValue(curElement?.summary || '');
+    if (entityChanged || !nameDirty) {
+      setNameDirty(false);
+      setNameValue(curElement?.name || '');
+    }
+    if (entityChanged || !summaryDirty) {
+      setSummaryDirty(false);
+      setSummaryValue(curElement?.summary || '');
+    }
   }
 
-  const { ydoc } = useEntityYjsDoc({
+  const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'element',
     entityId: curElement?.id ?? '',
     projectId: projectId ?? '',
@@ -218,17 +241,25 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!elementId) return;
       if (pmJson === curElement?.contentJson) return;
-      if (canPromoteOnEdit()) promoteCurrentTab();
+      if (isCommandActive && canPromoteOnEdit()) promoteCurrentTab();
       void updateElement(elementId, { contentJson: pmJson });
     },
-    [elementId, curElement?.contentJson, canPromoteOnEdit, updateElement, promoteCurrentTab],
+    [
+      elementId,
+      curElement?.contentJson,
+      canPromoteOnEdit,
+      isCommandActive,
+      updateElement,
+      promoteCurrentTab,
+    ],
   );
 
-  const { editor, outline } = useEntityEditor({
+  const { editor, outline, ready: editorReady } = useEntityEditor({
     sourceKind: 'element',
     sourceId: curElement?.id ?? '',
     projectId: projectId ?? '',
     content: curElement?.contentJson ?? null,
+    documentMode: 'yjs',
     ydoc,
     onPersist: handlePersist,
     placeholder: t('elementEditor.bodyPlaceholder'),
@@ -240,6 +271,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         : null,
     editable: Boolean(ydoc),
   });
+  useReportEditorSurfaceReady(Boolean(curElement && (editorReady || ydocError)));
 
   // Outline = framework anchors for every section of the element editor, in
   // document order: 概述 → 记·传 (with its body headings nested as sub-structure)
@@ -271,6 +303,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
   const commitName = async () => {
     if (!elementId) return;
+    setNameDirty(false);
     const next = nameValue.trim();
     if (!next || next === curElement?.name) return;
     promoteCurrentTab();
@@ -334,6 +367,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
   const commitSummary = async () => {
     if (!elementId) return;
+    setSummaryDirty(false);
     if (summaryValue === curElement?.summary) return;
     promoteCurrentTab();
     await updateElement(elementId, { summary: summaryValue });
@@ -582,11 +616,19 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
   const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
   useEffect(() => {
+    if (!isCommandActive) return;
     if (!elementId || !curElement) return;
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('element', elementId);
     if (queued) queueMicrotask(() => void handleContextAction(queued));
-  }, [elementId, curElement, pendingEntityAction, consumeEntityAction, handleContextAction]);
+  }, [
+    isCommandActive,
+    elementId,
+    curElement,
+    pendingEntityAction,
+    consumeEntityAction,
+    handleContextAction,
+  ]);
 
   if (!elementId || !curElement) {
     return (
@@ -797,7 +839,10 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                       type="text"
                       className="elem-hero__name"
                       value={nameValue}
-                      onChange={(e) => setNameValue(e.target.value)}
+                      onChange={(e) => {
+                        setNameDirty(true);
+                        setNameValue(e.target.value);
+                      }}
                       onBlur={() => void commitName()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -805,6 +850,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                           e.currentTarget.blur();
                         }
                         if (e.key === 'Escape') {
+                          setNameDirty(false);
                           setNameValue(curElement.name || '');
                           e.currentTarget.blur();
                         }
@@ -900,10 +946,12 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                       <FieldReview
                         change={summaryReviewChange}
                         onAccept={() => {
+                          setSummaryDirty(false);
                           fieldReview.accept(summaryReviewChange);
                           setSummaryValue(summaryReviewChange.newText);
                         }}
                         onReject={() => {
+                          setSummaryDirty(false);
                           fieldReview.reject(summaryReviewChange);
                           setSummaryValue(summaryReviewChange.oldText);
                         }}
@@ -913,10 +961,14 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                         ref={summaryRef}
                         className="elem-hero__summary"
                         value={summaryValue}
-                        onChange={(e) => setSummaryValue(e.target.value)}
+                        onChange={(e) => {
+                          setSummaryDirty(true);
+                          setSummaryValue(e.target.value);
+                        }}
                         onBlur={() => void commitSummary()}
                         onKeyDown={(e) => {
                           if (e.key === 'Escape') {
+                            setSummaryDirty(false);
                             setSummaryValue(curElement.summary || '');
                             e.currentTarget.blur();
                           }
@@ -941,7 +993,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
               </h2>
               <div className="elem-body">
-                <EditorContent editor={editor} />
+                {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
               </div>
 
               {/* 字段 — element's own KV facts. Seeded at creation from the
