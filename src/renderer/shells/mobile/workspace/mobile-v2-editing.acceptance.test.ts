@@ -13,11 +13,17 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     const overview = source('shells/mobile/workspace/MobileTabOverview.tsx');
     const projectSearch = source('shells/mobile/workspace/useMobileProjectSearch.ts');
     const paperSearch = source('shells/mobile/workspace/mobile-paper-search.ts');
+    const regression = fs.readFileSync(
+      path.join(repoRoot, 'docs/qa/mobile-search-focus-regression.md'),
+      'utf8',
+    );
 
     expect(bar).toContain('<MobileUnifiedSearch');
     expect(bar).toContain('owner?.setQuery(event.target.value)');
     expect(bar).toContain('onProjectSearch(snapshot.query)');
-    expect(bar.match(/onPointerDown=\{\(event\) => event\.preventDefault\(\)\}/g)).toHaveLength(2);
+    expect(bar).toContain('seededOwnerRef.current === owner');
+    expect(bar.match(/<MobileUnifiedSearchStep/g)).toHaveLength(2);
+    expect(bar).toContain('onPointerDown={keepSearchFocused}');
     expect(runtime).toContain('projectSearchQuery');
     expect(runtime).toContain('saveActiveEditor().finally');
     expect(overview).toContain('useMobileProjectSearch(searchQuery ?? \'\')');
@@ -25,7 +31,13 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(projectSearch).toContain('.select({');
     expect(projectSearch).not.toMatch(/\.insert\(|\.update\(|\.delete\(/);
     expect(paperSearch).toContain('Decoration.inline');
+    expect(paperSearch).not.toContain('editor.commands.setTextSelection');
+    expect(paperSearch).not.toContain('element?.scrollIntoView');
+    expect(paperSearch).toContain("element?.closest<HTMLElement>('.editor-scroll')");
     expect(paperSearch).not.toContain('editor.commands.setContent');
+    expect(regression).toContain('edit -> Search -> Back restores edit navigation');
+    expect(regression).toContain('clearing the query leaves it empty');
+    expect(regression).toContain('it never focuses ProseMirror');
   });
 
   it('keeps formatting in one horizontal accessory row while TOC and comments use sheets', () => {

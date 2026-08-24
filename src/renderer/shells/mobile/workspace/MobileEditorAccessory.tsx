@@ -89,9 +89,16 @@ export function MobileEditorAccessory({
     const current = getActiveEditor();
     return current?.isFocused ? current : null;
   });
-  const [keyboardInset, setKeyboardInset] = useState(0);
-  const [keyboardViewportOffsetTop, setKeyboardViewportOffsetTop] = useState(0);
-  const [softwareKeyboardVisible, setSoftwareKeyboardVisible] = useState(false);
+  // This component remounts when Search hands focus back to the editor. Seed
+  // the still-open IME synchronously; reporting a default false first would
+  // immediately collapse the restored edit state back to read.
+  const [keyboardInset, setKeyboardInset] = useState(() => readMobileKeyboardInset());
+  const [keyboardViewportOffsetTop, setKeyboardViewportOffsetTop] = useState(() =>
+    readMobileKeyboardViewportOffsetTop(KEYBOARD_INSET_THRESHOLD),
+  );
+  const [softwareKeyboardVisible, setSoftwareKeyboardVisible] = useState(() =>
+    readMobileSoftwareKeyboardVisible(KEYBOARD_INSET_THRESHOLD),
+  );
   const observedKeyboardWhileFocusedRef = useRef(false);
   const [, setRevision] = useState(0);
   const editorFocused = Boolean(editor && !editor.isDestroyed && focusedEditor === editor);

@@ -452,7 +452,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.m-unified-bar__action:disabled {
+.m-unified-bar__action:disabled,
+.m-unified-bar__action[aria-disabled='true'] {
   opacity: 0.28;
 }
 

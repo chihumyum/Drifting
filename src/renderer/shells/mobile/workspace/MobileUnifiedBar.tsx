@@ -13,6 +13,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getActiveEditor } from '../../../lib/active-editor';
@@ -56,6 +57,7 @@ function MobileUnifiedSearch({
 }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const seededOwnerRef = useRef<MobilePaperSearchOwner | null>(null);
   const snapshot = useSyncExternalStore(
     owner?.subscribe ?? subscribeNothing,
     owner?.getSnapshot ?? emptyMobilePaperSearchSnapshot,
@@ -69,7 +71,11 @@ function MobileUnifiedSearch({
     inputRef.current?.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
-    if (!owner || snapshot.query) return;
+    // Seed a selected prose range once per Search session. An empty query after
+    // Backspace is author input, not permission to reinsert the selection.
+    if (!owner || seededOwnerRef.current === owner) return;
+    seededOwnerRef.current = owner;
+    if (snapshot.query) return;
     const editor = getActiveEditor();
     if (!editor || editor.isDestroyed) return;
     const { from, to } = editor.state.selection;
@@ -110,6 +116,47 @@ function MobileUnifiedSearch({
             : `${snapshot.currentIndex + 1}/${snapshot.total}`}
       </span>
     </div>
+  );
+}
+
+function MobileUnifiedSearchStep({
+  disabled,
+  onActivate,
+  label,
+  children,
+}: {
+  disabled: boolean;
+  onActivate: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  const keepSearchFocused = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const activateFromPointer = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!disabled) onActivate();
+  };
+  const activateFromAccessibility = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!disabled && event.detail === 0) onActivate();
+  };
+
+  return (
+    <span
+      role="button"
+      className="m-unified-bar__action"
+      aria-disabled={disabled ? 'true' : 'false'}
+      aria-label={label}
+      onPointerDown={keepSearchFocused}
+      onPointerUp={activateFromPointer}
+      onClick={activateFromAccessibility}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -331,26 +378,20 @@ export function MobileUnifiedBar({
               label={backLabel}
             />
             <MobileUnifiedSearch owner={searchOwner} onProjectSearch={onProjectSearch} />
-            <button
-              type="button"
-              className="m-unified-bar__action"
+            <MobileUnifiedSearchStep
               disabled={!searchOwner}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => searchOwner?.previous()}
-              aria-label={t('findPanel.previousTitle')}
+              onActivate={() => searchOwner?.previous()}
+              label={t('findPanel.previousTitle')}
             >
               <ChevronUp size={19} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="m-unified-bar__action"
+            </MobileUnifiedSearchStep>
+            <MobileUnifiedSearchStep
               disabled={!searchOwner}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => searchOwner?.next()}
-              aria-label={t('findPanel.nextTitle')}
+              onActivate={() => searchOwner?.next()}
+              label={t('findPanel.nextTitle')}
             >
               <ChevronDown size={19} aria-hidden="true" />
-            </button>
+            </MobileUnifiedSearchStep>
           </>
         ) : (
           <>

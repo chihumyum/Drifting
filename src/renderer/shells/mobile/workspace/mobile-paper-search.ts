@@ -128,6 +128,22 @@ function paint(editor: Editor, matches: MobilePaperSearchMatch[], currentIndex: 
   editor.view.dispatch(transaction);
 }
 
+export function mobilePaperSearchScrollTop(input: {
+  scrollTop: number;
+  viewportTop: number;
+  viewportHeight: number;
+  targetTop: number;
+  targetHeight: number;
+}): number {
+  return Math.max(
+    0,
+    input.scrollTop +
+      input.targetTop -
+      input.viewportTop -
+      (input.viewportHeight - input.targetHeight) / 2,
+  );
+}
+
 export function createMobileEditorSearchOwner(
   editor: Editor,
   id: string,
@@ -145,14 +161,27 @@ export function createMobileEditorSearchOwner(
     if (matches.length === 0 || editor.isDestroyed) return;
     const currentIndex = ((nextIndex % matches.length) + matches.length) % matches.length;
     const match = matches[currentIndex];
-    editor.commands.setTextSelection({ from: match.from, to: match.to });
     try {
       const at = editor.view.domAtPos(match.from);
       const element =
         at.node.nodeType === Node.ELEMENT_NODE
           ? (at.node as HTMLElement)
           : at.node.parentElement;
-      element?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const scroller = element?.closest<HTMLElement>('.editor-scroll');
+      if (element && scroller) {
+        const viewport = scroller.getBoundingClientRect();
+        const target = element.getBoundingClientRect();
+        scroller.scrollTo({
+          top: mobilePaperSearchScrollTop({
+            scrollTop: scroller.scrollTop,
+            viewportTop: viewport.top,
+            viewportHeight: scroller.clientHeight,
+            targetTop: target.top,
+            targetHeight: target.height,
+          }),
+          behavior: 'smooth',
+        });
+      }
     } catch {
       // A concurrent CRDT transaction may invalidate a just-collected position.
     }

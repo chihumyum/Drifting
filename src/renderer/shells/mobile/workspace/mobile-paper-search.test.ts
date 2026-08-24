@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   collectMobilePaperSearchMatches,
+  mobilePaperSearchScrollTop,
   registerMobilePaperSearchOwner,
   getMobilePaperSearchOwner,
   type MobilePaperSearchOwner,
@@ -21,6 +22,27 @@ describe('Mobile V2 current-paper search ownership', () => {
       { text: 'Rain rain', position: 2 },
       { text: 'RAIN', position: 20 },
     ]);
+  });
+
+  it('centers a match inside the paper scroller without scrolling the page', () => {
+    expect(
+      mobilePaperSearchScrollTop({
+        scrollTop: 320,
+        viewportTop: 80,
+        viewportHeight: 500,
+        targetTop: 530,
+        targetHeight: 20,
+      }),
+    ).toBe(530);
+    expect(
+      mobilePaperSearchScrollTop({
+        scrollTop: 0,
+        viewportTop: 100,
+        viewportHeight: 600,
+        targetTop: 120,
+        targetHeight: 20,
+      }),
+    ).toBe(0);
   });
 
   it('hands the unified bar one active owner and clears it on unregister', () => {
