@@ -308,13 +308,17 @@ function ColumnDivider({
         marginLeft: -3,
         marginRight: -3,
         flexShrink: 0,
+        position: 'relative',
+        zIndex: 1,
         cursor: 'col-resize',
         display: 'flex',
         justifyContent: 'center',
         background: 'transparent',
       }}
     >
-      <div style={{ width: 1, height: '100%', background: 'hsl(var(--rule))' }} />
+      <div
+        style={{ width: 0.5, height: '100%', background: 'var(--workspace-local-border)' }}
+      />
     </div>
   );
 }

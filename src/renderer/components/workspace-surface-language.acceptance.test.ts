@@ -332,6 +332,19 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
   });
 
+  it('keeps the wide right-sidebar columns separated by the local hairline', () => {
+    const rightPanels = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
+    const columnDivider = rightPanels.slice(rightPanels.indexOf('function ColumnDivider({'));
+
+    expect(rightPanels).toContain('const isSplit = panelWidth >= 600;');
+    expect(rightPanels).toContain('<ColumnDivider onMouseDown={onDividerMouseDown} />');
+    expect(columnDivider).toContain("position: 'relative'");
+    expect(columnDivider).toContain('zIndex: 1');
+    expect(columnDivider).toContain(
+      "width: 0.5, height: '100%', background: 'var(--workspace-local-border)'",
+    );
+  });
+
   it('shows only the chapter count until the first storyline exists', () => {
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const controls = source('src/styles/ui-controls.css');
