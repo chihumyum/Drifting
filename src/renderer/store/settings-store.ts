@@ -131,6 +131,23 @@ export function migrateAgentToolSearch(value: unknown, persistedVersion: number)
   return persistedVersion < 20 ? AGENT_TOOL_SEARCH_DEFAULT : normalizeAgentToolSearch(value);
 }
 
+/**
+ * Hard per-turn brake on the Agent model-iteration loop. `null` means no cap
+ * (the historical unlimited behavior); the runtime ends an over-limit turn as
+ * `budget_exceeded` with durable progress preserved, so the author can send
+ * another message to continue.
+ */
+export const AGENT_TURN_ITERATION_LIMIT_DEFAULT = 50;
+export const AGENT_TURN_ITERATION_LIMIT_OPTIONS: readonly number[] = [25, 50, 100, 200];
+const AGENT_TURN_ITERATION_LIMIT_MAX = 1_000;
+
+export function normalizeAgentTurnIterationLimit(value: unknown): number | null {
+  if (value === null) return null;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? Math.min(value, AGENT_TURN_ITERATION_LIMIT_MAX)
+    : AGENT_TURN_ITERATION_LIMIT_DEFAULT;
+}
+
 /** Tool-search options for the settings picker. */
 export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string }[] = [
   { value: 'off', label: 'Off · load all tools' },
@@ -345,6 +362,12 @@ interface SettingsState {
    */
   agentAllowDangerousOperations: boolean;
   setAgentAllowDangerousOperations: (on: boolean) => void;
+  /**
+   * Per-turn model-iteration cap read at turn start; `null` disables the cap.
+   * See AGENT_TURN_ITERATION_LIMIT_DEFAULT.
+   */
+  agentTurnIterationLimit: number | null;
+  setAgentTurnIterationLimit: (limit: number | null) => void;
   // Copilot (任务自动化, 没有续写)
   /**
    * The single switch for AUTOMATIC Copilot. When on, background tasks run on
@@ -596,6 +619,9 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentEditMode: (m) => set({ agentEditMode: m }),
       agentAllowDangerousOperations: false,
       setAgentAllowDangerousOperations: (on) => set({ agentAllowDangerousOperations: on }),
+      agentTurnIterationLimit: AGENT_TURN_ITERATION_LIMIT_DEFAULT,
+      setAgentTurnIterationLimit: (limit) =>
+        set({ agentTurnIterationLimit: normalizeAgentTurnIterationLimit(limit) }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
 
@@ -675,7 +701,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 29,
+      version: 30,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -971,6 +997,12 @@ export const useSettingsStore = create<SettingsState>()(
           // keep the current light/dark palette until they choose a new accent.
           next.accentColor = null;
         }
+        if (version < 30) {
+          // Earlier builds ran the model-iteration loop unbounded. Give every
+          // existing installation the bounded default once; the author can
+          // explicitly choose unlimited again in Settings → Agent.
+          next.agentTurnIterationLimit = AGENT_TURN_ITERATION_LIMIT_DEFAULT;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -997,6 +1029,9 @@ export const useSettingsStore = create<SettingsState>()(
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         merged.agentAllowDangerousOperations =
           persistedSettings?.agentAllowDangerousOperations === true;
+        merged.agentTurnIterationLimit = normalizeAgentTurnIterationLimit(
+          merged.agentTurnIterationLimit,
+        );
         merged.accentColor = normalizeAccentColor(merged.accentColor);
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';

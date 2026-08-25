@@ -132,7 +132,8 @@ export interface CreateDriftingAgentProductCompositionOptions {
   getContext?: () => AgentToolContext | null;
   journal?: AgentJournalSink;
   authoredJournal?: AgentAuthoredJournal;
-  limits?: Partial<AgentRuntimeLimits>;
+  /** Static limits, or a live getter resolved at every turn start. */
+  limits?: Partial<AgentRuntimeLimits> | (() => Partial<AgentRuntimeLimits>);
   /** Test/DEV override; product defaults to the exported 200k window. */
   contextWindowTokens?: number;
   /** Test/DEV cap that can only make read-result paging happen earlier. */

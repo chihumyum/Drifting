@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_TOOL_SEARCH_DEFAULT,
+  AGENT_TURN_ITERATION_LIMIT_DEFAULT,
   migrateAgentToolSearch,
+  normalizeAgentTurnIterationLimit,
   normalizeAgentToolSearch,
   useSettingsStore,
 } from './settings-store';
@@ -24,6 +26,32 @@ describe('General Agent product settings', () => {
     useSettingsStore.getState().setAgentAllowDangerousOperations(true);
     expect(useSettingsStore.getState().agentAllowDangerousOperations).toBe(true);
     useSettingsStore.getState().setAgentAllowDangerousOperations(false);
+  });
+
+  it('starts fresh installations with a bounded per-turn iteration limit', () => {
+    expect(useSettingsStore.getInitialState().agentTurnIterationLimit).toBe(
+      AGENT_TURN_ITERATION_LIMIT_DEFAULT,
+    );
+  });
+
+  it('preserves an explicit unlimited choice and rejects invalid limits', () => {
+    expect(normalizeAgentTurnIterationLimit(null)).toBeNull();
+    expect(normalizeAgentTurnIterationLimit(100)).toBe(100);
+    expect(normalizeAgentTurnIterationLimit(0)).toBe(AGENT_TURN_ITERATION_LIMIT_DEFAULT);
+    expect(normalizeAgentTurnIterationLimit(-5)).toBe(AGENT_TURN_ITERATION_LIMIT_DEFAULT);
+    expect(normalizeAgentTurnIterationLimit(2.5)).toBe(AGENT_TURN_ITERATION_LIMIT_DEFAULT);
+    expect(normalizeAgentTurnIterationLimit('50')).toBe(AGENT_TURN_ITERATION_LIMIT_DEFAULT);
+    expect(normalizeAgentTurnIterationLimit(undefined)).toBe(AGENT_TURN_ITERATION_LIMIT_DEFAULT);
+    expect(normalizeAgentTurnIterationLimit(1_000_000)).toBe(1_000);
+  });
+
+  it('clamps the setter through the same normalization', () => {
+    useSettingsStore.getState().setAgentTurnIterationLimit(null);
+    expect(useSettingsStore.getState().agentTurnIterationLimit).toBeNull();
+    useSettingsStore.getState().setAgentTurnIterationLimit(-1);
+    expect(useSettingsStore.getState().agentTurnIterationLimit).toBe(
+      AGENT_TURN_ITERATION_LIMIT_DEFAULT,
+    );
   });
 
   it.each(['off', 'auto', 'on'] as const)('preserves an explicit persisted %s choice', (value) => {

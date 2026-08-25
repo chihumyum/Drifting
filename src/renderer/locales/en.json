@@ -927,6 +927,14 @@
         }
       }
     },
+    "agentLimits": {
+      "title": "Run limits",
+      "desc": "A hard brake on a single turn. When the cap is reached the turn ends as \"budget exceeded\" with durable progress and task plans preserved; send another message to let Agent continue. Changes apply from the next turn.",
+      "iterationLabel": "Max model iterations per turn",
+      "iterationOption": "{{value}} iterations",
+      "unlimited": "Unlimited",
+      "unlimitedHint": "With Unlimited, the only brake is stopping the turn yourself."
+    },
     "agentMemory": {
       "title": "Agent rules",
       "desc": "Long-term rules controlled by you. Active preferences, directives, and vetoes are injected verbatim into future chats; you can add or delete them at any time. Rules proposed by Agent require your approval, and the product adds no hidden writing policy.",

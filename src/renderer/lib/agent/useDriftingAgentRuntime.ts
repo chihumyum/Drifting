@@ -60,11 +60,19 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
   };
 }
 
+/** Live per-turn limits from Settings; resolved by the transport at turn start. */
+function readAgentRuntimeLimits(): { maxModelIterations: number | null } {
+  return {
+    maxModelIterations: useSettingsStore.getState().agentTurnIterationLimit,
+  };
+}
+
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createDriftingAgentProductComposition({
     authStatus: readLocalAgentAuthStatus,
     allowDangerousOperations: () =>
       useSettingsStore.getState().agentAllowDangerousOperations,
+    limits: readAgentRuntimeLimits,
     ...debugRuntimeOverrides,
   }).transport;
 }
@@ -73,6 +81,7 @@ const driftingProductComposition = createDriftingAgentProductComposition({
   authStatus: readLocalAgentAuthStatus,
   allowDangerousOperations: () =>
     useSettingsStore.getState().agentAllowDangerousOperations,
+  limits: readAgentRuntimeLimits,
   ...debugRuntimeOverrides,
 });
 

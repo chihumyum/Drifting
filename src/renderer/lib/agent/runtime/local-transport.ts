@@ -52,7 +52,8 @@ export interface LocalGeneralAgentTransportDependencies {
   permissionPolicy?: AgentToolPermissionPolicy;
   clock?: AgentClock;
   journal?: AgentJournalSink;
-  limits?: Partial<AgentRuntimeLimits>;
+  /** Static limits, or a live getter resolved at every turn start. */
+  limits?: Partial<AgentRuntimeLimits> | (() => Partial<AgentRuntimeLimits>);
   createId?: (kind: RuntimeIdKind) => string;
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
   persistence?: AgentTransportPersistence;
@@ -154,7 +155,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   readonly capability = { available: true, kind: 'local' as const };
 
   private readonly runtime: AgentRuntime;
-  private readonly limits?: Partial<AgentRuntimeLimits>;
+  private readonly limits?:
+    | Partial<AgentRuntimeLimits>
+    | (() => Partial<AgentRuntimeLimits>);
   private readonly createId: (kind: RuntimeIdKind) => string;
   private readonly resolveAuthStatus?: () => Promise<GeneralAgentAuthStatus>;
   private readonly supportsReasoning: boolean;
@@ -365,6 +368,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       terminalEvents = [];
     };
 
+    // Limits may be a live getter (for example the settings store) so a changed
+    // preference applies to the next turn without rebuilding the transport.
+    const turnLimits = typeof this.limits === 'function' ? this.limits() : this.limits;
     void this.runtime
       .runTurn({
         sessionId: session.id,
@@ -385,7 +391,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         toolSearch: input.toolSearch ?? 'off',
         toolAccess: input.toolAccess ?? 'read_write',
         history: session.history,
-        ...(this.limits ? { limits: this.limits } : {}),
+        ...(turnLimits ? { limits: turnLimits } : {}),
         signal: controller.signal,
         control,
         onEntry: publishProjected,

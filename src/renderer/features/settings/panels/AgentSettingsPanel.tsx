@@ -8,6 +8,10 @@ import type { AgentMemory, AgentMemoryKind } from '../../../domain/agent-memory'
 import { AgentExtensionsSettings } from '../../../components/agent/AgentExtensionsSettings';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import {
+  AGENT_TURN_ITERATION_LIMIT_OPTIONS,
+  useSettingsStore,
+} from '../../../store/settings-store';
+import {
   SettingsGroupHeader,
   SettingsPanelHeader,
   SettingsSectionHeader,
@@ -215,6 +219,52 @@ function AgentMemorySection({ open }: { open: boolean }) {
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Per-turn hard brake on the model-iteration loop. The value is read by the
+// transport at every turn start, so a change here applies to the next turn
+// without a reload. `null` keeps the historical unlimited behavior.
+function AgentLimitsSection() {
+  const { t } = useTranslation();
+  const limit = useSettingsStore((s) => s.agentTurnIterationLimit);
+  const setLimit = useSettingsStore((s) => s.setAgentTurnIterationLimit);
+  // A persisted custom value stays selectable even if it is not a preset.
+  const options =
+    limit !== null && !AGENT_TURN_ITERATION_LIMIT_OPTIONS.includes(limit)
+      ? [...AGENT_TURN_ITERATION_LIMIT_OPTIONS, limit].sort((a, b) => a - b)
+      : AGENT_TURN_ITERATION_LIMIT_OPTIONS;
+  return (
+    <div className="set-sec">
+      <SettingsSectionHeader title={t('settings.agentLimits.title')} hint="LIMITS" />
+      <p className="set-row__desc">{t('settings.agentLimits.desc')}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+        <span style={{ fontSize: 13, color: 'hsl(var(--ink-1))' }}>
+          {t('settings.agentLimits.iterationLabel')}
+        </span>
+        <select
+          className="set-input"
+          style={{ flexShrink: 0, width: 160 }}
+          value={limit === null ? 'unlimited' : String(limit)}
+          onChange={(e) =>
+            setLimit(e.target.value === 'unlimited' ? null : Number(e.target.value))
+          }
+          aria-label={t('settings.agentLimits.iterationLabel')}
+        >
+          {options.map((value) => (
+            <option key={value} value={String(value)}>
+              {t('settings.agentLimits.iterationOption', { value })}
+            </option>
+          ))}
+          <option value="unlimited">{t('settings.agentLimits.unlimited')}</option>
+        </select>
+      </div>
+      {limit === null && (
+        <p className="set-row__desc" style={{ marginTop: 8, color: 'hsl(var(--accent))' }}>
+          {t('settings.agentLimits.unlimitedHint')}
+        </p>
       )}
     </div>
   );
@@ -573,6 +623,8 @@ export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: 
           {t('settings.common.manageKeys')}
         </button>
       </div>
+
+      <AgentLimitsSection />
 
       <AgentMemorySection open={open} />
 

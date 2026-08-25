@@ -834,4 +834,56 @@ describe('LocalGeneralAgentTransport', () => {
     expect(driver.calls).toHaveLength(1);
     driver.assertExhausted();
   });
+
+  it('resolves live limits at turn start and ends an over-limit turn as budget_exceeded', async () => {
+    // One scripted round only: if the runtime asked for a second iteration the
+    // fake driver would fail the turn, so a budget_exceeded outcome proves the
+    // limit stopped the loop after exactly one iteration.
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'emit', event: { type: 'tool_call_start', callId: 'read-1', name: 'read' } },
+            { op: 'emit', event: { type: 'tool_args_delta', callId: 'read-1', delta: '{}' } },
+            { op: 'emit', event: { type: 'tool_call_end', callId: 'read-1' } },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+      ],
+    });
+    const tools: AgentToolRuntime = {
+      listDefinitions: () => [
+        {
+          name: 'read',
+          description: 'read',
+          inputSchema: { type: 'object' },
+          access: 'read',
+          validateInput: (value) => ({ ok: true, value }),
+        },
+      ],
+      execute: async () => ({ ok: true, data: 'ok' }),
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      tools,
+      limits: () => ({ maxModelIterations: 1 }),
+      createId: (kind) => `${kind}-limit`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
+
+    await transport.start({
+      prompt: 'loop forever',
+      turnId: 'turn-limit',
+      route: { kind: 'chat', projectId: 'project-1' },
+    });
+    await waitForDone(events, 1);
+
+    expect(
+      journal.find((entry) => entry.event.type === 'turn_finished')?.event,
+    ).toMatchObject({ outcome: 'budget_exceeded' });
+  });
 });
