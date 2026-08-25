@@ -84,6 +84,27 @@ one of the following with an evidence-backed rationale:
 
 Do not dismiss the alert merely to make the security dashboard show zero.
 
+### 2026-08-26 decision: option 2 — accepted transitive risk, alert stays open
+
+Evidence gathered against the current lockfile (`tauri 2.11.5`, `gtk 0.18.2`,
+`glib 0.18.5`):
+
+- `cargo tree -i glib` on the host target prints nothing; the crate only
+  appears under `--target all`, through `glib -> atk -> gtk -> muda -> tauri`.
+  macOS, iOS, and Android binaries never compile the vulnerable code, and those
+  are the only release-supported targets (`KNOWN_ISSUES.md`).
+- Option 1 is not currently possible: the advisory is fixed in `glib >= 0.20`,
+  but the `gtk 0.18` line (the final GTK 3 release of gtk-rs) requires
+  `glib ^0.18`, and Tauri 2's Linux backend is pinned to GTK 3. No compatible
+  upstream fix exists to upgrade to.
+- The unsoundness is in `glib::VariantStrIter`; the application has no direct
+  call, and the alert therefore describes a Linux-only, not-attacker-reachable
+  transitive surface for builds this project does not ship.
+
+The alert deliberately remains open on the dashboard as a tracking signal.
+Revisit triggers: before declaring any Linux build release-supported, or when
+the Tauri Linux dependency line moves off `gtk 0.18`/`glib 0.18`.
+
 ## 2026-08-20 Alpha release preparation
 
 The working Alpha implementation adds an exact-tag release check, SHA-pinned

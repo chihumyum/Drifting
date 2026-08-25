@@ -51,6 +51,19 @@ requireCondition(
   !JSON.stringify(tauriConfig).includes('developmentTeam'),
   'public Tauri config must not contain an Apple development team',
 );
+const appleXcodeProject = readFileSync(
+  'src-tauri/gen/apple/drifting.xcodeproj/project.pbxproj',
+  'utf8',
+);
+const appleSigningConfig = readFileSync('src-tauri/gen/apple/GoogleOAuth.xcconfig', 'utf8');
+requireCondition(
+  !/DEVELOPMENT_TEAM\s*=\s*"?[A-Za-z0-9]/u.test(appleXcodeProject),
+  'public Xcode project must not hardcode an Apple development team',
+);
+requireCondition(
+  /^DEVELOPMENT_TEAM =$/mu.test(appleSigningConfig),
+  'tracked signing xcconfig must keep an empty fail-closed DEVELOPMENT_TEAM default',
+);
 requireCondition(
   !tauriConfig.app.security.csp.includes('api.drifting.cc'),
   'public production CSP must not allow the Drifting hosted-service origin',

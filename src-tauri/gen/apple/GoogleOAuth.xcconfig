@@ -1,8 +1,13 @@
-// Public OAuth client configuration. Keep the checked-in defaults empty so an
-// unconfigured binary fails closed. CI/release builds pass these as xcodebuild
-// settings; Xcode exports them to the Rust build script as well.
+// Public OAuth client and signing configuration. Keep the checked-in defaults
+// empty so an unconfigured binary fails closed and the public checkout carries
+// no maintainer identity. CI/release builds pass these as xcodebuild settings;
+// Xcode exports them to the Rust build script as well.
 DRIFTING_GOOGLE_IOS_CLIENT_ID =
 DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID =
+
+// Apple Developer team for device signing. Simulator builds work without it;
+// device builds fail closed until the local include or CI supplies a value.
+DEVELOPMENT_TEAM =
 
 // The mobile launcher writes this ignored, owner-readable file from the root
 // .env.local. An absent file deliberately leaves the defaults above empty.

@@ -31,6 +31,11 @@ Guidance for coding agents working in this standalone Drifting client repository
   `0.1.x` database without asking the author to reset it.
 - Published migrations are immutable. Add a new ordered migration; never
   rewrite a released migration or silently discard unknown data.
+- As of 2026-08-26 the baseline is in force for daily use:
+  `drizzle/0000_local_first_baseline.sql` is treated as published and must never
+  be edited again. Every schema change from now on appends an ordered migration
+  and passes the shadow-migration safety-snapshot path, so the maintainer's own
+  working databases are inside the compatibility population.
 - Development databases created before `0.1.0-alpha.1` remain outside the public
   compatibility population. Do not add fallback reads, dual writes, legacy enum
   values, dormant jobs, or adapters solely for retired R2, hosted-service, or
