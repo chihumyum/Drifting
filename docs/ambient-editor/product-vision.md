@@ -2,7 +2,8 @@
 
 Status: **normative target experience; not implemented**
 
-Updated: 2026-08-11
+Updated: 2026-08-26 (rules-first revision: author rules drive Shadow; Canon is
+optional evidence, never a prerequisite)
 
 ## Vision
 
@@ -70,10 +71,28 @@ Examples include:
 - “Follow every promise associated with the red notebook through the book.”
 - “Read the middle third for repeated emotional beats, but do not optimize for
   conventional pace.”
+- “Never use vocabulary that postdates the 1930s setting.”
+- “Keep every chapter in this act under six thousand characters.”
 
 The author can inspect what a Lens reads, how far it may look, and when it may
 run. A compiled Lens may operationalize scope and retrieval but cannot rewrite
 the author's principle.
+
+**The author's rules are the primary driver of everything Shadow reads.** A
+Lens does not require registered elements, project facts, or any curated
+setting material: most of the examples above read only the manuscript. Canon
+is one optional evidence source a Lens may ask for, and a sparse or casually
+maintained Canon degrades only the Lenses that ask for it — it never disables
+Shadow, silently drops an observation, or turns Canon curation into homework
+the author must finish before their rules start working. Rules that name
+people, objects, or places the author never registered as elements are still
+first-class: Shadow follows them through the prose itself.
+
+A rule whose meaning is fully mechanical — banned vocabulary, length bounds, a
+required appearance — may compile to a deterministic check that runs locally
+without a provider call. Its observations enter the same Concern lifecycle
+with the same evidence obligations; determinism buys immediacy and zero cost,
+never a pass/fail gate.
 
 ### 5. Quiet by default
 
@@ -244,6 +263,8 @@ Success is measured primarily by author outcomes:
   writing;
 - authors trust that Shadow cannot edit their work;
 - Lenses and Precedents feel like authored editorial taste, not prompt settings;
+- Lenses stay useful on projects with little or no curated Canon, and rules
+  about unregistered people, objects, or places work without element setup;
 - turning an observation into action is explicit and reversible.
 
 Citation validity, stale-result rejection, duplicate rate, budget enforcement,

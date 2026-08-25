@@ -2,7 +2,7 @@
 
 Status: **target design frozen; implementation not started**
 
-Updated: 2026-08-11
+Updated: 2026-08-26 (rules-first revision, see “Design revisions”)
 
 Shadow Ambient Editor is the approved target design for project-wide,
 asynchronous editorial awareness in Drifting. It replaces neither the author
@@ -70,6 +70,11 @@ and the generated capability inventory. This design does not override either.
 - Shadow never changes prose, Canon, `element_patch`, chapter status, or author
   decisions. Any General Agent execution requires a separate explicit author
   action.
+- Author-defined Editorial Lenses are the primary driver of Shadow's reading.
+  Canon is an optional evidence source a Lens may ask for; a sparse or
+  casually maintained Canon degrades only the Lenses that ask for it and never
+  disables Shadow or blocks a rule about unregistered people, objects, or
+  places.
 - “Works while I am away” initially means while the app process remains alive.
   Suspend, renderer restart, or app exit preserves Review Debt but does not
   preserve or replay an in-flight provider request.
@@ -87,6 +92,32 @@ and the generated capability inventory. This design does not override either.
 | Author feedback | General Agent memory and review decisions | Exact dismissal plus author-confirmed editorial Precedents |
 | Copilot handoff | Mounted-editor local context | Shared projection inputs and concise open-Concern context |
 | After app exit | No resumable provider stack | Debt resumes later; provider work restarts from a fresh checked snapshot |
+
+## Design revisions
+
+### 2026-08-26 — rules-first re-sequencing
+
+The frozen design remains authoritative, with one recorded course correction
+decided before implementation began: the author's own rules, not Canon, drive
+the first shipped vertical.
+
+- The first author-visible Lens family is a **span-scoped author-rule Lens**
+  that reads changed prose spans directly (dirty detection via source
+  fingerprints and span digests). It requires zero Canon and zero registered
+  elements.
+- Typed Narrative Claim families (starting with character knowledge) move
+  later in the delivery sequence. They remain the design's precision layer for
+  cross-chapter dependency invalidation, not a prerequisite for Shadow to be
+  useful.
+- `LensPlanV1` gains a `deterministic` strategy for rules that compile to
+  local checks (banned vocabulary, length bounds, required appearances) with
+  no provider call.
+- Typed entity references gain a textual-entity fallback so a Concern can name
+  a person, object, or place the author never registered as an element.
+
+`product-vision.md`, `technical-architecture.md`, and
+`delivery-and-acceptance.md` carry the corresponding normative edits dated
+2026-08-26.
 
 ## Machine-checked design markers
 

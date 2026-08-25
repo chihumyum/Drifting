@@ -2,7 +2,9 @@
 
 Status: **normative delivery plan; implementation not started**
 
-Updated: 2026-08-11
+Updated: 2026-08-26 (rules-first revision: the first vertical ships the
+canon-free author-rule span Lens; typed Claim families move to Phase 5 — see
+`README.md` “Design revisions”)
 
 This plan turns the target architecture into independently verifiable product
 increments. A phase is complete only when implementation, deterministic tests,
@@ -85,10 +87,13 @@ provider route, database table, settings entry, or UI.
 
 ### First supported projection
 
-Start with one high-precision Claim family: explicit character knowledge state
-derived from live Yjs and relevant Canon/patch sources. Implement the generic
-source/fingerprint protocol, but avoid broad Claim extraction until the narrow
-path proves freshness and evidence behavior.
+Start with the canon-free minimum backbone: source fingerprints plus the Span
+Digest hierarchy over live Yjs prose. This is sufficient to drive
+span-subscribed author-rule Lenses and requires no element, Canon, or patch
+input. Implement the generic source/fingerprint protocol for every source
+kind, but defer typed Claim extraction entirely — the first Claim family
+(explicit character knowledge) now lands in Phase 5 once the span path has
+proven freshness and evidence behavior in production.
 
 ### Required behavior
 
@@ -161,10 +166,14 @@ This is the first author-visible milestone.
 
 ### Narrow product slice
 
-Ship one Lens family: explicit character knowledge boundary against manuscript
-evidence and effective Canon. It is selected because its subjects, temporal
-scope, evidence, and contradiction/ambiguity modes can be tested more precisely
-than pacing or style.
+Ship one Lens family: the **span-scoped author-rule Lens**. The author writes
+a reading rule in natural language; the compiled plan subscribes to span-level
+change in a bounded scope and reconciles by reading the changed prose (plus
+adjacent digests) directly. It is selected because it requires zero Canon and
+zero registered elements — the author's rules work on day one of any project —
+and because its dirty detection, evidence, and dedup behavior can be tested
+without a semantic extraction layer. Rules that compile to the `deterministic`
+strategy ship in the same slice as the zero-cost lane of the same family.
 
 ### Modules
 
@@ -269,6 +278,9 @@ Credentials and manuscript text must not appear in checked-in artifacts.
 
 - complete block-section -> chapter -> act/storyline -> book Span Digest tree;
 - deep-idle map/reduce reconciliation;
+- the first typed Claim projection (explicit character knowledge state,
+  deferred here from Phase 1 by the 2026-08-26 rules-first revision) and its
+  knowledge-boundary Lens family;
 - additional Lens families introduced one at a time:
   - relationship/character arc;
   - setup and payoff;

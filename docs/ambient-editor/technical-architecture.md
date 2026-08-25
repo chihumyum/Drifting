@@ -2,7 +2,9 @@
 
 Status: **normative target architecture; not implemented**
 
-Updated: 2026-08-11
+Updated: 2026-08-26 (rules-first revision: deterministic Lens strategy,
+textual entity references, Claims as a later precision layer — see
+`README.md` “Design revisions”)
 
 ## 1. Decision summary
 
@@ -271,6 +273,19 @@ semantic proposition. `claimInstanceKey` adds the interval and evidence basis.
 This lets a time shift become `changed` rather than unrelated `removed` and
 `added` claims.
 
+`TypedEntityRef` supports two binding levels: a reference bound to a
+registered element, and a **textual entity** — a normalized name resolved only
+against quoted manuscript evidence. Textual entities let Claims and Concerns
+name people, objects, and places the author never registered as elements; a
+later element registration may upgrade the binding but is never required.
+Sparse Canon therefore narrows evidence, not eligibility.
+
+The Claim projection is the design's precision layer, not its minimum
+backbone. Source fingerprints plus Span Digests are sufficient to drive
+span-subscribed Lenses (including every `deterministic` and `span_synthesis`
+rule); Claim extraction is introduced per Claim family where a Lens family
+genuinely needs cross-chapter dependency precision.
+
 Narrative position stores stable chapter/block anchors plus the order-manifest
 hash. Floating `bookOrder` values may aid sorting but cannot be the sole
 temporal identity.
@@ -357,8 +372,10 @@ interface EditorialLensRevision {
 
 `LensPlanV1` explicitly defines:
 
-- `strategy`: `state_reconciliation`, `span_synthesis`, or
-  `global_reconciliation`;
+- `strategy`: `state_reconciliation`, `span_synthesis`,
+  `global_reconciliation`, or `deterministic` (a fully mechanical rule —
+  banned vocabulary, length bounds, required appearances — that runs locally
+  with no provider call and submits through the same reconciliation contract);
 - subscribed Claim kinds, entity kinds, Canon fields, and delta kinds;
 - narrative/book-order scope expansion rules;
 - raw-prose and digest retrieval policy;
@@ -609,7 +626,9 @@ Before any Concern mutation, the reconciler verifies:
 1. project, debt, lease, and debt generation still match;
 2. Lens revision and active Precedent revisions still match;
 3. every consulted source hash still matches the frozen manifest;
-4. referenced chapter, block, entity, patch, Claim, and Concern exist;
+4. referenced chapters, blocks, patches, Claims, and Concerns exist;
+   element-bound entity references resolve to live elements, and textual
+   entity references resolve against the captured evidence quotes;
 5. exact quotes resolve to the captured source and anchors are valid;
 6. the proposal stays inside compiled Lens scope;
 7. minimum evidence and output cardinality constraints hold;
