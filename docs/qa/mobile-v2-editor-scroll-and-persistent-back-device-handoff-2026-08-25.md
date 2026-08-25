@@ -1,6 +1,9 @@
 # Mobile V2 editor scroll range and persistent Back — device handoff — 2026-08-25
 
-Status: **corrective implementation complete; physical-device acceptance is user-owned and pending**
+Status: **closed 2026-08-26 — the full ten-step matrix passed on the iOS
+Simulator using native touch injection and the real software IME, executed by
+delegation from the maintainer; see the acceptance record at the end. Physical
+hardware timing and performance remain outside this record's scope.**
 
 ## Evidence boundary
 
@@ -73,3 +76,37 @@ the folio. Persisted paper scroll memory excludes this keyboard-only distance.
 No native runtime or device artifacts are created. Any detached source-only
 validation worktree is removed after repository gates; existing dependency and
 native caches remain untouched.
+
+## Acceptance record — 2026-08-26
+
+Environment: iOS Simulator (iPhone 17 Pro, iOS 26.5), HID-level native touch
+injection plus the real software IME; DOM and viewport geometry read through
+the frontend-debug bridge. All ten matrix rows passed:
+
+1. Caret deep in a ~1,200-character chapter with the keyboard open panned the
+   visual viewport (offsetTop 229).
+2. Real swipes to the document start exposed the chapter/word-count folio
+   fully on screen (screenshot evidence; folio strip visible below the status
+   bar with the keyboard still open).
+3. Typing continued at the caret after round-trip scrolling; neither caret nor
+   keyboard was lost.
+4. Edit mode showed the black Format label and the normal paper entrances with
+   formatting collapsed; read mode showed no Format label.
+5. Tapping Format expanded the nine-action toolbar, removed the label, and
+   kept the editor focused.
+6. First Back collapsed only formatting; caret and keyboard remained, and a
+   capture-phase listener recorded zero synthetic Escape events.
+7. Second Back ended editing into the read paper; Back from the read paper
+   navigated to Project Home.
+8. No separate keyboard-dismiss chevron exists in the bar DOM or on screen.
+9. The leftmost Back exited Search before any paper or Project navigation from
+   both read-origin and edit-origin Search.
+10. Search from read and from edit kept the read presentation with no jump or
+    caret steal, and both document boundaries stayed reachable with the
+    keyboard open (last block bottom at y=202 within the 539px visual band;
+    folio at y=76-104 at the top boundary).
+
+Scope notes: not physical hardware; injected query text is ASCII-only, so
+continuous Chinese IME composition is not covered by this record; two vite
+reloads from concurrent workspace edits invalidated two intermediate readings
+and the affected steps were re-run cleanly.

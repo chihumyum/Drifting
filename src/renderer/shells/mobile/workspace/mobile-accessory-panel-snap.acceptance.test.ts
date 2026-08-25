@@ -92,6 +92,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     );
 
     expect(evidence).toContain('No Simulator, emulator, native build');
-    expect(evidence).toContain('physical-device acceptance is user-owned and pending');
+    expect(evidence).toContain('closed 2026-08-26');
+    expect(evidence).toContain('## Acceptance record — 2026-08-26');
   });
 });

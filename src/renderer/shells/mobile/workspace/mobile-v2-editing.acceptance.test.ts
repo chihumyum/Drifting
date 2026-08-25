@@ -159,7 +159,7 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
       'utf8',
     );
 
-    expect(evidence).toContain('physical-device acceptance is user-owned and pending');
+    expect(evidence).toContain('closed 2026-08-26');
     expect(evidence).toContain('chapter/storyline/word-count folio');
     expect(evidence).toContain('No Simulator, emulator, native build');
   });
