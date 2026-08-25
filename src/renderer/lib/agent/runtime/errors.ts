@@ -22,13 +22,18 @@ export class AgentRuntimeAbortError extends Error {
  * Raw HTTP bodies, headers, URLs, and credentials must remain adapter-local.
  */
 export class AgentModelDriverError extends Error {
+  /** Optional provider `Retry-After` hint consumed by the shared retry boundary. */
+  readonly retryAfterMs?: number;
+
   constructor(
     public readonly publicMessage: string,
     /** True only when no tool/effect has escaped and a fresh model sample is safe. */
     public readonly retryable = false,
+    options?: { retryAfterMs?: number },
   ) {
     super(publicMessage);
     this.name = 'AgentModelDriverError';
+    if (options?.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs;
   }
 }
 

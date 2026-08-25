@@ -53,6 +53,56 @@ function sse(events: readonly Record<string, unknown>[]): string {
 }
 
 describe('OpenAI Responses Agent driver', () => {
+  it('resamples a tool-capable attempt after a rate limit and buffers the stream', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response('rate limited', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        });
+      }
+      return new Response(
+        sse([
+          {
+            type: 'response.completed',
+            response: {
+              status: 'completed',
+              output: [],
+              usage: { input_tokens: 1, output_tokens: 1 },
+            },
+          },
+        ]),
+        { status: 200 },
+      );
+    });
+    const driver = new OpenAIResponsesAgentDriver({
+      apiKey: 'test',
+      fetch: fetchMock,
+      providerAttemptRetry: { maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, jitter: false },
+    });
+
+    const events = await collect(driver, request({ reasoning: { enabled: false } }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
+  });
+
+  it('never resamples a tool-free synthesis attempt', async () => {
+    const fetchMock = vi.fn(async () => new Response('rate limited', { status: 429 }));
+    const driver = new OpenAIResponsesAgentDriver({
+      apiKey: 'test',
+      fetch: fetchMock,
+      providerAttemptRetry: { maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, jitter: false },
+    });
+
+    await expect(
+      collect(driver, request({ tools: [], reasoning: { enabled: false } })),
+    ).rejects.toThrow('rate limit');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('maps a forced completion tool to Responses tool_choice', async () => {
     let body: Record<string, unknown> | undefined;
     const driver = new OpenAIResponsesAgentDriver({

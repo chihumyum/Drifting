@@ -1,8 +1,14 @@
+import type { RetryConfig } from '../../../ai/client/retry';
 import { AgentModelDriverError } from '../errors';
 import {
   serializeAgentContextNoteBudgetPayload,
   serializeAgentContextSummaryProviderPayload,
 } from '../context-planner';
+import {
+  DEFAULT_PROVIDER_ATTEMPT_RETRY,
+  retryAfterMsFromHeader,
+  streamProviderAttemptWithRetry,
+} from './provider-attempt-retry';
 import type {
   AgentModelDriver,
   AgentModelMessage,
@@ -26,6 +32,8 @@ export interface OpenAIResponsesAgentDriverOptions {
   endpoint?: string;
   fetch?: FetchLike;
   transport?: OpenAIResponsesTransport;
+  /** Bounded pre-effect retry lease shared with every Agent driver. */
+  providerAttemptRetry?: RetryConfig;
 }
 
 export interface OpenAIResponsesTransport {
@@ -53,6 +61,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
   private readonly transport?: OpenAIResponsesTransport;
+  private readonly providerAttemptRetry: RetryConfig;
   private readonly replayByCallId = new Map<string, readonly ResponsesItem[]>();
   private readonly nonReasoningCallIds = new Set<string>();
 
@@ -64,9 +73,32 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     this.endpoint = options.endpoint ?? 'https://api.openai.com/v1/responses';
     this.fetchImpl = options.fetch ?? fetch;
     this.transport = options.transport;
+    this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
+    if (request.tools.length === 0) {
+      // Tool-free synthesis keeps true progressive text streaming. Once
+      // visible output escapes, automatically replaying it would duplicate
+      // author-facing prose, so this path intentionally has no retry lease.
+      yield* this.streamAttempt(request);
+      return;
+    }
+    // A tool-capable provider attempt is transactional: the complete stream is
+    // buffered and validated before any Agent event is published, so transient
+    // transport failures, rate limits, and invalid samples are safely
+    // resampleable — no tool call, usage, or UI activity has escaped yet.
+    const events = await streamProviderAttemptWithRetry(
+      () => this.streamAttempt(request),
+      this.providerAttemptRetry,
+      request.signal,
+    );
+    for (const event of events) yield event;
+  }
+
+  private async *streamAttempt(
+    request: AgentModelRequest,
+  ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
     const reasoningProfile = resolveAgentProviderReasoningProfile('openai', model);
@@ -147,7 +179,9 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       if (terminalSeen) throw invalidStream();
       const type = stringField(event, 'type');
       if (type === 'error' || type === 'response.failed') {
-        throw new AgentModelDriverError('OpenAI response stream returned an error.');
+        // Mid-stream provider failures surface here; under the buffered
+        // tool-attempt lease a fresh sample is safe.
+        throw new AgentModelDriverError('OpenAI response stream returned an error.', true);
       }
       if (type === 'response.output_text.delta' || type === 'response.refusal.delta') {
         const delta = typeof event.delta === 'string' ? event.delta : '';
@@ -636,7 +670,15 @@ function responseError(response: Response): AgentModelDriverError {
     return new AgentModelDriverError(`OpenAI authentication or project access failed.${suffix}`);
   }
   if (status === 429) {
-    return new AgentModelDriverError(`OpenAI rate limit reached.${suffix}`, true);
+    return new AgentModelDriverError(`OpenAI rate limit reached.${suffix}`, true, {
+      retryAfterMs: retryAfterMsFromHeader(response.headers.get('retry-after')),
+    });
+  }
+  if (status >= 500) {
+    return new AgentModelDriverError(
+      `OpenAI service is temporarily unavailable (HTTP ${status}).${suffix}`,
+      true,
+    );
   }
   return new AgentModelDriverError(`OpenAI request failed with HTTP ${status}.${suffix}`);
 }
@@ -683,7 +725,9 @@ function invalidPlannedContext(): never {
 }
 
 function invalidStream(): AgentModelDriverError {
-  return new AgentModelDriverError('OpenAI returned an invalid Responses stream.');
+  // Invalid samples are retryable under the buffered tool-attempt lease,
+  // matching the OpenAI-compatible driver's parse-retry policy.
+  return new AgentModelDriverError('OpenAI returned an invalid Responses stream.', true);
 }
 
 function abortError(): AgentModelDriverError {

@@ -1,8 +1,14 @@
+import type { RetryConfig } from '../../../ai/client/retry';
 import { AgentModelDriverError } from '../errors';
 import {
   serializeAgentContextNoteBudgetPayload,
   serializeAgentContextSummaryProviderPayload,
 } from '../context-planner';
+import {
+  DEFAULT_PROVIDER_ATTEMPT_RETRY,
+  retryAfterMsFromHeader,
+  streamProviderAttemptWithRetry,
+} from './provider-attempt-retry';
 import type {
   AgentModelDriver,
   AgentModelMessage,
@@ -23,6 +29,8 @@ export interface AnthropicMessagesAgentDriverOptions {
   defaultModel?: string;
   endpoint?: string;
   fetch?: FetchLike;
+  /** Bounded pre-effect retry lease shared with every Agent driver. */
+  providerAttemptRetry?: RetryConfig;
 }
 
 interface AnthropicBlockState {
@@ -49,6 +57,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   private readonly defaultModel: string;
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
+  private readonly providerAttemptRetry: RetryConfig;
   private readonly reasoningReplayByCallId = new Map<
     string,
     readonly AnthropicReasoningReplayBlock[]
@@ -61,9 +70,32 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     this.defaultModel = options.defaultModel ?? 'claude-sonnet-5';
     this.endpoint = options.endpoint ?? 'https://api.anthropic.com/v1/messages';
     this.fetchImpl = options.fetch ?? fetch;
+    this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
+    if (request.tools.length === 0) {
+      // Tool-free synthesis keeps true progressive text streaming. Once
+      // visible output escapes, automatically replaying it would duplicate
+      // author-facing prose, so this path intentionally has no retry lease.
+      yield* this.streamAttempt(request);
+      return;
+    }
+    // A tool-capable provider attempt is transactional: the complete stream is
+    // buffered and validated before any Agent event is published, so transient
+    // transport failures, rate limits, and invalid samples are safely
+    // resampleable — no tool call, usage, or UI activity has escaped yet.
+    const events = await streamProviderAttemptWithRetry(
+      () => this.streamAttempt(request),
+      this.providerAttemptRetry,
+      request.signal,
+    );
+    for (const event of events) yield event;
+  }
+
+  private async *streamAttempt(
+    request: AgentModelRequest,
+  ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
     const reasoningProfile = resolveAgentProviderReasoningProfile(
@@ -137,14 +169,19 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     } catch (error) {
       if (request.signal.aborted) throw abortError();
       void error;
-      throw new AgentModelDriverError('Anthropic request could not be started.');
+      throw new AgentModelDriverError('Anthropic request could not be started.', true);
     }
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         throw new AgentModelDriverError('Anthropic authentication failed.');
       }
       if (response.status === 429) {
-        throw new AgentModelDriverError('Anthropic rate limit reached.');
+        throw new AgentModelDriverError('Anthropic rate limit reached.', true, {
+          retryAfterMs: retryAfterMsFromHeader(response.headers.get('retry-after')),
+        });
+      }
+      if (response.status >= 500) {
+        throw new AgentModelDriverError('Anthropic service is temporarily unavailable.', true);
       }
       throw new AgentModelDriverError('Anthropic request failed.');
     }
@@ -164,7 +201,9 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
       const type = stringField(event, 'type');
       if (type === 'ping') continue;
       if (type === 'error') {
-        throw new AgentModelDriverError('Anthropic stream returned an error.');
+        // Mid-stream provider errors (for example overloaded) surface here;
+        // under the buffered tool-attempt lease a fresh sample is safe.
+        throw new AgentModelDriverError('Anthropic stream returned an error.', true);
       }
       if (type === 'message_start') {
         if (messageStarted) throw invalidStream();
@@ -479,7 +518,14 @@ async function* parseSseJson(
   try {
     while (true) {
       if (signal.aborted) throw abortError();
-      const next = await reader.read();
+      let next: ReadableStreamReadResult<Uint8Array>;
+      try {
+        next = await reader.read();
+      } catch (error) {
+        if (signal.aborted) throw abortError();
+        void error;
+        throw new AgentModelDriverError('Anthropic stream was interrupted.', true);
+      }
       if (next.done) break;
       totalBytes += next.value.byteLength;
       if (totalBytes > 32 * 1024 * 1024) {
@@ -562,7 +608,9 @@ function optionalNonNegativeInteger(value: unknown): number {
 }
 
 function invalidStream(): AgentModelDriverError {
-  return new AgentModelDriverError('Anthropic returned an invalid model stream.');
+  // Invalid samples are retryable under the buffered tool-attempt lease,
+  // matching the OpenAI-compatible driver's parse-retry policy.
+  return new AgentModelDriverError('Anthropic returned an invalid model stream.', true);
 }
 
 function abortError(): AgentModelDriverError {

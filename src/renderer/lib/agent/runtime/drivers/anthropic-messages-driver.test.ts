@@ -52,6 +52,11 @@ function sse(events: readonly Record<string, unknown>[]): string {
   return events.map((event) => `event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`).join('');
 }
 
+/** Deterministic-failure tests opt out of the shared retry lease for speed. */
+const NO_RETRY = { maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, jitter: false };
+/** Retry tests keep multiple attempts but skip real backoff delays. */
+const FAST_RETRY = { maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, jitter: false };
+
 describe('Anthropic Messages Agent driver', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -208,6 +213,7 @@ describe('Anthropic Messages Agent driver', () => {
   it('fails closed when the stream omits terminal accounting', async () => {
     const driver = new AnthropicMessagesAgentDriver({
       apiKey: 'test',
+      providerAttemptRetry: NO_RETRY,
       fetch: async () =>
         new Response(
           sse([
@@ -223,6 +229,7 @@ describe('Anthropic Messages Agent driver', () => {
   it('rejects malformed JSON and never leaks an authentication response body', async () => {
     const malformed = new AnthropicMessagesAgentDriver({
       apiKey: 'test',
+      providerAttemptRetry: NO_RETRY,
       fetch: async () => new Response('data: {bad}\n\n', { status: 200 }),
     });
     await expect(collect(malformed)).rejects.toThrow('invalid model stream');
@@ -242,6 +249,98 @@ describe('Anthropic Messages Agent driver', () => {
     expect((caught as Error).message).toBe('Anthropic authentication failed.');
     expect((caught as Error).message).not.toContain('secret-key');
     expect((caught as Error).message).not.toContain('internal.invalid');
+  });
+
+  it('resamples a tool-capable attempt after a rate limit and buffers the stream', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response('rate limited', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        });
+      }
+      return new Response(
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 5 } } },
+          {
+            type: 'content_block_start',
+            index: 0,
+            content_block: { type: 'tool_use', id: 'tool-1', name: 'search', input: {} },
+          },
+          {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: '{"query":"rain"}' },
+          },
+          { type: 'content_block_stop', index: 0 },
+          {
+            type: 'message_delta',
+            delta: { stop_reason: 'tool_use' },
+            usage: { output_tokens: 3 },
+          },
+          { type: 'message_stop' },
+        ]),
+        { status: 200 },
+      );
+    });
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      providerAttemptRetry: FAST_RETRY,
+      fetch: fetchMock,
+    });
+
+    const events = await collect(driver);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(events).toContainEqual({ type: 'tool_call_start', callId: 'tool-1', name: 'search' });
+    expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'tool_use' });
+  });
+
+  it('retries an overloaded service response for tool-capable attempts', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      if (call === 1) return new Response('overloaded', { status: 529 });
+      return new Response(
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+          {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn' },
+            usage: { output_tokens: 1 },
+          },
+          { type: 'message_stop' },
+        ]),
+        { status: 200 },
+      );
+    });
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      providerAttemptRetry: FAST_RETRY,
+      fetch: fetchMock,
+    });
+
+    await collect(driver);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('never resamples a tool-free synthesis attempt', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response('rate limited', { status: 429 }),
+    );
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      providerAttemptRetry: FAST_RETRY,
+      fetch: fetchMock,
+    });
+
+    await expect(collect(driver, request({ tools: [] }))).rejects.toThrow(
+      'rate limit',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('honors cancellation before network access', async () => {

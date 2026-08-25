@@ -23,6 +23,17 @@ export const DEFAULT_RETRY: RetryConfig = {
   jitter: true,
 };
 
+/**
+ * A provider `Retry-After` hint on the error wins over shorter computed
+ * backoff, capped so a hostile header cannot park a turn for minutes.
+ */
+const MAX_RETRY_AFTER_HINT_MS = 60_000;
+
+function retryAfterHintMs(err: unknown): number | null {
+  const value = (err as { retryAfterMs?: unknown } | null | undefined)?.retryAfterMs;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 export async function withRetry<T>(
   task: () => Promise<T>,
   shouldRetry: (err: unknown) => boolean,
@@ -39,7 +50,10 @@ export async function withRetry<T>(
       const lastAttempt = attempt === config.maxAttempts - 1;
       if (lastAttempt || !shouldRetry(err)) throw err;
       const exp = Math.min(config.baseDelayMs * 2 ** attempt, config.maxDelayMs);
-      const delay = config.jitter ? exp * (0.5 + Math.random() * 0.5) : exp;
+      const backoff = config.jitter ? exp * (0.5 + Math.random() * 0.5) : exp;
+      const hinted = retryAfterHintMs(err);
+      const delay =
+        hinted === null ? backoff : Math.max(backoff, Math.min(hinted, MAX_RETRY_AFTER_HINT_MS));
       await sleepAbortable(delay, signal);
     }
   }

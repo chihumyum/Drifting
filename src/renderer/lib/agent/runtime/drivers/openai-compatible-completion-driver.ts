@@ -15,7 +15,11 @@ import {
   isMissingReasoningToolCallError,
   type LLMClient,
 } from '../../../ai/client/llm-client';
-import { DEFAULT_RETRY, withRetry, type RetryConfig } from '../../../ai/client/retry';
+import { withRetry, type RetryConfig } from '../../../ai/client/retry';
+import {
+  DEFAULT_PROVIDER_ATTEMPT_RETRY,
+  isRetryableProviderAttemptError,
+} from './provider-attempt-retry';
 import {
   AIError,
   type AICompletionChunk,
@@ -63,12 +67,6 @@ export interface OpenAICompatibleCompletionDriverOptions {
 
 const DEFAULT_DRIVER_ID = 'openai-compatible-completion';
 const DEFAULT_FEATURE = 'general-agent';
-const DEFAULT_PROVIDER_ATTEMPT_RETRY: RetryConfig = {
-  ...DEFAULT_RETRY,
-  maxAttempts: 6,
-  baseDelayMs: 250,
-  maxDelayMs: 4_000,
-};
 
 type ProviderSampleRecovery =
   | {
@@ -900,13 +898,6 @@ function mergeProviderSampleRecovery(
     return previous;
   }
   return next;
-}
-
-function isRetryableProviderAttemptError(error: unknown): boolean {
-  if (error instanceof AIError) {
-    return error.kind === 'parse' || error.kind === 'network' || error.kind === 'rate-limit';
-  }
-  return error instanceof AgentModelDriverError && error.retryable;
 }
 
 function hasStreamPayload(chunk: AICompletionChunk): boolean {
