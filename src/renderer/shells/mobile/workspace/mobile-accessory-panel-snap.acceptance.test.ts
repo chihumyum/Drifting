@@ -50,7 +50,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
       'onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop())',
     );
     expect(bar).toMatch(
-      /data-debug-id="mobile-open-search"[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\)/u,
+      /data-debug-id="mobile-open-search"[\s\S]*?onPointerDown=\{[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\);[\s\S]*?onMouseDown=\{[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\);[\s\S]*?onClick=\{onOpenSearch\}/u,
     );
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");

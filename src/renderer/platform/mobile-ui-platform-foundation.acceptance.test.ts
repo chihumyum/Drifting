@@ -62,4 +62,14 @@ describe('Mobile V2 M1 platform and appearance foundation', () => {
     expect(css).toContain('--mobile-v2-drag-ghost:');
     expect(css.match(/--mobile-v2-backdrop:/g)).toHaveLength(2);
   });
+
+  it('consumes V2 color roles as complete colors without re-wrapping them', () => {
+    const workspace = source('src/styles/mobile-workspace.css');
+
+    // The --mobile-v2-* roles are full hsl() colors. hsl(var(--mobile-v2-*))
+    // is invalid at computed-value time and silently renders transparent,
+    // which erased the project-search result mark highlight.
+    expect(workspace).not.toContain('hsl(var(--mobile-v2-');
+    expect(workspace).toMatch(/\.m-project-search mark \{[\s\S]*?background: var\(--mobile-v2-search-current\);/u);
+  });
 });

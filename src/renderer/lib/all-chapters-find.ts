@@ -224,15 +224,38 @@ function domPointAtOffset(el: HTMLElement, offset: number): { node: Node; offset
   return { node: el, offset: 0 };
 }
 
+// A focused chapter row grid-stacks a visibility:hidden static copy of its
+// prose under the live editor so promotion never shifts row height. Both copies
+// carry the same block ids and title/summary chrome, so every selector below
+// can match the hidden twin first in document order. Highlights and scroll
+// targets must land on the copy the reader can actually see; fall back to the
+// first candidate when none reports itself visible (no checkVisibility support,
+// or mid-swap frames where both copies are hidden).
+function firstVisible(candidates: NodeListOf<HTMLElement>): HTMLElement | null {
+  for (const el of candidates) {
+    if (
+      typeof el.checkVisibility !== 'function' ||
+      el.checkVisibility({ checkVisibilityCSS: true })
+    ) {
+      return el;
+    }
+  }
+  return candidates.length > 0 ? candidates[0] : null;
+}
+
 // Locate the DOM element that holds a match's text: a prose block by id, or the
 // chapter's title / summary chrome within its section.
 export function containerForMatch(scrollEl: HTMLElement, match: BookMatch): HTMLElement | null {
   if (match.kind === 'body' && match.blockId) {
-    return scrollEl.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(match.blockId)}"]`);
+    return firstVisible(
+      scrollEl.querySelectorAll<HTMLElement>(`[data-block-id="${CSS.escape(match.blockId)}"]`),
+    );
   }
   const section = scrollEl.querySelector<HTMLElement>(`[data-chapter-id="${CSS.escape(match.nodeId)}"]`);
   if (!section) return null;
-  return section.querySelector<HTMLElement>(match.kind === 'title' ? '.page__title' : '.page__sub');
+  return firstVisible(
+    section.querySelectorAll<HTMLElement>(match.kind === 'title' ? '.page__title' : '.page__sub'),
+  );
 }
 
 // Build a Range covering the `occurrence`-th case-insensitive hit of `needle`

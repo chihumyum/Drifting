@@ -2345,7 +2345,9 @@
 .m-project-search mark {
   border-radius: 2px;
   padding: 0 1px;
-  background: hsl(var(--mobile-v2-search-current));
+  /* The --mobile-v2-* roles are complete hsl() colors; wrapping one in hsl()
+     again is invalid and computes to transparent, hiding every result mark. */
+  background: var(--mobile-v2-search-current);
   color: inherit;
 }
 .m-tab-card {

@@ -19,20 +19,13 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key>CFBundleURLName</key>
-			<string>drifting</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>drifting</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>google-oauth</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
 				<string>$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)</string>
 			</array>
+			<key>CFBundleURLName</key>
+			<string>drifting</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>

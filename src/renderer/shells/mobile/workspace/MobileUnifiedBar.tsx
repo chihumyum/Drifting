@@ -443,6 +443,13 @@ export function MobileUnifiedBar({
                 onPointerDown={(event) => {
                   if (projection.mode === 'edit') event.preventDefault();
                 }}
+                onMouseDown={(event) => {
+                  // WKWebView still synthesizes a compatibility mousedown after
+                  // the cancelled touch pointer. Its default focus shift would
+                  // blur ProseMirror mid-tap and dip the IME before the search
+                  // field can inherit the same input session.
+                  if (projection.mode === 'edit') event.preventDefault();
+                }}
                 onClick={onOpenSearch}
                 aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
               >

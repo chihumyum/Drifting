@@ -110,6 +110,18 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(css).not.toContain('env(safe-area-inset-top) + var(--m-editor-top-scroll-reserve)');
   });
 
+  it('paints whole-book find on the visible copy of a focused chapter row', () => {
+    const find = source('lib/all-chapters-find.ts');
+
+    // A focused row grid-stacks a visibility:hidden static twin under the live
+    // editor with the same block ids. Resolving a match container by the first
+    // document-order querySelector hit lands highlights on the hidden twin.
+    expect(find).toContain('function firstVisible');
+    expect(find).toContain('checkVisibility({ checkVisibilityCSS: true })');
+    expect(find).toMatch(/querySelectorAll<HTMLElement>\(`\[data-block-id=/u);
+    expect(find).not.toMatch(/querySelector<HTMLElement>\(`\[data-block-id=/u);
+  });
+
   it('promotes a touch at its caret only after flushing the previous live chapter', () => {
     const view = source('views/AllChaptersEditorView.tsx');
     const row = source('components/editor/VirtualChapterRow.tsx');
