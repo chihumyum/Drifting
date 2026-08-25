@@ -142,7 +142,7 @@ describe('Mobile V2 workspace controller', () => {
         scope: 'paper',
         returnTo: { kind: 'edit', accessory: 'navigation' },
       },
-      keyboard: 'closed',
+      keyboard: 'open',
     });
     expect(reduce(editingSearch, { type: 'sync-editor', editing: false })).toBe(editingSearch);
   });

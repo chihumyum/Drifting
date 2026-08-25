@@ -234,7 +234,10 @@ export function mobileWorkspaceReducer(
           scope: action.scope,
           returnTo: state.paperMode,
         },
-        keyboard: 'closed',
+        // Editing already owns a visible IME. Search transfers that same input
+        // session to its field; declaring a closed intermediate frame would
+        // collapse the shared paper geometry before the field can take focus.
+        keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
       });
     case 'set-transient': {
       if (

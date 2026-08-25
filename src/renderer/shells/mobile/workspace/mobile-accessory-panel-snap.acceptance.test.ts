@@ -41,20 +41,26 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const controller = source('shells/mobile/workspace/mobile-workspace-controller.ts');
     const back = source('shells/mobile/workspace/useMobileWorkspaceBack.ts');
+    const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const styles = document('src/styles/mobile-workspace.css');
 
     expect(bar).toContain('focus({ preventScroll: true })');
     expect(bar).not.toMatch(/<input[\s\S]{0,160}\sautoFocus(?:=|\s|>)/u);
-    expect(bar).toContain('readMobileKeyboardViewportOffsetTop()');
+    expect(bar).not.toContain(
+      'onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop())',
+    );
     expect(bar).toMatch(
       /data-debug-id="mobile-open-search"[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\)/u,
     );
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");
     expect(controller).toContain('returnTo: state.paperMode');
+    expect(controller).toContain("keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed'");
     expect(controller).toContain("returnToEditing ? 'focus-editor' : 'none'");
     expect(back).toContain("resolved.effect === 'focus-editor'");
-    expect(back).toContain('scrollIntoView: false');
+    expect(back).toContain('editor.view.focus()');
+    expect(back).not.toContain('commands.focus');
+    expect(accessory).not.toContain('onKeyboardViewportOffsetTopChange?.(0)');
     expect(styles).toContain(
       ".m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']",
     );
@@ -63,6 +69,8 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     );
     expect(deck).toContain("workspaceUi.transient.kind === 'search'");
     expect(deck).toContain('keyboardViewportOffsetTop');
+    expect(styles).toContain('.m-unified-search__step');
+    expect(styles).toMatch(/\.m-unified-search__step \{[\s\S]*?touch-action: none;/u);
     expect(styles).not.toContain(
       ".m-workspace[data-controller-keyboard='open'] .m-paper-deck__content",
     );

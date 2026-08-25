@@ -23,7 +23,10 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(bar).toContain('onProjectSearch(snapshot.query)');
     expect(bar).toContain('seededOwnerRef.current === owner');
     expect(bar.match(/<MobileUnifiedSearchStep/g)).toHaveLength(2);
-    expect(bar).toContain('onPointerDown={keepSearchFocused}');
+    expect(bar).toContain('onPointerDown={activateFromPointer}');
+    expect(bar).not.toContain('onPointerUp={activateFromPointer}');
+    expect(bar).toContain('onPointerDownCapture={preserveSearchFocus}');
+    expect(bar).toContain('onMouseDownCapture={preserveSearchFocus}');
     expect(runtime).toContain('projectSearchQuery');
     expect(runtime).toContain('saveActiveEditor().finally');
     expect(overview).toContain('useMobileProjectSearch(searchQuery ?? \'\')');
@@ -35,9 +38,9 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(paperSearch).not.toContain('element?.scrollIntoView');
     expect(paperSearch).toContain("element?.closest<HTMLElement>('.editor-scroll')");
     expect(paperSearch).not.toContain('editor.commands.setContent');
-    expect(regression).toContain('edit -> Search -> Back restores edit navigation');
-    expect(regression).toContain('clearing the query leaves it empty');
-    expect(regression).toContain('it never focuses ProseMirror');
+    expect(regression).toContain('从编辑态进入的搜索必须记住编辑态来源');
+    expect(regression).toContain('结果切换不应改变搜索输入框焦点或键盘状态');
+    expect(regression).toContain('不得改变正文的垂直滚动位置');
   });
 
   it('keeps formatting in one horizontal accessory row while TOC and comments use sheets', () => {
@@ -84,6 +87,10 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(accessory).toContain('MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT');
     expect(back).toContain("resolved.effect === 'blur-editor'");
     expect(back).toContain("resolved.effect === 'focus-editor'");
+    expect(back).toContain('editor.view.focus()');
+    expect(back.indexOf('editor.view.focus()')).toBeLessThan(
+      back.indexOf("latest.dispatch({ type: 'replace'"),
+    );
   });
 
   it('returns a panned iOS visual viewport top edge to the editor scroll range', () => {

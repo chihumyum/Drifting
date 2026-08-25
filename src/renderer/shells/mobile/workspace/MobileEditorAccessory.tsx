@@ -164,14 +164,6 @@ export function MobileEditorAccessory({
     onKeyboardViewportOffsetTopChange?.(keyboardViewportOffsetTop);
   }, [keyboardViewportOffsetTop, onKeyboardViewportOffsetTopChange]);
 
-  useEffect(
-    () => () => {
-      onKeyboardInsetChange?.(0);
-      onKeyboardViewportOffsetTopChange?.(0);
-    },
-    [onKeyboardInsetChange, onKeyboardViewportOffsetTopChange],
-  );
-
   useEffect(() => {
     if (!editorFocused) return;
     const viewport = window.visualViewport;

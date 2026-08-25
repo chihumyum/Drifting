@@ -41,13 +41,19 @@ export function useMobileWorkspaceBack({
       if (latest.state.surface.kind === 'super-view') return false;
       const resolved = resolveMobileWorkspaceBack(latest.state, source);
       if (!resolved.handled) return false;
+      if (resolved.effect === 'focus-editor') {
+        const editor = getActiveEditor();
+        if (editor && !editor.isDestroyed) {
+          // TipTap's mobile focus command is delayed to a later frame. Hand the
+          // live editable DOM focus synchronously from Search to ProseMirror,
+          // before React can unmount the search field and dismiss the IME.
+          editor.view.focus();
+        }
+      }
       if (resolved.nextState !== latest.state) {
         latest.dispatch({ type: 'replace', state: resolved.nextState });
       }
       if (resolved.effect === 'blur-editor') getActiveEditor()?.commands.blur();
-      if (resolved.effect === 'focus-editor') {
-        getActiveEditor()?.commands.focus(undefined, { scrollIntoView: false });
-      }
       if (resolved.effect === 'navigate-project-home') latest.onShowProjectHome();
       if (resolved.effect === 'leave-project') latest.onLeaveProject();
       return true;

@@ -457,6 +457,12 @@
   opacity: 0.28;
 }
 
+.m-unified-search__step {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .m-unified-bar__action[aria-pressed='true'],
 .m-unified-bar__action[data-active]:not([data-active='none']) {
   color: hsl(var(--ink-1));

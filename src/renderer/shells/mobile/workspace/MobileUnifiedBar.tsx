@@ -32,7 +32,6 @@ import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
-  readMobileKeyboardViewportOffsetTop,
   readMobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
 import {
@@ -88,6 +87,8 @@ function MobileUnifiedSearch({
       <button
         type="button"
         className="m-unified-search__scope"
+        onPointerDown={(event) => event.preventDefault()}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => onProjectSearch(snapshot.query)}
         aria-label={t('mobileWorkspace.search.projectScope', {
           defaultValue: '在整个项目中搜索',
@@ -130,14 +131,14 @@ function MobileUnifiedSearchStep({
   label: string;
   children: ReactNode;
 }) {
-  const keepSearchFocused = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
   const activateFromPointer = (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.preventDefault();
     event.stopPropagation();
     if (!disabled) onActivate();
+  };
+  const keepSearchFocusedFromMouse = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
   };
   const activateFromAccessibility = (event: ReactMouseEvent<HTMLSpanElement>) => {
     event.preventDefault();
@@ -148,11 +149,11 @@ function MobileUnifiedSearchStep({
   return (
     <span
       role="button"
-      className="m-unified-bar__action"
+      className="m-unified-bar__action m-unified-search__step"
       aria-disabled={disabled ? 'true' : 'false'}
       aria-label={label}
-      onPointerDown={keepSearchFocused}
-      onPointerUp={activateFromPointer}
+      onPointerDown={activateFromPointer}
+      onMouseDown={keepSearchFocusedFromMouse}
       onClick={activateFromAccessibility}
     >
       {children}
@@ -312,7 +313,6 @@ export function MobileUnifiedBar({
       frame = requestAnimationFrame(() => {
         const inset = readMobileKeyboardInset();
         onKeyboardInsetChange(inset);
-        onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop());
         onKeyboardStateChange(readMobileSoftwareKeyboardVisible() ? 'open' : 'closed');
       });
     };
@@ -332,7 +332,6 @@ export function MobileUnifiedBar({
   }, [
     onKeyboardInsetChange,
     onKeyboardStateChange,
-    onKeyboardViewportOffsetTopChange,
     projection.mode,
     searchOwner,
   ]);
@@ -349,6 +348,16 @@ export function MobileUnifiedBar({
       preflightDom: projection.mode !== 'edit' && projection.mode !== 'search',
     });
   const backLabel = t('navigation.back');
+  const preserveSearchFocus = (
+    event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
+  ) => {
+    if (projection.mode !== 'search') return;
+    if (event.target instanceof Element && event.target.closest('input')) return;
+    // WKWebView may still synthesize a compatibility mousedown after a touch
+    // pointer. Cancelling both defaults at the bar boundary makes the search
+    // field the sole DOM focus owner for every non-Back search action.
+    event.preventDefault();
+  };
 
   return (
     <footer
@@ -369,7 +378,11 @@ export function MobileUnifiedBar({
         onExtentChange={onPanelExtentChange}
         onExtentCommit={onPanelExtentCommit}
       />
-      <div className="m-unified-bar__content">
+      <div
+        className="m-unified-bar__content"
+        onPointerDownCapture={preserveSearchFocus}
+        onMouseDownCapture={preserveSearchFocus}
+      >
         {projection.mode === 'search' ? (
           <>
             <MobileUnifiedBackAction
