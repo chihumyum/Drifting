@@ -329,5 +329,7 @@ Drifting 尚未发布数据兼容契约。候选构建只验证当前 schema 的
 
 - General Agent 可用，但仅限当前已认证的 local-runtime 能力；完整 Claude Code parity 和三端真机 UI 验收尚未完成。
 - `drifting://` 尚未替换为 Universal Links / Android App Links。
-- 完整移动端信息架构、触摸交互和软键盘适配尚未完成。
+- 移动端信息架构、触摸交互和软键盘适配已在 Simulator/Emulator 层验收（见
+  [`../mobile-ui-foundation.md`](../mobile-ui-foundation.md)），但真机触摸、IME
+  与人体工学验收仍未完成。
 - 复杂 story graph、split editor、plot grid 的移动 UX 不以“能显示”视为通过。

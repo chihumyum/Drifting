@@ -189,6 +189,10 @@ pnpm exec vitest run \
   src/renderer/usecase/plot-grid-write.integration.test.ts \
   src/renderer/usecase/normalized-kv-alias-authority.integration.test.ts \
   src/renderer/sync/journal/order-authority.test.ts \
+  src/renderer/sync/journal/continuous-timeline-authority.acceptance.test.ts \
+  src/renderer/usecase/chapter-timeline-move.test.ts \
+  src/renderer/features/graph/chapter-lane-drag.test.ts \
+  src/renderer/shells/desktop/views/DesktopBottomTimeline.pointer-drag.acceptance.test.ts \
   src/renderer/sync/reducer/reducer.test.ts \
   src/renderer/sync/checkpoint/checkpoint.integration.test.ts \
   src/renderer/sync/protocol/domain-manifest.test.ts

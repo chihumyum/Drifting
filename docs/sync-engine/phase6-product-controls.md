@@ -13,6 +13,7 @@ resumable sessions, provider handles, object bytes, or filesystem paths.
 | Product intent | Current behavior |
 | --- | --- |
 | Connect Google Drive | Shows **Sign in with Google**. OAuth is followed automatically by account-scoped discovery/restore, then publication of local-only projects. There is no connect-vs-restore choice. |
+| Cancel pending cloud connect | Settings exposes a second-confirmation cancel for an unactivated local-to-Drive transition. The `cancelPendingGoogleDrive` product command revokes the pending native credential through the durable revoke path, cancels the attempt, and preserves every authored local project. |
 | Sync now | Requests one cycle for every mounted Project when cloud authority is ready. |
 | Pause/resume | Changes all eligible Project bindings together; mixed per-Project provider mode is not exposed. |
 | Reauthorize | Requires the same Google subject and replaces the existing native credential in place. |
@@ -35,12 +36,30 @@ receipts.
 The shelf Settings route remains available before a project is created, so a
 fresh device can sign in and discover existing projects.
 
+The mobile Settings surface routes through the same command service behind a
+compact presentation (`google-drive-settings-presentation.ts`). Connection is
+gated on complete native readiness: OAuth, Drive transport, and the opaque
+object store must all be available before the sign-in action is enabled.
+Native failures project only localized, safe issue descriptions; iOS OAuth
+status maps the official Google Sign-In enum, and Android derives its OAuth
+permission state from the granted scope rather than an arbitrary status
+message. The mobile acceptance suite
+(`mobile-v2-google-drive.acceptance.test.ts`) freezes this contract.
+
 ## Acceptance boundary
 
 Focused product evidence is
 `src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts`
 together with product command/authority/runtime, disconnect, provider, and
-production composition tests. The Google Drive restore integration suite also
+production composition tests. The recorded command set also runs
+`desktop-standalone-settings.acceptance.test.ts`,
+`google-drive-settings-presentation.test.ts`,
+`mobile-v2-google-drive.acceptance.test.ts`,
+`mobile-workspace-controller.acceptance.test.ts`,
+`pending-transition-cancel.integration.test.ts`,
+`google-drive-physical-evidence.acceptance.test.ts`, and
+`pnpm mobile:google-drive:acceptance:contract`. The Google Drive restore
+integration suite also
 covers reconnect discovery where a locally purged historical generation is
 returned before the exact active generation, for both offline edit and offline
 Project-purge paths. It proves routing and secret-free projection; it
@@ -54,6 +73,8 @@ under the top-level
 Open release gates include real Google accounts on supported platforms,
 fresh-device automatic discovery, cross-device convergence, restart refresh,
 revoke/reauthorize, disconnect-local-edit-reconnect, background/lock/suspend/
-force-stop/offline behavior, and large-asset resumable transfer. Fake-provider,
-simulator, build, and static architecture results must not be reported as those
-gates.
+force-stop/offline behavior, large-asset resumable transfer, and an independent
+security review. Physical-run claims must pass the strict physical-evidence
+validator, whose privacy checks fail closed and whose passed rows require
+digests. Fake-provider, simulator, build, and static architecture results must
+not be reported as those gates.

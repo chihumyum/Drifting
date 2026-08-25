@@ -18,7 +18,8 @@ main tool/runtime evaluation loop.
 
 If Vite reloads or the mounted renderer disconnects during a turn, the broker
 fails that lease immediately and frees the worker. It must not leave an
-`active` debug request until the original 10/15-minute deadline. The runtime's
+`active` debug request waiting out the 10-minute default watchdog
+(`--timeout-ms` can raise it, up to twelve hours). The runtime's
 SQLite recovery path remains responsible for reconciling the interrupted turn
 when that conversation is resumed.
 
@@ -117,6 +118,24 @@ It reads `DEEPSEEK_AI_API_KEY` only from the invoking process environment and
 verifies read-before-edit plus the requested mutation. It is not part of the
 network-free milestone gate.
 
+For the shared rolling Working Memory document, its revision-CAS runtime,
+checkpoint tool, capability manifest, system-prompt injection and product
+migration regression:
+
+```bash
+pnpm eval:agent:working-memory
+```
+
+For the canonical prose word-count/metric projection contract shared by manual
+and Agent writes:
+
+```bash
+pnpm eval:prose-metrics
+```
+
+The normative prose-metric contract lives in
+[`../prose-metrics.md`](../prose-metrics.md).
+
 To exercise two paid DeepSeek General Agent sessions against the same
 synthetic chapter and one real file-backed Yjs/SQLite product composition:
 
@@ -129,8 +148,8 @@ first write request, then verifies one model-visible `other-agent` conflict,
 one reread/retry, both final edits, and exact per-session Yjs revision
 provenance. It never opens or mutates an author's project database and does not
 print or persist the API key, prompts, provider answers, or synthetic prose.
-The latest recorded run is
-[`acceptance/concurrent-agent-deepseek-live-2026-08-05.json`](acceptance/concurrent-agent-deepseek-live-2026-08-05.json).
+Dated recorded runs of this canary are historical checkout evidence, not files
+tracked in the current tree.
 
 For multi-provider wire conformance, concrete MCP stdio/Streamable HTTP,
 generation replacement, durable exact grants, native bridge contracts and
@@ -232,6 +251,27 @@ name-plus-argument repeats. The audit prints bounded examples for every
 non-zero family. `SIGINT`, `SIGTERM` and `SIGHUP` print the partial audit before
 cancelling the renderer lease, so a runaway paid run still leaves evidence.
 
+Useful `pnpm agent:debug:turn` options:
+
+```bash
+--conversation <id>                 # resume a durable conversation
+--permission allow_once             # automatically allow permission requests once
+--permission deny                   # automatically deny permission requests
+--edit-mode approve                 # keep writes pending for review in this turn
+--answer 'text'                     # queued ask_user answer; repeatable
+--auto-continue                     # follow the durable plan until a stable stop
+--thinking adaptive                 # enable the selected provider's reasoning
+--show-thinking                     # print thinking by iteration plus a terminal audit
+--timeout-ms 43200000               # observer watchdog; up to 12 hours
+--prompt-file /absolute/path/prompt.txt
+```
+
+For a representative reasoning run, pass `--thinking adaptive` and omit
+`--effort`; the model profile then supplies its default effort. `--effort` is
+only for a scenario that deliberately tests a non-default level. The timeout is
+the DEV observer/client watchdog, not a runtime model-round, tool, token, cost
+or continuation quota.
+
 Named missing chapters are returned as ordinary writable manuscript state. If
 a matching outline paragraph exists, the bridge gives that complete paragraph
 in the same result. The model should not need to inventory the whole project or
@@ -256,26 +296,10 @@ semantically equivalent workspace mutations, and stops if a committed write
 cannot be reverted; keep the pre-run database copy until the final domain
 readback has passed.
 
-Useful options:
-
-```bash
---conversation <id>                 # resume a durable conversation
---permission allow_once             # automatically allow permission requests once
---permission deny                   # automatically deny permission requests
---edit-mode approve                 # keep writes pending for review in this turn
---answer 'text'                     # queued ask_user answer; repeatable
---auto-continue                     # follow the durable plan until a stable stop
---thinking adaptive                 # enable the selected provider's reasoning
---show-thinking                     # print thinking by iteration plus a terminal audit
---timeout-ms 43200000               # observer watchdog; up to 12 hours
---prompt-file /absolute/path/prompt.txt
-```
-
-For a representative reasoning run, pass `--thinking adaptive` and omit
-`--effort`; the model profile then supplies its default effort. `--effort` is
-only for a scenario that deliberately tests a non-default level. The timeout is
-the DEV observer/client watchdog, not a runtime model-round, tool, token, cost
-or continuation quota.
+The write-matrix client parses only `--project`, `--disposable-db`, `--list`,
+repeated `--only <scenario-id>`, `--timeout-ms`, `--url` and `--help`. The
+richer conversation/permission/thinking options listed above belong to
+`pnpm agent:debug:turn`, not to this matrix.
 
 Settle a pending review through the same live product composition (including
 the exact Yjs inverse on reject):
@@ -331,8 +355,8 @@ formatted, stable-id TipTap seed as later authored-body edits.
 ## Acceptance evidence
 
 The operator commands above are current. Dated paid-provider and real-project
-results are historical checkout evidence and are indexed in
-[`acceptance/MILESTONE_HISTORY.md`](acceptance/MILESTONE_HISTORY.md). Current
+results are historical checkout evidence; the completed milestone history that
+indexed them is recoverable from Git history. Current
 capability and open-boundary claims live in
 [`acceptance/CURRENT_STATUS.md`](acceptance/CURRENT_STATUS.md).
 

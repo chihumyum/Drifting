@@ -86,15 +86,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(handle.match(/viewportHeightPx: Math\.max\(1, window\.innerHeight\)/g)).toHaveLength(2);
   });
 
-  it('keeps the product contract and device-handoff boundary attached', () => {
-    const editing = document('docs/mobile-v2/editing-comments-search-and-all-chapters.md');
-    const panels = document('docs/mobile-v2/unified-bar-rails-and-paper-swipe.md');
+  it('keeps the device-handoff boundary attached', () => {
     const evidence = document(
       'docs/qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md',
     );
 
-    expect(editing).toContain('keyboard-dismiss Chevron.');
-    expect(panels).toContain('Releases at 144 CSS pixels');
     expect(evidence).toContain('No Simulator, emulator, native build');
     expect(evidence).toContain('physical-device acceptance is user-owned and pending');
   });

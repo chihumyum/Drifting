@@ -7,21 +7,6 @@ const repoRoot = path.resolve(rendererRoot, '../..');
 const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, relative), 'utf8');
 
 describe('Mobile V2 paper and keyboard-accessory interaction correction', () => {
-  it('keeps checkout-specific Simulator evidence attached to the correction', () => {
-    const evidence = fs.readFileSync(
-      path.join(
-        repoRoot,
-        'docs/qa/mobile-v2-paper-accessory-interaction-repair-simulator-2026-08-24.md',
-      ),
-      'utf8',
-    );
-
-    expect(evidence).toContain('inputPath=synthetic-dom');
-    expect(evidence).toContain('physical-device continuous touch');
-    expect(evidence).toContain('pointerdown reflow ghost input');
-    expect(evidence).toContain('20 files, 105 tests passed');
-  });
-
   it('keeps Project Home outside the paper rail and preserves paper swipe exclusions', () => {
     const session = source('shells/mobile/workspace/mobile-workspace-session.ts');
     const hook = source('shells/mobile/workspace/useMobileWorkspaceSession.ts');

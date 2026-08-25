@@ -10,7 +10,8 @@ retired web, landing-site, prototype, deployment, cache, credential, private
 corpus, and unpublished literary paths were omitted. Personal email addresses
 and local machine identifiers inherited from the private source were normalized,
 and Claude co-author/generated-message trailers were removed at the maintainer’s
-request. Later client commits may use maintainer-selected public identities.
+request. Commits made after the extraction intentionally carry the maintainer's
+own public identities, including their email addresses.
 
 The extracted history contains 680 pre-publication commits and 13 merge
 commits. Empty commits created by filtering were pruned. A separate public

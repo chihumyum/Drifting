@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-14
+Updated: 2026-08-26
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -76,6 +76,13 @@ pnpm agent:capabilities:check
 - Ordinary provider turns receive the complete generated set of narrow,
   explicit author-domain tools. Exact names and counts come only from the
   generated capability inventory.
+- Each turn carries an explicit tool-access choice
+  (`AgentToolAccessChoice = 'read_only' | 'read_write'`). Answer-only
+  `read_only` turns are a hard runtime boundary, not a prompt convention: write
+  tool definitions are removed from the provider surface entirely, a dedicated
+  read-only system prompt is injected, and the Working Memory
+  `checkpoint_working_memory` instruction is disabled for that turn. The
+  current mobile Agent panel sends its turns as `read_only`.
 - Generic virtual-file and generic authored-object verbs are retired from the
   provider surface. Paths, JSON documents, Yjs, SQLite, revisions, and storage
   identifiers remain runtime implementation details.
@@ -89,7 +96,8 @@ pnpm agent:capabilities:check
   relation has one non-null type id; copied labels, nullable types, and
   `unconfigured` compatibility rows are absent and old payloads fail closed.
   TODO/Library shortcuts use a deterministic locked `generic-association`
-  type. SQLite, server graph sync, and General Agent use the same definition
+  type. SQLite, SyncEngine provider sync (Google Drive / local folder), and
+  General Agent use the same definition
   and durable receipt/revert boundary. See
   [`../../relation-types.md`](../../relation-types.md).
 - Authored prose reads and writes use the schema-locked Markdown/TipTap adapter;
@@ -138,8 +146,9 @@ pnpm agent:capabilities:check
   entries while preserving `Current` and the two newest exact entries.
 - The desktop General Agent panel can preview, edit, create and clear Working
   Memory even before a provider credential is connected. Concurrent Agent/user
-  edits fail closed and preserve an unsaved author draft. This UI is not exposed
-  by the current mobile shell.
+  edits fail closed and preserve an unsaved author draft. The mobile Agent
+  panel also exposes this UI through its Working Memory tab, rendering the same
+  shared `AgentWorkingMemoryView`.
 
 ### Providers and extensions
 
@@ -169,8 +178,11 @@ pnpm agent:capabilities:check
   review. Shared data/sync/type checks do not claim an iOS or Android relation
   management experience; physical-device acceptance remains manual.
 - Working Memory desktop layout, Markdown readability, destructive-clear
-  wording and keyboard interaction still require author visual review. Shared
-  schema/runtime tests do not claim an iOS or Android Agent-panel experience.
+  wording and keyboard interaction still require author visual review. The
+  mobile Agent panel (conversation list, turn history, Working Memory tab) is
+  implemented in the shared renderer, but shared schema/runtime tests do not
+  claim device-level iOS or Android Agent-panel acceptance; that remains
+  manual.
 
 ## Current open verification and follow-up
 
@@ -182,9 +194,9 @@ pnpm agent:capabilities:check
 - The deterministic P0 fixes discovered by the 2026-08-06 empty-project novel
   run have not been validated by another paid long-form empty-project campaign.
 - Stable partial edit recovery, equivalent-create recovery, and remaining
-  actionable domain errors
-  remain ordered follow-up in
-  [`GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md).
+  actionable domain errors remain ordered follow-up from the 2026-08-06
+  remediation plan. That dated report was not retained in the public
+  repository.
 - Subagent orchestration remains deferred. Multiple current conversations are
   supported; that is not subagent delegation.
 
@@ -211,17 +223,17 @@ device UX remain separate acceptance boundaries.
 
 ## Evidence navigation
 
-- Completed A-K and P1-P6 history:
-  [`MILESTONE_HISTORY.md`](MILESTONE_HISTORY.md)
+- Completed A-K and P1-P6 milestone history is recoverable from Git history.
 - Current deterministic acceptance outputs: `milestone-*.json`,
   `openai-native-transport.json`, and the generated capability inventory in this
   directory
-- Non-reproducible provider, real-project, and long-form runs: the dated reports
-  listed in the historical index
+- Non-reproducible provider, real-project, and long-form runs: dated reports
+  recorded for their checkout and recoverable from Git history, except for a
+  small number of dated reports never retained in the public repository
 - Mobile device procedure:
   [`../../mobile-device-acceptance.md`](../../mobile-device-acceptance.md)
 - Full native manual regression:
-  [`../../../../docs/qa/tauri-native-manual-regression.md`](../../../../docs/qa/tauri-native-manual-regression.md)
+  [`../../qa/tauri-native-manual-regression.md`](../../qa/tauri-native-manual-regression.md)
 
 Nothing in this status file overrides the generated inventory. If this prose,
 the generated files, production composition, or machine drift gate disagree,

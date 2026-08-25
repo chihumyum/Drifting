@@ -61,7 +61,10 @@ completeness and rollback, disconnect with cursor cleanup/local-data retention,
 Drive-to-Hosted generation replacement, blocked/resume state, foreign keys and
 integrity.
 
-This phase does not itself make Google Drive selectable in Settings. Product
-mounting still requires the production remote domain materializer,
-account-scoped project discovery, and the platform-specific OAuth release gates
-documented by later phases.
+This phase does not itself make Google Drive selectable in Settings. The
+production remote domain materializer
+(`src/renderer/sync/reducer/production-domain-kernel.ts`, injected by
+`src/renderer/sync/production-runtime.ts`) and account-scoped project discovery
+(`src/renderer/sync/providers/google-drive/project-snapshot-discovery.ts`) have
+since been delivered; product mounting now waits only on the platform-specific
+OAuth release gates documented by later phases.

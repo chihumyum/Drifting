@@ -48,8 +48,14 @@ restore, and product terminology.
 
 ## Evidence boundary
 
-Each phase document links its current machine-readable acceptance JSON and
-reproducible commands. The top-level product contract is
+Phase documents link their machine-readable acceptance JSON and reproducible
+commands where that evidence exists. The top-level product contract is
 [`acceptance/trusted-cloud-google-drive-contract.json`](acceptance/trusted-cloud-google-drive-contract.json).
 These reports cover local implementation and fake/native build boundaries;
 they do not close the real-account, cross-device, or physical-device gates.
+
+Physical-run claims use the evidence chain introduced on 2026-08-24:
+`scripts/check-google-drive-physical-evidence.ts` validates
+`docs/qa/google-drive-physical-evidence-contract.json`, run through
+`pnpm mobile:google-drive:acceptance` or
+`pnpm mobile:google-drive:acceptance:contract`.

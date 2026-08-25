@@ -71,6 +71,11 @@ Rust tests prove same-sub replacement, wrong-sub non-write and storage-failure
 preservation. TypeScript proves the IPC request contains only the opaque ref and
 projects the verified same ref/subject result.
 
+Current machine evidence is
+[`acceptance/phase5-google-drive-reauthorize.json`](acceptance/phase5-google-drive-reauthorize.json),
+under the top-level
+[`trusted-cloud contract`](acceptance/trusted-cloud-google-drive-contract.json).
+
 No machine test opens a real Google consent screen. The SDK clients compile in
 the iOS simulator and Android APK builds, but existing-ref replacement,
 wrong-account selection, restart refresh and another-device continuity remain

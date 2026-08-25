@@ -19,9 +19,9 @@ artifact has passed the two-Mac checklist in
 
 This history was extracted and rewritten from the original private monorepo. Server-only changes,
 credentials, private literary material, generated artifacts, and layout transitions were removed.
-Personal email addresses and machine identifiers inherited from the private source were normalized;
-later commits may use maintainer-selected public identities. Commit hashes therefore differ from the
-private source history.
+Personal email addresses and machine identifiers inherited from the private source were normalized.
+Commits made after the extraction intentionally carry the maintainer's own public identities,
+including their email addresses. Commit hashes therefore differ from the private source history.
 
 ## Stack
 
@@ -112,9 +112,13 @@ bundle.
 ## Layout
 
 ```text
-
 ├── src-tauri/          Rust host, SQLite gateway, native capabilities, mobile projects
 ├── src/renderer/       React application and platform contracts
+├── src/dev-cli/        Developer CLI over the same domain tools
+├── src/shared/         Code shared between renderer and dev CLI
+├── src/styles/         Global stylesheets
+├── src/assets/         Icon sources and static assets
+├── docs/               Product contracts, architecture notes, runbooks, acceptance evidence
 ├── drizzle/            Embedded SQLite baseline and migration journal
 ├── packages/           Separately licensed shared packages
 ├── scripts/            Development and asset-generation utilities
@@ -145,7 +149,7 @@ The production database directories are normally:
 
 ## Readable export
 
-The always-available Local data settings panel exports every project as a relational Markdown ZIP
+The always-available Local data section of Settings → Sync & Data exports every project as a relational Markdown ZIP
 without a Drifting account or hosted API. Open Yjs documents are flushed locally first; closed and
 snapshot-only documents are read from SQLite, while `contentJson` is only a never-opened-document
 seed fallback. The archive preserves readable Wiki-style relation links, but it does not include
@@ -232,6 +236,7 @@ acceptance.
 Documentation entry points:
 
 - [documentation index](docs/README.md)
+- [developer guide (Chinese)](DEV_GUIDE.md)
 - [desktop Alpha release contract](docs/alpha-release-contract.md)
 - [desktop Alpha release runbook](docs/desktop-alpha-release-runbook.md)
 - [Google Drive data-use disclosure](docs/google-drive-data-use.md)

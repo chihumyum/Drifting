@@ -1,7 +1,7 @@
 # Durable long-task execution protocol
 
 Status: normative for Milestone E and later
-Updated: 2026-08-02
+Updated: 2026-08-26
 
 This protocol defines how one Drifting Agent carries a writing task across
 model iterations, context compaction, budget slices, author steering, safe

@@ -14,6 +14,9 @@ Every General Agent turn receives only the writing guidance the author owns:
 - editable project facts/rules from the project's `kvJson`;
 - active long-term Agent rules created by the author or explicitly approved by
   the author;
+- the project's shared rolling `WORKING_MEMORY.md`, whose current revision is
+  injected at turn start together with its importance-gated checkpoint
+  instruction;
 - durable task and runtime recovery state required to continue the requested
   work.
 

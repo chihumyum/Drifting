@@ -38,7 +38,7 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   buffered until its complete tool/usage/finish contract validates. Before any
   Agent event or effect escapes, parse/network/rate-limit failures, malformed
   tool arguments, missing required reasoning, unavailable tools and output
-  exhaustion before an action receive at most four provider attempts. An
+  exhaustion before an action receive at most six provider attempts. An
   action-serialization recovery may temporarily turn thinking off; the next
   model iteration restores the turn's frozen reasoning mode. Authentication
   failures and author cancellation are never retried, and tool-free visible
@@ -142,8 +142,9 @@ can revoke each grant explicitly.
 4. MCP results return through the same context budgeting, artifact paging and
    provider-visible result path as built-in tools.
 5. SQLite extension configuration and grants are local device authority and are
-   not currently synchronized by Drifting Server. localStorage is not an
-   extension or permission authority.
+   not synchronized by any SyncEngine provider (`agent_mcp_server` and
+   `agent_permission_grant` are declared never-synchronized in the domain
+   manifest). localStorage is not an extension or permission authority.
 
 The Models & API surface queries credential existence rather than credential
 data when it renders; on macOS the query requests Keychain attributes only and

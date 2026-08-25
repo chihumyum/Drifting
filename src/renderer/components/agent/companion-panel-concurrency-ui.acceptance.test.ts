@@ -21,11 +21,4 @@ describe('General Agent sibling-conversation activity UI', () => {
     expect(zh.agentPanel.running).toBeUndefined();
   });
 
-  it('records the composer boundary in the concurrency acceptance document', () => {
-    const acceptance = source(
-      'docs/agent-runtime/acceptance/CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md',
-    );
-
-    expect(acceptance).toContain('no cross-conversation working banner is inserted');
-  });
 });

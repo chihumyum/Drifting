@@ -8,13 +8,17 @@ dated run reports are evidence for one checkout, not product truth.
 
 - [Frozen release contract](alpha-release-contract.md)
 - [Release runbook](desktop-alpha-release-runbook.md)
+- [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)
 - [Google Drive data-use disclosure](google-drive-data-use.md)
 - [Desktop quick start](quick-start.md)
 - [Google Drive two-Mac acceptance](qa/google-drive-desktop-alpha-acceptance.md)
-- [Google Drive Desktop/iOS/Android physical acceptance](qa/google-drive-three-platform-physical-acceptance.md)
 - [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
 - [Known issues](../KNOWN_ISSUES.md)
 - [Support](../SUPPORT.md)
+
+Mobile is outside the desktop Alpha release scope. The mobile Google Drive
+release gate and its real-account Desktop/iOS/Android run are tracked in
+[`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
 
 ## Start here
 
@@ -44,15 +48,12 @@ dated run reports are evidence for one checkout, not product truth.
 | What are the renderer dependency rules?                    | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
 | How do project relation types behave?                      | [`relation-types.md`](relation-types.md)                                                                                                                              |
 | What is the mobile product boundary?                       | [`mobile-ui-foundation.md`](mobile-ui-foundation.md)                                                                                                                  |
-| What is the frozen Mobile V2 target and delivery sequence? | [`mobile-v2/README.md`](mobile-v2/README.md)                                                                                                                          |
-| What Mobile V2 writing/search boundary is implemented?     | [`mobile-v2/editing-comments-search-and-all-chapters.md`](mobile-v2/editing-comments-search-and-all-chapters.md)                                                      |
-| What Mobile V2 Planning/touch boundary is implemented?     | [`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md)                                                                      |
-| What Mobile V2 Agent/Library/TODO/Stats boundary is implemented? | [`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md)                                                        |
-| What Mobile V2 independent Super View boundary is implemented? | [`mobile-v2/independent-super-views.md`](mobile-v2/independent-super-views.md)                                                                                |
-| What Mobile V2 Google Drive Settings boundary is implemented? | [`mobile-v2/google-drive-settings-and-release-gate.md`](mobile-v2/google-drive-settings-and-release-gate.md)                                                 |
 | How is real-account three-platform Drive acceptance run?  | [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md)                                                       |
 | What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
-| What is historically complete?                             | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
+| How does Project Home and workspace entry behave?          | [`project-home.md`](project-home.md)                                                                                                                                  |
+| How are prose metrics and writing stats computed?          | [`prose-metrics.md`](prose-metrics.md)                                                                                                                                |
+| What is the hosted-service boundary of a source build?     | [`official-service.md`](official-service.md)                                                                                                                          |
+| How was the public commit history prepared?                | [`public-history.md`](public-history.md)                                                                                                                              |
 
 ## Normative documents
 
@@ -119,7 +120,8 @@ dated run reports are evidence for one checkout, not product truth.
   machine evidence. Do not edit generated files by hand.
 - Dated paid-provider, real-project, or native run reports may remain when the
   evidence cannot be reproduced in an ordinary local test run.
-- Completed phase and milestone prose is summarized in one historical index;
-  full deleted reports remain recoverable from Git.
+- Completed phase and milestone prose is not re-narrated in current documents;
+  retired delivery documents and dated run reports remain recoverable from Git
+  history.
 - README and current-status documents link to authoritative detail instead of
   copying tool counts, test counts, or completed milestone narratives.

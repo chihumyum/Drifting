@@ -33,9 +33,11 @@ lifecycle reachability boundary.
 This slice also deletes the retired `entity-sync.service.ts` implementation,
 its destructive graph-hydration tests, its coalescing/entitlement helpers, and
 the account-preference HTTP mirror. It also removes the hosted sync feature
-flag, observer, HUD, activity panel, and debug-toast settings. Until the real
-SyncEngine status store is wired, the status bar reports only the truthful
-on-device state. Settings remain in the local persisted settings store until a
+flag, observer, HUD, activity panel, and debug-toast settings. The SyncEngine
+status store (`src/renderer/sync/engine/status-store.ts`, assembled by the
+durable coordinator) is now wired, and the status bar projects App authority
+plus runtime diagnostics as local, syncing, synced, paused, offline, or
+attention states. Settings remain in the local persisted settings store until a
 future explicitly versioned preference domain is added to SyncEngine. This
 local-runtime milestone is not evidence of a real-account Google Drive cycle.
 

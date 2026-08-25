@@ -117,51 +117,29 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 4. 设置页沿用桌面 Settings 的视觉语言，能从无额外图标的列表进入详情、返回、纵向滚动和保存；header 顶部无异常留白，重启后持久化项仍正确。
 5. 手机与紧凑平板只支持竖屏；旋转不得暴露横屏 Mobile Shell。刘海/圆角、Home indicator、Android navigation bar 下没有不可操作的控件。竖屏逻辑宽度至少 1000 CSS px 的扩展平板复用 Desktop Shell，但不得获得桌面原生能力。
 6. 杀进程后重开、前后台切换、短暂断网恢复时，不出现白屏或重复导航。
-7. 打开项目后进入单纸张移动工作区；若持久化会话没有任何已打开 paper，默认先打开项目 Dashboard，而不是擅自进入第一章。正文只有一张完整 1:1 paper，桌面左右栏、tab chrome、paper cluster、paper pinch 和浮动 rail 按钮均不应出现。
+7. 打开项目后总是先落在 Project Home（项目级 surface，不占 paper rail）；恢复的 paper 会话从 Home 继续，而不是擅自进入第一章。正文只有一张完整 1:1 paper，桌面左右栏、tab chrome、paper cluster、paper pinch 和浮动 rail 按钮均不应出现。
 8. 底部只有一个 56px unified bar，并正确避让 Home indicator。只读态左侧为单层 Back，中间显示当前 paper 身份和打开数量且可进入 overview，右侧分别控制顶部结构区和底部工具区；编辑态在同一栏承载键盘附件和 TOC/Comment 动作。底部 panel 停靠时栏移动到其上方；键盘打开时栏跟随 `visualViewport`，Android edge-to-edge WebView 在该几何不收缩时改用原生 IME inset。启用系统“减弱动态效果”后状态结果不变但过渡被移除。
 9. 顶/底 panel 均从对应边缘裁切 paper，不得缩放或改变正文排版宽度。细线边界 handle 以 1:1 位移调整高度：8% 以内关闭、50% 以上全屏、中间保持 dock；panel 内按钮、列表、输入和内部滚动都可用。只读且无 panel、浮层、键盘、rail、选区或 IME 组合时，从正文非交互区域横滑只能切换一张相邻 paper。拖动时相邻项显示完整静态快照，松手后才更新 active key、URL 和唯一 live editor；短慢拖回弹、边缘不循环、纵向滚动不误触。按钮/链接/表单、TOC/Comment、Timeline、Plot Grid、canvas 以及嵌套横向滚动区必须阻止 paper swipe；按住约 180ms 未锁定横轴也不得意外切纸。切回后恢复该 paper 的滚动位置。
 10. paper overview 可以激活、关闭、全部关闭，并通过卡片拖动在二维网格中重排所有 paper；关闭按钮位于每张卡片右上角，不能出现上下排序箭头。overview 还能进入三个 Super View、通览全书、设置和书架；从设置返回时恢复原工作区 URL。
 11. Super View 内 header 可直接横向切换三个视图，关闭后回到 paper workspace；WebView 本身不应随双指缩放整个页面，元素全景的自有画布应绕双指中点平滑缩放并保持平移；实体打开和共享浮层不得溢出 viewport。
-12. 顶部结构区只有一个 56px 左侧竖 rail：章节、元素、灵感；Dashboard 是普通 paper，不得占 rail。章节和灵感纵向滚动，元素保持桌面分类/网格能力。点 cell 先出现只读 Sheet，点 backdrop 只关闭且不得穿透。底部工具区只有一个 56px 左侧竖 rail：Planning、Agent、Library、Stats；Timeline/Plot 是 Planning 内部选择，TODO/素材库是 Library 内部选择，不得形成第二层 rail，项目用户菜单也不得占工具 rail。时间线必须直接复用完整 `BottomTimeline`：书序/叙事切换、幕轨、叙事标记、未归属与未放置、打散、定位、跨故事线连线、缩放、绑定灵感和全部上下文操作都存在，轻点章节打开对应移动纸张，章节触控拖动会写回顺序/主故事线，长按章节、故事线、幕和标记打开与桌面同源菜单。情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
+12. 顶部结构区只有一个 56px 左侧竖 rail：章节、元素、灵感；Project Home 是项目级 surface，不占 rail 也不是 paper。章节和灵感纵向滚动，元素保持桌面分类/网格能力。点 cell 先出现只读 Sheet，点 backdrop 只关闭且不得穿透。底部工具区只有一个 56px 左侧竖 rail：Planning、Agent、Library；Stats 不占 rail，通过当前纸张的 Stats Sheet 打开；Timeline/Plot 是 Planning 内部选择，TODO/素材库是 Library 内部选择，不得形成第二层 rail，项目用户菜单也不得占工具 rail。时间线必须直接复用完整 `BottomTimeline`：书序/叙事切换、幕轨、叙事标记、未归属与未放置、打散、定位、跨故事线连线、缩放、绑定灵感和全部上下文操作都存在，轻点章节打开对应移动纸张，章节触控拖动会写回顺序/主故事线，长按章节、故事线、幕和标记打开与桌面同源菜单。情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
 13. Mobile Agent 必须显示当前 Project、纸张/实体和可用的稳定段落锚点；历史对话、停止、重试、工作记忆、证据跳转与 provider 空/加载/错误状态在竖屏可操作。手机每轮只能取得读取工具，回答不得自动写正文；复制、转灵感、加入 TODO 都必须由作者明确点按。TODO 保留新建、关联、完成、归档、重开和删除；素材库保留四种类型、过滤、关联、预览/系统打开、编辑和删除，不能依赖 hover 或右键。Stats 可在当前纸张和全书之间切换；长内容、空状态、深色模式与 44px 触控目标不得横向撑开 viewport。
 
 自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、unified bar、两侧 rail、overview、设置和普通按钮。宿主鼠标拖动仍可能把 iPhone Simulator WKWebView 的中间 `pointermove` 合并，不能冒充真实手指。DEV-only frontend bridge 可以用明确标记为 `synthetic-dom` 的事件验收 DOM 手势状态机、URL 和 controller 接线，但不替代真机连续触摸、原生键盘、选区、多指或人体工学验收。生产构建不再存在旧的 Simulator 专用底栏开关。
 
-## 2026-08-23 Mobile V2 M3 iOS Simulator check
+## 2026-08-23 至 2026-08-25 Simulator/Emulator 历史证据
 
-复用现有 `iPhone 16e / iOS 26.1` 的 M3 记录见
-[`qa/mobile-v2-m3-unified-workspace-simulator-2026-08-23.md`](qa/mobile-v2-m3-unified-workspace-simulator-2026-08-23.md)。该记录实际覆盖 unified bar、上下竖 rail、panel dock/full/close、1:1 裁切、Overview、双向合成 DOM paper swipe、交互元素排除和系统 Reduce Motion。它不关闭真机触摸或 M4-M9 功能门槛。
-
-## 2026-08-23 Mobile V2 M4 iOS Simulator and Android Emulator check
-
-复用现有 `iPhone 16e / iOS 26.1` Simulator 和 `Persimmon_API_35` Android
-Emulator 的 M4 记录见
-[`qa/mobile-v2-m4-editing-simulator-2026-08-23.md`](qa/mobile-v2-m4-editing-simulator-2026-08-23.md)。
-该记录实际覆盖 iOS 英文/中文输入、原生选区格式、paper/Project 搜索、All Chapters
-提升/搜索/TOC、批注创建和重启恢复，以及 Android Gboard 原生 inset、原生长按选区、
-hardware Back、one-live All Chapters 和零章节创建。它不关闭精确选区端点重启恢复、
-真机触摸/IME、辅助功能、生命周期、性能或 M5-M9 门槛。
-
-## 2026-08-23 Mobile V2 M5 iOS Simulator and Android Emulator check
-
-复用同一台 `iPhone 16e / iOS 26.1` Simulator 和 `Persimmon_API_35` Android
-Emulator 的 M5 记录见
-[`qa/mobile-v2-m5-planning-simulator-2026-08-23.md`](qa/mobile-v2-m5-planning-simulator-2026-08-23.md)。
-该记录覆盖完整 Planning 可达性、书序/叙事、Act、marker、双故事线/跨线、未归属/未放置、
-延迟拖动、长按菜单、midpoint pinch 接线，以及 Plot Grid 行列、TSV 与 normalized 持久化。
-所有 iOS/Android WebView 指针输入都明确标记为 `nativeInput=false`；仅 Android hardware
-Back 是真实系统输入。因此真实连续触摸、双指、边缘滚动和长按手感仍必须在双平台真机完成。
-
-## 2026-08-23 Mobile V2 M6 iOS Simulator and Android Emulator check
-
-复用同一台 `iPhone 16e / iOS 26.1` Simulator 和 `Persimmon_API_35` Android
-Emulator 的 M6 记录见
-[`qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md`](qa/mobile-v2-m6-agent-library-stats-simulator-2026-08-23.md)。
-该记录覆盖 Mobile Agent 的持久会话、显式 Project/实体/段落上下文、证据跳转、作者点按
-转灵感/转 TODO、Library/TODO CRUD、当前/全书统计、空/错误状态、深色模式、44px 操作区和
-无横向溢出；Android real hardware Back 还覆盖 full → docked → closed。provider 输出来自明确
-标记的合成持久化 fixture，iOS/Android WebView 输入均为 `nativeInput=false`；它不关闭实时
-provider、原生剪贴板、真机触摸/辅助功能、生命周期、性能或 M7-M9 门槛。
+2026-08-23 至 2026-08-25 期间曾在 `iPhone 16e / iOS 26.1` Simulator 与
+`Persimmon_API_35` Android Emulator 上按里程碑完成了 unified bar、panel、paper
+swipe、编辑/搜索/All Chapters、Planning/Plot Grid、Agent/Library/TODO/Stats、
+独立 Super View 与 Google Drive 设置面的逐项检查。这些带日期的记录已随交付完成
+从仓库退役，完整原文保留在 Git 历史中。共同边界不变：所有 WebView 指针输入均为
+明确标记的合成输入（`synthetic-dom` / `nativeInput=false`），仅 Android hardware
+Back 是真实系统输入；它们不关闭真机连续触摸、原生键盘/IME、辅助功能、生命周期、
+性能或实时 provider 门槛。仍在仓库中的待办交接记录见
+[`qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md`](qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md)
+与
+[`qa/mobile-search-focus-regression.md`](qa/mobile-search-focus-regression.md)。
 
 ## Historical 2026-08-13 pre-M3 iOS Simulator spot check
 

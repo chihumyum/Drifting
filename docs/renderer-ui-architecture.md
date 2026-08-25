@@ -19,8 +19,9 @@ app/providers/ProjectRuntimeProvider
 features
 ├── workspace/navigation
 ├── settings / agent / library / comments / stats
+├── editor / entity-create
 ├── entities/hover
-└── graph and timeline models
+└── graph (story graph and chapter-lane timeline models)
 ```
 
 ## Dependency rules
@@ -240,14 +241,33 @@ its own back/navigation behavior through the same view-level close actions.
 
 ## CSS ownership
 
-| File                             | Ownership                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `src/styles/index.css`           | tokens, reset, shared primitives, and editor base                               |
-| `src/styles/comments-review.css` | comments, outline rail, inline review, and review cards                         |
-| `src/styles/entity-editors.css`  | entity editors, relations, metadata, and domain surfaces                        |
-| `src/styles/desktop-shell.css`   | desktop geometry, columns, overlays, and full-screen states                     |
-| `src/styles/desktop-universal-create.css` | desktop transient-create chooser and context form                   |
-| `src/styles/mobile-*.css`        | mobile standalone routes, workspace, safe-area, paper, and gesture presentation |
+| File                                      | Ownership                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| `src/styles/index.css`                    | tokens, reset, shared primitives, and editor base                               |
+| `src/styles/ui-controls.css`              | shared interactive primitives: geometry, states, and theme behavior             |
+| `src/styles/comments-review.css`          | comments, outline rail, inline review, and review cards                         |
+| `src/styles/entity-editors.css`           | entity editors, relations, metadata, and domain surfaces                        |
+| `src/styles/desktop-shell.css`            | desktop geometry, columns, overlays, and full-screen states                     |
+| `src/styles/workspace-navigation.css`     | topbar project name and workspace navigation triggers                           |
+| `src/styles/desktop-universal-create.css` | desktop transient-create chooser and context form                               |
+| `src/styles/bottom-status-bar.css`        | full-width footer status line                                                   |
+| `src/styles/bottom-timeline.css`          | bottom timeline dock                                                            |
+| `src/styles/act-rail.css`                 | ActRail act strip in track coordinate space                                     |
+| `src/styles/timeline-pin-menu.css`        | timeline pin context menu (Bottom Timeline and Story Graph)                     |
+| `src/styles/super-view-header.css`        | shared fullscreen Super View header                                             |
+| `src/styles/graph-view.css`               | Story Graph narrative-structure overlay                                         |
+| `src/styles/relation-edge-popover.css`    | relation edge popover                                                           |
+| `src/styles/drift-panel.css`              | bottom-anchored drift panel shared by Graph and Element views                   |
+| `src/styles/plot-planner.css`             | in-chapter Plot Planner dock                                                    |
+| `src/styles/dashboard.css`                | Project Home dashboard                                                          |
+| `src/styles/search.css`                   | global search modal and editor find panel                                       |
+| `src/styles/settings.css`                 | full-screen Settings overlay                                                    |
+| `src/styles/agent-panel.css`              | Agent panel composer and conversation surface                                   |
+| `src/styles/agent-activity.css`           | Agent activity perception on entity glyphs                                      |
+| `src/styles/copilot-surface.css`          | Copilot inline popover and account-dropdown settings page                       |
+| `src/styles/signin.css`                   | authentication surface                                                          |
+| `src/styles/project-picker.css`           | Bookshelf project picker                                                        |
+| `src/styles/mobile-*.css`                 | mobile standalone routes, workspace, safe-area, paper, and gesture presentation |
 
 Mobile must not override `desktop-shell.css` to simulate a separate layout.
 New rules belong to the narrowest owner while preserving the established

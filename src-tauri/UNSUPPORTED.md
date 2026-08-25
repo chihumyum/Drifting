@@ -23,8 +23,9 @@ The remaining platform/product boundaries are:
   but the lost JavaScript stack cannot resume in place; durable plans require fresh author action;
 - MCP stdio is desktop-only because mobile targets cannot spawn an arbitrary child process;
   Streamable HTTP uses the native request host on desktop, iOS, and Android;
-- independent flat sessions are persisted, but concurrent active General Agent UI execution and
-  subagent orchestration are not yet accepted product capabilities;
+- independent concurrent General Agent conversations are an accepted product contract
+  (unbounded user-owned admission; one active turn per conversation), but subagent
+  orchestration is not yet an accepted product capability;
 - deterministic provider conformance is not the same as a paid endpoint canary; live provider
   checks remain explicit opt-in tests; and
 - native desktop, iOS, and Android Agent interaction/visual smoke remains unverified.

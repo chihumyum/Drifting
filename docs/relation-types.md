@@ -52,9 +52,10 @@ only a hidden button:
   the same endpoint pair.
 - Hydration inserts type parents and endpoint rows before relation children.
   Offline pending relations retain their referenced local type.
-- Hosted Postgres and future SyncEngine providers exchange the same explicit
-  type definition and type-id relation payload. Object storage may store the
-  immutable operations, but it does not invent labels or repair old payloads.
+- SyncEngine providers — Google Drive, the local folder provider, and future
+  providers — exchange the same explicit type definition and type-id relation
+  payload. Object storage may store the immutable operations, but it does not
+  invent labels or repair old payloads.
 
 ## Product surfaces
 

@@ -29,8 +29,8 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ## Command and status ownership
 
 - `AppTopbar` 的固定顺序是当前 Project 名称、搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。`SUPER` 右侧与通知铃铛左侧分别使用和顶栏底边相同的 `1px --workspace-border` hairline，明确分开导航、文档 Tabs 与账户命令区。Project 名称是只读的位置锚点，不兼任项目切换器；普通图标按钮统一使用 `26px` 热区和约 `16px` 图标，低频入口不再各自占用一枚顶栏图标。
-- 通览全书是 Project Home 与 `SUPER` 之间的独立纯文字按钮，直接进入 All Chapters editor，并以文字颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但菜单现在只包含 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
-- 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；icon button 保留 `aria-pressed` 等可访问性状态，但当前目的地不改变图标颜色，不绘制视觉选中态。真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
+- 通览全书是 Project Home 与 `SUPER` 之间的独立纯图标按钮：`GhostIconButton` 承载 IconoirPageFlip 图标，与其他顶栏图标共用 `26px` 方形热区，直接进入 All Chapters editor，并以图标颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但它不再弹出菜单：点击直接进入上次使用的 overview（`openLastSuperView`）；Element overview、Story graph 与 TODO & Materials 三个目的地改由共享 Super View header 的 `navigationSlot`（`DesktopSuperViewHeader`）就地切换。旧的 `SUPER` 菜单与四个自绘 Super View 图标都不再存在。
+- 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；icon button 通过 `aria-pressed` / `data-active` 暴露当前目的地，选中态同样只把前景色提高到 `--ink-1`，不绘制底色、下划线或其他附加选中装饰。真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
 - Copilot 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后可就地修改 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
 - `BottomStatusBar` 以只读状态为主，报告当前上下文对应的章节/故事线/全书字数、今日新增字数，以及同步状态和最近成功同步时间；原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
 - 通知入口仍留在 topbar，因为它会打开通知中心，属于操作入口而不是被动状态。footer 后续只接受无需点击即可理解、且与当前写作任务有关的短状态。

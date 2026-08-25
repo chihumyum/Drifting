@@ -1,6 +1,7 @@
 # Local relational Markdown export
 
-The default local-only build exposes **Settings → Local data → Export relational Markdown**.
+The default local-only build exposes **Settings → Sync & Data → Local data → Export
+relational Markdown**.
 The export does not require a Drifting account and does not call the hosted project graph,
 entity mutation flush, remote Yjs sync, or any hosted asset/service API.
 
@@ -25,11 +26,13 @@ hard-deleted in the current schema, so every remaining local `library_item` row 
 
 ## Archive contents and limits
 
-The ZIP contains one project index plus Markdown documents for current chapters, drifts,
-elements, element categories, storylines, comments, and library notes. Curated entity relations,
-comment targets, storyline membership, category membership, and inline `entityLink` marks become
-portable `[[path|title]]` links. User-controlled path segments are normalized and combined with a
-stable ID suffix.
+The export covers every project in the local library and is saved as
+`drifting-all-books-markdown-<date>.zip`. The ZIP root contains a library-level `README.md` and an
+`index.md` listing every book; each project then contributes its own index plus Markdown documents
+for current chapters, drifts, elements, element categories, storylines, comments, and library
+notes. Curated entity relations, comment targets, storyline membership, category membership, and
+inline `entityLink` marks become portable `[[path|title]]` links. User-controlled path segments
+are normalized and combined with a stable ID suffix.
 
 This is a **readable migration archive**, not a lossless backup:
 

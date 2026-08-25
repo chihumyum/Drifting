@@ -149,7 +149,10 @@ longer carry `mainStorylineId`.
 
 The following boundaries remain deliberately fail-closed rather than guessed:
 
-- `chapter` is accepted only as an order-list kind, never as an entity row.
+- The `chapter` target kind fails closed. Chapters are node entities whose
+  sequence is the authored `bookOrder` LWW field, so a chapter `order.move` is
+  rejected with `domain.unsupported-order` instead of materializing an order
+  register.
 - Retired `node-storyline-link` lifecycle and whole-array payloads are not in
   the frozen reducer target vocabulary. Clean-first builds reject them as
   unknown protocol input; no current UI or Agent writer emits them.

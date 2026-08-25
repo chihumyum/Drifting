@@ -90,6 +90,11 @@ The HTTP fake verifies the exact revoke method/path/form body, idempotent
 the absence of bearer headers. TypeScript verifies that only an opaque reference
 crosses IPC and that abort cancels the native operation.
 
+Current machine evidence is
+[`acceptance/phase5-google-drive-credential-revoke.json`](acceptance/phase5-google-drive-credential-revoke.json),
+under the top-level
+[`trusted-cloud contract`](acceptance/trusted-cloud-google-drive-contract.json).
+
 No test credential is a real Google token. The official clients compile in the
 iOS simulator and Android APK builds, but consent revocation, propagation to a
 second device, reconnect after revoke, and physical-device behavior remain

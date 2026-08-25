@@ -65,6 +65,7 @@ pnpm exec vitest run \
   src/renderer/sync/app-authority-repository.integration.test.ts
 ```
 
-Last observed on 2026-08-15: 10 files and 76 tests passed. Scoped ESLint and
-the full TypeScript typecheck also passed. This is local/file-backed acceptance;
-it does not claim real-account or physical-device Google Drive convergence.
+The checked-in machine-readable results are
+[`acceptance/phase1-main-prose-authority.json`](acceptance/phase1-main-prose-authority.json).
+This is local/file-backed acceptance; it does not claim real-account or
+physical-device Google Drive convergence.

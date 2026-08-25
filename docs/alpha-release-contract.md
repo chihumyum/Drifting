@@ -45,8 +45,9 @@ current evidence for the exact source SHA and signed artifact:
    reauthorization, revoke, quota/error, and resumable large-asset behavior;
 4. Developer ID signing, notarization, stapling, Gatekeeper, updater signature,
    checksum, bundled notices, and public re-download verification;
-5. public Privacy, Google Drive data-use, Known Issues, Support, source, license,
-   feedback, and basic troubleshooting pages;
+5. anonymous availability of the CI-enforced public pages — the drifting.app
+   homepage, Privacy, Google Drive data-use, Quick Start, Support, and Known
+   Issues — plus the public source repository and license linked from the app;
 6. one real reviewed BYOK General Agent task if the Agent remains visible in
    release copy.
 

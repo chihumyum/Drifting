@@ -66,9 +66,12 @@ Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与�
 [local-data-export.md](docs/local-data-export.md)，本地图片/PDF 所有权边界见
 [local-assets.md](docs/local-assets.md)。
 
-当前尚未发布数据兼容契约；migration journal 只描述唯一的当前 pre-release schema。
-旧开发构建产生的数据库应备份后重置，不要为其添加 fallback read、双写或搬运器。
-这项规则以 [AGENTS.md](AGENTS.md) 的 `Pre-release compatibility policy` 为准。
+`0.1.0-alpha.1` 已冻结首个公开 SQLite/domain/checkpoint 兼容基线：此后每个公开
+`0.1.x` 版本必须按顺序升级更早的公开 `0.1.x` 数据，已发布的迁移不可改写。当前
+基线的数据库应予保留；只有基线之前的 pre-Alpha 开发库不属于受支持的迁移人群，
+应备份后重置，不要为其添加 fallback read、双写或搬运器。这项规则以
+[AGENTS.md](AGENTS.md) 的 `Public Alpha compatibility policy` 与
+[docs/alpha-release-contract.md](docs/alpha-release-contract.md) 为准。
 
 ## 网络与兼容服务
 

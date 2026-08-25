@@ -1,6 +1,6 @@
 # General Agent functional acceptance checklist
 
-Updated: 2026-08-13
+Updated: 2026-08-26
 
 This is the durable acceptance index for General Agent changes. A milestone is
 not accepted from a test count alone: every applicable row needs an evidence
@@ -250,6 +250,7 @@ pnpm eval:agent:crud
 pnpm eval:agent:long-task
 pnpm eval:agent:context
 pnpm eval:agent:writing
+pnpm eval:agent:working-memory
 pnpm eval:agent:extensions
 pnpm agent:capabilities:check
 ```
@@ -276,13 +277,15 @@ second target without a post-write reread. The run was deliberately stopped
 after exposing one stale-delete receipt ambiguity; CTX-25 closes that runtime
 defect deterministically. Weak-model literary deliberation is recorded as an
 efficiency observation, not a runtime failure unless it is caused by ambiguous
-schemas, contradictory receipts or stale current state. See
-[`GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
+schemas, contradictory receipts or stale current state. The dated report
+(GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04) was not retained in the
+public repository.
 
 The 2026-08-03 DeepSeek Standard-200k campaign used
 provider-default reasoning (`adaptive`, no effort override), a vague
 project-level author prompt and a disposable `雾港纪事` clone. It completed all
 14 durable task steps across 201 model iterations, 1,931 tool calls, 181
 committed effects and 100 full-compactor plans; the final turn completed and
-checkpointed 16 verified summaries. See
-[`GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
+checkpointed 16 verified summaries. The dated report
+(GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03) was not retained in the public
+repository.

@@ -29,8 +29,11 @@ only current `snapshot-commit` objects, and generation-bound transport opens
 with `google_drive_open_generation`. Upload uses
 `google_drive_upload_immutable` after exact native ref/hash/size validation.
 
-Drive uses only `https://www.googleapis.com/auth/drive.appdata` and the account's
-hidden `appDataFolder`. Full inventory plus change cursors support automatic
+OAuth requests only OpenID identity plus
+`https://www.googleapis.com/auth/drive.appdata`: the desktop flow asks for the
+`openid` and `drive.appdata` scopes together and resolves the account subject
+through the OpenID UserInfo endpoint, and Drive access stays confined to the
+account's hidden `appDataFolder`. Full inventory plus change cursors support automatic
 account-scoped project discovery. Same logical ID/hash/size is idempotent;
 different content under an existing identity fails closed. Uploads are
 resumable and downloads are streaming.

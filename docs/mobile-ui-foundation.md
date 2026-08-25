@@ -1,51 +1,51 @@
 # Mobile UI foundation
 
-> This document describes the current implemented mobile shell. The frozen
-> replacement target and staged M0-M9 delivery gates are indexed at
-> [`mobile-v2/README.md`](mobile-v2/README.md). M1-M6 implementation records are
-> current boundaries; later milestone prose remains target behavior only.
+> This document describes the current implemented mobile shell — the only
+> mobile frontend Drifting has. The staged "Mobile V2" delivery documents and
+> their dated Simulator run reports were retired after delivery completed; they
+> remain recoverable from Git history. Current behavior is documented here and
+> enforced by the acceptance tests referenced below.
 
 ## Current verdict
 
 Drifting has a distinct mobile product path. Authentication, project shelf,
-global settings, and the paper workspace are composed by mobile-owned routes
-and shell components over the shared project runtime, domain model, use cases,
-Yjs, sync, authentication, and Agent runtime.
+global settings, Project Home, and the paper workspace are composed by
+mobile-owned routes and shell components over the shared project runtime,
+domain model, use cases, Yjs, sync, authentication, and Agent runtime.
 
-Since Mobile V2 M1, that presentation path is selected by an immutable
-`shellMode` separate from the native platform target. Phones and compact
-tablets use the current mobile shell; native tablets at least 1000 portrait CSS
-pixels wide reuse Desktop Shell while retaining mobile native capabilities,
-safe areas, and portrait-only policy. The exact implemented boundary is in
-[`mobile-v2/platform-and-appearance-foundation.md`](mobile-v2/platform-and-appearance-foundation.md).
+The presentation path is selected by an immutable `shellMode` separate from the
+native platform target. Phones and compact tablets use the mobile shell; native
+tablets at least 1000 portrait CSS pixels wide reuse Desktop Shell while
+retaining mobile native capabilities, safe areas, and portrait-only policy
+(`src/renderer/lib/ui-shell-mode.ts`).
 
-Since M2, one reducer owns workspace surface, paper mode, panel, transient, and
-keyboard state. Visible Back, Escape, the Super View stack, and Android native
-Back share one typed request and unwind one owned layer at a time. Overview and
-Super Views are controller surfaces rather than paper-session entries. The
-implemented boundary is in
-[`mobile-v2/workspace-controller-and-back.md`](mobile-v2/workspace-controller-and-back.md).
-Since M3, one 56px controller-owned unified bar replaces the paper cluster and
-paper pinch chrome, top and bottom panels use 56px one-level vertical rails,
-panels crop a 1:1 paper, and read-state horizontal paper swipe has explicit
-nested-interaction arbitration. The implemented boundary is in
-[`mobile-v2/unified-bar-rails-and-paper-swipe.md`](mobile-v2/unified-bar-rails-and-paper-swipe.md).
-Since M4, the bar is keyboard-aware on both native targets, real outline and
-comment rails portal into one shared sheet, paper/Project search are read-only,
-All Chapters promotes exactly one live editor, and an empty Project can create
-its first chapter. The implemented boundary is in
-[`mobile-v2/editing-comments-search-and-all-chapters.md`](mobile-v2/editing-comments-search-and-all-chapters.md).
-Since M5, complete shared Planning is reachable in the vertical tool workspace,
-chapter touch drag uses delayed ownership with compositor ghost, edge scroll,
-and exactly-once commit, Timeline pinch stays midpoint-anchored, and Plot Grid
-retains normalized row/column/TSV/resize writes. The implemented boundary is in
-[`mobile-v2/complete-planning-and-touch-drag.md`](mobile-v2/complete-planning-and-touch-drag.md).
-Since M6, compact Mobile Shell owns an answer-only Agent presentation over the
-shared runtime, persists visible Project/entity/block context, exposes stable
-evidence and author-tapped output actions, and gives Library/TODO/Stats a
-portrait information architecture with ordinary touch actions. The implemented
-boundary is in
-[`mobile-v2/mobile-agent-library-todo-and-stats.md`](mobile-v2/mobile-agent-library-todo-and-stats.md).
+One reducer (`mobile-workspace-controller.ts`) owns the workspace surface —
+`project-home`, `paper`, `overview`, or `super-view` — plus paper mode, panel,
+transient, and keyboard state. Visible Back, Escape, the Super View stack, and
+Android native Back share one typed request and unwind one owned layer at a
+time. Back resolution order is: dialog, then transient (popover/sheet), then
+search, then formatting, then edit mode, then Agent input, then the surface
+stack. Search opened from edit keeps the editor's input-method session
+(`keyboard: 'open'`) and hands focus back to the editor when Back resolves; the
+exact focus-handoff contract is recorded in
+[`qa/mobile-search-focus-regression.md`](qa/mobile-search-focus-regression.md).
+Back at the read-paper root returns to Project Home; Back at Project Home
+leaves the project for the shelf.
+
+The workspace chrome is one 56px controller-owned unified bar plus top and
+bottom panels with 56px one-level vertical rails. Panels crop a 1:1 paper, and
+read-state horizontal paper swipe has explicit nested-interaction arbitration.
+The bar is keyboard-aware on both native targets, real outline and comment
+rails portal into one shared sheet, paper/Project search are read-only, All
+Chapters promotes exactly one live editor, and an empty Project can create its
+first chapter. Complete shared Planning is reachable in the vertical tool
+workspace with delayed-ownership chapter touch drag. A compact answer-only
+Agent presentation runs over the shared runtime (read-only tool access), with
+Working Memory, Library/TODO, and Stats given a portrait information
+architecture. The three Super Views (Elements, Story Graph, Library/Memo) are
+independent controller surfaces with preserved per-view state
+(`MobileSuperViewHost.tsx`), and Settings exposes a compact Google Drive
+surface over the shared sync product commands.
 
 This is an implemented foundation with static, build, state-machine, and dated
 Simulator evidence. It is not a claim that current interactions have passed
@@ -57,6 +57,7 @@ complete iOS and Android physical-device acceptance.
 AppRoutes
 ├── DesktopAppShell (desktop target or expanded native tablet)
 └── MobileAppShell (phone or compact native tablet)
+    ├── Project Home (project-level surface, not a paper)
     ├── mobile paper session and URL adapter
     ├── single active full editor
     ├── paper overview and reorder
@@ -93,8 +94,10 @@ editing, timeline, material, comment, and Agent capabilities.
 - Opening a project mounts `MobileAppShell` and the shared
   `ProjectRuntimeProvider`; it does not enter `DesktopAppShell` or the former
   deferred workspace page.
-- If the restored mobile session has no open paper, the project opens a
-  Dashboard paper instead of guessing and opening the first chapter.
+- A project always opens at Project Home, a project-level surface outside the
+  paper rail (`MobileProjectHome.tsx`). The former Dashboard paper is retired;
+  the mobile session storage migrates v1 dashboard papers out of the v2 content
+  session. The paper session resumes from Home.
 - A mobile paper session owns open targets, activation, close, reorder,
   adjacent switching, URL synchronization, and per-paper scroll restoration.
 - Only the active paper mounts a full editor. When focus moves, its current live
@@ -151,9 +154,11 @@ editing, timeline, material, comment, and Agent capabilities.
   identity opens Overview; its structure/tool buttons cycle
   `none -> docked -> full -> none` through the workspace controller.
 - The top panel's one-level 56px rail contains Chapters, Elements, and
-  Inspiration; Dashboard remains an ordinary paper. The bottom panel's one-level 56px rail contains Planning, Agent,
-  Library, and Stats. Timeline/Plot and TODO/Library are internal panel choices,
-  not a second rail.
+  Inspiration. The bottom panel's one-level 56px rail contains Planning, Agent,
+  and Library. Timeline/Plot and TODO/Library are internal panel choices, not a
+  second rail. Stats is not a rail destination: the current entity's Stats open
+  as a dedicated sheet (`MobilePaperStatsSheet.tsx`) reusing the shared desktop
+  `EntityStatsContent`.
 - Read-paper swipe starts on the full paper only when no editor, selection,
   composition, panel, transient, keyboard, TOC/comment rail, Timeline, Plot
   Grid, canvas, interactive target, or nested horizontal scroller owns the
@@ -197,22 +202,26 @@ contracts.
 ## Remaining device acceptance
 
 1. Unified-bar ergonomics, panel handles, real-finger paper swipe, nested
-   gesture arbitration, Timeline/Plot continuous touch, and Super View canvas gestures
-   still need complete iOS and Android physical-device validation. The
-   2026-08-23 iPhone Simulator run covered the M3 visible bar/rail/panel paths;
-   its paper drags were explicitly `synthetic-dom`, not native touch.
+   gesture arbitration, Timeline/Plot continuous touch, and Super View canvas
+   gestures still need complete iOS and Android physical-device validation. The
+   dated 2026-08 Simulator/Emulator runs exercised these paths with explicitly
+   `synthetic-dom` input, not native touch.
 2. IME, selection/caret scrolling, `visualViewport`/Android IME inset behavior,
    password managers, OTP autofill, deep links, and keyboard avoidance need
-   physical-device coverage. The M4 Simulator/Emulator run covered the stated
-   English/Chinese/Gboard and native-selection paths only.
+   physical-device coverage. Simulator coverage exercised the stated
+   English/Chinese/Gboard and native-selection paths only. The editor
+   scroll/persistent-Back handoff that still awaits user-owned device runs is
+   recorded in
+   [`qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md`](qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md).
 3. Rotation, safe areas, system bars, background/foreground, offline recovery,
    low-memory behavior, and representative device performance remain open.
-4. Story Graph, Agent, entity editing, and other dense workflows require
-   device-specific interaction checks. M5 Simulator/Emulator evidence covers
-   visible Timeline/Plot and synthetic drag/TSV/persistence. M6 covers
-   answer-only Agent, Library/TODO, and Stats through synthetic WebView input,
-   but does not close live-provider, native clipboard, accessibility, or
-   physical-touch gates.
+4. Story Graph, Agent, entity editing, Google Drive settings, and other dense
+   workflows require device-specific interaction checks. Simulator/Emulator
+   evidence covers visible surfaces and synthetic input, but does not close
+   live-provider, native clipboard, accessibility, or physical-touch gates. The
+   Google Drive release gate additionally requires the real-account
+   three-platform run in
+   [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
 the current checklist. Build or Simulator success must not be reported as

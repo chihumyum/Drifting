@@ -88,8 +88,8 @@ sync cycles.
 ## Machine acceptance
 
 ```bash
-cargo test sync_asset_store::tests --lib -- --nocapture
-cargo check
+cargo test sync_asset_store::tests --lib --manifest-path src-tauri/Cargo.toml -- --nocapture
+cargo check --manifest-path src-tauri/Cargo.toml
 pnpm exec vitest run \
   src/renderer/sync/assets/native-asset-pipeline.test.ts \
   src/renderer/platform/tauri.test.ts \

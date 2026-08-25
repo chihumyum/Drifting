@@ -24,10 +24,11 @@ receipt ids, or sync mutations. Only comments, relations, element patches, and
 author rules keep opaque handles after creation, because those handles
 distinguish otherwise unnamed domain objects.
 
-Acceptance tests keep every provider schema deliberately narrow: no more than
-eight top-level fields, object nesting no deeper than two levels, no union of
-object-shaped argument branches, and no runtime plumbing fields. A small valid
-domain example must pass while a generic authored-object shape must fail.
+Every provider schema is kept deliberately narrow as a design constraint that
+schema authors must preserve: no more than eight top-level fields, object
+nesting no deeper than two levels, no union of object-shaped argument branches,
+and no runtime plumbing fields. A small valid domain example must pass while a
+generic authored-object shape must fail.
 
 | Domain               | Natural authored target            |
 | -------------------- | ---------------------------------- |
@@ -63,7 +64,7 @@ capability inventory.
 | Storyline membership and primary assignment            | SQLite link graph                          | storyline/node mapping stores            |
 | Agent memory                                           | SQLite                                     | prompt memory and author-rule projection |
 | Review decisions                                       | SQLite ordered review blocks               | editor review badges and animations      |
-| Cross-device delivery                                  | transactional local sync outbox            | server projection after flush            |
+| Cross-device delivery                                  | transactional local sync outbox            | SyncEngine provider object-log sync      |
 
 LocalStorage and Zustand are projections. They cannot independently approve,
 reject, create, delete, or revert an Agent mutation. Prose writes never mutate

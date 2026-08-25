@@ -52,17 +52,4 @@ describe('Mobile panel handle and shared Stats correction', () => {
     expect(controller).toContain("{ kind: 'paper-stats' }");
   });
 
-  it('keeps durable product and Simulator evidence attached', () => {
-    const product = document('docs/mobile-v2/product-contract.md');
-    const workspace = document('docs/mobile-v2/unified-bar-rails-and-paper-swipe.md');
-    const evidence = document(
-      'docs/qa/mobile-v2-single-handle-stats-repair-simulator-2026-08-24.md',
-    );
-
-    expect(product).toContain('Current-entity Stats Sheet: shared desktop right-sidebar content');
-    expect(workspace).toContain('one continuous boundary handle');
-    expect(evidence).toContain('iOS Simulator acceptance passed');
-    expect(evidence).toContain('inputPath=synthetic-dom');
-    expect(evidence).toContain('physical-device continuous touch remains open');
-  });
 });

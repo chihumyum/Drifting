@@ -1,6 +1,6 @@
 # Entity snapshot history
 
-Updated: 2026-08-02
+Updated: 2026-08-26
 
 Drifting's manuscript recovery surface is the entity history system, not an
 Agent conversation checkpoint. It works for author and Agent edits alike and

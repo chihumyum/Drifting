@@ -26,9 +26,11 @@ exist only on the current device.
 There is no recovery phrase, QR, biometric/user-presence reveal, “saved”
 confirmation, project key, or separate Restore form. Restart resumes the owned
 credential, inventory, transfer receipts, and connection attempt without
-opening OAuth again unless authorization needs repair. Cancellation revokes or
-retains the credential according to the native durable revoke result and never
-deletes authored local projects.
+opening OAuth again unless authorization needs repair. Cancelling the pending
+transition from Settings revokes its native credential through the durable
+revoke path before the attempt is cancelled; abandoning the OAuth flow itself
+never yields a credential and keeps any already-owned one. Neither form of
+cancellation deletes authored local projects.
 
 Checkpoint thresholds and fail-closed gap/conflict/quarantine rules remain
 provider-neutral. Network calls never run while a SQLite transaction is open.
