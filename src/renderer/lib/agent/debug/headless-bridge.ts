@@ -492,7 +492,11 @@ async function executeDebugTurn(
       emitter.emit({ type: 'journal', entry });
       const event = entry.event;
       if (event.type === 'text_delta') assistantText += event.text;
-      else if (event.type === 'thinking_delta') thinkingText += event.text;
+      else if (event.type === 'thinking_delta') {
+        // The transport streams transient chunks and then one consolidated
+        // durable row per run; counting both would double the run's text.
+        if (!event.consolidated) thinkingText += event.text;
+      }
       else if (event.type === 'context_planned') latestContext = event.snapshot;
       else if (event.type === 'tool_call_ready') {
         toolCalls.push({ callId: event.callId, name: event.name, arguments: event.arguments });

@@ -92,6 +92,22 @@ export function applyAgentChatJournalEntry(
     }
     case 'thinking_delta': {
       const last = list[list.length - 1];
+      if (ev.consolidated) {
+        // One durable row per thinking run. Live, transient entries already
+        // streamed this exact text into a still-streaming message, so replace
+        // instead of appending; on replay it materializes the whole run. The
+        // run is over either way, so finish the message here — otherwise an
+        // adjacent later run would replace this one's text.
+        if (last?.kind === 'thinking' && last.streaming) {
+          const copy = list.slice();
+          copy[copy.length - 1] = { ...last, text: ev.text, streaming: false };
+          return copy;
+        }
+        return [
+          ...finalizeAgentChatStreaming(list),
+          { kind: 'thinking', text: ev.text, streaming: false },
+        ];
+      }
       if (last?.kind === 'thinking' && last.streaming) {
         const copy = list.slice();
         copy[copy.length - 1] = { ...last, text: last.text + ev.text };

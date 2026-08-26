@@ -358,6 +358,16 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       }
     };
 
+    // Transient entries carry the character-level thinking stream that the
+    // durable journal consolidates into one row per run. They reach live
+    // subscribers exactly like durable entries but are never persisted.
+    const publishTransient = (entry: AgentRuntimeJournalEntry): void => {
+      this.publishJournal(entry);
+      for (const event of projector.project(entry)) {
+        this.publish({ turnId, event });
+      }
+    };
+
     const publishTerminal = (): void => {
       if (terminalEntry) this.publishJournal(terminalEntry);
       terminalEntry = null;
@@ -395,6 +405,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         signal: controller.signal,
         control,
         onEntry: publishProjected,
+        onTransientEntry: publishTransient,
       })
       .then(async (result) => {
         if (this.persistence) {

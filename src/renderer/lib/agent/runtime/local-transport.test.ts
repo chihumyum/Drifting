@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentChatMessage } from '../../../domain/agent-conversation';
 import type { AgentEventEnvelope } from '../protocol';
+import { applyAgentChatJournalEntry } from './chat-journal-projection';
 import { LocalGeneralAgentTransport } from './local-transport';
 import { ManualAgentClock, ScriptedFakeDriver } from './testing';
 import type {
@@ -138,6 +140,65 @@ describe('LocalGeneralAgentTransport', () => {
         (entry) => entry.turnId === 'turn-extra' && entry.event.type === 'turn_finished',
       )?.event,
     ).toMatchObject({ outcome: 'completed' });
+  });
+
+  it('streams transient thinking chunks live while the durable journal keeps one row per run', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'emit', event: { type: 'thinking_delta', text: '想' } },
+            { op: 'emit', event: { type: 'thinking_delta', text: '一想' } },
+            { op: 'emit', event: { type: 'text_delta', text: 'answer' } },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      createId: (kind) => `${kind}-thinking`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
+    await transport.start({
+      prompt: 'think first',
+      turnId: 'turn-thinking',
+      route: { kind: 'chat', projectId: 'project-1' },
+    });
+    await waitForDone(events, 1);
+
+    const transientEntries = journal.filter((entry) => entry.transient);
+    expect(
+      transientEntries.flatMap((entry) =>
+        entry.event.type === 'thinking_delta' ? [entry.event.text] : [],
+      ),
+    ).toEqual(['想', '一想']);
+    const durableThinking = journal.filter(
+      (entry) => !entry.transient && entry.event.type === 'thinking_delta',
+    );
+    expect(durableThinking).toHaveLength(1);
+    expect(durableThinking[0]?.event).toMatchObject({ text: '想一想', consolidated: true });
+
+    // The product store folds this exact stream; the consolidated row must
+    // finish the streamed run instead of rendering the text a second time.
+    let messages: AgentChatMessage[] = [];
+    for (const entry of journal) messages = applyAgentChatJournalEntry(messages, entry);
+    expect(messages.filter((message) => message.kind === 'thinking')).toEqual([
+      { kind: 'thinking', text: '想一想', streaming: false },
+    ]);
+
+    // Legacy consumers receive the streamed chunks once, with no duplicate
+    // from the consolidated durable row.
+    expect(
+      events.flatMap((envelope) =>
+        envelope.event.type === 'thinking_delta' ? [envelope.event.text] : [],
+      ),
+    ).toEqual(['想', '一想']);
+    driver.assertExhausted();
   });
 
   it('projects an interactive permission wait and validates the full resolution binding', async () => {

@@ -756,13 +756,78 @@ export class AgentRuntime {
       }
     };
     let emitTail: Promise<void> = Promise.resolve();
-    const emit = (event: AgentRuntimeEvent, cleanup = false): Promise<void> => {
+    const enqueueAppend = (event: AgentRuntimeEvent, cleanup: boolean): Promise<void> => {
       const operation = emitTail.then(() => appendEvent(event, cleanup));
       emitTail = operation.then(
         () => undefined,
         () => undefined,
       );
       return operation;
+    };
+    // Provider adapters commonly stream thinking a few characters at a time.
+    // Persisting every fragment made a normal reasoning turn produce thousands
+    // of journal rows, each an awaited SQLite transaction that back-pressured
+    // the provider stream. Buffer the run here and persist it as one
+    // consolidated row; the UI keeps character-level rendering through
+    // transient entries that never touch the journal (see onTransientEntry).
+    let pendingThinking: { iteration: number; text: string } | null = null;
+    let transientSequence = 0;
+    const takePendingThinkingEvent = (): AgentRuntimeEvent | null => {
+      if (!pendingThinking) return null;
+      const { iteration, text } = pendingThinking;
+      pendingThinking = null;
+      // A run buffered after cancellation began cannot be reduced (the strict
+      // reducer only accepts thinking while running); the dying turn drops it,
+      // matching how partial tool arguments are dropped on abort.
+      if (!text || state.status !== 'running') return null;
+      return { type: 'thinking_delta', iteration, text, consolidated: true };
+    };
+    const bufferThinking = (iteration: number, text: string): void => {
+      // A pending run always belongs to the active iteration: every iteration
+      // ends with a model_iteration_completed emit, which flushes it.
+      if (pendingThinking) pendingThinking.text += text;
+      else pendingThinking = { iteration, text };
+      if (!input.onTransientEntry) return;
+      transientSequence += 1;
+      const entry: AgentRuntimeJournalEntry = {
+        schemaVersion: AGENT_RUNTIME_SCHEMA_VERSION,
+        sessionId: input.sessionId,
+        turnId: input.turnId,
+        route,
+        seq,
+        eventId: `${input.turnId}:transient:${String(transientSequence).padStart(8, '0')}`,
+        wallTimeMs: this.clock.wallNowMs(),
+        event: { type: 'thinking_delta', iteration, text },
+        transient: true,
+      };
+      // Ride the emit tail so transient chunks interleave with durable entries
+      // in true stream order (a steering emit can land mid-run and must not be
+      // observed out of order), without the stream loop awaiting persistence.
+      emitTail = emitTail.then(
+        () => {
+          try {
+            input.onTransientEntry?.(entry);
+          } catch {
+            // Observers are projections; they cannot change runtime correctness.
+          }
+        },
+        () => undefined,
+      );
+    };
+    const emit = (event: AgentRuntimeEvent, cleanup = false): Promise<void> => {
+      // Any durable event closes an open thinking run first, so replay keeps
+      // the exact stream order and no later event can interleave a run.
+      const consolidated = takePendingThinkingEvent();
+      if (!consolidated) return enqueueAppend(event, cleanup);
+      const flushOperation = enqueueAppend(consolidated, cleanup);
+      const operation = enqueueAppend(event, cleanup);
+      return flushOperation.then(
+        () => operation,
+        (error: unknown) => {
+          operation.catch(() => undefined);
+          throw error;
+        },
+      );
     };
 
     if (input.control) {
@@ -1758,7 +1823,7 @@ export class AgentRuntime {
 
             case 'thinking_delta':
               appendContentDelta(blocks, 'thinking', frame.text);
-              await emit({ type: 'thinking_delta', iteration, text: frame.text });
+              if (frame.text) bufferThinking(iteration, frame.text);
               break;
 
             case 'tool_call_start': {

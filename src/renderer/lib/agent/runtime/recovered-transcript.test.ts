@@ -234,6 +234,56 @@ describe('canonical Agent chat recovery projection', () => {
     );
   });
 
+  it('renders a consolidated thinking row as one finished thinking message', async () => {
+    const persisted = snapshot();
+    const now = '2026-07-31T00:00:00.000Z';
+    const events: AgentRuntimeEvent[] = [
+      { type: 'turn_started', prompt: 'do the whole task' },
+      { type: 'model_iteration_started', iteration: 1, driverId: 'test-driver' },
+      { type: 'context_planned', iteration: 1, snapshot: contextUsageSnapshot() },
+      {
+        type: 'thinking_delta',
+        iteration: 1,
+        text: '先检查上下文。',
+        consolidated: true,
+      },
+      { type: 'text_delta', iteration: 1, text: 'partial progress' },
+      { type: 'model_usage', iteration: 1, usage },
+      { type: 'model_iteration_completed', iteration: 1, stopReason: 'unknown' },
+      {
+        type: 'turn_finished',
+        outcome: 'budget_exceeded',
+        failureCode: 'BUDGET_EXCEEDED',
+        message: 'Turn budget reached',
+        usage,
+        modelIterations: 1,
+        durationMs: 500,
+      },
+    ];
+    persisted.events = events.map((event, index) => {
+      const seq = index + 1;
+      return {
+        eventId: `turn-1:${String(seq).padStart(8, '0')}`,
+        sessionId: 'session-1',
+        turnId: 'turn-1',
+        seq,
+        schemaVersion: 1,
+        eventType: event.type,
+        payload: { route, event },
+        wallTimeMs: 1_800_000_000_000 + seq,
+        createdAt: now,
+      };
+    });
+
+    const projection = await loadCanonicalAgentChatProjection('session-1', repository(persisted));
+    expect(
+      projection?.messages.filter((message) => message.kind === 'thinking'),
+    ).toEqual([{ kind: 'thinking', text: '先检查上下文。', streaming: false }]);
+    expect(projection?.messages).toContainEqual(
+      expect.objectContaining({ kind: 'assistant', text: 'partial progress' }),
+    );
+  });
+
   it('keeps runtime continuation prompts in model history but out of the visible transcript', async () => {
     const persisted = snapshot();
     const started = persisted.events.find((event) => event.eventType === 'turn_started')!;

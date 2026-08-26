@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AgentChatMessage } from '../../../domain/agent-conversation';
 import { AgentModelDriverError } from './errors';
 import { AgentRuntimeControlChannel } from './control-plane';
+import { applyAgentChatJournalEntry } from './chat-journal-projection';
 import { replayAgentRuntimeJournal } from './reducer';
 import {
   AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT,
@@ -732,6 +734,138 @@ describe('AgentRuntime', () => {
       ['b', bJson],
       ['a', aJson],
     ]);
+    driver.assertExhausted();
+  });
+
+  it('consolidates a provider thinking run into one journal row while transient entries keep streaming', async () => {
+    const chunks = ['先', '想', '一', '想', '。'];
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...chunks.map(
+              (text): ScriptedDriverStep => ({
+                op: 'emit',
+                event: { type: 'thinking_delta', text },
+              }),
+            ),
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const persisted: AgentRuntimeJournalEntry[] = [];
+    const deliveries: AgentRuntimeJournalEntry[] = [];
+    const result = await new AgentRuntime({
+      driver,
+      journal: {
+        append: (entry) => {
+          persisted.push(entry);
+        },
+      },
+    }).runTurn(
+      input({
+        onEntry: (entry) => deliveries.push(entry),
+        onTransientEntry: (entry) => deliveries.push(entry),
+      }),
+    );
+
+    expect(result.state.status).toBe('completed');
+    expect(result.state.thinkingText).toBe(chunks.join(''));
+
+    const persistedThinking = persisted.filter((entry) => entry.event.type === 'thinking_delta');
+    expect(persistedThinking).toHaveLength(1);
+    expect(persistedThinking[0]?.event).toEqual({
+      type: 'thinking_delta',
+      iteration: 1,
+      text: chunks.join(''),
+      consolidated: true,
+    });
+    expect(persisted).toEqual(result.entries);
+    expect(result.entries.some((entry) => entry.transient)).toBe(false);
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+
+    const transients = deliveries.filter((entry) => entry.transient);
+    expect(
+      transients.map((entry) =>
+        entry.event.type === 'thinking_delta' ? entry.event.text : null,
+      ),
+    ).toEqual(chunks);
+    for (const entry of transients) {
+      expect(entry.eventId).toContain(':transient:');
+      expect(entry.event).not.toHaveProperty('consolidated');
+    }
+    const consolidatedIndex = deliveries.findIndex(
+      (entry) => entry.event.type === 'thinking_delta' && entry.event.consolidated,
+    );
+    expect(consolidatedIndex).toBeGreaterThan(
+      deliveries.indexOf(transients[transients.length - 1]!),
+    );
+
+    // Fold the delivered stream exactly like the product store does: chunks
+    // must render incrementally and the consolidated row must not duplicate.
+    let messages: AgentChatMessage[] = [];
+    const midStream: AgentChatMessage[][] = [];
+    for (const entry of deliveries) {
+      messages = applyAgentChatJournalEntry(messages, entry);
+      if (entry.transient) midStream.push(messages);
+    }
+    expect(midStream[2]?.[midStream[2].length - 1]).toEqual({
+      kind: 'thinking',
+      text: chunks.slice(0, 3).join(''),
+      streaming: true,
+    });
+    expect(messages.filter((message) => message.kind === 'thinking')).toEqual([
+      { kind: 'thinking', text: chunks.join(''), streaming: false },
+    ]);
+    driver.assertExhausted();
+  });
+
+  it('keeps one durable thinking row per run in stream order around tool calls', async () => {
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({ ok: true, data: 'ok' }));
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'emit', event: { type: 'thinking_delta', text: 'I should ' } },
+            { op: 'emit', event: { type: 'thinking_delta', text: 'check.' } },
+            ...toolCallSteps('call-1', 'lookup', ['{}']),
+            { op: 'emit', event: { type: 'thinking_delta', text: 'Then ' } },
+            { op: 'emit', event: { type: 'thinking_delta', text: 'verify.' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('lookup')], execute),
+    }).runTurn(input());
+
+    expect(result.state.status).toBe('completed');
+    expect(result.state.thinkingText).toBe('I should check.Then verify.');
+    expect(
+      result.entries.flatMap((entry) =>
+        entry.event.type === 'thinking_delta' ? [entry.event.text] : [],
+      ),
+    ).toEqual(['I should check.', 'Then verify.']);
+    const types = result.entries.map((entry) => entry.event.type);
+    const firstThinking = types.indexOf('thinking_delta');
+    const secondThinking = types.indexOf('thinking_delta', firstThinking + 1);
+    expect(firstThinking).toBeLessThan(types.indexOf('tool_call_started'));
+    expect(secondThinking).toBeGreaterThan(types.indexOf('tool_call_ready'));
+    expect(secondThinking).toBeLessThan(types.indexOf('model_usage'));
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
     driver.assertExhausted();
   });
 

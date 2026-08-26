@@ -581,7 +581,19 @@ export type AgentRuntimeEvent =
       snapshot: AgentContextUsageSnapshot;
     }
   | { type: 'text_delta'; iteration: number; text: string }
-  | { type: 'thinking_delta'; iteration: number; text: string }
+  | {
+      type: 'thinking_delta';
+      iteration: number;
+      text: string;
+      /**
+       * Present on the single durable row that carries a whole provider
+       * thinking run. Live streaming happens through transient entries that
+       * are never persisted; projections must treat a consolidated event as
+       * the full run (replacing any transient-built streaming message), while
+       * unflagged events keep their historical per-chunk append semantics.
+       */
+      consolidated?: true;
+    }
   | {
       type: 'tool_call_started';
       iteration: number;
@@ -687,6 +699,13 @@ export interface AgentRuntimeJournalEntry {
   eventId: string;
   wallTimeMs: number;
   event: AgentRuntimeEvent;
+  /**
+   * Ephemeral streaming entry delivered only through `onTransientEntry`. It is
+   * never persisted, never reduced, and never appears in a turn's canonical
+   * `entries`. Its `seq` repeats the last durable seq and its `eventId` uses a
+   * distinct `:transient:` namespace, so replay invariants stay untouched.
+   */
+  transient?: true;
 }
 
 export type AgentRuntimeToolStatus = 'streaming' | 'ready' | 'executing' | 'completed';
@@ -779,6 +798,14 @@ export interface AgentRuntimeRunInput {
   signal?: AbortSignal;
   control?: AgentRuntimeControlChannel;
   onEntry?: (entry: AgentRuntimeJournalEntry) => void;
+  /**
+   * Receives ephemeral per-chunk streaming entries (currently provider
+   * thinking deltas) that the journal consolidates into one durable row per
+   * run. Deliveries interleave with `onEntry` in true stream order. Consumers
+   * that need character-level streaming subscribe here; everything a restart
+   * must reproduce still arrives through `onEntry`.
+   */
+  onTransientEntry?: (entry: AgentRuntimeJournalEntry) => void;
 }
 
 export interface AgentRuntimeRunResult {

@@ -1143,11 +1143,24 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
     }
 
     case 'text_delta':
-    case 'thinking_delta':
       if (!isPositiveInteger(value.iteration) || typeof value.text !== 'string') {
         corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid text delta.`);
       }
       return { type: value.type, iteration: value.iteration, text: value.text };
+
+    case 'thinking_delta':
+      if (!isPositiveInteger(value.iteration) || typeof value.text !== 'string') {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid text delta.`);
+      }
+      return {
+        type: value.type,
+        iteration: value.iteration,
+        text: value.text,
+        // Historical journals persisted one row per provider chunk; newer
+        // journals persist one consolidated row per thinking run. Preserve the
+        // marker so replay projections keep replace-versus-append semantics.
+        ...(value.consolidated === true ? { consolidated: true as const } : {}),
+      };
 
     case 'tool_call_started':
       if (

@@ -15,6 +15,7 @@ interface ToolProjectionState {
  */
 export class LegacyAgentEventProjector {
   private readonly tools = new Map<string, ToolProjectionState>();
+  private streamedThinkingRun = false;
 
   constructor(private readonly sessionId: string) {}
 
@@ -27,8 +28,22 @@ export class LegacyAgentEventProjector {
       case 'text_delta':
         return event.text ? [{ type: 'assistant_delta', text: event.text }] : [];
 
-      case 'thinking_delta':
+      case 'thinking_delta': {
+        if (entry.transient) {
+          this.streamedThinkingRun = true;
+          return event.text ? [{ type: 'thinking_delta', text: event.text }] : [];
+        }
+        if (event.consolidated) {
+          // When transient chunks already streamed this run, its durable
+          // consolidation carries no new text for legacy consumers. Without a
+          // transient feed (a caller that never wires onTransientEntry), the
+          // consolidated row is the only copy, so project it whole.
+          const streamed = this.streamedThinkingRun;
+          this.streamedThinkingRun = false;
+          if (streamed) return [];
+        }
         return event.text ? [{ type: 'thinking_delta', text: event.text }] : [];
+      }
 
       case 'tool_call_started':
         this.tools.set(event.callId, { name: event.name, exposed: false });
