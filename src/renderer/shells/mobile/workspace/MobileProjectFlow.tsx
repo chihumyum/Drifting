@@ -191,6 +191,21 @@ export function MobileProjectFlow({ onOpenProjectView, onOpenManage }: MobilePro
         />
       </span>
 
+      <div className="m-flow__entries">
+        <button type="button" onClick={() => onOpenProjectView('graph')}>
+          <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
+          <span>{t('dashboard.quick.graph', { defaultValue: '叙事图' })}</span>
+        </button>
+        <button type="button" onClick={() => navigateToAllChapters()}>
+          <span className="m-flow__glyph" aria-hidden="true">☰</span>
+          <span>{t('rightSidebar.targets.allChapters', { defaultValue: '通览全书' })}</span>
+        </button>
+        <button type="button" className="m-flow__entries-end" onClick={onOpenManage}>
+          <Settings size={13} strokeWidth={1.8} aria-hidden="true" />
+          <span>{t('mobileWorkspace.flow.manage', { defaultValue: '设定' })}</span>
+        </button>
+      </div>
+
       <span className="m-flow__label">
         {t('mobileWorkspace.flow.chapters', { defaultValue: '章节' })} · {chapters.length}
       </span>
@@ -308,20 +323,6 @@ export function MobileProjectFlow({ onOpenProjectView, onOpenManage }: MobilePro
         </>
       )}
 
-      <div className="m-flow__entries">
-        <button type="button" onClick={() => onOpenProjectView('graph')}>
-          <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
-          <span>{t('dashboard.quick.graph', { defaultValue: '叙事图' })}</span>
-        </button>
-        <button type="button" onClick={() => navigateToAllChapters()}>
-          <span className="m-flow__glyph" aria-hidden="true">☰</span>
-          <span>{t('rightSidebar.targets.allChapters', { defaultValue: '通览全书' })}</span>
-        </button>
-        <button type="button" className="m-flow__entries-end" onClick={onOpenManage}>
-          <Settings size={13} strokeWidth={1.8} aria-hidden="true" />
-          <span>{t('mobileWorkspace.flow.manage', { defaultValue: '设定' })}</span>
-        </button>
-      </div>
     </div>
   );
 }

@@ -338,8 +338,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 16px 0 4px;
-  margin-top: auto;
+  padding: 8px 0 0;
   color: hsl(var(--ink-3));
   font-size: 12px;
 }
