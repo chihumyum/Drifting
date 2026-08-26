@@ -49,9 +49,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(bar).not.toContain(
       'onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop())',
     );
-    expect(bar).toMatch(
-      /data-debug-id="mobile-open-search"[\s\S]*?onPointerDown=\{[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\);[\s\S]*?onMouseDown=\{[\s\S]*?if \(projection\.mode === 'edit'\) event\.preventDefault\(\);[\s\S]*?onClick=\{onOpenSearch\}/u,
-    );
+    // Search now opens from the paper tool face (read mode only); the bar
+    // never carries a search entry of its own.
+    expect(bar).not.toContain('mobile-open-search');
+    const face = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    expect(face).toContain('onOpenSearch');
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");
     expect(controller).toContain('returnTo: state.paperMode');
@@ -74,16 +76,6 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(styles).not.toContain(
       ".m-workspace[data-controller-keyboard='open'] .m-paper-deck__content",
     );
-  });
-
-  it('uses one 144px close snap zone for top and bottom panel handles', () => {
-    const gesture = source('shells/mobile/workspace/mobile-panel-gesture.ts');
-    const handle = source('shells/mobile/workspace/MobilePanelPullHandle.tsx');
-
-    expect(gesture).toContain('const CLOSE_SNAP_PX = 144');
-    expect(gesture).toContain('CLOSE_SNAP_PX / Math.max(1, gesture.viewportHeightPx)');
-    expect(gesture).toContain('if (extent <= closeEdge)');
-    expect(handle.match(/viewportHeightPx: Math\.max\(1, window\.innerHeight\)/g)).toHaveLength(2);
   });
 
   it('keeps the device-handoff boundary attached', () => {

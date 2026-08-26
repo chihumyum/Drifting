@@ -8,7 +8,7 @@ import {
   type Dispatch,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Layers3 } from 'lucide-react';
+import { ArrowLeft, Ellipsis, Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
@@ -23,9 +23,12 @@ import { MobileBarSheet } from './MobileBarSheet';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
 import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
-import { MobilePanelPullHandle } from './MobilePanelPullHandle';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
-import { MobileWorkspacePanels } from './MobileWorkspacePanels';
+import { MobileTabBar } from './MobileTabBar';
+import { MobileToolsFace } from './MobileToolsFace';
+import { useMobilePaperPresentation } from './MobilePaperContent';
+import { usePaperGlyph } from './mobile-paper-glyph';
+import { requestMobileWorkspaceBack } from './mobile-workspace-back';
 import {
   canStartMobilePaperSwipe,
   MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS,
@@ -33,18 +36,12 @@ import {
   resolveMobilePaperSwipe,
 } from './mobile-paper-swipe';
 import type { MobilePaperRail } from './mobile-paper-rail';
-import {
-  resolveMobilePanelGesture,
-  type MobilePanelGestureCommit,
-} from './mobile-panel-gesture';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import {
   type MobileWorkspaceAction,
-  type MobileWorkspacePanel,
   type MobileWorkspaceUiState,
 } from './mobile-workspace-controller';
 
-type PanelPosition = 'top' | 'bottom';
 type PaperSwipePhase = 'idle' | 'tracking' | 'dragging' | 'settling';
 
 interface PaperSwipeState {
@@ -58,7 +55,6 @@ interface PaperSwipeState {
   cancelled: boolean;
 }
 
-const DEFAULT_PANEL_EXTENT = 0.3;
 const PAPER_SWIPE_SETTLE_MS = 180;
 
 function MobilePaperViewport({
@@ -170,6 +166,16 @@ function MobilePaperViewport({
   );
 }
 
+function MobilePaperFolioIdentity({ paper }: { paper: MobilePaper }) {
+  const presentation = useMobilePaperPresentation(paper.target);
+  const glyph = usePaperGlyph(paper.target);
+  return (
+    <span className="m-paper-folio__identity">
+      <span aria-hidden="true">{glyph}</span> {presentation.kicker} · {presentation.title}
+    </span>
+  );
+}
+
 function currentSelectionIsCollapsed(): boolean {
   const selection = window.getSelection?.();
   return !selection || selection.isCollapsed;
@@ -209,26 +215,10 @@ export function MobilePaperDeck({
   const suppressClickRef = useRef(false);
   const previousActiveKeyRef = useRef(session.activeKey);
   const [paperSwipePhase, setPaperSwipePhase] = useState<PaperSwipePhase>('idle');
-  const [panelExtentOverride, setPanelExtentOverride] = useState<number | null>(null);
-  const [dockedExtent, setDockedExtent] = useState({
-    top: DEFAULT_PANEL_EXTENT,
-    bottom: DEFAULT_PANEL_EXTENT,
-  });
-  const [panelResizing, setPanelResizing] = useState(false);
-  const [panelDragSource, setPanelDragSource] = useState<PanelPosition | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [keyboardViewportOffsetTop, setKeyboardViewportOffsetTop] = useState(0);
+  const [chromeScrolledAway, setChromeScrolledAway] = useState(false);
 
-  const reveal: PanelPosition | 'focused' = workspaceUi.panel.startsWith('top-')
-    ? 'top'
-    : workspaceUi.panel.startsWith('bottom-')
-      ? 'bottom'
-      : 'focused';
-  const fullPanel: PanelPosition | null = workspaceUi.panel.endsWith('-full')
-    ? reveal === 'focused'
-      ? null
-      : reveal
-    : null;
   const previewTarget =
     workspaceUi.transient.kind === 'entity-preview' ? workspaceUi.transient.target : null;
   const activeRail: MobilePaperRail | null =
@@ -240,21 +230,17 @@ export function MobilePaperDeck({
         : null;
   const activeBarSheet =
     workspaceUi.transient.kind === 'bar-sheet' ? workspaceUi.transient.sheet : null;
-  const settledPanelExtent =
-    workspaceUi.panel === 'none'
-      ? 0
-      : workspaceUi.panel.endsWith('-full')
-        ? 1
-        : workspaceUi.panel.startsWith('top-')
-          ? dockedExtent.top
-          : dockedExtent.bottom;
-  const panelExtent = panelExtentOverride ?? settledPanelExtent;
-  const visibleExtent = reveal === 'focused' ? 0 : panelExtent;
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
   const activeIndex = active
     ? session.papers.findIndex((paper) => paper.key === active.key)
     : -1;
   const editorActive = workspaceUi.paperMode.kind === 'edit';
+  const paperChromeVisible =
+    workspaceUi.surface.kind === 'paper' &&
+    workspaceUi.paperMode.kind === 'read' &&
+    workspaceUi.transient.kind === 'none' &&
+    workspaceUi.overlay === 'none' &&
+    workspaceUi.keyboard === 'closed';
 
   useLayoutEffect(() => {
     if (previousActiveKeyRef.current === session.activeKey) return;
@@ -275,33 +261,17 @@ export function MobilePaperDeck({
       if (cancelled) return;
       dispose = registerFrontendDebugSlice('mobile.paper-deck', () => ({
         activeKey: session.activeKey,
-        reveal,
-        panelExtent,
-        visibleExtent,
-        panelResizing,
-        panelDragSource,
-        fullPanel,
         editorActive,
         activeRail,
         paperSwipePhase,
+        chromeScrolledAway,
       }));
     });
     return () => {
       cancelled = true;
       dispose?.();
     };
-  }, [
-    activeRail,
-    editorActive,
-    fullPanel,
-    panelExtent,
-    panelResizing,
-    panelDragSource,
-    paperSwipePhase,
-    reveal,
-    session.activeKey,
-    visibleExtent,
-  ]);
+  }, [activeRail, chromeScrolledAway, editorActive, paperSwipePhase, session.activeKey]);
 
   useEffect(
     () => () => {
@@ -325,7 +295,35 @@ export function MobilePaperDeck({
     if (session.activeKey && paperSwipePhase === 'idle') {
       scrollPaperIntoPlace(session.activeKey);
     }
-  }, [paperSwipePhase, scrollPaperIntoPlace, session.activeKey, session.papers.length, visibleExtent]);
+  }, [paperSwipePhase, scrollPaperIntoPlace, session.activeKey, session.papers.length]);
+
+  // Reading slides the bottom tab bar away; scrolling back up (or switching
+  // papers) recalls it. Scroll events don't bubble, so listen in capture.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- recalling the bar on paper switch is the intended reset
+    setChromeScrolledAway(false);
+  }, [session.activeKey]);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    let lastTarget: EventTarget | null = null;
+    let lastTop = 0;
+    const onScroll = (event: Event) => {
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      if (!el.classList.contains('editor-scroll') && !el.classList.contains('dash')) return;
+      const top = el.scrollTop;
+      if (lastTarget === el) {
+        const delta = top - lastTop;
+        if (delta > 12 && top > 48) setChromeScrolledAway(true);
+        else if (delta < -12 || top <= 8) setChromeScrolledAway(false);
+      }
+      lastTarget = el;
+      lastTop = top;
+    };
+    root.addEventListener('scroll', onScroll, true);
+    return () => root.removeEventListener('scroll', onScroll, true);
+  }, []);
 
   const finishPaperSwipe = useCallback(
     (targetIndex: number, committed: boolean) => {
@@ -477,74 +475,6 @@ export function MobilePaperDeck({
     if (origin) scrollPaperIntoPlace(origin.key);
   };
 
-  const commitPanel = useCallback(
-    (nextReveal: PanelPosition | 'focused', extent = DEFAULT_PANEL_EXTENT) => {
-      setPanelResizing(false);
-      if (nextReveal !== 'focused') {
-        const nextExtent = Math.max(0.04, Math.min(0.98, extent));
-        setDockedExtent((current) =>
-          current[nextReveal] === nextExtent
-            ? current
-            : { ...current, [nextReveal]: nextExtent },
-        );
-      }
-      setPanelExtentOverride(null);
-      onWorkspaceUiAction({
-        type: 'set-panel',
-        panel: nextReveal === 'focused' ? 'none' : `${nextReveal}-docked`,
-      });
-    },
-    [onWorkspaceUiAction],
-  );
-
-  const setExtentFromHandle = (panel: PanelPosition, extent: number) => {
-    setPanelResizing(true);
-    setPanelExtentOverride(extent);
-    const nextPanel = `${panel}-docked` as MobileWorkspacePanel;
-    if (workspaceUi.panel !== nextPanel) {
-      onWorkspaceUiAction({ type: 'set-panel', panel: nextPanel });
-    }
-  };
-
-  const setPanelDragState = (panel: PanelPosition, dragging: boolean) => {
-    setPanelResizing(dragging);
-    setPanelDragSource(dragging ? panel : null);
-  };
-
-  const commitExtentFromHandle = (panel: PanelPosition, gesture: MobilePanelGestureCommit) => {
-    setPanelResizing(false);
-    const resolution = resolveMobilePanelGesture(gesture);
-    if (resolution.state === 'closed') {
-      commitPanel('focused');
-      return;
-    }
-    if (resolution.state === 'full') {
-      setPanelExtentOverride(null);
-      onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-full` });
-      return;
-    }
-    setDockedExtent((current) =>
-      current[panel] === resolution.extent
-        ? current
-        : { ...current, [panel]: resolution.extent },
-    );
-    setPanelExtentOverride(null);
-    onWorkspaceUiAction({ type: 'set-panel', panel: `${panel}-docked` });
-  };
-
-  const setActivePaperRail = useCallback(
-    (rail: MobilePaperRail | null) =>
-      onWorkspaceUiAction({
-        type: 'set-transient',
-        transient:
-          rail === 'toc'
-            ? { kind: 'bar-sheet', sheet: 'outline' }
-            : rail === 'comments'
-              ? { kind: 'bar-sheet', sheet: 'comments' }
-              : { kind: 'none' },
-      }),
-    [onWorkspaceUiAction],
-  );
   const openSearch = useCallback(
     () =>
       onWorkspaceUiAction({
@@ -575,10 +505,6 @@ export function MobilePaperDeck({
       inert={workspaceUi.surface.kind !== 'paper'}
       aria-hidden={workspaceUi.surface.kind !== 'paper' ? 'true' : undefined}
       data-debug-id="mobile-workspace"
-      data-reveal={reveal}
-      data-preview={panelResizing ? 'true' : 'false'}
-      data-panel-drag-source={panelDragSource ?? 'none'}
-      data-full-panel={fullPanel ?? 'none'}
       data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
       data-paper-rail={activeRail ?? 'none'}
@@ -590,7 +516,6 @@ export function MobilePaperDeck({
       data-controller-keyboard={workspaceUi.keyboard}
       style={
         {
-          '--m-panel-extent': visibleExtent,
           '--m-unified-keyboard-inset': `${keyboardInset}px`,
           '--m-editor-top-scroll-reserve': `${keyboardViewportOffsetTop}px`,
         } as CSSProperties
@@ -602,28 +527,37 @@ export function MobilePaperDeck({
         composingRef.current = false;
       }}
     >
-      <MobilePanelPullHandle
-        panel="top"
-        extent={workspaceUi.panel.startsWith('top-') ? panelExtent : 0}
-        disabled={workspaceUi.surface.kind !== 'paper'}
-        onDragStateChange={setPanelDragState}
-        onExtentChange={setExtentFromHandle}
-        onExtentCommit={commitExtentFromHandle}
-      />
-      <MobileWorkspacePanels
-        projectId={projectId}
-        target={active?.target ?? null}
-        panelExtent={panelExtent}
-        onPanelExtentChange={setExtentFromHandle}
-        onPanelExtentCommit={commitExtentFromHandle}
-        onPanelDragStateChange={setPanelDragState}
-        onPreviewTarget={(target) =>
-          onWorkspaceUiAction({
-            type: 'set-transient',
-            transient: { kind: 'entity-preview', target },
-          })
-        }
-      />
+      {active && paperChromeVisible && (
+        <header className="m-paper-folio" data-debug-id="mobile-paper-folio">
+          <button
+            type="button"
+            className="m-paper-folio__back"
+            onClick={() => requestMobileWorkspaceBack('visible')}
+            aria-label={t('navigation.back')}
+          >
+            <ArrowLeft size={20} aria-hidden="true" />
+          </button>
+          <MobilePaperFolioIdentity paper={active} />
+          <span className="m-paper-folio__end">
+            <button
+              type="button"
+              className="m-paper-folio__papers"
+              onClick={onOpenOverview}
+              aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
+            >
+              <Layers3 size={18} aria-hidden="true" />
+              <span>{session.papers.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'tools' })}
+              aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
+            >
+              <Ellipsis size={19} aria-hidden="true" />
+            </button>
+          </span>
+        </header>
+      )}
 
       <div className="m-paper-deck">
         {session.papers.length > 0 ? (
@@ -724,7 +658,6 @@ export function MobilePaperDeck({
           onInsert={() => {
             onOpenPaper(previewTarget);
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } });
-            commitPanel('focused');
           }}
         />
       )}
@@ -747,23 +680,32 @@ export function MobilePaperDeck({
         />
       )}
 
+      {workspaceUi.overlay === 'tools' && active && (
+        <MobileToolsFace
+          projectId={projectId}
+          target={active.target}
+          onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+          onOpenStats={() =>
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
+          }
+          onOpenSheet={(sheet) =>
+            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'bar-sheet', sheet } })
+          }
+          onOpenSearch={openSearch}
+        />
+      )}
+
+      {paperChromeVisible && (
+        <MobileTabBar
+          hidden={chromeScrolledAway}
+          onOpen={(tab) => onWorkspaceUiAction({ type: 'set-overlay', overlay: tab })}
+        />
+      )}
+
       <MobilePaperSearchOwnerMount paper={active} />
       <MobileUnifiedBar
         workspaceUi={workspaceUi}
-        activePaper={active}
-        paperCount={session.papers.length}
-        activeRail={activeRail}
         keyboardInset={keyboardInset}
-        panelExtent={panelExtent}
-        onPanelDragStateChange={setPanelDragState}
-        onPanelExtentChange={setExtentFromHandle}
-        onPanelExtentCommit={commitExtentFromHandle}
-        onOpenOverview={onOpenOverview}
-        onOpenStats={() =>
-          onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
-        }
-        onOpenSearch={openSearch}
-        onActiveRailChange={setActivePaperRail}
         editorAccessoryMode={
           workspaceUi.paperMode.kind === 'edit'
             ? workspaceUi.paperMode.accessory

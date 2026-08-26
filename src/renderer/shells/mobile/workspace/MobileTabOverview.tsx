@@ -7,8 +7,7 @@ import { MobileTabBar, type MobileTabBarTab } from './MobileTabBar';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { useMobileProjectSearch } from './useMobileProjectSearch';
 import type { MobileProjectSearchOccurrence } from './mobile-project-search';
-import { useDataStore } from '../../../store/data-store';
-import { isDrift } from '../../../domain/book-node';
+import { usePaperGlyph } from './mobile-paper-glyph';
 
 export type { MobileSuperViewId } from './mobile-workspace-controller';
 
@@ -28,26 +27,6 @@ function SearchExcerpt({ occurrence }: { occurrence: MobileProjectSearchOccurren
       {before}<mark>{match}</mark>{after}
     </span>
   );
-}
-
-/** The workspace tab character for a paper's entity type — the same glyph
- * vocabulary as the desktop tabs (§ ❦ ¶ ◆ ⌘ ☰). */
-function usePaperGlyph(target: WorkspaceTarget): string {
-  const bookNodes = useDataStore((s) => s.bookNodes);
-  switch (target.entityType) {
-    case 'node': {
-      const node = bookNodes.find((item) => item.id === target.id);
-      return node && isDrift(node) ? '❦' : '§';
-    }
-    case 'storyline':
-      return '¶';
-    case 'element':
-      return '◆';
-    case 'category':
-      return '⌘';
-    case 'all-chapters':
-      return '☰';
-  }
 }
 
 function OverviewPaperCard({
@@ -138,8 +117,6 @@ export function MobileTabOverview({
   );
   const [deckIndex, setDeckIndex] = useState(activeIndex);
   const deckRef = useRef<HTMLDivElement | null>(null);
-  const deckIndexRef = useRef(deckIndex);
-  deckIndexRef.current = deckIndex;
 
   // Center the active paper when the deck opens; afterwards the scroll
   // position (not the session) decides which card carries the close control.
@@ -170,7 +147,7 @@ export function MobileTabOverview({
         nearestDistance = distance;
       }
     }
-    if (nearest !== deckIndexRef.current) setDeckIndex(nearest);
+    setDeckIndex((previous) => (previous === nearest ? previous : nearest));
   };
 
   return (

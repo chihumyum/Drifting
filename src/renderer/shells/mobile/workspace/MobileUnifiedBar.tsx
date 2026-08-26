@@ -1,10 +1,4 @@
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  Layers3,
-  Search,
-} from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useEffect,
   useLayoutEffect,
@@ -17,18 +11,12 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getActiveEditor } from '../../../lib/active-editor';
-import type { MobilePaper } from './mobile-workspace-session';
-import { useMobilePaperPresentation } from './MobilePaperContent';
 import { MobileEditorAccessory } from './MobileEditorAccessory';
-import { MobilePanelPullHandle } from './MobilePanelPullHandle';
-import { MobilePaperRailMenu } from './MobilePaperRailMenu';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
 import {
   selectMobileUnifiedBarProjection,
   type MobileWorkspaceUiState,
 } from './mobile-workspace-controller';
-import type { MobilePaperRail } from './mobile-paper-rail';
-import type { MobilePanelGestureCommit } from './mobile-panel-gesture';
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
@@ -40,10 +28,6 @@ import {
   subscribeMobilePaperSearchOwner,
   type MobilePaperSearchOwner,
 } from './mobile-paper-search';
-import {
-  getMobileAllChaptersContext,
-  subscribeMobileAllChaptersContext,
-} from './mobile-all-chapters-context';
 
 const subscribeNothing = () => () => undefined;
 
@@ -147,45 +131,6 @@ function MobileUnifiedSearchStep({
   );
 }
 
-function MobileUnifiedBarPaperIdentity({
-  paper,
-  onOpenStats,
-}: {
-  paper: MobilePaper;
-  onOpenStats: () => void;
-}) {
-  const presentation = useMobilePaperPresentation(paper.target);
-  const allChaptersContext = useSyncExternalStore(
-    subscribeMobileAllChaptersContext,
-    getMobileAllChaptersContext,
-    getMobileAllChaptersContext,
-  );
-  const { t } = useTranslation();
-  return (
-    <button
-      type="button"
-      className="m-unified-bar__paper"
-      data-debug-id="mobile-open-paper-stats"
-      onClick={onOpenStats}
-      aria-label={t('mobileWorkspace.paperStats.open', { defaultValue: '查看当前纸张统计' })}
-    >
-      <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
-      <span>
-        <small>
-          {paper.target.entityType === 'all-chapters' && allChaptersContext.actName
-            ? `${presentation.kicker} · ${allChaptersContext.actName}`
-            : presentation.kicker}
-        </small>
-        <strong>
-          {paper.target.entityType === 'all-chapters' && allChaptersContext.chapterTitle
-            ? allChaptersContext.chapterTitle
-            : presentation.title}
-        </strong>
-      </span>
-    </button>
-  );
-}
-
 function MobileUnifiedBackAction({
   preserveFocusUntilBack,
   onBack,
@@ -241,18 +186,7 @@ function MobileUnifiedBackAction({
 
 export function MobileUnifiedBar({
   workspaceUi,
-  activePaper,
-  paperCount,
-  activeRail,
   keyboardInset,
-  panelExtent,
-  onPanelDragStateChange,
-  onPanelExtentChange,
-  onPanelExtentCommit,
-  onOpenOverview,
-  onOpenStats,
-  onOpenSearch,
-  onActiveRailChange,
   editorAccessoryMode,
   onEditorAccessoryModeChange,
   onEditingStateChange,
@@ -261,18 +195,7 @@ export function MobileUnifiedBar({
   onKeyboardViewportOffsetTopChange,
 }: {
   workspaceUi: MobileWorkspaceUiState;
-  activePaper: MobilePaper | null;
-  paperCount: number;
-  activeRail: MobilePaperRail | null;
   keyboardInset: number;
-  panelExtent: number;
-  onPanelDragStateChange: (panel: 'top' | 'bottom', dragging: boolean) => void;
-  onPanelExtentChange: (panel: 'top' | 'bottom', extent: number) => void;
-  onPanelExtentCommit: (panel: 'top' | 'bottom', gesture: MobilePanelGestureCommit) => void;
-  onOpenOverview: () => void;
-  onOpenStats: () => void;
-  onOpenSearch: () => void;
-  onActiveRailChange: (rail: MobilePaperRail | null) => void;
   editorAccessoryMode: 'navigation' | 'formatting';
   onEditorAccessoryModeChange: (mode: 'navigation' | 'formatting') => void;
   onEditingStateChange: (editing: boolean) => void;
@@ -319,9 +242,6 @@ export function MobileUnifiedBar({
     projection.mode,
     searchOwner,
   ]);
-  const showPaperNavigation =
-    projection.mode === 'read' ||
-    (projection.mode === 'edit' && editorAccessoryMode === 'navigation');
   // Every editor-owned Back must keep ProseMirror focused until the typed Back
   // request resolves. Otherwise pointerdown emits blur first, the controller
   // becomes read, and the later click is incorrectly resolved as paper-root.
@@ -354,14 +274,6 @@ export function MobileUnifiedBar({
       style={{ '--m-unified-keyboard-inset': `${keyboardInset}px` } as CSSProperties}
       aria-label={t('mobileWorkspace.unifiedBar', { defaultValue: '移动工作栏' })}
     >
-      <MobilePanelPullHandle
-        panel="bottom"
-        extent={workspaceUi.panel.startsWith('bottom-') ? panelExtent : 0}
-        disabled={projection.mode === 'search'}
-        onDragStateChange={onPanelDragStateChange}
-        onExtentChange={onPanelExtentChange}
-        onExtentCommit={onPanelExtentCommit}
-      />
       <div
         className="m-unified-bar__content"
         onPointerDownCapture={preserveSearchFocus}
@@ -392,11 +304,13 @@ export function MobileUnifiedBar({
           </>
         ) : (
           <>
-            <MobileUnifiedBackAction
-              preserveFocusUntilBack={backPreservesFocusUntilResolution}
-              onBack={handleBack}
-              label={backLabel}
-            />
+            {projection.mode !== 'read' && (
+              <MobileUnifiedBackAction
+                preserveFocusUntilBack={backPreservesFocusUntilResolution}
+                onBack={handleBack}
+                label={backLabel}
+              />
+            )}
             <MobileEditorAccessory
               active={projection.mode === 'edit'}
               mode={editorAccessoryMode}
@@ -405,52 +319,6 @@ export function MobileUnifiedBar({
               onKeyboardInsetChange={onKeyboardInsetChange}
               onKeyboardViewportOffsetTopChange={onKeyboardViewportOffsetTopChange}
             />
-            {showPaperNavigation && activePaper ? (
-            <div className="m-unified-bar__read-center">
-              <MobileUnifiedBarPaperIdentity
-                paper={activePaper}
-                onOpenStats={onOpenStats}
-              />
-              <button
-                type="button"
-                className="m-unified-bar__action m-unified-bar__count"
-                data-debug-id="mobile-open-overview"
-                onClick={onOpenOverview}
-                aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
-              >
-                <span>{paperCount}</span>
-              </button>
-              <button
-                type="button"
-                className="m-unified-bar__action"
-                data-debug-id="mobile-open-search"
-                onPointerDown={(event) => {
-                  if (projection.mode === 'edit') event.preventDefault();
-                }}
-                onMouseDown={(event) => {
-                  // WKWebView still synthesizes a compatibility mousedown after
-                  // the cancelled touch pointer. Its default focus shift would
-                  // blur ProseMirror mid-tap and dip the IME before the search
-                  // field can inherit the same input session.
-                  if (projection.mode === 'edit') event.preventDefault();
-                }}
-                onClick={onOpenSearch}
-                aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
-              >
-                <Search size={19} aria-hidden="true" />
-              </button>
-              <MobilePaperRailMenu
-                target={activePaper.target}
-                activeRail={activeRail}
-                onActiveRailChange={onActiveRailChange}
-                onOpenOverview={onOpenOverview}
-              />
-            </div>
-            ) : showPaperNavigation ? (
-              <span className="m-unified-bar__empty">
-                <Layers3 size={18} aria-hidden="true" /> Drifting
-              </span>
-            ) : null}
           </>
         )}
       </div>

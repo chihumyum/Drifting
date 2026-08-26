@@ -42,7 +42,8 @@ describe('mobile standalone routes', () => {
 
   it('keeps the M3 paper workspace, unified bar and touch ownership in the mobile shell', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
-    const panels = rendererSource('shells/mobile/workspace/MobileWorkspacePanels.tsx');
+    const overlay = rendererSource('shells/mobile/workspace/MobileStructureOverlay.tsx');
+    const toolsFace = rendererSource('shells/mobile/workspace/MobileToolsFace.tsx');
     const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const paperSwipe = rendererSource('shells/mobile/workspace/mobile-paper-swipe.ts');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
@@ -58,7 +59,6 @@ describe('mobile standalone routes', () => {
     const previewSheet = rendererSource('shells/mobile/workspace/MobileEntityPreviewSheet.tsx');
     const statsSheet = rendererSource('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
-    const paperRailMenu = rendererSource('shells/mobile/workspace/MobilePaperRailMenu.tsx');
     const railPresentation = rendererSource('components/editor/editor-rail-presentation.ts');
     const outlineRail = rendererSource('components/editor/EditorOutlineRail.tsx');
     const commentRail = rendererSource('components/editor/CommentRail.tsx');
@@ -100,26 +100,24 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).not.toContain('usePaperPinch');
     expect(paperDeck).not.toContain('paperCluster');
     expect(paperDeck).not.toContain('VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE');
-    expect(paperDeck).toContain("data-full-panel={fullPanel ?? 'none'}");
-    expect(panels).toContain('variant="boundary"');
-    expect(panels).toContain('m-context-tab-rail--structure');
-    expect(panels).toContain('m-context-tab-rail--tools');
-    expect(panels).toContain('<ChapterPanel');
-    expect(panels).toContain('<ElementPanel');
-    expect(panels).toContain('<DriftPanel');
-    expect(panels).toContain('presentation="mobile"');
-    expect(panels).not.toContain('m-context-tab-rail__dashboard');
-    expect(panels).not.toContain('<Home');
-    expect(panels).toContain("type ToolTab = 'planning' | 'agent' | 'library'");
-    expect(panels).not.toContain("| 'stats'");
+    // Variable-height panels are gone: structure lives in the tab-bar
+    // overlays, tools in the paper's full-screen face.
+    expect(paperDeck).not.toContain('data-full-panel');
+    expect(paperDeck).not.toContain('MobilePanelPullHandle');
+    expect(overlay).toContain('<ChapterPanel');
+    expect(overlay).toContain('<ElementPanel');
+    expect(overlay).toContain('<DriftPanel');
+    expect(overlay).toContain('presentation="mobile"');
+    expect(toolsFace).toContain("type ToolTab = 'planning' | 'agent' | 'library'");
+    expect(toolsFace).not.toContain("| 'stats'");
     expect(statsSheet).toContain('<EntityStatsContent');
     expect(statsSheet).toContain('onPointerMove={(event) =>');
-    expect(panels).toContain("type PlanningMode = 'timeline' | 'plot'");
-    expect(panels).toContain("type LibraryMode = 'todo' | 'library'");
-    expect(panels).toContain('className="m-tool-workspace__subtabs"');
-    expect(panels).not.toContain('<UserAvatar');
-    expect(panels).not.toContain('m-structure-shelf');
-    expect(panels).not.toContain('whatCanIDo');
+    expect(toolsFace).toContain("type PlanningMode = 'timeline' | 'plot'");
+    expect(toolsFace).toContain("type LibraryMode = 'todo' | 'library'");
+    expect(toolsFace).toContain('className="m-tool-workspace__subtabs"');
+    expect(toolsFace).not.toContain('<UserAvatar');
+    expect(toolsFace).not.toContain('m-structure-shelf');
+    expect(toolsFace).not.toContain('whatCanIDo');
     expect(previewSheet).toContain('这里只读预览');
     expect(previewSheet).toContain('插入一张纸');
     expect(previewSheet).toContain('event.target === event.currentTarget');
@@ -133,9 +131,9 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('.m-project-trash__content');
     expect(overview).not.toContain('ArrowUp');
     expect(overview).not.toContain('ArrowDown');
-    expect(panels).toContain('<PlotGridEditor');
-    expect(panels).toContain('<BottomTimeline presentation="mobile" />');
-    expect(panels).not.toContain('MobileTimelineWorkspace');
+    expect(toolsFace).toContain('<PlotGridEditor');
+    expect(toolsFace).toContain('<BottomTimeline presentation="mobile" />');
+    expect(toolsFace).not.toContain('MobileTimelineWorkspace');
     expect(bottomTimeline).toContain('presentation?: BottomTimelinePresentation');
     expect(bottomTimeline).toContain('className={`btl btl--${presentation}`}');
     expect(bottomTimeline).toContain('startNodePointerDrag');
@@ -162,8 +160,8 @@ describe('mobile standalone routes', () => {
     expect(unifiedBar).toContain('data-debug-id="mobile-unified-bar"');
     expect(unifiedBar).toContain('selectMobileUnifiedBarProjection(workspaceUi)');
     expect(unifiedBar).toContain('<MobileEditorAccessory');
-    expect(unifiedBar).toContain('<MobilePaperRailMenu');
-    expect(unifiedBar).toContain('<MobilePanelPullHandle');
+    expect(unifiedBar).not.toContain('MobilePaperRailMenu');
+    expect(unifiedBar).not.toContain('MobilePanelPullHandle');
     expect(unifiedBar).not.toContain('PanelTop');
     expect(unifiedBar).not.toContain('PanelBottom');
     expect(editorAccessory).toContain('subscribeActiveEditor');
@@ -176,12 +174,10 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).toContain('data-paper-rail={activeRail');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');
     expect(paperDeck).toContain('outlineLabelPitch: 34');
-    expect(paperRailMenu).not.toContain('createPortal');
-    expect(paperRailMenu).toContain('<AnchoredPopover');
-    expect(paperRailMenu).toContain('data-debug-id="mobile-paper-actions"');
-    expect(paperRailMenu).toContain("selectRail('toc')");
-    expect(paperRailMenu).toContain("selectRail('comments')");
-    expect(paperRailMenu).toContain('useEntityMarginNotes');
+    // The rail menu is gone: 大纲/批注 hand off from the paper tool face into
+    // the same bar sheets over the live paper.
+    expect(toolsFace).toContain("onOpenSheet('outline')");
+    expect(toolsFace).toContain("onOpenSheet('comments')");
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
     expect(outlineRail).toContain('presentation?.outlineLabelPitch');
@@ -192,18 +188,11 @@ describe('mobile standalone routes', () => {
     expect(nativeEntry).toContain('tauri::WebviewWindowBuilder::from_config');
     expect(nativeEntry).toContain('.with_input_accessory_view_builder(|_| None)');
     expect(nativeEntry).toContain('.build(context)');
-    expect(panels).toContain('onExtentChange={(_panel, nextExtent)');
-    expect(paperDeck).toContain('resolveMobilePanelGesture(gesture)');
-    expect(paperDeck).not.toContain('extent >= 0.5');
     expect(css).toContain('touch-action: pan-y');
-    expect(css).toContain(".m-workspace[data-reveal='bottom']");
     expect(css).toContain('visibility: hidden');
     expect(css).toContain('visibility: visible');
-    expect(css).toContain(".m-workspace[data-full-panel='top']");
-    expect(css).toContain(".m-workspace[data-full-panel='bottom'] .m-context-workspace--tools");
     expect(css).toContain('--m-unified-bar-height: 56px');
     expect(css).toContain('.m-unified-bar');
-    expect(css).toContain(".m-unified-bar[data-placement='above-bottom-panel']");
     expect(css).toContain(".m-unified-bar[data-keyboard='open']");
     expect(css).toContain(".m-workspace[data-paper-swipe='dragging'] .m-paper-row__page");
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
@@ -218,11 +207,6 @@ describe('mobile standalone routes', () => {
     expect(css).not.toContain('.m-paper-cluster');
     expect(css).not.toContain('.m-paper-rail-toggle');
     expect(css).toContain('display: flex');
-    expect(css).toContain('height: calc(var(--m-panel-extent) * 100dvh)');
-    expect(css).toContain(".m-workspace[data-reveal='top'] .m-paper-deck");
-    expect(css).toContain(".m-workspace[data-reveal='bottom'] .m-paper-deck");
-    expect(css).toContain(".m-workspace:not([data-reveal='focused']) .editor-scroll");
-    expect(css).toContain('overscroll-behavior-x: auto');
     expect(css).toContain('.m-paper-row__activate');
     expect(css).toContain(".m-workspace[data-bar-sheet='outline'] .editor__toc-rail");
     expect(css).toContain(
