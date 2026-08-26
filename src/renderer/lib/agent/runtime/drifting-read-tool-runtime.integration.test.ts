@@ -40,12 +40,21 @@ const proseTruthFixture = vi.hoisted(() => ({
   byId: new Map<string, string>(),
 }));
 
+const contentRepoCalls = vi.hoisted(() => ({
+  findByNodeId: 0,
+  listByProject: 0,
+}));
+
 vi.mock('../../../sqlite-repo/content-repo', () => ({
   createBookContentRepository: () => ({
-    findByNodeId: async (nodeId: string) =>
-      nodeId === 'node-1'
-        ? { nodeId, contentJson: proseDoc }
-        : null,
+    findByNodeId: async (nodeId: string) => {
+      contentRepoCalls.findByNodeId += 1;
+      return nodeId === 'node-1' ? { nodeId, contentJson: proseDoc } : null;
+    },
+    listByProject: async (projectId: string) => {
+      contentRepoCalls.listByProject += 1;
+      return projectId === 'project-1' ? [{ nodeId: 'node-1', contentJson: proseDoc }] : [];
+    },
   }),
 }));
 
@@ -108,6 +117,7 @@ import {
   setActiveAgentToolContext,
   type AgentWriteApi,
 } from '../tool-handlers';
+import { clearProseSearchCorpusCache } from '../prose-search-corpus';
 import { AGENT_READ_TOOLS } from '../tool-registry';
 import { storylineMembershipRevision } from './domain-crud-revision';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
@@ -232,6 +242,9 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
 
   beforeEach(() => {
     proseTruthFixture.byId.clear();
+    contentRepoCalls.findByNodeId = 0;
+    contentRepoCalls.listByProject = 0;
+    clearProseSearchCorpusCache();
     memoryFixture.rows = [
       {
         id: 'memory-1',
@@ -546,6 +559,10 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
         ],
       },
     });
+    // Node bodies must come from ONE batched project query, never the
+    // historical per-node findByNodeId N+1.
+    expect(contentRepoCalls.listByProject).toBe(1);
+    expect(contentRepoCalls.findByNodeId).toBe(0);
   });
 
   it('returns a stable manuscript order even when the hydrated store array is shuffled', async () => {

@@ -97,6 +97,7 @@ import {
   rankAgentContextEvidence,
   type AgentContextEvidenceDocument,
 } from './runtime/context-evidence-retrieval';
+import { collectProseSearchDocuments } from './prose-search-corpus';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -1034,95 +1035,17 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
   return { name: sl.name, summary: sl.summary, facts: parseKv(sl.kvJson), chapters };
 }
 
-/** Full-text search over chapter/drift prose and element bodies, with snippets. */
-/**
- * The entity's CURRENT prose JSON for search. Yjs is authoritative even when
- * the editor is closed; contentJson is only a seed/cache. Searching the cache
- * directly can miss a durable Agent/user edit and return block ordinals that
- * disagree with read_node.
- */
-async function proseJsonForSearch(
-  entityType: ProseEntityType,
-  id: string,
-  cacheJson: string,
-): Promise<string> {
-  return getEntityContentJson(entityType, id, cacheJson);
-}
-
+/** Full-text search over chapter/drift prose and element bodies, with snippets.
+ *  The corpus module materializes every document from the Yjs truth (batched
+ *  reads + a revision-validated cache of the plain/normalized text); one hit
+ *  per node is enough for discovery — read_node exposes the exact current
+ *  blocks. */
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
   const query = String(args.query ?? '').trim();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
   if (!query) return { matches: [] };
 
-  const s = useDataStore.getState();
-  const documents: AgentContextEvidenceDocument[] = [];
-
-  // Canon prose entities. Search the Yjs truth for closed and open documents.
-  for (const e of s.bookElements) {
-    if (e.projectId !== ctx.projectId) continue;
-    const text = docToPlainText(await proseJsonForSearch('element', e.id, e.contentJson));
-    documents.push({
-      evidenceId: `element-prose:${e.id}`,
-      kind: 'element',
-      title: e.name,
-      updatedAt: e.updatedAt,
-      revision: e.updatedAt,
-      fields: [{ kind: 'prose', text }],
-    });
-  }
-  for (const storyline of s.storylines) {
-    if (storyline.projectId !== ctx.projectId) continue;
-    const text = docToPlainText(
-      await proseJsonForSearch('storyline', storyline.id, storyline.contentJson),
-    );
-    documents.push({
-      evidenceId: `storyline-prose:${storyline.id}`,
-      kind: 'storyline',
-      title: storyline.name,
-      updatedAt: storyline.updatedAt,
-      revision: storyline.updatedAt,
-      ordinal: storyline.orderKey,
-      fields: [{ kind: 'prose', text }],
-    });
-  }
-  for (const category of s.bookElementCategories) {
-    if (category.projectId !== ctx.projectId) continue;
-    const text = docToPlainText(
-      await proseJsonForSearch('category', category.id, category.contentJson),
-    );
-    documents.push({
-      evidenceId: `category-prose:${category.id}`,
-      kind: 'category',
-      title: category.name,
-      updatedAt: category.updatedAt,
-      revision: category.updatedAt,
-      fields: [{ kind: 'prose', text }],
-    });
-  }
-
-  // Chapter / drift prose — hydrate each authoritative document (no FTS index
-  // exists yet). One hit per node is enough for discovery; read_node exposes
-  // the exact current blocks.
-  const contentRepo = createBookContentRepository();
-  const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
-  for (const n of nodes) {
-    const content = await contentRepo.findByNodeId(n.id);
-    if (!content) continue;
-    const blocks = docToBlocks(await proseJsonForSearch('node', n.id, content.contentJson));
-    documents.push({
-      evidenceId: `${n.kind}-prose:${n.id}`,
-      kind: n.kind,
-      title: n.title,
-      updatedAt: n.updatedAt,
-      revision: content.updatedAt ?? n.updatedAt,
-      ordinal: n.kind === 'chapter' ? n.bookOrder : (n.narrativeOrder ?? Number.MAX_SAFE_INTEGER),
-      fields: blocks.map((block, index) => ({
-        kind: 'prose' as const,
-        text: block.text,
-        block: index + 1,
-      })),
-    });
-  }
+  const documents = await collectProseSearchDocuments(ctx.projectId);
   const ranked = rankAgentContextEvidence({ query, documents, limit: limit + 1 });
   return {
     matches: ranked.slice(0, limit).map((match) => ({

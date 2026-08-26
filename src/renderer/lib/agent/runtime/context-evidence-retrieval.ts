@@ -5,6 +5,13 @@ export interface AgentContextEvidenceField {
   text: string;
   /** One-based prose block when the field came from a block document. */
   block?: number;
+  /**
+   * Precomputed `normalize(text)` supplied by a caller-side cache (NFKC +
+   * locale lowercasing over a whole manuscript dominates search cost, so
+   * search_prose caches it per document revision). MUST equal
+   * `normalize(text)` — a mismatched value corrupts matching and snippets.
+   */
+  normalized?: string;
 }
 
 export interface AgentContextEvidenceDocument {
@@ -55,6 +62,12 @@ const SNIPPET_RADIUS = 120;
 
 function normalize(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase('und');
+}
+
+/** The ranker's exact text normalization, exported so caches that precompute
+ *  {@link AgentContextEvidenceField.normalized} can never drift from it. */
+export function normalizeAgentContextEvidenceText(value: string): string {
+  return normalize(value);
 }
 
 function cjkTerms(sequence: string): string[] {
@@ -147,18 +160,22 @@ export function rankAgentContextEvidence(
     document,
     fields: document.fields.map((field) => ({
       field,
-      normalized: normalize(field.text),
+      normalized: field.normalized ?? normalize(field.text),
     })),
   }));
+  // One containment scan per (document, term) feeds BOTH the per-document
+  // matched-term sets and the corpus document frequency — the two used to be
+  // computed by separate identical full scans.
   const documentFrequency = new Map<string, number>();
-  for (const term of terms) {
-    documentFrequency.set(
-      term,
-      normalizedFields.filter(({ fields }) =>
-        fields.some(({ normalized: value }) => value.includes(term)),
-      ).length,
+  const matchedTermsByDocument = normalizedFields.map(({ fields }) => {
+    const matched = terms.filter((term) =>
+      fields.some(({ normalized: value }) => value.includes(term)),
     );
-  }
+    for (const term of matched) {
+      documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    }
+    return matched;
+  });
   const times = documents
     .map((document) => timestamp(document.updatedAt))
     .filter((value): value is number => value !== null);
@@ -166,10 +183,8 @@ export function rankAgentContextEvidence(
   const oldest = times.length > 0 ? Math.min(...times) : null;
 
   const matches: Array<AgentContextEvidenceMatch & { ordinal: number }> = [];
-  for (const { document, fields } of normalizedFields) {
-    const matchedTerms = terms.filter((term) =>
-      fields.some(({ normalized: value }) => value.includes(term)),
-    );
+  for (const [documentIndex, { document, fields }] of normalizedFields.entries()) {
+    const matchedTerms = matchedTermsByDocument[documentIndex];
     if (matchedTerms.length === 0) continue;
     let score = (matchedTerms.length / terms.length) * 80;
     let best: { field: AgentContextEvidenceField; normalized: string; score: number } | undefined;

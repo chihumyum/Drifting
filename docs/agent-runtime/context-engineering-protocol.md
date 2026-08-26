@@ -283,6 +283,28 @@ Every match returns semantic identity plus:
 Live Yjs prose is read at query time. Search indexes and `contentJson` are not a
 write source of truth.
 
+### Prose corpus batching and cache
+
+`search_prose` assembles its corpus through `prose-search-corpus.ts`:
+
+- Node bodies load through ONE joined `listByProject` query and Yjs revision
+  stamps through ONE `listRevisions` query — never a per-node `findByNodeId`
+  fan-out.
+- The expensive per-document work (Yjs materialization to plain text plus the
+  ranker's NFKC/locale normalization) is cached in a bounded in-memory LRU
+  keyed by the doc's durable Yjs revision plus the projection row's
+  `updatedAt`. Any durable write bumps the revision and invalidates exactly
+  that document.
+- A document with an open editor is always rematerialized from the live Y.Doc
+  and never cached; when revision stamps are unavailable the cache is bypassed
+  entirely. Cache hits therefore never weaken the Yjs-truth guarantee above.
+
+SQLite FTS5 was evaluated and deliberately not adopted: an FTS index could only
+cover the `contentJson` projection (not the Yjs truth), the default tokenizers
+cannot serve 1–2 character CJK terms the ranker supports, and it would require
+a new plain-text projection column plus append-only migrations. Revisit only if
+revision-cached corpora prove insufficient at much larger library sizes.
+
 ## 7. Oversized tool results
 
 An oversized result is persisted as a project/session-scoped SQLite artifact.

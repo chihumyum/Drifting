@@ -14,6 +14,8 @@ export type BookContentUpdateData = Partial<Omit<NodeContent, 'plotGridJson'>>;
 export interface BookContentRepository {
   findById(id: string): Promise<NodeContent | null>;
   findByNodeId(nodeId: string): Promise<NodeContent | null>;
+  /** Every content row whose node belongs to the project, in one query. */
+  listByProject(projectId: string): Promise<NodeContent[]>;
   create(input: CreateBookContentInput): Promise<NodeContent>;
   update(id: string, data: BookContentUpdateData): Promise<NodeContent | null>;
   updateByNodeId(nodeId: string, data: BookContentUpdateData): Promise<NodeContent | null>;
@@ -62,6 +64,16 @@ export function createBookContentRepository(
       .where(eq(NodeContentTable.nodeId, nodeId))
       .limit(1);
     return rows[0] ? toNodeContent(rows[0]) : null;
+  };
+
+  const listByProject = async (targetProjectId: string): Promise<NodeContent[]> => {
+    if (projectId && targetProjectId !== projectId) return [];
+    const rows = await dbProvider()
+      .select({ content: NodeContentTable })
+      .from(NodeContentTable)
+      .innerJoin(BookNodeTable, eq(BookNodeTable.id, NodeContentTable.nodeId))
+      .where(eq(BookNodeTable.projectId, targetProjectId));
+    return rows.map((row) => toNodeContent(row.content));
   };
 
   const create = async (input: CreateBookContentInput): Promise<NodeContent> => {
@@ -145,6 +157,7 @@ export function createBookContentRepository(
   return {
     findById,
     findByNodeId,
+    listByProject,
     create,
     update,
     updateByNodeId,

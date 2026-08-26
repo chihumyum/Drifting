@@ -95,6 +95,11 @@ export interface YjsRepository {
   hasDocState(docId: string): Promise<boolean>;
   /** Monotonic generation, independent from compactable update row ids. */
   getRevision(docId: string): Promise<number>;
+  /**
+   * Every doc's durable revision in one query. Cache validity checks over a
+   * whole project (e.g. prose search) read this instead of N getRevision calls.
+   */
+  listRevisions(): Promise<Array<{ docId: string; revision: number }>>;
   /** Durable authors for revisions strictly newer than `afterRevision`. */
   listRevisionProvenance(
     docId: string,
@@ -449,6 +454,14 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
   const getRevision = async (docId: string): Promise<number> =>
     getRevisionFrom(dbProvider(), docId);
 
+  const listRevisions = async (): Promise<Array<{ docId: string; revision: number }>> =>
+    dbProvider()
+      .select({
+        docId: YjsDocumentRevisionTable.docId,
+        revision: YjsDocumentRevisionTable.revision,
+      })
+      .from(YjsDocumentRevisionTable);
+
   const listRevisionProvenance = async (
     docId: string,
     afterRevision: number,
@@ -495,6 +508,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     upsertSnapshot,
     hasDocState,
     getRevision,
+    listRevisions,
     listRevisionProvenance,
     maxUpdateId,
     deleteUpdatesUpTo,
