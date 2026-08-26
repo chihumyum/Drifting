@@ -7,9 +7,13 @@ import type {
 } from './types';
 
 /**
- * Drifting deliberately keeps the complete domain tool surface available.
- * Tool count is not compressed into generic object verbs: every built-in
- * operation keeps one stable author-domain name and schema.
+ * The complete, deliberately conservative domain surface. Tool count is not
+ * compressed into generic object verbs: every built-in operation keeps one
+ * stable author-domain name and schema.
+ *
+ * This is the `off`-preference (and small-catalog `auto`) surface of the
+ * product strategy in `drifting-product-tool-selection.ts`; bounded relevance
+ * selection lives in `drifting-tool-selection.ts`.
  *
  * The selection is intentionally identical from one iteration to the next,
  * including while a paged tool result is pending: the provider tool array is

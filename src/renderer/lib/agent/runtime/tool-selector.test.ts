@@ -36,7 +36,7 @@ function syntheticTool(
 }
 
 describe('local Agent tool selector', () => {
-  it('filters policy before indexing and cannot return internal, unavailable, or denied definitions', () => {
+  it('filters policy before indexing and cannot return unavailable or denied definitions', () => {
     const selector = createToolSelector({
       catalog: AGENT_TOOL_CATALOG,
       policy: {
@@ -54,8 +54,8 @@ describe('local Agent tool selector', () => {
 
     const expectedEligibleNames = AGENT_TOOL_CATALOG.filter(
       (tool) =>
-        tool.scope === 'general' &&
         tool.certification !== 'unavailable' &&
+        tool.certification !== 'protocol-conformant' &&
         tool.name !== 'read_node',
     ).map((tool) => tool.name);
     expect(selector.eligibleTools.map((tool) => tool.name)).toEqual(
@@ -64,7 +64,6 @@ describe('local Agent tool selector', () => {
     expect(
       selector.eligibleTools.every(
         (tool) =>
-          tool.scope === 'general' &&
           tool.certification !== 'unavailable' &&
           tool.name !== 'read_node',
       ),
@@ -77,9 +76,26 @@ describe('local Agent tool selector', () => {
     expect(selected).toHaveLength(
       Math.min(selected.length, MAX_SELECTED_AGENT_TOOLS),
     );
-    expect(selected.map((tool) => tool.name)).not.toContain('ask_user');
+    // The policy is the eligibility authority: this deliberately broad policy
+    // admits certified runtime-virtual tools, while denied and unavailable
+    // definitions stay impossible to retrieve.
+    expect(selected.map((tool) => tool.name)).toContain('ask_user');
     expect(selected.map((tool) => tool.name)).toContain('delete_element');
     expect(selected.map((tool) => tool.name)).not.toContain('read_node');
+  });
+
+  it('keeps a general-only policy incapable of indexing runtime-virtual tools', () => {
+    const selector = createToolSelector({
+      catalog: AGENT_TOOL_CATALOG,
+      policy: READ_WRITE_POLICY,
+    });
+
+    expect(
+      selector.eligibleTools.every((tool) => tool.scope === 'general'),
+    ).toBe(true);
+    expect(selector.eligibleTools.map((tool) => tool.name)).not.toContain(
+      'read_chapter',
+    );
   });
 
   it('normalizes NFKC, snake_case, English tokens, and Chinese unigram/bigram signals', () => {

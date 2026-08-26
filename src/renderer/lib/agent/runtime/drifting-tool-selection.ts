@@ -3,6 +3,7 @@ import {
   type AgentProviderToolPolicy,
   type RegisteredTool,
 } from '../tool-registry';
+import { DRIFTING_DOMAIN_PROVIDER_TOOLS } from './drifting-workspace-tool-contract';
 import { DRIFTING_TOOL_SEARCH_METADATA } from './tool-search-metadata';
 import { createToolSelector, type ToolSearchMetadataByName } from './tool-selector';
 import type { AgentToolSelectionStrategy } from './types';
@@ -11,15 +12,33 @@ import { isBroadAutonomousProjectCampaign } from './long-task-intent';
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const ASK_USER_TOOL = 'ask_user';
 const OVERVIEW_TOOL = 'get_overview';
+const DOMAIN_OVERVIEW_TOOL = 'get_project_overview';
 const LONG_TASK_TOOLS = Object.freeze([
   'read_task_plan',
   'update_task_plan',
   'update_task_step',
 ] as const);
 const LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint';
-const LONG_TASK_PROSE_TOOLS = Object.freeze(['read_node', 'edit_blocks'] as const);
+// Whole-book prose campaigns pin the read/mutate pair of whichever surface is
+// installed: the canonical catalog pair for eval fixtures, the author-domain
+// pair for the shipped workspace. Non-executable names are filtered later.
+const LONG_TASK_PROSE_TOOLS = Object.freeze([
+  'read_node',
+  'edit_blocks',
+  'read_chapter',
+  'revise_chapter',
+] as const);
 const MAX_DYNAMIC_TOOLS = 2;
 const MIN_BUILT_IN_TOOL_SLOTS = 2;
+/**
+ * Reads whose output the model realistically needs before it can construct the
+ * paired write's arguments. Canonical catalog writes need the read that mints
+ * their `expectedRevision`; author-domain writes never carry model-visible
+ * freshness, but `changes` anchors, current bodies, and durable ids
+ * (`patchId`/`relationId`/`commentId`/`ruleId`) still come from these reads.
+ * Both vocabularies live in one table: entries whose names are not executable
+ * on the current surface are inert.
+ */
 const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | undefined>> =
   Object.freeze({
     rename_node: Object.freeze(['read_node']),
@@ -32,10 +51,30 @@ const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | unde
     replace_block_range: Object.freeze(['read_node']),
     create_element_patch: Object.freeze(['get_element_patches']),
     update_element_patch: Object.freeze(['get_element_patches']),
+    delete_element_patch: Object.freeze(['get_element_patches']),
     update_element: Object.freeze(['read_element']),
-    update_storyline: Object.freeze(['get_storyline']),
-    update_project_facts: Object.freeze(['get_project_brief']),
+    update_storyline: Object.freeze(['get_storyline', 'read_storyline']),
+    update_project_facts: Object.freeze(['get_project_brief', 'get_project_facts']),
     create_comment: Object.freeze(['get_project_brief']),
+    revise_chapter: Object.freeze(['read_chapter']),
+    replace_chapter_body: Object.freeze(['read_chapter']),
+    set_chapter_summary: Object.freeze(['read_chapter']),
+    revise_inspiration: Object.freeze(['read_inspiration']),
+    replace_inspiration_body: Object.freeze(['read_inspiration']),
+    set_inspiration_summary: Object.freeze(['read_inspiration']),
+    revise_element: Object.freeze(['read_element']),
+    replace_element_body: Object.freeze(['read_element']),
+    revise_storyline: Object.freeze(['read_storyline']),
+    replace_storyline_body: Object.freeze(['read_storyline']),
+    replace_storyline_chapters: Object.freeze(['read_storyline']),
+    update_element_category: Object.freeze(['read_element_category']),
+    replace_element_category_body: Object.freeze(['read_element_category']),
+    update_relation: Object.freeze(['list_relations']),
+    delete_relation: Object.freeze(['list_relations']),
+    update_comment: Object.freeze(['list_comments']),
+    delete_comment: Object.freeze(['list_comments']),
+    update_author_rule: Object.freeze(['list_author_rules']),
+    delete_author_rule: Object.freeze(['list_author_rules']),
   });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<
@@ -47,7 +86,21 @@ const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<
   // still need the overview's node and element directories.
   get_project_brief: Object.freeze(['get_project_brief']),
   list_nodes: Object.freeze(['list_nodes', OVERVIEW_TOOL]),
-  list_elements: Object.freeze(['list_elements', OVERVIEW_TOOL]),
+  list_elements: Object.freeze(['list_elements', OVERVIEW_TOOL, DOMAIN_OVERVIEW_TOOL]),
+  // Author-domain workspace equivalents. get_project_overview reuses the
+  // canonical whole-book overview (facts, chapter/drift directory, elements,
+  // storylines), so a success covers every narrower directory read.
+  [DOMAIN_OVERVIEW_TOOL]: Object.freeze([
+    DOMAIN_OVERVIEW_TOOL,
+    'get_project_facts',
+    'list_chapters',
+    'list_inspirations',
+    'list_elements',
+    'list_storylines',
+  ]),
+  get_project_facts: Object.freeze(['get_project_facts']),
+  list_chapters: Object.freeze(['list_chapters', DOMAIN_OVERVIEW_TOOL]),
+  list_inspirations: Object.freeze(['list_inspirations', DOMAIN_OVERVIEW_TOOL]),
 });
 
 export const DRIFTING_RUNTIME_TOOL_SEARCH_POLICY: AgentProviderToolPolicy =
@@ -55,6 +108,20 @@ export const DRIFTING_RUNTIME_TOOL_SEARCH_POLICY: AgentProviderToolPolicy =
     scopes: ['general'],
     accesses: ['read', 'write'],
     certifications: ['read-certified', 'write-certified'],
+  });
+
+/**
+ * Retrieval policy for the shipped author-domain workspace surface. The exact
+ * provider tool list is the eligibility whitelist, so hidden workspace
+ * commands and other runtime-virtual internals can never enter the index even
+ * though they share the same catalog scope and certification.
+ */
+export const DRIFTING_DOMAIN_RUNTIME_TOOL_SEARCH_POLICY: AgentProviderToolPolicy =
+  Object.freeze<AgentProviderToolPolicy>({
+    scopes: ['general', 'runtime-virtual'],
+    accesses: ['read', 'write'],
+    certifications: ['read-certified', 'write-certified', 'internal-certified'],
+    allowNames: [...DRIFTING_DOMAIN_PROVIDER_TOOLS],
   });
 
 export interface CreateDriftingToolSelectionOptions {
@@ -275,15 +342,24 @@ function explicitCatalogReads(query: string): readonly string[] {
     /(?:全书|项目|小说|本书).{0,8}(?:概览|简介|介绍)|介绍.{0,8}(?:这个|这本)?(?:小说|书|项目)|whole[- ]book overview|project overview|introduce.{0,24}(?:novel|book|project)/iu.test(
       request,
     );
-  if (overview) return [OVERVIEW_TOOL];
+  // Return the equivalent read of both installed surfaces; the caller keeps
+  // only names that are actually executable in this runtime.
+  if (overview) return [OVERVIEW_TOOL, DOMAIN_OVERVIEW_TOOL];
 
   const reads: string[] = [];
   if (
-    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:章节|漂流节点|drifts?|nodes?)|(?:章节|漂流节点).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:chapters?|drifts?|nodes?)\b|chapter (?:list|directory)/iu.test(
+    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:章节|chapters?)|章节.{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\bchapters?\b|chapter (?:list|directory)/iu.test(
       request,
     )
   ) {
-    reads.push('list_nodes');
+    reads.push('list_nodes', 'list_chapters');
+  }
+  if (
+    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:漂流节点|灵感|drifts?|inspirations?|nodes?)|(?:漂流节点|灵感).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:drifts?|inspirations?|nodes?)\b/iu.test(
+      request,
+    )
+  ) {
+    reads.push('list_nodes', 'list_inspirations');
   }
   if (
     /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:角色|人物|元素|设定|物件)|(?:角色|人物|元素|物件).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:characters?|elements?|settings?|objects?)\b/iu.test(
@@ -293,9 +369,9 @@ function explicitCatalogReads(query: string): readonly string[] {
     reads.push('list_elements');
   }
   if (/(?:项目|本书|作品).{0,8}(?:设定纲要|基础设定)|project brief|book premise/iu.test(request)) {
-    reads.push('get_project_brief');
+    reads.push('get_project_brief', 'get_project_facts');
   }
-  return reads;
+  return [...new Set(reads)];
 }
 
 function explicitNarrowReads(query: string): readonly string[] {
@@ -365,6 +441,11 @@ const LOOKUP_FAILURE_RECOVERY_READS: Readonly<Record<string, readonly string[] |
     read_material: Object.freeze(['list_materials']),
     read_block: Object.freeze(['read_node']),
     lookup_block: Object.freeze(['read_node']),
+    read_chapter: Object.freeze(['search_project', 'list_chapters']),
+    read_inspiration: Object.freeze(['search_project', 'list_inspirations']),
+    read_storyline: Object.freeze(['list_storylines']),
+    read_element_category: Object.freeze(['list_element_categories']),
+    find_element_appearances: Object.freeze(['search_project', 'list_elements']),
   });
 
 function failedLookupRecovery(
@@ -494,8 +575,13 @@ function includeWritePrerequisites(
 ): readonly string[] {
   const result: string[] = [];
   for (const name of selected) {
-    const required = WRITE_PREREQUISITE_READS[name] ?? [];
-    if (required.some((candidate) => !executableNames.has(candidate))) {
+    // One prerequisite table serves both installed vocabularies, so a listed
+    // read may belong to the other surface. The requirement binds to the
+    // executable subset; a guarded write whose listed reads are all absent
+    // still fails closed.
+    const listed = WRITE_PREREQUISITE_READS[name] ?? [];
+    const required = listed.filter((candidate) => executableNames.has(candidate));
+    if (listed.length > 0 && required.length === 0) {
       continue;
     }
     const prerequisites = required.filter((candidate) => !result.includes(candidate));

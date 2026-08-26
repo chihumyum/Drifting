@@ -107,11 +107,13 @@ export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
 /**
- * Provider-neutral runtime tool selection.
- *  - 'off':  expose every currently certified definition.
- *  - 'auto': select at most the runtime hard limit when the certified catalog
- *            is larger than that limit.
- *  - 'on':   always run the same bounded selector.
+ * Provider-neutral runtime tool selection, consumed live by the product
+ * composition's selection strategy (`drifting-product-tool-selection.ts`).
+ *  - 'off':  expose the complete installed surface, stable per iteration
+ *            (also the provider prefix-cache-friendly configuration).
+ *  - 'auto': run bounded author-domain relevance selection when the installed
+ *            surface exceeds the runtime auto threshold.
+ *  - 'on':   always run the bounded relevance selector.
  */
 export type AgentToolSearch = 'off' | 'auto' | 'on';
 

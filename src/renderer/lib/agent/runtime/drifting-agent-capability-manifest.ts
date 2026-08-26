@@ -36,8 +36,10 @@ import {
   AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
+import { DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT } from './drifting-product-tool-selection';
+import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 18 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 19 as const;
 
 export type DriftingAgentToolOwner =
   | 'workspace-runtime'
@@ -90,6 +92,21 @@ export interface DriftingAgentCapabilityManifest {
   domainToolSurface: {
     providerTools: string[];
     hiddenDomainOperations: string[];
+  };
+  toolSelection: {
+    authorPreference: 'agent-tool-search-off-auto-on-default-auto';
+    offMode: 'complete-installed-surface-stable-per-iteration';
+    boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration';
+    boundedRelevanceLimit: number;
+    runtimeHardLimit: number;
+    writePrerequisiteReads: 'id-and-content-dependent-writes-surface-with-their-minting-read';
+    alwaysAvailable: readonly [
+      'pending-result-page-forces-read_tool_result',
+      'runtime-owned-repair-lease-bypasses-selection',
+      'runtime-forced-completion-round-bypasses-selection',
+      'working-memory-lifecycle-pins-in-bounded-mode',
+    ];
+    promptCaching: 'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints';
   };
   domainCrud: {
     totalDomains: number;
@@ -277,6 +294,23 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     domainToolSurface: {
       providerTools: [...DRIFTING_DOMAIN_PROVIDER_TOOLS],
       hiddenDomainOperations: [...DRIFTING_WORKSPACE_COMMAND_NAMES],
+    },
+    toolSelection: {
+      authorPreference: 'agent-tool-search-off-auto-on-default-auto',
+      offMode: 'complete-installed-surface-stable-per-iteration',
+      boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration',
+      boundedRelevanceLimit: DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT,
+      runtimeHardLimit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
+      writePrerequisiteReads:
+        'id-and-content-dependent-writes-surface-with-their-minting-read',
+      alwaysAvailable: [
+        'pending-result-page-forces-read_tool_result',
+        'runtime-owned-repair-lease-bypasses-selection',
+        'runtime-forced-completion-round-bypasses-selection',
+        'working-memory-lifecycle-pins-in-bounded-mode',
+      ],
+      promptCaching:
+        'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints',
     },
     domainCrud: {
       totalDomains: DRIFTING_DOMAIN_CRUD_CONTRACTS.length,

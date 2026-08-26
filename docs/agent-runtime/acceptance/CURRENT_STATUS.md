@@ -73,9 +73,26 @@ pnpm agent:capabilities:check
 
 ### Tool and authored-object surface
 
-- Ordinary provider turns receive the complete generated set of narrow,
+- The installed built-in surface is the complete generated set of narrow,
   explicit author-domain tools. Exact names and counts come only from the
   generated capability inventory.
+- Provider visibility per model iteration is mode-switched by the persisted
+  `agentToolSearch` preference (default `auto`): `off` exposes every installed
+  definition as a stable surface; `auto`/`on` run bounded author-domain
+  relevance selection (8 relevance slots per iteration, plus pinned Working
+  Memory lifecycle tools, runtime repair leases, and the forced completion
+  round, under the 128-tool runtime hard limit). Freshness/id-dependent writes
+  surface only together with the read that mints their arguments, a pending
+  paged result narrows the surface to `read_tool_result`, and an explicit
+  foreign-project request exposes no data tools. The inventory's provider tool
+  selection section is the durable contract.
+- Bounded selection recomputes per model iteration, so the provider tool block
+  can change between iterations of one turn. No shipped driver emits explicit
+  Anthropic `cache_control` breakpoints, but providers with implicit prefix
+  caching (DeepSeek) lose tool-block prefix reuse in bounded mode; `off`
+  remains the cache-stable configuration. Coarse-grained (read/write-phase)
+  selection stability is tracked follow-up work, and no paid live-provider
+  campaign has validated bounded selection quality yet.
 - Each turn carries an explicit tool-access choice
   (`AgentToolAccessChoice = 'read_only' | 'read_write'`). Answer-only
   `read_only` turns are a hard runtime boundary, not a prompt convention: write

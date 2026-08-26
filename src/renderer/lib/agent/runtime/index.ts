@@ -8,6 +8,7 @@ export * from './dynamic-tool-runtime';
 export * from './mcp-tool-source';
 export * from './drifting-permission-policy';
 export * from './drifting-product-composition';
+export * from './drifting-product-tool-selection';
 export * from './drifting-read-tool-runtime';
 export * from './drifting-tool-selection';
 export * from './drifting-write-strategies';

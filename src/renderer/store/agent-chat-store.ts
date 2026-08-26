@@ -649,9 +649,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           contextMode: settings.agentMaxContext ? 'max' : 'standard',
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
-          // The General Agent always receives the workspace facade selected
-          // for the current task. Exposing the raw domain catalog makes tool
-          // mechanics dominate the conversation and is no longer a user mode.
+          // The runtime always consults the product selection strategy; the
+          // author's persisted `agentToolSearch` preference is applied there
+          // (off = complete stable surface, auto/on = bounded author-domain
+          // relevance selection), so runtime-level bypass is not a user mode.
           toolSearch: 'on',
           toolAccess,
           resume: run.runtimeSessionId ?? undefined,

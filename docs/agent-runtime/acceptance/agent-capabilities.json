@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 18,
+  "schemaVersion": 19,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
@@ -1026,6 +1026,21 @@
       "update_element_patch",
       "delete_element_patch"
     ]
+  },
+  "toolSelection": {
+    "authorPreference": "agent-tool-search-off-auto-on-default-auto",
+    "offMode": "complete-installed-surface-stable-per-iteration",
+    "boundedMode": "author-domain-relevance-selection-recomputed-per-iteration",
+    "boundedRelevanceLimit": 8,
+    "runtimeHardLimit": 128,
+    "writePrerequisiteReads": "id-and-content-dependent-writes-surface-with-their-minting-read",
+    "alwaysAvailable": [
+      "pending-result-page-forces-read_tool_result",
+      "runtime-owned-repair-lease-bypasses-selection",
+      "runtime-forced-completion-round-bypasses-selection",
+      "working-memory-lifecycle-pins-in-bounded-mode"
+    ],
+    "promptCaching": "off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints"
   },
   "domainCrud": {
     "totalDomains": 11,

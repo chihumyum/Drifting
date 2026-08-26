@@ -42,7 +42,6 @@ import {
   resolveDriftingLongTaskTarget,
   type DriftingAgentProductComposition,
 } from './drifting-product-composition';
-import { DRIFTING_DOMAIN_PROVIDER_TOOLS } from './drifting-workspace-tool-contract';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import { ScriptedFakeDriver, type ScriptedDriverRound, type ScriptedDriverStep } from './testing';
 import type { AgentToolExecutionRequest } from './types';
@@ -1255,11 +1254,22 @@ describe.sequential('Drifting Agent product composition', () => {
       {
         name: 'read the authored chapter',
         expectRequest: (request) => {
-          expect(request.tools.map((tool) => tool.name)).toEqual(
-            expect.arrayContaining([...DRIFTING_DOMAIN_PROVIDER_TOOLS, 'ask_user']),
+          // The default `auto` preference runs bounded author-domain
+          // selection: the read/mutate pair for this request plus the pinned
+          // Working Memory lifecycle tools, never the complete catalog and
+          // never retired generic verbs.
+          const names = request.tools.map((tool) => tool.name);
+          expect(names).toEqual(
+            expect.arrayContaining([
+              'read_chapter',
+              'revise_chapter',
+              'checkpoint_working_memory',
+              'read_working_memory',
+            ]),
           );
-          expect(request.tools.map((tool) => tool.name)).not.toContain('read_node');
-          expect(request.tools.map((tool) => tool.name)).not.toContain('edit_blocks');
+          expect(names.length).toBeLessThanOrEqual(10);
+          expect(names).not.toContain('read_node');
+          expect(names).not.toContain('edit_blocks');
         },
         steps: toolCallSteps('workspace-read', 'read_chapter', {
           chapter: NODE_TITLE,
@@ -1557,11 +1567,14 @@ describe.sequential('Drifting Agent product composition', () => {
       },
     ]);
 
+    // This write-path contract needs the deterministic complete surface; the
+    // scripted driver names entity-body tools that bounded relevance selection
+    // may legitimately rank out for this compound prompt.
     await harness.runTurn(
       turnId,
       'Update Fixture Element, Fixture Storyline, and the People category bodies.',
       1,
-      'auto',
+      'off',
     );
 
     expect(

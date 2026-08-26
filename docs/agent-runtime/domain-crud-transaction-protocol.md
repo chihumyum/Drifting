@@ -8,14 +8,19 @@ review, and crash-consistency invariants underneath the domain-tool boundary.
 
 ## 1. Product surface
 
-The model receives the complete generated set of explicit domain tools.
-Chapters, inspirations, elements, element categories, storylines, storyline
-memberships, relations, comments/TODOs, project facts, author rules, and element
-patches each have their own named operations. Examples include `read_chapter`,
-`revise_chapter`, `create_element`, `update_element`, `create_relation`, and
-`delete_relation`. There is no generic authored-object or virtual-file tool and
-no compatibility alias for one. The generated capability inventory is the
-authoritative complete list and count.
+The installed model surface is the complete generated set of explicit domain
+tools. Chapters, inspirations, elements, element categories, storylines,
+storyline memberships, relations, comments/TODOs, project facts, author rules,
+and element patches each have their own named operations. Examples include
+`read_chapter`, `revise_chapter`, `create_element`, `update_element`,
+`create_relation`, and `delete_relation`. There is no generic authored-object
+or virtual-file tool and no compatibility alias for one. The generated
+capability inventory is the authoritative complete list and count. How many of
+these installed definitions become provider-visible in one model iteration is
+governed by the author's tool-selection preference (`off` exposes everything;
+the default bounded mode selects by relevance and always pairs a guarded write
+with its minting read); the inventory's provider tool selection section is the
+authority for that contract.
 
 Inputs use one direct domain noun such as `chapter`, `element`, `category`, or
 `relationId`, plus only the fields needed by that operation. They do not expose

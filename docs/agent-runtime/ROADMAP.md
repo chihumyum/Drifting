@@ -27,6 +27,7 @@ an open milestone.
 | Editing follow-up             | Stable partial edit recovery, equivalent-create recovery, remaining error guidance, and live-provider compliance with the new Working Memory checkpoint remain tracked follow-up | Future deterministic/live evidence recorded in current status |
 | Ambient Editor                | Target design Phase 0 is frozen; source projection, Lens/debt/scheduler, read-only reconciliation, Concern domain/sync, handoff, whole-book reading, and hardening phases 1–7 are not implemented | [`../ambient-editor/delivery-and-acceptance.md`](../ambient-editor/delivery-and-acceptance.md) phase-specific evidence |
 | Subagents                     | Deferred; not part of the shipped single-product/multi-conversation runtime                                                                                                         | Generated capability inventory                                                                 |
+| Bounded tool selection        | Bounded author-domain selection ships mode-switched (`agentToolSearch`, default `auto`); per-iteration recomputation trades provider prefix-cache reuse for schema-token reduction, and neither coarse read/write-phase selection stability nor a paid live-provider quality campaign has run | Deterministic selection tests plus a future dated live run recorded in current status          |
 
 ## Evidence map
 

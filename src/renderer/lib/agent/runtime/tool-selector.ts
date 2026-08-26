@@ -269,19 +269,18 @@ function clampLimit(limit: number | undefined, fallback: number): number {
 /**
  * Build a tiny in-memory retrieval index after applying the provider policy.
  *
- * The General Agent selector is intentionally incapable of indexing internal,
- * runtime-virtual, unavailable, or denied tools. Retrieval therefore cannot
- * bypass policy even when a query exactly matches a forbidden tool name.
+ * The supplied policy is the complete eligibility authority: scope, access,
+ * certification, and name allow/deny lists all fail closed inside
+ * `isToolAllowedByPolicy`. The selector therefore cannot index unavailable or
+ * denied tools even when a query exactly matches a forbidden tool name, and a
+ * provider-facing runtime-virtual surface (the author-domain workspace tools)
+ * becomes retrievable only when its policy explicitly says so.
  */
 export function createToolSelector(
   options: CreateToolSelectorOptions,
 ): AgentToolSelector {
   const eligibleTools = Object.freeze(
-    options.catalog.filter(
-      (tool) =>
-        tool.scope === 'general' &&
-        isToolAllowedByPolicy(tool, options.policy),
-    ),
+    options.catalog.filter((tool) => isToolAllowedByPolicy(tool, options.policy)),
   );
   const indexed = eligibleTools.map((tool) =>
     indexTool(tool, options.searchMetadata?.[tool.name]),

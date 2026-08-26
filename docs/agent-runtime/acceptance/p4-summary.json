@@ -1,12 +1,12 @@
 {
   "suite": "p4-agent-runtime-framework",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
+  "gitHead": "b11a6eeedea0bcb5496f309ed55e8e6d20a9c86d",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:f9b99596f9124bdc6f38e743c99a323abe663172e98a60fadaea23eec272ba9f",
+  "sourceSetSha256": "sha256:b096cfb14748308186462e77146c9a9ff35c000ec7c8cd0b61f43eb8c0a4e02e",
   "migration": {
     "count": 1,
     "latestIndex": 0,
@@ -21,8 +21,8 @@
       "discovered": 16
     },
     "tests": {
-      "total": 283,
-      "passed": 283,
+      "total": 285,
+      "passed": 285,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -43,8 +43,8 @@
         "files": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 72,
-          "passed": 72,
+          "total": 74,
+          "passed": 74,
           "failed": 0,
           "pending": 0
         },
@@ -178,7 +178,7 @@
         "safetyTop5Recall": 1,
         "medianSchemaReduction": 0.9067768279287454,
         "warmedSearches": 10000,
-        "warmedP95Ms": 2.398417000000336
+        "warmedP95Ms": 2.1867910000000848
       }
     },
     "contextPlanning": {

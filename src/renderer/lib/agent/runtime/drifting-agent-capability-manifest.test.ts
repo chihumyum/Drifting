@@ -150,7 +150,7 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(18);
+    expect(manifest.schemaVersion).toBe(19);
     expect(manifest.product).toMatchObject({
       contextWindowTokens: 200_000,
       maxContextWindowTokens: 1_000_000,
@@ -170,6 +170,26 @@ describe('Drifting Agent capability manifest', () => {
     });
     expect('userCheckpoint' in manifest).toBe(false);
     expect('authoredObjectFacade' in manifest).toBe(false);
+  });
+
+  it('publishes the mode-switched provider tool selection contract', () => {
+    expect(buildDriftingAgentCapabilityManifest().toolSelection).toEqual({
+      authorPreference: 'agent-tool-search-off-auto-on-default-auto',
+      offMode: 'complete-installed-surface-stable-per-iteration',
+      boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration',
+      boundedRelevanceLimit: 8,
+      runtimeHardLimit: 128,
+      writePrerequisiteReads:
+        'id-and-content-dependent-writes-surface-with-their-minting-read',
+      alwaysAvailable: [
+        'pending-result-page-forces-read_tool_result',
+        'runtime-owned-repair-lease-bypasses-selection',
+        'runtime-forced-completion-round-bypasses-selection',
+        'working-memory-lifecycle-pins-in-bounded-mode',
+      ],
+      promptCaching:
+        'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints',
+    });
   });
 
   it('publishes the bounded shared Working Memory lifecycle', () => {

@@ -54,6 +54,17 @@ Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `r
 
 Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `assign_relation_type`, `remove_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `set_storyline_membership`, `remember`, `update_memory`, `forget`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
+## Provider tool selection
+
+- Author preference: `agent-tool-search-off-auto-on-default-auto`
+- Off mode: `complete-installed-surface-stable-per-iteration`
+- Bounded mode: `author-domain-relevance-selection-recomputed-per-iteration`
+- Bounded relevance limit: 8 tools per iteration (plus lifecycle pins and runtime leases)
+- Runtime hard limit: 128 tools
+- Write prerequisite reads: `id-and-content-dependent-writes-surface-with-their-minting-read`
+- Always available: `pending-result-page-forces-read_tool_result`, `runtime-owned-repair-lease-bypasses-selection`, `runtime-forced-completion-round-bypasses-selection`, `working-memory-lifecycle-pins-in-bounded-mode`
+- Prompt caching: `off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints`
+
 ## Domain CRUD closure
 
 | Domain | Authored targets | Create | Read | Update | Delete | Revert |

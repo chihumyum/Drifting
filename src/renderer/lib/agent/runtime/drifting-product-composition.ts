@@ -40,6 +40,7 @@ import { BookElementTable, ElementCategoryTable, StorylineTable } from '../../..
 import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
+import { useSettingsStore } from '../../../store/settings-store';
 import { createDriftingContextCompactor } from './drifting-context-compactor';
 import { createDriftingAgentPermissionPolicy } from './drifting-permission-policy';
 import { createDurableAgentContextSummaryHook } from './durable-context-memory';
@@ -49,7 +50,7 @@ import {
   DynamicAgentToolRegistry,
 } from './dynamic-tool-runtime';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
-import { createDriftingWorkspaceToolSelectionStrategy } from './drifting-workspace-tool-selection';
+import { createDriftingProductToolSelectionStrategy } from './drifting-product-tool-selection';
 import {
   createDriftingWriteToolRuntime,
   resolveDriftingCertifiedToolAccess,
@@ -73,6 +74,7 @@ import type {
   AgentJournalSink,
   AgentModelDriver,
   AgentRuntimeLimits,
+  AgentRuntimeToolSearchMode,
   AgentToolRuntime,
 } from './types';
 
@@ -142,6 +144,12 @@ export interface CreateDriftingAgentProductCompositionOptions {
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
   /** Live author preference for bypassing destructive confirmation prompts. */
   allowDangerousOperations?: () => boolean;
+  /**
+   * Live author preference for provider tool selection. `off` exposes every
+   * installed definition; `auto`/`on` run the bounded author-domain relevance
+   * selector. Product default reads the persisted `agentToolSearch` setting.
+   */
+  toolSelectionMode?: () => AgentRuntimeToolSearchMode;
   /** Runtime-discovered MCP/plugin tools, project-filtered by the registry. */
   dynamicTools?: DynamicAgentToolRegistry;
 }
@@ -319,7 +327,11 @@ export function createDriftingAgentProductComposition(
   const transport = createLocalGeneralAgentTransport({
     driver,
     tools: toolRuntime,
-    toolSelector: createDriftingWorkspaceToolSelectionStrategy(),
+    toolSelector: createDriftingProductToolSelectionStrategy({
+      mode:
+        options.toolSelectionMode ??
+        (() => useSettingsStore.getState().agentToolSearch),
+    }),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
       createAgentWorkingMemoryAwarePermissionPolicy(
         createAgentLongTaskAwarePermissionPolicy(
