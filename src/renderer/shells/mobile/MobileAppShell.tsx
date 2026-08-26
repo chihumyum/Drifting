@@ -14,6 +14,7 @@ import { MobileTabOverview } from './workspace/MobileTabOverview';
 import { MobileSuperViewHost } from './workspace/MobileSuperViewHost';
 import { MobileProjectTrashView } from './workspace/MobileProjectTrashView';
 import { MobileProjectHome } from './workspace/MobileProjectHome';
+import { MobileStructureOverlay } from './workspace/MobileStructureOverlay';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
 import { requestMobileWorkspaceBack } from './workspace/mobile-workspace-back';
@@ -250,6 +251,9 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             dispatchWorkspaceUi({ type: 'show-overview' });
           }}
           onOpenProjectView={(view) => setSuperView(view)}
+          onOpenStructure={(tab) =>
+            dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
+          }
         />
       )}
       <MobilePaperDeck
@@ -297,6 +301,27 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             dispatchWorkspaceUi({ type: 'open-project-trash' });
           }}
           onBackToShelf={leaveProject}
+        />
+      )}
+
+      {(workspaceUi.overlay === 'chapters' ||
+        workspaceUi.overlay === 'elements' ||
+        workspaceUi.overlay === 'drifts') && (
+        <MobileStructureOverlay
+          tab={workspaceUi.overlay}
+          target={
+            state.papers.find((paper) => paper.key === state.activeKey)?.target ?? null
+          }
+          onClose={() => dispatchWorkspaceUi({ type: 'set-overlay', overlay: 'none' })}
+          onOpenTarget={(target) => {
+            openPaper(target);
+            dispatchWorkspaceUi({ type: 'show-paper' });
+          }}
+          onOpenAllChapters={() => {
+            openPaper({ entityType: 'all-chapters', id: 'self' });
+            dispatchWorkspaceUi({ type: 'show-paper' });
+          }}
+          onOpenGraph={() => setSuperView('graph')}
         />
       )}
 

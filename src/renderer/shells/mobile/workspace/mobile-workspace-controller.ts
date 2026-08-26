@@ -21,6 +21,11 @@ export type MobileWorkspacePanel =
   | 'bottom-docked'
   | 'bottom-full';
 
+/** Near-full-screen launcher overlays. The bottom tab bar opens the three
+ * structure overlays (the desktop left bar's vocabulary); 'tools' is the
+ * paper's tool face behind the top-right control (the desktop right bar). */
+export type MobileWorkspaceOverlay = 'none' | 'chapters' | 'elements' | 'drifts' | 'tools';
+
 export type MobileWorkspaceTransient =
   | { kind: 'none' }
   | {
@@ -41,6 +46,7 @@ export interface MobileWorkspaceUiState {
   surface: MobileWorkspaceSurface;
   paperMode: MobilePaperMode;
   panel: MobileWorkspacePanel;
+  overlay: MobileWorkspaceOverlay;
   transient: MobileWorkspaceTransient;
   keyboard: MobileKeyboardState;
 }
@@ -52,6 +58,7 @@ export type MobileWorkspaceAction =
   | { type: 'show-super-view'; view: MobileSuperViewId }
   | { type: 'open-project-trash' }
   | { type: 'set-panel'; panel: MobileWorkspacePanel }
+  | { type: 'set-overlay'; overlay: MobileWorkspaceOverlay }
   | { type: 'open-search'; scope: 'paper' | 'project' }
   | {
       type: 'set-transient';
@@ -69,6 +76,7 @@ export type MobileBackLayer =
   | 'transient'
   | 'input'
   | 'keyboard'
+  | 'overlay'
   | 'panel-full'
   | 'panel-docked'
   | 'super-view'
@@ -106,6 +114,7 @@ export function createInitialMobileWorkspaceUiState(): MobileWorkspaceUiState {
     surface: { kind: 'project-home' },
     paperMode: READ_MODE,
     panel: 'none',
+    overlay: 'none',
     transient: NO_TRANSIENT,
     keyboard: 'closed',
   };
@@ -140,6 +149,20 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
 
   if (!atPaper && state.paperMode.kind !== 'read') issues.push('non-paper surface cannot edit');
   if (!atPaper && state.panel !== 'none') issues.push('non-paper surface cannot own a panel');
+  if (state.overlay !== 'none') {
+    if (state.surface.kind === 'super-view') {
+      issues.push('a super view cannot host a launcher overlay');
+    }
+    if (state.overlay === 'tools' && !atPaper) {
+      issues.push('the tool face belongs to the paper surface');
+    }
+    if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
+    if (state.keyboard !== 'closed') issues.push('a launcher overlay requires a closed keyboard');
+    if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
+      issues.push('a launcher overlay cannot coexist with a workspace transient');
+    }
+    if (state.panel !== 'none') issues.push('a launcher overlay cannot coexist with a panel');
+  }
   if (!atPaper && state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
     issues.push('non-paper surface cannot own a workspace transient');
   }
@@ -219,9 +242,26 @@ export function mobileWorkspaceReducer(
         surface: PAPER_SURFACE,
         paperMode: state.paperMode.kind === 'edit' ? state.paperMode : READ_MODE,
         panel: action.panel,
+        overlay: 'none',
         transient: NO_TRANSIENT,
         keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
       });
+    case 'set-overlay': {
+      if (action.overlay === 'none') {
+        if (state.overlay === 'none') return state;
+        return checked({ ...state, overlay: 'none' });
+      }
+      if (state.surface.kind === 'super-view') return state;
+      if (action.overlay === 'tools' && state.surface.kind !== 'paper') return state;
+      return checked({
+        ...state,
+        paperMode: READ_MODE,
+        panel: 'none',
+        overlay: action.overlay,
+        transient: NO_TRANSIENT,
+        keyboard: 'closed',
+      });
+    }
     case 'open-search':
       if (state.surface.kind !== 'paper' || state.transient.kind !== 'none') return state;
       return checked({
@@ -229,6 +269,7 @@ export function mobileWorkspaceReducer(
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
         panel: 'none',
+        overlay: 'none',
         transient: {
           kind: 'search',
           scope: action.scope,
@@ -264,6 +305,7 @@ export function mobileWorkspaceReducer(
           ...state,
           surface: PAPER_SURFACE,
           paperMode: READ_MODE,
+          overlay: 'none',
           transient: action.transient,
           keyboard: 'closed',
         });
@@ -274,6 +316,7 @@ export function mobileWorkspaceReducer(
           surface: PAPER_SURFACE,
           paperMode: READ_MODE,
           panel: 'none',
+          overlay: 'none',
           transient: action.transient,
           keyboard: 'closed',
         });
@@ -283,6 +326,7 @@ export function mobileWorkspaceReducer(
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
         panel: 'none',
+        overlay: 'none',
         transient: action.transient,
         keyboard: 'closed',
       });
@@ -302,6 +346,7 @@ export function mobileWorkspaceReducer(
       }
       return checked({
         ...state,
+        overlay: 'none',
         paperMode: { kind: 'edit', accessory: 'navigation' },
         keyboard: 'open',
       });
@@ -395,6 +440,9 @@ export function resolveMobileWorkspaceBack(
   if (state.keyboard === 'open') {
     return resolution('keyboard', { ...state, keyboard: 'closed' });
   }
+  if (state.overlay !== 'none') {
+    return resolution('overlay', { ...state, overlay: 'none' });
+  }
   if (state.panel.endsWith('-full')) {
     const side = panelSide(state.panel);
     return resolution('panel-full', {
@@ -437,7 +485,10 @@ export function resolveMobileWorkspaceBack(
 export function selectMobileUnifiedBarProjection(
   state: MobileWorkspaceUiState,
 ): MobileUnifiedBarProjection {
-  const visible = state.surface.kind === 'paper' && state.transient.kind !== 'dialog';
+  const visible =
+    state.surface.kind === 'paper' &&
+    state.transient.kind !== 'dialog' &&
+    state.overlay === 'none';
   const mode =
     state.transient.kind === 'search'
       ? 'search'

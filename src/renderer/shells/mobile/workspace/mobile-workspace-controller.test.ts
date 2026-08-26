@@ -31,6 +31,7 @@ describe('Mobile V2 workspace controller', () => {
       surface: { kind: 'project-home' },
       paperMode: { kind: 'read' },
       panel: 'none',
+      overlay: 'none',
       transient: { kind: 'none' },
       keyboard: 'closed',
     });
@@ -45,6 +46,7 @@ describe('Mobile V2 workspace controller', () => {
     expect(superView).toMatchObject({
       surface: { kind: 'super-view', view: 'graph', returnTo: 'project-home' },
       panel: 'none',
+      overlay: 'none',
       transient: { kind: 'none' },
     });
   });
@@ -56,6 +58,7 @@ describe('Mobile V2 workspace controller', () => {
       surface: { kind: 'paper' },
       paperMode: { kind: 'edit', accessory: 'navigation' },
       panel: 'top-full',
+      overlay: 'none',
       transient: { kind: 'none' },
       keyboard: 'open',
     });
@@ -93,6 +96,7 @@ describe('Mobile V2 workspace controller', () => {
       surface: { kind: 'overview', returnTo: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'bottom-full',
+      overlay: 'none',
       transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
     };
@@ -164,6 +168,7 @@ describe('Mobile V2 Back priority', () => {
       surface: { kind: 'paper' },
       paperMode: { kind: 'read' },
       panel: 'bottom-full',
+      overlay: 'none',
       transient: { kind: 'dialog', dialog: 'destructive' },
       keyboard: 'closed',
     };
@@ -200,6 +205,7 @@ describe('Mobile V2 Back priority', () => {
       surface: { kind: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
       panel: 'bottom-docked',
+      overlay: 'none',
       transient: { kind: 'none' },
       keyboard: 'open',
     };
@@ -229,6 +235,7 @@ describe('Mobile V2 Back priority', () => {
       surface: { kind: 'paper' },
       paperMode: { kind: 'read' },
       panel: 'none',
+      overlay: 'none',
       transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
     };
@@ -325,5 +332,67 @@ describe('Mobile V2 unified bar projection', () => {
         surface: { kind: 'overview', returnTo: 'paper' },
       }).visible,
     ).toBe(false);
+  });
+});
+
+describe('Launcher overlays (bottom tab bar and the paper tool face)', () => {
+  it('opens a structure overlay from Project Home and closes it on back', () => {
+    let state = reduce(createInitialMobileWorkspaceUiState(), {
+      type: 'set-overlay',
+      overlay: 'chapters',
+    });
+    expect(state.overlay).toBe('chapters');
+    expect(state.surface).toEqual({ kind: 'project-home' });
+
+    const back = resolveMobileWorkspaceBack(state, 'visible');
+    expect(back.layer).toBe<MobileBackLayer>('overlay');
+    state = back.nextState;
+    expect(state.overlay).toBe('none');
+    expect(state.surface).toEqual({ kind: 'project-home' });
+  });
+
+  it('confines the tool face to the paper surface', () => {
+    const home = reduce(createInitialMobileWorkspaceUiState(), {
+      type: 'set-overlay',
+      overlay: 'tools',
+    });
+    expect(home.overlay).toBe('none');
+
+    const paper = reduce(paperRoot(), { type: 'set-overlay', overlay: 'tools' });
+    expect(paper.overlay).toBe('tools');
+  });
+
+  it('closes the overlay when editing, search, or a transient claims the paper', () => {
+    let state = reduce(paperRoot(), { type: 'set-overlay', overlay: 'elements' });
+    expect(reduce(state, { type: 'sync-editor', editing: true }).overlay).toBe('none');
+    expect(reduce(state, { type: 'open-search', scope: 'paper' }).overlay).toBe('none');
+    state = reduce(state, {
+      type: 'set-transient',
+      transient: { kind: 'entity-preview', target: TARGET },
+    });
+    expect(state.overlay).toBe('none');
+  });
+
+  it('collapses editing back to read before an overlay may open', () => {
+    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    state = reduce(state, { type: 'set-overlay', overlay: 'drifts' });
+    expect(state).toMatchObject({
+      overlay: 'drifts',
+      paperMode: { kind: 'read' },
+      keyboard: 'closed',
+    });
+  });
+
+  it('hides the unified bar while an overlay owns the screen', () => {
+    const state = reduce(paperRoot(), { type: 'set-overlay', overlay: 'tools' });
+    expect(selectMobileUnifiedBarProjection(state).visible).toBe(false);
+  });
+
+  it('refuses a launcher overlay on a super view surface', () => {
+    const superView = reduce(createInitialMobileWorkspaceUiState(), {
+      type: 'show-super-view',
+      view: 'graph',
+    });
+    expect(reduce(superView, { type: 'set-overlay', overlay: 'chapters' }).overlay).toBe('none');
   });
 });

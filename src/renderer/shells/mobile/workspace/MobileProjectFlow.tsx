@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowRight, GitBranch, Plus, Settings } from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
@@ -8,7 +8,6 @@ import { useProjectStore } from '../../../store/project-store';
 import { useRecentEntitiesStore } from '../../../store/recent-entities-store';
 import { useWritingStatsStore } from '../../../store/writing-stats-store';
 import { canonicalWordCount, isChapter, isDrift, type BookNode } from '../../../domain/book-node';
-import type { MobileSuperViewId } from './mobile-workspace-controller';
 
 const STORY_TOKENS = [
   '--story-1',
@@ -100,16 +99,15 @@ function EntityPill({
 }
 
 interface MobileProjectFlowProps {
-  onOpenProjectView(view: MobileSuperViewId): void;
   onOpenManage(): void;
 }
 
 /** The project home as one downward flow of the author's material: a dense
  * first screen with chapters, drifts, and elements together, storylines and
  * quiet entries below. Chrome stays in the corners; content fills the page. */
-export function MobileProjectFlow({ onOpenProjectView, onOpenManage }: MobileProjectFlowProps) {
+export function MobileProjectFlow({ onOpenManage }: MobileProjectFlowProps) {
   const { t } = useTranslation();
-  const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const currentProject = useProjectStore((s) => s.currentProject);
   const { bookNodes, storylines, bookElements, bookElementCategories, storylineNodeMapping } =
     useDataStore();
@@ -190,21 +188,6 @@ export function MobileProjectFlow({ onOpenProjectView, onOpenManage }: MobilePro
           }}
         />
       </span>
-
-      <div className="m-flow__entries">
-        <button type="button" onClick={() => onOpenProjectView('graph')}>
-          <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
-          <span>{t('dashboard.quick.graph', { defaultValue: '叙事图' })}</span>
-        </button>
-        <button type="button" onClick={() => navigateToAllChapters()}>
-          <span className="m-flow__glyph" aria-hidden="true">☰</span>
-          <span>{t('rightSidebar.targets.allChapters', { defaultValue: '通览全书' })}</span>
-        </button>
-        <button type="button" className="m-flow__entries-end" onClick={onOpenManage}>
-          <Settings size={13} strokeWidth={1.8} aria-hidden="true" />
-          <span>{t('mobileWorkspace.flow.manage', { defaultValue: '设定' })}</span>
-        </button>
-      </div>
 
       <span className="m-flow__label">
         {t('mobileWorkspace.flow.chapters', { defaultValue: '章节' })} · {chapters.length}
