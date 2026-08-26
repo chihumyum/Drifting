@@ -16,7 +16,6 @@ import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../li
 import { DecorationSet } from '@tiptap/pm/view';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
-import { IosCaretTap } from '../lib/extensions/ios-caret-tap';
 import {
   AgentDiffDecoration,
   AgentDiffPluginKey,
@@ -1019,8 +1018,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // are disabled, so listKeymap is gone) and the browser default blurs
         // the editor. Always consumes Tab.
         ParagraphIndent,
-        // iOS word-boundary caret snapping correction; inert off-iOS.
-        IosCaretTap,
         // In-place agent-edit diff decorations (approve mode). Inert until
         // useEntityEditor pushes a DecorationSet for node editors (below).
         AgentDiffDecoration,
