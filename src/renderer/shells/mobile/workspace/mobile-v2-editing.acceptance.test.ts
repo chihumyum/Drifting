@@ -45,6 +45,19 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(regression).toContain('不得改变正文的垂直滚动位置');
   });
 
+  it('corrects iOS word-boundary caret snapping without touching native gestures', () => {
+    const entityEditor = source('hooks/useEntityEditor.ts');
+    const caretTap = source('lib/extensions/ios-caret-tap.ts');
+
+    expect(entityEditor).toContain('IosCaretTap');
+    // The correction must stay an after-the-fact re-placement: preventing the
+    // native tap would kill focus, the IME gesture, the loupe and double-tap.
+    expect(caretTap).not.toContain('preventDefault');
+    expect(caretTap).toContain('passive: true');
+    expect(caretTap).toContain('posAtCoords');
+    expect(caretTap).toContain('!selection.empty) return');
+  });
+
   it('keeps formatting in one horizontal accessory row while TOC and comments use sheets', () => {
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
