@@ -20,7 +20,10 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
 
     expect(bar).toContain('<MobileUnifiedSearch');
     expect(bar).toContain('owner?.setQuery(event.target.value)');
-    expect(bar).toContain('onProjectSearch(snapshot.query)');
+    // Paper search owns only the current paper; the whole-project entry lives
+    // in the paper overview's own search field, not in this bar.
+    expect(bar).not.toContain('onProjectSearch');
+    expect(bar).not.toContain('m-unified-search__scope');
     expect(bar).toContain('seededOwnerRef.current === owner');
     expect(bar.match(/<MobileUnifiedSearchStep/g)).toHaveLength(2);
     expect(bar).toContain('onPointerDown={activateFromPointer}');
@@ -28,7 +31,6 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(bar).toContain('onPointerDownCapture={preserveSearchFocus}');
     expect(bar).toContain('onMouseDownCapture={preserveSearchFocus}');
     expect(runtime).toContain('projectSearchQuery');
-    expect(runtime).toContain('saveActiveEditor().finally');
     expect(overview).toContain('useMobileProjectSearch(searchQuery ?? \'\')');
     expect(overview).toContain('onActivateSearchResult(group.target)');
     expect(projectSearch).toContain('.select({');

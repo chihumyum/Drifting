@@ -526,26 +526,15 @@
   flex: 1;
   width: 100%;
   min-width: 0;
-  height: 44px;
+  height: 40px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 8px;
-  padding: 0 7px 0 4px;
+  border-radius: 999px;
+  padding: 0 12px 0 14px;
   background: hsl(var(--paper));
-}
-
-.m-unified-search__scope {
-  min-width: 44px;
-  height: 34px;
-  border: 0;
-  border-radius: 6px;
-  padding: 0 7px;
-  color: hsl(var(--ink-2));
-  background: hsl(var(--ink-1) / 0.07);
-  font: 9px/1 var(--font-mono);
 }
 
 .m-unified-search input {
@@ -558,6 +547,16 @@
   color: hsl(var(--ink-1));
   background: transparent;
   font-size: 16px;
+}
+
+/* The capsule itself is the focus surface; the global rectangular input
+   focus ring would fight the 999px field radius from inside it. */
+.m-unified-search input:focus-visible {
+  box-shadow: none;
+}
+
+.m-unified-search:focus-within {
+  border-color: hsl(var(--accent) / 0.55);
 }
 
 .m-unified-search > span {

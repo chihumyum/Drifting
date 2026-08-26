@@ -187,7 +187,6 @@ export function MobilePaperDeck({
   onOpenPaper,
   onRememberScroll,
   onOpenOverview,
-  onProjectSearch,
   workspaceUi,
   onWorkspaceUiAction,
 }: {
@@ -198,7 +197,6 @@ export function MobilePaperDeck({
   onOpenPaper: (target: WorkspaceTarget) => void;
   onRememberScroll: (key: string, scrollTop: number) => void;
   onOpenOverview: () => void;
-  onProjectSearch: (query: string) => void;
   workspaceUi: MobileWorkspaceUiState;
   onWorkspaceUiAction: Dispatch<MobileWorkspaceAction>;
 }) {
@@ -765,7 +763,6 @@ export function MobilePaperDeck({
           onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
         }
         onOpenSearch={openSearch}
-        onProjectSearch={onProjectSearch}
         onActiveRailChange={setActivePaperRail}
         editorAccessoryMode={
           workspaceUi.paperMode.kind === 'edit'

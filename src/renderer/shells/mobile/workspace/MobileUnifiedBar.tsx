@@ -49,10 +49,8 @@ const subscribeNothing = () => () => undefined;
 
 function MobileUnifiedSearch({
   owner,
-  onProjectSearch,
 }: {
   owner: MobilePaperSearchOwner | null;
-  onProjectSearch: (query: string) => void;
 }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -84,18 +82,6 @@ function MobileUnifiedSearch({
   }, [owner, snapshot.query]);
   return (
     <div className="m-unified-search">
-      <button
-        type="button"
-        className="m-unified-search__scope"
-        onPointerDown={(event) => event.preventDefault()}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => onProjectSearch(snapshot.query)}
-        aria-label={t('mobileWorkspace.search.projectScope', {
-          defaultValue: '在整个项目中搜索',
-        })}
-      >
-        {t('mobileWorkspace.search.paperScope', { defaultValue: '本纸' })}
-      </button>
       <input
         ref={inputRef}
         value={snapshot.query}
@@ -266,7 +252,6 @@ export function MobileUnifiedBar({
   onOpenOverview,
   onOpenStats,
   onOpenSearch,
-  onProjectSearch,
   onActiveRailChange,
   editorAccessoryMode,
   onEditorAccessoryModeChange,
@@ -287,7 +272,6 @@ export function MobileUnifiedBar({
   onOpenOverview: () => void;
   onOpenStats: () => void;
   onOpenSearch: () => void;
-  onProjectSearch: (query: string) => void;
   onActiveRailChange: (rail: MobilePaperRail | null) => void;
   editorAccessoryMode: 'navigation' | 'formatting';
   onEditorAccessoryModeChange: (mode: 'navigation' | 'formatting') => void;
@@ -390,7 +374,7 @@ export function MobileUnifiedBar({
               onBack={handleBack}
               label={backLabel}
             />
-            <MobileUnifiedSearch owner={searchOwner} onProjectSearch={onProjectSearch} />
+            <MobileUnifiedSearch owner={searchOwner} />
             <MobileUnifiedSearchStep
               disabled={!searchOwner}
               onActivate={() => searchOwner?.previous()}

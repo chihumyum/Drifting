@@ -270,12 +270,6 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
           setProjectSearchQuery(null);
           dispatchWorkspaceUi({ type: 'show-overview' });
         }}
-        onProjectSearch={(query) => {
-          void saveActiveEditor().finally(() => {
-            setProjectSearchQuery(query);
-            dispatchWorkspaceUi({ type: 'show-overview' });
-          });
-        }}
         workspaceUi={workspaceUi}
         onWorkspaceUiAction={dispatchWorkspaceUi}
       />
