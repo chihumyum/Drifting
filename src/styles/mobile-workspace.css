@@ -31,6 +31,15 @@
   color: hsl(var(--ink-1));
 }
 
+.m-project-home[data-view='flow'] {
+  background: hsl(var(--paper));
+}
+
+.m-project-home[data-view='flow'] .m-project-home__header {
+  border-bottom: 0;
+  background: transparent;
+}
+
 .m-project-home__header {
   box-sizing: border-box;
   display: grid;
@@ -85,6 +94,270 @@
   background: hsl(var(--paper));
   color: hsl(var(--accent));
   font-weight: 600;
+}
+
+/* ─── Project home content flow (空阔文房) ───
+   Chrome lives in the corners; the page is the author's material as one
+   downward stream. Serif is the content voice, sans the quiet labels. */
+.m-flow {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 28px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+.m-flow__masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.m-flow__title {
+  font-family: var(--font-content);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-flow__meta {
+  color: hsl(var(--ink-3));
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.m-flow__progress {
+  display: block;
+  flex: 0 0 2px;
+  height: 2px;
+  background: hsl(var(--rule));
+  margin-top: 10px;
+  position: relative;
+}
+
+.m-flow__progress > span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  background: hsl(var(--accent));
+}
+
+.m-flow__label {
+  color: hsl(var(--ink-4));
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 14px 0 2px;
+}
+
+.m-flow__section {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 10px;
+  border-bottom: 1px dotted hsl(var(--rule-strong));
+}
+
+.m-flow__section--pills {
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.m-flow__chapter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.m-flow__chapter {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  text-align: left;
+  color: hsl(var(--ink-1));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__roman {
+  color: hsl(var(--ink-4));
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  flex: 0 0 18px;
+}
+
+.m-flow__chapter-title {
+  font-family: var(--font-content);
+  font-size: 16.5px;
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-flow__snippet {
+  font-family: var(--font-content);
+  font-size: 12.5px;
+  color: hsl(var(--ink-3));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.m-flow__count {
+  margin-left: auto;
+  color: hsl(var(--ink-4));
+  font-size: 10px;
+  flex: 0 0 auto;
+}
+
+.m-flow__continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 2px 0 6px 26px;
+  color: hsl(var(--accent));
+  font-size: 12px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  color: hsl(var(--ink-3));
+  font-size: 12.5px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__drift {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  text-align: left;
+  color: hsl(var(--ink-2));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__drift > svg {
+  flex: 0 0 auto;
+  color: hsl(var(--ink-3));
+}
+
+.m-flow__drift > span {
+  font-family: var(--font-content);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-flow__pills {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.m-flow__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 23px;
+  padding: 0 9px 0 7px;
+  border-radius: 999px;
+  border: 1.5px solid hsl(var(--rule-strong));
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-size: 10px;
+  font-weight: 600;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__pill-glyph {
+  font-size: 11px;
+  line-height: 1;
+  color: hsl(var(--ink-2));
+}
+
+.m-flow__glyph {
+  font-size: 13px;
+  line-height: 1;
+  flex: 0 0 auto;
+  color: hsl(var(--ink-3));
+}
+
+.m-flow__storyline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__span {
+  color: hsl(var(--ink-3));
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-flow__entries {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 0 4px;
+  margin-top: auto;
+  color: hsl(var(--ink-3));
+  font-size: 12px;
+}
+
+.m-flow__entries > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  color: inherit;
+  font-size: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-flow__entries-end {
+  margin-left: auto;
 }
 
 .m-project-home__dashboard {

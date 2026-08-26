@@ -238,20 +238,13 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const trashOpen =
     workspaceUi.transient.kind === 'dialog' &&
     workspaceUi.transient.dialog === 'project-trash';
-  const activePaper = state.papers.find((paper) => paper.key === state.activeKey) ?? null;
 
   return (
     <WorkspaceNavigationProvider navigator={mobileNavigator}>
       {workspaceUi.surface.kind === 'project-home' && (
         <MobileProjectHome
-          activePaper={activePaper}
           paperCount={state.papers.length}
           onBackToShelf={leaveProject}
-          onContinuePaper={() => {
-            if (!activePaper) return;
-            activatePaper(activePaper.target);
-            dispatchWorkspaceUi({ type: 'show-paper' });
-          }}
           onOpenOverview={() => {
             setProjectSearchQuery(null);
             dispatchWorkspaceUi({ type: 'show-overview' });
