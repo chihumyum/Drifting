@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@100..900&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif; }
+    a { color: hsl(218 22% 52%); } a:hover { color: hsl(218 22% 42%); }
+  </style>
+</helmet>
+<div style="width: 402px; height: 640px; overflow: hidden; background: hsl(30 8% 96.5%); color: hsl(30 6% 12%); box-sizing: border-box; padding: 28px 24px; display: flex; flex-direction: column; gap: 16px">
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <strong style="font-size: 20px; font-weight: 750; letter-spacing: -0.01em">实体药丸</strong>
+    <span style="color: hsl(30 3% 48%); font-size: 12px; line-height: 1.6">描边与浅底 = 所属故事线或元素分类的颜色;glyph = 桌面工作区 Tab 的排版字符(§ 章节 · ❦ 漂流 · ¶ 故事线 · ◆ 元素 · ⌘ 分类 · ☰ 通览全书);glyph 与文字恒墨色。无归属用中性描边、无浅底。</span>
+  </div>
+  <hr style="border: 0; height: 1px; background: hsl(30 6% 84%); margin: 0">
+  <div style="display: flex; flex-direction: column; gap: 13px">
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(208 70% 66%); background: hsl(208 70% 66% / 0.1); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">§</span>
+        <span>第一章 · 雨夜</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">章节 — 取主故事线色</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(30 6% 84%); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">❦</span>
+        <span>港口速记</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">漂流 — 自由漂浮,中性描边</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(208 70% 66%); background: hsl(208 70% 66% / 0.1); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">¶</span>
+        <span>主线</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">故事线 — 即自身色</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(45 82% 66%); background: hsl(45 82% 66% / 0.14); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">◆</span>
+        <span>灯塔</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">元素 — 取所属分类色</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(45 82% 66%); background: hsl(45 82% 66% / 0.14); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">⌘</span>
+        <span>场景</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">元素分类 — 即自身色</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); align-items: center; gap: 12px">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: 999px; border: 1.5px solid hsl(30 6% 84%); color: hsl(30 4% 26%); font-size: 10px; font-weight: 600; justify-self: start; box-sizing: border-box">
+        <span style="font-size: 11px; line-height: 1">☰</span>
+        <span>通览全书</span>
+      </span>
+      <span style="color: hsl(30 3% 48%); font-size: 11px">全书视图 — 中性描边</span>
+    </div>
+  </div>
+  <hr style="border: 0; height: 1px; background: hsl(30 6% 84%); margin: 0">
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span style="color: hsl(30 3% 48%); font-size: 9.5px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase">故事线色板</span>
+    <div style="display: flex; gap: 8px">
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(252 62% 72%)"></span>
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(208 70% 66%)"></span>
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(148 38% 60%)"></span>
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(45 82% 66%)"></span>
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(282 50% 72%)"></span>
+      <span style="width: 26px; height: 26px; border-radius: 50%; background: hsl(182 42% 58%)"></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":402,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
