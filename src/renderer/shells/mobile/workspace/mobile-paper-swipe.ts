@@ -79,7 +79,7 @@ export function canStartMobilePaperSwipe({
   return (
     workspace.surface.kind === 'paper' &&
     workspace.paperMode.kind === 'read' &&
-    workspace.panel === 'none' &&
+    workspace.overlay === 'none' &&
     workspace.transient.kind === 'none' &&
     workspace.keyboard === 'closed' &&
     activeRail === null &&

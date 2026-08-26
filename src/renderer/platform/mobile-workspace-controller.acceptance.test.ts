@@ -22,7 +22,7 @@ describe('Mobile V2 workspace controller architecture', () => {
     const controller = source(
       'shells/mobile/workspace/mobile-workspace-controller.ts',
     );
-    for (const axis of ['surface:', 'paperMode:', 'panel:', 'transient:', 'keyboard:']) {
+    for (const axis of ['surface:', 'paperMode:', 'overlay:', 'transient:', 'keyboard:']) {
       expect(controller).toContain(axis);
     }
     expect(controller).toContain('resolveMobileWorkspaceBack');

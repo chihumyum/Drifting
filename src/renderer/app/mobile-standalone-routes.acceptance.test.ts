@@ -152,7 +152,7 @@ describe('mobile standalone routes', () => {
     expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_AXIS_RATIO = 1.2');
     expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS = 180');
     expect(paperSwipe).toContain('workspace.paperMode.kind === \'read\'');
-    expect(paperSwipe).toContain("workspace.panel === 'none'");
+    expect(paperSwipe).toContain("workspace.overlay === 'none'");
     expect(paperSwipe).toContain("workspace.transient.kind === 'none'");
     expect(paperSwipe).toContain('targetIndex = Math.max');
     expect(paperDeck).toContain('className="m-paper-row__activate"');

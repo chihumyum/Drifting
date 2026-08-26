@@ -268,7 +268,6 @@ export function MobileUnifiedBar({
       className="m-unified-bar"
       data-debug-id="mobile-unified-bar"
       data-mode={projection.mode}
-      data-placement={projection.placement}
       data-keyboard={workspaceUi.keyboard}
       data-visible={projection.visible ? 'true' : 'false'}
       style={{ '--m-unified-keyboard-inset': `${keyboardInset}px` } as CSSProperties}

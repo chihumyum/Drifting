@@ -510,7 +510,6 @@ export function MobilePaperDeck({
       data-paper-rail={activeRail ?? 'none'}
       data-bar-sheet={activeBarSheet ?? 'none'}
       data-controller-surface={workspaceUi.surface.kind}
-      data-controller-panel={workspaceUi.panel}
       data-controller-transient={workspaceUi.transient.kind}
       data-controller-paper-mode={workspaceUi.paperMode.kind}
       data-controller-keyboard={workspaceUi.keyboard}

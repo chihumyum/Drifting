@@ -30,7 +30,6 @@ describe('Mobile V2 workspace controller', () => {
     expect(state).toEqual({
       surface: { kind: 'project-home' },
       paperMode: { kind: 'read' },
-      panel: 'none',
       overlay: 'none',
       transient: { kind: 'none' },
       keyboard: 'closed',
@@ -45,22 +44,8 @@ describe('Mobile V2 workspace controller', () => {
     const superView = reduce(overview, { type: 'show-super-view', view: 'graph' });
     expect(superView).toMatchObject({
       surface: { kind: 'super-view', view: 'graph', returnTo: 'project-home' },
-      panel: 'none',
       overlay: 'none',
       transient: { kind: 'none' },
-    });
-  });
-
-  it('keeps the keyboard accessory independent from an existing context panel', () => {
-    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
-    state = reduce(state, { type: 'set-panel', panel: 'top-full' });
-    expect(state).toMatchObject({
-      surface: { kind: 'paper' },
-      paperMode: { kind: 'edit', accessory: 'navigation' },
-      panel: 'top-full',
-      overlay: 'none',
-      transient: { kind: 'none' },
-      keyboard: 'open',
     });
   });
 
@@ -78,16 +63,13 @@ describe('Mobile V2 workspace controller', () => {
     });
   });
 
-  it('preserves the owning panel under an entity preview sheet', () => {
-    let state = reduce(paperRoot(), {
-      type: 'set-panel',
-      panel: 'top-docked',
-    });
+  it('claims the paper for an entity preview sheet', () => {
+    let state = reduce(paperRoot(), { type: 'set-overlay', overlay: 'chapters' });
     state = reduce(state, {
       type: 'set-transient',
       transient: { kind: 'entity-preview', target: TARGET },
     });
-    expect(state.panel).toBe('top-docked');
+    expect(state.overlay).toBe('none');
     expect(state.transient).toEqual({ kind: 'entity-preview', target: TARGET });
   });
 
@@ -95,7 +77,6 @@ describe('Mobile V2 workspace controller', () => {
     const impossible: MobileWorkspaceUiState = {
       surface: { kind: 'overview', returnTo: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
-      panel: 'bottom-full',
       overlay: 'none',
       transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
@@ -103,7 +84,6 @@ describe('Mobile V2 workspace controller', () => {
     expect(mobileWorkspaceStateIssues(impossible)).toEqual(
       expect.arrayContaining([
         'non-paper surface cannot edit',
-        'non-paper surface cannot own a panel',
         'non-paper surface cannot own a workspace transient',
         'non-paper surface cannot own the keyboard',
       ]),
@@ -167,8 +147,7 @@ describe('Mobile V2 Back priority', () => {
     let state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
       paperMode: { kind: 'read' },
-      panel: 'bottom-full',
-      overlay: 'none',
+      overlay: 'tools',
       transient: { kind: 'dialog', dialog: 'destructive' },
       keyboard: 'closed',
     };
@@ -176,35 +155,24 @@ describe('Mobile V2 Back priority', () => {
     let result = resolveMobileWorkspaceBack(state, 'visible');
     layers.push(result.layer!);
     state = result.nextState;
-    expect(state.panel).toBe('bottom-full');
-
-    state = reduce(state, {
-      type: 'set-transient',
-      transient: { kind: 'entity-preview', target: TARGET },
-    });
-    result = resolveMobileWorkspaceBack(state, 'visible');
-    layers.push(result.layer!);
-    state = result.nextState;
-    expect(state.panel).toBe('bottom-full');
+    expect(state.overlay).toBe('tools');
 
     result = resolveMobileWorkspaceBack(state, 'visible');
     layers.push(result.layer!);
     state = result.nextState;
-    expect(state.panel).toBe('bottom-docked');
+    expect(state.overlay).toBe('none');
 
     result = resolveMobileWorkspaceBack(state, 'visible');
     layers.push(result.layer!);
-    state = result.nextState;
-    expect(state.panel).toBe('none');
+    expect(result.effect).toBe('navigate-project-home');
 
-    expect(layers).toEqual(['dialog', 'transient', 'panel-full', 'panel-docked']);
+    expect(layers).toEqual(['dialog', 'overlay', 'paper-root']);
   });
 
   it('unwinds formatting before leaving editing and its keyboard', () => {
-    let state: MobileWorkspaceUiState = {
+    const state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
       paperMode: { kind: 'edit', accessory: 'formatting' },
-      panel: 'bottom-docked',
       overlay: 'none',
       transient: { kind: 'none' },
       keyboard: 'open',
@@ -215,26 +183,18 @@ describe('Mobile V2 Back priority', () => {
     expect(accessory.effect).toBe('none');
     expect(accessory.nextState.paperMode).toEqual({ kind: 'edit', accessory: 'navigation' });
     expect(accessory.nextState.keyboard).toBe('open');
-    expect(accessory.nextState.panel).toBe('bottom-docked');
 
-    state = accessory.nextState;
-    const editMode = resolveMobileWorkspaceBack(state, 'visible');
+    const editMode = resolveMobileWorkspaceBack(accessory.nextState, 'visible');
     expect(editMode.layer).toBe('edit-mode');
     expect(editMode.effect).toBe('blur-editor');
     expect(editMode.nextState.paperMode).toEqual({ kind: 'read' });
     expect(editMode.nextState.keyboard).toBe('closed');
-    expect(editMode.nextState.panel).toBe('bottom-docked');
-
-    state = editMode.nextState;
-    const panel = resolveMobileWorkspaceBack(state, 'visible');
-    expect(panel.layer).toBe('panel-docked');
   });
 
-  it('closes read-owned search before the panel and normalizes its keyboard', () => {
+  it('closes read-owned search first and normalizes its keyboard', () => {
     const state: MobileWorkspaceUiState = {
       surface: { kind: 'paper' },
       paperMode: { kind: 'read' },
-      panel: 'none',
       overlay: 'none',
       transient: { kind: 'search', scope: 'project', returnTo: { kind: 'read' } },
       keyboard: 'open',
@@ -301,11 +261,7 @@ describe('Mobile V2 unified bar projection', () => {
       visible: true,
       mode: 'read',
       leftAction: 'back',
-      placement: 'safe-bottom',
     });
-    expect(
-      selectMobileUnifiedBarProjection({ ...root, panel: 'bottom-docked' }),
-    ).toMatchObject({ leftAction: 'back', placement: 'above-bottom-panel' });
   });
 
   it('derives search, Agent input, edit, keyboard, and hidden surface states', () => {

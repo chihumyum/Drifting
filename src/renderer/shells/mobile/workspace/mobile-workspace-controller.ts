@@ -14,13 +14,6 @@ export type MobilePaperMode =
 
 export type MobileSearchReturnMode = MobilePaperMode;
 
-export type MobileWorkspacePanel =
-  | 'none'
-  | 'top-docked'
-  | 'top-full'
-  | 'bottom-docked'
-  | 'bottom-full';
-
 /** Near-full-screen launcher overlays. The bottom tab bar opens the three
  * structure overlays (the desktop left bar's vocabulary); 'tools' is the
  * paper's tool face behind the top-right control (the desktop right bar). */
@@ -45,7 +38,6 @@ export type MobileKeyboardState = 'closed' | 'open';
 export interface MobileWorkspaceUiState {
   surface: MobileWorkspaceSurface;
   paperMode: MobilePaperMode;
-  panel: MobileWorkspacePanel;
   overlay: MobileWorkspaceOverlay;
   transient: MobileWorkspaceTransient;
   keyboard: MobileKeyboardState;
@@ -57,7 +49,6 @@ export type MobileWorkspaceAction =
   | { type: 'show-overview' }
   | { type: 'show-super-view'; view: MobileSuperViewId }
   | { type: 'open-project-trash' }
-  | { type: 'set-panel'; panel: MobileWorkspacePanel }
   | { type: 'set-overlay'; overlay: MobileWorkspaceOverlay }
   | { type: 'open-search'; scope: 'paper' | 'project' }
   | {
@@ -77,8 +68,6 @@ export type MobileBackLayer =
   | 'input'
   | 'keyboard'
   | 'overlay'
-  | 'panel-full'
-  | 'panel-docked'
   | 'super-view'
   | 'overview'
   | 'editor-accessory'
@@ -102,7 +91,6 @@ export interface MobileUnifiedBarProjection {
   visible: boolean;
   mode: 'read' | 'edit' | 'search' | 'agent-input';
   leftAction: 'back';
-  placement: 'safe-bottom' | 'above-bottom-panel';
 }
 
 const PAPER_SURFACE: MobileWorkspaceSurface = { kind: 'paper' };
@@ -113,7 +101,6 @@ export function createInitialMobileWorkspaceUiState(): MobileWorkspaceUiState {
   return {
     surface: { kind: 'project-home' },
     paperMode: READ_MODE,
-    panel: 'none',
     overlay: 'none',
     transient: NO_TRANSIENT,
     keyboard: 'closed',
@@ -137,18 +124,11 @@ function transientOwnsInput(transient: MobileWorkspaceTransient): boolean {
   return transient.kind === 'search' || transient.kind === 'agent-input';
 }
 
-function panelSide(panel: MobileWorkspacePanel): 'top' | 'bottom' | null {
-  if (panel.startsWith('top-')) return 'top';
-  if (panel.startsWith('bottom-')) return 'bottom';
-  return null;
-}
-
 export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): string[] {
   const issues: string[] = [];
   const atPaper = state.surface.kind === 'paper';
 
   if (!atPaper && state.paperMode.kind !== 'read') issues.push('non-paper surface cannot edit');
-  if (!atPaper && state.panel !== 'none') issues.push('non-paper surface cannot own a panel');
   if (state.overlay !== 'none') {
     if (state.surface.kind === 'super-view') {
       issues.push('a super view cannot host a launcher overlay');
@@ -161,7 +141,6 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
       issues.push('a launcher overlay cannot coexist with a workspace transient');
     }
-    if (state.panel !== 'none') issues.push('a launcher overlay cannot coexist with a panel');
   }
   if (!atPaper && state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
     issues.push('non-paper surface cannot own a workspace transient');
@@ -183,12 +162,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   if (
     state.transient.kind === 'dialog' &&
     state.transient.dialog === 'project-trash' &&
-    (state.paperMode.kind !== 'read' || state.panel !== 'none' || state.keyboard !== 'closed')
+    (state.paperMode.kind !== 'read' || state.keyboard !== 'closed')
   ) {
     issues.push('the full-screen Project Trash surface owns a clean read root');
-  }
-  if (transientOwnsInput(state.transient) && state.panel !== 'none') {
-    issues.push('search and Agent input cannot coexist with a panel');
   }
   if (
     state.keyboard === 'open' &&
@@ -236,16 +212,6 @@ export function mobileWorkspaceReducer(
         ...createInitialMobileWorkspaceUiState(),
         transient: { kind: 'dialog', dialog: 'project-trash' },
       });
-    case 'set-panel':
-      return checked({
-        ...state,
-        surface: PAPER_SURFACE,
-        paperMode: state.paperMode.kind === 'edit' ? state.paperMode : READ_MODE,
-        panel: action.panel,
-        overlay: 'none',
-        transient: NO_TRANSIENT,
-        keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
-      });
     case 'set-overlay': {
       if (action.overlay === 'none') {
         if (state.overlay === 'none') return state;
@@ -256,7 +222,6 @@ export function mobileWorkspaceReducer(
       return checked({
         ...state,
         paperMode: READ_MODE,
-        panel: 'none',
         overlay: action.overlay,
         transient: NO_TRANSIENT,
         keyboard: 'closed',
@@ -268,7 +233,6 @@ export function mobileWorkspaceReducer(
         ...state,
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
-        panel: 'none',
         overlay: 'none',
         transient: {
           kind: 'search',
@@ -315,7 +279,6 @@ export function mobileWorkspaceReducer(
           ...state,
           surface: PAPER_SURFACE,
           paperMode: READ_MODE,
-          panel: 'none',
           overlay: 'none',
           transient: action.transient,
           keyboard: 'closed',
@@ -325,7 +288,6 @@ export function mobileWorkspaceReducer(
         ...state,
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
-        panel: 'none',
         overlay: 'none',
         transient: action.transient,
         keyboard: 'closed',
@@ -443,16 +405,6 @@ export function resolveMobileWorkspaceBack(
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });
   }
-  if (state.panel.endsWith('-full')) {
-    const side = panelSide(state.panel);
-    return resolution('panel-full', {
-      ...state,
-      panel: side === 'top' ? 'top-docked' : 'bottom-docked',
-    });
-  }
-  if (state.panel.endsWith('-docked')) {
-    return resolution('panel-docked', { ...state, panel: 'none' });
-  }
   if (state.surface.kind === 'super-view') {
     return resolution(
       'super-view',
@@ -501,6 +453,5 @@ export function selectMobileUnifiedBarProjection(
     visible,
     mode,
     leftAction: 'back',
-    placement: state.panel === 'bottom-docked' ? 'above-bottom-panel' : 'safe-bottom',
   };
 }
