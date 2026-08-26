@@ -6,12 +6,17 @@ import type {
   AgentToolSelectionStrategy,
 } from './types';
 
-const RESULT_PAGE = 'read_tool_result';
-
 /**
  * Drifting deliberately keeps the complete domain tool surface available.
  * Tool count is not compressed into generic object verbs: every built-in
  * operation keeps one stable author-domain name and schema.
+ *
+ * The selection is intentionally identical from one iteration to the next,
+ * including while a paged tool result is pending: the provider tool array is
+ * the first segment of the prompt-cache prefix, and collapsing or reordering
+ * it invalidates the provider cache for the whole request. Pagination is
+ * steered by the system prompt instead (see buildDriftingAgentSystemPrompt),
+ * with read_tool_result always present in this stable selection.
  */
 export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelectionStrategy {
   return {
@@ -19,10 +24,6 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       const available = new Map(
         request.definitions.map((definition) => [definition.name, definition]),
       );
-      if (request.pendingResultPage && available.has(RESULT_PAGE)) {
-        return [RESULT_PAGE];
-      }
-
       const selected: string[] = [];
       // Working Memory is an always-on turn lifecycle boundary. Keep its
       // checkpoint and conflict-refresh read available even when tool search

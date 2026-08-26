@@ -133,6 +133,10 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       max_output_tokens: request.maxOutputTokens,
       stream: true,
       store: false,
+      // OpenAI prefix caching is automatic; the key only routes requests that
+      // share this session's stable instructions/tools/history prefix to the
+      // same cache shard so hits stay likely under load.
+      prompt_cache_key: `drifting-agent:${request.sessionId}`,
       reasoning: {
         effort,
         ...(reasoningEnabled ? { summary: 'auto', context: 'current_turn' } : {}),

@@ -1529,10 +1529,30 @@ export class AgentRuntime {
             `Tool selection forced unselected name "${selectorForcedToolName}"`,
           );
         }
-        const leasedNames = [
-          ...repairToolNames,
-          ...selectedNames.filter((name) => !repairToolNames.includes(name)),
-        ].slice(0, AGENT_RUNTIME_TOOL_SEARCH_LIMIT);
+        // The lease keeps the selector's deterministic order: the provider
+        // tool array is the first segment of the prompt-cache prefix, and
+        // reordering it between iterations invalidates the provider cache.
+        // Repair tools are usually already selected; when the selector
+        // dropped one, it is appended at the tail and always survives the
+        // lease cap so a rejected call stays repairable.
+        const repairNameSet = new Set(repairToolNames);
+        const mergedNames = [
+          ...selectedNames,
+          ...repairToolNames.filter((name) => !selectedNames.includes(name)),
+        ];
+        let keptNonRepairNames = 0;
+        const nonRepairNameBudget = Math.max(
+          0,
+          AGENT_RUNTIME_TOOL_SEARCH_LIMIT - repairNameSet.size,
+        );
+        const leasedNames = (
+          mergedNames.length <= AGENT_RUNTIME_TOOL_SEARCH_LIMIT
+            ? mergedNames
+            : mergedNames.filter(
+                (name) =>
+                  repairNameSet.has(name) || keptNonRepairNames++ < nonRepairNameBudget,
+              )
+        ).slice(0, AGENT_RUNTIME_TOOL_SEARCH_LIMIT);
         const selected = new Set<string>();
         iterationDefinitions = leasedNames.map((name) => {
           if (selected.has(name)) {
@@ -1597,12 +1617,14 @@ export class AgentRuntime {
         description: definition.description,
         inputSchema: clonePortableData(definition.inputSchema),
       }));
-      const iterationSystemPrompt = [
-        input.systemPrompt,
-        synthesisOnly ? AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE : undefined,
-      ]
-        .filter(Boolean)
-        .join('\n\n');
+      // The synthesis-only note is delivered at the volatile message tail,
+      // never appended to the system prompt: the system prompt anchors a
+      // provider prompt-cache breakpoint and must stay byte-stable across the
+      // turn. The note is iteration-scoped and is not pushed into canonical
+      // history; the terminal synthesis round is planned with it appended.
+      const plannedIterationMessages = synthesisOnly
+        ? [...messages, { role: 'user' as const, content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE }]
+        : messages;
       const plannedContext = await awaitAbortable(
         this.contextPlanning.plan({
           purpose: 'provider_call',
@@ -1614,8 +1636,8 @@ export class AgentRuntime {
           ...(input.model ? { model: input.model } : {}),
           ...(input.contextMode ? { contextMode: input.contextMode } : {}),
           context,
-          ...(iterationSystemPrompt ? { systemPrompt: iterationSystemPrompt } : {}),
-          messages,
+          ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
+          messages: plannedIterationMessages,
           executableDefinitions: definitions,
           selectedTools: providerTools,
           requestedOutputTokens: requestMaxOutputTokens,

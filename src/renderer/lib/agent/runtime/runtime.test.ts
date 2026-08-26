@@ -870,7 +870,11 @@ describe('AgentRuntime', () => {
           expectRequest: (request) => {
             expect(request.iteration).toBe(2);
             expect(request.tools).toEqual([]);
-            expect(request.messages[request.messages.length - 1]).toMatchObject({
+            expect(request.messages[request.messages.length - 1]).toEqual({
+              role: 'user',
+              content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
+            });
+            expect(request.messages[request.messages.length - 2]).toMatchObject({
               role: 'tool',
               content: [
                 {
@@ -965,7 +969,13 @@ describe('AgentRuntime', () => {
               expect(request.iteration).toBe(2);
               expect(request.maxOutputTokens).toBe(expectedSynthesisMax);
               expect(request.tools).toEqual([]);
-              expect(request.context.systemPrompt).toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
+              // The synthesis note rides the volatile message tail so the
+              // cached system prefix stays byte-stable.
+              expect(request.context.systemPrompt).not.toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
+              expect(request.messages[request.messages.length - 1]).toEqual({
+                role: 'user',
+                content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
+              });
             },
             steps: [
               {
@@ -1069,7 +1079,11 @@ describe('AgentRuntime', () => {
         {
           expectRequest: (request) => {
             expect(request.tools).toEqual([]);
-            expect(request.context.systemPrompt).toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
+            expect(request.context.systemPrompt).not.toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
+            expect(request.messages[request.messages.length - 1]).toEqual({
+              role: 'user',
+              content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
+            });
           },
           steps: [
             {

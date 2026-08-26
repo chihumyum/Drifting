@@ -194,13 +194,31 @@ describe('Anthropic Messages Agent driver', () => {
       model: 'claude-sonnet-5',
       max_tokens: 512,
       stream: true,
-      system: 'Use only certified tools.',
-      messages: [{ role: 'user', content: 'Search rain.' }],
+      system: [
+        {
+          type: 'text',
+          text: 'Use only certified tools.',
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Search rain.',
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+        },
+      ],
       tools: [
         {
           name: 'search',
           description: 'Search the manuscript.',
           input_schema: request().tools[0]?.inputSchema,
+          cache_control: { type: 'ephemeral' },
         },
       ],
     });
@@ -208,6 +226,148 @@ describe('Anthropic Messages Agent driver', () => {
       'x-api-key': 'anthropic-test-key',
       'anthropic-version': '2023-06-01',
     });
+  });
+
+  it('keeps the cached prefix byte-identical across iterations and anchors breakpoints at stability boundaries', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: async (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return new Response(
+          sse([
+            { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+            {
+              type: 'message_delta',
+              delta: { stop_reason: 'end_turn' },
+              usage: { output_tokens: 1 },
+            },
+            { type: 'message_stop' },
+          ]),
+          { status: 200 },
+        );
+      },
+    });
+    const tools = [
+      {
+        name: 'search',
+        description: 'Search the manuscript.',
+        inputSchema: { type: 'object' },
+      },
+      {
+        name: 'read_chapter',
+        description: 'Read one chapter.',
+        inputSchema: { type: 'object' },
+      },
+    ];
+    const iterationOneMessages = [
+      {
+        type: 'model_message' as const,
+        sourceIds: ['message/user/1'],
+        message: { role: 'user' as const, content: 'Search rain.' },
+      },
+    ];
+    const iterationTwoMessages = [
+      ...iterationOneMessages,
+      {
+        type: 'model_message' as const,
+        sourceIds: ['message/assistant/1'],
+        message: {
+          role: 'assistant' as const,
+          content: [
+            {
+              type: 'tool_call' as const,
+              callId: 'call-1',
+              name: 'search',
+              arguments: { query: 'rain' },
+              rawArguments: '{"query":"rain"}',
+            },
+          ],
+        },
+      },
+      {
+        type: 'model_message' as const,
+        sourceIds: ['message/tool/1'],
+        message: {
+          role: 'tool' as const,
+          content: [{ callId: 'call-1', name: 'search', ok: true, content: '{"matches":[]}' }],
+        },
+      },
+      {
+        type: 'context_note' as const,
+        noteKind: 'freshness' as const,
+        sourceId: 'note/freshness/1',
+        turnOrdinal: null,
+        content: 'Iteration-volatile runtime note.',
+      },
+    ];
+
+    await collect(
+      driver,
+      request({
+        iteration: 1,
+        tools,
+        context: { systemPrompt: 'Use only certified tools.', messages: iterationOneMessages },
+      }),
+    );
+    await collect(
+      driver,
+      request({
+        iteration: 2,
+        tools,
+        context: { systemPrompt: 'Use only certified tools.', messages: iterationTwoMessages },
+      }),
+    );
+
+    const [first, second] = bodies as [Record<string, unknown>, Record<string, unknown>];
+    // The cacheable tools + system prefix must not change between iterations.
+    expect(JSON.stringify(second.tools)).toBe(JSON.stringify(first.tools));
+    expect(JSON.stringify(second.system)).toBe(JSON.stringify(first.system));
+
+    // Breakpoint 1: only the last tool schema carries the marker.
+    const toolBlocks = second.tools as Array<Record<string, unknown>>;
+    expect(toolBlocks.map((tool) => tool.cache_control)).toEqual([
+      undefined,
+      { type: 'ephemeral' },
+    ]);
+    // Breakpoint 2: the system tail carries the marker.
+    expect(second.system).toEqual([
+      {
+        type: 'text',
+        text: 'Use only certified tools.',
+        cache_control: { type: 'ephemeral' },
+      },
+    ]);
+
+    // Breakpoint 3: exactly one history marker, on the newest canonical
+    // message (the tool result), never on the volatile trailing note row.
+    const messageBlocks = (second.messages as Array<{ content: unknown }>).map((message) =>
+      Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [],
+    );
+    const markedBlocks = messageBlocks.flat().filter((block) => 'cache_control' in block);
+    expect(markedBlocks).toHaveLength(1);
+    expect(markedBlocks[0]).toMatchObject({
+      type: 'tool_result',
+      tool_use_id: 'call-1',
+      cache_control: { type: 'ephemeral' },
+    });
+    const projectedMessages = second.messages as Array<Record<string, unknown>>;
+    const noteMessage = projectedMessages[projectedMessages.length - 1];
+    expect(JSON.stringify(noteMessage)).not.toContain('cache_control');
+
+    // The shared history prefix is byte-identical once the moving breakpoint
+    // marker is removed, so iteration 1's cache entry prefixes iteration 2.
+    const stripMarkers = (messages: unknown): unknown =>
+      JSON.parse(
+        JSON.stringify(messages, (key, value: unknown) =>
+          key === 'cache_control' ? undefined : value,
+        ),
+      );
+    const firstStripped = stripMarkers(first.messages) as unknown[];
+    const secondStripped = stripMarkers(second.messages) as unknown[];
+    expect(JSON.stringify(secondStripped.slice(0, firstStripped.length))).toBe(
+      JSON.stringify(firstStripped),
+    );
   });
 
   it('fails closed when the stream omits terminal accounting', async () => {
@@ -500,7 +660,7 @@ describe('Anthropic Messages Agent driver', () => {
       output_config: { effort: 'xhigh' },
     });
     expect(bodies[1]?.messages).toEqual([
-      { role: 'user', content: 'Search rain.' },
+      { role: 'user', content: [{ type: 'text', text: 'Search rain.' }] },
       {
         role: 'assistant',
         content: [
@@ -530,7 +690,13 @@ describe('Anthropic Messages Agent driver', () => {
       },
       {
         role: 'user',
-        content: 'Keep the continuation inside the established world.',
+        content: [
+          {
+            type: 'text',
+            text: 'Keep the continuation inside the established world.',
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
       },
     ]);
   });

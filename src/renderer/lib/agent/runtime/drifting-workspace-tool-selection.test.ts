@@ -72,12 +72,19 @@ describe('Drifting domain tool selection', () => {
     expect(selected).not.toContain('write_object');
   });
 
-  it('selects only the result pager while a paged result is pending', () => {
-    const input = request();
-    input.pendingResultPage = true;
-    expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
-      'read_tool_result',
-    ]);
+  it('keeps the selection byte-stable while a paged result is pending', () => {
+    const strategy = createDriftingWorkspaceToolSelectionStrategy();
+    const steady = request();
+    const paging = request();
+    paging.pendingResultPage = true;
+
+    const selected = strategy.select(paging);
+    // A collapsed or reordered tool array would invalidate the provider
+    // prompt-cache prefix twice per paged read; pagination is steered by
+    // prompt guidance while the pager stays available in the stable surface.
+    expect(selected).toEqual(strategy.select(steady));
+    expect(selected).toContain('read_tool_result');
+    expect(strategy.forceTool?.(paging, selected)).toBeNull();
   });
 
   it('honors an explicit runtime cap without changing domain order', () => {

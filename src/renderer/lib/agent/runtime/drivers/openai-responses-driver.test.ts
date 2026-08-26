@@ -352,7 +352,11 @@ describe('OpenAI Responses Agent driver', () => {
       include: ['reasoning.encrypted_content'],
       reasoning: { effort: 'max', summary: 'auto', context: 'current_turn' },
       tool_choice: 'auto',
+      prompt_cache_key: 'drifting-agent:session-1',
     });
+    // A stable per-session key routes iterations that share the same prompt
+    // prefix to the same automatic-cache shard.
+    expect(bodies[1]?.prompt_cache_key).toBe(bodies[0]?.prompt_cache_key);
     expect(bodies[1]?.input).toEqual([
       { role: 'user', content: 'Search rain.' },
       reasoningItem,

@@ -27,7 +27,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(48);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(49);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -124,6 +124,10 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('Never emit the marker before more project work.');
     expect(system).toContain('no provisional guesses, duplicated opening');
     expect(system).toContain('Only operations exposed in the current iteration are executable.');
+    expect(system).toContain('A paged tool result is unfinished evidence.');
+    expect(system).toContain(
+      'call read_tool_result to fetch the remaining pages before starting other tool work',
+    );
     expect(system).toContain('A checklist-only prelude is intentional.');
     expect(system).not.toContain('use a streaming working set');
     expect(system).not.toContain('consult neighboring chapter summaries first');

@@ -24,6 +24,15 @@ import {
 
 type FetchLike = typeof fetch;
 
+/**
+ * Prompt-cache breakpoints are placed at the three stability boundaries of the
+ * rendered request: the last tool schema, the system tail, and the newest
+ * canonical history message. The runtime keeps everything before those
+ * boundaries byte-stable between iterations; volatile rows (runtime notes,
+ * summaries re-pinned behind new history) stay after the last breakpoint.
+ */
+const ANTHROPIC_EPHEMERAL_CACHE_CONTROL = { type: 'ephemeral' } as const;
+
 export interface AnthropicMessagesAgentDriverOptions {
   apiKey: string;
   defaultModel?: string;
@@ -141,7 +150,17 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
           model,
           max_tokens: request.maxOutputTokens,
           stream: true,
-          system: request.context.systemPrompt,
+          ...(request.context.systemPrompt
+            ? {
+                system: [
+                  {
+                    type: 'text',
+                    text: request.context.systemPrompt,
+                    cache_control: ANTHROPIC_EPHEMERAL_CACHE_CONTROL,
+                  },
+                ],
+              }
+            : {}),
           messages: projectAnthropicMessages(
             request.context.messages,
             configuredReasoningEnabled ? this.reasoningReplayByCallId : undefined,
@@ -155,10 +174,13 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
             : {}),
           ...(request.tools.length
             ? {
-                tools: request.tools.map((tool) => ({
+                tools: request.tools.map((tool, index) => ({
                   name: tool.name,
                   description: tool.description,
                   input_schema: tool.inputSchema,
+                  ...(index === request.tools.length - 1
+                    ? { cache_control: ANTHROPIC_EPHEMERAL_CACHE_CONTROL }
+                    : {}),
                 })),
                 tool_choice: anthropicToolChoice(request.toolChoice),
               }
@@ -380,11 +402,12 @@ function projectAnthropicMessages(
   >,
 ): AnthropicMessage[] {
   const projected: AnthropicMessage[] = [];
+  let cacheAnchor: AnthropicMessage | undefined;
   for (const entry of messages) {
     if (entry.type === 'model_message') {
-      projected.push(
-        ...projectCanonicalMessage(entry.message, reasoningReplayByCallId),
-      );
+      const canonical = projectCanonicalMessage(entry.message, reasoningReplayByCallId);
+      projected.push(...canonical);
+      if (canonical.length > 0) cacheAnchor = canonical[canonical.length - 1];
     } else if (entry.type === 'context_summary') {
       projected.push({
         role: 'user',
@@ -397,7 +420,23 @@ function projectAnthropicMessages(
       });
     }
   }
+  if (cacheAnchor) markAnthropicCacheBreakpoint(cacheAnchor);
   return projected;
+}
+
+/**
+ * The incremental history breakpoint sits on the newest canonical message,
+ * not on trailing summary/runtime-note rows: canonical history is append-only
+ * between iterations, so this position is a byte-stable prefix boundary of
+ * the next request, while tail note rows are re-pinned behind the new
+ * messages and would never be read as a prefix again.
+ */
+function markAnthropicCacheBreakpoint(message: AnthropicMessage): void {
+  if (typeof message.content === 'string') return;
+  const last = message.content[message.content.length - 1];
+  if (!last) return;
+  if (last.type === 'thinking' || last.type === 'redacted_thinking') return;
+  last.cache_control = ANTHROPIC_EPHEMERAL_CACHE_CONTROL;
 }
 
 function projectCanonicalMessage(
@@ -407,7 +446,11 @@ function projectCanonicalMessage(
     readonly AnthropicReasoningReplayBlock[]
   >,
 ): AnthropicMessage[] {
-  if (message.role === 'user') return [{ role: 'user', content: message.content }];
+  // Canonical user text is always projected in block form so the rendered
+  // bytes do not change when the cache breakpoint moves onto or off of it.
+  if (message.role === 'user') {
+    return [{ role: 'user', content: [{ type: 'text', text: message.content }] }];
+  }
   if (message.role === 'tool') {
     return [
       {

@@ -272,10 +272,12 @@ describe('AgentRuntime tool search integration', () => {
       ['read_node'],
       [],
     ]);
+    // A repair lease joins at the tail: the selector's order is the stable
+    // prompt-cache prefix and must never be reshuffled around repair tools.
     expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
       ['read_node'],
       ['search_prose'],
-      ['read_node', 'search_prose'],
+      ['search_prose', 'read_node'],
       ['search_prose'],
     ]);
     expect(execute).toHaveBeenCalledTimes(2);
@@ -343,8 +345,8 @@ describe('AgentRuntime tool search integration', () => {
       [],
     ]);
     expect(driver.requests[1]?.tools.map((tool) => tool.name)).toEqual([
-      'read_node',
       'search_prose',
+      'read_node',
     ]);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(execute.mock.calls[0]?.[0]).toMatchObject({
