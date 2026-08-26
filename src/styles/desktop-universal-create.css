@@ -1,15 +1,24 @@
+/* ============================================================================
+   Universal create — the fork page behind a new workspace tab.
+
+   空阔文房: paper ground, a serif masthead, and the five entity kinds as a
+   typographic ladder led by their workspace tab characters (§ ❦ ¶ ◆ ⌘)
+   instead of a boxed control grid. Chrome stays quiet; the choice reads
+   like a table of contents.
+   ============================================================================ */
+
 .universal-create {
   width: 100%;
   height: 100%;
   overflow: auto;
-  background: hsl(var(--surface));
+  background: hsl(var(--paper));
   color: hsl(var(--ink-1));
 }
 
 .universal-create__content {
-  width: min(760px, calc(100% - 64px));
+  width: min(640px, calc(100% - 64px));
   margin: 0 auto;
-  padding: clamp(44px, 8vh, 96px) 0 72px;
+  padding: clamp(48px, 10vh, 120px) 0 72px;
 }
 
 .universal-create__back {
@@ -32,65 +41,61 @@
 }
 
 .universal-create__header {
-  max-width: 620px;
-  margin-bottom: 30px;
+  max-width: 560px;
+  margin-bottom: 34px;
 }
 
 .universal-create__eyebrow {
-  margin: 0 0 9px;
-  color: hsl(var(--ink-3));
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  margin: 0 0 12px;
+  color: hsl(var(--ink-4));
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
 .universal-create__header h1 {
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: clamp(28px, 3vw, 38px);
-  font-weight: 500;
-  letter-spacing: -0.025em;
+  font-family: var(--font-content);
+  font-size: clamp(30px, 3.2vw, 40px);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
 }
 
 .universal-create__header > p:last-child {
-  max-width: 560px;
-  margin: 12px 0 0;
+  max-width: 520px;
+  margin: 10px 0 0;
   color: hsl(var(--ink-3));
   font-size: 13px;
   line-height: 1.7;
 }
 
+/* ── The kind ladder ── */
+
 .universal-create__kinds {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-top: 1px solid hsl(var(--rule));
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid hsl(var(--rule-strong));
 }
 
 .universal-create__kind {
-  min-height: 104px;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-  padding: 20px 18px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 21px 4px;
   border: 0;
-  border-right: 1px solid hsl(var(--rule));
-  border-bottom: 1px solid hsl(var(--rule));
+  border-bottom: 1px dotted hsl(var(--rule-strong));
   background: transparent;
   color: hsl(var(--ink-1));
   text-align: left;
   cursor: pointer;
 }
 
-.universal-create__kind:nth-child(even),
-.universal-create__kind:last-child {
-  border-right: 0;
-}
-
 .universal-create__kind:hover,
 .universal-create__kind:focus-visible {
-  background: var(--workspace-cell-hover-bg);
+  background: hsl(var(--ink-1) / 0.03);
 }
 
 .universal-create__kind:disabled {
@@ -98,70 +103,102 @@
   cursor: default;
 }
 
+.universal-create__kind-glyph {
+  font-family: var(--font-content);
+  font-size: 24px;
+  line-height: 1;
+  color: hsl(var(--ink-4));
+  text-align: center;
+  transition: color 120ms ease;
+}
+
+.universal-create__kind:hover .universal-create__kind-glyph,
+.universal-create__kind:focus-visible .universal-create__kind-glyph {
+  color: hsl(var(--ink-1));
+}
+
 .universal-create__kind-copy {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 7px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 12px;
 }
 
 .universal-create__kind-copy strong {
-  font-family: var(--font-sans);
-  font-size: 17px;
-  font-weight: 500;
+  font-family: var(--font-content);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
 }
 
 .universal-create__kind-copy span {
   color: hsl(var(--ink-3));
   font-size: 12px;
   line-height: 1.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .universal-create__kind-action {
-  padding-top: 2px;
-  color: hsl(var(--ink-3));
+  color: hsl(var(--ink-4));
   font-size: 11px;
   white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
+.universal-create__kind:hover .universal-create__kind-action,
+.universal-create__kind:focus-visible .universal-create__kind-action {
+  opacity: 1;
+}
+
+/* ── The context step ── */
+
 .universal-create__context {
-  max-width: 560px;
-  border-top: 1px solid hsl(var(--rule));
-  padding-top: 24px;
+  max-width: 480px;
+  border-top: 1px solid hsl(var(--rule-strong));
+  padding-top: 26px;
 }
 
 .universal-create__field {
   display: grid;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: 7px;
+  margin-bottom: 22px;
 }
 
 .universal-create__field > span {
-  color: hsl(var(--ink-2));
-  font-size: 12px;
-  font-weight: 600;
+  color: hsl(var(--ink-4));
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .universal-create__field select {
   width: 100%;
-  height: 38px;
-  padding: 0 34px 0 10px;
-  border: 1px solid hsl(var(--rule));
+  height: 36px;
+  padding: 0 34px 0 0;
+  border: 0;
+  border-bottom: 1px solid hsl(var(--rule-strong));
   border-radius: 0;
-  background: hsl(var(--surface));
+  background: transparent;
   color: hsl(var(--ink-1));
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .universal-create__field select:focus-visible {
-  outline: 1px solid hsl(var(--accent));
-  outline-offset: 1px;
+  outline: none;
+  border-bottom-color: hsl(var(--accent));
 }
 
 .universal-create__field select:disabled {
   color: hsl(var(--ink-4));
-  background: hsl(var(--paper));
+  border-bottom-style: dotted;
 }
 
 .universal-create__notice,
@@ -181,24 +218,26 @@
 
 .universal-create__submit {
   min-width: 116px;
-  height: 38px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 18px;
+  margin-top: 4px;
+  padding: 0 22px;
   border: 1px solid hsl(var(--ink-1));
   border-radius: 0;
   background: hsl(var(--ink-1));
   color: hsl(var(--surface));
   font: inherit;
   font-size: 12px;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 
 .universal-create__submit:disabled {
-  border-color: hsl(var(--rule));
-  background: hsl(var(--paper));
+  border-color: hsl(var(--rule-strong));
+  background: transparent;
   color: hsl(var(--ink-4));
   cursor: default;
 }
@@ -218,12 +257,16 @@
     width: min(100% - 36px, 620px);
   }
 
-  .universal-create__kinds {
-    grid-template-columns: 1fr;
+  .universal-create__kind {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
   }
 
-  .universal-create__kind,
-  .universal-create__kind:nth-child(even) {
-    border-right: 0;
+  .universal-create__kind-copy {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .universal-create__kind-copy span {
+    white-space: normal;
   }
 }

@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
-import {
-  ArrowLeft,
-  BookOpenText,
-  Boxes,
-  FolderTree,
-  GitBranch,
-  Lightbulb,
-  LoaderCircle,
-} from 'lucide-react';
+import { ArrowLeft, LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -37,12 +29,13 @@ interface DesktopUniversalCreateViewProps {
   tab: CreateTab;
 }
 
-const KIND_ICONS = {
-  chapter: BookOpenText,
-  drift: Lightbulb,
-  element: Boxes,
-  storyline: GitBranch,
-  category: FolderTree,
+// The workspace tab characters are the entity glyph language everywhere.
+const KIND_GLYPHS = {
+  chapter: '§',
+  drift: '❦',
+  element: '◆',
+  storyline: '¶',
+  category: '⌘',
 } as const;
 
 const KIND_ORDER: UniversalCreateEntityKind[] = [
@@ -217,7 +210,6 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
         {tab.draft.step === 'kind' ? (
           <div className="universal-create__kinds">
             {KIND_ORDER.map((kind) => {
-              const Icon = KIND_ICONS[kind];
               const commitsImmediately = kind === 'storyline' || kind === 'category';
               return (
                 <button
@@ -227,7 +219,9 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
                   disabled={isCreating}
                   onClick={() => selectKind(kind)}
                 >
-                  <Icon size={19} strokeWidth={1.6} aria-hidden />
+                  <span className="universal-create__kind-glyph" aria-hidden="true">
+                    {KIND_GLYPHS[kind]}
+                  </span>
                   <span className="universal-create__kind-copy">
                     <strong>{t(`universalCreate.kinds.${kind}.label`)}</strong>
                     <span>{t(`universalCreate.kinds.${kind}.description`)}</span>

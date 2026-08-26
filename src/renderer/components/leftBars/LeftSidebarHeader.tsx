@@ -107,7 +107,7 @@ export function LeftSidebarHeader() {
         />
         <PanelTab
           label={t('leftSidebar.tabs.drifts')}
-          glyph="✺"
+          glyph="❦"
           compact={compact}
           isActive={activeLeftPanel === 'drift'}
           activity={tabActivity.drift}

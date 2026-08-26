@@ -22,7 +22,6 @@ import {
 import { getPlatformRuntime } from '../platform/runtime';
 import {
   BookOpen,
-  Boxes,
   GitBranch,
   LayoutDashboard,
   ListTree,
@@ -521,11 +520,11 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                 {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-hero__btn" onClick={openElementOverview}>
-                <Boxes size={16} aria-hidden="true" />
+                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>◆</span>
                 {t('dashboard.actions.elementOverview')}
               </button>
               <button className="dash-hero__btn" onClick={openAllChapters}>
-                <BookOpen size={16} aria-hidden="true" />
+                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>☰</span>
                 {t('dashboard.actions.allChapters')}
               </button>
               <button
@@ -700,7 +699,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             <section className="dash-section">
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <GitBranch className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <span className="dash-section__title-mark" aria-hidden="true" style={{ fontSize: 17, lineHeight: 1 }}>¶</span>
                   <span className="dash-section__title-cn">
                     {t('dashboard.sections.storylines')}
                   </span>
@@ -721,7 +720,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                     <GitBranch size={15} aria-hidden="true" /> {t('dashboard.actions.storyGraph')}
                   </button>
                   <button className="dash-section__btn" onClick={openAllChapters}>
-                    <BookOpen size={15} aria-hidden="true" /> {t('dashboard.actions.allChapters')}
+                    <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>☰</span> {t('dashboard.actions.allChapters')}
                   </button>
                   <button
                     className="dash-section__btn dash-section__btn--accent"
@@ -836,7 +835,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               <section className="dash-section" style={{ marginBottom: 0 }}>
                 <div className="dash-section__head">
                   <div className="dash-section__title">
-                    <Boxes className="dash-section__title-mark" size={18} aria-hidden="true" />
+                    <span className="dash-section__title-mark" aria-hidden="true" style={{ fontSize: 17, lineHeight: 1 }}>◆</span>
                     <span className="dash-section__title-cn">
                       {t('dashboard.sections.elementCategories')}
                     </span>

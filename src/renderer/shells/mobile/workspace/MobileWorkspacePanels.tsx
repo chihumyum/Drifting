@@ -6,12 +6,9 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  BookOpen,
   Bot,
-  Boxes,
   CalendarRange,
   LibraryBig,
-  Lightbulb,
 } from 'lucide-react';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
@@ -66,9 +63,9 @@ function MobileStructureWorkspace({
   const { t } = useTranslation();
   const [tab, setTab] = useState<StructureTab>('chapters');
   const structureTabs = [
-    ['chapters', t('leftSidebar.tabs.chapters'), BookOpen],
-    ['elements', t('leftSidebar.tabs.elements'), Boxes],
-    ['inspiration', t('leftSidebar.tabs.drifts'), Lightbulb],
+    ['chapters', t('leftSidebar.tabs.chapters'), '§'],
+    ['elements', t('leftSidebar.tabs.elements'), '◆'],
+    ['inspiration', t('leftSidebar.tabs.drifts'), '❦'],
   ] as const;
 
   return (
@@ -79,7 +76,7 @@ function MobileStructureWorkspace({
       <div className="m-context-workspace__landscape">
         <aside className="m-context-tab-rail m-context-tab-rail--structure">
           <nav aria-label={t('leftSidebar.title')}>
-            {structureTabs.map(([id, label, Icon]) => (
+            {structureTabs.map(([id, label, glyph]) => (
               <button
                 key={id}
                 type="button"
@@ -87,7 +84,7 @@ function MobileStructureWorkspace({
                 aria-label={label}
                 onClick={() => setTab(id)}
               >
-                <Icon size={19} aria-hidden="true" />
+                <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1 }}>{glyph}</span>
                 <span>{label}</span>
               </button>
             ))}
