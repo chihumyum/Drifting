@@ -4,7 +4,7 @@
   height: 100vh;
   overflow-y: auto;
   color: hsl(var(--ink-1));
-  background: hsl(var(--paper-deep));
+  background: hsl(var(--paper));
   font-family: var(--font-sans);
 }
 
@@ -71,10 +71,11 @@
 .pp-head__title {
   margin: 0;
   color: hsl(var(--ink-1));
-  font-size: 36px;
-  font-weight: 720;
-  letter-spacing: -0.04em;
-  line-height: 1.12;
+  font-family: var(--font-content);
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
 }
 
 .pp-head__title em {
@@ -330,7 +331,7 @@
 }
 
 .pp-card:hover {
-  border-color: hsl(var(--pp-c) / 0.42);
+  border-color: hsl(var(--rule-strong));
   box-shadow: none;
 }
 
@@ -343,7 +344,8 @@
   padding: 18px;
   overflow: hidden;
   color: hsl(var(--ink-1));
-  background: color-mix(in srgb, hsl(var(--pp-c)) 14%, hsl(var(--paper-deep)));
+  border-right: 1px dotted hsl(var(--rule-strong));
+  background: hsl(var(--paper));
 }
 
 .pp-card__cover::after {
@@ -360,9 +362,11 @@
 .pp-card__cover-glyph {
   position: relative;
   z-index: 1;
-  font-size: 38px;
-  font-weight: 720;
-  letter-spacing: -0.04em;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-content);
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
 .pp-card__cover-label {
@@ -396,11 +400,12 @@
   margin: 0;
   overflow: hidden;
   color: hsl(var(--ink-1));
-  font-size: 18px;
+  font-family: var(--font-content);
+  font-size: 19px;
   font-style: normal;
-  font-weight: 680;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -617,9 +622,12 @@
   place-items: center;
   border-radius: 1px;
   color: hsl(var(--ink-1));
-  background: hsl(var(--pp-c) / 0.15);
+  border: 1px dotted hsl(var(--rule-strong));
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-2));
+  font-family: var(--font-content);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .pp-list__title {
@@ -631,8 +639,10 @@
 
 .pp-list__title-main {
   overflow: hidden;
-  font-size: 14px;
-  font-weight: 650;
+  font-family: var(--font-content);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -385,8 +385,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <header className="pp-head">
           <div>
             <div className="pp-head__kicker">
-              <span>Drifting</span>
-              <span className="pp-head__kicker-sep">/</span>
               <span>{t('projectPicker.header.workspace')}</span>
             </div>
             <h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>
