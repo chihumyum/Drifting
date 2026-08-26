@@ -43,7 +43,7 @@ function readActivePaperScrollTop(): number | undefined {
 function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { state, navigator, open, activate, close, clear, reorder, rememberScroll } =
+  const { state, navigator, open, activate, close, clear, rememberScroll } =
     useMobileWorkspaceSession(projectId);
   const [workspaceUi, dispatchWorkspaceUi] = useReducer(
     mobileWorkspaceReducer,
@@ -290,17 +290,13 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             clearPapers();
             dispatchWorkspaceUi({ type: 'show-project-home' });
           }}
-          onReorder={reorder}
-          onOpenSuperView={setSuperView}
-          onOpenAllChapters={() => {
-            openPaper({ entityType: 'all-chapters', id: 'self' });
-            dispatchWorkspaceUi({ type: 'show-paper' });
-          }}
           onOpenSettings={() => navigate('/settings', { state: { from: location.pathname } })}
           onOpenTrash={() => {
             dispatchWorkspaceUi({ type: 'open-project-trash' });
           }}
-          onBackToShelf={leaveProject}
+          onOpenStructure={(tab) =>
+            dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
+          }
         />
       )}
 
@@ -321,7 +317,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             openPaper({ entityType: 'all-chapters', id: 'self' });
             dispatchWorkspaceUi({ type: 'show-paper' });
           }}
-          onOpenGraph={() => setSuperView('graph')}
+          onOpenSuperView={setSuperView}
         />
       )}
 

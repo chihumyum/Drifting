@@ -6,6 +6,7 @@ import { ChapterPanel } from '../../../components/leftBars/ChapterPanel';
 import { ElementPanel } from '../../../components/leftBars/ElementPanel';
 import { DriftPanel } from '../../../components/leftBars/DriftPanel';
 import type { MobileTabBarTab } from './MobileTabBar';
+import type { MobileSuperViewId } from './mobile-workspace-controller';
 
 /** The near-full-screen structure layer behind a bottom tab bar entry. It
  * hosts the same panels as the desktop left bar; tapping an entry opens it
@@ -17,14 +18,14 @@ export function MobileStructureOverlay({
   onClose,
   onOpenTarget,
   onOpenAllChapters,
-  onOpenGraph,
+  onOpenSuperView,
 }: {
   tab: MobileTabBarTab;
   target: WorkspaceTarget | null;
   onClose: () => void;
   onOpenTarget: (target: WorkspaceTarget) => void;
   onOpenAllChapters: () => void;
-  onOpenGraph: () => void;
+  onOpenSuperView: (view: MobileSuperViewId) => void;
 }) {
   const { t } = useTranslation();
   const titles: Record<MobileTabBarTab, [string, string]> = {
@@ -58,9 +59,25 @@ export function MobileStructureOverlay({
                 <span className="m-struct-overlay__aux-glyph" aria-hidden="true">☰</span>
                 <span>{t('rightSidebar.targets.allChapters', { defaultValue: '通览全书' })}</span>
               </button>
-              <button type="button" onClick={onOpenGraph}>
+              <button type="button" onClick={() => onOpenSuperView('graph')}>
                 <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
                 <span>{t('dashboard.quick.graph', { defaultValue: '叙事图' })}</span>
+              </button>
+            </span>
+          )}
+          {tab === 'elements' && (
+            <span className="m-struct-overlay__aux">
+              <button type="button" onClick={() => onOpenSuperView('element')}>
+                <span className="m-struct-overlay__aux-glyph" aria-hidden="true">◆</span>
+                <span>{t('superElement.title')}</span>
+              </button>
+            </span>
+          )}
+          {tab === 'drifts' && (
+            <span className="m-struct-overlay__aux">
+              <button type="button" onClick={() => onOpenSuperView('memo-material')}>
+                <span className="m-struct-overlay__aux-glyph" aria-hidden="true">☷</span>
+                <span>{t('memoMaterial.super.title')}</span>
               </button>
             </span>
           )}

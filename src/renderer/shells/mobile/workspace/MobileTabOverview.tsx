@@ -1,14 +1,20 @@
-import { ArrowLeft, BookOpen, PanelsTopLeft, Search, Settings, Trash2, X } from 'lucide-react';
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { ArrowLeft, Search, Settings, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import { useMobilePaperPresentation } from './MobilePaperContent';
-import type { MobileSuperViewId } from './mobile-workspace-controller';
+import { MobileTabBar, type MobileTabBarTab } from './MobileTabBar';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { useMobileProjectSearch } from './useMobileProjectSearch';
 import type { MobileProjectSearchOccurrence } from './mobile-project-search';
+import { useDataStore } from '../../../store/data-store';
+import { isDrift } from '../../../domain/book-node';
 
 export type { MobileSuperViewId } from './mobile-workspace-controller';
+
+/** How many papers the single-row deck comfortably holds before the overview
+ * switches to the two-row grid. */
+const DECK_LIMIT = 4;
 
 function SearchExcerpt({ occurrence }: { occurrence: MobileProjectSearchOccurrence }) {
   const before = occurrence.excerpt.slice(0, occurrence.matchStart);
@@ -24,58 +30,75 @@ function SearchExcerpt({ occurrence }: { occurrence: MobileProjectSearchOccurren
   );
 }
 
-function PaperOverviewCard({
+/** The workspace tab character for a paper's entity type — the same glyph
+ * vocabulary as the desktop tabs (§ ❦ ¶ ◆ ⌘ ☰). */
+function usePaperGlyph(target: WorkspaceTarget): string {
+  const bookNodes = useDataStore((s) => s.bookNodes);
+  switch (target.entityType) {
+    case 'node': {
+      const node = bookNodes.find((item) => item.id === target.id);
+      return node && isDrift(node) ? '❦' : '§';
+    }
+    case 'storyline':
+      return '¶';
+    case 'element':
+      return '◆';
+    case 'category':
+      return '⌘';
+    case 'all-chapters':
+      return '☰';
+  }
+}
+
+function OverviewPaperCard({
   paper,
   active,
-  index,
+  showClose,
   onActivate,
   onClose,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
 }: {
   paper: MobilePaper;
   active: boolean;
-  index: number;
+  showClose: boolean;
   onActivate: () => void;
   onClose: () => void;
-  onDragStart: (index: number) => void;
-  onDragMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onDragEnd: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const presentation = useMobilePaperPresentation(paper.target);
+  const glyph = usePaperGlyph(paper.target);
   return (
-    <article className="m-tab-card" data-index={index} data-active={active ? 'true' : 'false'}>
-      <button
-        type="button"
-        className="m-tab-card__drag"
-        aria-label="拖动纸张排序"
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          onDragStart(index);
-        }}
-        onPointerMove={onDragMove}
-        onPointerUp={onDragEnd}
-        onPointerCancel={onDragEnd}
-      >
-        <span aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="m-tab-card__close"
-        onClick={onClose}
-        aria-label="Close paper"
-      >
-        <X size={17} />
-      </button>
-      <button type="button" className="m-tab-card__main" onClick={onActivate}>
-        <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
-        <small>{presentation.kicker}</small>
+    <article className="m-ov-card" data-active={active ? 'true' : 'false'}>
+      {showClose && (
+        <button
+          type="button"
+          className="m-ov-card__close"
+          onClick={onClose}
+          aria-label="Close paper"
+        >
+          <X size={15} aria-hidden="true" />
+        </button>
+      )}
+      <button type="button" className="m-ov-card__main" onClick={onActivate}>
+        <small>
+          <span aria-hidden="true">{glyph}</span> {presentation.kicker}
+        </small>
         <strong>{presentation.title}</strong>
         <p>{presentation.preview}</p>
       </button>
     </article>
+  );
+}
+
+/** Dots mirroring the paper layout: one dot per paper, a single row for the
+ * deck, two column-major rows for the grid (an odd count leaves the last
+ * column with its lone top dot, exactly like the papers themselves). */
+function OverviewDots({ count, current, rows }: { count: number; current: number; rows: 1 | 2 }) {
+  if (count < 2) return null;
+  return (
+    <span className="m-ov-dots" data-rows={rows} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <span key={index} data-current={index === current ? 'true' : 'false'} />
+      ))}
+    </span>
   );
 }
 
@@ -88,12 +111,9 @@ export function MobileTabOverview({
   onActivateSearchResult,
   onClosePaper,
   onCloseAll,
-  onReorder,
-  onOpenSuperView,
-  onOpenAllChapters,
   onOpenSettings,
   onOpenTrash,
-  onBackToShelf,
+  onOpenStructure,
 }: {
   session: MobileWorkspaceSessionState;
   searchQuery: string | null;
@@ -103,58 +123,70 @@ export function MobileTabOverview({
   onActivateSearchResult: (target: WorkspaceTarget) => void;
   onClosePaper: (key: string) => void;
   onCloseAll: () => void;
-  onReorder: (from: number, to: number) => void;
-  onOpenSuperView: (view: MobileSuperViewId) => void;
-  onOpenAllChapters: () => void;
   onOpenSettings: () => void;
   onOpenTrash: () => void;
-  onBackToShelf: () => void;
+  onOpenStructure: (tab: MobileTabBarTab) => void;
 }) {
   const { t } = useTranslation();
-  const draggingIndexRef = useRef<number | null>(null);
-  const [dragging, setDragging] = useState(false);
   const projectSearch = useMobileProjectSearch(searchQuery ?? '');
   const searchingProject = searchQuery !== null;
-  const superViews: Array<{ id: MobileSuperViewId; label: string; meta: string }> = [
-    { id: 'element', label: t('superElement.title'), meta: t('leftSidebar.tabs.elements') },
-    { id: 'graph', label: t('storyGraph.title'), meta: t('dashboard.structure.storylines') },
-    {
-      id: 'memo-material',
-      label: t('memoMaterial.super.title'),
-      meta: t('rightSidebar.tabs.library'),
-    },
-  ];
-  const moveDraggedCard = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const from = draggingIndexRef.current;
-    if (from === null) return;
-    const card = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<HTMLElement>('.m-tab-card[data-index]');
-    const to = Number(card?.dataset.index);
-    if (!Number.isInteger(to) || to === from) return;
-    onReorder(from, to);
-    draggingIndexRef.current = to;
+  const papers = session.papers;
+  const layout: 'deck' | 'grid' = papers.length > DECK_LIMIT ? 'grid' : 'deck';
+  const activeIndex = Math.max(
+    0,
+    papers.findIndex((paper) => paper.key === session.activeKey),
+  );
+  const [deckIndex, setDeckIndex] = useState(activeIndex);
+  const deckRef = useRef<HTMLDivElement | null>(null);
+  const deckIndexRef = useRef(deckIndex);
+  deckIndexRef.current = deckIndex;
+
+  // Center the active paper when the deck opens; afterwards the scroll
+  // position (not the session) decides which card carries the close control.
+  useEffect(() => {
+    if (layout !== 'deck') return;
+    const deck = deckRef.current;
+    if (!deck) return;
+    const card = deck.children[activeIndex] as HTMLElement | undefined;
+    if (!card) return;
+    deck.scrollLeft = card.offsetLeft - (deck.clientWidth - card.clientWidth) / 2;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial centering seeds the indicator once per layout change
+    setDeckIndex(activeIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when the deck layout appears
+  }, [layout]);
+
+  const trackDeckScroll = () => {
+    const deck = deckRef.current;
+    if (!deck || deck.children.length === 0) return;
+    const center = deck.scrollLeft + deck.clientWidth / 2;
+    let nearest = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < deck.children.length; index++) {
+      const card = deck.children[index] as HTMLElement;
+      const cardCenter = card.offsetLeft + card.clientWidth / 2;
+      const distance = Math.abs(cardCenter - center);
+      if (distance < nearestDistance) {
+        nearest = index;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest !== deckIndexRef.current) setDeckIndex(nearest);
   };
-  const endCardDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    draggingIndexRef.current = null;
-    setDragging(false);
-  };
+
   return (
     <section
       className="m-tab-overview"
       role="dialog"
       aria-modal="true"
-      data-dragging={dragging ? 'true' : 'false'}
+      data-layout={layout}
       aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
     >
       <header>
         <button type="button" onClick={onClose} aria-label={t('navigation.back')}>
-          <ArrowLeft size={20} />
+          <ArrowLeft size={20} aria-hidden="true" />
         </button>
-        <div>
-          <span>Drifting</span>
-          {searchingProject ? (
+        {searchingProject ? (
+          <div>
             <label className="m-tab-overview__search">
               <Search size={16} aria-hidden="true" />
               <input
@@ -165,17 +197,38 @@ export function MobileTabOverview({
                 aria-label={t('globalSearch.placeholder')}
               />
             </label>
+          </div>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <span className="m-tab-overview__header-end">
+          {searchingProject ? (
+            <button
+              type="button"
+              onClick={() => onSearchQueryChange(null)}
+              aria-label={t('findPanel.closeTitle')}
+            >
+              <X size={19} aria-hidden="true" />
+            </button>
           ) : (
-            <strong>{t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}</strong>
+            <>
+              <button
+                type="button"
+                onClick={() => onSearchQueryChange('')}
+                aria-label={t('mobileWorkspace.search.open', { defaultValue: '搜索' })}
+              >
+                <Search size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                aria-label={t('settings.title')}
+              >
+                <Settings size={18} strokeWidth={1.7} aria-hidden="true" />
+              </button>
+            </>
           )}
-        </div>
-        <button
-          type="button"
-          onClick={() => (searchingProject ? onSearchQueryChange(null) : onOpenSettings())}
-          aria-label={searchingProject ? t('findPanel.closeTitle') : t('settings.title')}
-        >
-          {searchingProject ? <X size={19} /> : <Settings size={19} />}
-        </button>
+        </span>
       </header>
 
       <div className="m-tab-overview__scroll">
@@ -211,72 +264,62 @@ export function MobileTabOverview({
               </div>
             )}
           </section>
-        ) : (
-          <>
-        <section className="m-tab-overview__super">
-          <div>
-            <span>SUPER VIEW</span>
-            <small>{t('mobileWorkspace.projectPanoramas', { defaultValue: '项目全景' })}</small>
+        ) : papers.length === 0 ? (
+          <div className="m-ov-empty">
+            <strong>{t('mobileWorkspace.noPapers', { defaultValue: '没有打开的纸张' })}</strong>
+            <span>
+              {t('mobileWorkspace.overviewEmptyHint', {
+                defaultValue: '从下方的章节、元素或灵感打开一张纸。',
+              })}
+            </span>
           </div>
-          <div>
-            {superViews.map((view) => (
-              <button key={view.id} type="button" onClick={() => onOpenSuperView(view.id)}>
-                <PanelsTopLeft size={18} aria-hidden="true" />
-                <strong>{view.label}</strong>
-                <small>{view.meta}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="m-tab-overview__papers">
-          <header>
-            <span>{session.papers.length} PAPERS</span>
-            <div>
-              {session.papers.length > 0 && (
-                <button type="button" onClick={onCloseAll}>
-                  <Trash2 size={15} />
-                  {t('mobileWorkspace.closeAll', { defaultValue: '全部关闭' })}
-                </button>
-              )}
-              <button type="button" onClick={onOpenAllChapters}>
-                <BookOpen size={16} />
-                {t('topTimeline.tabs.allChapters', { defaultValue: '通览全书' })}
-              </button>
+        ) : layout === 'deck' ? (
+          <div className="m-ov-stage">
+            <div className="m-ov-deck" ref={deckRef} onScroll={trackDeckScroll}>
+              {papers.map((paper, index) => (
+                <OverviewPaperCard
+                  key={paper.key}
+                  paper={paper}
+                  active={paper.key === session.activeKey}
+                  showClose={index === deckIndex}
+                  onActivate={() => onActivate(paper)}
+                  onClose={() => onClosePaper(paper.key)}
+                />
+              ))}
             </div>
-          </header>
-          <div>
-            {session.papers.map((paper, index) => (
-              <PaperOverviewCard
-                key={paper.key}
-                paper={paper}
-                active={paper.key === session.activeKey}
-                index={index}
-                onActivate={() => onActivate(paper)}
-                onClose={() => onClosePaper(paper.key)}
-                onDragStart={(from) => {
-                  draggingIndexRef.current = from;
-                  setDragging(true);
-                }}
-                onDragMove={moveDraggedCard}
-                onDragEnd={endCardDrag}
-              />
-            ))}
+            <OverviewDots count={papers.length} current={deckIndex} rows={1} />
           </div>
-        </section>
-          </>
+        ) : (
+          <div className="m-ov-stage">
+            <div className="m-ov-grid">
+              {papers.map((paper) => (
+                <OverviewPaperCard
+                  key={paper.key}
+                  paper={paper}
+                  active={paper.key === session.activeKey}
+                  showClose
+                  onActivate={() => onActivate(paper)}
+                  onClose={() => onClosePaper(paper.key)}
+                />
+              ))}
+            </div>
+            <OverviewDots count={papers.length} current={activeIndex} rows={2} />
+          </div>
         )}
       </div>
 
-      {!searchingProject && <footer>
-        <button type="button" onClick={onOpenTrash}>
-          <Trash2 size={17} aria-hidden="true" />
-          {t('settings.rail.trash')}
-        </button>
-        <button type="button" onClick={onBackToShelf}>
-          {t('projectPicker.backToShelf', { defaultValue: '返回书架' })}
-        </button>
-      </footer>}
+      {!searchingProject && papers.length > 0 && (
+        <div className="m-ov-actions">
+          <button type="button" onClick={onCloseAll}>
+            {t('mobileWorkspace.closeAll', { defaultValue: '全部关闭' })}
+          </button>
+          <button type="button" onClick={onOpenTrash}>
+            {t('settings.rail.trash')}
+          </button>
+        </div>
+      )}
+
+      <MobileTabBar hidden={searchingProject} onOpen={onOpenStructure} />
     </section>
   );
 }

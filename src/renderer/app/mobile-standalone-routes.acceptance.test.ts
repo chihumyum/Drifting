@@ -123,8 +123,10 @@ describe('mobile standalone routes', () => {
     expect(previewSheet).toContain('这里只读预览');
     expect(previewSheet).toContain('插入一张纸');
     expect(previewSheet).toContain('event.target === event.currentTarget');
-    expect(overview).toContain('className="m-tab-card__close"');
-    expect(overview).toContain('className="m-tab-card__drag"');
+    expect(overview).toContain('className="m-ov-card__close"');
+    // Papers keep their open order — the overview offers no drag reorder.
+    expect(overview).not.toContain('onReorder');
+    expect(overview).toContain('<MobileTabBar');
     expect(overview).toContain('onClick={onOpenTrash}');
     expect(projectTrash).toContain('<TrashRailPanel registerRef={REGISTER_NOOP} />');
     expect(projectTrash).toContain('className="m-project-trash"');
@@ -206,7 +208,13 @@ describe('mobile standalone routes', () => {
     expect(css).toContain(".m-workspace[data-paper-swipe='dragging'] .m-paper-row__page");
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).not.toContain('--m-paper-scale');
-    expect(css).not.toContain('scroll-snap-type');
+    // The live paper row swipes under JS ownership — CSS snap belongs only to
+    // the overview's card deck.
+    const paperRowCss = css.slice(
+      css.indexOf('.m-paper-row {'),
+      css.indexOf('.m-paper-row__page'),
+    );
+    expect(paperRowCss).not.toContain('scroll-snap-type');
     expect(css).not.toContain('.m-paper-cluster');
     expect(css).not.toContain('.m-paper-rail-toggle');
     expect(css).toContain('display: flex');
