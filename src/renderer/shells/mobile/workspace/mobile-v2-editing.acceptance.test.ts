@@ -53,14 +53,15 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     // The paper tools bar toggles the two shared editor rails as in-paper
     // overlays — the sheet hosting is retired along with its portals.
     expect(deck).not.toContain('MobileBarSheet');
-    expect(deck).toContain('toggleMobilePaperRail');
+    // 大纲与批注各自独立开关,可同时在纸内出现。
+    expect(deck).toContain('openRails');
     expect(accessory).toContain("data-mode={mode}");
     expect(accessory).toContain('m-editor-accessory__actions');
     expect(accessory).toContain("mode === 'formatting'");
     expect(accessory).toContain('event.preventDefault()');
     expect(accessory).toContain('item.run(editor)');
-    expect(css).toContain("[data-paper-rail='toc'] .editor__toc-rail");
-    expect(css).toContain("[data-paper-rail='comments'] .editor__margin");
+    expect(css).toContain("[data-rail-toc='true'] .editor__toc-rail");
+    expect(css).toContain("[data-rail-comments='true'] .editor__margin");
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('touch-action: pan-x');
   });

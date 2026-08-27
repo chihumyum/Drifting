@@ -9,7 +9,7 @@ import type { MobilePaperRail } from './mobile-paper-rail';
  * back into the tab. */
 export function MobilePaperToolsBar({
   hidden = false,
-  activeRail,
+  openRails,
   onToggleRail,
   onClose,
   onOpenStats,
@@ -17,7 +17,7 @@ export function MobilePaperToolsBar({
   onOpenPlot,
 }: {
   hidden?: boolean;
-  activeRail: MobilePaperRail | null;
+  openRails: Record<MobilePaperRail, boolean>;
   onToggleRail: (rail: MobilePaperRail) => void;
   onClose: () => void;
   onOpenStats: () => void;
@@ -48,7 +48,7 @@ export function MobilePaperToolsBar({
           key={rail}
           type="button"
           tabIndex={hidden ? -1 : undefined}
-          aria-pressed={activeRail === rail}
+          aria-pressed={openRails[rail]}
           onClick={() => onToggleRail(rail)}
         >
           {label}

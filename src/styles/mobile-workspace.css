@@ -612,6 +612,12 @@
     var(--m-unified-bar-height) + 20px + env(safe-area-inset-bottom)
   );
   background: hsl(var(--page));
+  transition: padding-bottom 200ms ease;
+}
+
+/* When reading slides the chrome away, the freed band belongs to the text. */
+.m-workspace[data-chrome-hidden='true'] .m-paper-deck__content {
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
 
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
@@ -2266,17 +2272,17 @@
   display: none !important;
 }
 
-.m-workspace[data-paper-rail='toc'] .editor__toc-rail {
+.m-workspace[data-rail-toc='true'] .editor__toc-rail {
   display: block !important;
   width: min(150px, 46%);
 }
 
-.m-workspace[data-paper-rail='toc'] .editor__toc-tag,
-.m-workspace[data-paper-rail='toc'] .editor__toc-omission {
+.m-workspace[data-rail-toc='true'] .editor__toc-tag,
+.m-workspace[data-rail-toc='true'] .editor__toc-omission {
   left: 6px;
 }
 
-.m-workspace[data-paper-rail='comments'] .editor__margin {
+.m-workspace[data-rail-comments='true'] .editor__margin {
   display: block !important;
   width: min(216px, 60%);
   padding: 14px 8px 12px 6px;
@@ -2287,7 +2293,7 @@
   );
 }
 
-.m-workspace[data-paper-rail='comments'] .editor__margin .mnote {
+.m-workspace[data-rail-comments='true'] .editor__margin .mnote {
   font-size: 12px;
 }
 

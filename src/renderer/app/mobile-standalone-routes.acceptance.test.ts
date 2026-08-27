@@ -172,13 +172,13 @@ describe('mobile standalone routes', () => {
     expect(editorAccessory).toContain('data-mode={mode}');
     expect(editorAccessory).toContain('editorFocused && softwareKeyboardVisible');
     expect(editorAccessory).toContain('event.preventDefault()');
-    expect(paperDeck).toContain('data-paper-rail={activeRail');
+    expect(paperDeck).toContain('data-rail-toc={openRails.toc');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');
     expect(paperDeck).toContain('outlineLabelPitch: 34');
     // The rail menu is gone: 大纲/批注 hand off from the paper tool face into
     // the same bar sheets over the live paper.
     // 大纲/批注 are toggles for the in-paper rails, not sheet launchers.
-    expect(paperToolsBar).toContain("aria-pressed={activeRail === rail}");
+    expect(paperToolsBar).toContain('aria-pressed={openRails[rail]}');
     expect(paperToolsBar).toContain('onToggleRail');
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
@@ -210,8 +210,8 @@ describe('mobile standalone routes', () => {
     expect(css).not.toContain('.m-paper-rail-toggle');
     expect(css).toContain('display: flex');
     expect(css).toContain('.m-paper-row__activate');
-    expect(css).toContain(".m-workspace[data-paper-rail='toc'] .editor__toc-rail");
-    expect(css).toContain(".m-workspace[data-paper-rail='comments'] .editor__margin");
+    expect(css).toContain(".m-workspace[data-rail-toc='true'] .editor__toc-rail");
+    expect(css).toContain(".m-workspace[data-rail-comments='true'] .editor__margin");
     expect(css).toContain('.m-bottom-timeline');
     expect(css).toContain('.btl--mobile .btl__scroll');
     expect(css).toContain('touch-action: pan-x pan-y pinch-zoom');

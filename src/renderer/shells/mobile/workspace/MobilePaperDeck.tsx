@@ -36,7 +36,7 @@ import {
   mobilePaperSwipeTargetIsExcluded,
   resolveMobilePaperSwipe,
 } from './mobile-paper-swipe';
-import { toggleMobilePaperRail, type MobilePaperRail } from './mobile-paper-rail';
+import type { MobilePaperRail } from './mobile-paper-rail';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import {
   type MobileWorkspaceAction,
@@ -216,7 +216,10 @@ export function MobilePaperDeck({
 
   const previewTarget =
     workspaceUi.transient.kind === 'entity-preview' ? workspaceUi.transient.target : null;
-  const [activeRail, setActiveRail] = useState<MobilePaperRail | null>(null);
+  const [openRails, setOpenRails] = useState<Record<MobilePaperRail, boolean>>({
+    toc: false,
+    comments: false,
+  });
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
   const activeIndex = active
     ? session.papers.findIndex((paper) => paper.key === active.key)
@@ -235,7 +238,7 @@ export function MobilePaperDeck({
     getActiveEditor()?.commands.blur();
     setKeyboardInset(0);
     setKeyboardViewportOffsetTop(0);
-    setActiveRail(null);
+    setOpenRails({ toc: false, comments: false });
     onWorkspaceUiAction({ type: 'sync-editor', editing: false });
   }, [onWorkspaceUiAction, session.activeKey]);
 
@@ -250,7 +253,7 @@ export function MobilePaperDeck({
       dispose = registerFrontendDebugSlice('mobile.paper-deck', () => ({
         activeKey: session.activeKey,
         editorActive,
-        activeRail,
+        openRails,
         paperSwipePhase,
         chromeScrolledAway,
       }));
@@ -259,7 +262,7 @@ export function MobilePaperDeck({
       cancelled = true;
       dispose?.();
     };
-  }, [activeRail, chromeScrolledAway, editorActive, paperSwipePhase, session.activeKey]);
+  }, [chromeScrolledAway, editorActive, openRails, paperSwipePhase, session.activeKey]);
 
   useEffect(
     () => () => {
@@ -375,7 +378,7 @@ export function MobilePaperDeck({
     if (
       !canStartMobilePaperSwipe({
         workspace: workspaceUi,
-        activeRail,
+        activeRail: openRails.toc ? 'toc' : openRails.comments ? 'comments' : null,
         selectionCollapsed: currentSelectionIsCollapsed(),
         composing: composingRef.current,
       })
@@ -502,7 +505,9 @@ export function MobilePaperDeck({
       data-debug-id="mobile-workspace"
       data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
-      data-paper-rail={activeRail ?? 'none'}
+      data-rail-toc={openRails.toc ? 'true' : 'false'}
+      data-rail-comments={openRails.comments ? 'true' : 'false'}
+      data-chrome-hidden={chromeScrolledAway ? 'true' : 'false'}
       data-controller-surface={workspaceUi.surface.kind}
       data-controller-transient={workspaceUi.transient.kind}
       data-controller-paper-mode={workspaceUi.paperMode.kind}
@@ -588,7 +593,7 @@ export function MobilePaperDeck({
                       <div className="m-paper-deck__content">
                         <MobilePaperViewport
                           paper={paper}
-                          outlineRailVisible={activeRail === 'toc'}
+                          outlineRailVisible={openRails.toc}
                           topScrollReserve={
                             workspaceUi.keyboard === 'open' &&
                             (workspaceUi.paperMode.kind === 'edit' ||
@@ -680,8 +685,10 @@ export function MobilePaperDeck({
       {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
         <MobilePaperToolsBar
           hidden={chromeScrolledAway}
-          activeRail={activeRail}
-          onToggleRail={(rail) => setActiveRail((current) => toggleMobilePaperRail(current, rail))}
+          openRails={openRails}
+          onToggleRail={(rail) =>
+            setOpenRails((current) => ({ ...current, [rail]: !current[rail] }))
+          }
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
           onOpenStats={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
