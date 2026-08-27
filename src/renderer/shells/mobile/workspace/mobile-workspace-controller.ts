@@ -14,18 +14,20 @@ export type MobilePaperMode =
 
 export type MobileSearchReturnMode = MobilePaperMode;
 
-/** Near-full-screen launcher overlays. The bottom tab bar opens the three
- * structure overlays (the desktop left bar's vocabulary) and, on the paper,
- * the paper-bound tool face ('paper-tools': 大纲/批注/搜索/统计/情节);
- * 'tools' is the project tool face behind the top-right control (the desktop
- * right bar: Agent, 素材库, 时间线). */
+/** Launcher overlays. The bottom tab bar opens the three structure overlays
+ * (the desktop left bar's vocabulary); on the paper, ⁂ raises the paper
+ * tools bar in place ('paper-tools' — the tab bar shrinks to three while the
+ * bar carries 大纲/批注/搜索/统计/情节), whose 情节 entry opens the
+ * full-screen plot face ('plot'); 'tools' is the project tool face behind
+ * the top-right control (the desktop right bar: 时间线, Agent, 素材库). */
 export type MobileWorkspaceOverlay =
   | 'none'
   | 'chapters'
   | 'elements'
   | 'drifts'
   | 'tools'
-  | 'paper-tools';
+  | 'paper-tools'
+  | 'plot';
 
 export type MobileWorkspaceTransient =
   | { kind: 'none' }
@@ -141,7 +143,12 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     if (state.surface.kind === 'super-view') {
       issues.push('a super view cannot host a launcher overlay');
     }
-    if ((state.overlay === 'tools' || state.overlay === 'paper-tools') && !atPaper) {
+    if (
+      (state.overlay === 'tools' ||
+        state.overlay === 'paper-tools' ||
+        state.overlay === 'plot') &&
+      !atPaper
+    ) {
       issues.push('the tool faces belong to the paper surface');
     }
     if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
@@ -227,7 +234,9 @@ export function mobileWorkspaceReducer(
       }
       if (state.surface.kind === 'super-view') return state;
       if (
-        (action.overlay === 'tools' || action.overlay === 'paper-tools') &&
+        (action.overlay === 'tools' ||
+          action.overlay === 'paper-tools' ||
+          action.overlay === 'plot') &&
         state.surface.kind !== 'paper'
       ) {
         return state;

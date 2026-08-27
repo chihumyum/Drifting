@@ -119,33 +119,19 @@ function MobileNormalizedPlotGridEditor({
   );
 }
 
-/** The paper-bound tool face behind the tab bar's ⁂ entry: everything wired
- * to the open paper itself — 大纲 and 批注 rail sheets, find-in-paper, 统计,
- * and the 情节规划器 as the face's body. */
+/** The full-screen 情节规划器 face, opened from the paper tools bar. */
 export function MobilePaperTools({
   projectId,
   target,
   onClose,
-  onOpenStats,
-  onOpenSheet,
-  onOpenSearch,
 }: {
   projectId: string;
   target: WorkspaceTarget;
   onClose: () => void;
-  onOpenStats: () => void;
-  onOpenSheet: (sheet: 'outline' | 'comments' | 'actions') => void;
-  onOpenSearch: () => void;
 }) {
   const { t } = useTranslation();
   const presentation = useMobilePaperPresentation(target);
   const glyph = usePaperGlyph(target);
-  const handoffs = [
-    [t('mobileWorkspace.toolsFace.outline', { defaultValue: '大纲' }), () => onOpenSheet('outline')],
-    [t('mobileWorkspace.toolsFace.comments', { defaultValue: '批注' }), () => onOpenSheet('comments')],
-    [t('mobileWorkspace.search.open', { defaultValue: '搜索' }), onOpenSearch],
-    [t('rightSidebar.tabs.stats', { defaultValue: '统计' }), onOpenStats],
-  ] as const;
 
   return (
     <section
@@ -173,13 +159,6 @@ export function MobilePaperTools({
           <X size={17} aria-hidden="true" />
         </button>
       </header>
-      <div className="m-tools-face__handoffs">
-        {handoffs.map(([label, run]) => (
-          <button key={label} type="button" onClick={run}>
-            {label}
-          </button>
-        ))}
-      </div>
       <div className="m-tools-face__pane">
         <div className="m-context-workspace__pane m-context-workspace__body">
           <MobilePlotPlannerWorkspace key={target.id} projectId={projectId} target={target} />

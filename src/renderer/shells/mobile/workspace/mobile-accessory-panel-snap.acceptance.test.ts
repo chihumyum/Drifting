@@ -52,7 +52,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     // Search now opens from the paper tool face (read mode only); the bar
     // never carries a search entry of its own.
     expect(bar).not.toContain('mobile-open-search');
-    const face = source('shells/mobile/workspace/MobilePaperTools.tsx');
+    const face = source('shells/mobile/workspace/MobilePaperToolsBar.tsx');
     expect(face).toContain('onOpenSearch');
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");

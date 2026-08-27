@@ -27,6 +27,7 @@ import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileTabBar } from './MobileTabBar';
 import { MobileToolsFace } from './MobileToolsFace';
 import { MobilePaperTools } from './MobilePaperTools';
+import { MobilePaperToolsBar } from './MobilePaperToolsBar';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 import { usePaperGlyph } from './mobile-paper-glyph';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
@@ -240,7 +241,7 @@ export function MobilePaperDeck({
     workspaceUi.surface.kind === 'paper' &&
     workspaceUi.paperMode.kind === 'read' &&
     workspaceUi.transient.kind === 'none' &&
-    workspaceUi.overlay === 'none' &&
+    (workspaceUi.overlay === 'none' || workspaceUi.overlay === 'paper-tools') &&
     workspaceUi.keyboard === 'closed';
 
   useLayoutEffect(() => {
@@ -700,10 +701,17 @@ export function MobilePaperDeck({
         />
       )}
 
-      {workspaceUi.overlay === 'paper-tools' && active && (
+      {workspaceUi.overlay === 'plot' && active && (
         <MobilePaperTools
           projectId={projectId}
           target={active.target}
+          onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+        />
+      )}
+
+      {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
+        <MobilePaperToolsBar
+          hidden={chromeScrolledAway}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
           onOpenStats={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
@@ -712,6 +720,7 @@ export function MobilePaperDeck({
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'bar-sheet', sheet } })
           }
           onOpenSearch={openSearch}
+          onOpenPlot={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'plot' })}
         />
       )}
 
@@ -719,8 +728,10 @@ export function MobilePaperDeck({
         <MobileTabBar
           hidden={chromeScrolledAway}
           onOpen={(tab) => onWorkspaceUiAction({ type: 'set-overlay', overlay: tab })}
-          onOpenPaperTools={() =>
-            onWorkspaceUiAction({ type: 'set-overlay', overlay: 'paper-tools' })
+          onOpenPaperTools={
+            workspaceUi.overlay === 'paper-tools'
+              ? undefined
+              : () => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'paper-tools' })
           }
         />
       )}

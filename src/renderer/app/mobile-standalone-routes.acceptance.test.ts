@@ -45,6 +45,7 @@ describe('mobile standalone routes', () => {
     const overlay = rendererSource('shells/mobile/workspace/MobileStructureOverlay.tsx');
     const toolsFace = rendererSource('shells/mobile/workspace/MobileToolsFace.tsx');
     const paperTools = rendererSource('shells/mobile/workspace/MobilePaperTools.tsx');
+    const paperToolsBar = rendererSource('shells/mobile/workspace/MobilePaperToolsBar.tsx');
     const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const paperSwipe = rendererSource('shells/mobile/workspace/mobile-paper-swipe.ts');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
@@ -176,8 +177,8 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).toContain('outlineLabelPitch: 34');
     // The rail menu is gone: 大纲/批注 hand off from the paper tool face into
     // the same bar sheets over the live paper.
-    expect(paperTools).toContain("onOpenSheet('outline')");
-    expect(paperTools).toContain("onOpenSheet('comments')");
+    expect(paperToolsBar).toContain("onOpenSheet('outline')");
+    expect(paperToolsBar).toContain("onOpenSheet('comments')");
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
     expect(outlineRail).toContain('presentation?.outlineLabelPitch');
