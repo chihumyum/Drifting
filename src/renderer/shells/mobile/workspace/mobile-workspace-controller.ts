@@ -38,7 +38,6 @@ export type MobileWorkspaceTransient =
     }
   | { kind: 'agent-input' }
   | { kind: 'popover'; id: string }
-  | { kind: 'bar-sheet'; sheet: 'outline' | 'comments' | 'actions' }
   | { kind: 'paper-stats' }
   | { kind: 'entity-preview'; target: WorkspaceTarget }
   | { kind: 'dialog'; dialog: 'project-trash' | 'destructive' | 'native' };
@@ -151,10 +150,14 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     ) {
       issues.push('the tool faces belong to the paper surface');
     }
-    if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
-    if (state.keyboard !== 'closed') issues.push('a launcher overlay requires a closed keyboard');
-    if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
-      issues.push('a launcher overlay cannot coexist with a workspace transient');
+    if (state.overlay !== 'paper-tools') {
+      if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
+      if (state.keyboard !== 'closed') {
+        issues.push('a launcher overlay requires a closed keyboard');
+      }
+      if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
+        issues.push('a launcher overlay cannot coexist with a workspace transient');
+      }
     }
   }
   if (!atPaper && state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
@@ -166,10 +169,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   if (
     state.paperMode.kind === 'edit' &&
     state.transient.kind !== 'none' &&
-    state.transient.kind !== 'bar-sheet' &&
     state.transient.kind !== 'dialog'
   ) {
-    issues.push('editing only permits the controlled bar sheet transient');
+    issues.push('editing permits no workspace transient beyond a dialog');
   }
   if (state.paperMode.kind === 'edit' && state.keyboard !== 'open') {
     issues.push('edit mode requires a visible software keyboard');
@@ -255,7 +257,7 @@ export function mobileWorkspaceReducer(
         ...state,
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
-        overlay: 'none',
+        overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
         transient: {
           kind: 'search',
           scope: action.scope,
@@ -291,17 +293,7 @@ export function mobileWorkspaceReducer(
           ...state,
           surface: PAPER_SURFACE,
           paperMode: READ_MODE,
-          overlay: 'none',
-          transient: action.transient,
-          keyboard: 'closed',
-        });
-      }
-      if (action.transient.kind === 'bar-sheet') {
-        return checked({
-          ...state,
-          surface: PAPER_SURFACE,
-          paperMode: READ_MODE,
-          overlay: 'none',
+          overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
           transient: action.transient,
           keyboard: 'closed',
         });
@@ -310,7 +302,7 @@ export function mobileWorkspaceReducer(
         ...state,
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
-        overlay: 'none',
+        overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
         transient: action.transient,
         keyboard: 'closed',
       });
@@ -330,7 +322,7 @@ export function mobileWorkspaceReducer(
       }
       return checked({
         ...state,
-        overlay: 'none',
+        overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
         paperMode: { kind: 'edit', accessory: 'navigation' },
         keyboard: 'open',
       });
@@ -382,8 +374,7 @@ export function resolveMobileWorkspaceBack(
   if (
     state.transient.kind === 'popover' ||
     state.transient.kind === 'paper-stats' ||
-    state.transient.kind === 'entity-preview' ||
-    state.transient.kind === 'bar-sheet'
+    state.transient.kind === 'entity-preview'
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
@@ -424,6 +415,9 @@ export function resolveMobileWorkspaceBack(
   if (state.keyboard === 'open') {
     return resolution('keyboard', { ...state, keyboard: 'closed' });
   }
+  if (state.overlay === 'plot') {
+    return resolution('overlay', { ...state, overlay: 'paper-tools' });
+  }
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });
   }
@@ -459,10 +453,12 @@ export function resolveMobileWorkspaceBack(
 export function selectMobileUnifiedBarProjection(
   state: MobileWorkspaceUiState,
 ): MobileUnifiedBarProjection {
+  // The raised paper tools bar is compatible chrome: the unified bar (search
+  // mode and the keyboard accessory) must keep working above it.
   const visible =
     state.surface.kind === 'paper' &&
     state.transient.kind !== 'dialog' &&
-    state.overlay === 'none';
+    (state.overlay === 'none' || state.overlay === 'paper-tools');
   const mode =
     state.transient.kind === 'search'
       ? 'search'

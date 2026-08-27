@@ -41,7 +41,6 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
   it('keeps formatting in the accessory row and never opens a formatting sheet', () => {
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
-    const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
@@ -59,7 +58,6 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(bar).toContain("requestMobileWorkspaceBack('visible', {");
     expect(bar).not.toContain('data-debug-id="mobile-dismiss-keyboard"');
     expect(accessory).not.toContain('keepEditorFocused(event, toggle)');
-    expect(sheet).not.toContain('MobileFormattingSheetContent');
     expect(deck).not.toContain("sheet: 'formatting'");
     expect(css).not.toContain('.m-format-sheet');
     expect(css).toContain('touch-action: pan-x');

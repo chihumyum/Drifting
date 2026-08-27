@@ -826,6 +826,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.m-paper-toolsbar > button[aria-pressed='true'] {
+  color: hsl(var(--accent));
+  font-weight: 600;
+}
+
 .m-paper-toolsbar > .m-paper-toolsbar__close {
   flex: 0 0 40px;
   display: grid;
@@ -2241,102 +2246,49 @@
   }
 }
 
-.m-bar-sheet {
-  position: fixed;
-  z-index: 40;
-  inset: 0;
-  pointer-events: none;
-}
 
-.m-bar-sheet__backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: hsl(var(--ink-1) / 0.24);
-  pointer-events: auto;
-  touch-action: none;
-}
 
-.m-bar-sheet > section {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(
-    var(--m-unified-bar-height) + env(safe-area-inset-bottom) +
-      var(--m-unified-keyboard-inset, 0px)
-  );
-  height: min(62dvh, 600px);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid hsl(var(--rule-strong));
-  border-bottom: 0;
-  border-radius: 18px 18px 0 0;
-  background: hsl(var(--page));
-  box-shadow: 0 -18px 48px -28px hsl(var(--ink-1) / 0.7);
-  pointer-events: auto;
-}
 
-.m-bar-sheet__grab {
-  flex: 0 0 4px;
-  width: 38px;
-  margin: 8px auto 2px;
-  border-radius: 99px;
-  background: hsl(var(--ink-4) / 0.42);
-}
 
-.m-bar-sheet > section > header {
-  flex: 0 0 50px;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid hsl(var(--rule));
-  padding: 0 8px 0 16px;
-}
 
-.m-bar-sheet > section > header > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: hsl(var(--ink-2));
-  font-size: 12px;
-  font-weight: 500;
-}
 
-.m-bar-sheet > section > header button {
-  width: 44px;
-  height: 44px;
-  border: 0;
-  background: transparent;
-  color: hsl(var(--ink-3));
-  display: grid;
-  place-items: center;
-}
 
-.m-bar-sheet__content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
 
-.m-bar-sheet__empty {
-  padding: 18px;
-  color: hsl(var(--ink-4));
-  font-size: 12px;
-}
 
 /* Mobile paper owns the only chrome. Desktop editor rails and compact mouse
-   toolbar remain mounted for state continuity but do not consume the page. */
+   toolbar remain mounted for state continuity but do not consume the page.
+   The paper tools bar's 大纲/批注 toggles re-admit the two shared rails as
+   in-paper overlays, sized for the narrow page. */
 .m-workspace .editor-bar,
 .m-workspace .editor__toc-rail,
 .m-workspace .comment-rail,
 .m-workspace .editor__margin {
   display: none !important;
+}
+
+.m-workspace[data-paper-rail='toc'] .editor__toc-rail {
+  display: block !important;
+  width: min(150px, 46%);
+}
+
+.m-workspace[data-paper-rail='toc'] .editor__toc-tag,
+.m-workspace[data-paper-rail='toc'] .editor__toc-omission {
+  left: 6px;
+}
+
+.m-workspace[data-paper-rail='comments'] .editor__margin {
+  display: block !important;
+  width: min(216px, 60%);
+  padding: 14px 8px 12px 6px;
+  background: linear-gradient(
+    to left,
+    hsl(var(--paper) / 0.96) 78%,
+    hsl(var(--paper) / 0)
+  );
+}
+
+.m-workspace[data-paper-rail='comments'] .editor__margin .mnote {
+  font-size: 12px;
 }
 
 .m-paper-rail-menu {
@@ -2380,129 +2332,9 @@
   color: hsl(var(--accent));
 }
 
-/* The real shared rails remain mounted by their editor views. Mobile exposes
-   exactly one as an overlay: TOC on the left, comments on the right. */
-.m-workspace[data-bar-sheet='outline'] .editor__toc-rail {
-  display: none !important;
-}
 
-.m-outline-sheet-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px 24px;
-}
 
-.m-outline-sheet-list__item {
-  width: 100%;
-  min-height: 44px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding-block: 8px;
-  text-align: left;
-  touch-action: manipulation;
-}
 
-.m-outline-sheet-list__item[aria-current='location'] {
-  background: hsl(var(--accent) / 0.1);
-  color: hsl(var(--accent));
-}
-
-.m-outline-sheet-list__item > span {
-  flex: none;
-  color: hsl(var(--accent));
-  font: 10px/1 var(--font-mono);
-}
-
-.m-outline-sheet-list__item > strong {
-  min-width: 0;
-  overflow: hidden;
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.m-outline-sheet-list__item--l1 {
-  padding-inline: 10px 12px;
-  font-size: 14px;
-}
-
-.m-outline-sheet-list__item--l2 {
-  padding-inline: 22px 12px;
-  font-size: 13.5px;
-}
-
-.m-outline-sheet-list__item--l3 {
-  padding-inline: 34px 12px;
-  font-size: 13px;
-}
-
-.m-outline-sheet-list__item--l4 {
-  padding-inline: 46px 12px;
-  font-size: 12.5px;
-}
-
-.m-outline-sheet-list__item--l5 {
-  padding-inline: 58px 12px;
-  font-size: 11.5px;
-}
-
-.m-outline-sheet-list__empty {
-  padding: 14px 10px;
-  color: hsl(var(--ink-4));
-  font-size: 12px;
-  text-align: left;
-}
-
-.m-workspace[data-bar-sheet='comments'] #mobile-comments-sheet-content > .editor__margin {
-  display: block !important;
-  position: relative !important;
-  z-index: auto;
-  inset: auto !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-height: none !important;
-  padding: 8px 12px 20px !important;
-  overflow-y: auto !important;
-  background: hsl(var(--page));
-  pointer-events: auto;
-}
-
-.m-workspace[data-bar-sheet='comments'] #mobile-comments-sheet-content .mnote,
-.m-workspace[data-bar-sheet='comments'] #mobile-comments-sheet-content .mnote-stack {
-  position: relative !important;
-  inset: auto !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-  width: 100% !important;
-  max-width: none !important;
-  transform: none !important;
-}
-
-.m-workspace[data-bar-sheet='comments'] #mobile-comments-sheet-content .mnote-stack__ball {
-  width: 100%;
-  min-height: 44px;
-  border-radius: 8px;
-  justify-content: flex-start;
-  padding-inline: 12px;
-}
-
-.m-workspace[data-bar-sheet='comments'] .mnote__btn {
-  min-height: 44px;
-}
-
-.m-workspace[data-bar-sheet='comments'] .mnote__icon-btn,
-.m-workspace[data-bar-sheet='comments'] .mnote-stack__btn {
-  min-width: 44px;
-  min-height: 44px;
-}
 
 .m-workspace .editor-body,
 .m-workspace .editor-scroll,

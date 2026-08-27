@@ -19,7 +19,6 @@ import {
 } from './mobile-keyboard-geometry';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobilePaperContent } from './MobilePaperContent';
-import { MobileBarSheet } from './MobileBarSheet';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
 import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
@@ -37,7 +36,7 @@ import {
   mobilePaperSwipeTargetIsExcluded,
   resolveMobilePaperSwipe,
 } from './mobile-paper-swipe';
-import type { MobilePaperRail } from './mobile-paper-rail';
+import { toggleMobilePaperRail, type MobilePaperRail } from './mobile-paper-rail';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import {
   type MobileWorkspaceAction,
@@ -62,15 +61,11 @@ const PAPER_SWIPE_SETTLE_MS = 180;
 function MobilePaperViewport({
   paper,
   outlineRailVisible,
-  outlinePortalTargetId,
-  commentPortalTargetId,
   topScrollReserve,
   onRememberScroll,
 }: {
   paper: MobilePaper;
   outlineRailVisible: boolean;
-  outlinePortalTargetId?: string;
-  commentPortalTargetId?: string;
   topScrollReserve: number;
   onRememberScroll: (key: string, scrollTop: number) => void;
 }) {
@@ -158,8 +153,6 @@ function MobilePaperViewport({
         value={{
           outlineVisible: outlineRailVisible,
           outlineLabelPitch: 34,
-          outlinePortalTargetId,
-          commentPortalTargetId,
         }}
       >
         <MobilePaperContent target={paper.target} />
@@ -223,15 +216,7 @@ export function MobilePaperDeck({
 
   const previewTarget =
     workspaceUi.transient.kind === 'entity-preview' ? workspaceUi.transient.target : null;
-  const activeRail: MobilePaperRail | null =
-    workspaceUi.transient.kind === 'bar-sheet' && workspaceUi.transient.sheet === 'outline'
-      ? 'toc'
-      : workspaceUi.transient.kind === 'bar-sheet' &&
-          workspaceUi.transient.sheet === 'comments'
-        ? 'comments'
-        : null;
-  const activeBarSheet =
-    workspaceUi.transient.kind === 'bar-sheet' ? workspaceUi.transient.sheet : null;
+  const [activeRail, setActiveRail] = useState<MobilePaperRail | null>(null);
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
   const activeIndex = active
     ? session.papers.findIndex((paper) => paper.key === active.key)
@@ -250,6 +235,7 @@ export function MobilePaperDeck({
     getActiveEditor()?.commands.blur();
     setKeyboardInset(0);
     setKeyboardViewportOffsetTop(0);
+    setActiveRail(null);
     onWorkspaceUiAction({ type: 'sync-editor', editing: false });
   }, [onWorkspaceUiAction, session.activeKey]);
 
@@ -517,7 +503,6 @@ export function MobilePaperDeck({
       data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
       data-paper-rail={activeRail ?? 'none'}
-      data-bar-sheet={activeBarSheet ?? 'none'}
       data-controller-surface={workspaceUi.surface.kind}
       data-controller-transient={workspaceUi.transient.kind}
       data-controller-paper-mode={workspaceUi.paperMode.kind}
@@ -604,14 +589,6 @@ export function MobilePaperDeck({
                         <MobilePaperViewport
                           paper={paper}
                           outlineRailVisible={activeRail === 'toc'}
-                          outlinePortalTargetId={
-                            activeRail === 'toc' ? 'mobile-outline-sheet-content' : undefined
-                          }
-                          commentPortalTargetId={
-                            activeRail === 'comments'
-                              ? 'mobile-comments-sheet-content'
-                              : undefined
-                          }
                           topScrollReserve={
                             workspaceUi.keyboard === 'open' &&
                             (workspaceUi.paperMode.kind === 'edit' ||
@@ -684,15 +661,6 @@ export function MobilePaperDeck({
         />
       )}
 
-      {activeBarSheet && (
-        <MobileBarSheet
-          sheet={activeBarSheet}
-          onClose={() =>
-            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
-          }
-        />
-      )}
-
       {workspaceUi.overlay === 'tools' && active && (
         <MobileToolsFace
           projectId={projectId}
@@ -712,12 +680,11 @@ export function MobilePaperDeck({
       {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
         <MobilePaperToolsBar
           hidden={chromeScrolledAway}
+          activeRail={activeRail}
+          onToggleRail={(rail) => setActiveRail((current) => toggleMobilePaperRail(current, rail))}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
           onOpenStats={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
-          }
-          onOpenSheet={(sheet) =>
-            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'bar-sheet', sheet } })
           }
           onOpenSearch={openSearch}
           onOpenPlot={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'plot' })}

@@ -45,27 +45,22 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(regression).toContain('不得改变正文的垂直滚动位置');
   });
 
-  it('keeps formatting in one horizontal accessory row while TOC and comments use sheets', () => {
+  it('keeps formatting in one horizontal accessory row while rails toggle in the paper', () => {
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
-    const sheet = source('shells/mobile/workspace/MobileBarSheet.tsx');
     const accessory = source('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    expect(deck).toContain('<MobileBarSheet');
-    expect(deck).not.toContain("{ kind: 'bar-sheet', sheet: 'formatting' }");
-    expect(sheet).not.toContain('MobileFormattingSheetContent');
+    // The paper tools bar toggles the two shared editor rails as in-paper
+    // overlays — the sheet hosting is retired along with its portals.
+    expect(deck).not.toContain('MobileBarSheet');
+    expect(deck).toContain('toggleMobilePaperRail');
     expect(accessory).toContain("data-mode={mode}");
     expect(accessory).toContain('m-editor-accessory__actions');
     expect(accessory).toContain("mode === 'formatting'");
     expect(accessory).toContain('event.preventDefault()');
     expect(accessory).toContain('item.run(editor)');
-    expect(css).toContain("[data-bar-sheet='outline'] .editor__toc-rail");
-    expect(sheet).toContain("'mobile-outline-sheet-content'");
-    expect(sheet).toContain("'mobile-comments-sheet-content'");
-    expect(css).toContain('.m-outline-sheet-list__item--l5');
-    expect(css).toContain(
-      "[data-bar-sheet='comments'] #mobile-comments-sheet-content > .editor__margin",
-    );
+    expect(css).toContain("[data-paper-rail='toc'] .editor__toc-rail");
+    expect(css).toContain("[data-paper-rail='comments'] .editor__margin");
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('touch-action: pan-x');
   });
