@@ -779,6 +779,24 @@
   z-index: 30;
 }
 
+/* ── Selection chip: summons the shared editor context menu ── */
+
+.m-selection-chip {
+  position: fixed;
+  z-index: 40;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -100%);
+  display: grid;
+  place-items: center;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 999px;
+  background: hsl(var(--paper) / 0.96);
+  box-shadow: 0 6px 18px -10px hsl(var(--ink-1) / 0.5);
+  color: hsl(var(--ink-2));
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ── The paper tools bar: ⁂ raised in place above the tab bar ── */
 
 .m-paper-toolsbar {

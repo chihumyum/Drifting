@@ -27,6 +27,7 @@ import { MobileTabBar } from './MobileTabBar';
 import { MobileToolsFace } from './MobileToolsFace';
 import { MobilePaperTools } from './MobilePaperTools';
 import { MobilePaperToolsBar } from './MobilePaperToolsBar';
+import { MobileSelectionChip } from './MobileSelectionChip';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 import { usePaperGlyph } from './mobile-paper-glyph';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
@@ -709,6 +710,12 @@ export function MobilePaperDeck({
           }
         />
       )}
+
+      <MobileSelectionChip
+        active={
+          workspaceUi.surface.kind === 'paper' && workspaceUi.transient.kind === 'none'
+        }
+      />
 
       <MobilePaperSearchOwnerMount paper={active} />
       <MobileUnifiedBar
