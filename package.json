@@ -79,6 +79,7 @@
     "eval:agent:p3": "node src/renderer/lib/agent/runtime/acceptance/p3.acceptance.mjs",
     "eval:agent:p4": "node src/renderer/lib/agent/runtime/acceptance/p4.acceptance.mjs --output=docs/agent-runtime/acceptance/p4-summary.json",
     "eval:agent:p5": "node src/renderer/lib/agent/runtime/acceptance/p5.acceptance.mjs --output=docs/agent-runtime/acceptance/p5-summary.json",
+    "ci:contract:check": "node scripts/check-ci-contract.mjs",
     "public:check": "node scripts/check-public-boundaries.mjs",
     "release:check": "node scripts/check-alpha-release.mjs",
     "release:sbom": "node scripts/generate-release-sbom.mjs"

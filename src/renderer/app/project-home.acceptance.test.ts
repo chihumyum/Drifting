@@ -43,9 +43,12 @@ describe('Project Home cross-platform acceptance', () => {
     const mobile = read(
       'src/renderer/shells/mobile/workspace/mobile-workspace-session-storage.ts',
     );
-    expect(desktop).toContain('version: 4');
+    expect(desktop).toContain("name: 'ui-storage'");
+    expect(desktop).toContain('migrate: (persisted, version) =>');
     expect(desktop).toContain('sanitizePersistedTabsByProject');
-    expect(mobile).toContain('MOBILE_WORKSPACE_STORAGE_VERSION = 2');
-    expect(mobile).toContain('LEGACY_MOBILE_WORKSPACE_STORAGE_VERSION = 1');
+    expect(mobile).toContain('MOBILE_WORKSPACE_STORAGE_VERSION');
+    expect(mobile).toContain('LEGACY_MOBILE_WORKSPACE_STORAGE_VERSION');
+    expect(mobile).toContain('storage.getItem(mobileWorkspaceSessionStorageKey(projectId))');
+    expect(mobile).toContain('storage.getItem(legacyMobileWorkspaceSessionStorageKey(projectId))');
   });
 });

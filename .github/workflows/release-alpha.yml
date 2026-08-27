@@ -42,6 +42,7 @@ jobs:
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
       - run: node scripts/check-alpha-release.mjs "${GITHUB_REF_NAME}"
+      - run: pnpm ci:contract:check
       - run: pnpm public:check
       - run: pnpm lint
       - run: pnpm typecheck

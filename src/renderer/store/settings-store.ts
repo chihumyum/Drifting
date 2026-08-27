@@ -119,6 +119,7 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
+export const SETTINGS_STORAGE_VERSION = 30;
 
 /**
  * Keep an explicit persisted choice, including `off`, while giving new or
@@ -131,6 +132,14 @@ export function normalizeAgentToolSearch(value: unknown): AgentToolSearch {
 /** One-time v20 migration: the old default `off` was not product-usable. */
 export function migrateAgentToolSearch(value: unknown, persistedVersion: number): AgentToolSearch {
   return persistedVersion < 20 ? AGENT_TOOL_SEARCH_DEFAULT : normalizeAgentToolSearch(value);
+}
+
+/**
+ * The v29 accent preference deliberately starts empty for older installations:
+ * the retired localStorage picker did not contain a trustworthy value to adopt.
+ */
+export function migrateAccentColor(value: unknown, persistedVersion: number): string | null {
+  return persistedVersion < 29 ? null : normalizeAccentColor(value);
 }
 
 /**
@@ -703,7 +712,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 30,
+      version: SETTINGS_STORAGE_VERSION,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -993,12 +1002,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 28) {
           next.agentAllowDangerousOperations = false;
         }
-        if (version < 29) {
-          // The former accentHue picker wrote directly to localStorage and did
-          // not have a trustworthy settings value to migrate. Existing users
-          // keep the current light/dark palette until they choose a new accent.
-          next.accentColor = null;
-        }
+        next.accentColor = migrateAccentColor(next.accentColor, version);
         if (version < 30) {
           // Earlier builds ran the model-iteration loop unbounded. Give every
           // existing installation the bounded default once; the author can

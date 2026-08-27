@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  SETTINGS_STORAGE_VERSION,
+  migrateAccentColor,
+} from '../store/settings-store';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -13,11 +17,16 @@ describe('user accent color preference acceptance', () => {
     expect(settings).toContain('accentColor: string | null;');
     expect(settings).toContain('setAccentColor: (color: string | null) => void;');
     expect(settings).toContain('accentColor: null,');
-    expect(settings).toContain('version: 29,');
-    expect(settings).toContain('if (version < 29) {');
     expect(settings).toContain('merged.accentColor = normalizeAccentColor(merged.accentColor);');
     expect(settings).toContain("name: 'settings-storage'");
     expect(settings).toContain('storage: createJSONStorage(() => localStorage)');
+
+    // This feature owns the v29 migration boundary, not the mutable current
+    // version of the aggregate settings store.
+    expect(SETTINGS_STORAGE_VERSION).toBeGreaterThanOrEqual(29);
+    expect(migrateAccentColor('#ABCDEF', 28)).toBeNull();
+    expect(migrateAccentColor('#ABCDEF', 29)).toBe('#abcdef');
+    expect(migrateAccentColor('invalid', 29)).toBeNull();
   });
 
   it('wires one shared settings control to the renderer-owned accent tokens', () => {

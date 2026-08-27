@@ -77,6 +77,7 @@ Guidance for coding agents working in this standalone Drifting client repository
 ## Checks
 
 ```bash
+pnpm ci:contract:check
 pnpm public:check
 pnpm lint
 pnpm typecheck

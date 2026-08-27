@@ -33,8 +33,21 @@ in the CLA.
 
 ## Checks
 
+Acceptance tests should assert stable behavior, protocol boundaries, or the
+specific migration that introduced a feature. Do not lock a feature test to a
+mutable aggregate store version with a source-string assertion such as
+`toContain('version: N')`; test the migration behavior and require the current
+version to be at least the introducing version instead.
+
+GitHub Actions runs client checks and two Vitest shards independently, then
+reports their aggregate through the stable `client` required-check context.
+The `native` context covers Rust formatting, compilation, and unit tests.
+Alpha tags are validated only by the exact-SHA release workflow, so they do not
+also start a duplicate ordinary CI run.
+
 ```bash
 pnpm install --frozen-lockfile
+pnpm ci:contract:check
 pnpm public:check
 pnpm lint
 pnpm typecheck

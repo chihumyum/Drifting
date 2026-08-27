@@ -3,14 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['app-v*']
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  client:
+  client-checks:
+    name: client / checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -29,12 +33,54 @@ jobs:
       - run: corepack enable
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
+      - run: pnpm ci:contract:check
       - run: pnpm public:check
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
       - run: pnpm agent:capabilities:check
       - run: pnpm exec vite build --config vite.renderer.config.ts
+
+  client-tests:
+    name: client / tests (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/2', '2/2']
+    env:
+      VITE_LOCAL_ONLY_MODE: 'true'
+      VITE_REQUIRE_AUTH: 'false'
+      VITE_AI_TRANSPORT: direct
+      VITE_API_BASE_URL: http://localhost:3000
+      API_BASE_URL: http://localhost:3000
+      TEST_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --shard="$TEST_SHARD"
+
+  # Keep the stable `client` context required by the main-branch ruleset while
+  # allowing checks, builds, and test shards to finish independently.
+  client:
+    name: client
+    if: ${{ always() }}
+    needs: [client-checks, client-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every client lane
+        env:
+          CHECKS_RESULT: ${{ needs.client-checks.result }}
+          TESTS_RESULT: ${{ needs.client-tests.result }}
+        run: |
+          test "$CHECKS_RESULT" = success
+          test "$TESTS_RESULT" = success
 
   native:
     runs-on: macos-14
