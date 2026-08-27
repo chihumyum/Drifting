@@ -15,9 +15,17 @@ export type MobilePaperMode =
 export type MobileSearchReturnMode = MobilePaperMode;
 
 /** Near-full-screen launcher overlays. The bottom tab bar opens the three
- * structure overlays (the desktop left bar's vocabulary); 'tools' is the
- * paper's tool face behind the top-right control (the desktop right bar). */
-export type MobileWorkspaceOverlay = 'none' | 'chapters' | 'elements' | 'drifts' | 'tools';
+ * structure overlays (the desktop left bar's vocabulary) and, on the paper,
+ * the paper-bound tool face ('paper-tools': 大纲/批注/搜索/统计/情节);
+ * 'tools' is the project tool face behind the top-right control (the desktop
+ * right bar: Agent, 素材库, 时间线). */
+export type MobileWorkspaceOverlay =
+  | 'none'
+  | 'chapters'
+  | 'elements'
+  | 'drifts'
+  | 'tools'
+  | 'paper-tools';
 
 export type MobileWorkspaceTransient =
   | { kind: 'none' }
@@ -133,8 +141,8 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     if (state.surface.kind === 'super-view') {
       issues.push('a super view cannot host a launcher overlay');
     }
-    if (state.overlay === 'tools' && !atPaper) {
-      issues.push('the tool face belongs to the paper surface');
+    if ((state.overlay === 'tools' || state.overlay === 'paper-tools') && !atPaper) {
+      issues.push('the tool faces belong to the paper surface');
     }
     if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
     if (state.keyboard !== 'closed') issues.push('a launcher overlay requires a closed keyboard');
@@ -218,7 +226,12 @@ export function mobileWorkspaceReducer(
         return checked({ ...state, overlay: 'none' });
       }
       if (state.surface.kind === 'super-view') return state;
-      if (action.overlay === 'tools' && state.surface.kind !== 'paper') return state;
+      if (
+        (action.overlay === 'tools' || action.overlay === 'paper-tools') &&
+        state.surface.kind !== 'paper'
+      ) {
+        return state;
+      }
       return checked({
         ...state,
         paperMode: READ_MODE,

@@ -26,6 +26,7 @@ import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileTabBar } from './MobileTabBar';
 import { MobileToolsFace } from './MobileToolsFace';
+import { MobilePaperTools } from './MobilePaperTools';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 import { usePaperGlyph } from './mobile-paper-glyph';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
@@ -308,15 +309,22 @@ export function MobilePaperDeck({
     if (!root) return undefined;
     let lastTarget: EventTarget | null = null;
     let lastTop = 0;
+    let travel = 0;
     const onScroll = (event: Event) => {
       const el = event.target;
       if (!(el instanceof HTMLElement)) return;
       if (!el.classList.contains('editor-scroll') && !el.classList.contains('dash')) return;
       const top = el.scrollTop;
       if (lastTarget === el) {
+        // Touch scrolling arrives as a high-frequency stream of 1–10px steps,
+        // so a per-event threshold never fires. Accumulate travel in one
+        // direction and reset when the direction flips.
         const delta = top - lastTop;
-        if (delta > 12 && top > 48) setChromeScrolledAway(true);
-        else if (delta < -12 || top <= 8) setChromeScrolledAway(false);
+        travel = (travel >= 0) === (delta >= 0) ? travel + delta : delta;
+        if (travel > 24 && top > 48) setChromeScrolledAway(true);
+        else if (travel < -24 || top <= 8) setChromeScrolledAway(false);
+      } else {
+        travel = 0;
       }
       lastTarget = el;
       lastTop = top;
@@ -527,7 +535,12 @@ export function MobilePaperDeck({
       }}
     >
       {active && paperChromeVisible && (
-        <header className="m-paper-folio" data-debug-id="mobile-paper-folio">
+        <header
+          className="m-paper-folio"
+          data-debug-id="mobile-paper-folio"
+          data-hidden={chromeScrolledAway ? 'true' : 'false'}
+          aria-hidden={chromeScrolledAway ? 'true' : undefined}
+        >
           <button
             type="button"
             className="m-paper-folio__back"
@@ -684,6 +697,14 @@ export function MobilePaperDeck({
           projectId={projectId}
           target={active.target}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+        />
+      )}
+
+      {workspaceUi.overlay === 'paper-tools' && active && (
+        <MobilePaperTools
+          projectId={projectId}
+          target={active.target}
+          onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
           onOpenStats={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
           }
@@ -698,6 +719,9 @@ export function MobilePaperDeck({
         <MobileTabBar
           hidden={chromeScrolledAway}
           onOpen={(tab) => onWorkspaceUiAction({ type: 'set-overlay', overlay: tab })}
+          onOpenPaperTools={() =>
+            onWorkspaceUiAction({ type: 'set-overlay', overlay: 'paper-tools' })
+          }
         />
       )}
 

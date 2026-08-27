@@ -9,9 +9,13 @@ export type MobileTabBarTab = 'chapters' | 'elements' | 'drifts';
 export function MobileTabBar({
   hidden = false,
   onOpen,
+  onOpenPaperTools,
 }: {
   hidden?: boolean;
   onOpen: (tab: MobileTabBarTab) => void;
+  /** Present only on the paper surface: the ⁂ entry opens the paper-bound
+   * tool face (大纲/批注/搜索/统计/情节). */
+  onOpenPaperTools?: () => void;
 }) {
   const { t } = useTranslation();
   const tabs = [
@@ -33,6 +37,17 @@ export function MobileTabBar({
           <span>{label}</span>
         </button>
       ))}
+      {onOpenPaperTools && (
+        <button
+          type="button"
+          tabIndex={hidden ? -1 : undefined}
+          onClick={onOpenPaperTools}
+          data-debug-id="mobile-open-paper-tools"
+        >
+          <span className="m-tabbar__glyph" aria-hidden="true">⁂</span>
+          <span>{t('mobileWorkspace.paperTools', { defaultValue: '本纸' })}</span>
+        </button>
+      )}
     </nav>
   );
 }

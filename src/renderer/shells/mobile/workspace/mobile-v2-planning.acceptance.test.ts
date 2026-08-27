@@ -9,10 +9,11 @@ const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, rel
 describe('Mobile V2 M5 complete Planning acceptance wiring', () => {
   it('mounts the full shared Timeline model in the one-level Planning surface', () => {
     const panels = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    const paperTools = source('shells/mobile/workspace/MobilePaperTools.tsx');
     const timeline = source('shells/desktop/views/DesktopBottomTimeline.tsx');
 
     expect(panels).toContain('<BottomTimeline presentation="mobile" />');
-    expect(panels).toContain('<PlotGridEditor');
+    expect(paperTools).toContain('<PlotGridEditor');
     expect(timeline).toContain("type TimelineView = 'book' | 'narrative'");
     expect(timeline).toContain('<ActRail');
     expect(timeline).toContain('markers.map');

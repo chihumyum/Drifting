@@ -44,6 +44,7 @@ describe('mobile standalone routes', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const overlay = rendererSource('shells/mobile/workspace/MobileStructureOverlay.tsx');
     const toolsFace = rendererSource('shells/mobile/workspace/MobileToolsFace.tsx');
+    const paperTools = rendererSource('shells/mobile/workspace/MobilePaperTools.tsx');
     const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const paperSwipe = rendererSource('shells/mobile/workspace/mobile-paper-swipe.ts');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
@@ -112,7 +113,7 @@ describe('mobile standalone routes', () => {
     expect(toolsFace).not.toContain("| 'stats'");
     expect(statsSheet).toContain('<EntityStatsContent');
     expect(statsSheet).toContain('onPointerMove={(event) =>');
-    expect(toolsFace).toContain("type PlanningMode = 'timeline' | 'plot'");
+    expect(paperTools).toContain('<PlotGridEditor');
     expect(toolsFace).toContain("type LibraryMode = 'todo' | 'library'");
     expect(toolsFace).toContain('className="m-tool-workspace__subtabs"');
     expect(toolsFace).not.toContain('<UserAvatar');
@@ -131,7 +132,6 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('.m-project-trash__content');
     expect(overview).not.toContain('ArrowUp');
     expect(overview).not.toContain('ArrowDown');
-    expect(toolsFace).toContain('<PlotGridEditor');
     expect(toolsFace).toContain('<BottomTimeline presentation="mobile" />');
     expect(toolsFace).not.toContain('MobileTimelineWorkspace');
     expect(bottomTimeline).toContain('presentation?: BottomTimelinePresentation');
@@ -176,8 +176,8 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).toContain('outlineLabelPitch: 34');
     // The rail menu is gone: 大纲/批注 hand off from the paper tool face into
     // the same bar sheets over the live paper.
-    expect(toolsFace).toContain("onOpenSheet('outline')");
-    expect(toolsFace).toContain("onOpenSheet('comments')");
+    expect(paperTools).toContain("onOpenSheet('outline')");
+    expect(paperTools).toContain("onOpenSheet('comments')");
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
     expect(outlineRail).toContain('presentation?.outlineLabelPitch');

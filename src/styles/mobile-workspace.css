@@ -709,6 +709,7 @@
   left: 0;
   right: 0;
   z-index: 30;
+  transition: transform 200ms ease, opacity 200ms ease;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
@@ -716,6 +717,12 @@
   padding: env(safe-area-inset-top) 6px 0;
   background: linear-gradient(to bottom, hsl(var(--paper)) 58%, hsl(var(--paper) / 0));
   color: hsl(var(--ink-3));
+}
+
+.m-paper-folio[data-hidden='true'] {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .m-paper-folio button {
