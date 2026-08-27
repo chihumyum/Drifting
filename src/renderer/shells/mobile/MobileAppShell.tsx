@@ -250,7 +250,9 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             setProjectSearchQuery(null);
             dispatchWorkspaceUi({ type: 'show-overview' });
           }}
-          onOpenProjectView={(view) => setSuperView(view)}
+          onOpenSettings={() =>
+            navigate('/settings', { state: { from: location.pathname } })
+          }
           onOpenStructure={(tab) =>
             dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
           }

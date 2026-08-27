@@ -22,7 +22,12 @@ On mobile, Project Home is a controller surface separate from the paper deck.
 The shelf always opens Home. Entity URLs open or activate real papers. Visible
 and Android Back share the same order: transient/editor/panel layers, then
 paper to Home, then Home to the shelf. Overview and Super Views remember
-whether they were entered from Home or a paper.
+whether they were entered from Home or a paper. The top-right Settings action
+navigates to the standalone `/settings` route and records the canonical project
+root as its return destination; it never mounts the desktop-oriented
+`ProjectDashboard` inside mobile Home. In an empty project, the New Chapter
+action opens the Chapters structure overlay instead of sharing the Settings
+navigation path.
 
 UI-storage v4 removes legacy desktop Dashboard leaves and collapses mixed
 Dashboard splits. Mobile session v2 reads v1 once and filters

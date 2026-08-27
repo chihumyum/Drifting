@@ -99,13 +99,13 @@ function EntityPill({
 }
 
 interface MobileProjectFlowProps {
-  onOpenManage(): void;
+  onOpenChapters(): void;
 }
 
 /** The project home as one downward flow of the author's material: a dense
  * first screen with chapters, drifts, and elements together, storylines and
  * quiet entries below. Chrome stays in the corners; content fills the page. */
-export function MobileProjectFlow({ onOpenManage }: MobileProjectFlowProps) {
+export function MobileProjectFlow({ onOpenChapters }: MobileProjectFlowProps) {
   const { t } = useTranslation();
   const { projectId, openEntity } = useProjectNavigation();
   const currentProject = useProjectStore((s) => s.currentProject);
@@ -220,7 +220,7 @@ export function MobileProjectFlow({ onOpenManage }: MobileProjectFlowProps) {
           </div>
         ))}
         {chapters.length === 0 && (
-          <button type="button" className="m-flow__create" onClick={onOpenManage}>
+          <button type="button" className="m-flow__create" onClick={onOpenChapters}>
             <Plus size={13} strokeWidth={2} aria-hidden="true" />
             <span>{t('dashboard.structure.newChapter', { defaultValue: '新章节' })}</span>
           </button>

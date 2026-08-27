@@ -26,12 +26,22 @@ describe('Project Home cross-platform acceptance', () => {
 
   it('renders mobile Home outside the paper row and gives Back two project levels', () => {
     const shell = read('src/renderer/shells/mobile/MobileAppShell.tsx');
+    const home = read('src/renderer/shells/mobile/workspace/MobileProjectHome.tsx');
+    const flow = read('src/renderer/shells/mobile/workspace/MobileProjectFlow.tsx');
     const session = read('src/renderer/shells/mobile/workspace/mobile-workspace-session.ts');
     const controller = read(
       'src/renderer/shells/mobile/workspace/mobile-workspace-controller.ts',
     );
     expect(shell).toContain('<MobileProjectHome');
     expect(shell).toContain('<MobilePaperDeck');
+    expect(shell).toMatch(
+      /onOpenSettings=\{\(\) =>\s*navigate\('\/settings', \{ state: \{ from: location\.pathname \} \}\)\s*\}/u,
+    );
+    expect(home).toContain('onClick={onOpenSettings}');
+    expect(home).not.toContain('ProjectDashboard');
+    expect(home).not.toContain("'manage'");
+    expect(flow).toContain('onClick={onOpenChapters}');
+    expect(flow).not.toContain('onOpenManage');
     expect(session).not.toContain("'dashboard',");
     expect(controller).toContain("| { kind: 'project-home' }");
     expect(controller).toContain("'navigate-project-home'");
