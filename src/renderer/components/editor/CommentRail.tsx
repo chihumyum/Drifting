@@ -296,11 +296,11 @@ export function CommentRail({
       next[id] = top;
     });
 
-    // Write `top` straight to each card's DOM node rather than through React
-    // state. The manuscript scrolls on the compositor and is painted the same
-    // frame the scroll fires; routing positions through setState + reconcile
-    // landed them a frame (or more) later, so cards visibly trailed the text.
-    // A direct write in the scroll handler lands in that same frame.
+    // Write layout `top` straight to each card's DOM node rather than routing
+    // it through React state. In the normal presentation this value is stable
+    // during scrolling because the whole rail shares the manuscript's native
+    // scroll tree. Direct writes also keep the out-of-tree portal fallback from
+    // adding a React reconciliation frame.
     margin.querySelectorAll<HTMLElement>('[data-comment-id]').forEach((node) => {
       const id = node.dataset.commentId;
       if (id && next[id] != null) node.style.top = `${next[id]}px`;
@@ -336,23 +336,30 @@ export function CommentRail({
     applyPositions();
   }, [applyPositions, chipIds]);
 
-  // Keep cards pinned to their blocks during scroll / resize. The scroll
-  // handler writes synchronously (no rAF) so card tops update in the same
-  // frame as the native content scroll — that's what kills the trailing lag.
+  // A rail mounted inside the editor scroller moves with the manuscript on the
+  // compositor, so plain scrolling must not drive a second JS positioning
+  // path. Keep the listener only as a fallback for a portal outside that native
+  // scroll tree; resize remains layout work in either presentation.
   useEffect(() => {
     if (!scrollEl) return undefined;
     const onScroll = () => applyPositions();
-    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    const margin = marginRef.current;
+    const nativeScrollCoupled = margin ? scrollEl.contains(margin) : false;
+    if (!nativeScrollCoupled) {
+      scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    }
     window.addEventListener('resize', onScroll);
     const observer = new ResizeObserver(onScroll);
     observer.observe(scrollEl);
-    if (marginRef.current) observer.observe(marginRef.current);
+    if (margin) observer.observe(margin);
     return () => {
-      scrollEl.removeEventListener('scroll', onScroll);
+      if (!nativeScrollCoupled) {
+        scrollEl.removeEventListener('scroll', onScroll);
+      }
       window.removeEventListener('resize', onScroll);
       observer.disconnect();
     };
-  }, [scrollEl, applyPositions]);
+  }, [scrollEl, applyPositions, portalTarget]);
 
   // ─── hover-highlight (state-driven, the ONLY in-prose mark) ───────────
   // The hovered comment's anchored region is washed ONLY while its card is

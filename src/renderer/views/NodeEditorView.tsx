@@ -880,22 +880,21 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
                   <div className="page__ornament" aria-hidden="true">⁂</div>
                 </article>
+                {/* Keep the rail in the editor's native scroll tree. Its cards
+                    are absolutely overlaid, so they do not reflow the page,
+                    while vertical motion is composited with the manuscript. */}
+                {marginNotes && (
+                  <CommentRail
+                    projectId={activeProjectId}
+                    targetKind="node"
+                    targetId={nodeId ?? ''}
+                    scrollEl={scrollEl}
+                    pendingRequest={pendingComment}
+                    onPendingRequestChange={setPendingComment}
+                  />
+                )}
               </div>
             </div>
-            {/* Comment rail lives OUTSIDE .editor-scroll so it can be absolutely
-                positioned against .editor-body without participating in flex
-                layout — mirrors the semantic outline rail on the left.
-                Page stays centered without either rail entering layout flow. */}
-            {marginNotes && (
-              <CommentRail
-                projectId={activeProjectId}
-                targetKind="node"
-                targetId={nodeId ?? ''}
-                scrollEl={scrollEl}
-                pendingRequest={pendingComment}
-                onPendingRequestChange={setPendingComment}
-              />
-            )}
             <EditorReviewLayer
               projectId={activeProjectId}
               entityType="node"

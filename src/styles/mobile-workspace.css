@@ -2304,11 +2304,8 @@
   display: block !important;
   width: min(216px, 60%);
   padding: 14px 8px 12px 6px;
-  background: linear-gradient(
-    to left,
-    hsl(var(--paper) / 0.96) 78%,
-    hsl(var(--paper) / 0)
-  );
+  /* Enabling comments reveals cards only; it must not tint or veil the paper. */
+  background: transparent;
 }
 
 .m-workspace[data-rail-comments='true'] .editor__margin .mnote {

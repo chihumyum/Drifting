@@ -1,10 +1,10 @@
 /* Comments, review lanes, inline review cards and snapshot surfaces. */
-/* Comment rail — anchored to the right edge of .editor-body, mirrors the
-   semantic outline rail on the left. Absolute positioning means the
-   manuscript never reflows around either rail, including when TOC mode changes.
-   The rail container is transparent + pointer-events:none so the user can
-   click/select manuscript text underneath the rail's empty regions. Only
-   the actual cards/chips re-enable pointer events. */
+/* Comment rail — overlaid at the right edge of .editor__spread inside the
+   native .editor-scroll tree. Absolute positioning means the manuscript never
+   reflows around it, while sharing the scroll tree lets cards and prose move in
+   one composited step. The rail container is transparent + pointer-events:none
+   so the user can click/select manuscript text underneath the rail's empty
+   regions. Only the actual cards/chips re-enable pointer events. */
 .editor__margin {
   position: absolute;
   top: 0;
