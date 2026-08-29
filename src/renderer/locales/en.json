@@ -1784,6 +1784,8 @@
   },
   "projectPicker": {
     "loading": "Loading projects…",
+    "backToShelf": "Back to shelf",
+    "bookshelfShort": "Shelf",
     "untitledProject": "Untitled Project",
     "newProject": "New project",
     "allProjectsCn": "Projects",

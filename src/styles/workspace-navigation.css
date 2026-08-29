@@ -3,21 +3,93 @@
   color: hsl(var(--ink-1));
 }
 
-.app-topbar__project-name {
-  min-width: 0;
+.app-topbar__project-return {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 26px;
   max-width: min(220px, 22vw);
+  height: 26px;
   flex: 0 1 auto;
+  padding: 0;
   overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: hsl(var(--ink-2));
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.app-topbar__project-name {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
   line-height: 26px;
-  cursor: text;
+  opacity: 1;
   text-overflow: ellipsis;
-  user-select: text;
+  transition: opacity 0.1s ease;
   white-space: nowrap;
+}
+
+.app-topbar__project-return-layer {
+  position: absolute;
+  inset: 0;
+  container-name: project-return-slot;
+  container-type: inline-size;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.app-topbar__project-return-content {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+}
+
+.app-topbar__project-return-label {
+  display: none;
+}
+
+@container project-return-slot (min-width: 54px) {
+  .app-topbar__project-return-label {
+    display: inline;
+  }
+}
+
+.app-topbar__project-return:hover .app-topbar__project-name,
+.app-topbar__project-return:focus-visible .app-topbar__project-name {
+  opacity: 0;
+}
+
+.app-topbar__project-return:hover .app-topbar__project-return-layer,
+.app-topbar__project-return:focus-visible .app-topbar__project-return-layer {
+  opacity: 1;
+}
+
+.app-topbar__project-return:focus-visible {
+  outline: 1px solid hsl(var(--rule-strong));
+  outline-offset: -1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-topbar__project-name,
+  .app-topbar__project-return-layer {
+    transition: none;
+  }
 }
 
 .app-topbar__left-actions {

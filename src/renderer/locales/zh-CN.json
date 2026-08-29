@@ -1784,6 +1784,8 @@
   },
   "projectPicker": {
     "loading": "Loading projects…",
+    "backToShelf": "返回书架",
+    "bookshelfShort": "书架",
     "untitledProject": "Untitled Project",
     "newProject": "新项目",
     "allProjectsCn": "全部项目",

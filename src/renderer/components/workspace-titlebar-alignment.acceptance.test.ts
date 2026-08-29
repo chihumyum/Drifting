@@ -25,6 +25,10 @@ describe('workspace titlebar centerline', () => {
     const controlCss = source('src/styles/ui-controls.css');
     const navigationCss = source('src/styles/workspace-navigation.css');
     const doc = source('docs/design-system.md');
+    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')) as {
+      projectPicker: { backToShelf: string; bookshelfShort: string };
+    };
+    const en = JSON.parse(source('src/renderer/locales/en.json')) as typeof zh;
     const baseConfig = JSON.parse(source('src-tauri/tauri.conf.json')) as {
       app: { windows: Array<{ trafficLightPosition?: { x: number; y: number } }> };
     };
@@ -40,10 +44,16 @@ describe('workspace titlebar centerline', () => {
       "useProjectStore((state) => state.currentProject?.name.trim() ?? '')",
     );
     expect(leftTopbar).toContain('!runtime.isMobileShell && projectName');
+    expect(leftTopbar).toContain("const handleBackToShelf = () => navigate('/');");
+    expect(leftTopbar).toContain('className="app-topbar__project-return"');
+    expect(leftTopbar).toContain('type="button"');
+    expect(leftTopbar).toContain('onClick={handleBackToShelf}');
+    expect(leftTopbar).toContain("t('projectPicker.backToShelf')");
+    expect(leftTopbar).toContain("t('projectPicker.bookshelfShort')");
     expect(leftTopbar).toContain('className="app-topbar__project-name"');
     expect(leftTopbar).toContain('data-tauri-drag-region="false"');
-    expect(leftTopbar).toContain('title={projectName}');
-    expect(leftTopbar.indexOf('className="app-topbar__project-name"')).toBeLessThan(
+    expect(leftTopbar).toContain('className="app-topbar__project-return-layer"');
+    expect(leftTopbar.indexOf('className="app-topbar__project-return"')).toBeLessThan(
       leftTopbar.indexOf('className="app-topbar__left-actions"'),
     );
     expect(shellCss).toContain('--window-header-leading-inset: 94px;');
@@ -55,17 +65,34 @@ describe('workspace titlebar centerline', () => {
       /width:\s*26px;[\s\S]*height:\s*26px;/,
     );
     expect(cssBlock(navigationCss, '.workspace-all-chapters-trigger,')).toContain('height: 26px;');
-    expect(cssBlock(navigationCss, '.app-topbar__project-name {')).toMatch(
-      /min-width:\s*0;[\s\S]*max-width:\s*min\(220px, 22vw\);[\s\S]*flex:\s*0 1 auto;[\s\S]*overflow:\s*hidden;[\s\S]*cursor:\s*text;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*user-select:\s*text;[\s\S]*white-space:\s*nowrap;/,
+    expect(cssBlock(navigationCss, '.app-topbar__project-return {')).toMatch(
+      /position:\s*relative;[\s\S]*min-width:\s*26px;[\s\S]*max-width:\s*min\(220px, 22vw\);[\s\S]*height:\s*26px;[\s\S]*flex:\s*0 1 auto;[\s\S]*overflow:\s*hidden;[\s\S]*cursor:\s*pointer;/,
     );
+    expect(cssBlock(navigationCss, '.app-topbar__project-name {')).toMatch(
+      /min-width:\s*0;[\s\S]*max-width:\s*100%;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+    );
+    expect(cssBlock(navigationCss, '.app-topbar__project-return-layer {')).toMatch(
+      /position:\s*absolute;[\s\S]*inset:\s*0;[\s\S]*container-name:\s*project-return-slot;[\s\S]*container-type:\s*inline-size;[\s\S]*opacity:\s*0;/,
+    );
+    expect(navigationCss).toContain('@container project-return-slot (min-width: 54px)');
+    expect(navigationCss).toContain('.app-topbar__project-return:focus-visible');
     expect(cssBlock(navigationCss, '.app-topbar__left-actions {')).toMatch(
       /flex:\s*0 0 auto;/,
     );
+    expect(zh.projectPicker).toMatchObject({
+      backToShelf: '返回书架',
+      bookshelfShort: '书架',
+    });
+    expect(en.projectPicker).toMatchObject({
+      backToShelf: 'Back to shelf',
+      bookshelfShort: 'Shelf',
+    });
 
     const expectedPosition = { x: 18, y: 22 };
     expect(baseConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(macConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(appEffects).toContain('.setTrafficLightPosition({ x: 18, y: 22 })');
     expect(doc).toContain('macOS 红绿灯固定为 `x: 18, y: 22`');
+    expect(doc).toContain('hover 或键盘 focus 时原地切换为返回书架');
   });
 });

@@ -1,5 +1,6 @@
-import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { events } from '../../lib/events.ts';
 import { useProjectStore } from '../../store/project-store';
 import { useUiStore } from '../../store/ui-store';
@@ -9,6 +10,7 @@ import { WorkspaceNavigationButtons } from './WorkspaceNavigationButtons';
 
 export function LeftSidebarTopBar() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const runtime = getPlatformRuntime();
   const projectName = useProjectStore((state) => state.currentProject?.name.trim() ?? '');
   const isLeftSidebarOpen = useUiStore((state) => state.sidebars.left.isOpen);
@@ -16,6 +18,7 @@ export function LeftSidebarTopBar() {
 
   const handleOpenSearch = () => events.emit('search:open');
   const handleToggleLeftSidebar = () => toggleSidebar('left');
+  const handleBackToShelf = () => navigate('/');
 
   const iconSize = 16;
 
@@ -39,13 +42,24 @@ export function LeftSidebarTopBar() {
       {/* macOS native controls and product actions share this section; on
           other targets the actions start at the ordinary content inset. */}
       {!runtime.isMobileShell && projectName && (
-        <span
-          className="app-topbar__project-name"
+        <button
+          type="button"
+          className="app-topbar__project-return"
           data-tauri-drag-region="false"
-          title={projectName}
+          onClick={handleBackToShelf}
+          title={`${t('projectPicker.backToShelf')} · ${projectName}`}
+          aria-label={`${t('projectPicker.backToShelf')} · ${projectName}`}
         >
-          {projectName}
-        </span>
+          <span className="app-topbar__project-name">{projectName}</span>
+          <span className="app-topbar__project-return-layer" aria-hidden="true">
+            <span className="app-topbar__project-return-content">
+              <ArrowLeft size={16} strokeWidth={1.6} />
+              <span className="app-topbar__project-return-label">
+                {t('projectPicker.bookshelfShort')}
+              </span>
+            </span>
+          </span>
+        </button>
       )}
       <div className="app-topbar__left-actions">
         <GhostIconButton
