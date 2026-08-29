@@ -285,8 +285,18 @@ export function ProjectRuntimeProvider({
       }
     };
 
-    const scheduleRefresh = (event: { projectId: string }) => {
+    const scheduleRefresh = (event: {
+      projectId: string;
+      projectionImpact: 'prose-only' | 'workspace';
+    }) => {
       if (event.projectId !== projectId || disposed) return;
+      if (event.projectionImpact === 'prose-only') {
+        // The durable runtime has already merged these exact Yjs updates into
+        // every open editor. Reconcile derived word-count/cache projections in
+        // the background without replacing or blocking the structural store.
+        scheduleMetricReconciliation();
+        return;
+      }
       refreshRequested = true;
       if (pendingEpoch === null) {
         // Show a project-scoped, interaction-blocking state as soon as the

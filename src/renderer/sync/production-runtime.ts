@@ -150,8 +150,8 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       flushLocalDurability: flushLocalApplicationPersistence,
       reconcileOpenYjsDocuments: ({ projectId, docIds }) =>
         reconcileOpenYjsDocumentSessions(projectId, docIds),
-      onRemoteChangeCommitted: ({ projectId }) => {
-        events.emit('sync:project-changed', { projectId });
+      onRemoteChangeCommitted: ({ projectId, projectionImpact }) => {
+        events.emit('sync:project-changed', { projectId, projectionImpact });
       },
       checkpoint,
     });

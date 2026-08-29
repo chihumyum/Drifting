@@ -2,8 +2,8 @@
   "appShell": {
     "checkingAuthentication": "Checking authentication…",
     "loadingProject": "Opening project…",
-    "syncingProject": "Applying Google Drive changes…",
-    "syncingProjectDetail": "This project is temporarily read-only while its local workspace is updated.",
+    "syncingProject": "Updating project structure…",
+    "syncingProjectDetail": "Merging changes to chapters, reference material, or project structure from Google Drive. This project cannot be edited until the update finishes.",
     "projectLoadFailedTitle": "This project could not be opened",
     "projectLoadFailedDetail": "No data was changed. Check the local database and try again.",
     "projectRefreshFailedTitle": "Google Drive changes could not be applied",

@@ -61,8 +61,12 @@ export type AppEvents = {
   'sync:authority-changed': void;
   /** Runtime persisted a provider binding state that product authority UI must re-read. */
   'sync:runtime-state-changed': void;
-  /** A remote change-set committed locally after live Yjs reconciliation. */
-  'sync:project-changed': { projectId: string };
+  /** A remote change-set committed locally after exact live-Yjs reconciliation. */
+  'sync:project-changed': {
+    projectId: string;
+    /** Pure prose is already live in Yjs; every other impact refreshes the workspace projection. */
+    projectionImpact: 'prose-only' | 'workspace';
+  };
   /** Fresh-device restore completed; tabs are device-local and must start clean. */
   'sync:projects-restored': { projectIds: string[] };
 

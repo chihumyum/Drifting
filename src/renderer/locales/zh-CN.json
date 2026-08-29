@@ -2,8 +2,8 @@
   "appShell": {
     "checkingAuthentication": "正在检查登录状态…",
     "loadingProject": "正在打开项目…",
-    "syncingProject": "正在应用 Google Drive 更改…",
-    "syncingProjectDetail": "更新本地工作区期间，这个项目暂时只读。",
+    "syncingProject": "正在更新项目结构…",
+    "syncingProjectDetail": "正在合并来自 Google Drive 的章节、资料或项目结构更改。完成前，这个项目暂时无法编辑。",
     "projectLoadFailedTitle": "无法打开这个项目",
     "projectLoadFailedDetail": "没有继续修改数据。请检查本地数据库后重试。",
     "projectRefreshFailedTitle": "无法应用 Google Drive 更改",

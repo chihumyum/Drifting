@@ -19,6 +19,7 @@ import {
 import type { SyncWriterIdentitySource } from '../journal';
 import {
   applyVerifiedRemoteChangeSetInTransaction,
+  type ReducerEffect,
   type SyncDomainMaterializationKernel,
   SyncReducerRejectedError,
 } from '../reducer';
@@ -89,6 +90,24 @@ export interface SyncEngineRuntimeClock extends CycleClock {
   nowIso(): string;
 }
 
+export type RemoteProjectChangeProjectionImpact = 'prose-only' | 'workspace';
+
+/**
+ * Pure Yjs materialization is delivered directly into every open editor before
+ * the product callback runs. It therefore does not require replacing the
+ * renderer's structural workspace projection. Empty/no-op and mixed batches
+ * stay conservative so only proven prose-only commits can bypass the barrier.
+ */
+export function remoteProjectChangeProjectionImpact(
+  effects: readonly ReducerEffect[],
+): RemoteProjectChangeProjectionImpact {
+  const materialized = effects.filter((effect) => effect.materialize);
+  return materialized.length > 0 &&
+    materialized.every((effect) => effect.type === 'yjs.update')
+    ? 'prose-only'
+    : 'workspace';
+}
+
 export interface SyncEngineCheckpointHook {
   captureIfDue(input: {
     syncGenerationId: string;
@@ -123,6 +142,7 @@ export interface SqliteSyncGenerationRuntimeOptions {
   readonly onRemoteChangeCommitted?: (input: {
     readonly projectId: string;
     readonly changeSetId: string;
+    readonly projectionImpact: RemoteProjectChangeProjectionImpact;
   }) => void;
   readonly onStatus?: (runtime: SqliteSyncGenerationRuntime) => void;
 }
@@ -1929,6 +1949,7 @@ export class SqliteSyncGenerationRuntime {
           this.onRemoteChangeCommitted?.({
             projectId: changeSet.projectId,
             changeSetId: changeSet.changeSetId,
+            projectionImpact: remoteProjectChangeProjectionImpact(applied.effects),
           });
         } catch (error) {
           if (error instanceof SyncReducerRejectedError) {

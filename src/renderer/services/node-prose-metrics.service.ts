@@ -193,7 +193,19 @@ async function persistProjection(
   if (input.publishToDataStore !== false) {
     const workspace = useDataStore.getState();
     if (workspace.workspaceProjectId === input.projectId) {
-      workspace.updateBookNode(input.nodeId, result.node);
+      // Metric reconciliation owns only these derived fields. Publishing the
+      // complete SQLite row could overwrite a simultaneous optimistic rename,
+      // reorder, or status edit in the non-blocking remote-prose path.
+      workspace.updateBookNode(input.nodeId, {
+        wordCount: result.node.wordCount,
+        wordCountBasisKind: result.node.wordCountBasisKind,
+        wordCountBasisHash: result.node.wordCountBasisHash,
+        wordCountBasisRevision: result.node.wordCountBasisRevision,
+        wordCountBasisServerSeq: result.node.wordCountBasisServerSeq,
+        ...(input.touchNodeUpdatedAt === false
+          ? {}
+          : { updatedAt: result.node.updatedAt }),
+      });
     }
   }
   return {

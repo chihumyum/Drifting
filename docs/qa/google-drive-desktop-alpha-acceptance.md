@@ -55,6 +55,10 @@ timings, and sanitized evidence path.
       reconciliation, but must not reject the workspace refresh, rename tabs to
       "Untitled", or produce a repeating revision-conflict loop after sync is
       quiet.
+- [ ] Live prose continuity: a remote batch containing only materialized Yjs
+      updates merges into the open editor without a full-screen read-only
+      overlay, cursor loss, focus loss, duplicated prose, or an authored echo.
+      A mixed or structural batch must still cross the atomic workspace barrier.
 - [ ] Device-local tabs: a project freshly restored from Drive starts with no
       tabs inherited from an older local test database. Tabs opened on that Mac
       persist across its own restart but do not appear on the other Mac.
@@ -79,9 +83,11 @@ timeline marker. Capture canonical SQLite/Yjs/asset hashes before the run.
 3. Open project A on Mac B while the runtime is still cycling other projects.
    During A's pull/ingest/apply phases, the footer's project-scoped Drive status
    must distinguish checking from applying without unmounting or covering the
-   last complete editor. Once remote commits require a fresh projection, an
-   opaque read-only loading overlay must block interaction until the new
-   project snapshot is published. B or C content must never render behind it.
+   last complete editor. Pure remote Yjs batches must merge into the live editor
+   without an overlay or focus/cursor interruption. Once a mixed or structural
+   remote commit requires a fresh projection, an opaque read-only loading
+   overlay must block interaction until the new project snapshot is published.
+   B or C content must never render behind it.
 4. Rapidly switch A → B → C → A at least ten times while both Macs produce
    remote changes. Record a screen capture containing the left outline, top
    tabs, central editor, and bottom timeline. A late hydrate from a previous

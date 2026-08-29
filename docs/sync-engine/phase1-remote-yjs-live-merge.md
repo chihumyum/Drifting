@@ -17,8 +17,16 @@ A remote `yjs.update` has two distinct responsibilities:
 The live document is never mutated from inside the reducer transaction. The
 post-commit replay uses a persistence-owned origin, so the session does not
 append an authored update or create a local SyncEngine change-set. After the
-live merge completes, production emits `sync:project-changed`; scalar store
-reload consumers therefore cannot run ahead of an open prose editor.
+live merge completes, production emits `sync:project-changed` with an exact
+projection impact. A batch whose materialized effects are all `yjs.update` is
+`prose-only`: the open editor remains interactive and derived prose metrics are
+reconciled after a quiet window without replacing the structural workspace
+store. Metric publication patches only its owned word-count basis fields, so it
+cannot replace a simultaneous optimistic title, order, or status edit. Any
+field, tuple, set, order, lifecycle, asset, purge, mixed, or empty
+impact remains `workspace` and crosses the existing atomic refresh barrier.
+Store consumers therefore cannot run ahead of an open prose editor, while
+ordinary remote writing no longer produces a full-screen interruption.
 
 ## Replayable coverage barrier
 
@@ -32,6 +40,9 @@ The callback is an optimization, not the only recovery path:
 
 - every SyncEngine apply cycle first reconciles all open sessions in the
   project, including a cycle that skips an already-receipted change-set;
+- only a proven, non-empty set of materialized Yjs effects may take the
+  non-blocking prose seam; mixed or ambiguous commits fail closed to the
+  structural workspace barrier;
 - explicit/lifecycle flush, periodic snapshot and final close all reconcile the
   persisted tail inside the session's serial write queue before capturing the
   full state;

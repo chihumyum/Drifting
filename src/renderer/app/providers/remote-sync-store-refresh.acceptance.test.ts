@@ -15,12 +15,28 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(notify).toBeGreaterThan(reconcile);
 
     const composition = source('../../sync/production-runtime.ts');
-    expect(composition).toContain("events.emit('sync:project-changed', { projectId })");
+    expect(composition).toContain(
+      "events.emit('sync:project-changed', { projectId, projectionImpact })",
+    );
   });
 
-  it('coalesces committed remote changes into one project-scoped SQLite projection', () => {
+  it('keeps pure remote prose live while structural changes use one project-scoped projection', () => {
     const projectRuntime = source('./ProjectRuntimeProvider.tsx');
     expect(projectRuntime).toContain("events.on('sync:project-changed', scheduleRefresh)");
+    const proseBranch = projectRuntime.indexOf(
+      "if (event.projectionImpact === 'prose-only')",
+    );
+    const metricReconciliation = projectRuntime.indexOf(
+      'scheduleMetricReconciliation();',
+      proseBranch,
+    );
+    const structuralRefresh = projectRuntime.indexOf(
+      "requestWorkspaceProjection(projectId, 'refreshing')",
+      proseBranch,
+    );
+    expect(proseBranch).toBeGreaterThan(0);
+    expect(metricReconciliation).toBeGreaterThan(proseBranch);
+    expect(structuralRefresh).toBeGreaterThan(metricReconciliation);
     expect(projectRuntime).toContain('await flushPendingAtomicSyncTransactions()');
     expect(projectRuntime).toContain('await captureWorkspaceProjection({ projectId, userId })');
     expect(projectRuntime).toContain("requestWorkspaceProjection(projectId, 'refreshing')");
@@ -29,6 +45,13 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(projectRuntime).toContain('clearWorkspaceProjection(projectId, epoch)');
     expect(projectRuntime).toContain('<Navigate to="/" replace />');
     expect(projectRuntime).not.toContain('useNavigate');
+
+    const restore = source('../../sync/restore/google-drive-restore.ts');
+    expect(restore).toContain("projectionImpact: 'workspace'");
+
+    const metrics = source('../../services/node-prose-metrics.service.ts');
+    expect(metrics).not.toContain('updateBookNode(input.nodeId, result.node)');
+    expect(metrics).toContain('wordCountBasisRevision: result.node.wordCountBasisRevision');
 
     const projection = source('../../services/workspace-projection.service.ts');
     expect(projection).toContain('return getDb().transaction(async (tx) =>');
@@ -55,8 +78,14 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(footer).toContain('aria-live="polite"');
 
     const zh = source('../../locales/zh-CN.json');
+    expect(zh).toContain('"syncingProject": "正在更新项目结构…"');
+    expect(zh).toContain('完成前，这个项目暂时无法编辑。');
     expect(zh).toContain('"checking": "正在检查 Google Drive 更新"');
     expect(zh).toContain('"applying": "正在应用 Google Drive 更改"');
+
+    const en = source('../../locales/en.json');
+    expect(en).toContain('"syncingProject": "Updating project structure…"');
+    expect(en).toContain('This project cannot be edited until the update finishes.');
 
     const desktopShellCss = source('../../../styles/desktop-shell.css');
     expect(desktopShellCss).not.toContain('.app-project-sync-pill');

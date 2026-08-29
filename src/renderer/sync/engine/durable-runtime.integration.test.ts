@@ -731,6 +731,39 @@ describe('SQLite durable SyncEngine runtime', () => {
     expect(await b.db.select().from(SyncApplyReceiptTable)).toHaveLength(2);
   });
 
+  it('classifies pure remote Yjs as non-blocking and structural effects as workspace-impacting', async () => {
+    const localObjects = new MemoryProviderLocalObjectStore();
+    const provider = new MemoryObjectLogProvider(localObjects);
+    const publisher = await createDevice({
+      id: 'projection-impact-publisher',
+      provider,
+      localObjects,
+      clockMs: 2_050,
+      domainKernel: productionSyncDomainMaterializationKernel,
+    });
+    const impacts: Array<'prose-only' | 'workspace'> = [];
+    const reader = await createDevice({
+      id: 'projection-impact-reader',
+      provider,
+      localObjects,
+      clockMs: 2_060,
+      domainKernel: productionSyncDomainMaterializationKernel,
+      onRemoteChangeCommitted({ projectionImpact }) {
+        impacts.push(projectionImpact);
+      },
+    });
+
+    await authorProse(publisher, 'remote prose without a workspace barrier', 2_050);
+    await cycle(publisher);
+    await cycle(reader, 'start');
+    expect(impacts).toEqual(['prose-only']);
+
+    await authorTitle(publisher, 'Remote structural title', 2_051);
+    await cycle(publisher);
+    await cycle(reader, 'start');
+    expect(impacts).toEqual(['prose-only', 'workspace']);
+  });
+
   it('retries open Yjs tail reconciliation on the next cycle after a post-commit callback failure', async () => {
     const localObjects = new MemoryProviderLocalObjectStore();
     const provider = new MemoryObjectLogProvider(localObjects);

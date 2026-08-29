@@ -863,7 +863,10 @@ function productionDependencies(): GoogleDriveRestoreDependencies {
       return { commitMarkerRemoteObjectId: published.commitMarkerRemoteObjectId };
     },
     emitAuthorityChanged: () => events.emit('sync:authority-changed'),
-    emitProjectChanged: (projectId) => events.emit('sync:project-changed', { projectId }),
+    // Restore can replace every project-owned slice, so it always crosses the
+    // structural workspace projection barrier rather than the prose-only seam.
+    emitProjectChanged: (projectId) =>
+      events.emit('sync:project-changed', { projectId, projectionImpact: 'workspace' }),
   };
 }
 
