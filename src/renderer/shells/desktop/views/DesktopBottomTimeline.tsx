@@ -84,7 +84,7 @@ const TIMELINE_CONFIG = {
   // the same vertical extent regardless of which view is active — visual
   // continuity across mode toggle.
   FULL_BOOK_LANE_HEIGHT: 22,
-  DEFAULT_HEIGHT: 340,
+  DEFAULT_HEIGHT: 180,
   MIN_HEIGHT: 180,
 };
 

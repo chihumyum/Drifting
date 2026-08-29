@@ -516,9 +516,6 @@ interface UiState {
   setSelectedElementId: (id: string | null) => void;
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
-  timelineHeight: number;
-  setTimelineHeight: (height: number) => void;
-
   // BottomTimeline visibility. The bottom status bar always shows; the
   // timeline is hidden by default off-button-click, restored by the same
   // button. There is no "collapsed" timeline state anymore — it's either
@@ -878,9 +875,6 @@ export const useUiStore = create<UiState>()(
             selectedAt: id ? Date.now() : null,
           },
         })),
-      timelineHeight: 200,
-      setTimelineHeight: (height) => set({ timelineHeight: height }),
-
       bottomTimelineHidden: false,
       setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
 
