@@ -166,6 +166,8 @@ describe('workspace surface language acceptance', () => {
     expect(footer.match(/<button/g)).toHaveLength(1);
     expect(footer).toContain('className="bsb__timeline-toggle"');
     expect(footer).toContain('onClick={toggleBottomTimelineHidden}');
+    expect(footer).toContain('title={toggleBottomTimelineShortcut}');
+    expect(footer).toContain('formatAccelerator(toggleBottomTimelineAccelerator)');
     expect(footer).not.toContain('CopilotQuickMenu');
     expect(footer).not.toContain('ShadowQuickMenu');
     expect(footer).toContain('deriveWritingStats');

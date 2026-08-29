@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { canonicalWordCount, isChapter, sumCanonicalChapterWordCounts } from '../domain/book-node';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { formatAccelerator } from '../lib/shortcuts';
 import { useDataStore } from '../store/data-store';
+import { useShortcutsStore } from '../store/shortcuts-store';
 import { focusedLeafOf, tabKey, useUiStore } from '../store/ui-store';
 import { deriveWritingStats, useWritingStatsStore } from '../store/writing-stats-store';
 import { useProductSyncAuthority } from '../sync/product-authority-react';
@@ -29,6 +31,9 @@ export function BottomStatusBar() {
   const bookNodes = useDataStore((state) => state.bookNodes);
   const storylineNodeMapping = useDataStore((state) => state.storylineNodeMapping);
   const writingHistory = useWritingStatsStore((state) => state.history[projectId]);
+  const toggleBottomTimelineAccelerator = useShortcutsStore(
+    (state) => state.bindings.toggleBottomTimeline,
+  );
   const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
   const toggleBottomTimelineHidden = useUiStore((state) => state.toggleBottomTimelineHidden);
   const syncAuthority = useProductSyncAuthority();
@@ -121,6 +126,7 @@ export function BottomStatusBar() {
         : syncState
     }`,
   );
+  const toggleBottomTimelineShortcut = formatAccelerator(toggleBottomTimelineAccelerator);
 
   return (
     <footer className="bsb app-plane" aria-label={t('bottomStatusBar.statusLine')}>
@@ -154,11 +160,7 @@ export function BottomStatusBar() {
         type="button"
         className="bsb__timeline-toggle"
         onClick={toggleBottomTimelineHidden}
-        title={
-          bottomTimelineHidden
-            ? t('bottomStatusBar.expandTimeline')
-            : t('bottomStatusBar.collapseTimeline')
-        }
+        title={toggleBottomTimelineShortcut}
         aria-label={
           bottomTimelineHidden
             ? t('bottomStatusBar.expandTimeline')
