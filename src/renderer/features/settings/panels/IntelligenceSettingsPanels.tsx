@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { byokKeychain, type BYOKProvider } from '../../../lib/byok-keychain';
+import { speechKeychain } from '../../../lib/speech/speech-credentials';
 import { resolveCopilotModel } from '../../../lib/ai/copilot-route';
 import { testByokProviderConnection } from '../../../lib/ai/test-provider-connection';
 import { getCopilotCapability } from '../../../lib/copilot/capability';
@@ -232,6 +233,162 @@ function ProviderRow({
   );
 }
 
+/**
+ * Voice-transcription credential (DashScope / 阿里云百炼). Deliberately not a
+ * `ProviderRow`: it is not an LLM credential and must not join the Copilot
+ * provider picker. Same keychain-only storage contract as the rows above.
+ */
+function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!credentialsActive) return;
+    let cancelled = false;
+    void speechKeychain
+      .has()
+      .then((value) => {
+        if (!cancelled) setConnected(value);
+      })
+      .catch(() => {
+        if (!cancelled) setConnected(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialsActive]);
+
+  const save = async () => {
+    const value = draft.trim();
+    if (!value) {
+      await speechKeychain.clear();
+      setConnected(false);
+    } else {
+      await speechKeychain.set(value);
+      setConnected(true);
+    }
+    setDraft('');
+    setEditing(false);
+    events.emit('byok:keys-changed');
+  };
+
+  const disconnect = async () => {
+    await speechKeychain.clear();
+    setConnected(false);
+    events.emit('byok:keys-changed');
+  };
+
+  return (
+    <div
+      className={
+        'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')
+      }
+    >
+      <div className="set-provider__head">
+        <div className="set-provider__logo set-provider__logo--dashscope">百</div>
+        <div className="set-provider__main">
+          <div className="set-provider__name">
+            <b>阿里云百炼</b>
+            <em className={connected ? 'is-byok' : ''}>
+              {connected
+                ? t('settings.byokProvider.ownKey')
+                : t('settings.byokProvider.notConnected')}
+            </em>
+          </div>
+          <div className="set-provider__desc">{t('settings.models.providers.dashscope')}</div>
+        </div>
+        <div
+          className={
+            'set-provider__status ' +
+            (connected ? 'set-provider__status--live' : 'set-provider__status--off')
+          }
+        >
+          <span className="set-provider__status-dot" />
+          {connected ? 'CONNECTED' : 'OFFLINE'}
+        </div>
+      </div>
+
+      {(connected || editing) && (
+        <div className="set-provider__body">
+          <div className="set-provider__body-inner">
+            <span className="set-provider__k">API Key</span>
+            <span className="set-provider__v">
+              {editing ? (
+                <input
+                  className="set-input set-input--mono"
+                  style={{ minWidth: 320 }}
+                  placeholder={t('settings.byokProvider.keyPlaceholder')}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  autoFocus
+                />
+              ) : (
+                <code>••••••••••••</code>
+              )}
+              {!editing && (
+                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+                  · KEYCHAIN
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="set-provider__actions">
+        {loading ? null : editing ? (
+          <>
+            <button className="set-btn set-btn--primary" onClick={save}>
+              {t('settings.common.save')}
+            </button>
+            <button
+              className="set-btn"
+              onClick={() => {
+                setDraft('');
+                setEditing(false);
+              }}
+            >
+              {t('settings.common.cancel')}
+            </button>
+          </>
+        ) : connected ? (
+          <>
+            <button
+              className="set-btn"
+              onClick={() => {
+                setDraft('');
+                setEditing(true);
+              }}
+            >
+              {t('settings.byokProvider.editKey')}
+            </button>
+            <span style={{ flex: 1 }} />
+            <button className="set-btn set-btn--danger" onClick={disconnect}>
+              {t('settings.common.disconnect')}
+            </button>
+          </>
+        ) : (
+          <button
+            className="set-btn set-btn--primary"
+            onClick={() => {
+              setDraft('');
+              setEditing(true);
+            }}
+          >
+            {t('settings.common.connect')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The only settings surface allowed to create, edit, test or delete AI keys. */
 export function ModelsPanel({
   credentialsActive,
@@ -283,6 +440,11 @@ export function ModelsPanel({
           name="Google"
           desc={t('settings.models.providers.google')}
         />
+      </div>
+      <div className="set-sec">
+        <SettingsSectionHeader title={t('settings.models.speechTitle')} hint="BYOK · KEYCHAIN" />
+        <p className="set-row__desc">{t('settings.models.speechDesc')}</p>
+        <SpeechCredentialRow credentialsActive={credentialsActive} />
       </div>
     </section>
   );

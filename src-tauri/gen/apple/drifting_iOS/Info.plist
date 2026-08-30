@@ -34,6 +34,8 @@
 	<string>$(DRIFTING_GOOGLE_IOS_CLIENT_ID)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Drifting 使用麦克风进行语音创作：录音在本机转写为文字后交给你的写作 Agent。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

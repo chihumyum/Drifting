@@ -15,6 +15,9 @@ import { MobileSuperViewHost } from './workspace/MobileSuperViewHost';
 import { MobileProjectTrashView } from './workspace/MobileProjectTrashView';
 import { MobileProjectHome } from './workspace/MobileProjectHome';
 import { MobileStructureOverlay } from './workspace/MobileStructureOverlay';
+import { MobileVoiceFace } from './workspace/MobileVoiceFace';
+import { MobileVoicePill } from './workspace/MobileVoicePill';
+import { useVoiceCaptureStore } from '../../store/voice-capture-store';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
 import { requestMobileWorkspaceBack } from './workspace/mobile-workspace-back';
@@ -235,6 +238,12 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
     }, [activeSuperView, freezeActivePaper, location, rememberScroll, state, workspaceUi.surface],
   );
 
+  const voiceSessionProjectId = useVoiceCaptureStore((state) => state.sessionProjectId);
+  const openVoice = useCallback(() => {
+    useVoiceCaptureStore.getState().openSession(projectId);
+    dispatchWorkspaceUi({ type: 'show-voice' });
+  }, [projectId]);
+
   const overviewOpen = workspaceUi.surface.kind === 'overview';
   const trashOpen =
     workspaceUi.transient.kind === 'dialog' &&
@@ -256,6 +265,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
           onOpenStructure={(tab) =>
             dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
           }
+          onOpenVoice={openVoice}
         />
       )}
       <MobilePaperDeck
@@ -330,6 +340,10 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
       />
       {trashOpen && (
         <MobileProjectTrashView onClose={() => requestMobileWorkspaceBack('visible')} />
+      )}
+      {workspaceUi.surface.kind === 'voice' && <MobileVoiceFace projectId={projectId} />}
+      {voiceSessionProjectId === projectId && workspaceUi.surface.kind !== 'voice' && (
+        <MobileVoicePill onExpand={() => dispatchWorkspaceUi({ type: 'show-voice' })} />
       )}
       <AgentConfirmDialog />
       <EntitySnapshotHistoryModal />

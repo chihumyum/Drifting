@@ -15,6 +15,7 @@ import {
 } from '../../../features/agent/AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
+import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
 import { AgentContextIndicator } from '../../../components/agent/AgentContextIndicator';
 import { useAutosizeTextArea } from '../../../hooks/useAutosizeTextArea';
 import { events } from '../../../lib/events';
@@ -236,13 +237,13 @@ export function MobileAgentPanel({
   const handleSend = () => {
     stickRef.current = true;
     setAtBottom(true);
-    void send({ turnContext, toolAccess: 'read_only' });
+    void send({ turnContext, toolAccess: 'read_write' });
   };
   const handleRetry = () => {
     const previous = [...messages].reverse().find((message) => message.kind === 'user');
     if (!previous || previous.kind !== 'user') return;
     setPrompt(previous.text);
-    void send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_only' });
+    void send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' });
   };
 
   const runOutputAction = async (
@@ -285,7 +286,7 @@ export function MobileAgentPanel({
   };
 
   return (
-    <div className="m-agent" data-mobile-agent="answer-only">
+    <div className="m-agent" data-mobile-agent="read-write">
       <header className="m-agent__header">
         <button type="button" aria-current={view === 'chat' ? 'page' : undefined} onClick={() => setView('chat')}>
           {activeConversation?.title || t('agentPanel.newConversation')}
@@ -427,6 +428,12 @@ export function MobileAgentPanel({
               />
               <div className="agt-composer__bar">
                 <AgentComposerConfig />
+                <VoiceDictationButton
+                  projectId={projectId}
+                  onNeedsSetup={() =>
+                    navigate('/settings', { state: { from: location.pathname } })
+                  }
+                />
                 <span className="agt-composer__spacer" />
                 {running ? (
                   <button type="button" className="agt-send agt-send--stop" onClick={abort}>

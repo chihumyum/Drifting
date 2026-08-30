@@ -94,6 +94,34 @@
   display: block;
 }
 
+/* ---- composer mic (voice dictation) -------------------------------------- */
+
+.agt-mic[data-state='recording'] {
+  color: hsl(4 72% 46%);
+  background: hsl(4 72% 46% / 0.1);
+  animation: agt-mic-pulse 1.6s ease-in-out infinite;
+}
+.agt-mic[data-state='error'] {
+  color: hsl(4 60% 44%);
+}
+.agt-mic:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.agt-mic__spin {
+  animation: agt-mic-spin 0.9s linear infinite;
+}
+@keyframes agt-mic-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes agt-mic-pulse {
+  50% {
+    background: hsl(4 72% 46% / 0.22);
+  }
+}
+
 /* ---- send button --------------------------------------------------------- */
 
 .agt-send {

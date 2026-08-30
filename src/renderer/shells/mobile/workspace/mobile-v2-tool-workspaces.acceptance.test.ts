@@ -7,7 +7,7 @@ const repoRoot = path.resolve(rendererRoot, '../..');
 const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, relative), 'utf8');
 
 describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => {
-  it('mounts a mobile-owned answer-only Agent over the shared durable runtime', () => {
+  it('mounts a mobile-owned read-write Agent over the shared durable runtime', () => {
     const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const agent = source('shells/mobile/workspace/MobileAgentPanel.tsx');
     const store = source('store/agent-chat-store.ts');
@@ -17,8 +17,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(panels).toContain("import { MobileAgentPanel } from './MobileAgentPanel'");
     expect(panels).toContain('<MobileAgentPanel projectId={projectId} target={target} />');
     expect(panels).not.toMatch(/DesktopAgent|DesktopRightSidebar/);
-    expect(agent).toContain("send({ turnContext, toolAccess: 'read_only' })");
-    expect(agent).toContain("send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_only' })");
+    expect(agent).toContain("send({ turnContext, toolAccess: 'read_write' })");
+    expect(agent).toContain("send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' })");
     expect(agent).not.toContain('writeChapterProse');
     expect(agent).not.toContain('continueTask');
     expect(store).toContain('turnContext?: readonly AgentConversationContextRef[]');

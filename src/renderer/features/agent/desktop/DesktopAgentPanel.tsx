@@ -55,6 +55,7 @@ import {
 } from '../../../features/agent/AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
+import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
@@ -630,6 +631,10 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
           />
           <div className="agt-composer__bar">
             <AgentComposerConfig />
+            <VoiceDictationButton
+              projectId={projectId}
+              onNeedsSetup={() => events.emit('settings:open', { railId: 'models' })}
+            />
             <div className="agt-composer__spacer" />
             {running || automaticContinuationActive ? (
               <>

@@ -1,4 +1,4 @@
-import { ArrowLeft, Layers3, Settings } from 'lucide-react';
+import { ArrowLeft, Layers3, Mic, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { MobileProjectFlow } from './MobileProjectFlow';
@@ -10,6 +10,7 @@ interface MobileProjectHomeProps {
   onOpenOverview(): void;
   onOpenSettings(): void;
   onOpenStructure(tab: MobileTabBarTab): void;
+  onOpenVoice(): void;
 }
 
 /** Project home. A single fixed header row carries all the chrome — paper
@@ -23,6 +24,7 @@ export function MobileProjectHome({
   onOpenOverview,
   onOpenSettings,
   onOpenStructure,
+  onOpenVoice,
 }: MobileProjectHomeProps) {
   const { t } = useTranslation();
   return (
@@ -39,6 +41,14 @@ export function MobileProjectHome({
         </div>
         <span aria-hidden="true" />
         <div className="m-project-home__header-side m-project-home__header-side--end">
+          <button
+            type="button"
+            className="m-project-home__voice"
+            onClick={onOpenVoice}
+            aria-label={t('voiceAgent.entryAria')}
+          >
+            <Mic size={19} aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="m-project-home__papers"

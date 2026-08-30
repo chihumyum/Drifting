@@ -28,7 +28,7 @@ describe('agent turn context', () => {
     expect(refs[1]).toMatchObject({ entityId: 'node-1', blockId: 'block-1' });
   });
 
-  it('builds an answer-only provider note from the same visible stable ids', () => {
+  it('builds an evidence-first provider note from the same visible stable ids', () => {
     const prompt = agentTurnContextPrompt([
       { kind: 'project', projectId: 'p1', label: 'My Book' },
       {
@@ -43,7 +43,7 @@ describe('agent turn context', () => {
 
     expect(prompt).toContain('node-1');
     expect(prompt).toContain('stableBlockId="block-1"');
-    expect(prompt).toContain('answer-only');
+    expect(prompt).toContain('never claim a change you did not perform');
     expect(prompt).toContain('Read current authored evidence');
   });
 });

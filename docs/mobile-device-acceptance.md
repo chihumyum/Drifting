@@ -123,7 +123,9 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 10. paper overview 可以激活、关闭、全部关闭，并通过卡片拖动在二维网格中重排所有 paper；关闭按钮位于每张卡片右上角，不能出现上下排序箭头。overview 还能进入三个 Super View、通览全书、设置和书架；从设置返回时恢复原工作区 URL。
 11. Super View 内 header 可直接横向切换三个视图，关闭后回到 paper workspace；WebView 本身不应随双指缩放整个页面，元素全景的自有画布应绕双指中点平滑缩放并保持平移；实体打开和共享浮层不得溢出 viewport。
 12. 顶部结构区只有一个 56px 左侧竖 rail：章节、元素、灵感；Project Home 是项目级 surface，不占 rail 也不是 paper。章节和灵感纵向滚动，元素保持桌面分类/网格能力。点 cell 先出现只读 Sheet，点 backdrop 只关闭且不得穿透。底部工具区只有一个 56px 左侧竖 rail：Planning、Agent、Library；Stats 不占 rail，通过当前纸张的 Stats Sheet 打开；Timeline/Plot 是 Planning 内部选择，TODO/素材库是 Library 内部选择，不得形成第二层 rail，项目用户菜单也不得占工具 rail。时间线必须直接复用完整 `BottomTimeline`：书序/叙事切换、幕轨、叙事标记、未归属与未放置、打散、定位、跨故事线连线、缩放、绑定灵感和全部上下文操作都存在，轻点章节打开对应移动纸张，章节触控拖动会写回顺序/主故事线，长按章节、故事线、幕和标记打开与桌面同源菜单。情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
-13. Mobile Agent 必须显示当前 Project、纸张/实体和可用的稳定段落锚点；历史对话、停止、重试、工作记忆、证据跳转与 provider 空/加载/错误状态在竖屏可操作。手机每轮只能取得读取工具，回答不得自动写正文；复制、转灵感、加入 TODO 都必须由作者明确点按。TODO 保留新建、关联、完成、归档、重开和删除；素材库保留四种类型、过滤、关联、预览/系统打开、编辑和删除，不能依赖 hover 或右键。Stats 可在当前纸张和全书之间切换；长内容、空状态、深色模式与 44px 触控目标不得横向撑开 viewport。
+13. Mobile Agent 必须显示当前 Project、纸张/实体和可用的稳定段落锚点；历史对话、停止、重试、工作记忆、证据跳转与 provider 空/加载/错误状态在竖屏可操作。手机与桌面同权：Agent 回合可读写项目，每次改动必须出现在证据区并可点击跳转核对；复制、转灵感、加入 TODO 仍由作者明确点按。TODO 保留新建、关联、完成、归档、重开和删除；素材库保留四种类型、过滤、关联、预览/系统打开、编辑和删除，不能依赖 hover 或右键。Stats 可在当前纸张和全书之间切换；长内容、空状态、深色模式与 44px 触控目标不得横向撑开 viewport。
+14. 语音创作链路必须在真机验证：Project Home 麦克风入口进入全屏语音面；首次录音触发系统麦克风授权（拒绝后给出可恢复的错误提示）；WKWebView 与 Android WebView 中 `getUserMedia` + `MediaRecorder` 实际可用；录音-停止后转写文本落入 composer 且专有名词按元素表纠正；超过 4 分钟的口述自动分段且顺序正确；收起为悬浮球后跨 surface 持续录音并可展开；未配置转写 Key 时引导进入设置；桌面与移动 Agent 面板的麦克风按钮走同一管线。
+
 
 自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、unified bar、两侧 rail、overview、设置和普通按钮。宿主鼠标拖动仍可能把 iPhone Simulator WKWebView 的中间 `pointermove` 合并，不能冒充真实手指。DEV-only frontend bridge 可以用明确标记为 `synthetic-dom` 的事件验收 DOM 手势状态机、URL 和 controller 接线，但不替代真机连续触摸、原生键盘、选区、多指或人体工学验收。生产构建不再存在旧的 Simulator 专用底栏开关。
 

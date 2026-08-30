@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the macOS bundle by Tauri. Voice capture records only on
+	     an explicit author action; audio is transcribed and not retained. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Drifting 使用麦克风进行语音创作：录音在本机转写为文字后交给你的写作 Agent。</string>
+</dict>
+</plist>

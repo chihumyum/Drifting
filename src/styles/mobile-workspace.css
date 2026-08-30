@@ -42,7 +42,8 @@
 .m-project-home__header {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 92px;
+  /* End side carries voice + papers + settings (3 × 44px touch targets). */
+  grid-template-columns: 92px minmax(0, 1fr) 136px;
   align-items: center;
   min-height: calc(54px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) 0
@@ -3161,4 +3162,152 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
   .m-paper-row {
     scroll-behavior: auto !important;
   }
+}
+
+/* ===== Voice session: floating pill + fullscreen voice face =============== */
+
+/* Collapsed state. A sibling of every workspace surface in the root stacking
+ * context, above Project Trash (95) and below modals (12000), so the live
+ * session stays reachable from any surface. */
+.m-voice-pill {
+  position: fixed;
+  right: 14px;
+  bottom: calc(max(var(--m-unified-bar-gap, 8px), env(safe-area-inset-bottom)) + 68px);
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 50%;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  box-shadow: 0 6px 18px hsl(var(--ink-1) / 0.18);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-voice-pill[data-state='recording'] {
+  color: hsl(4 72% 46%);
+  border-color: hsl(4 72% 46% / 0.4);
+}
+
+.m-voice-pill__dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(4 72% 46%);
+  animation: agt-mic-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes agt-mic-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Expanded state: the fullscreen voice-Agent surface. */
+.m-voice-face {
+  position: fixed;
+  inset: 0;
+  z-index: 97;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+}
+
+.m-voice-face__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: calc(50px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 8px 0 8px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+.m-voice-face__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.m-voice-face__spacer {
+  flex: 1;
+}
+
+.m-voice-face__chrome {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-voice-face__pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.m-voice-face__mic-zone {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 4px;
+  border-top: 1px solid hsl(var(--rule));
+}
+
+.m-voice-face__mic {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 50%;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-voice-face__mic[data-state='recording'] {
+  color: hsl(4 72% 46%);
+  border-color: hsl(4 72% 46% / 0.5);
+  background: hsl(4 72% 46% / 0.08);
+  animation: agt-mic-pulse 1.6s ease-in-out infinite;
+}
+
+.m-voice-face__mic:disabled {
+  opacity: 0.7;
+}
+
+.m-voice-face__mic-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  font-size: 12px;
+  color: hsl(var(--ink-3));
+}
+
+.m-voice-face__mic-status[data-error='true'] {
+  color: hsl(4 60% 44%);
+}
+
+.m-voice-face__mic-status button {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  color: hsl(var(--ink-1));
+  font: inherit;
+  text-decoration: underline;
+  -webkit-tap-highlight-color: transparent;
 }

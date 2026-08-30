@@ -49,6 +49,6 @@ export function agentTurnContextPrompt(refs: readonly AgentConversationContextRe
   return [
     '[Visible mobile turn context]',
     ...lines,
-    'Use this only as the author-visible starting point. Read current authored evidence before making factual claims. The mobile surface is answer-only: do not claim that prose or project data changed.',
+    'Use this only as the author-visible starting point. Read current authored evidence before making factual claims, and report any changes you make precisely — never claim a change you did not perform.',
   ].join('\n');
 }

@@ -936,6 +936,14 @@
   color: #fff;
   font-style: normal;
 }
+.set-provider__logo--dashscope {
+  background: #ff6a00;
+  color: #fff;
+  border-color: #ff6a00;
+  font-style: normal;
+  font-size: 15px;
+  font-weight: 600;
+}
 .set-provider__main {
   flex: 1;
   min-width: 0;

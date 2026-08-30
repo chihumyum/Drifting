@@ -664,8 +664,11 @@
         "deepseek": "可供 Copilot 与 General Agent 共用。",
         "anthropic": "可供 Copilot 与 General Agent 共用。",
         "openai": "可供 Copilot 与 General Agent 共用。",
-        "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。"
-      }
+        "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。",
+        "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
+      },
+      "speechTitle": "语音转写",
+      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的元素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。"
     },
     "ai": {
       "routing": "AI 调用方式",
@@ -1463,8 +1466,8 @@
       "contextProject": "项目",
       "contextParagraph": "段落",
       "contextCurrent": "当前",
-      "safety": "回答模式 · Agent 只有读取工具；复制、转灵感、转 TODO 均需你点按。",
-      "empty": "向 Agent 提问以分析当前上下文。它只能读取项目；不会直接改写正文。",
+      "safety": "读写模式 · Agent 可读取并修改本项目；每次改动都会列入证据区，点按即可核对。",
+      "empty": "向 Agent 提问或下达修改指令。它可以读写本项目的章节、元素与关系；改动会列在证据区。",
       "actionsAria": "回答操作",
       "evidenceAria": "本轮证据",
       "evidenceTitle": "本轮证据",
@@ -1518,6 +1521,29 @@
       "steerTitle": "把补充或纠正加入当前任务，在当前操作结束后交给 Agent 处理",
       "answer": "回答",
       "send": "发送"
+    }
+  },
+  "voiceAgent": {
+    "entryAria": "语音创作",
+    "title": "语音创作",
+    "expand": "展开语音创作",
+    "collapse": "收起为悬浮按钮",
+    "endSession": "结束语音会话",
+    "record": "开始录音",
+    "stopRecord": "停止录音",
+    "recording": "录音中",
+    "transcribing": "转写中…",
+    "retry": "重试转写",
+    "empty": "按下麦克风，直接把情节说出来。转写会进入下方输入框，发送后 Agent 会带着项目上下文处理。",
+    "hint": "转写会注入本项目的元素与设定名，专有名词更准。",
+    "composerPlaceholder": "说完后在这里核对转写，再发送给 Agent",
+    "error": {
+      "noKey": "尚未配置语音转写 Key（阿里云百炼）",
+      "unsupported": "当前环境不支持录音",
+      "micDenied": "无法访问麦克风，请检查系统权限",
+      "auth": "转写 Key 无效或已过期",
+      "segmentRejected": "这段录音被转写服务拒绝",
+      "transcribeFailed": "转写失败，录音仍保留，可重试"
     }
   },
   "memoMaterial": {

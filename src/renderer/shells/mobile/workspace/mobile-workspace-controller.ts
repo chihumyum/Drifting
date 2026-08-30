@@ -6,7 +6,8 @@ export type MobileWorkspaceSurface =
   | { kind: 'project-home' }
   | { kind: 'paper' }
   | { kind: 'overview'; returnTo: 'project-home' | 'paper' }
-  | { kind: 'super-view'; view: MobileSuperViewId; returnTo: 'project-home' | 'paper' };
+  | { kind: 'super-view'; view: MobileSuperViewId; returnTo: 'project-home' | 'paper' }
+  | { kind: 'voice'; returnTo: 'project-home' | 'paper' };
 
 export type MobilePaperMode =
   | { kind: 'read' }
@@ -57,6 +58,7 @@ export type MobileWorkspaceAction =
   | { type: 'show-project-home' }
   | { type: 'show-overview' }
   | { type: 'show-super-view'; view: MobileSuperViewId }
+  | { type: 'show-voice' }
   | { type: 'open-project-trash' }
   | { type: 'set-overlay'; overlay: MobileWorkspaceOverlay }
   | { type: 'open-search'; scope: 'paper' | 'project' }
@@ -78,6 +80,7 @@ export type MobileBackLayer =
   | 'keyboard'
   | 'overlay'
   | 'super-view'
+  | 'voice'
   | 'overview'
   | 'editor-accessory'
   | 'edit-mode'
@@ -125,7 +128,13 @@ function resetToSurface(surface: MobileWorkspaceSurface): MobileWorkspaceUiState
 
 function returnSurfaceFor(surface: MobileWorkspaceSurface): 'project-home' | 'paper' {
   if (surface.kind === 'project-home') return 'project-home';
-  if (surface.kind === 'overview' || surface.kind === 'super-view') return surface.returnTo;
+  if (
+    surface.kind === 'overview' ||
+    surface.kind === 'super-view' ||
+    surface.kind === 'voice'
+  ) {
+    return surface.returnTo;
+  }
   return 'paper';
 }
 
@@ -224,6 +233,12 @@ export function mobileWorkspaceReducer(
         view: action.view,
         returnTo: returnSurfaceFor(state.surface),
       });
+    case 'show-voice':
+      if (state.surface.kind === 'voice') return state;
+      return resetToSurface({
+        kind: 'voice',
+        returnTo: returnSurfaceFor(state.surface),
+      });
     case 'open-project-trash':
       return checked({
         ...createInitialMobileWorkspaceUiState(),
@@ -234,7 +249,7 @@ export function mobileWorkspaceReducer(
         if (state.overlay === 'none') return state;
         return checked({ ...state, overlay: 'none' });
       }
-      if (state.surface.kind === 'super-view') return state;
+      if (state.surface.kind === 'super-view' || state.surface.kind === 'voice') return state;
       if (
         (action.overlay === 'tools' ||
           action.overlay === 'paper-tools' ||
@@ -420,6 +435,14 @@ export function resolveMobileWorkspaceBack(
   }
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });
+  }
+  if (state.surface.kind === 'voice') {
+    return resolution(
+      'voice',
+      resetToSurface(
+        state.surface.returnTo === 'project-home' ? { kind: 'project-home' } : PAPER_SURFACE,
+      ),
+    );
   }
   if (state.surface.kind === 'super-view') {
     return resolution(

@@ -240,17 +240,48 @@ describe('Mobile V2 Back priority', () => {
     });
   });
 
-  it.each(['overview', 'super-view'] as const)('returns the %s root to its origin', (kind) => {
-    const state: MobileWorkspaceUiState = {
-      ...paperRoot(),
-      surface:
-        kind === 'overview'
-          ? { kind, returnTo: 'paper' }
-          : { kind, view: 'element', returnTo: 'paper' },
-    };
-    const result = resolveMobileWorkspaceBack(state, 'visible');
-    expect(result.layer).toBe(kind);
-    expect(result.nextState.surface).toEqual({ kind: 'paper' });
+  it.each(['overview', 'super-view', 'voice'] as const)(
+    'returns the %s root to its origin',
+    (kind) => {
+      const state: MobileWorkspaceUiState = {
+        ...paperRoot(),
+        surface:
+          kind === 'super-view'
+            ? { kind, view: 'element', returnTo: 'paper' }
+            : { kind, returnTo: 'paper' },
+      };
+      const result = resolveMobileWorkspaceBack(state, 'visible');
+      expect(result.layer).toBe(kind);
+      expect(result.nextState.surface).toEqual({ kind: 'paper' });
+    },
+  );
+});
+
+describe('Voice surface (fullscreen voice-Agent face)', () => {
+  it('captures the launch origin so collapse returns there', () => {
+    const fromHome = reduce(createInitialMobileWorkspaceUiState(), { type: 'show-voice' });
+    expect(fromHome.surface).toEqual({ kind: 'voice', returnTo: 'project-home' });
+
+    const fromPaper = reduce(paperRoot(), { type: 'show-voice' });
+    expect(fromPaper.surface).toEqual({ kind: 'voice', returnTo: 'paper' });
+
+    expect(resolveMobileWorkspaceBack(fromHome, 'visible').nextState.surface).toEqual({
+      kind: 'project-home',
+    });
+    expect(resolveMobileWorkspaceBack(fromPaper, 'android-hardware').nextState.surface).toEqual({
+      kind: 'paper',
+    });
+  });
+
+  it('is idempotent and keeps its origin across repeat requests', () => {
+    const voice = reduce(paperRoot(), { type: 'show-voice' });
+    expect(reduce(voice, { type: 'show-voice' })).toBe(voice);
+  });
+
+  it('refuses launcher overlays while the voice face owns the screen', () => {
+    const voice = reduce(createInitialMobileWorkspaceUiState(), { type: 'show-voice' });
+    expect(reduce(voice, { type: 'set-overlay', overlay: 'chapters' }).overlay).toBe('none');
+    expect(selectMobileUnifiedBarProjection(voice).visible).toBe(false);
   });
 });
 

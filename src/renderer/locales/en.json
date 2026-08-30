@@ -664,8 +664,11 @@
         "deepseek": "Shared by Copilot and General Agent.",
         "anthropic": "Shared by Copilot and General Agent.",
         "openai": "Shared by Copilot and General Agent.",
-        "google": "Currently available to Copilot; its key is still managed here."
-      }
+        "google": "Currently available to Copilot; its key is still managed here.",
+        "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
+      },
+      "speechTitle": "Voice transcription",
+      "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain."
     },
     "ai": {
       "routing": "AI routing",
@@ -1463,8 +1466,8 @@
       "contextProject": "Project",
       "contextParagraph": "Paragraph",
       "contextCurrent": "Current",
-      "safety": "Answer mode · Agent has read-only tools. Copy, Save as inspiration, and Add TODO require your tap.",
-      "empty": "Ask Agent to analyze the current context. It can only read the project and cannot rewrite prose directly.",
+      "safety": "Read-write mode · Agent can read and edit this project; every change is listed as evidence for you to review.",
+      "empty": "Ask Agent a question or give it an instruction. It can read and write this project's chapters, elements, and relations; changes are listed as evidence.",
       "actionsAria": "Answer actions",
       "evidenceAria": "Turn evidence",
       "evidenceTitle": "Turn evidence",
@@ -1518,6 +1521,29 @@
       "steerTitle": "Add or correct instructions for the running task after the current operation finishes",
       "answer": "Answer",
       "send": "Send"
+    }
+  },
+  "voiceAgent": {
+    "entryAria": "Voice writing",
+    "title": "Voice writing",
+    "expand": "Expand voice writing",
+    "collapse": "Collapse to floating button",
+    "endSession": "End voice session",
+    "record": "Start recording",
+    "stopRecord": "Stop recording",
+    "recording": "Recording",
+    "transcribing": "Transcribing…",
+    "retry": "Retry transcription",
+    "empty": "Press the mic and just say the story. The transcript lands in the composer below; send it and Agent works with your project context.",
+    "hint": "Transcription is biased with this project's element and setting names for accurate proper nouns.",
+    "composerPlaceholder": "Review the transcript here, then send it to Agent",
+    "error": {
+      "noKey": "No transcription key configured (Alibaba Cloud Bailian)",
+      "unsupported": "Recording is not supported in this environment",
+      "micDenied": "Microphone unavailable — check system permissions",
+      "auth": "The transcription key is invalid or expired",
+      "segmentRejected": "The transcription service rejected this segment",
+      "transcribeFailed": "Transcription failed; the recording is kept — retry"
     }
   },
   "memoMaterial": {

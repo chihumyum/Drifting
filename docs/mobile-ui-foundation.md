@@ -39,10 +39,14 @@ The bar is keyboard-aware on both native targets, real outline and comment
 rails portal into one shared sheet, paper/Project search are read-only, All
 Chapters promotes exactly one live editor, and an empty Project can create its
 first chapter. Complete shared Planning is reachable in the vertical tool
-workspace with delayed-ownership chapter touch drag. A compact answer-only
-Agent presentation runs over the shared runtime (read-only tool access), with
-Working Memory, Library/TODO, and Stats given a portrait information
-architecture. The three Super Views (Elements, Story Graph, Library/Memo) are
+workspace with delayed-ownership chapter touch drag. A compact Agent
+presentation runs over the shared runtime with the same read-write tool access
+as desktop, with Working Memory, Library/TODO, and Stats given a portrait
+information architecture. The source contains an unaccepted voice surface
+(Project Home mic entry → fullscreen voice-Agent face, collapsing to a floating
+pill above every surface) and BYOK transcription wiring into the same runtime;
+the maintainer has not tested that chain and it is not a claimed mobile
+capability. See [`voice-authored-capture.md`](voice-authored-capture.md). The three Super Views (Elements, Story Graph, Library/Memo) are
 independent controller surfaces with preserved per-view state
 (`MobileSuperViewHost.tsx`), and Settings exposes a compact Google Drive
 surface over the shared sync product commands.
