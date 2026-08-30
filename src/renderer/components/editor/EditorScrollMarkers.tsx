@@ -19,17 +19,16 @@ import type { AgentBlockChange } from '../../lib/agent/block-diff';
  * Lives OUTSIDE .editor-scroll (a child of the positioned .editor-body) so it
  * stays put over the scrollbar while the manuscript scrolls underneath. The
  * map itself passes pointer events through and each tick remains clickable.
- * Always mounted — not gated by the comment-rail toggle — so agent ticks show
- * even with the rail closed.
+ * Always mounted — agent ticks remain visible even when the sticky-note rail
+ * is hidden, while comment ticks follow explicit visible rail membership.
  */
 interface EditorScrollMarkersProps {
   scrollEl: HTMLElement | null;
   projectId: string;
   targetKind: CommentTargetKind;
   targetId: string;
-  /** When the comment rail is closed, comment ticks are hidden (there's no rail
-   *  to jump to). Agent-change ticks always show — they're rail-independent. */
-  commentsVisible?: boolean;
+  /** Only explicitly mounted sticky notes receive comment ticks. */
+  visibleCommentIds?: readonly string[];
 }
 
 interface Tick {
@@ -46,6 +45,8 @@ interface Tick {
   blockIds: string[];
   title: string;
 }
+
+const NO_VISIBLE_COMMENT_IDS: readonly string[] = [];
 
 function blockSelector(blockId: string): string {
   return `[data-block-id="${CSS.escape(blockId)}"]`;
@@ -66,7 +67,7 @@ export function EditorScrollMarkers({
   projectId,
   targetKind,
   targetId,
-  commentsVisible = true,
+  visibleCommentIds = NO_VISIBLE_COMMENT_IDS,
 }: EditorScrollMarkersProps) {
   const { t } = useTranslation();
   const comments = useDataStore((s) => s.comments);
@@ -112,10 +113,12 @@ export function EditorScrollMarkers({
 
     const next: Tick[] = [];
 
-    // Comment ticks only when the rail is open — a tick that jumps to a hidden
-    // rail is dead. Agent ticks (below) are rail-independent and always show.
-    for (const c of commentsVisible ? comments : []) {
+    const visibleCommentIdSet = new Set(visibleCommentIds);
+    // Only explicit sticky-note membership projects into the scrollbar. Agent
+    // ticks (below) are rail-independent and always show.
+    for (const c of comments) {
       if (
+        !visibleCommentIdSet.has(c.id) ||
         c.projectId !== projectId ||
         c.targetKind !== targetKind ||
         c.targetId !== targetId ||
@@ -188,7 +191,7 @@ export function EditorScrollMarkers({
       ticksRef.current = next;
       setTicks(next);
     }
-  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges, commentsVisible, t]);
+  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges, visibleCommentIds, t]);
 
   // Recompute on data change + layout change. Fractions are scroll-independent,
   // so we don't listen to `scroll` — only resize and content-height changes.

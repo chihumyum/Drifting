@@ -91,6 +91,6 @@ describe('renderer ownership boundaries', () => {
     expect(source('features/agent/desktop/DesktopAgentPanel.tsx').split('\n').length).toBeLessThan(1000);
     expect(source('features/stats/EntityStatsContent.tsx').split('\n').length).toBeLessThan(900);
     expect(source('features/stats/AllChaptersStats.tsx').split('\n').length).toBeLessThan(450);
-    expect(source('components/editor/CommentRail.tsx').split('\n').length).toBeLessThan(1200);
+    expect(source('components/editor/StickyNoteRail.tsx').split('\n').length).toBeLessThan(1200);
   });
 });

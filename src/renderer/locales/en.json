@@ -2060,6 +2060,7 @@
   },
   "rightSidebar": {
     "tabs": {
+      "review": "Review",
       "library": "Library",
       "stats": "Stats"
     },
@@ -2082,6 +2083,7 @@
       "storylineContent": "This storyline · fragments and materials",
       "elementContent": "This element · fragments and materials",
       "categoryContent": "This category · fragments and materials",
+      "review": "Project · Review",
       "todo": "Project · TODO",
       "library": "Project · Library",
       "stats": {
@@ -2518,6 +2520,41 @@
     "snapshot": {
       "kicker": "Original snapshot · deleted from chapter"
     }
+  },
+  "reviewPanel": {
+    "title": "Review",
+    "type": "Type filter",
+    "scope": "Scope filter",
+    "comment": "Comment",
+    "exception": "Exception",
+    "completed": "Completed",
+    "filters": {
+      "all": "Both",
+      "comment": "Comments",
+      "todo": "TODOs"
+    },
+    "filtersCompact": {
+      "all": "All",
+      "comment": "Notes",
+      "todo": "TODO"
+    },
+    "scopes": {
+      "current": "Current",
+      "project": "Project"
+    },
+    "empty": "No review items in this scope.",
+    "resolved": "Resolved ({{count}})",
+    "newComment": "New comment",
+    "commentPlaceholder": "Write a comment…",
+    "addSticky": "Add to sticky notes",
+    "inSticky": "In sticky notes",
+    "removeSticky": "Remove from sticky notes",
+    "source": "Source",
+    "stickyRail": "Sticky notes",
+    "stickyCount": "{{count}} sticky notes",
+    "expandSticky": "Expand sticky notes",
+    "stackSticky": "Stack sticky notes",
+    "clearSticky": "Remove all sticky notes"
   },
   "commentRail": {
     "aria": {
@@ -2988,10 +3025,10 @@
     }
   },
   "mobileEditorRails": {
-    "controls": "Paper navigation and comments",
-    "menu": "Paper navigation and comments",
+    "controls": "Paper navigation and sticky notes",
+    "menu": "Paper navigation and sticky notes",
     "toc": "TOC rail",
-    "comments": "Comment rail"
+    "comments": "Sticky-note rail"
   },
   "editorTopBar": {
     "actions": {
@@ -3000,9 +3037,9 @@
       "outlineRailDisplay": "TOC rail",
       "hideReferenceLinks": "Hide reference link styling",
       "showReferenceLinks": "Show reference link styling",
-      "noComments": "No comments",
-      "hideComments": "Hide comments",
-      "showComments": "Show comments",
+      "noComments": "No sticky notes",
+      "hideComments": "Hide sticky notes",
+      "showComments": "Show sticky notes",
       "more": "More actions"
     },
     "outlineRailMode": {

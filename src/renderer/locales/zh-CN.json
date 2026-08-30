@@ -2060,6 +2060,7 @@
   },
   "rightSidebar": {
     "tabs": {
+      "review": "Review",
       "library": "素材库",
       "stats": "统计"
     },
@@ -2082,6 +2083,7 @@
       "storylineContent": "本故事线 · 片段与材料",
       "elementContent": "本元素 · 片段与材料",
       "categoryContent": "本类目 · 片段与材料",
+      "review": "全项目 · Review",
       "todo": "全项目 · TODO",
       "library": "全项目 · 素材库",
       "stats": {
@@ -2518,6 +2520,41 @@
     "snapshot": {
       "kicker": "原文快照 · 已从章节删除"
     }
+  },
+  "reviewPanel": {
+    "title": "Review",
+    "type": "类型筛选",
+    "scope": "范围筛选",
+    "comment": "批注",
+    "exception": "例外",
+    "completed": "已处理",
+    "filters": {
+      "all": "全部",
+      "comment": "批注",
+      "todo": "TODO"
+    },
+    "filtersCompact": {
+      "all": "全部",
+      "comment": "批注",
+      "todo": "TODO"
+    },
+    "scopes": {
+      "current": "当前",
+      "project": "项目"
+    },
+    "empty": "此范围内没有 Review 项目。",
+    "resolved": "已解决（{{count}}）",
+    "newComment": "新建批注",
+    "commentPlaceholder": "写批注…",
+    "addSticky": "放入便笺栏",
+    "inSticky": "已在便笺栏",
+    "removeSticky": "从便笺栏移除",
+    "source": "原文",
+    "stickyRail": "便笺",
+    "stickyCount": "{{count}} 张便笺",
+    "expandSticky": "展开便笺",
+    "stackSticky": "叠放便笺",
+    "clearSticky": "移除全部便笺"
   },
   "commentRail": {
     "aria": {
@@ -2988,10 +3025,10 @@
     }
   },
   "mobileEditorRails": {
-    "controls": "纸张导航与批注",
-    "menu": "纸张导航与批注",
+    "controls": "纸张导航与便笺",
+    "menu": "纸张导航与便笺",
     "toc": "TOC 轨道",
-    "comments": "批注轨道"
+    "comments": "便笺栏"
   },
   "editorTopBar": {
     "actions": {
@@ -3000,9 +3037,9 @@
       "outlineRailDisplay": "TOC 轨道",
       "hideReferenceLinks": "隐藏引用链接样式",
       "showReferenceLinks": "显示引用链接样式",
-      "noComments": "无批注",
-      "hideComments": "隐藏批注",
-      "showComments": "显示批注",
+      "noComments": "无便笺",
+      "hideComments": "隐藏便笺",
+      "showComments": "显示便笺",
       "more": "更多操作"
     },
     "outlineRailMode": {

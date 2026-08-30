@@ -16,7 +16,7 @@
  *   - the prompt (imported from lib/ai/prompts/templates)
  *   - the context-builder call
  *   - dedup post-filter (against project + rejected + pending names)
- *   - render hint for CommentRail
+ *   - render hint for ReviewItemCard
  *   - accept handler (creates the BookElement, seeds summary from
  *     model-generated initial description). Retroactive linking of existing
  *     prose mentions is handled centrally — createElement emits

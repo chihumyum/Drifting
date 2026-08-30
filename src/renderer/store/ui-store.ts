@@ -606,8 +606,8 @@ interface UiState {
   rightPanelGroup: 'content' | 'agent';
   setRightPanelGroup: (group: 'content' | 'agent') => void;
   // Content group.
-  activeRightPanel: 'todo' | 'library' | 'stats';
-  setActiveRightPanel: (panel: 'todo' | 'library' | 'stats') => void;
+  activeRightPanel: 'review' | 'library' | 'stats';
+  setActiveRightPanel: (panel: 'review' | 'library' | 'stats') => void;
   // When the right sidebar is wide enough to show both groups side by side,
   // this is the width fraction given to the content (left) column; the agent
   // (right) column gets the remainder. Dragged via the divider between the two
@@ -1744,7 +1744,7 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'ui-storage', // unique name
-      version: 4,
+      version: 5,
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
@@ -1771,7 +1771,8 @@ export const useUiStore = create<UiState>()(
         driftCellMeta: state.driftCellMeta,
         chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
       }),
-      // v4 removes the historical dashboard tab and makes a null active key
+      // v5 renames the consolidated Comment/TODO surface from todo to review.
+      // v4 removed the historical dashboard tab and made a null active key
       // the durable representation of Project Home. The sanitizer also
       // accepts v1 kindless leaves and v2/v3 split shapes.
       migrate: (persisted, version) => {
@@ -1822,7 +1823,10 @@ export const useUiStore = create<UiState>()(
         if ((merged.activeRightPanel as string) === 'fragments') {
           merged.activeRightPanel = 'library';
         }
-        const allowed = new Set(['todo', 'library', 'stats']);
+        if ((merged.activeRightPanel as string) === 'todo') {
+          merged.activeRightPanel = 'review';
+        }
+        const allowed = new Set(['review', 'library', 'stats']);
         if (!allowed.has(merged.activeRightPanel as string)) {
           merged.activeRightPanel = 'library';
         }

@@ -39,7 +39,7 @@ export function extractBlockContext(
 
   // Collect every block-typed node with an id, in document order. The doc
   // can be deeply nested (lists, blockquotes), but we treat anchored blocks
-  // as a flat sequence — that's the same model BlockId / CommentRail use.
+  // as a flat sequence — that's the same model BlockId / anchored Review uses.
   const blocks: Array<{ id: string; node: PMNode }> = [];
   editor.state.doc.descendants((node) => {
     if (!isBlockType(node.type.name)) return undefined;

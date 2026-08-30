@@ -36,7 +36,7 @@
  *
  * Origin marker: authorKind 'copilot' + metadataJson {kind:'todo-autoparse'}.
  * source stays 'manual' so it renders as a normal anchored todo, NOT a
- * copilot accept/reject suggestion card (CommentRail keys that off source).
+ * Copilot accept/reject Review card (ReviewItemCard keys that off source).
  */
 import { useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';

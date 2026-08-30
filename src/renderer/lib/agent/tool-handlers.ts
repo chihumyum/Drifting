@@ -1098,7 +1098,7 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
 
   // Comment → entity relation edges (the right-sidebar TODO association). Build a
   // per-comment map once for the output, and the scope set via the shared helper
-  // so it matches the editor's CommentRail exactly.
+  // so it matches the editor's anchored Review projection exactly.
   const relByComment = new Map<string, Array<{ kind: string; id: string }>>();
   for (const r of s.entityRelations) {
     if (r.projectId === ctx.projectId && r.fromKind === 'comment') {

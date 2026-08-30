@@ -7,7 +7,7 @@
  * anchored-annotation surface. By reusing it, Copilot suggestions get
  * persistence, sync, optimistic update, and a visible margin rail for free.
  * Source-aware rendering (Tab/Esc buttons in place of resolve/convert) lives
- * in CommentRail (Phase 1 PR 5).
+ * in the shared Review card.
  *
  * Tagged union by `kind` so Phase 2's Element Patch proposals can share the
  * same comment surface without a separate table.
@@ -71,7 +71,7 @@ export interface ElementPatchMetadata {
 
   /** Existing BookElement to patch. */
   elementId: string;
-  /** Denormalized for rendering — saves a lookup in CommentRail. */
+  /** Denormalized for rendering — saves a lookup in ReviewItemCard. */
   elementName: string;
 
   /** One-line summary of the change ("Bjorn now trusts Erik"). */

@@ -71,7 +71,7 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     // The folio row owns back/identity/overview/tools; the bar only surfaces
     // for search and the keyboard accessory. No variable-height panels remain.
     expect(deck).toContain('data-debug-id="mobile-paper-folio"');
-    expect(deck).toContain('<MobileToolsFace');
+    expect(deck).toContain('<MobileRightSidebar');
     expect(deck).toContain('<MobileTabBar');
     expect(deck).toContain('<MobilePaperStatsSheet');
     expect(bar).not.toContain('MobilePanelPullHandle');

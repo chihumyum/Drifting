@@ -628,11 +628,116 @@
     gap: 3px;
   }
 }
+.agt-panel-toolbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-width: 0;
+  padding-inline: 12px 8px;
+  background: var(--workspace-ui-bg);
+  color: hsl(var(--ink-3));
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.agt-panel-toolbar__right {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.agt-panel-toolbar .agt-context-indicator {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+}
+
+.agt-panel-toolbar .agt-context-indicator__progress,
+.agt-panel-toolbar .agt-context-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+
+.agt-toolbar-title,
 .agt-toolbar-view-title {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agt-toolbar-title {
+  cursor: pointer;
+}
+
+.agt-toolbar-title:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.agt-toolbar-title-input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 2px 4px;
+  border: 1px solid hsl(var(--ink-2) / 0.35);
+  border-radius: var(--radius-xs);
+  outline: 0;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.agt-toolbar-title-input:focus {
+  border-color: hsl(var(--ink-2) / 0.65);
+}
+
+.agt-toolbar-action {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: 9.5px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agt-toolbar-action:hover,
+.agt-toolbar-action:focus-visible,
+.agt-toolbar-action[aria-expanded='true'] {
+  color: hsl(var(--ink-1));
+}
+
+.agt-toolbar-action:focus-visible {
+  outline: 1px solid hsl(var(--ink-2) / 0.45);
+  outline-offset: 1px;
+}
+
+.agt-panel-empty {
+  color: hsl(var(--ink-3));
+  font: 11.5px/1.5 var(--font-sans);
 }
 
 .agt-wm {

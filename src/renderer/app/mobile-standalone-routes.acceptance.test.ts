@@ -43,7 +43,7 @@ describe('mobile standalone routes', () => {
   it('keeps the M3 paper workspace, unified bar and touch ownership in the mobile shell', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const overlay = rendererSource('shells/mobile/workspace/MobileStructureOverlay.tsx');
-    const toolsFace = rendererSource('shells/mobile/workspace/MobileToolsFace.tsx');
+    const toolsFace = rendererSource('shells/mobile/workspace/MobileRightSidebar.tsx');
     const paperTools = rendererSource('shells/mobile/workspace/MobilePaperTools.tsx');
     const paperToolsBar = rendererSource('shells/mobile/workspace/MobilePaperToolsBar.tsx');
     const unifiedBar = rendererSource('shells/mobile/workspace/MobileUnifiedBar.tsx');
@@ -63,8 +63,8 @@ describe('mobile standalone routes', () => {
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const railPresentation = rendererSource('components/editor/editor-rail-presentation.ts');
     const outlineRail = rendererSource('components/editor/EditorOutlineRail.tsx');
-    const commentRail = rendererSource('components/editor/CommentRail.tsx');
-    const marginNotes = rendererSource('hooks/useEntityMarginNotes.ts');
+    const commentRail = rendererSource('components/editor/StickyNoteRail.tsx');
+    const marginNotes = rendererSource('hooks/useEntityStickyNoteRail.ts');
     const bottomTimeline = rendererSource('shells/desktop/views/DesktopBottomTimeline.tsx');
     const timelinePin = rendererSource('components/timeline/TimelinePin.tsx');
     const actRail = rendererSource('components/BottomTimeline/ActRail.tsx');
@@ -110,13 +110,12 @@ describe('mobile standalone routes', () => {
     expect(overlay).toContain('<ElementPanel');
     expect(overlay).toContain('<DriftPanel');
     expect(overlay).toContain('presentation="mobile"');
-    expect(toolsFace).toContain("type ToolTab = 'planning' | 'agent' | 'library'");
+    expect(toolsFace).toContain("type ToolTab = 'planning' | 'review' | 'agent' | 'library'");
     expect(toolsFace).not.toContain("| 'stats'");
     expect(statsSheet).toContain('<EntityStatsContent');
     expect(statsSheet).toContain('onPointerMove={(event) =>');
     expect(paperTools).toContain('<PlotGridEditor');
-    expect(toolsFace).toContain("type LibraryMode = 'todo' | 'library'");
-    expect(toolsFace).toContain('className="m-tool-workspace__subtabs"');
+    expect(toolsFace).toContain('<ReviewPanel focused={focused} />');
     expect(toolsFace).not.toContain('<UserAvatar');
     expect(toolsFace).not.toContain('m-structure-shelf');
     expect(toolsFace).not.toContain('whatCanIDo');
@@ -175,17 +174,17 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).toContain('data-rail-toc={openRails.toc');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');
     expect(paperDeck).toContain('outlineLabelPitch: 34');
-    // The rail menu is gone: 大纲/批注 hand off from the paper tool face into
+    // The rail menu is gone: 大纲/便笺 hand off from the paper tool face into
     // the same bar sheets over the live paper.
-    // 大纲/批注 are toggles for the in-paper rails, not sheet launchers.
+    // 大纲/便笺 are toggles for the in-paper rails, not sheet launchers.
     expect(paperToolsBar).toContain('aria-pressed={openRails[rail]}');
     expect(paperToolsBar).toContain('onToggleRail');
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
     expect(outlineRail).toContain('presentation?.outlineLabelPitch');
-    expect(commentRail).toContain("event.pointerType === 'touch'");
-    expect(commentRail).toContain("closest('[data-comment-id]')");
-    expect(marginNotes).toContain('marginNotesListeners');
+    expect(commentRail).toContain("rail.layout === 'stacked'");
+    expect(commentRail).toContain('onRemoveFromStickyRail');
+    expect(marginNotes).toContain('stickyNoteRailListeners');
     expect(nativeEntry).toContain('main_window.create = false');
     expect(nativeEntry).toContain('tauri::WebviewWindowBuilder::from_config');
     expect(nativeEntry).toContain('.with_input_accessory_view_builder(|_| None)');

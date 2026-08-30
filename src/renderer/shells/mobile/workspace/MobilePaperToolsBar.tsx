@@ -4,7 +4,7 @@ import type { MobilePaperRail } from './mobile-paper-rail';
 
 /** The paper tools bar. Tapping the tab bar's ⁂ entry raises this floating
  * pill in its place (the tab bar shrinks back to its three structure
- * entries): 大纲/批注 toggle the in-paper editor rails, 搜索/统计/情节 hand
+ * entries): 大纲/便笺 toggle the in-paper editor rails, 搜索/统计/情节 hand
  * off to their surfaces. The bar stays raised until its own × collapses it
  * back into the tab. */
 export function MobilePaperToolsBar({
@@ -27,7 +27,7 @@ export function MobilePaperToolsBar({
   const { t } = useTranslation();
   const toggles: Array<[MobilePaperRail, string]> = [
     ['toc', t('mobileWorkspace.toolsFace.outline', { defaultValue: '大纲' })],
-    ['comments', t('mobileWorkspace.toolsFace.comments', { defaultValue: '批注' })],
+    ['comments', t('reviewPanel.stickyRail', { defaultValue: '便笺' })],
   ];
   const entries = [
     [t('mobileWorkspace.search.open', { defaultValue: '搜索' }), onOpenSearch],

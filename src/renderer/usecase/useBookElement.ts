@@ -143,7 +143,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // Uniqueness check: name + every alias must not collide with any
       // existing element's name or aliases in this project. Throws
       // ElementNameConflictError so the caller can surface the offender
-      // (CommentRail's CopilotSuggestionCard already shows error.message
+      // (ReviewItemCard already shows error.message
       // inline; PatchCreateModal currently swallows — both will benefit).
       // The auto-derived placeholder is already conflict-free by construction;
       // this still guards the explicit-name and alias inputs.

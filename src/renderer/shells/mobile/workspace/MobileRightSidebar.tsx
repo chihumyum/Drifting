@@ -1,0 +1,163 @@
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
+import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
+import type { EntityKind } from '../../../lib/extensions/entity-link';
+import { ReviewPanel } from '../../../components/rightBars/ReviewPanel';
+import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
+import { MobileAgentPanel } from './MobileAgentPanel';
+import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
+import { useMobilePaperPresentation } from './MobilePaperContent';
+import { usePaperGlyph } from './mobile-paper-glyph';
+
+type ToolTab = 'planning' | 'review' | 'agent' | 'library';
+
+let lastMobileRightSidebarTab: ToolTab = 'planning';
+
+function focusedEntity(target: WorkspaceTarget | null): FocusedEntity {
+  if (!target || target.entityType === 'all-chapters') {
+    return { kind: null, id: null };
+  }
+  return { kind: target.entityType as EntityKind, id: target.id };
+}
+
+/** Mobile presentation of the desktop right sidebar. It remains one modal
+ * workspace containing every right-sidebar tool; only its chrome differs. */
+export function MobileRightSidebar({
+  projectId,
+  target,
+  onClose,
+}: {
+  projectId: string;
+  target: WorkspaceTarget;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const [tab, setTab] = useState<ToolTab>(() => lastMobileRightSidebarTab);
+  const presentation = useMobilePaperPresentation(target);
+  const glyph = usePaperGlyph(target);
+  const focused = focusedEntity(target);
+  const tabs = [
+    ['planning', t('bottomTimeline.title', { defaultValue: '时间线' })],
+    ['review', t('rightSidebar.tabs.review')],
+    ['agent', 'Agent'],
+    ['library', t('rightSidebar.tabs.library')],
+  ] as const;
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => previousFocus?.focus({ preventScroll: true });
+  }, []);
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.hasAttribute('hidden'));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <div className="m-right-sidebar-layer" data-debug-id="mobile-right-sidebar-layer">
+      <button
+        type="button"
+        className="m-right-sidebar__backdrop"
+        onClick={onClose}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <section
+        ref={dialogRef}
+        className="m-tools-face m-right-sidebar"
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
+        data-debug-id="mobile-right-sidebar"
+        aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
+      >
+        <header className="m-tools-face__header">
+          <span className="m-tools-face__identity">
+            <span aria-hidden="true">{glyph}</span> {presentation.title}
+          </span>
+          <nav
+            className="m-tools-face__tabs"
+            aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
+          >
+            {tabs.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => {
+                  lastMobileRightSidebarTab = id;
+                  setTab(id);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <button
+            type="button"
+            className="m-tools-face__close"
+            onClick={onClose}
+            aria-label={t('findPanel.closeTitle')}
+          >
+            <X size={17} aria-hidden="true" />
+          </button>
+        </header>
+        <div className="m-tools-face__pane">
+          {tab === 'planning' && (
+            <div className="m-context-workspace__pane m-context-workspace__body">
+              <div className="m-bottom-timeline">
+                <BottomTimeline presentation="mobile" />
+              </div>
+            </div>
+          )}
+          {tab === 'review' && (
+            <div className="m-context-workspace__pane m-context-workspace__body m-review-workspace">
+              <ReviewPanel focused={focused} />
+            </div>
+          )}
+          {tab === 'agent' && (
+            <div className="m-context-workspace__pane m-context-workspace__body">
+              <MobileAgentPanel projectId={projectId} target={target} />
+            </div>
+          )}
+          {tab === 'library' && (
+            <div className="m-context-workspace__pane m-context-workspace__body m-library-workspace">
+              <LibraryPanel focused={focused} presentation="mobile" />
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

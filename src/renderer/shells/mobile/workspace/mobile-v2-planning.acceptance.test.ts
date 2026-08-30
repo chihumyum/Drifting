@@ -8,7 +8,7 @@ const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, rel
 
 describe('Mobile V2 M5 complete Planning acceptance wiring', () => {
   it('mounts the full shared Timeline model in the one-level Planning surface', () => {
-    const panels = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const paperTools = source('shells/mobile/workspace/MobilePaperTools.tsx');
     const timeline = source('shells/desktop/views/DesktopBottomTimeline.tsx');
 

@@ -59,7 +59,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
 - 桌面 Universal 新建入口是一个紧跟已打开文档 Tab 列表末尾的 `+`，与 Tab 一起处于横向滚动条带内；零 Tab 时它位于条带起点。它不是贴住顶栏右缘的固定命令，也不占用既有文档 Tab 的宽度预算：空间不足时入口随条带自然溢出。默认和 hover 都保持未选中 Tab 的透明底与次级文字色，键盘 `focus-visible` 只保留克制的轮廓。
 - Universal 新建先打开会话级“新建…”占位 Tab。该 Tab 使用普通静态矩形选中态，可切换、可关闭，但不可 preview、拖拽或 split；关闭未提交占位不产生实体。选择类型后，章节/灵感/元素只补齐现有归属，故事线/类目直接使用默认名称创建，最终由真实实体 Tab 原位替换。
-- 左右栏的 Tab 行固定为紧凑的 `28px`；其下单行 panel header 以约 `26px` 为基准，不用大块上下 padding 制造空白。
+- 左右栏的 Tab 行固定为紧凑的 `28px`；其下单行 panel header 以约 `26px` 为基准，不用大块上下 padding 制造空白。Review 的类型/范围筛选和 Agent 的会话/工具动作都属于这一级 header，必须复用 `workspace-panel-header-row` 与同一套小字号纯文字控件，不能在 Tab 下再造一层大标题或带框按钮栏。
 - Panel Tab 的默认、hover 与 active 背景完全一致；只用暗淡文字与黑色文字的切换表达未选中和选中，不使用彩色 label、`border-bottom`、inset shadow 或其他下划线。
 - 左栏三个 Panel Tab 使用互斥的响应式表示：可用宽度至少 `220px` 时只显示“章节 / 元素 / 灵感”等文字；更窄时只显示对应 glyph，并以 title/aria-label 保留名称。任何宽度都不同时并排图标与文字。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。

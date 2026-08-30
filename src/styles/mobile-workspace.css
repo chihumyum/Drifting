@@ -956,6 +956,99 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* The desktop right sidebar becomes an almost-full-screen mobile workspace.
+   It enters from the top because its launcher is a button, not a screen-edge
+   gesture target; the backdrop and short travel keep the motion legible. */
+.m-right-sidebar-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.m-right-sidebar__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: hsl(var(--ink-1) / 0.2);
+  animation: m-right-sidebar-backdrop-in 160ms ease-out;
+}
+
+.m-tools-face.m-right-sidebar {
+  position: absolute;
+  inset:
+    max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 12px;
+  box-shadow: 0 28px 70px -24px hsl(var(--ink-1) / 0.65);
+  overflow: hidden;
+  animation: m-right-sidebar-enter 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.m-right-sidebar .m-tools-face__tabs {
+  justify-content: flex-start;
+  gap: 13px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.m-right-sidebar .m-tools-face__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.m-right-sidebar .m-tools-face__pane {
+  padding-bottom: 0;
+}
+
+.m-review-workspace {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+}
+
+.m-review-workspace .review-panel__type-filters .filter-chip,
+.m-review-workspace .review-panel__scope-toggle,
+.m-review-workspace .review-panel__create-actions .ghost-icon-button,
+.m-review-workspace .review-card__menu-button,
+.m-review-workspace .review-card__close-button,
+.m-workspace .review-card__menu-button,
+.m-workspace .review-card__close-button,
+.m-workspace .sticky-note-rail__toolbar .ghost-icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
+  min-height: 44px;
+}
+
+@keyframes m-right-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-34px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes m-right-sidebar-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-tools-face.m-right-sidebar,
+  .m-right-sidebar__backdrop {
+    animation-duration: 1ms;
+  }
+}
+
 .m-unified-bar {
   position: fixed;
   z-index: 32;
@@ -2281,7 +2374,7 @@
 
 /* Mobile paper owns the only chrome. Desktop editor rails and compact mouse
    toolbar remain mounted for state continuity but do not consume the page.
-   The paper tools bar's 大纲/批注 toggles re-admit the two shared rails as
+   The paper tools bar's 大纲/便笺 toggles re-admit the two shared rails as
    in-paper overlays, sized for the narrow page. */
 .m-workspace .editor-bar,
 .m-workspace .editor__toc-rail,
@@ -2301,14 +2394,21 @@
 }
 
 .m-workspace[data-rail-comments='true'] .editor__margin {
-  display: block !important;
-  width: min(216px, 60%);
-  padding: 14px 8px 12px 6px;
-  /* Enabling comments reveals cards only; it must not tint or veil the paper. */
+  display: flex !important;
+  top: 8px;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(var(--m-unified-bar-height) + var(--m-unified-bar-gap) + 16px);
+  width: min(276px, calc(100% - 20px));
+  padding: 0;
+  /* Enabling notes reveals cards only; it must not tint or veil the paper. */
   background: transparent;
 }
 
-.m-workspace[data-rail-comments='true'] .editor__margin .mnote {
+.m-workspace[data-rail-comments='true'] .sticky-note-rail__toolbar {
+  justify-content: flex-end;
+}
+
+.m-workspace[data-rail-comments='true'] .review-card--sticky {
   font-size: 12px;
 }
 

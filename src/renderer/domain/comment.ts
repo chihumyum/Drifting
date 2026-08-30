@@ -125,7 +125,7 @@ export interface CommentBlockSnapshot {
 // (`comment:<id> → kind:id`, many, entity-level — the right-sidebar TODO path).
 // Any surface answering "which comments are about this entity" must consider
 // BOTH, or the two paths disagree (e.g. the editor's comment count showing 0
-// while the TodoPanel shows TODOs linked to the same chapter).
+// while the ReviewPanel shows comments and TODOs linked to the same entity).
 
 export interface EntityRelationRef {
   projectId: string;

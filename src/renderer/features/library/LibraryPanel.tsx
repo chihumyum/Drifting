@@ -41,7 +41,7 @@ type ViewFilter = 'all' | 'related';
  * points at `focused`. The relations toggle hides/shows relation chips
  * across all cards.
  *
- * TODOs live in the sibling TodoPanel, not here.
+ * TODOs and comments live in the sibling ReviewPanel, not here.
  */
 export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const { t } = useTranslation();

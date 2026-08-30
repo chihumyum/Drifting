@@ -16,7 +16,7 @@ import {
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
-import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
+import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
@@ -43,7 +43,6 @@ import { ROOT_GROUP_KEY, buildDriftGroupChildren } from '../domain/drift-group';
 import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
-import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
@@ -59,7 +58,7 @@ import {
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
-import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
+import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import { makeDocId } from '../lib/yjs-doc-id';
 
@@ -121,8 +120,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     storylines,
     nodeStorylineMapping,
     storylineNodeMapping,
-    comments,
-    entityRelations,
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStore();
@@ -143,34 +140,17 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   // Highlight agent-changed blocks/summary and clear the cell's "M" as the user
   // reads each spot in place (#17).
   useAgentChangeMarks(scrollEl, 'node', nodeId, isVisible);
-  const [marginNotes, setMarginNotes] = useEntityMarginNotes('node', nodeId);
+  const stickyNoteRail = useEntityStickyNoteRail('node', nodeId);
+  const marginNotes = stickyNoteRail.visible;
+  const setMarginNotes = stickyNoteRail.setVisible;
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
-  // Count comments about this chapter via EITHER mechanism (target_* columns or
-  // a relation edge), so the toolbar button enables + the rail opens even when
-  // the only notes are right-sidebar TODOs linked by relation. Mirrors
-  // CommentRail's loose filter.
-  const relatedCommentIds = useMemo(
-    () => commentIdsRelatedToEntity(entityRelations, activeProjectId, 'node', nodeId ?? ''),
-    [entityRelations, activeProjectId, nodeId],
-  );
-  const commentCount = useMemo(
-    () =>
-      comments.filter(
-        (comment) =>
-          comment.projectId === activeProjectId &&
-          comment.status !== 'converted' &&
-          commentBelongsToEntity(comment, 'node', nodeId ?? '', relatedCommentIds),
-      ).length,
-    [activeProjectId, comments, nodeId, relatedCommentIds],
-  );
+  const commentCount = stickyNoteRail.itemIds.length;
   const toggleComments = useCallback(() => {
-    // The rail can always be toggled — with no comments it just shows an empty
-    // column, so the user can open it to add the first note.
     const next = !marginNotes;
     setMarginNotes(next);
     if (!next) setPendingComment(null);
@@ -880,27 +860,23 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
                   <div className="page__ornament" aria-hidden="true">⁂</div>
                 </article>
-                {/* Keep the rail in the editor's native scroll tree. Its cards
-                    are absolutely overlaid, so they do not reflow the page,
-                    while vertical motion is composited with the manuscript. */}
-                {marginNotes && (
-                  <CommentRail
-                    projectId={activeProjectId}
-                    targetKind="node"
-                    targetId={nodeId ?? ''}
-                    scrollEl={scrollEl}
-                    pendingRequest={pendingComment}
-                    onPendingRequestChange={setPendingComment}
-                  />
-                )}
               </div>
             </div>
+            {marginNotes && (
+              <StickyNoteRail
+                projectId={activeProjectId}
+                targetKind="node"
+                targetId={nodeId ?? ''}
+                pendingRequest={pendingComment}
+                onPendingRequestChange={setPendingComment}
+              />
+            )}
             <EditorReviewLayer
               projectId={activeProjectId}
               entityType="node"
               id={nodeId}
               scrollEl={scrollEl}
-              commentsVisible={marginNotes}
+              visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
             />
           </div>
         </>

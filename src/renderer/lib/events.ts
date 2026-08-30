@@ -108,6 +108,7 @@ export type AppEvents = {
   'left-sidebar:collapse-all': void;
 
   'nodes:changed': void;
+  'comment:deleted': { commentId: string };
 
   // The agent's credential connection changed (connected/disconnected in
   // Settings) — the Agent panel listens to refresh its usable state.
@@ -119,9 +120,8 @@ export type AppEvents = {
   'byok:keys-changed': void;
 
   // Copilot persisted a suggestion against the given (kind, id) target.
-  // Consumed by useEntityMarginNotes to auto-open the comment rail when
-  // copilot writes — otherwise suggestions land in a hidden margin and
-  // the user has no signal.
+  // Announces a newly persisted Copilot review item. Review surfaces may use
+  // this as an unread signal; it never auto-mounts or opens an editor rail.
   'copilot:suggestion-persisted': {
     targetKind: 'node' | 'element' | 'patch' | 'category' | 'storyline';
     targetId: string;

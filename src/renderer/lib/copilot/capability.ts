@@ -5,11 +5,11 @@
  * settings UI, or the suggestion lifecycle code.
  *
  * Capabilities are register-once units. The framework (runtime + useCopilot
- * hook + CommentRail copilot branch) treats them opaquely:
+ * hook + shared Review card) treats them opaquely:
  *
  *   ┌── feature-agnostic ──────────────────────────────────────────────────┐
  *   │  useCopilot → runs detect() on debounced editor updates              │
- *   │  CommentRail → calls renderSummary() + accept() / reject hooks       │
+ *   │  ReviewItemCard → renderSummary() + accept() / reject hooks          │
  *   │  Settings AI panel → lists capabilities for per-feature toggles      │
  *   │  Metering → tags requests with capability.id                         │
  *   └──────────────────────────────────────────────────────────────────────┘
@@ -56,7 +56,7 @@ export interface CreateElementInput {
 /**
  * Services injected into capability accept handlers. Capabilities call
  * these instead of taking hook helpers directly — the hook layer
- * (CommentRail) wires concrete React-bound implementations in.
+ * (ReviewItemCard) wires concrete React-bound implementations in.
  *
  * Additive: future capabilities will need more (applyPatch, replaceText,
  * etc.). Extending this interface doesn't break existing capabilities since
@@ -155,7 +155,7 @@ export interface CapabilityAcceptContext {
 }
 
 /**
- * What CommentRail needs to render a copilot comment card. All fields are
+ * What ReviewItemCard needs to render a copilot comment card. All fields are
  * advisory — the rail can fall back to a generic layout if `renderSummary`
  * returns nothing.
  */
@@ -176,7 +176,7 @@ export interface CopilotCapability {
    */
   id: string;
   /**
-   * Discriminator on `metadata.kind` — used by CommentRail to look up
+   * Discriminator on `metadata.kind` — used by ReviewItemCard to look up
    * which capability owns a copilot comment. Decoupled from `id` because
    * settings ids ('elementExtract') and metadata kinds ('element-candidate')
    * carry different responsibilities and may evolve independently.
@@ -210,7 +210,7 @@ export interface CopilotCapability {
    */
   accept(ctx: CapabilityAcceptContext): Promise<AcceptCopilotResult>;
 
-  /** Optional: tell CommentRail how to render this capability's cards. */
+  /** Optional: tell ReviewItemCard how to render this capability's cards. */
   renderSummary?(meta: CopilotSuggestionMetadata): CapabilityRenderHint;
 }
 
@@ -247,7 +247,7 @@ export function capabilitiesForTrigger(trigger: CopilotTrigger): CopilotCapabili
 
 /**
  * Look up the capability that owns a given metadata.kind. Used by
- * CommentRail to dispatch render/accept for copilot-source comments.
+ * ReviewItemCard to dispatch render/accept for copilot-source comments.
  */
 export function getCopilotCapabilityForMetadataKind(
   metadataKind: string,

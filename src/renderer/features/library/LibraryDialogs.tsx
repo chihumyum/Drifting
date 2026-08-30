@@ -116,10 +116,12 @@ export function ResolvedTodoArchive({
 
 export function ComposeTodoDialog({
   focused,
+  kind = 'todo',
   onCancel,
   onCreate,
 }: {
   focused: FocusedEntity;
+  kind?: 'note' | 'todo';
   onCancel: () => void;
   onCreate: (body: string, relations: RelationTarget[]) => Promise<void>;
 }) {
@@ -137,12 +139,21 @@ export function ComposeTodoDialog({
   );
 
   return (
-    <DialogShell title={t('memoMaterial.dialog.newTodo')} onCancel={onCancel}>
+    <DialogShell
+      title={
+        kind === 'todo' ? t('memoMaterial.dialog.newTodo') : t('reviewPanel.newComment')
+      }
+      onCancel={onCancel}
+    >
       <textarea
         autoFocus
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder={t('memoMaterial.dialog.todoPlaceholder')}
+        placeholder={
+          kind === 'todo'
+            ? t('memoMaterial.dialog.todoPlaceholder')
+            : t('reviewPanel.commentPlaceholder')
+        }
         rows={3}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

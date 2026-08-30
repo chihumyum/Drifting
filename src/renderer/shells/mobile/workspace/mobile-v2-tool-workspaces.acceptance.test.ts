@@ -8,7 +8,7 @@ const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, rel
 
 describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => {
   it('mounts a mobile-owned answer-only Agent over the shared durable runtime', () => {
-    const panels = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const agent = source('shells/mobile/workspace/MobileAgentPanel.tsx');
     const store = source('store/agent-chat-store.ts');
     const conversation = source('domain/agent-conversation.ts');
@@ -52,14 +52,14 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
   });
 
   it('reflows complete Library/TODO semantics with ordinary mobile action targets', () => {
-    const panels = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const library = source('features/library/LibraryPanel.tsx');
     const card = source('features/library/LibraryItemCard.tsx');
     const dialogs = source('features/library/LibraryDialogs.tsx');
     const footer = source('components/ui/CollapsibleFooter.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    expect(panels).toContain('<TodoPanel focused={focused} />');
+    expect(panels).toContain('<ReviewPanel focused={focused} />');
     expect(panels).toContain('<LibraryPanel focused={focused} presentation="mobile" />');
     expect(library).toContain("mobileActions={presentation === 'mobile'}");
     expect(card).toContain('className="library-item-card__mobile-menu"');
@@ -72,7 +72,7 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
   });
 
   it('reuses desktop-right-sidebar Stats in a draggable entity-owned Sheet', () => {
-    const panels = source('shells/mobile/workspace/MobileToolsFace.tsx');
+    const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const statsSheet = source('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 

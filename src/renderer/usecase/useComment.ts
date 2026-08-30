@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase } from '../lib/db';
+import { events } from '../lib/events';
 import { createPlainCommentDoc } from '../domain/comment';
 import type {
   Comment,
@@ -23,6 +24,10 @@ import {
 import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
+import {
+  deleteEntityRelationsInTransaction,
+  withoutRelationsForEntity,
+} from './entity-relation-cleanup';
 
 export interface UseCommentContext {
   projectId: string;
@@ -30,14 +35,14 @@ export interface UseCommentContext {
 }
 
 export interface CreateCommentInput {
-  /** 'note' for editor-anchored annotations, 'todo' for right-sidebar tasks. */
+  /** 'note' for annotations, 'todo' for tasks in the shared Review surface. */
   kind?: CommentKind;
   /** All three target fields are optional. Omit for floating (project-level) TODOs. */
   targetKind?: CommentTargetKind | null;
   targetId?: string | null;
   targetBlockId?: string | null;
   /** Consecutive block range the comment anchors to (incl. the first). Serialized
-   *  into targetBlockIdsJson; CommentRail anchor-marks + hover-highlights all of them. */
+   *  into targetBlockIdsJson; anchored Review cards can jump to the full range. */
   targetBlockIds?: string[];
   anchorJson?: string;
   bodyJson: string;
@@ -249,28 +254,77 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     [ensureDb, projectId],
   );
 
+  const updateCommentBody = useCallback(
+    async (id: string, bodyJson: string) => {
+      await ensureDb();
+      const comments = useDataStore.getState().comments;
+      const existing = comments.find((comment) => comment.id === id);
+      if (!existing) throw new Error(`Comment with id ${id} not found`);
+
+      const updated: Comment = {
+        ...existing,
+        bodyJson,
+        updatedAt: new Date().toISOString(),
+      };
+      return withOptimisticUpdate({
+        apply: () =>
+          useDataStore
+            .getState()
+            .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
+        rollback: () => useDataStore.getState().setComments(comments),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              bodyJson: updated.bodyJson,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, {
+              bodyJson: persisted.bodyJson,
+            });
+            return persisted;
+          }),
+      });
+    },
+    [ensureDb, projectId],
+  );
+
   const deleteComment = useCallback(
     async (id: string) => {
       await ensureDb();
       const state = useDataStore.getState();
       const comments = state.comments;
       const actions = state.commentActions;
+      const relations = state.entityRelations;
       const existing = comments.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
+      const remainingRelations = withoutRelationsForEntity(
+        relations,
+        projectId,
+        'comment',
+        id,
+      );
 
-      return withOptimisticUpdate({
-        apply: () => state.removeComment(id),
+      const result = await withOptimisticUpdate({
+        apply: () => {
+          state.removeComment(id);
+          state.setEntityRelations(remainingRelations);
+        },
         rollback: () => {
           useDataStore.getState().setComments(comments);
           useDataStore.getState().setCommentActions(actions);
+          useDataStore.getState().setEntityRelations(relations);
         },
         effect: () =>
           withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            await deleteEntityRelationsInTransaction(tx, sync, projectId, 'comment', id);
             const result = await createCommentRepository(projectId, tx).delete(id);
             await sync('comment', 'delete', id, projectId);
             return result;
           }),
       });
+      events.emit('comment:deleted', { commentId: id });
+      return result;
     },
     [ensureDb, projectId],
   );
@@ -430,7 +484,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
   );
 
   // Shared backbone for accept/reject: append an action row, mark the
-  // comment 'converted' so it disappears from CommentRail's open list, but
+  // comment 'converted' so it disappears from Review's open list, but
   // keep the row around as audit + dedup memory (queryable via
   // comment_action.kind='reject_suggestion'). Status='converted' is reused
   // rather than introducing a new terminal status — the action.kind already
@@ -549,6 +603,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       createComment,
       resolveComment,
       reopenComment,
+      updateCommentBody,
       deleteComment,
       convertToTodo,
       revertToNote,
@@ -562,6 +617,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       createComment,
       resolveComment,
       reopenComment,
+      updateCommentBody,
       deleteComment,
       convertToTodo,
       revertToNote,

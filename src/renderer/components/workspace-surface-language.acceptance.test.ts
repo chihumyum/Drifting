@@ -315,8 +315,10 @@ describe('workspace surface language acceptance', () => {
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
     const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
-    const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
+    const review = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const library = source('src/renderer/features/library/LibraryPanel.tsx');
+    const agentPanel = source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx');
+    const agentCss = source('src/styles/agent-panel.css');
     const compactChrome = block(controls, '/* Sidebar chrome', '.panel-tab-tray {');
 
     expect(compactChrome).toContain('height: 28px;');
@@ -325,12 +327,27 @@ describe('workspace surface language acceptance', () => {
     expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(leftSubheader).toContain('className="workspace-panel-header-row"');
-    expect(todo).toContain('className="workspace-panel-header-row"');
+    expect(review).toContain('className="review-panel__toolbar workspace-panel-header-row"');
     expect(library).toContain('className="workspace-panel-header-row"');
+    expect(
+      agentPanel.match(/className="agt-panel-toolbar workspace-panel-header-row"/g),
+    ).toHaveLength(2);
+    expect(agentPanel).not.toContain('style={toolbar}');
+    expect(
+      block(agentCss, '.agt-panel-toolbar {', '.agt-panel-toolbar__right {'),
+    ).toContain('font-size: 9.5px;');
+    expect(block(agentCss, '.agt-toolbar-action {', '.agt-toolbar-action:hover,')).toContain(
+      'min-height: 20px;',
+    );
+    expect(block(agentCss, '.agt-toolbar-action {', '.agt-toolbar-action:hover,')).toContain(
+      'font: 9.5px/1 var(--font-mono);',
+    );
+    expect(agentCss).toContain('font: 11.5px/1.5 var(--font-sans);');
     expect(rightHeader).toContain('className="workspace-panel-title-block"');
     expect(leftSubheader).not.toContain('workspace-local-divider');
-    expect(todo).not.toContain('workspace-local-divider');
+    expect(review).not.toContain('workspace-local-divider');
     expect(library).not.toContain('workspace-local-divider');
+    expect(agentPanel).not.toContain('workspace-local-divider');
     expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
   });
 
@@ -502,12 +519,13 @@ describe('workspace surface language acceptance', () => {
     const shellCss = source('src/styles/index.css');
     const timelineCss = source('src/styles/bottom-timeline.css');
     const controls = source('src/styles/ui-controls.css');
+    const reviewCss = source('src/styles/comments-review.css');
     const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
     const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const elementPanel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
-    const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
+    const review = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const library = source('src/renderer/features/library/LibraryPanel.tsx');
     const collapsibleFooter = source('src/renderer/components/ui/CollapsibleFooter.tsx');
     const timeline = block(timelineCss, '.btl {', '.btl__resize {');
@@ -525,6 +543,7 @@ describe('workspace surface language acceptance', () => {
       '/* Dense sidebar collections',
     );
     const listRow = block(controls, '.workspace-list-row {', '.workspace-list-row:hover,');
+    const reviewList = block(reviewCss, '.review-panel__list {', '.review-panel__resolved {');
     const trackPinLine = block(timelineCss, '.btl-pin-line {', '.btl-pin-line.is-dragging {');
     const shell = block(
       shellCss,
@@ -571,12 +590,12 @@ describe('workspace surface language acceptance', () => {
     expect(leftHeader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(leftSubheader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(rightHeader).toContain("background: 'var(--workspace-ui-bg)'");
-    expect(todo).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(review).toContain('className="review-panel"');
     expect(library).toContain("background: 'var(--workspace-ui-bg)'");
     expect(leftHeader).toContain('className="workspace-local-divider');
     expect(leftSubheader).not.toContain('workspace-local-divider');
     expect(rightHeader.match(/className="workspace-local-divider/g)).toHaveLength(1);
-    expect(todo).not.toContain('workspace-local-divider');
+    expect(review).not.toContain('workspace-local-divider');
     expect(library).not.toContain('workspace-local-divider');
     expect(localDivider).toContain('right: 0;');
     expect(localDivider).toContain('left: 0;');
@@ -586,8 +605,9 @@ describe('workspace surface language acceptance', () => {
     expect(listRow).not.toContain('workspace-card-border');
     expect(listRow).toContain('background: color-mix');
     expect(listRow).toContain('box-shadow: none;');
-    expect(todo).toContain("padding: '6px 12px 12px'");
-    expect(todo).toContain('gap: 6');
+    expect(review).toContain('className="review-panel__list scroll-no-bar workspace-list"');
+    expect(reviewList).toContain('padding: 6px 12px 12px;');
+    expect(reviewList).toContain('gap: 6px;');
     expect(library).toContain("padding: '6px 12px 12px'");
     expect(library).toContain('gap: 6');
     expect(collapsibleFooter).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
@@ -698,6 +718,7 @@ describe('workspace surface language acceptance', () => {
     const picker = source('src/styles/project-picker.css');
     const agent = source('src/styles/agent-panel.css');
     const search = source('src/styles/search.css');
+    const review = source('src/styles/comments-review.css');
 
     expect(index).toContain('--radius: 2px;');
     expect(index).toContain('--radius-xs: 1px;');
@@ -717,6 +738,12 @@ describe('workspace surface language acceptance', () => {
       'border-radius: 2px;',
     );
     expect(block(search, '.gsearch-modal {', '.gsearch-header {')).toContain('border-radius: 2px;');
+    expect(block(review, '.review-card--sticky {', '.review-card--manual')).toMatch(
+      /border-radius:\s*var\(--radius-sm\);[\s\S]*?box-shadow:\s*none;/,
+    );
+    expect(block(review, '.sticky-note-stack {', '.sticky-note-stack__layers {')).toMatch(
+      /border-radius:\s*var\(--radius-sm\);[\s\S]*?box-shadow:\s*none;/,
+    );
     expect(search).not.toContain('backdrop-filter');
   });
 

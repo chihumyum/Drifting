@@ -6,7 +6,7 @@ import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/u
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from '../../components/rightBars/RightSidebarHeader';
 import { LibraryPanel, type FocusedEntity } from '../../features/library/LibraryPanel';
-import { TodoPanel } from '../../components/rightBars/TodoPanel';
+import { ReviewPanel } from '../../components/rightBars/ReviewPanel';
 import { DesktopAgentPanel } from '../../features/agent/desktop/DesktopAgentPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { EntityStatsContent } from '../../features/stats/EntityStatsContent';
@@ -51,7 +51,7 @@ export function DesktopRightSidebar() {
       return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
     }
     if (leaf.entityType === 'all-chapters') {
-      // kicker only surfaces in the stats tab (library/todo use hardcoded
+      // kicker only surfaces in the stats tab (library/review use hardcoded
       // project-wide kickers), so phrase it for the aggregate stats view.
       return {
         kind: 'all-chapters',
@@ -139,7 +139,7 @@ export function DesktopRightSidebar() {
 
   const isAgentGroup = rightPanelGroup === 'agent';
   const isFragmentTab =
-    !isAgentGroup && (activeRightPanel === 'todo' || activeRightPanel === 'library');
+    !isAgentGroup && (activeRightPanel === 'review' || activeRightPanel === 'library');
   // Agent panels render their own headers, so hide the kicker/title block there.
   const hideTitleBlock = isAgentGroup || isFragmentTab;
   const headerKicker = isAgentGroup
@@ -148,13 +148,13 @@ export function DesktopRightSidebar() {
       ? t(`rightSidebar.kickers.stats.${target.kind}`, {
           defaultValue: t('rightSidebar.kickers.stats.none'),
         })
-      : activeRightPanel === 'todo'
-        ? t('rightSidebar.kickers.todo')
+      : activeRightPanel === 'review'
+        ? t('rightSidebar.kickers.review')
         : t('rightSidebar.kickers.library');
   const headerTitle = isAgentGroup
     ? ''
-    : activeRightPanel === 'todo'
-      ? 'TODO'
+    : activeRightPanel === 'review'
+      ? t('rightSidebar.tabs.review')
       : activeRightPanel === 'library'
         ? t('rightSidebar.tabs.library')
         : target.title;
@@ -175,7 +175,7 @@ export function DesktopRightSidebar() {
   }, []);
   const isSplit = panelWidth >= 600;
   // Whenever the panel isn't wide enough to split into two columns it stays a
-  // single column with ALL five tabs laid flat in one row — no group switch.
+  // single column with all four tabs laid flat in one row — no group switch.
   // The tab labels compact down as the tray tightens (see RightSidebarHeader),
   // so this holds together all the way down to the 200px min width.
 
@@ -211,7 +211,7 @@ export function DesktopRightSidebar() {
 
   const contentBody = (
     <>
-      {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
+      {activeRightPanel === 'review' && <ReviewPanel focused={focusedForPanel} />}
       {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
       {activeRightPanel === 'stats' && (
         <EntityStatsContent

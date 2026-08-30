@@ -8,10 +8,9 @@ import type { Editor } from '@tiptap/core';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
-import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
+import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import {
   useEditorSurfaceLifecycle,
@@ -35,7 +34,7 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
-import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
+import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -68,7 +67,7 @@ export function StorylineEditorView({
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
-  const { storylines, bookNodes, storylineNodeMapping, comments, entityRelations } = useDataStore();
+  const { storylines, bookNodes, storylineNodeMapping } = useDataStore();
   const { navigateToStoryline, leaveDeletedEntity, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
@@ -100,32 +99,17 @@ export function StorylineEditorView({
 
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>('all');
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
-  const [marginNotes, setMarginNotes] = useEntityMarginNotes('storyline', storylineId);
+  const stickyNoteRail = useEntityStickyNoteRail('storyline', storylineId);
+  const marginNotes = stickyNoteRail.visible;
+  const setMarginNotes = stickyNoteRail.setVisible;
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
-  // Counts via target_* OR a relation edge, so the rail opens for relation-only
-  // notes too (mirrors CommentRail's loose filter).
-  const relatedCommentIds = useMemo(
-    () => commentIdsRelatedToEntity(entityRelations, projectId, 'storyline', storylineId ?? ''),
-    [entityRelations, projectId, storylineId],
-  );
-  const commentCount = useMemo(
-    () =>
-      comments.filter(
-        (comment) =>
-          comment.projectId === projectId &&
-          comment.status !== 'converted' &&
-          commentBelongsToEntity(comment, 'storyline', storylineId ?? '', relatedCommentIds),
-      ).length,
-    [comments, projectId, storylineId, relatedCommentIds],
-  );
+  const commentCount = stickyNoteRail.itemIds.length;
   const toggleComments = useCallback(() => {
-    // The rail can always be toggled — with no comments it just shows an empty
-    // column, so the user can open it to add the first note.
     const next = !marginNotes;
     setMarginNotes(next);
     if (!next) setPendingComment(null);
@@ -639,24 +623,23 @@ export function StorylineEditorView({
             )}
 
           </article>
-          {marginNotes && (
-            <CommentRail
-              projectId={projectId}
-              targetKind="storyline"
-              targetId={currentStoryline.id}
-              scrollEl={scrollEl}
-              pendingRequest={pendingComment}
-              onPendingRequestChange={setPendingComment}
-            />
-          )}
           </div>
         </div>
+        {marginNotes && (
+          <StickyNoteRail
+            projectId={projectId}
+            targetKind="storyline"
+            targetId={currentStoryline.id}
+            pendingRequest={pendingComment}
+            onPendingRequestChange={setPendingComment}
+          />
+        )}
         <EditorReviewLayer
           projectId={projectId}
           entityType="storyline"
           id={currentStoryline.id}
           scrollEl={scrollEl}
-          commentsVisible={marginNotes}
+          visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
         />
       </div>
     </div>

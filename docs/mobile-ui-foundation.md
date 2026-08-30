@@ -154,30 +154,27 @@ editing, timeline, material, comment, and Agent capabilities.
   identity opens Overview; its structure/tool buttons cycle
   `none -> docked -> full -> none` through the workspace controller.
 - The top panel's one-level 56px rail contains Chapters, Elements, and
-  Inspiration. The bottom panel's one-level 56px rail contains Planning, Agent,
-  and Library. Timeline/Plot and TODO/Library are internal panel choices, not a
-  second rail. Stats is not a rail destination: the current entity's Stats open
+  Inspiration. The general `MobileRightSidebar` contains Planning, Review,
+  Agent, and Library; comments and TODOs are filters of the one Review surface,
+  not separate tool destinations. Stats is not a rail destination: the current entity's Stats open
   as a dedicated sheet (`MobilePaperStatsSheet.tsx`) reusing the shared desktop
   `EntityStatsContent`.
 - Read-paper swipe starts on the full paper only when no editor, selection,
-  composition, panel, transient, keyboard, TOC/comment rail, Timeline, Plot
+  composition, panel, transient, keyboard, TOC/sticky-note rail, Timeline, Plot
   Grid, canvas, interactive target, or nested horizontal scroller owns the
   pointer. It locks horizontally after 8px at a 1.2 axis ratio, commits one
   adjacent paper by a 72-96px distance or 0.45px/ms velocity threshold, and
   cancels undecided stationary holds after 180ms. Reduced motion settles
   immediately without changing the result.
-- In edit state the unified bar exposes the shared semantic TOC and Comment
-  action instead of a floating rail control. Narrow screens show at most one
-  rail at a time without reflowing prose. The
+- The paper tools bar exposes the shared semantic TOC and sticky-note action.
+  Narrow screens show at most one rail at a time without reflowing prose. The
   TOC keeps canonical jumps, active ancestry, omission reveals, and all five
   structural levels, but uses a 34px touch pitch so density reduction happens
-  before labels overlap. Comment papers reuse the complete unified rail:
-  anchored and entity comments, creation composer, source snapshots, hover/tap
-  highlights, Copilot decisions, resolve/reopen, TODO conversion, exceptions,
-  and deletion. Comment visibility changes initiated inside the editor are
-  broadcast to the mobile control, so a newly authored or Copilot comment
-  cannot open behind a hidden rail. An open rail blocks paper swipe so it cannot
-  compete for touch.
+  before labels overlap. Sticky notes default to one stacked deck, expand
+  vertically on demand, and retain the shared Review actions. Membership and
+  ordering are session-only per editor; Review open/close, resolve, conversion,
+  and paper switching do not remove notes. An open rail blocks paper swipe so
+  it cannot compete for touch.
 - Entity cells open a read-only preview sheet first; only an explicit action
   inserts a new paper. Backdrop events are consumed and cannot click through.
 - Paper overview owns activation, close, close-all, grid reorder, Super View,

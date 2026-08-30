@@ -100,7 +100,7 @@ describe('hosted settings boundary', () => {
     const menu = read('src/renderer/components/topBars/UserMenu.tsx');
     const shelf = read('src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx');
     const projectPicker = read('src/renderer/views/ProjectPickerView.tsx');
-    const workspace = read('src/renderer/shells/mobile/workspace/MobileToolsFace.tsx');
+    const workspace = read('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
     expect(menu).toContain("t('userMenu.localStatus')");
     expect(menu).toContain("scope === 'shelf' && accountSettingsEnabled &&");
     expect(menu).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");

@@ -316,13 +316,13 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     return (
       <div style={fillStyle}>
         <style>{panelCss}</style>
-        <div style={toolbar}>
+        <div className="agt-panel-toolbar workspace-panel-header-row">
           <strong className="agt-toolbar-view-title">
             {t(panelView === 'working-memory' ? 'agentPanel.workingMemory.title' : 'agentPanel.setup.title')}
           </strong>
           <button
             type="button"
-            style={ghostBtn}
+            className="agt-toolbar-action"
             onClick={() =>
               setPanelView((view) => (view === 'chat' ? 'working-memory' : 'chat'))
             }
@@ -352,12 +352,12 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   return (
     <div style={fillStyle}>
       <style>{panelCss}</style>
-      <div style={toolbar}>
+      <div className="agt-panel-toolbar workspace-panel-header-row">
         {panelView === 'working-memory' ? (
           <strong className="agt-toolbar-view-title">{t('agentPanel.workingMemory.title')}</strong>
         ) : editingHeader ? (
           <input
-            style={nameInput}
+            className="agt-toolbar-title-input"
             value={headerDraft}
             autoFocus
             onChange={(e) => setHeaderDraft(e.target.value)}
@@ -376,8 +376,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
         ) : (
           <button
             type="button"
-            className="agt-name"
-            style={sessionNameBtn}
+            className="agt-name agt-toolbar-title"
             onClick={beginHeaderRename}
             disabled={!activeConv}
             title={activeConv ? t('agentPanel.toolbar.renameTitle') : undefined}
@@ -385,8 +384,14 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
             {sessionName}
           </button>
         )}
-        <div style={toolbarRight}>
-          <button type="button" style={ghostBtn} onClick={() => setPanelView((view) => view === 'chat' ? 'working-memory' : 'chat')}>
+        <div className="agt-panel-toolbar__right">
+          <button
+            type="button"
+            className="agt-toolbar-action"
+            onClick={() =>
+              setPanelView((view) => (view === 'chat' ? 'working-memory' : 'chat'))
+            }
+          >
             {panelView === 'chat'
               ? t('agentPanel.toolbar.workingMemory')
               : t('agentPanel.toolbar.chat')}
@@ -397,7 +402,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
               <button
                 ref={historyTriggerRef}
                 type="button"
-                style={ghostBtn}
+                className="agt-toolbar-action"
                 onClick={() => {
                   setShowHistory((s) => !s);
                 }}
@@ -410,7 +415,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
               </button>
               <button
                 type="button"
-                style={ghostBtn}
+                className="agt-toolbar-action"
                 onClick={handleNew}
                 title={t('agentPanel.toolbar.newTitle')}
               >
@@ -421,7 +426,9 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {panelView === 'working-memory' && <AgentWorkingMemoryView key={projectId} projectId={projectId} />}
+      {panelView === 'working-memory' && (
+        <AgentWorkingMemoryView key={projectId} projectId={projectId} />
+      )}
 
       {panelView === 'chat' && (
         <>
@@ -502,7 +509,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
       <div style={logWrap}>
         <div ref={logRef} style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
-            <div style={{ opacity: 0.5 }}>{t('agentPanel.empty.start')}</div>
+            <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
@@ -681,54 +688,9 @@ const fillStyle: React.CSSProperties = {
   minHeight: 0,
   position: 'relative',
   color: 'hsl(var(--ink-1))',
-};
-
-const toolbar: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '6px 10px',
-  borderBottom: '1px solid hsl(var(--rule))',
-  flexShrink: 0,
-};
-
-const toolbarRight: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  flexShrink: 0,
-};
-
-const sessionNameBtn: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  background: 'transparent',
-  border: 'none',
-  color: 'inherit',
-  font: 'inherit',
-  fontSize: 13,
-  fontWeight: 600,
-  textAlign: 'left',
-  cursor: 'pointer',
-  padding: '2px 4px',
-  borderRadius: 1,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-
-const nameInput: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  font: 'inherit',
-  fontSize: 13,
-  fontWeight: 600,
-  padding: '2px 4px',
-  border: '1px solid hsl(var(--accent) / 0.5)',
-  borderRadius: 1,
-  background: 'hsl(var(--paper))',
-  color: 'inherit',
-  outline: 'none',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 12,
+  lineHeight: 1.5,
 };
 
 const historyPanel: React.CSSProperties = {
@@ -817,9 +779,9 @@ const logWrap: React.CSSProperties = {
 const logStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  padding: 12,
-  fontSize: 12.5,
-  lineHeight: 1.55,
+  padding: '8px 12px 12px',
+  fontSize: 12,
+  lineHeight: 1.5,
   minHeight: 120,
   display: 'flex',
   flexDirection: 'column',
@@ -865,19 +827,8 @@ const primaryBtn: React.CSSProperties = {
   color: 'white',
   border: 'none',
   borderRadius: 2,
-  padding: '6px 12px',
-  fontSize: 12,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-};
-
-const ghostBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: 'inherit',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 2,
-  padding: '4px 10px',
-  fontSize: 12,
+  padding: '4px 8px',
+  fontSize: 10.5,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
@@ -885,30 +836,32 @@ const ghostBtn: React.CSSProperties = {
 const hintBox: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 10,
-  padding: 16,
-  fontSize: 12,
+  gap: 6,
+  padding: '8px 12px',
+  fontSize: 11.5,
   alignItems: 'flex-start',
 };
 
 const hintTitle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 500,
+  letterSpacing: '0.04em',
   color: 'hsl(var(--ink-1))',
 };
 
 const hintText: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 11.5,
   opacity: 0.8,
-  lineHeight: 1.6,
+  lineHeight: 1.5,
 };
 
 // Markdown element styling + streaming caret. Scoped under .agent-md so it only
 // touches assistant bubbles. Descendant selectors can't be expressed as inline
 // styles, hence a small stylesheet rendered with the panel.
 const panelCss = `
-.agt-name { transition: background 0.12s ease; }
-.agt-name:hover:not(:disabled) { background: hsl(var(--ink-1) / 0.06); }
+.agt-name { transition: color 0.12s ease; }
+.agt-name:hover:not(:disabled) { color: hsl(var(--ink-1)); }
 .agt-name:disabled { cursor: default; opacity: 0.75; }
 .agent-md > :first-child { margin-top: 0; }
 .agent-md > :last-child { margin-bottom: 0; }

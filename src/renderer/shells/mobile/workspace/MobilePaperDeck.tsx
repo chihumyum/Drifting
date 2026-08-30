@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -11,7 +12,9 @@ import {
 import { ArrowLeft, Ellipsis, Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
+import type { CommentTargetKind } from '../../../domain/comment';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
+import { useEntityStickyNoteRail } from '../../../hooks/useEntityStickyNoteRail';
 import { getActiveEditor } from '../../../lib/active-editor';
 import {
   mobileEditorLogicalScrollTop,
@@ -24,7 +27,7 @@ import { MobilePaperSnapshot } from './MobilePaperSnapshot';
 import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileTabBar } from './MobileTabBar';
-import { MobileToolsFace } from './MobileToolsFace';
+import { MobileRightSidebar } from './MobileRightSidebar';
 import { MobilePaperTools } from './MobilePaperTools';
 import { MobilePaperToolsBar } from './MobilePaperToolsBar';
 import { MobileSelectionChip } from './MobileSelectionChip';
@@ -222,6 +225,24 @@ export function MobilePaperDeck({
     comments: false,
   });
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
+  const activeRailTarget =
+    active && active.target.entityType !== 'all-chapters'
+      ? {
+          kind: active.target.entityType as CommentTargetKind,
+          id: active.target.id,
+        }
+      : null;
+  const stickyNoteRail = useEntityStickyNoteRail(
+    activeRailTarget?.kind ?? 'node',
+    activeRailTarget?.id,
+  );
+  const effectiveOpenRails = useMemo<Record<MobilePaperRail, boolean>>(
+    () => ({
+      toc: openRails.toc,
+      comments: stickyNoteRail.visible,
+    }),
+    [openRails.toc, stickyNoteRail.visible],
+  );
   const activeIndex = active
     ? session.papers.findIndex((paper) => paper.key === active.key)
     : -1;
@@ -254,7 +275,7 @@ export function MobilePaperDeck({
       dispose = registerFrontendDebugSlice('mobile.paper-deck', () => ({
         activeKey: session.activeKey,
         editorActive,
-        openRails,
+        openRails: effectiveOpenRails,
         paperSwipePhase,
         chromeScrolledAway,
       }));
@@ -263,7 +284,7 @@ export function MobilePaperDeck({
       cancelled = true;
       dispose?.();
     };
-  }, [chromeScrolledAway, editorActive, openRails, paperSwipePhase, session.activeKey]);
+  }, [chromeScrolledAway, editorActive, effectiveOpenRails, paperSwipePhase, session.activeKey]);
 
   useEffect(
     () => () => {
@@ -379,7 +400,11 @@ export function MobilePaperDeck({
     if (
       !canStartMobilePaperSwipe({
         workspace: workspaceUi,
-        activeRail: openRails.toc ? 'toc' : openRails.comments ? 'comments' : null,
+        activeRail: effectiveOpenRails.toc
+          ? 'toc'
+          : effectiveOpenRails.comments
+            ? 'comments'
+            : null,
         selectionCollapsed: currentSelectionIsCollapsed(),
         composing: composingRef.current,
       })
@@ -507,7 +532,7 @@ export function MobilePaperDeck({
       data-paper-swipe={paperSwipePhase}
       data-editor-active={editorActive ? 'true' : 'false'}
       data-rail-toc={openRails.toc ? 'true' : 'false'}
-      data-rail-comments={openRails.comments ? 'true' : 'false'}
+      data-rail-comments={effectiveOpenRails.comments ? 'true' : 'false'}
       data-chrome-hidden={chromeScrolledAway ? 'true' : 'false'}
       data-controller-surface={workspaceUi.surface.kind}
       data-controller-transient={workspaceUi.transient.kind}
@@ -668,7 +693,7 @@ export function MobilePaperDeck({
       )}
 
       {workspaceUi.overlay === 'tools' && active && (
-        <MobileToolsFace
+        <MobileRightSidebar
           projectId={projectId}
           target={active.target}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
@@ -686,10 +711,14 @@ export function MobilePaperDeck({
       {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
         <MobilePaperToolsBar
           hidden={chromeScrolledAway}
-          openRails={openRails}
-          onToggleRail={(rail) =>
-            setOpenRails((current) => ({ ...current, [rail]: !current[rail] }))
-          }
+          openRails={effectiveOpenRails}
+          onToggleRail={(rail) => {
+            if (rail === 'comments') {
+              stickyNoteRail.setVisible(!stickyNoteRail.visible);
+              return;
+            }
+            setOpenRails((current) => ({ ...current, [rail]: !current[rail] }));
+          }}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
           onOpenStats={() =>
             onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })

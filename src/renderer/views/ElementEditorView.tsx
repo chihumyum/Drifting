@@ -6,13 +6,12 @@ import type { Editor } from '@tiptap/core';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
-import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
+import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import {
   useEditorSurfaceLifecycle,
@@ -39,7 +38,7 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
-import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
+import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import { assetStoreService } from '../services/asset-store.service';
@@ -73,8 +72,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // unrelated store mutation (storylines, relations, bookNodes, …).
   const bookElements = useDataStore((s) => s.bookElements);
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
-  const comments = useDataStore((s) => s.comments);
-  const entityRelations = useDataStore((s) => s.entityRelations);
   const projectAssets = useDataStore((s) => s.projectAssets);
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',
@@ -149,7 +146,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // Clear the cell's "M" once the user opens this element (coarse — element
   // writes arrive as structural changes; see useAgentChangeMarks).
   useAgentChangeMarks(scrollEl, 'element', elementId, isVisible);
-  const [marginNotes, setMarginNotes] = useEntityMarginNotes('element', elementId);
+  const stickyNoteRail = useEntityStickyNoteRail('element', elementId);
+  const marginNotes = stickyNoteRail.visible;
+  const setMarginNotes = stickyNoteRail.setVisible;
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
@@ -169,25 +168,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     }
   }, [elementId, navigate]);
 
-  // Counts via target_* OR a relation edge, so the rail opens for relation-only
-  // notes too (mirrors CommentRail's loose filter).
-  const relatedCommentIds = useMemo(
-    () => commentIdsRelatedToEntity(entityRelations, projectId ?? '', 'element', elementId ?? ''),
-    [entityRelations, projectId, elementId],
-  );
-  const commentCount = useMemo(
-    () =>
-      comments.filter(
-        (comment) =>
-          comment.projectId === (projectId ?? '') &&
-          comment.status !== 'converted' &&
-          commentBelongsToEntity(comment, 'element', elementId ?? '', relatedCommentIds),
-      ).length,
-    [elementId, comments, projectId, relatedCommentIds],
-  );
+  const commentCount = stickyNoteRail.itemIds.length;
   const toggleComments = useCallback(() => {
-    // The rail can always be toggled — with no comments it just shows an empty
-    // column, so the user can open it to add the first note.
     const next = !marginNotes;
     setMarginNotes(next);
     if (!next) setPendingComment(null);
@@ -1036,24 +1018,23 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 </div>
               )}
             </article>
-            {marginNotes && (
-              <CommentRail
-                projectId={projectId ?? curElement.projectId}
-                targetKind="element"
-                targetId={elementId}
-                scrollEl={scrollEl}
-                pendingRequest={pendingComment}
-                onPendingRequestChange={setPendingComment}
-              />
-            )}
           </div>
         </div>
+        {marginNotes && (
+          <StickyNoteRail
+            projectId={projectId ?? curElement.projectId}
+            targetKind="element"
+            targetId={elementId}
+            pendingRequest={pendingComment}
+            onPendingRequestChange={setPendingComment}
+          />
+        )}
         <EditorReviewLayer
           projectId={projectId ?? curElement.projectId}
           entityType="element"
           id={elementId}
           scrollEl={scrollEl}
-          commentsVisible={marginNotes}
+          visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
         />
       </div>
 

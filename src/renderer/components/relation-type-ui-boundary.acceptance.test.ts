@@ -24,7 +24,7 @@ describe('authoritative relation type UI boundary', () => {
   });
 
   it('routes TODO and material pickers through the built-in generic association', () => {
-    const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
+    const todo = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const library = source('src/renderer/features/library/LibraryPanel.tsx');
     const overview = source(
       'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',

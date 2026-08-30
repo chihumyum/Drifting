@@ -4,22 +4,22 @@ import { useUiStore } from '../../store/ui-store';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 
-type RightPanelId = 'todo' | 'library' | 'stats' | 'companion';
+type RightPanelId = 'review' | 'library' | 'stats' | 'companion';
 
 interface RightSidebarHeaderProps {
   kicker: string;
   title: string;
-  /** Pulsates the library/TODO tab labels after a background conversion. */
+  /** Pulsates the library/Review tab labels after a background conversion. */
   fragmentCountFlash?: boolean;
   /** Skip the kicker + title block under the tab strip — used by the
-   *  TODO + Library tabs where the tab label itself already describes the
+   *  Review + Library tabs where the tab label itself already describes the
    *  surface and the project-wide list doesn't need a per-entity title. */
   hideTitleBlock?: boolean;
   /** Force a single group's tabs — used by the wide-screen split where each
    *  column owns one group. Omit for the normal single-column mode, which lays
-   *  all five tabs flat (pass `flat`). */
+   *  all four tabs flat (pass `flat`). */
   group?: 'content' | 'agent';
-  /** Lay ALL five tabs flat in one row — the default single-column layout.
+  /** Lay all four tabs flat in one row — the default single-column layout.
    *  Labels compact down as the tray narrows. */
   flat?: boolean;
 }
@@ -38,7 +38,7 @@ export function RightSidebarHeader({
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
   const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
   // Render modes:
-  //  - flat: show ALL five tabs in one row (the default single-column panel).
+  //  - flat: show all four tabs in one row (the default single-column panel).
   //  - column: `group` pins one group's tabs (the wide-screen split layout).
   const renderGroup = group ?? storeGroup;
   const activeOf = (g: 'content' | 'agent') =>
@@ -48,7 +48,7 @@ export function RightSidebarHeader({
   const isActive = (g: 'content' | 'agent', id: string) =>
     flat ? storeGroup === g && activeOf(g) === id : activeOf(renderGroup) === id;
   const onSelect = (g: 'content' | 'agent', id: string) => {
-    if (g === 'content') setActiveRightPanel(id as 'todo' | 'library' | 'stats');
+    if (g === 'content') setActiveRightPanel(id as 'review' | 'library' | 'stats');
     else setRightPanelGroup('agent');
   };
   const trayRef = useRef<HTMLDivElement | null>(null);
@@ -81,9 +81,9 @@ export function RightSidebarHeader({
           {(flat || renderGroup === 'content') && (
             <>
               <RightPanelTab
-                id="todo"
-                active={isActive('content', 'todo')}
-                onClick={() => onSelect('content', 'todo')}
+                id="review"
+                active={isActive('content', 'review')}
+                onClick={() => onSelect('content', 'review')}
               >
                 <span
                   style={
@@ -94,7 +94,7 @@ export function RightSidebarHeader({
                     } as React.CSSProperties
                   }
                 >
-                  {compactLabels ? 'TD' : 'TODO'}
+                  {compactLabels ? 'RV' : t('rightSidebar.tabs.review')}
                 </span>
               </RightPanelTab>
               <RightPanelTab

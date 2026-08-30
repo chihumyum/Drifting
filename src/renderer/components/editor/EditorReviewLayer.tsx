@@ -12,12 +12,12 @@ interface EditorReviewLayerProps {
   entityType: ActivityEntityType;
   id: string | null | undefined;
   scrollEl: HTMLElement | null;
-  /** Whether the comment rail is open — comment scroll ticks are hidden when
-   *  it's closed (agent-change ticks always show). Defaults to true. */
-  commentsVisible?: boolean;
+  /** Explicit sticky-note membership whose anchored items receive scroll ticks. */
+  visibleCommentIds?: readonly string[];
 }
 
 const ADDED_FILE_EMPTY_GRACE_MS = 4_500;
+const NO_VISIBLE_COMMENT_IDS: readonly string[] = [];
 
 function topLevelProseBlocks(scrollEl: HTMLElement) {
   const prose = scrollEl.querySelector<HTMLElement>('.ProseMirror');
@@ -107,7 +107,7 @@ export function EditorReviewLayer({
   entityType,
   id,
   scrollEl,
-  commentsVisible = true,
+  visibleCommentIds = NO_VISIBLE_COMMENT_IDS,
 }: EditorReviewLayerProps) {
   useAgentAddedFileReveal(scrollEl, entityType, id);
 
@@ -118,7 +118,7 @@ export function EditorReviewLayer({
         targetKind={entityType}
         targetId={id ?? ''}
         scrollEl={scrollEl}
-        commentsVisible={commentsVisible}
+        visibleCommentIds={visibleCommentIds}
       />
       <AgentEditAnimator
         scrollEl={scrollEl}

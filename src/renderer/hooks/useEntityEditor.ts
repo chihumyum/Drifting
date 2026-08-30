@@ -1105,7 +1105,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               // Resolve the enclosing block once, so we can grab both its id
               // and its plain-text snapshot in a single walk. The snapshot
               // lets the card render the selection in context AND survives
-              // the block being edited or deleted (see CommentRail orphan
+              // the block being edited or deleted (see sticky-note orphan
               // handling).
               const resolved = view.state.doc.resolve(selection.from);
               let blockId: string | null = null;
