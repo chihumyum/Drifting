@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const errors = [];
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
@@ -48,6 +48,10 @@ if (!release.includes('pnpm ci:contract:check')) {
 
 const testFiles = execFileSync('git', [
   'ls-files',
+  '--cached',
+  '--others',
+  '--exclude-standard',
+  '--',
   '*.test.ts',
   '*.test.tsx',
   '*.test.js',
@@ -57,7 +61,7 @@ const testFiles = execFileSync('git', [
 ])
   .toString('utf8')
   .split('\n')
-  .filter(Boolean);
+  .filter((path) => Boolean(path) && existsSync(path));
 const mutableVersionAssertion = /\.toContain\(\s*['"`]version:\s*\d+,?['"`]\s*\)/u;
 for (const path of testFiles) {
   const source = readFileSync(path, 'utf8');
