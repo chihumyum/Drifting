@@ -252,7 +252,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     setActive(id);
     const el = panelRefs.current[id];
     const main = mainRef.current;
-    if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'smooth' });
+    if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
   }, []);
 
   const filtered = useMemo(() => {
@@ -273,7 +273,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       />
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
-        <main className="set-main" ref={mainRef}>
+        <main className="set-main set-main--instant-section-nav" ref={mainRef}>
           {accountSettingsEnabled && (
             <>
               <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />

@@ -241,6 +241,9 @@
   background: hsl(var(--paper));
   scroll-behavior: smooth;
 }
+.set-main--instant-section-nav {
+  scroll-behavior: auto;
+}
 .set-main::-webkit-scrollbar {
   width: 10px;
 }

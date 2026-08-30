@@ -64,6 +64,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 左栏三个 Panel Tab 使用互斥的响应式表示：可用宽度至少 `220px` 时只显示“章节 / 元素 / 灵感”等文字；更窄时只显示对应 glyph，并以 title/aria-label 保留名称。任何宽度都不同时并排图标与文字。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。
 - 文档 Tab 切换和自动滚动是即时的；拖拽重排仍保留窄插入线，因为它表达 drop 位置而不是选中动画。
+- 桌面完整 Settings 左侧 Section 点击后直接定位到目标内容，不播放纵向滚动动画，避免 scroll-spy 沿途快速切换左栏选中态；用户手动滚动右侧内容时仍由 scroll-spy 同步当前 Section。这个即时定位约束只属于桌面完整 Settings，不改变移动设置页及其他共享滚动面的行为。
 - 侧栏开合是工作区保留的结构性动效，时长为 `220ms`；`prefers-reduced-motion: reduce` 时禁用。
 
 ## Dense content and semantic controls
@@ -95,7 +96,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 静态结构契约由以下测试保护：
 
 ```bash
-pnpm exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts
+pnpm exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts src/renderer/features/settings/desktop/desktop-settings-section-navigation.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.ts
 pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
