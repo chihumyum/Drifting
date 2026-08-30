@@ -3,15 +3,11 @@
 set -eu
 
 DEV_CODE_IDENTIFIER=${DRIFTING_MACOS_DEV_CODE_IDENTIFIER:-cc.drifting.client.dev}
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+IDENTITY_SELECTOR="$SCRIPT_DIR/select-macos-dev-signing-identity.mjs"
 
 resolve_signing_identity() {
-  if [ -n "${DRIFTING_MACOS_DEV_SIGNING_IDENTITY:-}" ]; then
-    printf '%s\n' "$DRIFTING_MACOS_DEV_SIGNING_IDENTITY"
-    return
-  fi
-
-  security find-identity -v -p codesigning 2>/dev/null |
-    awk '/"Apple Development:/ && $0 !~ /CSSMERR_/ { print $2; exit }'
+  node "$IDENTITY_SELECTOR"
 }
 
 require_signing_identity() {
@@ -51,12 +47,7 @@ if [ ! -f "$binary" ] || [ ! -x "$binary" ]; then
   exit 1
 fi
 
-identity=$(resolve_signing_identity)
-if [ -z "$identity" ]; then
-  echo "Warning: no usable Apple Development identity; running with Cargo's default signature." >&2
-  echo "Run pnpm macos:dev-signing:check for setup guidance." >&2
-  exec "$binary" "$@"
-fi
+identity=$(require_signing_identity)
 codesign \
   --force \
   --sign "$identity" \
