@@ -403,12 +403,7 @@ async function preparePayload(
       'comment',
     ),
     projectId,
-    kind:
-      request.arguments.kind === 'todo'
-        ? 'todo'
-        : request.arguments.kind === 'exception'
-          ? 'exception'
-          : 'note',
+    kind: request.arguments.kind === 'todo' ? 'todo' : 'note',
     targetKind: target.kind,
     targetId: target.id,
     targetBlockId:

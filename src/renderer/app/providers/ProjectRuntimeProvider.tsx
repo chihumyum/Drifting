@@ -162,7 +162,6 @@ export function ProjectRuntimeProvider({
     reopenComment: commentUsecases.reopenComment,
     convertToTodo: commentUsecases.convertToTodo,
     revertToNote: commentUsecases.revertToNote,
-    setCommentKind: commentUsecases.setCommentKind,
   });
   useDriftingAgentRuntime();
 

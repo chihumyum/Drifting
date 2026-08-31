@@ -231,7 +231,6 @@ function createHeadlessWriteApi(database: DbClient, projectId: string): AgentWri
     reopenComment: unsupported('reopenComment'),
     convertToTodo: unsupported('convertToTodo'),
     revertToNote: unsupported('revertToNote'),
-    setCommentKind: unsupported('setCommentKind'),
   } as AgentWriteApi;
 }
 

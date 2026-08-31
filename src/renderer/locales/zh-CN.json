@@ -2552,7 +2552,6 @@
     "type": "类型筛选",
     "scope": "范围筛选",
     "comment": "批注",
-    "exception": "例外",
     "completed": "已处理",
     "jumpToText": "跳转到关联文字",
     "filters": {
@@ -2624,10 +2623,6 @@
       "revertToNoteTitle": "降为批注",
       "toNote": "转批注",
       "toTodo": "转 TODO",
-      "unmarkExceptionTitle": "取消例外标记",
-      "unmarkException": "取消例外",
-      "markExceptionTitle": "标为有意例外，供协作者与 Agent 上下文识别",
-      "markException": "标为例外",
       "cancelComment": "取消批注",
       "add": "添加"
     },

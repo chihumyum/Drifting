@@ -32,7 +32,6 @@ import {
   getSelectedTextFromAnchor,
 } from '../../domain/comment';
 import type { CreateCommentInput } from '../../usecase/useComment';
-import type { CommentKind } from '../../domain/comment';
 import {
   createMemory,
   listLiveMemories,
@@ -210,7 +209,6 @@ export interface AgentWriteApi {
   reopenComment: (id: string) => Promise<unknown>;
   convertToTodo: (id: string) => Promise<unknown>;
   revertToNote: (id: string) => Promise<unknown>;
-  setCommentKind: (id: string, kind: CommentKind) => Promise<unknown>;
 }
 
 export interface AgentToolProvenance {
@@ -2005,7 +2003,7 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
   const body = String(args.body ?? '').trim();
   if (!body) throw new Error('create_comment requires body');
   const input: CreateCommentInput = {
-    kind: args.kind === 'todo' ? 'todo' : args.kind === 'exception' ? 'exception' : 'note',
+    kind: args.kind === 'todo' ? 'todo' : 'note',
     bodyJson: createPlainCommentDoc(body),
   };
   // Unlike the *Id args, targetKind/targetId aren't touched by resolveArgsRefs,
@@ -2063,8 +2061,7 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
   if (!id) throw new Error('set_comment_kind requires commentId');
   if (kind === 'todo') await ctx.write.convertToTodo(id);
   else if (kind === 'note') await ctx.write.revertToNote(id);
-  else if (kind === 'exception') await ctx.write.setCommentKind(id, 'exception');
-  else throw new Error(`kind must be 'todo', 'note' or 'exception', got "${kind}"`);
+  else throw new Error(`kind must be 'todo' or 'note', got "${kind}"`);
   return { ok: true, commentId: id, kind };
 }
 

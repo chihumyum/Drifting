@@ -5,9 +5,12 @@ import { describe, expect, it } from 'vitest';
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 describe('unified Review surface acceptance', () => {
-  it('uses one comment domain for comments, exceptions, Copilot items, and TODOs', () => {
+  it('uses one comment domain for comments, Copilot items, and TODOs', () => {
     const panel = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
+    const domain = source('src/renderer/domain/comment.ts');
+    const useComment = source('src/renderer/usecase/useComment.ts');
+    const toolRegistry = source('src/renderer/lib/agent/tool-registry.ts');
 
     expect(panel).toContain("type ReviewTypeFilter = 'all' | 'comment' | 'todo'");
     expect(panel).toContain("type ReviewScope = 'current' | 'project'");
@@ -16,6 +19,11 @@ describe('unified Review surface acceptance', () => {
     expect(panel).toContain('commentBelongsToEntity');
     expect(card).toContain('convertToTodo(comment.id)');
     expect(card).toContain('revertToNote(comment.id)');
+    expect(domain).toContain("export type CommentKind = 'note' | 'todo';");
+    expect(domain).not.toContain("'exception'");
+    expect(card).not.toContain('markException');
+    expect(useComment).not.toContain('setCommentKind');
+    expect(toolRegistry).not.toContain("Type.Literal('exception')");
     expect(panel).toContain('const structuralRelations = (refsByComment.get(comment.id) ?? [])');
     expect(panel).toContain('navigator.open({ entityType: target.kind, id: target.id })');
     expect(

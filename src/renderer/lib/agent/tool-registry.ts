@@ -1076,18 +1076,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_comment',
-    description:
-      '创建批注、TODO 或作者例外说明。要挂到正文块时，传目标实体和能唯一定位该块的原文片段。',
+    description: '创建批注或 TODO。要挂到正文块时，传目标实体和能唯一定位该块的原文片段。',
     parametersSchema: Type.Object(
       {
         body: str('批注正文'),
-        kind: Type.Optional(
-          Type.Union([
-            Type.Literal('note'),
-            Type.Literal('todo'),
-            Type.Literal('exception'),
-          ]),
-        ),
+        kind: Type.Optional(Type.Union([Type.Literal('note'), Type.Literal('todo')])),
         targetType: Type.Optional(domainEntityType),
         targetName: optionalStr('目标实体纯名称；与 targetType 一起提供'),
         targetText: optionalStr(
@@ -1145,11 +1138,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'set_comment_kind',
-    description: '把批注类型改为 todo、note 或 exception。',
+    description: '把批注类型改为 todo 或 note。',
     parametersSchema: Type.Object(
       {
         commentId: str('来自 list_comments 的 commentId'),
-        kind: str('todo | note | exception'),
+        kind: Type.Union([Type.Literal('todo'), Type.Literal('note')]),
       },
       { additionalProperties: false },
     ),
@@ -1531,7 +1524,7 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
       {
         commentId: str('来自 list_comments'),
         body: optionalStr('新文字'),
-        kind: Type.Optional(Type.Union([Type.Literal('note'), Type.Literal('todo'), Type.Literal('exception')])),
+        kind: Type.Optional(Type.Union([Type.Literal('note'), Type.Literal('todo')])),
         status: Type.Optional(Type.Union([Type.Literal('open'), Type.Literal('resolved')])),
       },
       { additionalProperties: false },

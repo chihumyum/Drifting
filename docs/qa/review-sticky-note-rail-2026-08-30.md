@@ -4,7 +4,7 @@ Updated: 2026-09-01
 
 This document supersedes the original automatic comment-margin projection.
 Review is the only project review list. It combines
-comments, exceptions, Copilot suggestions, and TODOs without creating a second
+comments, Copilot suggestions, and TODOs without creating a second
 TODO data model.
 
 ## Product contract
@@ -14,6 +14,8 @@ TODO data model.
   workspace that enters a short distance from the top.
 - Review filters by type (`Both`, `Comments`, `TODOs`) and scope (`Current`,
   `Project`). Opening Review does not move, hide, or clear editor sticky notes.
+- Review items have only two authored kinds: `note` and `todo`. The retired
+  Shadow author-exception kind is absent from the UI, domain, and Agent tools.
 - A Review card can be added to one entity editor's sticky-note rail. Cross-
   entity anchored or relation-linked items open their target editor before
   appearing there; project-floating items fall back to the focused editor.

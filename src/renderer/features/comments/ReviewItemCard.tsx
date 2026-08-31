@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   Check,
-  EyeOff,
   ListTodo,
   MessageSquare,
   MoreHorizontal,
@@ -127,7 +126,6 @@ export function ReviewItemCard({
   const snapshots = getBlockSnapshotsFromAnchor(comment.anchorJson);
   const color = commentColorKey(comment);
   const isTodo = comment.kind === 'todo';
-  const isException = comment.kind === 'exception';
   const isResolved = comment.status === 'resolved';
   const isConverted = comment.status === 'converted';
   const metadata = comment.source === 'copilot' ? decodeCopilotMetadata(comment.metadataJson) : null;
@@ -221,9 +219,7 @@ export function ReviewItemCard({
             ? capability.displayName
             : isTodo
               ? 'TODO'
-              : isException
-                ? t('reviewPanel.exception')
-                : t('reviewPanel.comment')}
+              : t('reviewPanel.comment')}
           {presentation === 'panel' && canJump && (
             <button
               type="button"
@@ -416,27 +412,6 @@ export function ReviewItemCard({
                   )
                 }
               />
-              {comment.source === 'manual' && (
-                <ReviewActionMenuItem
-                  icon={<EyeOff size={12} />}
-                  label={
-                    isException
-                      ? t('commentRail.actions.unmarkException')
-                      : t('commentRail.actions.markException')
-                  }
-                  disabled={busy}
-                  onSelect={() =>
-                    selectMenuAction(() =>
-                      void run(() =>
-                        commentUsecases.setCommentKind(
-                          comment.id,
-                          isException ? 'note' : 'exception',
-                        ),
-                      ),
-                    )
-                  }
-                />
-              )}
             </>
           )}
           <div className="menu-surface__divider" />

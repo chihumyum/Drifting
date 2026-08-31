@@ -2190,7 +2190,7 @@ function normalizeEntityKind(value: string): EntityKind {
 }
 
 function parseCommentKind(value: unknown): CommentKind | null {
-  return value === 'note' || value === 'todo' || value === 'exception' ? value : null;
+  return value === 'note' || value === 'todo' ? value : null;
 }
 
 function parseCommentStatus(value: unknown): CommentStatus | null {

@@ -1846,9 +1846,7 @@ export const AgentRuntimeTaskCommandTable = sqliteTable(
 // reads as auxiliary context. Distinct from canon
 // (the story world) and project facts (the structured governing KV): it holds
 // the standing, cross-cutting meta — personal writing preferences, vetoed
-// proposals, and standing directives. Anchored/block-local guidance lives in
-// `comment` (source='manual', kind='exception'); this table is for the
-// un-anchored / standing kind.
+// proposals, and standing directives.
 //   kind:   'preference' | 'veto' | 'directive'  (reserve 'episode' for session memory)
 //   status: 'pending' | 'active' | 'dismissed'   — ONLY 'active' is ever fed to
 //           an agent/judge; 'pending' awaits explicit author confirmation.

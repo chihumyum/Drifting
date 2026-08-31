@@ -5405,8 +5405,7 @@ function describeCommentForAuthor(
   state: ReturnType<typeof useDataStore.getState>,
   comment: Comment,
 ): string {
-  const kind =
-    comment.kind === 'todo' ? '待办' : comment.kind === 'exception' ? '例外说明' : '批注';
+  const kind = comment.kind === 'todo' ? '待办' : '批注';
   const status =
     comment.status === 'open'
       ? '未完成'

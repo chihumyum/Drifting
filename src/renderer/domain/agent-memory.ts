@@ -5,9 +5,6 @@
 // cross-cutting meta: personal writing preferences, vetoed proposals, and
 // standing directives ("don't evaluate the plausibility of dream chapters").
 //
-// Anchored, block-local guidance ("THIS passage is intentional") lives in a
-// `comment` (source='manual', kind='exception') instead — the anchor is the
-// relevance. Memory is for the un-anchored / standing kind.
 import type { StructuralEntityKind } from './entity-kinds';
 
 // preference — author-personal style / working preference

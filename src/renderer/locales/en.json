@@ -2552,7 +2552,6 @@
     "type": "Type filter",
     "scope": "Scope filter",
     "comment": "Comment",
-    "exception": "Exception",
     "completed": "Completed",
     "jumpToText": "Jump to linked text",
     "filters": {
@@ -2624,10 +2623,6 @@
       "revertToNoteTitle": "Demote to comment",
       "toNote": "To comment",
       "toTodo": "To TODO",
-      "unmarkExceptionTitle": "Remove exception mark",
-      "unmarkException": "Remove exception",
-      "markExceptionTitle": "Mark as an intentional exception for collaborators and Agent context",
-      "markException": "Mark exception",
       "cancelComment": "Cancel comment",
       "add": "Add"
     },
