@@ -2554,6 +2554,7 @@
     "comment": "Comment",
     "exception": "Exception",
     "completed": "Completed",
+    "jumpToText": "Jump to linked text",
     "filters": {
       "all": "Both",
       "comment": "Comments",

@@ -2554,6 +2554,7 @@
     "comment": "批注",
     "exception": "例外",
     "completed": "已处理",
+    "jumpToText": "跳转到关联文字",
     "filters": {
       "all": "全部",
       "comment": "批注",

@@ -1,6 +1,6 @@
 # Review panel and sticky-note rail acceptance
 
-Updated: 2026-08-31
+Updated: 2026-09-01
 
 This document supersedes the original automatic comment-margin projection.
 Review is the only project review list. It combines
@@ -45,6 +45,11 @@ TODO data model.
   wash. Type color belongs to the small semantic label. Secondary actions live
   in the shared `menu-surface`; only the action-menu trigger and sticky status
   remain in the row header.
+- A Review row with a valid text anchor shows one small, unboxed left arrow
+  immediately after its type label. Clicking either the arrow or the row body
+  opens the target editor and jumps to the anchored text. Entity-level and
+  project-floating rows show no marker. This does not change filtering,
+  ordering, or relation behavior.
 - Sticky notes are a distinct editor overlay presentation, but still obey the
   global `1px / 2px / 3px` radius ladder. Expanded notes and the stacked deck use
   `--radius-sm`, a hairline border, and no elevation shadow. The deck's offset

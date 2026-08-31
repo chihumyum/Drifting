@@ -1927,6 +1927,30 @@
   color: hsl(var(--ink-3));
 }
 
+.review-card__text-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 1px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.68;
+}
+
+.review-card__text-link-button:hover {
+  opacity: 1;
+}
+
+.review-card__text-link-button:focus-visible {
+  outline: 1px solid currentcolor;
+  outline-offset: 1px;
+}
+
 .review-card__status {
   margin-left: auto;
   color: hsl(var(--ink-4));

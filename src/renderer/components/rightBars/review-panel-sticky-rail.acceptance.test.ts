@@ -37,6 +37,26 @@ describe('unified Review surface acceptance', () => {
     expect(store).toContain("merged.activeRightPanel as string) === 'todo'");
   });
 
+  it('marks text-linked Review rows with a small clickable left arrow', () => {
+    const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
+    const css = source('src/styles/comments-review.css');
+    const zh = source('src/renderer/locales/zh-CN.json');
+    const en = source('src/renderer/locales/en.json');
+
+    expect(card).toContain('ArrowLeft,');
+    expect(card).toContain("presentation === 'panel' && canJump && (");
+    expect(card).toContain('className="review-card__text-link-button"');
+    expect(card).toContain('onClick={jumpToAnchor}');
+    expect(card).toContain('<ArrowLeft size={10} strokeWidth={1.8} aria-hidden />');
+    expect(card).toContain('className="review-card__body review-card__body--link" onClick={jumpToAnchor}');
+    expect(css).toMatch(
+      /\.review-card__text-link-button \{[\s\S]*?width: 14px;[\s\S]*?height: 14px;[\s\S]*?background: transparent;/,
+    );
+    expect(css).toContain('.review-card__text-link-button:focus-visible {');
+    expect(zh).toContain('"jumpToText": "跳转到关联文字"');
+    expect(en).toContain('"jumpToText": "Jump to linked text"');
+  });
+
   it('reuses the flat workspace panel language and keeps sticky notes on the compact radius ladder', () => {
     const panel = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');

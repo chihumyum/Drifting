@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
+  ArrowLeft,
   Check,
   EyeOff,
   ListTodo,
@@ -223,6 +224,17 @@ export function ReviewItemCard({
               : isException
                 ? t('reviewPanel.exception')
                 : t('reviewPanel.comment')}
+          {presentation === 'panel' && canJump && (
+            <button
+              type="button"
+              className="review-card__text-link-button"
+              onClick={jumpToAnchor}
+              title={t('reviewPanel.jumpToText')}
+              aria-label={t('reviewPanel.jumpToText')}
+            >
+              <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+            </button>
+          )}
         </span>
         <span className="review-card__status">
           {isConverted
