@@ -43,11 +43,19 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ```bash
 pnpm tauri:build
+pnpm tauri:build:debug
 pnpm mobile:ios:dev
 pnpm tauri:ios:build
 pnpm mobile:android:dev
 pnpm tauri:android:build
 ```
+
+本地构建没有 `DRIFTING_UPDATER_PUBLIC_KEY` 时，以及所有 debug 构建，桌面启动器
+会关闭 updater 产物生成；这不影响 `.app` bundle，可用于验证 macOS 权限声明。
+macOS 本地 bundle 同时沿用经过撤销检查的 Apple Development identity，避免 ad-hoc
+签名让麦克风与 Keychain 授权随每次构建漂移。
+受保护的正式发布环境提供 updater 公钥后，启动器把它写入仅在构建期间存在的临时
+Tauri 配置并继续生成签名 updater 产物，公钥不会落入仓库文件。
 
 iOS/Android 的设备选择、服务覆盖与手工验收边界见
 [mobile-device-acceptance.md](docs/mobile-device-acceptance.md)。构建或测试通过不等于

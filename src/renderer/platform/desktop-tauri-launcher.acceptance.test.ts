@@ -7,7 +7,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error The executable Node launcher intentionally lives outside the renderer TS graph.
 import * as desktopLauncher from '../../../scripts/run-desktop-tauri.mjs';
 
-const { createDesktopTauriEnvironment, describeDesktopOauthConfiguration } = desktopLauncher;
+const {
+  createDesktopTauriConfigOverride,
+  createDesktopTauriEnvironment,
+  describeDesktopOauthConfiguration,
+} = desktopLauncher;
 
 const temporaryDirectories: string[] = [];
 
@@ -78,5 +82,44 @@ describe('desktop Tauri environment', () => {
       VITE_REQUIRE_AUTH: 'true',
       VITE_AI_TRANSPORT: 'proxy',
     });
+  });
+
+  it('disables updater artifacts for local and debug bundles', () => {
+    expect(
+      createDesktopTauriConfigOverride({
+        command: 'build',
+        arguments: ['--debug'],
+        environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key' },
+        macosSigningIdentity: 'development-identity',
+      }),
+    ).toEqual({
+      bundle: {
+        createUpdaterArtifacts: false,
+        macOS: { signingIdentity: 'development-identity' },
+      },
+    });
+    expect(
+      createDesktopTauriConfigOverride({
+        command: 'build',
+        environment: {},
+      }),
+    ).toEqual({ bundle: { createUpdaterArtifacts: false } });
+  });
+
+  it('injects the protected updater public key only for configured release bundles', () => {
+    expect(
+      createDesktopTauriConfigOverride({
+        command: 'build',
+        arguments: [],
+        environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key' },
+      }),
+    ).toEqual({ plugins: { updater: { pubkey: 'release-public-key' } } });
+    expect(
+      createDesktopTauriConfigOverride({
+        command: 'dev',
+        arguments: [],
+        environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key' },
+      }),
+    ).toBeNull();
   });
 });

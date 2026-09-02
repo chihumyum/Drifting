@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
+
+import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoDir = path.resolve(path.dirname(scriptPath), '..');
@@ -75,6 +84,39 @@ export function describeDesktopOauthConfiguration(environment) {
   });
 }
 
+export function createDesktopTauriConfigOverride({
+  command,
+  arguments: tauriArguments = [],
+  environment,
+  macosSigningIdentity,
+}) {
+  if (command !== 'build') return null;
+
+  const debug = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
+  const updaterPublicKey = environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim();
+  if (debug || !updaterPublicKey) {
+    return {
+      bundle: {
+        createUpdaterArtifacts: false,
+        ...(macosSigningIdentity
+          ? { macOS: { signingIdentity: macosSigningIdentity } }
+          : {}),
+      },
+    };
+  }
+
+  // The key remains an environment-owned release input. Tauri's bundler also
+  // needs it in plugin configuration when createUpdaterArtifacts is enabled.
+  return { plugins: { updater: { pubkey: updaterPublicKey } } };
+}
+
+function writeTemporaryTauriConfig(configuration) {
+  const directory = mkdtempSync(path.join(tmpdir(), 'drifting-tauri-config-'));
+  const filePath = path.join(directory, 'tauri.override.json');
+  writeFileSync(filePath, `${JSON.stringify(configuration)}\n`, { mode: 0o600 });
+  return { directory, filePath };
+}
+
 export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const [command, ...forwarded] = rawArguments;
   if (!supportedCommands.has(command)) {
@@ -87,6 +129,22 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });
   const configuration = describeDesktopOauthConfiguration(environment);
+  const debugBuild = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
+  const updaterPublicKeyConfigured = Boolean(environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim());
+  const macosSigningIdentity =
+    command === 'build' &&
+    process.platform === 'darwin' &&
+    (debugBuild || !updaterPublicKeyConfigured)
+      ? resolveMacosDevSigningIdentity({
+          requestedIdentity: environment.DRIFTING_MACOS_DEV_SIGNING_IDENTITY,
+        })
+      : undefined;
+  const tauriConfigOverride = createDesktopTauriConfigOverride({
+    command,
+    arguments: tauriArguments,
+    environment,
+    macosSigningIdentity,
+  });
 
   console.log(
     configuration.googleDriveOAuthConfigured
@@ -94,29 +152,53 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
       : 'Google Drive desktop OAuth build configuration: missing (.env.local or shell environment)',
   );
 
-  const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-  const child = spawn(
-    pnpmExecutable,
-    ['--dir', repoDir, 'exec', 'tauri', command, ...tauriArguments],
-    {
-      cwd: repoDir,
-      env: environment,
-      stdio: 'inherit',
-    },
-  );
+  if (command === 'build') {
+    console.log(
+      tauriConfigOverride?.plugins?.updater
+        ? 'Signed updater artifacts: configured for this release build'
+        : 'Signed updater artifacts: disabled for this local/debug build',
+    );
+    if (macosSigningIdentity) {
+      console.log('Local macOS bundle signing: Apple Development identity configured');
+    }
+  }
 
-  await new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => {
-      if (signal) {
-        process.kill(process.pid, signal);
-        resolve();
-        return;
-      }
-      if (code === 0) resolve();
-      else reject(new Error(`Tauri ${command} exited with code ${code ?? 'unknown'}`));
+  const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  const temporaryConfig = tauriConfigOverride
+    ? writeTemporaryTauriConfig(tauriConfigOverride)
+    : null;
+  const effectiveArguments = temporaryConfig
+    ? [...tauriArguments, '--config', temporaryConfig.filePath]
+    : tauriArguments;
+  let exitSignal = null;
+
+  try {
+    const child = spawn(
+      pnpmExecutable,
+      ['--dir', repoDir, 'exec', 'tauri', command, ...effectiveArguments],
+      {
+        cwd: repoDir,
+        env: environment,
+        stdio: 'inherit',
+      },
+    );
+
+    await new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code, signal) => {
+        if (signal) {
+          exitSignal = signal;
+          resolve();
+          return;
+        }
+        if (code === 0) resolve();
+        else reject(new Error(`Tauri ${command} exited with code ${code ?? 'unknown'}`));
+      });
     });
-  });
+  } finally {
+    if (temporaryConfig) rmSync(temporaryConfig.directory, { recursive: true, force: true });
+  }
+  if (exitSignal) process.kill(process.pid, exitSignal);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
