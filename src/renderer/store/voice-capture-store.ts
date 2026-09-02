@@ -17,6 +17,7 @@ import { create } from 'zustand';
 import {
   createDashScopeTranscriptionProvider,
 } from '../lib/speech/dashscope-transcription';
+import { correctTranscriptByPinyin } from '../lib/speech/pinyin-correction';
 import { speechKeychain } from '../lib/speech/speech-credentials';
 import {
   SpeechTranscriptionError,
@@ -40,10 +41,13 @@ export interface VoiceCaptureState {
   errorKey: string | null;
   pendingSegments: number;
   failedSegments: number;
+  /** Proper nouns restored by the pinyin layer since recording started. */
+  lastCorrections: number;
+  lastTranscriptAt: number | null;
 
   openSession(projectId: string): void;
   closeSession(): Promise<void>;
-  startRecording(input: { context: string }): Promise<void>;
+  startRecording(input: { context: string; glossary?: readonly string[] }): Promise<void>;
   stopRecording(): Promise<void>;
   retryTranscription(): void;
   dismissError(): void;
@@ -52,6 +56,7 @@ export interface VoiceCaptureState {
 const recorder = new VoiceRecorder();
 let provider: SpeechTranscriptionProvider | null = null;
 let captureContext = '';
+let captureGlossary: readonly string[] = [];
 let queue: Promise<void> = Promise.resolve();
 const failed: VoiceRecorderSegment[] = [];
 
@@ -70,6 +75,17 @@ function errorKeyFor(error: unknown): string {
     return 'voiceAgent.error.transcribeFailed';
   }
   return 'voiceAgent.error.transcribeFailed';
+}
+
+/**
+ * Every failure of the capture pipeline is invisible at the OS level (no
+ * permission prompt, no recording indicator), so the underlying cause is
+ * logged for devtools alongside the i18n key the UI shows.
+ */
+function reportVoiceFailure(stage: string, errorKey: string, cause?: unknown): void {
+  const detail =
+    cause instanceof Error ? `${cause.name}: ${cause.message}` : cause === undefined ? '' : String(cause);
+  console.warn(`[voice-capture] ${stage} failed → ${errorKey}${detail ? ` (${detail})` : ''}`);
 }
 
 export const useVoiceCaptureStore = create<VoiceCaptureState>((set, get) => {
@@ -94,12 +110,29 @@ export const useVoiceCaptureStore = create<VoiceCaptureState>((set, get) => {
           mimeType: segment.mimeType,
           context: captureContext,
         });
-        appendToAgentPrompt(text);
-      } catch (error) {
-        failed.push(segment);
+        // The raw transcript is never held hostage by the correction layer.
+        let restored = { text, corrections: [] as { from: string; to: string }[] };
+        try {
+          restored = await correctTranscriptByPinyin(text, captureGlossary);
+        } catch (error) {
+          reportVoiceFailure('pinyin correction', 'skipped', error);
+        }
+        if (restored.corrections.length > 0) {
+          console.info('[voice-capture] restored proper nouns', restored.corrections);
+        }
+        appendToAgentPrompt(restored.text);
         set((state) => ({
           ...state,
-          errorKey: errorKeyFor(error),
+          lastCorrections: state.lastCorrections + restored.corrections.length,
+          lastTranscriptAt: Date.now(),
+        }));
+      } catch (error) {
+        failed.push(segment);
+        const errorKey = errorKeyFor(error);
+        reportVoiceFailure('transcription', errorKey, error);
+        set((state) => ({
+          ...state,
+          errorKey,
           failedSegments: failed.length,
         }));
       } finally {
@@ -116,6 +149,8 @@ export const useVoiceCaptureStore = create<VoiceCaptureState>((set, get) => {
     errorKey: null,
     pendingSegments: 0,
     failedSegments: 0,
+    lastCorrections: 0,
+    lastTranscriptAt: null,
 
     openSession: (projectId) => set({ sessionProjectId: projectId }),
 
@@ -124,17 +159,23 @@ export const useVoiceCaptureStore = create<VoiceCaptureState>((set, get) => {
       set({ sessionProjectId: null });
     },
 
-    startRecording: async ({ context }) => {
+    startRecording: async ({ context, glossary }) => {
       const state = get();
       if (state.phase === 'recording') return;
       if (!isVoiceRecordingSupported()) {
+        reportVoiceFailure(
+          'support check',
+          'voiceAgent.error.unsupported',
+          `MediaRecorder=${typeof MediaRecorder}, navigator.mediaDevices=${typeof navigator.mediaDevices}, isSecureContext=${String(globalThis.isSecureContext)}`,
+        );
         set({ phase: 'error', errorKey: 'voiceAgent.error.unsupported' });
         return;
       }
       let apiKey: string | null = null;
       try {
         apiKey = await speechKeychain.get();
-      } catch {
+      } catch (error) {
+        reportVoiceFailure('keychain read', 'voiceAgent.error.noKey', error);
         apiKey = null;
       }
       if (!apiKey) {
@@ -143,24 +184,53 @@ export const useVoiceCaptureStore = create<VoiceCaptureState>((set, get) => {
       }
       provider = createDashScopeTranscriptionProvider({ apiKey });
       captureContext = context;
+      captureGlossary = glossary ?? [];
       try {
-        await recorder.start({ onSegment: enqueue });
-      } catch {
+        await recorder.start({
+          onSegment: enqueue,
+          onError: (error) => {
+            reportVoiceFailure('recording', 'voiceAgent.error.recordingFailed', error);
+            set({
+              phase: 'error',
+              recordingStartedAt: null,
+              errorKey: 'voiceAgent.error.recordingFailed',
+            });
+          },
+        });
+      } catch (error) {
+        reportVoiceFailure('getUserMedia', 'voiceAgent.error.micDenied', error);
         set({ phase: 'error', errorKey: 'voiceAgent.error.micDenied' });
         return;
       }
-      set({ phase: 'recording', recordingStartedAt: Date.now(), errorKey: null });
+      set({
+        phase: 'recording',
+        recordingStartedAt: Date.now(),
+        errorKey: null,
+        lastCorrections: 0,
+        lastTranscriptAt: null,
+      });
     },
 
     stopRecording: async () => {
       if (get().phase !== 'recording') return;
-      // The final segment is emitted (and enqueued) before stop() resolves.
-      await recorder.stop();
-      set((state) => ({
-        ...state,
-        recordingStartedAt: null,
-        phase: state.pendingSegments > 0 ? 'transcribing' : state.errorKey ? 'error' : 'idle',
-      }));
+      // Leave the red recording state immediately. The final segment is
+      // emitted (and enqueued) before stop() resolves.
+      set({ phase: 'transcribing', recordingStartedAt: null });
+      try {
+        await recorder.stop();
+      } catch {
+        set({ phase: 'error', errorKey: 'voiceAgent.error.recordingFailed' });
+      } finally {
+        set((state) => ({
+          ...state,
+          recordingStartedAt: null,
+          phase: state.errorKey
+            ? 'error'
+            : state.pendingSegments > 0
+              ? 'transcribing'
+              : 'idle',
+        }));
+      }
       settle();
     },
 

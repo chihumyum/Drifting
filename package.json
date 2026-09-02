@@ -169,6 +169,7 @@
     "nanoid": "^5.1.6",
     "openai": "^6.39.0",
     "pdfjs-dist": "^6.2.108",
+    "pinyin-pro": "^3.29.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-i18next": "^16.0.0",

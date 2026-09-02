@@ -106,3 +106,41 @@ export function buildVoiceContextPackFromStores(input: {
     bookNodes: data.bookNodes,
   });
 }
+
+/**
+ * The exact spellings the deterministic post-ASR correction may restore:
+ * every element name and alias plus storyline names. Each entry is its own
+ * target — an alias the author actually spoke is restored as that alias,
+ * never rewritten to the canonical name.
+ */
+export function buildVoiceGlossary(input: {
+  projectId: string;
+  elements: readonly BookElement[];
+  storylines: readonly Storyline[];
+}): string[] {
+  const seen = new Set<string>();
+  const glossary: string[] = [];
+  const push = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    glossary.push(trimmed);
+  };
+  for (const element of input.elements) {
+    if (element.projectId !== input.projectId) continue;
+    allElementNames(element).forEach(push);
+  }
+  for (const storyline of input.storylines) {
+    if (storyline.projectId === input.projectId) push(storyline.name);
+  }
+  return glossary;
+}
+
+export function buildVoiceGlossaryFromStores(projectId: string): string[] {
+  const data = useDataStore.getState();
+  return buildVoiceGlossary({
+    projectId,
+    elements: data.bookElements,
+    storylines: data.storylines,
+  });
+}

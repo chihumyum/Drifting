@@ -49,9 +49,49 @@ describe('Voice capture acceptance wiring', () => {
     const store = source('store/voice-capture-store.ts');
     expect(store).toContain('speechKeychain.get()');
     expect(store).toContain("'voiceAgent.error.noKey'");
+    expect(store).toContain("'voiceAgent.error.recordingFailed'");
     expect(store).toContain('useAgentChatStore');
+    const recorder = source('lib/speech/voice-recorder.ts');
+    expect(recorder).toContain('VOICE_RECORDER_STOP_TIMEOUT_MS');
+    expect(recorder).toContain("'track-ended'");
+    expect(recorder).toContain('recorder.onerror');
     const cssShared = repoFile('src/styles/agent-panel.css');
     expect(cssShared).toContain('.agt-mic');
+  });
+
+  it('opts the macOS WKWebView into media capture and spells out every capture state', () => {
+    const rust = repoFile('src-tauri/src/webview_media.rs');
+    expect(rust).toContain('mediaDevicesEnabled');
+    expect(rust).toContain('respondsToSelector(objc2::sel!(_setMediaDevicesEnabled:))');
+    expect(repoFile('src-tauri/src/lib.rs')).toContain(
+      'webview_media::enable_media_devices(&window)?;',
+    );
+    expect(repoFile('src-tauri/Cargo.toml')).toContain('objc2-web-kit');
+
+    const button = source('features/agent/VoiceDictationButton.tsx');
+    expect(button).toContain('className="agt-mic__status"');
+    expect(button).toContain("t('voiceAgent.tapToStop')");
+    expect(button).toContain('onClick={retryTranscription}');
+    const store = source('store/voice-capture-store.ts');
+    expect(store).toContain('function reportVoiceFailure(');
+    expect(store).toContain("'support check'");
+    expect(store).toContain("reportVoiceFailure('getUserMedia'");
+  });
+
+  it('restores project proper nouns by pinyin after transcription on every surface', () => {
+    const store = source('store/voice-capture-store.ts');
+    expect(store).toContain('correctTranscriptByPinyin(text, captureGlossary)');
+    expect(store).toContain('appendToAgentPrompt(restored.text)');
+    expect(source('features/agent/VoiceDictationButton.tsx')).toContain(
+      'glossary: buildVoiceGlossaryFromStores(projectId)',
+    );
+    expect(source('shells/mobile/workspace/MobileVoiceFace.tsx')).toContain(
+      'glossary: buildVoiceGlossaryFromStores(projectId)',
+    );
+    const correction = source('lib/speech/pinyin-correction.ts');
+    expect(correction).toContain("import('pinyin-pro')");
+    expect(correction).toContain('FUZZY_MIN_SYLLABLES = 3');
+    expect(repoFile('package.json')).toContain('"pinyin-pro"');
   });
 
   it('keeps the BYOK transcription credential in the keychain, off the LLM provider union', () => {
@@ -97,8 +137,10 @@ describe('Voice capture acceptance wiring', () => {
         'endSession',
         'record',
         'stopRecord',
+        'tapToStop',
         'recording',
         'transcribing',
+        'corrected',
         'retry',
         'empty',
         'hint',
@@ -111,6 +153,7 @@ describe('Voice capture acceptance wiring', () => {
         'noKey',
         'unsupported',
         'micDenied',
+        'recordingFailed',
         'auth',
         'segmentRejected',
         'transcribeFailed',

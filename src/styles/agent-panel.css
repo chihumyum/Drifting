@@ -111,6 +111,38 @@
 .agt-mic__spin {
   animation: agt-mic-spin 0.9s linear infinite;
 }
+/* Spelled-out capture state beside the mic; shrinks before the send button. */
+.agt-mic__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: 11px;
+  color: hsl(var(--ink-3));
+}
+.agt-mic__status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agt-mic__status[data-state='recording'] {
+  color: hsl(4 72% 46%);
+}
+.agt-mic__status[data-state='error'] {
+  color: hsl(4 60% 44%);
+}
+.agt-mic__link {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 @keyframes agt-mic-spin {
   to {
     transform: rotate(360deg);

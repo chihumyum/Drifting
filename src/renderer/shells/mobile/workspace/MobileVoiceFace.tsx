@@ -15,7 +15,10 @@ import type { GeneralAgentAuthStatus } from '../../../lib/agent/protocol';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import { events } from '../../../lib/events';
 import { scrollToBlockWhenReady } from '../../../lib/scroll-to-block';
-import { buildVoiceContextPackFromStores } from '../../../lib/speech/voice-context-pack';
+import {
+  buildVoiceContextPackFromStores,
+  buildVoiceGlossaryFromStores,
+} from '../../../lib/speech/voice-context-pack';
 import {
   selectControlStatus,
   selectMessages,
@@ -47,6 +50,8 @@ function voiceEvidenceLabel(evidence: MobileAgentEvidenceRef, deletedLabel: stri
           : data.bookElementCategories.find((item) => item.id === evidence.entityId)?.name;
   return label || deletedLabel;
 }
+
+const CORRECTION_NOTE_MS = 8000;
 
 function formatElapsed(fromMs: number, nowMs: number): string {
   const total = Math.max(0, Math.floor((nowMs - fromMs) / 1000));
@@ -88,6 +93,8 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
   const errorKey = useVoiceCaptureStore((state) => state.errorKey);
   const failedSegments = useVoiceCaptureStore((state) => state.failedSegments);
   const recordingStartedAt = useVoiceCaptureStore((state) => state.recordingStartedAt);
+  const lastCorrections = useVoiceCaptureStore((state) => state.lastCorrections);
+  const lastTranscriptAt = useVoiceCaptureStore((state) => state.lastTranscriptAt);
   const startRecording = useVoiceCaptureStore((state) => state.startRecording);
   const stopRecording = useVoiceCaptureStore((state) => state.stopRecording);
   const retryTranscription = useVoiceCaptureStore((state) => state.retryTranscription);
@@ -138,6 +145,11 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
     return () => clearInterval(timer);
   }, [phase]);
   useEffect(() => {
+    if (lastTranscriptAt === null) return undefined;
+    const timer = setTimeout(() => setNow(Date.now()), CORRECTION_NOTE_MS);
+    return () => clearTimeout(timer);
+  }, [lastTranscriptAt]);
+  useEffect(() => {
     if (stickRef.current && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [controlStatus, messages, pendingControl]);
 
@@ -166,6 +178,7 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
     }
     await startRecording({
       context: buildVoiceContextPackFromStores({ projectId, projectName }),
+      glossary: buildVoiceGlossaryFromStores(projectId),
     });
   };
 
@@ -181,7 +194,11 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
         ? t('voiceAgent.transcribing')
         : errorKey
           ? t(errorKey)
-          : t('voiceAgent.hint');
+          : lastCorrections > 0 &&
+              lastTranscriptAt !== null &&
+              now - lastTranscriptAt < CORRECTION_NOTE_MS
+            ? t('voiceAgent.corrected', { count: lastCorrections })
+            : t('voiceAgent.hint');
 
   return (
     <div className="m-voice-face" role="dialog" aria-modal="true" aria-label={t('voiceAgent.title')}>
