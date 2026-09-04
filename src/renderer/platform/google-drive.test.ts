@@ -2,10 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tauriMocks = vi.hoisted(() => ({
   invoke: vi.fn(),
+  channels: [] as Array<{ onmessage: (event: unknown) => void }>,
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
-  Channel: class MockChannel {},
+  Channel: class MockChannel {
+    onmessage: (event: unknown) => void;
+
+    constructor(onmessage: (event: unknown) => void) {
+      this.onmessage = onmessage;
+      tauriMocks.channels.push(this);
+    }
+  },
   convertFileSrc: vi.fn(),
   invoke: tauriMocks.invoke,
 }));
@@ -25,6 +33,7 @@ import { GoogleDrivePlatformError, tauriPlatform } from './tauri';
 describe('Tauri native Google Drive platform boundary', () => {
   beforeEach(() => {
     tauriMocks.invoke.mockReset();
+    tauriMocks.channels.length = 0;
     Object.defineProperty(globalThis, '__TAURI_INTERNALS__', {
       configurable: true,
       value: {},
@@ -275,5 +284,54 @@ describe('Tauri native Google Drive platform boundary', () => {
     expect(tauriMocks.invoke).toHaveBeenCalledWith('google_drive_cancel_transfer', {
       transferId: 'transfer-a',
     });
+  });
+
+  it('streams sanitized byte progress through a transfer-local channel', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string, args: Record<string, unknown>) => {
+      if (command !== 'google_drive_upload_immutable') {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      const channel = args.onProgress as { onmessage: (event: unknown) => void };
+      channel.onmessage({
+        transferId: 'transfer-progress',
+        direction: 'upload',
+        transferredBytes: 8,
+        totalBytes: 42,
+      });
+      return {
+        ok: true,
+        value: {
+          status: 'created',
+          object: {
+            objectId: 'drive-file-progress',
+            objectKind: 'segment',
+            logicalKeyId: `sha256:${'a'.repeat(64)}`,
+            storedSha256: `sha256:${'b'.repeat(64)}`,
+            sizeBytes: 42,
+          },
+        },
+      };
+    });
+    const progress = vi.fn();
+
+    await tauriPlatform.googleDrive.uploadImmutable({
+      generationRef: 'syncdrive:generation-a',
+      sourceRef: 'syncobj:staged-object',
+      objectKind: 'segment',
+      logicalKeyId: `sha256:${'a'.repeat(64)}`,
+      storedSha256: `sha256:${'b'.repeat(64)}`,
+      sizeBytes: 42,
+      transferId: 'transfer-progress',
+      signal: new AbortController().signal,
+      onProgress: progress,
+    });
+
+    expect(progress).toHaveBeenCalledWith({
+      transferId: 'transfer-progress',
+      direction: 'upload',
+      transferredBytes: 8,
+      totalBytes: 42,
+    });
+    expect(tauriMocks.channels).toHaveLength(1);
   });
 });

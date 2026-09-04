@@ -8,9 +8,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Ban, Bell, CheckCircle2, Loader2, Sparkles, Trash2, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Ban,
+  Bell,
+  CheckCircle2,
+  Cloud,
+  Loader2,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
+import '../../../styles/notifications.css';
 
 const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
 
@@ -47,8 +58,11 @@ function relTime(
   return t('notifications.time.daysAgo', { count: Math.floor(d / 86_400_000) });
 }
 
-function sourceLabel(n: AppNotification): string {
-  return n.source === 'copilot' ? 'Copilot' : 'Copilot';
+function sourceLabel(
+  n: AppNotification,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  return n.source === 'google-drive' ? t('notifications.googleDrive.source') : 'Copilot';
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
@@ -167,14 +181,18 @@ export function NotificationPill() {
 
   const now = useNow(centerOpen);
 
-  // Priority: running Copilot icon (blink) > flash result icon > bell
+  // Priority: active work (source-specific blink) > flash result icon > bell.
   let iconEl: React.ReactNode;
   let iconColor: string;
   if (runningItem) {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
-      <span key="copilot-run" className="notif-blink-icon">
-        <Sparkles size={14} strokeWidth={1.8} />
+      <span key={`${runningItem.source}-run`} className="notif-blink-icon">
+        {runningItem.source === 'google-drive' ? (
+          <Cloud size={15} strokeWidth={1.8} />
+        ) : (
+          <Sparkles size={14} strokeWidth={1.8} />
+        )}
       </span>
     );
   } else if (flashResult) {
@@ -355,10 +373,12 @@ function NotificationCenter({
                   >
                     {n.source === 'copilot' ? (
                       <Sparkles size={9} />
+                    ) : n.source === 'google-drive' ? (
+                      <Cloud size={10} />
                     ) : (
                       <span style={{ fontStyle: 'italic' }}>◐</span>
                     )}
-                    {sourceLabel(n)}
+                    {sourceLabel(n, t)}
                   </span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: 'hsl(var(--ink-4))' }}>
                     {relTime(n.updatedAt, now, t)}
@@ -384,6 +404,25 @@ function NotificationCenter({
                     }}
                   >
                     {n.error || n.detail}
+                  </div>
+                )}
+                {n.state === 'running' && n.progress && (
+                  <div
+                    className={`notif-progress${n.progress.value === null ? ' notif-progress--indeterminate' : ''}`}
+                    role="progressbar"
+                    aria-label={t('notifications.googleDrive.progressLabel')}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    {...(n.progress.value === null
+                      ? {}
+                      : { 'aria-valuenow': Math.round(n.progress.value * 100) })}
+                  >
+                    <span
+                      className="notif-progress__fill"
+                      style={{
+                        width: n.progress.value === null ? '32%' : `${n.progress.value * 100}%`,
+                      }}
+                    />
                   </div>
                 )}
               </div>

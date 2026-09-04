@@ -1,0 +1,39 @@
+.notif-progress {
+  position: relative;
+  height: 3px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: hsl(var(--ink-1) / 0.1);
+}
+
+.notif-progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--accent));
+  transition: width 140ms ease-out;
+}
+
+.notif-progress--indeterminate .notif-progress__fill {
+  animation: notif-progress-scan 1.1s ease-in-out infinite;
+}
+
+@keyframes notif-progress-scan {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(330%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-progress__fill {
+    transition: none;
+  }
+
+  .notif-progress--indeterminate .notif-progress__fill {
+    animation: none;
+  }
+}

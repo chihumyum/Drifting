@@ -36,7 +36,12 @@ through the OpenID UserInfo endpoint, and Drive access stays confined to the
 account's hidden `appDataFolder`. Full inventory plus change cursors support automatic
 account-scoped project discovery. Same logical ID/hash/size is idempotent;
 different content under an existing identity fails closed. Uploads are
-resumable and downloads are streaming.
+resumable and downloads are streaming. Both native paths report only a
+transfer ID, direction, transferred byte count, and total byte count through a
+transfer-local Tauri channel. Upload reports resumable chunk commits (including
+the recovered offset); download reports streamed bytes. Credentials, session
+URIs, Drive object identity, payload bytes, and local paths remain outside that
+progress DTO, and a presentation-channel failure never fails the transfer.
 
 Desktop uses system-browser OAuth with loopback callback and PKCE. iOS uses
 Google Sign-In and Android uses `AuthorizationClient`. All return only an
@@ -61,7 +66,8 @@ app secret.
 
 Focused native/provider checks include `google_drive_sync`,
 `src/renderer/platform/google-drive.test.ts`, provider architecture/conformance,
-Tauri transport, desktop launcher environment, mobile OAuth architecture,
+Tauri transport, transfer-channel byte progress, desktop launcher environment,
+mobile OAuth architecture,
 typecheck, scoped ESLint, and
 `pnpm public:check`.
 

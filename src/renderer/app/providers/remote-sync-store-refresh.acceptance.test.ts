@@ -62,7 +62,7 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(picker).toContain('void fetchProjects()');
   });
 
-  it('binds sync progress and restored-tab cleanup to project identity', () => {
+  it('binds sync progress to top-right notifications and restored-tab cleanup to project identity', () => {
     const status = source('../../sync/engine/status-store.ts');
     expect(status).toContain('readonly projectId?: string | null');
 
@@ -71,17 +71,23 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(projectRuntime).toContain('className="app-workspace-blocking-status"');
 
     const footer = source('../../components/BottomStatusBar.tsx');
-    expect(footer).toContain('generation.projectId === projectId');
-    expect(footer).toContain("phase === 'pulling'");
-    expect(footer).toContain("phase === 'ingesting' || phase === 'applying'");
-    expect(footer).toContain('role="status"');
-    expect(footer).toContain('aria-live="polite"');
+    expect(footer).not.toContain('useProductSyncRuntime');
+    expect(footer).not.toContain('bsb__storage');
+
+    const notificationFeed = source('../../hooks/useNotificationFeed.ts');
+    expect(notificationFeed).toContain('productSyncRuntimeControl.subscribe(inspect)');
+    expect(notificationFeed).toContain("source: 'google-drive'");
+    expect(notificationFeed).toContain('generation.transferProgress');
+
+    const notification = source('../../components/notifications/NotificationPill.tsx');
+    expect(notification).toContain('n.progress.value * 100');
+    expect(notification).toContain('role="progressbar"');
 
     const zh = source('../../locales/zh-CN.json');
     expect(zh).toContain('"syncingProject": "正在更新项目结构…"');
     expect(zh).toContain('完成前，这个项目暂时无法编辑。');
-    expect(zh).toContain('"checking": "正在检查 Google Drive 更新"');
-    expect(zh).toContain('"applying": "正在应用 Google Drive 更改"');
+    expect(zh).toContain('"downloading": "正在从 Google Drive 拉取…"');
+    expect(zh).toContain('"uploadingChanges": "正在向 Google Drive 推送更改…"');
 
     const en = source('../../locales/en.json');
     expect(en).toContain('"syncingProject": "Updating project structure…"');

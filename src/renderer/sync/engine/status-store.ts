@@ -9,6 +9,18 @@ export interface SyncGenerationPendingDiagnostics {
   readonly quarantinedObjects: number;
 }
 
+export type SyncGenerationTransferStage = 'download' | 'upload-assets' | 'upload-changes';
+
+export interface SyncGenerationTransferProgress {
+  readonly stage: SyncGenerationTransferStage;
+  readonly completedObjects: number;
+  readonly totalObjects: number;
+  readonly transferredBytes: number;
+  readonly totalBytes: number;
+  /** Pull inventory can discover more objects while already transferring a page. */
+  readonly totalKnown: boolean;
+}
+
 export interface SyncGenerationRuntimeStatus {
   readonly syncGenerationId: string;
   /** Project-scoped UI identity; null for legacy/test runtimes. */
@@ -21,6 +33,7 @@ export interface SyncGenerationRuntimeStatus {
   readonly lastOutcome: SyncGenerationCycleStatus['lastOutcome'];
   readonly lastFailedPhase: SyncGenerationCycleStatus['lastFailedPhase'];
   readonly lastErrorCode: string | null;
+  readonly transferProgress: SyncGenerationTransferProgress | null;
   readonly pending: SyncGenerationPendingDiagnostics;
 }
 
@@ -69,6 +82,7 @@ export class SyncEngineStatusStore {
     syncGenerationId: string,
     status: SyncGenerationCycleStatus,
     projectId?: string,
+    transferProgress: SyncGenerationTransferProgress | null = null,
   ): void {
     const previous = this.statuses.get(syncGenerationId);
     this.statuses.set(syncGenerationId, Object.freeze({
@@ -82,6 +96,7 @@ export class SyncEngineStatusStore {
       lastOutcome: status.lastOutcome,
       lastFailedPhase: status.lastFailedPhase,
       lastErrorCode: errorCode(status.lastError),
+      transferProgress: transferProgress ? Object.freeze({ ...transferProgress }) : null,
       pending: previous?.pending ?? emptyPending,
     }));
     this.emit();
@@ -104,6 +119,7 @@ export class SyncEngineStatusStore {
       lastOutcome: previous?.lastOutcome ?? null,
       lastFailedPhase: previous?.lastFailedPhase ?? null,
       lastErrorCode: previous?.lastErrorCode ?? null,
+      transferProgress: previous?.transferProgress ?? null,
       pending: Object.freeze({ ...pending }),
     }));
     this.emit();
@@ -127,7 +143,13 @@ export class SyncEngineStatusStore {
       generations: Object.freeze(
         [...this.statuses.values()]
           .sort((left, right) => left.syncGenerationId < right.syncGenerationId ? -1 : left.syncGenerationId > right.syncGenerationId ? 1 : 0)
-          .map((status) => Object.freeze({ ...status, pending: Object.freeze({ ...status.pending }) })),
+          .map((status) => Object.freeze({
+            ...status,
+            transferProgress: status.transferProgress
+              ? Object.freeze({ ...status.transferProgress })
+              : null,
+            pending: Object.freeze({ ...status.pending }),
+          })),
       ),
     });
   }

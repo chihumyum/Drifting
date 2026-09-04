@@ -178,6 +178,13 @@ export interface GoogleDriveNativeRemoteObject {
   sizeBytes: number;
 }
 
+export interface GoogleDriveTransferProgressEvent {
+  transferId: string;
+  direction: 'upload' | 'download';
+  transferredBytes: number;
+  totalBytes: number;
+}
+
 export interface GoogleDriveNativeProjectSnapshotCandidate {
   syncGenerationId: string;
   object: GoogleDriveNativeRemoteObject & { objectKind: 'snapshot-commit' };
@@ -594,6 +601,7 @@ export interface TauriCommandContract {
       storedSha256: string;
       sizeBytes: number;
       transferId: string;
+      onProgress: unknown;
     };
     result: GoogleDriveNativeResult<{
       status: 'created' | 'already-present';
@@ -607,6 +615,7 @@ export interface TauriCommandContract {
       destinationRef: string;
       expectedStoredSha256: string;
       transferId: string;
+      onProgress: unknown;
     };
     result: GoogleDriveNativeResult<{
       destinationRef: string;

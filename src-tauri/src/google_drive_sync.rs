@@ -28,7 +28,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use tauri::Manager as _;
-use tauri::{AppHandle, State};
+use tauri::{ipc::Channel, AppHandle, State};
 #[cfg(any(target_os = "ios", target_os = "android"))]
 use tauri_plugin_drifting_google_drive_oauth::{
     GoogleDriveOAuthExt as _, MobileOAuthResponse, MobileOperationDiagnostics,
@@ -66,6 +66,7 @@ const CREDENTIAL_OWNERSHIP_CLAIMED: &str = "claimed";
 const OAUTH_SCOPES: &str = "openid https://www.googleapis.com/auth/drive.appdata";
 const APP_DATA_FOLDER: &str = "appDataFolder";
 const RESUMABLE_CHUNK_BYTES: u64 = 8 * 1024 * 1024;
+const PROGRESS_REPORT_INTERVAL_BYTES: u64 = 256 * 1024;
 const MAX_REMOTE_OBJECT_BYTES: u64 = 513 * 1024 * 1024;
 const MAX_JSON_BYTES: usize = 2 * 1024 * 1024;
 const MAX_ERROR_BYTES: usize = 64 * 1024;
@@ -81,6 +82,30 @@ const PROP_LOGICAL: &str = "driftingLogicalKeyId";
 const PROP_HASH: &str = "driftingStoredSha256";
 const PROP_SIZE: &str = "driftingSizeBytes";
 const PROTOCOL_VALUE: &str = "object-v2";
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TransferProgressEvent {
+    transfer_id: String,
+    direction: &'static str,
+    transferred_bytes: u64,
+    total_bytes: u64,
+}
+
+fn report_transfer_progress(
+    channel: &Channel<TransferProgressEvent>,
+    transfer_id: &str,
+    direction: &'static str,
+    transferred_bytes: u64,
+    total_bytes: u64,
+) {
+    let _ = channel.send(TransferProgressEvent {
+        transfer_id: transfer_id.to_owned(),
+        direction,
+        transferred_bytes,
+        total_bytes,
+    });
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, Zeroize, ZeroizeOnDrop)]
 #[serde(rename_all = "camelCase")]
@@ -2563,6 +2588,7 @@ async fn upload_impl(
     stored_sha256: String,
     size_bytes: u64,
     transfer_id: String,
+    on_progress: Channel<TransferProgressEvent>,
 ) -> Result<UploadResult, NativeError> {
     validate_logical_key_id(&logical_key_id)?;
     validate_hash(&stored_sha256)?;
@@ -2596,6 +2622,7 @@ async fn upload_impl(
             false,
         )
     })?;
+    report_transfer_progress(&on_progress, &transfer_id, "upload", 0, size_bytes);
 
     if let Some(existing) = stat_immutable(&app, state, &generation, kind, &logical_key_id).await? {
         if existing.stored_sha256 == stored_sha256 && existing.size_bytes == size_bytes {
@@ -2606,6 +2633,7 @@ async fn upload_impl(
             })
             .await
             .map_err(|_| NativeError::configuration("Secure storage worker failed"))??;
+            report_transfer_progress(&on_progress, &transfer_id, "upload", size_bytes, size_bytes);
             return Ok(UploadResult {
                 status: "already-present",
                 object: existing,
@@ -2724,12 +2752,14 @@ async fn upload_impl(
             })
             .await
             .map_err(|_| NativeError::configuration("Secure storage worker failed"))??;
+            report_transfer_progress(&on_progress, &transfer_id, "upload", size_bytes, size_bytes);
             return Ok(UploadResult {
                 status: "created",
                 object,
             });
         }
         offset = remote_offset;
+        report_transfer_progress(&on_progress, &transfer_id, "upload", offset, size_bytes);
     }
     debug_assert!(!resumed || offset <= size_bytes);
 
@@ -2783,6 +2813,7 @@ async fn upload_impl(
             })
             .await
             .map_err(|_| NativeError::configuration("Secure storage worker failed"))??;
+            report_transfer_progress(&on_progress, &transfer_id, "upload", size_bytes, size_bytes);
             return Ok(UploadResult {
                 status: "created",
                 object,
@@ -2798,6 +2829,7 @@ async fn upload_impl(
             ));
         }
         offset = next;
+        report_transfer_progress(&on_progress, &transfer_id, "upload", offset, size_bytes);
     }
     let (_, completed) =
         query_upload_offset(&app, state, &generation, &session.session_uri, size_bytes).await?;
@@ -2815,6 +2847,7 @@ async fn upload_impl(
     })
     .await
     .map_err(|_| NativeError::configuration("Secure storage worker failed"))??;
+    report_transfer_progress(&on_progress, &transfer_id, "upload", size_bytes, size_bytes);
     Ok(UploadResult {
         status: "created",
         object,
@@ -2868,6 +2901,7 @@ async fn download_impl(
     destination_ref: String,
     expected_stored_sha256: String,
     transfer_id: String,
+    on_progress: Channel<TransferProgressEvent>,
 ) -> Result<DownloadResult, NativeError> {
     validate_hash(&expected_stored_sha256)?;
     validate_plain_token(&transfer_id, "Transfer ID", 200)?;
@@ -2877,6 +2911,13 @@ async fn download_impl(
             "Drive download hash conflicts with immutable metadata",
         ));
     }
+    report_transfer_progress(
+        &on_progress,
+        &transfer_id,
+        "download",
+        0,
+        metadata.size_bytes,
+    );
     let app_for_path = app.clone();
     let destination_for_path = destination_ref.clone();
     let destination = tauri::async_runtime::spawn_blocking(move || {
@@ -2946,6 +2987,7 @@ async fn download_impl(
         })?;
     let mut digest = Sha256::new();
     let mut total = 0_u64;
+    let mut last_reported = 0_u64;
     let mut stream = response.bytes_stream();
     while let Some(next) = tokio::time::timeout(HTTP_TIMEOUT, stream.next())
         .await
@@ -2968,6 +3010,18 @@ async fn download_impl(
                 false,
             )
         })?;
+        if total == metadata.size_bytes
+            || total.saturating_sub(last_reported) >= PROGRESS_REPORT_INTERVAL_BYTES
+        {
+            report_transfer_progress(
+                &on_progress,
+                &transfer_id,
+                "download",
+                total,
+                metadata.size_bytes,
+            );
+            last_reported = total;
+        }
     }
     if total != metadata.size_bytes {
         return Err(NativeError::corrupt("Drive download was truncated"));
@@ -3254,6 +3308,7 @@ pub(crate) async fn google_drive_upload_immutable(
     stored_sha256: String,
     size_bytes: u64,
     transfer_id: String,
+    on_progress: Channel<TransferProgressEvent>,
 ) -> Result<NativeResult<UploadResult>, String> {
     let result = match state.require_generation(&generation_ref) {
         Ok(generation) => {
@@ -3267,6 +3322,7 @@ pub(crate) async fn google_drive_upload_immutable(
                 stored_sha256,
                 size_bytes,
                 transfer_id.clone(),
+                on_progress,
             );
             run_transfer(&state, transfer_id, Box::pin(operation)).await
         }
@@ -3284,6 +3340,7 @@ pub(crate) async fn google_drive_download_verified_immutable(
     destination_ref: String,
     expected_stored_sha256: String,
     transfer_id: String,
+    on_progress: Channel<TransferProgressEvent>,
 ) -> Result<NativeResult<DownloadResult>, String> {
     let result = match state.require_generation(&generation_ref) {
         Ok(generation) => {
@@ -3295,6 +3352,7 @@ pub(crate) async fn google_drive_download_verified_immutable(
                 destination_ref,
                 expected_stored_sha256,
                 transfer_id.clone(),
+                on_progress,
             );
             run_transfer(&state, transfer_id, Box::pin(operation)).await
         }

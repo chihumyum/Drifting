@@ -128,6 +128,35 @@ describe('SyncEngineCoordinator runtime integration', () => {
     });
   });
 
+  it('projects transfer counters without provider refs or object identities', () => {
+    const coordinator = new SyncEngineCoordinator();
+    const projectRuntime = runtime('sync-generation-progress', []);
+    Object.assign(projectRuntime, {
+      projectId: 'project-progress',
+      transferProgress: {
+        stage: 'download',
+        completedObjects: 2,
+        totalObjects: 4,
+        transferredBytes: 256,
+        totalBytes: 1024,
+        totalKnown: true,
+      },
+    });
+    coordinator.register(projectRuntime);
+
+    expect(coordinator.diagnostics().generations[0]?.transferProgress).toEqual({
+      stage: 'download',
+      completedObjects: 2,
+      totalObjects: 4,
+      transferredBytes: 256,
+      totalBytes: 1024,
+      totalKnown: true,
+    });
+    expect(JSON.stringify(coordinator.diagnostics())).not.toMatch(
+      /logicalKeyId|objectId|transferId|storageRef/u,
+    );
+  });
+
   it('wires authored debounce, lifecycle, resume and online signals without doing work in callbacks', async () => {
     const observed: SchedulerTrigger[][] = [];
     const coordinator = new SyncEngineCoordinator();

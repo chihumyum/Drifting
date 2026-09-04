@@ -731,6 +731,75 @@ describe('SQLite durable SyncEngine runtime', () => {
     expect(await b.db.select().from(SyncApplyReceiptTable)).toHaveLength(2);
   });
 
+  it('publishes real object and byte progress for outbound and inbound transfers', async () => {
+    const localObjects = new MemoryProviderLocalObjectStore();
+    const provider = new MemoryObjectLogProvider(localObjects);
+    const publisher = await createDevice({
+      id: 'progress-publisher',
+      provider,
+      localObjects,
+      clockMs: 1_000,
+    });
+    const reader = await createDevice({
+      id: 'progress-reader',
+      provider,
+      localObjects,
+      clockMs: 2_000,
+    });
+    const outbound: NonNullable<typeof publisher.runtime.transferProgress>[] = [];
+    const inbound: NonNullable<typeof reader.runtime.transferProgress>[] = [];
+    const stopPublisher = publisher.runtime.subscribeStatus((runtime) => {
+      if (runtime.transferProgress) outbound.push({ ...runtime.transferProgress });
+    });
+    const stopReader = reader.runtime.subscribeStatus((runtime) => {
+      if (runtime.transferProgress) inbound.push({ ...runtime.transferProgress });
+    });
+
+    await authorTitle(publisher, 'Progress is visible', 1_000);
+    await cycle(publisher);
+    await cycle(reader, 'start');
+
+    expect(outbound).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'upload-changes',
+          completedObjects: 0,
+          totalObjects: 1,
+          transferredBytes: 0,
+          totalKnown: true,
+        }),
+        expect.objectContaining({
+          stage: 'upload-changes',
+          completedObjects: 1,
+          totalObjects: 1,
+          totalKnown: true,
+        }),
+      ]),
+    );
+    expect(inbound).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'download',
+          completedObjects: 1,
+          totalObjects: 1,
+          totalKnown: true,
+        }),
+      ]),
+    );
+    const completedOutbound = outbound.find(
+      (progress) =>
+        progress.stage === 'upload-changes' && progress.completedObjects === 1,
+    );
+    const completedInbound = inbound.find(
+      (progress) => progress.stage === 'download' && progress.completedObjects === 1,
+    );
+    expect(completedOutbound?.transferredBytes).toBe(completedOutbound?.totalBytes);
+    expect(completedInbound?.transferredBytes).toBe(completedInbound?.totalBytes);
+
+    stopPublisher();
+    stopReader();
+  });
+
   it('classifies pure remote Yjs as non-blocking and structural effects as workspace-impacting', async () => {
     const localObjects = new MemoryProviderLocalObjectStore();
     const provider = new MemoryObjectLogProvider(localObjects);

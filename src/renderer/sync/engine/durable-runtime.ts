@@ -54,6 +54,7 @@ import {
   type SegmentV1,
   type Sha256,
   type SyncObjectKind,
+  type TransferProgress,
 } from '../protocol';
 import {
   canAdvanceContiguousFrontier,
@@ -75,7 +76,11 @@ import {
 } from './segmenter';
 import type { SchedulerTrigger } from './scheduler';
 import { createProviderTransferId } from './transfer-id';
-import type { SyncGenerationPendingDiagnostics } from './status-store';
+import type {
+  SyncGenerationPendingDiagnostics,
+  SyncGenerationTransferProgress,
+  SyncGenerationTransferStage,
+} from './status-store';
 import { SyncGenerationCycleLane, type CycleClock, type SyncGenerationCycleResult } from './cycle';
 
 const MAX_PROVIDER_PAGES_PER_CYCLE = 10_000;
@@ -162,6 +167,11 @@ interface DurableDownload {
   readonly quarantineCollision: boolean;
 }
 
+interface StagedRemoteObject {
+  readonly disposition: 'inbox' | 'quarantined';
+  readonly transferred: boolean;
+}
+
 interface DownloadedSegmentRow {
   readonly remoteId: string;
   readonly providerObjectId: string;
@@ -179,6 +189,15 @@ interface PublishableLocalObject {
   readonly storageRef: string;
   readonly storedSha256: string;
   readonly sizeBytes: number;
+}
+
+interface MutableTransferProgress {
+  stage: SyncGenerationTransferStage;
+  completedObjects: number;
+  totalObjects: number;
+  completedBytes: number;
+  totalBytes: number;
+  totalKnown: boolean;
 }
 
 const systemClock: SyncEngineRuntimeClock = {
@@ -247,6 +266,22 @@ function assertNotAborted(signal: AbortSignal): void {
   throw signal.reason instanceof Error
     ? signal.reason
     : new Error(`SyncEngine cycle cancelled: ${String(signal.reason ?? 'aborted')}`);
+}
+
+function validatedTransferredBytes(
+  progress: TransferProgress,
+  expectedTotalBytes: number,
+): number | null {
+  if (
+    !Number.isSafeInteger(progress.transferredBytes) ||
+    progress.transferredBytes < 0 ||
+    !Number.isSafeInteger(progress.totalBytes) ||
+    progress.totalBytes !== expectedTotalBytes ||
+    progress.transferredBytes > progress.totalBytes
+  ) {
+    return null;
+  }
+  return progress.transferredBytes;
 }
 
 function isInvalidProviderToken(error: unknown): boolean {
@@ -321,6 +356,7 @@ export class SqliteSyncGenerationRuntime {
   private readonly stateRepository: SqliteSyncEngineStateRepository;
   private providerGenerationPromise: Promise<ProviderGeneration> | null = null;
   private activeTriggers: ReadonlySet<SchedulerTrigger> = new Set();
+  private currentTransferProgress: SyncGenerationTransferProgress | null = null;
   private readonly lane: SyncGenerationCycleLane;
 
   constructor(options: SqliteSyncGenerationRuntimeOptions) {
@@ -370,12 +406,19 @@ export class SqliteSyncGenerationRuntime {
         publishBlobs: (signal) => this.publishBlobs(signal),
         publishSegments: (signal) => this.publishSegments(signal),
       },
-      onPhaseChange: () => this.emitStatus(),
+      onPhaseChange: () => {
+        this.currentTransferProgress = null;
+        this.emitStatus();
+      },
     });
   }
 
   get status() {
     return this.lane.status;
+  }
+
+  get transferProgress(): SyncGenerationTransferProgress | null {
+    return this.currentTransferProgress;
   }
 
   subscribeStatus(listener: (runtime: SqliteSyncGenerationRuntime) => void): () => void {
@@ -451,6 +494,60 @@ export class SqliteSyncGenerationRuntime {
   private emitStatus(): void {
     this.onStatus?.(this);
     for (const listener of this.statusListeners) listener(this);
+  }
+
+  private startTransferProgress(
+    stage: SyncGenerationTransferStage,
+    totalKnown: boolean,
+  ): MutableTransferProgress {
+    const progress: MutableTransferProgress = {
+      stage,
+      completedObjects: 0,
+      totalObjects: 0,
+      completedBytes: 0,
+      totalBytes: 0,
+      totalKnown,
+    };
+    this.publishTransferProgress(progress);
+    return progress;
+  }
+
+  private addTransferProgressObjects(
+    progress: MutableTransferProgress,
+    objects: readonly { sizeBytes: number }[],
+  ): void {
+    progress.totalObjects += objects.length;
+    progress.totalBytes += objects.reduce((sum, object) => sum + object.sizeBytes, 0);
+    this.publishTransferProgress(progress);
+  }
+
+  private publishTransferProgress(
+    progress: MutableTransferProgress,
+    currentObjectBytes = 0,
+  ): void {
+    this.currentTransferProgress = Object.freeze({
+      stage: progress.stage,
+      completedObjects: progress.completedObjects,
+      totalObjects: progress.totalObjects,
+      transferredBytes: Math.min(
+        progress.totalBytes,
+        progress.completedBytes + Math.max(0, currentObjectBytes),
+      ),
+      totalBytes: progress.totalBytes,
+      totalKnown: progress.totalKnown,
+    });
+    this.emitStatus();
+  }
+
+  private completeTransferProgressObject(
+    progress: MutableTransferProgress,
+    sizeBytes: number,
+    transferred = true,
+  ): void {
+    progress.completedObjects += 1;
+    if (transferred) progress.completedBytes += sizeBytes;
+    else progress.totalBytes -= sizeBytes;
+    this.publishTransferProgress(progress);
   }
 
   private async persistSuccessfulCycleStatus(result: SyncGenerationCycleResult): Promise<void> {
@@ -1002,6 +1099,7 @@ export class SqliteSyncGenerationRuntime {
     state ??= createDurableCursorState(providerEpoch);
     for (;;) {
       let objectCount = 0;
+      const progress = this.startTransferProgress('download', false);
 
       try {
         if (!state.inventoryComplete) {
@@ -1024,6 +1122,7 @@ export class SqliteSyncGenerationRuntime {
               page.objects.map((object) => ({ kind: 'present', object })),
               signal,
               observedProviderCursor(inventoryObservationCursor),
+              progress,
             );
             objectCount += page.objects.length;
             state = commitDurableInventoryPage(state, {
@@ -1057,6 +1156,7 @@ export class SqliteSyncGenerationRuntime {
             page.changes,
             signal,
             observedProviderCursor(request.cursor),
+            progress,
           );
           objectCount += page.changes.filter((change) => change.kind === 'present').length;
           state = commitDurableChangePage(state, {
@@ -1071,7 +1171,9 @@ export class SqliteSyncGenerationRuntime {
             throw new Error('provider changes exceeded the per-cycle page safety limit');
           }
         }
-        objectCount += await this.stageObservedSegmentBacklog(generation, signal);
+        objectCount += await this.stageObservedSegmentBacklog(generation, signal, progress);
+        progress.totalKnown = true;
+        this.publishTransferProgress(progress);
         return { objectCount };
       } catch (error) {
         if (
@@ -1097,6 +1199,7 @@ export class SqliteSyncGenerationRuntime {
   private async stageObservedSegmentBacklog(
     generation: ProviderGeneration,
     signal: AbortSignal,
+    progress: MutableTransferProgress,
   ): Promise<number> {
     const rows = await this.db
       .select({
@@ -1124,11 +1227,13 @@ export class SqliteSyncGenerationRuntime {
           isNull(SyncTransferTable.transferId),
         ),
       );
+    this.addTransferProgressObjects(progress, rows);
     let staged = 0;
     for (const row of rows) {
       assertNotAborted(signal);
       if (row.completedTransferId !== null || row.objectKind !== 'segment') continue;
-      await this.stageRemoteObject(
+      let transferComplete = false;
+      const stagedObject = await this.stageRemoteObject(
         generation,
         {
           objectId: row.objectId as ProviderObjectId,
@@ -1138,8 +1243,14 @@ export class SqliteSyncGenerationRuntime {
           sizeBytes: row.sizeBytes,
         },
         signal,
+        undefined,
+        (currentBytes) => {
+          if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+        },
       );
+      transferComplete = true;
       staged += 1;
+      this.completeTransferProgressObject(progress, row.sizeBytes, stagedObject.transferred);
     }
     return staged;
   }
@@ -1149,9 +1260,14 @@ export class SqliteSyncGenerationRuntime {
     changes: readonly RemoteObjectChange[],
     signal: AbortSignal,
     observedCursor?: string,
+    progress?: MutableTransferProgress,
   ): Promise<DurablePageReceipt> {
     const receipt = emptyPageReceipt();
     receipt.itemCount = changes.length;
+    const presentObjects = changes.flatMap((change) =>
+      change.kind === 'present' ? [change.object] : [],
+    );
+    if (progress) this.addTransferProgressObjects(progress, presentObjects);
     for (const change of changes) {
       assertNotAborted(signal);
       if (change.kind === 'removed') {
@@ -1164,14 +1280,28 @@ export class SqliteSyncGenerationRuntime {
         }
         continue;
       }
-      const disposition = await this.stageRemoteObject(
+      let transferComplete = false;
+      const stagedObject = await this.stageRemoteObject(
         generation,
         change.object,
         signal,
         observedCursor,
+        progress
+          ? (currentBytes) => {
+              if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+            }
+          : undefined,
       );
-      if (disposition === 'quarantined') receipt.quarantinedWithRawBytes += 1;
+      transferComplete = true;
+      if (stagedObject.disposition === 'quarantined') receipt.quarantinedWithRawBytes += 1;
       else receipt.durableInbox += 1;
+      if (progress) {
+        this.completeTransferProgressObject(
+          progress,
+          change.object.sizeBytes,
+          stagedObject.transferred,
+        );
+      }
     }
     return receipt;
   }
@@ -1213,9 +1343,15 @@ export class SqliteSyncGenerationRuntime {
     remote: RemoteObject,
     signal: AbortSignal,
     observedCursor?: string,
-  ): Promise<'inbox' | 'quarantined'> {
+    onProgress?: (transferredBytes: number) => void,
+  ): Promise<StagedRemoteObject> {
     const prepared = await this.prepareDownload(remote, observedCursor);
-    if (!prepared.downloadRequired) return prepared.quarantineCollision ? 'quarantined' : 'inbox';
+    if (!prepared.downloadRequired) {
+      return {
+        disposition: prepared.quarantineCollision ? 'quarantined' : 'inbox',
+        transferred: false,
+      };
+    }
     try {
       const result = await this.provider.downloadImmutable({
         generation,
@@ -1224,6 +1360,10 @@ export class SqliteSyncGenerationRuntime {
         expectedStoredSha256: remote.storedSha256,
         transferId: prepared.transferId,
         signal,
+        onProgress: (event) => {
+          const transferredBytes = validatedTransferredBytes(event, remote.sizeBytes);
+          if (transferredBytes !== null) onProgress?.(transferredBytes);
+        },
       });
       if (
         result.destinationRef !== prepared.destinationRef ||
@@ -1263,7 +1403,10 @@ export class SqliteSyncGenerationRuntime {
           });
         }
       });
-      return prepared.quarantineCollision ? 'quarantined' : 'inbox';
+      return {
+        disposition: prepared.quarantineCollision ? 'quarantined' : 'inbox',
+        transferred: true,
+      };
     } catch (error) {
       const nowIso = this.clock.nowIso();
       await this.db
@@ -2055,10 +2198,20 @@ export class SqliteSyncGenerationRuntime {
           inArray(SyncBlobStateTable.remoteState, ['missing', 'publishing']),
         ),
       );
+    const progress = this.startTransferProgress('upload-assets', true);
+    this.addTransferProgressObjects(progress, rows);
     let countPublished = 0;
     for (const row of rows) {
       assertNotAborted(signal);
-      await this.publishLocalObject({ ...row, objectKind: 'blob' }, signal);
+      let transferComplete = false;
+      const uploaded = await this.publishLocalObject(
+        { ...row, objectKind: 'blob' },
+        signal,
+        (currentBytes) => {
+          if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+        },
+      );
+      transferComplete = true;
       await this.db
         .update(SyncBlobStateTable)
         .set({ remoteState: 'available', updatedAt: this.clock.nowIso() })
@@ -2069,6 +2222,7 @@ export class SqliteSyncGenerationRuntime {
           ),
         );
       countPublished += 1;
+      this.completeTransferProgressObject(progress, row.sizeBytes, uploaded.transferred);
     }
     return { objectCount: countPublished };
   }
@@ -2106,14 +2260,27 @@ export class SqliteSyncGenerationRuntime {
         asc(SyncSegmentTable.writerEpoch),
         asc(SyncSegmentTable.firstSeq),
       );
-    let countPublished = 0;
+    const publishableRows: typeof rows = [];
     for (const row of rows) {
+      if (await this.requiredBlobsRemoteAvailable(row.requiredBlobIdsCbor)) {
+        publishableRows.push(row);
+      }
+    }
+    const progress = this.startTransferProgress('upload-changes', true);
+    this.addTransferProgressObjects(progress, publishableRows);
+    let countPublished = 0;
+    for (const row of publishableRows) {
       assertNotAborted(signal);
-      if (!(await this.requiredBlobsRemoteAvailable(row.requiredBlobIdsCbor))) continue;
-      const remote = await this.publishLocalObject(
+      let transferComplete = false;
+      const uploaded = await this.publishLocalObject(
         { ...row, objectKind: 'segment' },
         signal,
+        (currentBytes) => {
+          if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+        },
       );
+      transferComplete = true;
+      const remote = uploaded.object;
       const frontier = await this.stateRepository.loadWriterFrontier({
         syncGenerationId: this.syncGenerationId,
         writerId: row.writerId,
@@ -2171,6 +2338,7 @@ export class SqliteSyncGenerationRuntime {
         }
       });
       countPublished += 1;
+      this.completeTransferProgressObject(progress, row.sizeBytes, uploaded.transferred);
     }
     return { objectCount: countPublished };
   }
@@ -2194,7 +2362,8 @@ export class SqliteSyncGenerationRuntime {
   private async publishLocalObject(
     local: PublishableLocalObject,
     signal: AbortSignal,
-  ): Promise<RemoteObject> {
+    onProgress?: (transferredBytes: number) => void,
+  ): Promise<{ object: RemoteObject; transferred: boolean }> {
     const generation = await this.providerGeneration();
     const storedSha256 = protocolSha256(local.storedSha256);
     const identity = { generation, objectKind: local.objectKind, logicalKeyId: local.logicalKeyId };
@@ -2239,7 +2408,7 @@ export class SqliteSyncGenerationRuntime {
           throw new Error(`provider immutable key ${local.logicalKeyId} has conflicting bytes`);
         }
         await this.completeUploadReceipt(local, transferId, existing);
-        return existing;
+        return { object: existing, transferred: false };
       }
       const result = await this.provider.uploadImmutable({
         generation,
@@ -2250,9 +2419,13 @@ export class SqliteSyncGenerationRuntime {
         sizeBytes: local.sizeBytes,
         transferId,
         signal,
+        onProgress: (event) => {
+          const transferredBytes = validatedTransferredBytes(event, local.sizeBytes);
+          if (transferredBytes !== null) onProgress?.(transferredBytes);
+        },
       });
       await this.completeUploadReceipt(local, transferId, result.object);
-      return result.object;
+      return { object: result.object, transferred: result.status === 'created' };
     } catch (error) {
       const failedAt = this.clock.nowIso();
       await this.db

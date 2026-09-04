@@ -23,6 +23,7 @@ import {
   type RemoteObject,
   type Sha256,
   type SyncObjectKind,
+  type TransferProgress,
   type UploadResult,
 } from '../../protocol';
 import { ObjectLogProviderError, throwIfProviderAborted } from '../provider-error';
@@ -214,6 +215,7 @@ export class GoogleDriveObjectLogProvider implements ObjectLogProvider {
     sizeBytes: number;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<UploadResult> {
     throwIfProviderAborted(input.signal);
     safeSize(input.sizeBytes, 'upload size');
@@ -236,6 +238,7 @@ export class GoogleDriveObjectLogProvider implements ObjectLogProvider {
     expectedStoredSha256: Sha256;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<DownloadResult> {
     throwIfProviderAborted(input.signal);
     nonEmpty(input.transferId, 'transferId');

@@ -218,6 +218,11 @@ export interface DownloadResult {
   sizeBytes: number;
 }
 
+export interface TransferProgress {
+  readonly transferredBytes: number;
+  readonly totalBytes: number;
+}
+
 export interface ObjectLogProvider {
   readonly kind: ProviderKind;
 
@@ -235,6 +240,7 @@ export interface ObjectLogProvider {
     sizeBytes: number;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<UploadResult>;
   downloadImmutable(input: {
     generation: ProviderGeneration;
@@ -243,5 +249,6 @@ export interface ObjectLogProvider {
     expectedStoredSha256: Sha256;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<DownloadResult>;
 }

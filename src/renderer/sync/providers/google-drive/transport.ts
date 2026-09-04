@@ -7,6 +7,7 @@ import type {
   RemoteObjectChange,
   Sha256,
   SyncObjectKind,
+  TransferProgress,
 } from '../../protocol';
 
 declare const googleDriveTransportGenerationRefBrand: unique symbol;
@@ -85,6 +86,7 @@ export interface GoogleDriveObjectTransportPort {
     sizeBytes: number;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<{ readonly status: 'created' | 'already-present'; readonly object: RemoteObject }>;
 
   downloadVerifiedImmutable(input: {
@@ -94,6 +96,7 @@ export interface GoogleDriveObjectTransportPort {
     expectedStoredSha256: Sha256;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   }): Promise<{
     readonly destinationRef: LocalObjectRef;
     readonly storedSha256: Sha256;

@@ -7,8 +7,6 @@ import { useDataStore } from '../store/data-store';
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { focusedLeafOf, tabKey, useUiStore } from '../store/ui-store';
 import { deriveWritingStats, useWritingStatsStore } from '../store/writing-stats-store';
-import { useProductSyncAuthority } from '../sync/product-authority-react';
-import { useProductSyncRuntime } from '../sync/product-runtime-react';
 import '../../styles/bottom-status-bar.css';
 
 type WordMetric = {
@@ -18,8 +16,6 @@ type WordMetric = {
     | 'bottomStatusBar.projectWords';
   count: number | null;
 };
-
-type CurrentProjectSyncActivity = 'checking' | 'applying' | null;
 
 // BottomStatusBar is a status-first line spanning the full application width.
 // Its one structural control is the Bottom Timeline visibility toggle;
@@ -36,8 +32,6 @@ export function BottomStatusBar() {
   );
   const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
   const toggleBottomTimelineHidden = useUiStore((state) => state.toggleBottomTimelineHidden);
-  const syncAuthority = useProductSyncAuthority();
-  const syncRuntime = useProductSyncRuntime();
 
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
@@ -78,54 +72,6 @@ export function BottomStatusBar() {
     [projectWordCount, writingHistory],
   );
 
-  const currentProjectSyncActivity = useMemo<CurrentProjectSyncActivity>(() => {
-    const phase = syncRuntime.diagnostics?.generations.find(
-      (generation) => generation.projectId === projectId,
-    )?.phase;
-    if (phase === 'pulling') return 'checking';
-    if (phase === 'ingesting' || phase === 'applying') return 'applying';
-    return null;
-  }, [projectId, syncRuntime]);
-
-  const syncState = useMemo(() => {
-    if (syncAuthority.status === 'unavailable' || syncAuthority.status === 'cloud-attention') {
-      return 'attention' as const;
-    }
-    if (syncAuthority.status === 'cloud-paused') return 'paused' as const;
-    if (
-      syncAuthority.status === 'transitioning' ||
-      syncAuthority.status === 'cloud-provisioning'
-    ) {
-      return 'syncing' as const;
-    }
-    if (syncAuthority.status === 'local') return 'local' as const;
-    if (!syncRuntime.mounted || !syncRuntime.diagnostics) return 'syncing' as const;
-    const diagnostics = syncRuntime.diagnostics;
-    const hasAttention = diagnostics.generations.some(
-      (generation) =>
-        generation.lastOutcome === 'failed' ||
-        generation.pending.openGaps > 0 ||
-        generation.pending.openConflicts > 0 ||
-        generation.pending.quarantinedObjects > 0,
-    );
-    if (hasAttention) return 'attention' as const;
-    if (!diagnostics.online || diagnostics.suspended) return 'offline' as const;
-    const busy = diagnostics.generations.some(
-      (generation) =>
-        generation.phase !== 'idle' ||
-        generation.pending.pendingChangeSets > 0 ||
-        generation.pending.pendingSegments > 0 ||
-        generation.pending.pendingTransfers > 0,
-    );
-    return busy ? ('syncing' as const) : ('synced' as const);
-  }, [syncAuthority.status, syncRuntime]);
-  const storageLabel = t(
-    `bottomStatusBar.storage.${
-      syncState === 'syncing' && currentProjectSyncActivity
-        ? currentProjectSyncActivity
-        : syncState
-    }`,
-  );
   const toggleBottomTimelineShortcut = formatAccelerator(toggleBottomTimelineAccelerator);
 
   return (
@@ -146,16 +92,6 @@ export function BottomStatusBar() {
         </span>
       </div>
       <div className="bsb__spacer" />
-      <div
-        className={`bsb__storage bsb__storage--${syncState}`}
-        role="status"
-        aria-live="polite"
-        title={storageLabel}
-        aria-label={storageLabel}
-      >
-        <span className="bsb__storage-dot" aria-hidden="true" />
-        <span>{storageLabel}</span>
-      </div>
       <button
         type="button"
         className="bsb__timeline-toggle"

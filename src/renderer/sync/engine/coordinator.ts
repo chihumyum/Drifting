@@ -15,6 +15,7 @@ import {
   SyncEngineStatusStore,
   type SyncEngineDiagnostics,
   type SyncGenerationPendingDiagnostics,
+  type SyncGenerationTransferProgress,
 } from './status-store';
 import type { SyncGenerationCycleResult, SyncGenerationCycleStatus } from './cycle';
 import { fullJitterBackoffMs } from './backoff';
@@ -23,6 +24,7 @@ export interface RegisteredSyncGenerationRuntime {
   readonly syncGenerationId: string;
   readonly projectId?: string;
   readonly status?: SyncGenerationCycleStatus;
+  readonly transferProgress?: SyncGenerationTransferProgress | null;
   runCycle(triggers: ReadonlySet<SchedulerTrigger>, signal: AbortSignal): Promise<SyncGenerationCycleResult>;
   inspectPending?(): Promise<SyncGenerationPendingDiagnostics>;
   subscribeStatus?(listener: (runtime: RegisteredSyncGenerationRuntime) => void): () => void;
@@ -73,7 +75,12 @@ export class SyncEngineCoordinator {
           return result;
         } finally {
           if (runtime.status) {
-            this.statusStore.updateCycle(syncGenerationId, runtime.status, runtime.projectId);
+            this.statusStore.updateCycle(
+              syncGenerationId,
+              runtime.status,
+              runtime.projectId,
+              runtime.transferProgress ?? null,
+            );
           }
           if (runtime.inspectPending) {
             this.statusStore.updatePending(
@@ -108,11 +115,21 @@ export class SyncEngineCoordinator {
     this.runtimes.set(runtime.syncGenerationId, runtime);
     const unsubscribeStatus = runtime.subscribeStatus?.((source) => {
       if (source.status) {
-        this.statusStore.updateCycle(source.syncGenerationId, source.status, source.projectId);
+        this.statusStore.updateCycle(
+          source.syncGenerationId,
+          source.status,
+          source.projectId,
+          source.transferProgress ?? null,
+        );
       }
     }) ?? (() => {});
     if (runtime.status) {
-      this.statusStore.updateCycle(runtime.syncGenerationId, runtime.status, runtime.projectId);
+      this.statusStore.updateCycle(
+        runtime.syncGenerationId,
+        runtime.status,
+        runtime.projectId,
+        runtime.transferProgress ?? null,
+      );
     }
     this.scheduler.registerSyncGeneration(runtime.syncGenerationId);
     return () => {

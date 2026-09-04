@@ -40,6 +40,7 @@ import type {
   GoogleDriveNativeRemoteObject,
   GoogleDriveNativeProjectSnapshotCandidate,
   GoogleDriveNativeGeneration,
+  GoogleDriveTransferProgressEvent,
 } from './contracts';
 
 export type Unsubscribe = () => void;
@@ -199,6 +200,7 @@ export interface GoogleDrivePlatformApi {
     sizeBytes: number;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: GoogleDriveTransferProgressEvent) => void;
   }): Promise<{ status: 'created' | 'already-present'; object: GoogleDriveNativeRemoteObject }>;
   downloadVerifiedImmutable(input: {
     generationRef: string;
@@ -207,6 +209,7 @@ export interface GoogleDrivePlatformApi {
     expectedStoredSha256: string;
     transferId: string;
     signal: AbortSignal;
+    onProgress?: (progress: GoogleDriveTransferProgressEvent) => void;
   }): Promise<{ destinationRef: string; storedSha256: string; sizeBytes: number }>;
 }
 

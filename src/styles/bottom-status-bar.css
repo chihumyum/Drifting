@@ -1,7 +1,8 @@
 /* ============================================================
    Bottom Status Bar — status-first full-width line
    Project navigation and feature menus live in AppTopbar. This footer reports
-   writing/sync state and keeps one adjacent structural Timeline toggle.
+   writing state and keeps one adjacent structural Timeline toggle. Google
+   Drive transfer progress belongs to the top-right notification center.
    ============================================================ */
 
 .bsb {
@@ -22,8 +23,7 @@
   user-select: none;
 }
 
-.bsb__group,
-.bsb__storage {
+.bsb__group {
   display: inline-flex;
   align-items: center;
   min-width: 0;
@@ -47,60 +47,6 @@
 .bsb__spacer {
   flex: 1;
   min-width: 12px;
-}
-
-.bsb__storage {
-  flex-shrink: 0;
-  gap: 5px;
-  pointer-events: none;
-}
-
-.bsb__storage-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.bsb__storage--local {
-  color: hsl(var(--ink-4));
-}
-
-.bsb__storage--synced {
-  color: hsl(var(--accent));
-}
-
-.bsb__storage--syncing .bsb__storage-dot {
-  color: hsl(var(--accent));
-  animation: bsb-sync-pulse 1.2s ease-in-out infinite;
-}
-
-.bsb__storage--offline {
-  color: hsl(var(--ink-3));
-}
-
-.bsb__storage--paused {
-  color: hsl(var(--ink-3));
-}
-
-.bsb__storage--attention {
-  color: hsl(var(--danger, 0 70% 45%));
-}
-
-@keyframes bsb-sync-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bsb__storage--syncing .bsb__storage-dot {
-    animation: none;
-  }
 }
 
 .bsb__timeline-toggle {

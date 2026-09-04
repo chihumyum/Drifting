@@ -10,6 +10,7 @@ import type {
   GoogleDriveNativeErrorCode,
   GoogleDriveNativeDiagnostics,
   GoogleDriveNativeResult,
+  GoogleDriveTransferProgressEvent,
   ImageVariantResult,
   LifecycleEventPayload,
   NativeBytes,
@@ -722,18 +723,34 @@ export const tauriPlatform: PlatformApi = {
       unwrapGoogleDriveResult(await invokeContract('google_drive_list_changes', input)),
     statImmutable: async (input) =>
       unwrapGoogleDriveResult(await invokeContract('google_drive_stat_immutable', input)),
-    uploadImmutable: ({ signal, ...input }) =>
-      invokeGoogleDriveTransfer(
-        () => invokeContract('google_drive_upload_immutable', input),
+    uploadImmutable: ({ signal, onProgress, ...input }) => {
+      const progressChannel = new Channel<GoogleDriveTransferProgressEvent>(
+        onProgress ?? (() => {}),
+      );
+      return invokeGoogleDriveTransfer(
+        () =>
+          invokeContract('google_drive_upload_immutable', {
+            ...input,
+            onProgress: progressChannel,
+          }),
         input.transferId,
         signal,
-      ),
-    downloadVerifiedImmutable: ({ signal, ...input }) =>
-      invokeGoogleDriveTransfer(
-        () => invokeContract('google_drive_download_verified_immutable', input),
+      );
+    },
+    downloadVerifiedImmutable: ({ signal, onProgress, ...input }) => {
+      const progressChannel = new Channel<GoogleDriveTransferProgressEvent>(
+        onProgress ?? (() => {}),
+      );
+      return invokeGoogleDriveTransfer(
+        () =>
+          invokeContract('google_drive_download_verified_immutable', {
+            ...input,
+            onProgress: progressChannel,
+          }),
         input.transferId,
         signal,
-      ),
+      );
+    },
   },
 
   typography: {

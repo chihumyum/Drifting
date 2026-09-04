@@ -1,12 +1,12 @@
 /**
- * Global AI-task notification feed. Copilot emits an `ai-task`
- * event on start / completion / failure (see lib/events). The feed ingests those
- * into a capped, newest-first history that backs two surfaces:
+ * Global task notification feed. Copilot emits an `ai-task` event while the
+ * desktop sync feed projects sanitized Google Drive runtime progress. Both are
+ * ingested into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the
  *     most-recent result for a few seconds, else an unread-count bell), and
  *   - the NOTIFICATION CENTER dropdown (the full recent history, reopenable).
  *
- * A task's phases collapse into ONE row keyed by `taskId` (started → completed),
+ * A task's phases collapse into ONE row keyed by `id` (started → completed),
  * so the pill morphs in place instead of stacking duplicates. The subscription
  * that feeds this store lives in App (always mounted) so history is collected
  * even when the pill itself isn't rendered.
@@ -15,10 +15,25 @@ import { create } from 'zustand';
 import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
+export type AppNotificationSource = AiTaskSource | 'google-drive';
+
+export interface AppNotificationProgress {
+  /** Null means the total is still being discovered. */
+  value: number | null;
+  transferredBytes: number;
+  totalBytes: number;
+  completedObjects: number;
+  totalObjects: number;
+}
+
+export interface AppNotificationEvent extends Omit<AiTaskEvent, 'source'> {
+  source: AppNotificationSource;
+  progress?: AppNotificationProgress;
+}
 
 export interface AppNotification {
   id: string; // === taskId (one row per task)
-  source: AiTaskSource;
+  source: AppNotificationSource;
   state: NotificationState;
   title: string;
   detail?: string;
@@ -26,6 +41,7 @@ export interface AppNotification {
   outcome?: AiTaskOutcome;
   count?: number;
   error?: string;
+  progress?: AppNotificationProgress;
   startedAt: number;
   updatedAt: number;
   read: boolean;
@@ -33,7 +49,7 @@ export interface AppNotification {
 
 const MAX_ITEMS = 60;
 
-function toState(s: AiTaskEvent['state']): NotificationState {
+function toState(s: AppNotificationEvent['state']): NotificationState {
   return s === 'started'
     ? 'running'
     : s === 'completed'
@@ -47,7 +63,7 @@ interface NotificationStore {
   items: AppNotification[]; // newest-first
   centerOpen: boolean;
 
-  ingest: (e: AiTaskEvent) => void;
+  ingest: (e: AppNotificationEvent) => void;
   setCenterOpen: (open: boolean) => void;
   toggleCenter: () => void;
   markAllRead: () => void;
@@ -75,6 +91,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
+          progress: e.progress,
           updatedAt: e.at,
           read: state === 'running' ? existing.read : false,
         };
@@ -92,6 +109,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         outcome: e.outcome,
         count: e.count,
         error: e.error,
+        progress: e.progress,
         startedAt: e.at,
         updatedAt: e.at,
         read: false,

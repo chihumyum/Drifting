@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "milestone": "sync-engine-phase5-google-drive-native",
-  "recordedAt": "2026-08-24",
+  "recordedAt": "2026-09-05",
   "currentContract": true,
   "status": "native-transport-foundation-complete",
   "productAvailability": "settings-connect-path-machine-covered-real-account-gated",
@@ -43,7 +43,11 @@
     "rangeRecovery": true,
     "streamingDownload": true,
     "durableAtomicDestinationReplace": true,
-    "abortSignalNativeCancellation": true
+    "abortSignalNativeCancellation": true,
+    "transferLocalProgressChannel": true,
+    "uploadResumableChunkProgress": true,
+    "downloadByteProgressInterval": 262144,
+    "progressChannelFailureFailsTransfer": false
   },
   "errors": {
     "refresh401Once": true,

@@ -51,6 +51,7 @@ describe('sanitized diagnostic summary', () => {
             lastOutcome: 'failed',
             lastFailedPhase: 'pulling',
             lastErrorCode: 'rate-limited',
+            transferProgress: null,
             pending: {
               pendingChangeSets: 1,
               pendingSegments: 2,

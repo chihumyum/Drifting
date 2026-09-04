@@ -171,8 +171,8 @@ describe('workspace surface language acceptance', () => {
     expect(footer).not.toContain('CopilotQuickMenu');
     expect(footer).not.toContain('ShadowQuickMenu');
     expect(footer).toContain('deriveWritingStats');
-    expect(footer).toContain('currentProjectSyncActivity');
-    expect(footer).toContain('bsb__storage--${syncState}');
+    expect(footer).not.toContain('currentProjectSyncActivity');
+    expect(footer).not.toContain('bsb__storage');
     expect(footer).not.toContain('useSyncObserver');
     expect(footerCss).toContain('.bsb__timeline-toggle {');
     expect(footerCss).toContain('cursor: pointer;');
@@ -807,7 +807,8 @@ describe('workspace surface language acceptance', () => {
     );
     expect(doc).toContain('hover 都只提高前景文字/图标颜色，不绘制额外底色');
     expect(doc).toContain('`SUPER` 右侧与通知铃铛左侧');
-    expect(doc).toContain('`BottomStatusBar` 以只读状态为主');
+    expect(doc).toContain('`BottomStatusBar` 以只读写作状态为主');
+    expect(doc).toContain('Google Drive 传输进度属于右上角通知中心');
     expect(doc).toContain('唯一的交互例外是 Bottom Timeline');
     expect(doc).toContain('通知入口仍留在 topbar');
     expect(doc).toContain('不重新定义现有配色');
