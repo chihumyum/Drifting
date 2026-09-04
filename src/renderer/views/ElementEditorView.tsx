@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/core';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
+import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
@@ -573,7 +574,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     async (action: string) => {
       if (!elementId || !curElement) return;
       if (action === 'deleteElement') {
-        const confirmed = window.confirm(
+        const confirmed = await requestConfirmation(
           t('elementEditor.deleteConfirm', { name: curElement.name }),
         );
         if (!confirmed) return;

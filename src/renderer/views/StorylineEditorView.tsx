@@ -8,6 +8,7 @@ import type { Editor } from '@tiptap/core';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
@@ -273,7 +274,9 @@ export function StorylineEditorView({
     async (action: string) => {
       if (!storylineId || !currentStoryline) return;
       if (action === 'deleteStoryline') {
-        const confirmed = window.confirm(t('storylineEditor.deleteConfirm', { name: currentStoryline.name }));
+        const confirmed = await requestConfirmation(
+          t('storylineEditor.deleteConfirm', { name: currentStoryline.name }),
+        );
         if (!confirmed) return;
         try {
           await storylineUsecases.deleteStoryline(storylineId);

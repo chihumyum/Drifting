@@ -122,13 +122,13 @@ describe('personal-cloud Settings boundary', () => {
     expect(panel).toContain('if (mountedRef.current) setCloudBusy(null)');
   });
 
-  it('grants only the native dialog message/confirm permissions used by desktop UI', () => {
+  it('grants only the native dialog message permission used by desktop UI', () => {
     const capability = JSON.parse(read('src-tauri/capabilities/desktop.json')) as {
       permissions: string[];
     };
 
     expect(capability.permissions).toContain('dialog:allow-message');
-    expect(capability.permissions).toContain('dialog:allow-confirm');
+    expect(capability.permissions).not.toContain('dialog:allow-confirm');
     expect(capability.permissions).not.toContain('dialog:default');
   });
 

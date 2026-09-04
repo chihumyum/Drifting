@@ -11,6 +11,7 @@ import type {
 import { getDriftingAgentExtensionPlatform } from '../../lib/agent/useDriftingAgentRuntime';
 import { platform } from '../../platform';
 import { useProjectStore } from '../../store/project-store';
+import { requestConfirmation } from '../../store/confirmation-store';
 
 interface ServerForm {
   id: string;
@@ -187,8 +188,11 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
     });
   };
 
-  const deleteServer = (server: AgentMcpServerConfig) => {
-    if (!window.confirm(t('settings.agent.extensions.deleteConfirm', { name: server.name }))) return;
+  const deleteServer = async (server: AgentMcpServerConfig) => {
+    const confirmed = await requestConfirmation(
+      t('settings.agent.extensions.deleteConfirm', { name: server.name }),
+    );
+    if (!confirmed) return;
     void mutate(async () => {
       const refs = [...Object.values(server.secretEnv), ...Object.values(server.secretHeaders)];
       await extensionPlatform.repository.deleteServer(projectId, server.id);
@@ -291,7 +295,7 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
                   <button
                     className="set-btn set-btn--danger"
                     disabled={busy}
-                    onClick={() => deleteServer(server)}
+                    onClick={() => void deleteServer(server)}
                   >
                     {t('settings.common.delete')}
                   </button>

@@ -6,7 +6,6 @@ import { SuperViewRelationUiProvider } from '../../features/graph/SuperViewRelat
 import { workspaceTargetFromPathname } from '../../features/workspace/navigation/workspace-route';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { useAuthStore } from '../../store/auth';
-import { AgentConfirmDialog } from '../../components/agent/AgentConfirmDialog';
 import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapshotHistoryModal';
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { MobilePaperDeck } from './workspace/MobilePaperDeck';
@@ -345,7 +344,6 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
       {voiceSessionProjectId === projectId && workspaceUi.surface.kind !== 'voice' && (
         <MobileVoicePill onExpand={() => dispatchWorkspaceUi({ type: 'show-voice' })} />
       )}
-      <AgentConfirmDialog />
       <EntitySnapshotHistoryModal />
       <DriftBindModal />
     </WorkspaceNavigationProvider>

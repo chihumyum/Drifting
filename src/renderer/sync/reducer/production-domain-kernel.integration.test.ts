@@ -493,6 +493,158 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await db.select().from(NodeStorylineLinkTable)).toEqual([]);
   });
 
+  it('removes storyline memberships before materializing storyline trash', async () => {
+    const db = await createDatabase();
+    const storylineState = await createYjsProseSeedState('{"type":"doc","content":[]}');
+    const created = await changeSet(1, [
+      {
+        action: 'entity.create',
+        kind: 'storyline',
+        id: 'storyline-trashed-with-members',
+        payload: { seed: { name: 'Disposable storyline', color: '#123456' } },
+      },
+      {
+        action: 'yjs.update',
+        kind: 'prose-document',
+        id: 'storyline:storyline-trashed-with-members',
+        payload: { update: storylineState },
+      },
+      {
+        action: 'set.add',
+        kind: 'membership',
+        id: 'storyline-trashed-with-members',
+        payload: { memberId: NODE_ID, value: null },
+      },
+      {
+        action: 'field.set',
+        kind: 'node-storyline-primary',
+        id: NODE_ID,
+        payload: { field: 'storylineId', value: 'storyline-trashed-with-members' },
+      },
+    ]);
+    await apply(db, created);
+
+    const trashed = await changeSet(2, [
+      {
+        action: 'set.remove',
+        kind: 'membership',
+        id: 'storyline-trashed-with-members',
+        payload: { memberId: NODE_ID, observedAddTags: [`${created.changeSetId}#2`] },
+      },
+      {
+        action: 'field.set',
+        kind: 'node-storyline-primary',
+        id: NODE_ID,
+        payload: { field: 'storylineId', value: null },
+      },
+      {
+        action: 'entity.trash',
+        kind: 'storyline',
+        id: 'storyline-trashed-with-members',
+        payload: {},
+      },
+    ]);
+    const result = await apply(db, trashed);
+
+    expect(result.effects).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'set.member',
+        memberId: NODE_ID,
+        present: false,
+        materialize: true,
+      }),
+      expect.objectContaining({
+        type: 'entity.lifecycle',
+        target: expect.objectContaining({ id: 'storyline-trashed-with-members' }),
+        status: 'trashed',
+        materialize: true,
+      }),
+    ]));
+    expect(await db.select().from(NodeStorylineLinkTable)).toEqual([]);
+    expect(await db
+      .select({ deletedAt: StorylineTable.deletedAt })
+      .from(StorylineTable)
+      .where(eq(StorylineTable.id, 'storyline-trashed-with-members')))
+      .toMatchObject([{ deletedAt: expect.any(String) }]);
+  });
+
+  it('accepts a local authored membership removal bundled with storyline trash', async () => {
+    const db = await createDatabase();
+    const storylineId = 'local-storyline-trashed-with-members';
+    const storylineState = await createYjsProseSeedState('{"type":"doc","content":[]}');
+    const created = await changeSet(1, [
+      {
+        action: 'entity.create',
+        kind: 'storyline',
+        id: storylineId,
+        payload: { seed: { name: 'Local disposable storyline', color: '#654321' } },
+      },
+      {
+        action: 'yjs.update',
+        kind: 'prose-document',
+        id: `storyline:${storylineId}`,
+        payload: { update: storylineState },
+      },
+      {
+        action: 'set.add',
+        kind: 'membership',
+        id: storylineId,
+        payload: { memberId: NODE_ID, value: null },
+      },
+      {
+        action: 'field.set',
+        kind: 'node-storyline-primary',
+        id: NODE_ID,
+        payload: { field: 'storylineId', value: storylineId },
+      },
+    ]);
+    await apply(db, created);
+
+    const changes = new SyncChangeBuilder();
+    changes.add({
+      action: 'set.remove',
+      target: { family: 'set', kind: 'membership', id: storylineId, incarnation: 0 },
+      payload: { memberId: NODE_ID, observedAddTags: [`${created.changeSetId}#2`] },
+    });
+    changes.add({
+      action: 'field.set',
+      target: { family: 'entity', kind: 'node-storyline-primary', id: NODE_ID, incarnation: 0 },
+      payload: { field: 'storylineId', value: null },
+    });
+    changes.add({
+      action: 'entity.trash',
+      target: { family: 'entity', kind: 'storyline', id: storylineId, incarnation: 0 },
+      payload: {},
+    });
+
+    await db.transaction(async (tx) => {
+      await tx.delete(NodeStorylineLinkTable).where(eq(NodeStorylineLinkTable.storylineId, storylineId));
+      await tx.update(StorylineTable).set({ deletedAt: NOW }).where(eq(StorylineTable.id, storylineId));
+      const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+        projectId: PROJECT_ID,
+        projectSyncId: PROJECT_SYNC_ID,
+        syncGenerationId: SYNC_GENERATION_ID,
+        identity: identity(),
+        clock: { nowMs: 1_700_000_000_200, nowIso: NOW },
+      }, changes);
+      await observeLocalAuthoredReducerInTransaction(tx, {
+        changeSet: recorded.changeSet,
+        clock: { nowMs: 1_700_000_000_200, nowIso: NOW },
+        validator: productionSyncDomainMaterializationKernel,
+      });
+    });
+
+    expect(await db.select().from(NodeStorylineLinkTable)).toEqual([]);
+    expect(await db
+      .select({ deletedAt: StorylineTable.deletedAt })
+      .from(StorylineTable)
+      .where(eq(StorylineTable.id, storylineId)))
+      .toEqual([{ deletedAt: NOW }]);
+    expect((await db.select().from(SyncChangeSetTable).where(
+      eq(SyncChangeSetTable.origin, 'local'),
+    ))).toHaveLength(1);
+  });
+
   it('blocks a primary register that does not reference a present membership', async () => {
     const db = await createDatabase();
     await db.insert(StorylineTable).values({

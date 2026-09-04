@@ -43,6 +43,7 @@ import { ROOT_GROUP_KEY, buildDriftGroupChildren } from '../domain/drift-group';
 import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
+import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
@@ -504,7 +505,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       }
 
       if (action === 'deleteNode') {
-        const confirmed = window.confirm(t('nodeEditor.deleteConfirm', { name: curNode.title }));
+        const confirmed = await requestConfirmation(
+          t('nodeEditor.deleteConfirm', { name: curNode.title }),
+        );
         if (!confirmed) return;
 
         try {

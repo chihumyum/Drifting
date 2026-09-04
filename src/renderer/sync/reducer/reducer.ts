@@ -708,7 +708,13 @@ function canMaterializeSetMember(
   state: CanonicalReducerState,
   target: SyncMutationTargetV1,
   memberId: string,
+  present: boolean,
 ): boolean {
+  // An observed removal is a tombstone projection, not a new reference. It
+  // must still delete the SQLite link when either endpoint is trashed/purged
+  // in the same change-set; otherwise a later restore can resurrect a link
+  // that every writer has already removed. Adds remain live-endpoint gated.
+  if (target.kind === 'membership' && !present) return true;
   if (!canMaterializeTarget(state, target)) return false;
   if (target.kind !== 'membership') return true;
   const lifecycle = state.lifecycles.get(entityKey({ kind: 'node', id: memberId }));
@@ -800,13 +806,14 @@ export function materializationEffects(state: CanonicalReducerState): readonly R
       const visible = visibleAdds(member);
       const winner = visible[visible.length - 1] ?? null;
       const removal = winningRemoval(member);
+      const present = visible.length > 0;
       effects.push({
         effectId: effectId('set', set.target.kind, set.target.id, set.target.incarnation, member.memberId),
         type: 'set.member',
-        materialize: canMaterializeSetMember(state, set.target, member.memberId),
+        materialize: canMaterializeSetMember(state, set.target, member.memberId, present),
         target: cloneTarget(set.target),
         memberId: member.memberId,
-        present: visible.length > 0,
+        present,
         visibleAddTags: visible.map(({ tag }) => tag).sort(utf8Sort),
         value: winner ? cloneCbor(winner.value) : null,
         order: winner?.order ?? removal?.order ?? null,

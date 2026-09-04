@@ -7,6 +7,7 @@ import { useBookElement } from '../usecase/useBookElement';
 import { useStoryline } from '../usecase/useStoryline';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useCanUseFeature } from '../lib/feature-access';
+import { requestConfirmation } from '../store/confirmation-store';
 
 // Minimal trash UI. Lists soft-deleted entities across the core domains.
 // Each row remains local until it is restored or permanently deleted here.
@@ -124,7 +125,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
   // Drop the row for good. Irreversible, so gate it behind a confirm — once
   // purged there's no restore.
   const purge = async (item: TrashItem) => {
-    const confirmed = window.confirm(
+    const confirmed = await requestConfirmation(
       t('trashPanel.confirmPurge', { label: item.label }),
     );
     if (!confirmed) return;
@@ -136,7 +137,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
   // re-link runs before any element row that depends on it.
   const purgeAll = async () => {
     if (items.length === 0) return;
-    const confirmed = window.confirm(
+    const confirmed = await requestConfirmation(
       t('trashPanel.confirmPurgeAll', { count: items.length }),
     );
     if (!confirmed) return;

@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
+import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
@@ -253,7 +254,7 @@ export function CategoryEditorView({
     async (action: string) => {
       if (!curCategory) return;
       if (action === 'deleteCategory') {
-        const confirmed = window.confirm(
+        const confirmed = await requestConfirmation(
           t('categoryEditor.deleteConfirm', { name: curCategory.name }),
         );
         if (!confirmed) return;

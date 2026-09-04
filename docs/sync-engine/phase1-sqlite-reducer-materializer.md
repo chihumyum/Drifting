@@ -185,8 +185,9 @@ observation, and an injected failure at the receipt boundary. It asserts both
 
 The production suite additionally runs against the real baseline in a
 file-backed database and covers typed field materialization, OR-set membership
-plus primary-register ordering, invalid primary blocking, blocked semantic
-effects, relation invariants, Yjs remote provenance, verified asset binding,
+plus primary-register ordering, membership tombstones that must delete links
+before their owning storyline is trashed, invalid primary blocking, blocked
+semantic effects, relation invariants, Yjs remote provenance, verified asset binding,
 asset bind/unbind reverse delivery, and terminal `sync-generation.purge` with receipt
 survival. It also reproduces the physical-device sequence where the next
 chapter bundle follows the locked built-in relation type and proves that the

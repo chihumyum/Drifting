@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { requestConfirmation } from '../store/confirmation-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookContent } from '../usecase/useBookContent';
 import { useBookNode } from '../usecase/useBookNode';
@@ -753,7 +754,7 @@ export function AllChaptersEditorView() {
       }
 
       if (action === 'deleteNode') {
-        const confirmed = window.confirm(`Delete chapter "${target.title}"?`);
+        const confirmed = await requestConfirmation(`Delete chapter "${target.title}"?`);
         if (!confirmed) return;
         try {
           await deleteNode(target.id);

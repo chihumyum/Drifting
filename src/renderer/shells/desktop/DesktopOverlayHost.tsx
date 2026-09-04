@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { AgentConfirmDialog } from '../../components/agent/AgentConfirmDialog';
 import { DesktopSettingsModal } from '../../features/settings/desktop/DesktopSettingsModal';
 import { ImportDialog } from '../../components/modals/ImportDialog';
 import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapshotHistoryModal';
@@ -39,7 +38,6 @@ export const DesktopOverlayHost = memo(function DesktopOverlayHost({
 }: DesktopOverlayHostProps) {
   return (
     <>
-      <AgentConfirmDialog />
       {activeSuperView === 'graph' && <DesktopStoryGraphView />}
       {activeSuperView === 'element' && <DesktopSuperElementView />}
       {activeSuperView === 'memo-material' && <DesktopSuperMemoMaterialView />}

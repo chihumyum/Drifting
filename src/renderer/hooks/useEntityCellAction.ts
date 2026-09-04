@@ -21,6 +21,7 @@ import {
   SET_STATUS_ACTION_PREFIX,
 } from '../components/editor/EditorTopBar';
 import { useProjectNavigation } from './useProjectNavigation';
+import { requestConfirmation } from '../store/confirmation-store';
 
 const log = loglevel.getLogger('useEntityCellAction');
 log.setLevel(loglevel.levels.ERROR);
@@ -75,7 +76,7 @@ export function useEntityCellAction() {
             return;
           }
           if (action === 'deleteNode') {
-            const confirmed = window.confirm(
+            const confirmed = await requestConfirmation(
               t('entityCellAction.confirmDeleteNode', { name: node.title }),
             );
             if (!confirmed) return;
@@ -107,7 +108,7 @@ export function useEntityCellAction() {
           const element = bookElements.find((e) => e.id === id);
           if (!element) return;
           if (action === 'deleteElement') {
-            const confirmed = window.confirm(
+            const confirmed = await requestConfirmation(
               t('entityCellAction.confirmDeleteElement', { name: element.name }),
             );
             if (!confirmed) return;
@@ -136,7 +137,7 @@ export function useEntityCellAction() {
           const category = bookElementCategories.find((c) => c.id === id);
           if (!category) return;
           if (action === 'deleteCategory') {
-            const confirmed = window.confirm(
+            const confirmed = await requestConfirmation(
               t('entityCellAction.confirmDeleteCategory', { name: category.name }),
             );
             if (!confirmed) return;
@@ -150,7 +151,7 @@ export function useEntityCellAction() {
           if (action === 'deleteStoryline') {
             const storyline = useDataStore.getState().storylines.find((s) => s.id === id);
             if (!storyline) return;
-            const confirmed = window.confirm(
+            const confirmed = await requestConfirmation(
               t('entityCellAction.confirmDeleteStoryline', { name: storyline.name }),
             );
             if (!confirmed) return;

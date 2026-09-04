@@ -15,6 +15,7 @@ import { useRelationTypePresentation } from '../../hooks/useRelationTypePresenta
 import { AnchoredPopover } from './AnchoredPopover';
 import { FilterChip } from './FilterChip';
 import { RELATION_TYPE_PALETTE } from './relation-type-color';
+import { requestConfirmation } from '../../store/confirmation-store';
 
 export interface RelationTypeMenuItem {
   type: EntityRelationType;
@@ -397,17 +398,21 @@ export function RelationKindMenu({
                 ? t('relationTypes.inUse')
                 : t('relationTypes.delete')
           }
-          onClick={() => {
-            if (type.locked) return;
-            if (!window.confirm(t('relationTypes.confirmDelete', { name: presentation.name }))) {
-              return;
-            }
-            void deleteRelationType!(type.id)
-              .then(() => removeRelationTypeMeta(type.id))
-              .catch((reason) =>
-                window.alert(reason instanceof Error ? reason.message : String(reason)),
+          onClick={() =>
+            void (async () => {
+              if (type.locked) return;
+              const confirmed = await requestConfirmation(
+                t('relationTypes.confirmDelete', { name: presentation.name }),
               );
-          }}
+              if (!confirmed) return;
+              try {
+                await deleteRelationType!(type.id);
+                removeRelationTypeMeta(type.id);
+              } catch (reason) {
+                window.alert(reason instanceof Error ? reason.message : String(reason));
+              }
+            })()
+          }
         >
           ×
         </button>

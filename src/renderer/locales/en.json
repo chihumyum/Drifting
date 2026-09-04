@@ -996,6 +996,7 @@
   },
   "common": {
     "local": "Local",
+    "confirm": "Confirm",
     "edit": "Edit",
     "more": "More actions",
     "close": "Close",

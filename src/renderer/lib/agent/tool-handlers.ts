@@ -86,7 +86,7 @@ import {
 } from './chapter-prose';
 import { proseDocId, isProseEntityType, type ProseEntityType } from '../yjs-doc-id';
 import { eventBus } from '../events';
-import { requestAgentConfirm } from '../../store/agent-confirm-store';
+import { requestAgentConfirm } from '../../store/confirmation-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { effectiveAgentEditMode } from './agent-edit-mode';
 import type { AgentBlockChange } from './block-diff';
@@ -1976,7 +1976,7 @@ async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, un
   // reads match its belief that it's deleted); ✗ keeps it + tells the agent.
   // (Heavier deletes — element / chapter — still use requestAgentConfirm. TODO:
   // move THAT off the full-screen overlay into a non-blocking in-chat prompt that
-  // flashes the agent tab while it blocks — see agent-confirm-store.)
+  // flashes the agent tab while it blocks — see confirmation-store.)
   const title = existing.title?.trim() ? existing.title : '补丁';
   recordFieldChanges(ctx, 'element', existing.elementId, [
     {

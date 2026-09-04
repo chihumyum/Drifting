@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStore } from '../../../store/project-store';
 import { useAgentChatStore } from '../../../store/agent-chat-store';
+import { requestConfirmation } from '../../../store/confirmation-store';
 import { createAgentConversationRepository, type AgentConversationUsage } from '../../../sqlite-repo/agent-conversation-repo';
 import { approvePendingMemory, createMemory, listLiveMemories, softDeleteMemory } from '../../../usecase/useAgentMemory';
 import type { AgentMemory, AgentMemoryKind } from '../../../domain/agent-memory';
@@ -85,9 +86,10 @@ function AgentMemorySection({ open }: { open: boolean }) {
     if (!projectId) return;
     void approvePendingMemory(projectId, id).then(reload);
   };
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     if (!projectId) return;
-    if (!window.confirm(t('settings.agentMemory.deleteConfirm'))) return;
+    const confirmed = await requestConfirmation(t('settings.agentMemory.deleteConfirm'));
+    if (!confirmed) return;
     void softDeleteMemory(projectId, id).then(reload);
   };
   // Manual add — author-authored, active immediately (it's the author's own).
@@ -211,7 +213,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
                       {t('settings.agentMemory.approve')}
                     </button>
                   )}
-                  <button className="set-btn set-btn--danger" onClick={() => remove(m.id)}>
+                  <button className="set-btn set-btn--danger" onClick={() => void remove(m.id)}>
                     {t('settings.common.delete')}
                   </button>
                 </div>
@@ -334,9 +336,12 @@ function AgentUsageSection({ open }: { open: boolean }) {
   };
 
   // Bulk soft-delete behind a confirm — clearing all is easy to fire by accident.
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (live.length === 0) return;
-    if (!window.confirm(t('settings.agentUsage.clearConfirm', { count: live.length }))) return;
+    const confirmed = await requestConfirmation(
+      t('settings.agentUsage.clearConfirm', { count: live.length }),
+    );
+    if (!confirmed) return;
     void useAgentChatStore.getState().clearConversations();
     const now = new Date().toISOString();
     setRows((rs) => rs.map((r) => (r.deletedAt ? r : { ...r, deletedAt: now })));
@@ -441,7 +446,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '2px 0 8px' }}>
           <button
             type="button"
-            onClick={handleClearAll}
+            onClick={() => void handleClearAll()}
             style={{
               border: '1px solid hsl(var(--rule))',
               background: 'transparent',

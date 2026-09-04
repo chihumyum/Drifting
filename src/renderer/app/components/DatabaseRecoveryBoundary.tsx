@@ -7,6 +7,7 @@ import {
 } from '../../platform/database';
 import { publishDatabaseOpenFailure } from '../../platform/database-recovery-store';
 import { platform } from '../../platform';
+import { requestConfirmation } from '../../store/confirmation-store';
 
 function diagnosticSummary(failure: DatabaseOpenFailureData): string {
   return JSON.stringify(
@@ -115,13 +116,18 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
               type="button"
               className="set-btn"
               disabled={busy !== null}
-              onClick={() => {
-                if (!window.confirm(t('databaseRecovery.restoreConfirm'))) return;
-                void run('restore', async () => {
-                  await databasePlatform.restoreSafetyBackup(sessionId, backup.backupId);
-                  window.location.reload();
-                });
-              }}
+              onClick={() =>
+                void (async () => {
+                  const confirmed = await requestConfirmation(
+                    t('databaseRecovery.restoreConfirm'),
+                  );
+                  if (!confirmed) return;
+                  await run('restore', async () => {
+                    await databasePlatform.restoreSafetyBackup(sessionId, backup.backupId);
+                    window.location.reload();
+                  });
+                })()
+              }
             >
               {busy === 'restore'
                 ? t('databaseRecovery.restoring')

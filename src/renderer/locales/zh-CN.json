@@ -996,6 +996,7 @@
   },
   "common": {
     "local": "本地",
+    "confirm": "确认",
     "edit": "编辑",
     "more": "更多操作",
     "close": "关闭",

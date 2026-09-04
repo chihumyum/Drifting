@@ -10,6 +10,7 @@ import { getPlatformRuntime } from './platform/runtime';
 import { disableMobileWebViewZoom } from './shells/mobile/mobile-webview-zoom';
 import { DatabaseRecoveryBoundary } from './app/components/DatabaseRecoveryBoundary';
 import { useDatabaseOpenFailure } from './platform/database-recovery-store';
+import { ConfirmationDialog } from './components/modals/ConfirmationDialog';
 
 const log = loglevel.getLogger('App');
 
@@ -74,7 +75,10 @@ function AppContents() {
 export default function App() {
   return (
     <RootErrorBoundary>
-      <AppContents />
+      <>
+        <AppContents />
+        <ConfirmationDialog />
+      </>
     </RootErrorBoundary>
   );
 }

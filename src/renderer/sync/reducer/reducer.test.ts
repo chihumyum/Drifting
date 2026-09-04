@@ -26,7 +26,7 @@ const IDENTITY = {
 } as const;
 
 const PROFILE: ReducerProfile = {
-  knownTargetKinds: new Set(['node', 'membership', 'chapter']),
+  knownTargetKinds: new Set(['node', 'storyline', 'membership', 'chapter']),
 };
 
 const FAMILY: Record<SyncMutationAction, SyncMutationTargetFamily> = {
@@ -206,6 +206,47 @@ describe('canonical SyncEngine reducer', () => {
       present: true,
       visibleAddTags: [mutationAddTag(addB.changeSetId, 0)],
       value: 'from-b',
+    });
+  });
+
+  it('materializes membership tombstones while their storyline is trashed but still suppresses adds', () => {
+    const created = changeSet({
+      writer: 'writer-a', seq: 1, wallMs: 10,
+      mutations: [
+        { action: 'entity.create', kind: 'storyline', id: 'storyline-1', payload: { seed: { name: 'Main', color: '#123456' } } },
+        { action: 'entity.create', kind: 'node', id: 'node-1', payload: { seed: { title: 'Chapter', kind: 'chapter' } } },
+        { action: 'set.add', kind: 'membership', id: 'storyline-1', payload: { memberId: 'node-1', value: null } },
+      ],
+    });
+    const removedAndTrashed = changeSet({
+      writer: 'writer-a', seq: 2, wallMs: 11,
+      mutations: [
+        {
+          action: 'set.remove', kind: 'membership', id: 'storyline-1',
+          payload: { memberId: 'node-1', observedAddTags: [mutationAddTag(created.changeSetId, 2)] },
+        },
+        { action: 'entity.trash', kind: 'storyline', id: 'storyline-1', payload: {} },
+        { action: 'set.add', kind: 'membership', id: 'storyline-1', payload: { memberId: 'node-2', value: null } },
+      ],
+    });
+
+    const state = applyAll([created, removedAndTrashed]);
+    const memberships = materializationEffects(state).filter(
+      (candidate): candidate is Extract<ReducerEffect, { type: 'set.member' }> =>
+        candidate.type === 'set.member',
+    );
+    expect(memberships).toEqual(expect.arrayContaining([
+      expect.objectContaining({ memberId: 'node-1', present: false, materialize: true }),
+      expect.objectContaining({ memberId: 'node-2', present: true, materialize: false }),
+    ]));
+    expect(materializationEffects(state).find(
+      (candidate) =>
+        candidate.type === 'entity.lifecycle' &&
+        candidate.target.kind === 'storyline' &&
+        candidate.target.id === 'storyline-1',
+    )).toMatchObject({
+      target: { kind: 'storyline', id: 'storyline-1' },
+      status: 'trashed',
     });
   });
 

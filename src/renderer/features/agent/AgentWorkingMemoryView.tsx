@@ -11,6 +11,7 @@ import {
   saveAgentWorkingMemory,
   useAgentWorkingMemory,
 } from '../../usecase/useAgentWorkingMemory';
+import { requestConfirmation } from '../../store/confirmation-store';
 
 function markdownHtml(value: string): string {
   const escaped = value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;');
@@ -75,7 +76,9 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
   };
 
   const clear = async () => {
-    if (!snapshot || !window.confirm(t('agentPanel.workingMemory.clearConfirm'))) return;
+    if (!snapshot) return;
+    const confirmed = await requestConfirmation(t('agentPanel.workingMemory.clearConfirm'));
+    if (!confirmed) return;
     setSaving(true);
     setMessage(null);
     try {

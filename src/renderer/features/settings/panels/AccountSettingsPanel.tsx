@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { accountService, type DeletionStatus } from '../../../services/account.service';
 import { useAuthStore } from '../../../store/auth';
 import { authClient } from '../../../lib/auth-client';
+import { requestConfirmation } from '../../../store/confirmation-store';
 import {
   SettingsPanelHeader,
   SettingsRow,
@@ -182,7 +183,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
   };
 
   const handleRequestDeletion = async () => {
-    if (!window.confirm(t('settings.account.delete_confirm'))) return;
+    if (!(await requestConfirmation(t('settings.account.delete_confirm')))) return;
     setDeletionBusy(true);
     try {
       const status = await accountService.requestDeletion();
