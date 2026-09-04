@@ -11,8 +11,8 @@ The editor has two independent navigation surfaces plus one review overlay:
 - A semantic TOC rail remains at the editor area's left edge. It contains only
   the existing plain-text TOC tags and distant-range omission handles.
 - The ordinary `.editor-scroll` scrollbar is restored at the editor area's
-  right edge. It is always visible and is the only scrollbar and scroll source
-  of truth.
+  right edge. It appears when the manuscript overflows and is the only
+  scrollbar and scroll source of truth.
 - Comment and Agent-change overview markers sit directly over that native
   scrollbar instead of occupying the Editor's left edge. Only the marker ticks
   capture clicks: their existing jump-and-flash action remains available while
@@ -56,10 +56,10 @@ states are:
 2. `hidden`: unmount the left semantic TOC rail.
 
 This preference controls only the left TOC rail. It never hides, dims, or moves
-the right native scrollbar, which stays visible in both states. The preference
-is persisted on this device by `settings-store`. It is not sent through an
-account HTTP preference service. Persisted legacy `always` and `auto` values
-both normalize to `visible`; `hidden` remains hidden.
+the right native scrollbar when the manuscript overflows. The preference is
+persisted on this device by `settings-store`. It is not sent through an account
+HTTP preference service. Persisted legacy `always` and `auto` values both
+normalize to `visible`; `hidden` remains hidden.
 
 ## Dynamic density
 
@@ -89,9 +89,10 @@ they do not rescan every anchor.
 
 The manuscript scroll source remains vertical-only and singular:
 `.editor-scroll` clips horizontal overflow, consumes overscroll at both
-document boundaries, reserves a stable right scrollbar gutter, and wheel events
-over TOC labels forward only `deltaY`. This preserves the existing protection
-against horizontal page shake at a vertical scroll boundary.
+document boundaries, shows its right scrollbar only when content overflows,
+and wheel events over TOC labels forward only `deltaY`. This preserves the
+existing protection against horizontal page shake at a vertical scroll
+boundary.
 
 `EditorScrollMarkers.tsx` is a fixed sibling of `.editor-scroll`. Its 8px map is
 aligned with the 8px WebKit scrollbar at the right edge. The map does not take
@@ -119,9 +120,10 @@ The tests prove all five editor mounts, left-edge TOC placement, the three
 density stages, viewport-based multi-entry highlighting, omission behavior,
 absence of synthetic single-entity roots and empty-outline instructions, the
 two persisted TOC visibility choices, complete removal of the custom track and
-dual scrollbar model, and an always-visible ordinary scrollbar on the right.
-It also proves that Comment and Agent review markers overlay that scrollbar and
-retain their click-to-jump wiring without making the whole overlay interactive.
+dual scrollbar model, and an ordinary scrollbar that appears on the right only
+when the manuscript overflows. It also proves that Comment and Agent review
+markers overlay that scrollbar and retain their click-to-jump wiring without
+making the whole overlay interactive.
 
 Native visual spacing, scrollbar feel, WKWebView compositing, and
 physical-device touch behavior remain manual acceptance boundaries.

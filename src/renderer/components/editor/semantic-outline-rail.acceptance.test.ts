@@ -139,10 +139,10 @@ describe('semantic outline rail acceptance wiring', () => {
       /\.editor__toc-tag\.is-(?:visible|primary)\s*\{[^}]*background/,
     );
     expect(commentsReviewCss).not.toContain('toc-dock');
-    expect(editorScrollbarCss).toContain('overflow-y: scroll;');
+    expect(editorScrollbarCss).toContain('overflow-y: auto;');
     expect(editorScrollbarCss).toContain('overflow-x: hidden;');
     expect(editorScrollbarCss).toContain('overscroll-behavior: none;');
-    expect(editorScrollbarCss).toContain('scrollbar-gutter: stable;');
+    expect(editorScrollbarCss).not.toContain('scrollbar-gutter: stable;');
     expect(editorScrollbarCss).toContain('scrollbar-width: thin;');
     expect(editorScrollbarCss).toContain('.editor-scroll::-webkit-scrollbar');
     expect(editorScrollbarCss).toMatch(

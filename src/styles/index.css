@@ -1320,11 +1320,11 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
    Editor spread layout — TOC | manuscript | margin comments
    ============================================================ */
 .editor-scroll {
-  /* 全宽填充 .editor-body，正文由内部 .editor__spread 居中。右侧保留始终
-     可见的普通滚动条；左侧 semantic TOC rail 只负责结构导航。 */
+  /* 全宽填充 .editor-body，正文由内部 .editor__spread 居中。右侧普通
+     滚动条只在内容溢出时出现；左侧 semantic TOC rail 只负责结构导航。 */
   flex: 1;
   min-width: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
   /* A vertical trackpad fling often carries a small deltaX. Keep the
      manuscript on a strict vertical axis so hitting the bottom cannot expose
      WebKit's horizontal rubber-band as a left/right page shake. */
@@ -1336,7 +1336,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: relative;
   min-height: 0;
   align-self: stretch;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--rule)) transparent;
 }
