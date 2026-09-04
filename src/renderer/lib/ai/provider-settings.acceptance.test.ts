@@ -34,6 +34,8 @@ describe('central AI provider settings acceptance', () => {
 
     expect(text).toContain("id: 'models'");
     expect(models.match(/<ProviderRow/g)).toHaveLength(4);
+    expect(models).toContain('<ChatGptSubscriptionRow');
+    expect(intelligence).toContain("events.emit('agent:auth-changed')");
     expect(copilot).not.toContain('<ProviderRow');
     expect(agent).not.toContain('<ProviderRow');
     expect(agent).not.toContain('AgentAuthRow');
@@ -50,6 +52,7 @@ describe('central AI provider settings acceptance', () => {
     );
     const agent = await source('/src/renderer/features/settings/panels/AgentSettingsPanel.tsx');
     const composer = await source('/src/renderer/features/agent/AgentComposerConfig.tsx');
+    const runtime = await source('/src/renderer/lib/agent/useDriftingAgentRuntime.ts');
     const copilot = intelligence.slice(intelligence.indexOf('export function CopilotPanel('));
 
     expect(copilot).toContain('setCopilotByokProvider');
@@ -61,6 +64,9 @@ describe('central AI provider settings acceptance', () => {
     expect(composer).toContain('setAgentProvider');
     expect(composer).toContain('setAgentModel');
     expect(companion).toContain("railId: 'models'");
+    expect(companion).toContain('isGeneralAgentUsable(agentAuth, status)');
+    expect(runtime).toContain('chatgptConnected');
+    expect(runtime).toContain('platform.codexSubscription');
   });
 
   it('tests every credential directly without a hosted BYOK relay', async () => {

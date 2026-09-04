@@ -46,22 +46,21 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
     new BYOKCredentialsProvider(),
   ]);
   const provider = useSettingsStore.getState().agentProvider;
-  let connected = false;
-  try {
-    // The ChatGPT subscription has no renderer-readable key; native status is
-    // the only signal that a sign-in exists.
-    connected =
-      provider === 'openai-codex'
-        ? (await platform.codexSubscription.status()).signedIn
-        : Boolean(await credentials.getApiKey(provider));
-  } catch {
-    connected = false;
-  }
+  const [selectedProviderConnected, chatgptConnected] = await Promise.all([
+    provider === 'openai-codex'
+      ? Promise.resolve(false)
+      : credentials.getApiKey(provider).then(Boolean).catch(() => false),
+    platform.codexSubscription
+      .status()
+      .then((status) => status.signedIn)
+      .catch(() => false),
+  ]);
   return {
     // Both legacy BYOK labels resolve to the selected provider's local key.
-    byokConnected: connected,
-    apiKeyConnected: connected,
+    byokConnected: selectedProviderConnected,
+    apiKeyConnected: selectedProviderConnected,
     hostedAvailable: false,
+    chatgptConnected,
   };
 }
 

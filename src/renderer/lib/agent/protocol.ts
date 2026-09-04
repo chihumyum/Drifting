@@ -208,6 +208,29 @@ export interface GeneralAgentAuthStatus {
   byokConnected: boolean;
   apiKeyConnected: boolean;
   hostedAvailable: boolean;
+  /**
+   * Native-only ChatGPT subscription sign-in. Optional so older remote
+   * transports remain compatible with the renderer-owned protocol.
+   */
+  chatgptConnected?: boolean;
+}
+
+/**
+ * Product-level availability for the General Agent surface. A ChatGPT sign-in
+ * is sufficient to open the surface even when the currently selected BYOK
+ * provider has no API key; the composer remains responsible for route choice.
+ */
+export function isGeneralAgentUsable(
+  mode: AgentMode,
+  status: GeneralAgentAuthStatus | null,
+): boolean {
+  if (!status) return false;
+  if (status.chatgptConnected === true) return true;
+  return mode === 'hosted'
+    ? status.hostedAvailable
+    : mode === 'apikey'
+      ? status.apiKeyConnected
+      : status.byokConnected;
 }
 
 export interface ToolExecRequest {

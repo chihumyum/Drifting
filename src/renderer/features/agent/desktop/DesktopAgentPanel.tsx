@@ -37,7 +37,10 @@ import {
   type ToolEntityRef,
 } from '../../../lib/agent/tool-entity-ref';
 import { events } from '../../../lib/events';
-import type { GeneralAgentAuthStatus } from '../../../lib/agent/protocol';
+import {
+  isGeneralAgentUsable,
+  type GeneralAgentAuthStatus,
+} from '../../../lib/agent/protocol';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import type { AgentConversationSummary } from '../../../domain/agent-conversation';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
@@ -299,12 +302,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     return <div style={hintBox}>{t('agentPanel.checking')}</div>;
   }
 
-  const usable =
-    agentAuth === 'hosted'
-      ? status.hostedAvailable
-      : agentAuth === 'apikey'
-        ? status.apiKeyConnected
-        : status.byokConnected;
+  const usable = isGeneralAgentUsable(agentAuth, status);
 
   // ---- Not set up → point to Settings (connect / subscribe lives there) ----
   if (!usable) {

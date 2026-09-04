@@ -11,7 +11,10 @@ import {
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { useAutosizeTextArea } from '../../../hooks/useAutosizeTextArea';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
-import type { GeneralAgentAuthStatus } from '../../../lib/agent/protocol';
+import {
+  isGeneralAgentUsable,
+  type GeneralAgentAuthStatus,
+} from '../../../lib/agent/protocol';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import { events } from '../../../lib/events';
 import { scrollToBlockWhenReady } from '../../../lib/scroll-to-block';
@@ -153,13 +156,7 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
     if (stickRef.current && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [controlStatus, messages, pendingControl]);
 
-  const usable =
-    status !== null &&
-    (agentAuth === 'hosted'
-      ? status.hostedAvailable
-      : agentAuth === 'apikey'
-        ? status.apiKeyConnected
-        : status.byokConnected);
+  const usable = isGeneralAgentUsable(agentAuth, status);
   const lastMessage = messages[messages.length - 1];
   const waiting =
     (running || starting) &&
