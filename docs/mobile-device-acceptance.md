@@ -50,6 +50,23 @@ pnpm mobile:ios:dev
 
 若服务未启动、只监听 loopback 或被防火墙阻断，移动命令会在开始原生构建前给出错误。
 
+## Standalone iOS device Debug install
+
+需要把包含当前 renderer 的 Debug 包安装到已配对真机、且安装后完全脱离开发服务运行时，使用：
+
+```bash
+pnpm mobile:ios:device:debug -- --device "<设备名称或 identifier>"
+```
+
+也可设置 `DRIFTING_IOS_DEVICE` 后省略 `--device`。命令读取被忽略的 `.env.local`，生成 owner-only
+Google OAuth xcconfig，以 local-only 配置运行 `tauri ios build --debug --target aarch64`，校验
+`Drifting.app` 的签名与 `cc.drifting.client` bundle identifier，再通过 `devicectl` 覆盖安装并启动。
+它编译并内嵌 `frontendDist`，不启动 Vite dev server，也不依赖桌面客户端或官方服务进程。
+
+默认安装是同 bundle identifier 的原位更新：命令不会先卸载 App，也不会清空真机上的 SQLite、
+Yjs、资源、Keychain 或授权状态。只安装不启动时追加 `--no-launch`。如果确实需要空白沙盒，必须
+由维护者明确在设备上卸载 App；该破坏性步骤不属于此脚本。
+
 ## First-time setup
 
 公共前置条件：在仓库根目录完成 `pnpm install`，Rust target 和 Tauri mobile target 已安装。本仓库的

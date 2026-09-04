@@ -7,7 +7,7 @@ function source(relativePath: string): string {
 }
 
 describe('mobile dev scripts', () => {
-  it('exposes exactly one convenient root command for each native platform', () => {
+  it('exposes development commands and a standalone iOS device Debug installer', () => {
     const rootPackage = JSON.parse(source('package.json')) as {
       scripts: Record<string, string>;
     };
@@ -15,6 +15,9 @@ describe('mobile dev scripts', () => {
     expect(rootPackage.scripts['mobile:ios:dev']).toBe('node scripts/run-mobile-dev.mjs ios');
     expect(rootPackage.scripts['mobile:android:dev']).toBe(
       'node scripts/run-mobile-dev.mjs android',
+    );
+    expect(rootPackage.scripts['mobile:ios:device:debug']).toBe(
+      'node scripts/install-ios-debug-device.mjs',
     );
   });
 
@@ -56,6 +59,8 @@ describe('mobile dev scripts', () => {
     expect(readme).toContain('docs/mobile-device-acceptance.md');
     expect(runbook).toContain('pnpm mobile:ios:dev');
     expect(runbook).toContain('pnpm mobile:android:dev');
+    expect(runbook).toContain('pnpm mobile:ios:device:debug -- --device');
+    expect(runbook).toContain('不启动 Vite dev server');
     expect(runbook).toContain('VITE_LOCAL_ONLY_MODE=false');
     expect(runbook).toContain('不能表述为移动端整体已验收');
   });

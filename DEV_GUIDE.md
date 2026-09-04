@@ -45,6 +45,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri:build
 pnpm tauri:build:debug
 pnpm mobile:ios:dev
+pnpm mobile:ios:device:debug -- --device "<设备名称或 identifier>"
 pnpm tauri:ios:build
 pnpm mobile:android:dev
 pnpm tauri:android:build
@@ -54,6 +55,8 @@ pnpm tauri:android:build
 会关闭 updater 产物生成；这不影响 `.app` bundle，可用于验证 macOS 权限声明。
 macOS 本地 bundle 同时沿用经过撤销检查的 Apple Development identity，避免 ad-hoc
 签名让麦克风与 Keychain 授权随每次构建漂移。
+真机 iOS Debug 安装命令会内嵌 renderer、校验签名与 bundle identifier，并通过 `devicectl`
+原位更新 App；它不启动 Vite dev server，不卸载旧 App，也不重置设备上的应用数据。
 受保护的正式发布环境提供 updater 公钥后，启动器把它写入仅在构建期间存在的临时
 Tauri 配置并继续生成签名 updater 产物，公钥不会落入仓库文件。
 

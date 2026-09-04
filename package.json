@@ -39,6 +39,7 @@
     "mobile:ios:dev": "node scripts/run-mobile-dev.mjs ios",
     "mobile:android:dev": "node scripts/run-mobile-dev.mjs android",
     "mobile:ios:debug": "node scripts/run-mobile-debug.mjs ios",
+    "mobile:ios:device:debug": "node scripts/install-ios-debug-device.mjs",
     "mobile:android:debug": "node scripts/run-mobile-debug.mjs android",
     "mobile:google-drive:acceptance:contract": "tsx scripts/check-google-drive-physical-evidence.ts --contract",
     "mobile:google-drive:acceptance": "tsx scripts/check-google-drive-physical-evidence.ts",
