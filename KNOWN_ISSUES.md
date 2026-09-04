@@ -6,6 +6,10 @@ evidence that a public installer is available.
 - Only macOS 13+ on Apple Silicon is in scope.
 - Copilot and General Agent are experimental BYOK features. Review every
   proposed change before accepting it.
+- The General Agent "ChatGPT subscription" route signs in with your own
+  ChatGPT account through OpenAI's Codex device login. OpenAI offers no
+  third-party contract for it, so it is unsupported, counts against your
+  ChatGPT plan, and may stop working without notice.
 - Google Drive synchronization trusts the selected Google account and Drive;
   synchronized manuscript data is not end-to-end encrypted against Google.
 - Relational Markdown is a readable export and is not an app-state import or

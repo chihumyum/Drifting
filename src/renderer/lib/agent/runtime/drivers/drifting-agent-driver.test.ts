@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const nativeMocks = vi.hoisted(() => ({
   isTauriRuntime: vi.fn(() => false),
   request: vi.fn(),
+  codexRequest: vi.fn(),
 }));
 
 vi.mock('../../../../platform', () => ({
   isTauriRuntime: nativeMocks.isTauriRuntime,
-  platform: { openAIResponses: { request: nativeMocks.request } },
+  platform: {
+    openAIResponses: { request: nativeMocks.request },
+    codexSubscription: { request: nativeMocks.codexRequest },
+  },
 }));
 import { AIError } from '../../../ai/types';
 import { publicModelDriverErrorMessage } from '../errors';
@@ -185,6 +189,52 @@ describe('DriftingAgentModelDriver', () => {
       store: false,
     });
     expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
+  });
+
+  it('routes the ChatGPT subscription through the native Codex transport inside Tauri', async () => {
+    nativeMocks.isTauriRuntime.mockReturnValue(true);
+    nativeMocks.codexRequest.mockReset();
+    nativeMocks.codexRequest.mockResolvedValue(
+      new Response(
+        'data: {"type":"response.completed","response":{"status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}\n\ndata: [DONE]\n\n',
+        { status: 200 },
+      ),
+    );
+    const driver = new DriftingAgentModelDriver();
+    const events: AgentModelStreamEvent[] = [];
+
+    for await (const event of driver.stream({
+      ...request(),
+      provider: 'openai-codex',
+      model: 'gpt-5.6-luna',
+    })) {
+      events.push(event);
+    }
+
+    expect(nativeMocks.request).not.toHaveBeenCalled();
+    expect(nativeMocks.codexRequest).toHaveBeenCalledOnce();
+    expect(JSON.parse(nativeMocks.codexRequest.mock.calls[0]![0])).toMatchObject({
+      model: 'gpt-5.6-luna',
+      stream: true,
+      store: false,
+    });
+    expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
+  });
+
+  it('refuses the ChatGPT subscription route outside the native runtime', async () => {
+    nativeMocks.isTauriRuntime.mockReturnValue(false);
+    nativeMocks.codexRequest.mockReset();
+    const driver = new DriftingAgentModelDriver();
+
+    const stream = driver.stream({
+      ...request(),
+      provider: 'openai-codex',
+      model: 'gpt-5.6-luna',
+    });
+    await expect(stream[Symbol.asyncIterator]().next()).rejects.toThrow(
+      'only inside the native Drifting app',
+    );
+    expect(nativeMocks.codexRequest).not.toHaveBeenCalled();
   });
 
   it('rejects a model from another provider before constructing a client', async () => {

@@ -10,8 +10,11 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 | Anthropic | `byok.anthropic` | Copilot、General Agent |
 | OpenAI    | `byok.openai`    | Copilot、General Agent |
 | Google    | `byok.google`    | Copilot                |
+| ChatGPT 订阅（实验） | `oauth.openai-codex`（仅原生可读） | General Agent `openai-codex` |
 
 密钥不进入 Zustand/localStorage，不参与偏好同步，也不在 Copilot 或 General Agent 面板中重复编辑。旧版 General Agent 的 `byok.agent.anthropic` 会在第一次读取 Anthropic 凭据时迁移到 `byok.anthropic`，确认写入后删除旧条目。
+
+ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订阅」行只驱动 OpenAI Codex 设备码登录并读取非敏感账号状态，OAuth token 全程在原生 Rust 侧读写、刷新与注入，`secure_storage` 拒绝 renderer 访问 `oauth.` 前缀。它不是 Copilot provider，也不进入 BYOK 密钥选择器。OpenAI 未对第三方应用开放该路径，用量计入作者本人的 ChatGPT 套餐，随时可能失效，不构成任何发布声明。
 
 ## 路由归属
 
@@ -19,7 +22,7 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 - General Agent 的 `agentProvider + agentModel + reasoning/context` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
 - standalone Shadow CI、Element Arc 与 Goal Evolve 已于 2026-08-05 移除；它们不再拥有 provider route 或独立凭据消费者。
 
-General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol。Google 虽然统一管理凭据，但在其 Agent Runtime tool loop 完成认证前只供 Copilot 选择。
+General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol，另有复用 OpenAI Responses 契约的实验性 `openai-codex` 订阅路由。Google 虽然统一管理凭据，但在其 Agent Runtime tool loop 完成认证前只供 Copilot 选择。
 
 ## 运行时边界
 

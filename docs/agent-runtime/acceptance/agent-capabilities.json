@@ -1920,6 +1920,56 @@
             ]
           }
         ]
+      },
+      {
+        "provider": "openai-codex",
+        "models": [
+          {
+            "id": "gpt-5.6-sol",
+            "wireContract": "gpt-5.6-sol:responses-codex-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-5.6-terra",
+            "wireContract": "gpt-5.6-terra:responses-codex-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-5.6-luna",
+            "wireContract": "gpt-5.6-luna:responses-codex-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
       }
     ],
     "mcpProtocolVersion": "2025-06-18",

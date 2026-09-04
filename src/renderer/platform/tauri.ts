@@ -14,6 +14,7 @@ import type {
   LifecycleEventPayload,
   NativeBytes,
   NativePlatformCapabilities,
+  OpenAIResponsesCredentialSource,
   OpenAIResponsesStreamEvent,
   PlatformCapabilities,
   PrepareImageResult,
@@ -313,7 +314,11 @@ function abortException(): DOMException {
   return new DOMException('OpenAI request was cancelled.', 'AbortError');
 }
 
-function nativeOpenAIResponse(body: string, signal: AbortSignal): Promise<Response> {
+function nativeOpenAIResponse(
+  body: string,
+  signal: AbortSignal,
+  credentialSource: OpenAIResponsesCredentialSource,
+): Promise<Response> {
   requireTauriRuntime('openai_responses_stream');
   if (signal.aborted) return Promise.reject(abortException());
 
@@ -391,7 +396,7 @@ function nativeOpenAIResponse(body: string, signal: AbortSignal): Promise<Respon
 
   signal.addEventListener('abort', onAbort, { once: true });
   void invokeContract('openai_responses_stream', {
-    input: { requestId, body, timeoutMs: 600_000 },
+    input: { requestId, body, timeoutMs: 600_000, credentialSource },
     onEvent,
   }).catch(fail);
   return response;
@@ -891,6 +896,14 @@ export const tauriPlatform: PlatformApi = {
   },
 
   openAIResponses: {
-    request: nativeOpenAIResponse,
+    request: (body, signal) => nativeOpenAIResponse(body, signal, 'api_key'),
+  },
+
+  codexSubscription: {
+    request: (body, signal) => nativeOpenAIResponse(body, signal, 'chatgpt_subscription'),
+    status: () => invokeContract('codex_oauth_status', undefined),
+    startLogin: () => invokeContract('codex_oauth_start', undefined),
+    cancelLogin: () => invokeContract('codex_oauth_cancel', undefined),
+    logout: () => invokeContract('codex_oauth_logout', undefined),
   },
 };

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { byokKeychain, type BYOKProvider } from '../../../lib/byok-keychain';
+import {
+  codexSubscription,
+  isCodexLoginActive,
+  type CodexSubscriptionStatus,
+} from '../../../lib/codex-subscription';
 import { speechKeychain } from '../../../lib/speech/speech-credentials';
 import { resolveCopilotModel } from '../../../lib/ai/copilot-route';
 import { testByokProviderConnection } from '../../../lib/ai/test-provider-connection';
@@ -234,6 +239,196 @@ function ProviderRow({
 }
 
 /**
+ * Experimental ChatGPT subscription sign-in for General Agent's `openai-codex`
+ * route. Deliberately not a `ProviderRow`: there is no key to paste, the OAuth
+ * tokens never reach the renderer, and Copilot must not treat it as a BYOK
+ * provider. The row drives the Codex device-code flow and polls native status
+ * while an attempt is live.
+ */
+function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: boolean }) {
+  const { t } = useTranslation();
+  const [status, setStatus] = useState<CodexSubscriptionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!credentialsActive) return;
+    let cancelled = false;
+    void codexSubscription
+      .status()
+      .then((value) => {
+        if (!cancelled) setStatus(value);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialsActive]);
+
+  const loginActive = isCodexLoginActive(status);
+  useEffect(() => {
+    if (!loginActive) return;
+    const timer = window.setInterval(() => {
+      void codexSubscription
+        .status()
+        .then(setStatus)
+        .catch(() => undefined);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [loginActive]);
+
+  const signIn = async () => {
+    setBusy(true);
+    setStartError(null);
+    try {
+      const login = await codexSubscription.startLogin();
+      setStatus((current) => ({
+        signedIn: current?.signedIn ?? false,
+        account: current?.account ?? null,
+        login,
+      }));
+    } catch {
+      setStartError(t('settings.codexSubscription.startFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async () => {
+    await codexSubscription.cancelLogin().catch(() => undefined);
+    setStatus(await codexSubscription.status().catch(() => null));
+  };
+
+  const signOut = async () => {
+    setBusy(true);
+    try {
+      await codexSubscription.logout();
+      setStatus(await codexSubscription.status().catch(() => null));
+      events.emit('byok:keys-changed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signedIn = status?.signedIn === true;
+  const login = status?.login ?? null;
+  const account = status?.account ?? null;
+  const failureKey = login?.phase === 'failed' ? login.failure ?? 'provider_rejected' : null;
+
+  return (
+    <div
+      className={
+        'set-provider' + (signedIn ? ' set-provider--connected' : ' set-provider--disconnected')
+      }
+    >
+      <div className="set-provider__head">
+        <div className="set-provider__logo set-provider__logo--openai">C</div>
+        <div className="set-provider__main">
+          <div className="set-provider__name">
+            <b>{t('settings.codexSubscription.name')}</b>
+            <em className={signedIn ? 'is-byok' : ''}>
+              {signedIn
+                ? account?.email ?? t('settings.codexSubscription.signedInAs')
+                : t('settings.codexSubscription.notSignedIn')}
+            </em>
+          </div>
+          <div className="set-provider__desc">{t('settings.models.providers.openaiCodex')}</div>
+        </div>
+        <div
+          className={
+            'set-provider__status ' +
+            (signedIn ? 'set-provider__status--live' : 'set-provider__status--off')
+          }
+        >
+          <span className="set-provider__status-dot" />
+          {signedIn ? 'CONNECTED' : 'OFFLINE'}
+        </div>
+      </div>
+
+      {(signedIn || loginActive) && (
+        <div className="set-provider__body">
+          <div className="set-provider__body-inner">
+            {loginActive && login ? (
+              <>
+                <span className="set-provider__k">{t('settings.codexSubscription.codeLabel')}</span>
+                <span className="set-provider__v">
+                  <code>{login.userCode}</code>
+                  <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+                    {login.phase === 'exchanging'
+                      ? ` · ${t('settings.codexSubscription.exchanging')}`
+                      : ` · ${t('settings.codexSubscription.codeHint')}`}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="set-provider__k">{t('settings.codexSubscription.plan')}</span>
+                <span className="set-provider__v">
+                  <code>{account?.plan ?? '—'}</code>
+                  <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+                    · KEYCHAIN
+                  </span>
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="set-provider__actions">
+        {loading ? null : loginActive && login ? (
+          <>
+            <button
+              className="set-btn set-btn--primary"
+              onClick={() => codexSubscription.openVerification(login)}
+            >
+              {t('settings.codexSubscription.openVerification')}
+            </button>
+            <button className="set-btn" onClick={cancel}>
+              {t('settings.common.cancel')}
+            </button>
+          </>
+        ) : signedIn ? (
+          <>
+            <span style={{ flex: 1 }} />
+            <button className="set-btn set-btn--danger" onClick={signOut} disabled={busy}>
+              {t('settings.codexSubscription.signOut')}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="set-btn set-btn--primary" onClick={signIn} disabled={busy}>
+              {t('settings.codexSubscription.signIn')}
+            </button>
+            {startError && (
+              <span className="set-mono" style={{ color: '#c0392b' }}>
+                ✗ {startError}
+              </span>
+            )}
+            {failureKey && (
+              <span className="set-mono" style={{ color: '#c0392b' }}>
+                ✗ {t(`settings.codexSubscription.failure.${failureKey}`)}
+              </span>
+            )}
+            {login?.phase === 'cancelled' && (
+              <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+                {t('settings.codexSubscription.cancelled')}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Voice-transcription credential (DashScope / 阿里云百炼). Deliberately not a
  * `ProviderRow`: it is not an LLM credential and must not join the Copilot
  * provider picker. Same keychain-only storage contract as the rows above.
@@ -432,6 +627,7 @@ export function ModelsPanel({
           name="OpenAI"
           desc={t('settings.models.providers.openai')}
         />
+        <ChatGptSubscriptionRow credentialsActive={credentialsActive} />
         <ProviderRow
           credentialsActive={credentialsActive}
           provider="google"

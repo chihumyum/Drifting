@@ -293,7 +293,13 @@ function requiredKey(id: AgentProviderId): string {
     deepseek: ['DEEPSEEK_AI_API_KEY', 'DEEPSEEK_API_KEY'],
     anthropic: ['ANTHROPIC_API_KEY'],
     openai: ['OPENAI_API_KEY'],
+    // The ChatGPT subscription route has no API key; its native OAuth host
+    // cannot run inside this Node canary.
+    'openai-codex': [],
   };
+  if (names[id].length === 0) {
+    throw new Error(`Live ${id} canary is unavailable: the route has no API-key credential`);
+  }
   const key = names[id].map((name) => process.env[name]).find(Boolean);
   if (!key) throw new Error(`Live ${id} canary requires ${names[id].join(' or ')}`);
   return key;

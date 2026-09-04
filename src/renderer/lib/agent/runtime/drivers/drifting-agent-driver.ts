@@ -154,6 +154,20 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
         const apiKey = await createCredentialChain().getApiKey('anthropic');
         return new AnthropicMessagesAgentDriver({ apiKey, defaultModel: model });
       }
+      if (!this.hasLegacyClientOverride() && provider === 'openai-codex') {
+        // The ChatGPT subscription token lives only in native secure storage,
+        // so this route has no browser or API-key fallback.
+        if (!isTauriRuntime()) {
+          throw new AgentModelDriverError(
+            `${this.featureLabel} can use a ChatGPT subscription only inside the native Drifting app.`,
+          );
+        }
+        return new OpenAIResponsesAgentDriver({
+          provider,
+          defaultModel: model,
+          transport: platform.codexSubscription,
+        });
+      }
       if (!this.hasLegacyClientOverride() && provider === 'openai') {
         if (isTauriRuntime()) {
           return new OpenAIResponsesAgentDriver({
@@ -202,6 +216,7 @@ function clientInitializationError(
   provider: AgentProviderId,
   featureLabel: string,
 ): AgentModelDriverError {
+  if (error instanceof AgentModelDriverError) return error;
   if (error instanceof AIError && error.kind === 'auth') {
     return new AgentModelDriverError(
       `${featureLabel} needs a configured ${agentProviderOption(provider).label} API key.`,

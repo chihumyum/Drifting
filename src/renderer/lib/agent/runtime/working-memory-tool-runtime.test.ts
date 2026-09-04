@@ -72,6 +72,30 @@ describe('Working Memory Agent tools', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it('accepts a blank optional noop payload without changing the replay arguments', () => {
+    const definition = new AgentWorkingMemoryToolRuntime()
+      .listDefinitions()
+      .find((candidate) => candidate.name === AGENT_WORKING_MEMORY_CHECKPOINT_TOOL)!;
+
+    expect(
+      definition.validateInput({
+        operation: 'noop',
+        expectedRevision: 3,
+        contentMd: '',
+      }),
+    ).toEqual({
+      ok: true,
+      value: { operation: 'noop', expectedRevision: 3, contentMd: '' },
+    });
+    expect(
+      definition.validateInput({
+        operation: 'noop',
+        expectedRevision: 3,
+        contentMd: '# Unexpected content',
+      }),
+    ).toEqual({ ok: false, error: 'noop contentMd must be omitted or blank' });
+  });
+
   it('updates the singleton with revision CAS and Agent provenance', async () => {
     const save = vi.fn(async () => ({
       snapshot: { ...snapshot, revision: 4 },

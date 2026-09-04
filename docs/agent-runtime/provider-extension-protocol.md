@@ -21,6 +21,22 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   `none`; thinking-on maps to the selected `low` through `max` effort. Requests
   use `store: false`, request encrypted reasoning content, and replay the exact
   response output items only inside the active tool loop.
+- `openai-codex` is the experimental ChatGPT subscription route. It sends the
+  same GPT-5.6 Responses body through the same native host to the Codex
+  backend, authorized by the author's own ChatGPT sign-in obtained with the
+  official Codex device-code OAuth flow. The body mirrors the official CLI:
+  no `max_output_tokens`, `text.verbosity` set. The OAuth tokens live only in
+  native secure storage under the renderer-inaccessible `oauth.openai-codex`
+  key; a token the backend rejects is refreshed once under a shared lease and
+  the bounded body replayed. OpenAI publishes no third-party contract for this
+  path, so it is unsupported, may stop working without notice, and is never a
+  release claim.
+- A Codex subscription stream may publish complete reasoning and function-call
+  items in indexed `response.output_item.done` events while leaving the terminal
+  `response.completed.response.output` array empty. The renderer reconstructs
+  that response only from a unique, contiguous sequence of completed item
+  indexes. A non-empty terminal output remains authoritative; duplicate or
+  missing streamed indexes fail closed.
 - One assistant response is one opaque reasoning replay unit. If it contains
   parallel tool calls, context retirement retains or compacts the complete
   overlapping call/result batch; it never removes one call/result pair while

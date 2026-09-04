@@ -8,6 +8,7 @@ use reqwest::header::{ACCEPT, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, AppHandle, State};
 
+use crate::codex_oauth;
 use crate::secure_storage;
 
 const OPENAI_RESPONSES_URL: &str = "https://api.openai.com/v1/responses";
@@ -17,12 +18,26 @@ const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_ERROR_BYTES: usize = 64 * 1024;
 const MAX_PRE_CANCELLED: usize = 1024;
 
+/// Which native credential authorizes a Responses request. Both sources share
+/// the renderer body contract; only the upstream origin and headers differ.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenAIResponsesCredentialSource {
+    /// `byok.openai` API key against the public OpenAI API.
+    #[default]
+    ApiKey,
+    /// ChatGPT subscription OAuth token against the Codex backend.
+    ChatgptSubscription,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenAIResponsesRequestInput {
     request_id: String,
     body: String,
     timeout_ms: u64,
+    #[serde(default)]
+    credential_source: OpenAIResponsesCredentialSource,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -147,29 +162,33 @@ async fn execute(
     input: OpenAIResponsesRequestInput,
     on_event: Channel<OpenAIResponsesStreamEvent>,
 ) -> Result<(), String> {
-    let key_app = app.clone();
-    let api_key = tauri::async_runtime::spawn_blocking(move || {
-        secure_storage::read_secret(&key_app, OPENAI_KEY_ID)
-    })
-    .await
-    .map_err(|_| "OPENAI_CREDENTIAL_UNAVAILABLE: secure storage worker failed")?
-    .map_err(|_| "OPENAI_CREDENTIAL_UNAVAILABLE: OpenAI key could not be read")?
-    .filter(|value| !value.trim().is_empty())
-    .ok_or_else(|| "OPENAI_CREDENTIAL_MISSING: no OpenAI API key is configured".to_string())?;
-
-    let response = send_openai_request(
-        &client,
-        api_key,
-        input.body,
-        Duration::from_millis(input.timeout_ms),
-    )
-    .await?;
+    let timeout = Duration::from_millis(input.timeout_ms);
+    let response = match input.credential_source {
+        OpenAIResponsesCredentialSource::ApiKey => {
+            let key_app = app.clone();
+            let api_key = tauri::async_runtime::spawn_blocking(move || {
+                secure_storage::read_secret(&key_app, OPENAI_KEY_ID)
+            })
+            .await
+            .map_err(|_| "OPENAI_CREDENTIAL_UNAVAILABLE: secure storage worker failed")?
+            .map_err(|_| "OPENAI_CREDENTIAL_UNAVAILABLE: OpenAI key could not be read")?
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                "OPENAI_CREDENTIAL_MISSING: no OpenAI API key is configured".to_string()
+            })?;
+            send_openai_request(&client, api_key, input.body, timeout).await?
+        }
+        OpenAIResponsesCredentialSource::ChatgptSubscription => {
+            send_codex_request(&app, &client, &input.body, timeout).await?
+        }
+    };
 
     let status = response.status();
     let request_id = project_request_id(response.headers());
     if !status.is_success() {
         let body = read_bounded_error(response).await?;
-        let (error_code, error_message) = project_upstream_error(status.as_u16(), &body);
+        let (error_code, error_message) =
+            project_upstream_error(status.as_u16(), &body, input.credential_source);
         send_event(
             &on_event,
             OpenAIResponsesStreamEvent::Started {
@@ -231,6 +250,43 @@ async fn send_openai_request(
         .map_err(project_network_error)
 }
 
+/// Codex backend request with the subscription bearer. A rejected token is
+/// refreshed once under the shared lease and the bounded body replayed.
+async fn send_codex_request(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    body: &str,
+    timeout: Duration,
+) -> Result<reqwest::Response, String> {
+    let authorization = codex_oauth::authorization(app, false).await?;
+    let response = post_codex(client, &authorization, body, timeout).await?;
+    if response.status() != reqwest::StatusCode::UNAUTHORIZED {
+        return Ok(response);
+    }
+    let authorization = codex_oauth::authorization(app, true).await?;
+    post_codex(client, &authorization, body, timeout).await
+}
+
+async fn post_codex(
+    client: &reqwest::Client,
+    authorization: &codex_oauth::CodexAuthorization,
+    body: &str,
+    timeout: Duration,
+) -> Result<reqwest::Response, String> {
+    codex_oauth::apply_request_headers(
+        client
+            .post(codex_oauth::CODEX_RESPONSES_URL)
+            .header(ACCEPT, "text/event-stream")
+            .header(CONTENT_TYPE, "application/json"),
+        authorization,
+    )
+    .timeout(timeout)
+    .body(body.to_owned())
+    .send()
+    .await
+    .map_err(project_network_error)
+}
+
 fn send_event(
     channel: &Channel<OpenAIResponsesStreamEvent>,
     event: OpenAIResponsesStreamEvent,
@@ -268,29 +324,52 @@ fn project_request_id(headers: &reqwest::header::HeaderMap) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn project_upstream_error(status: u16, body: &[u8]) -> (String, String) {
+fn project_upstream_error(
+    status: u16,
+    body: &[u8],
+    source: OpenAIResponsesCredentialSource,
+) -> (String, String) {
     let upstream_code = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|value| value.get("error")?.get("code")?.as_str().map(str::to_owned))
         .unwrap_or_default()
         .to_ascii_lowercase();
+    let subscription = source == OpenAIResponsesCredentialSource::ChatgptSubscription;
 
-    if upstream_code.contains("insufficient_quota") || upstream_code.contains("billing") {
+    if upstream_code.contains("insufficient_quota")
+        || upstream_code.contains("billing")
+        || (subscription && upstream_code.contains("usage_limit"))
+    {
         return (
             "quota_exhausted".into(),
-            "OpenAI quota or billing access is unavailable for this API key.".into(),
+            if subscription {
+                "The ChatGPT subscription usage limit was reached; wait for the window to reset."
+            } else {
+                "OpenAI quota or billing access is unavailable for this API key."
+            }
+            .into(),
         );
     }
     if upstream_code.contains("model_not_found") || matches!(status, 404) {
         return (
             "model_unavailable".into(),
-            "The selected OpenAI model is unavailable to this API key.".into(),
+            if subscription {
+                "The selected model is unavailable to this ChatGPT subscription."
+            } else {
+                "The selected OpenAI model is unavailable to this API key."
+            }
+            .into(),
         );
     }
     match status {
         401 | 403 => (
             "authentication_failed".into(),
-            "OpenAI rejected the configured API key or project access.".into(),
+            if subscription {
+                "The ChatGPT subscription sign-in was rejected; sign in again in Settings."
+            } else {
+                "OpenAI rejected the configured API key or project access."
+            }
+            .into(),
         ),
         429 => (
             "rate_limited".into(),
@@ -365,7 +444,45 @@ mod tests {
             request_id: "openai-request-1".into(),
             body: body.into(),
             timeout_ms: 60_000,
+            credential_source: OpenAIResponsesCredentialSource::ApiKey,
         }
+    }
+
+    #[test]
+    fn credential_source_defaults_to_the_api_key_and_decodes_the_subscription() {
+        let legacy: OpenAIResponsesRequestInput =
+            serde_json::from_str(r#"{"requestId":"r1","body":"{}","timeoutMs":60000}"#)
+                .expect("legacy input");
+        assert_eq!(
+            legacy.credential_source,
+            OpenAIResponsesCredentialSource::ApiKey
+        );
+        let subscription: OpenAIResponsesRequestInput = serde_json::from_str(
+            r#"{"requestId":"r1","body":"{}","timeoutMs":60000,"credentialSource":"chatgpt_subscription"}"#,
+        )
+        .expect("subscription input");
+        assert_eq!(
+            subscription.credential_source,
+            OpenAIResponsesCredentialSource::ChatgptSubscription
+        );
+    }
+
+    #[test]
+    fn projects_subscription_failures_with_sign_in_guidance() {
+        let (code, message) = project_upstream_error(
+            401,
+            b"{}",
+            OpenAIResponsesCredentialSource::ChatgptSubscription,
+        );
+        assert_eq!(code, "authentication_failed");
+        assert!(message.contains("sign in again"));
+        let body = br#"{"error":{"code":"usage_limit_reached"}}"#;
+        let (code, _) = project_upstream_error(
+            429,
+            body,
+            OpenAIResponsesCredentialSource::ChatgptSubscription,
+        );
+        assert_eq!(code, "quota_exhausted");
     }
 
     #[test]
@@ -385,7 +502,8 @@ mod tests {
     #[test]
     fn projects_upstream_failures_without_returning_raw_provider_text() {
         let body = br#"{"error":{"code":"insufficient_quota","message":"Bearer sk-secret"}}"#;
-        let (code, message) = project_upstream_error(429, body);
+        let (code, message) =
+            project_upstream_error(429, body, OpenAIResponsesCredentialSource::ApiKey);
         assert_eq!(code, "quota_exhausted");
         assert!(!message.contains("sk-secret"));
         assert!(!message.contains("Bearer"));
@@ -394,7 +512,10 @@ mod tests {
     #[test]
     fn identifies_model_entitlement_failures() {
         let body = br#"{"error":{"code":"model_not_found"}}"#;
-        assert_eq!(project_upstream_error(404, body).0, "model_unavailable");
+        assert_eq!(
+            project_upstream_error(404, body, OpenAIResponsesCredentialSource::ApiKey).0,
+            "model_unavailable"
+        );
     }
 
     #[test]

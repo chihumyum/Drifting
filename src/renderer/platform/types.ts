@@ -8,6 +8,8 @@ import type {
   AssetStorePathResult,
   AssetStoreWriteResult,
   AssetVariant,
+  CodexLoginProjection,
+  CodexSubscriptionStatus,
   DeleteImportResult,
   FilePickerKind,
   ImageVariantResult,
@@ -322,6 +324,20 @@ export interface OpenAIResponsesPlatformApi {
   request(body: string, signal: AbortSignal): Promise<Response>;
 }
 
+/**
+ * Experimental ChatGPT subscription route. The OAuth tokens live only in
+ * native secure storage; the renderer drives sign-in and reads status.
+ */
+export interface CodexSubscriptionPlatformApi extends OpenAIResponsesPlatformApi {
+  /** Native Codex-backend Responses transport authorized by the ChatGPT sign-in. */
+  request(body: string, signal: AbortSignal): Promise<Response>;
+  status(): Promise<CodexSubscriptionStatus>;
+  /** Starts a device-code sign-in; poll `status()` until the attempt is terminal. */
+  startLogin(): Promise<CodexLoginProjection>;
+  cancelLogin(): Promise<boolean>;
+  logout(): Promise<boolean>;
+}
+
 export interface PlatformApi {
   readonly app: AppPlatformApi;
   readonly window: WindowPlatformApi;
@@ -340,4 +356,5 @@ export interface PlatformApi {
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;
   readonly openAIResponses: OpenAIResponsesPlatformApi;
+  readonly codexSubscription: CodexSubscriptionPlatformApi;
 }

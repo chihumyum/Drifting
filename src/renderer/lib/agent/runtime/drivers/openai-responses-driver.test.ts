@@ -373,6 +373,160 @@ describe('OpenAI Responses Agent driver', () => {
     ]);
   });
 
+  it('reconstructs Codex tool replay when the terminal output array is empty', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const reasoningItem = {
+      id: 'rs_codex_1',
+      type: 'reasoning',
+      encrypted_content: 'encrypted-codex-state',
+      summary: [],
+    };
+    const functionItem = {
+      id: 'fc_codex_1',
+      type: 'function_call',
+      call_id: 'call-codex-1',
+      name: 'search',
+      arguments: '{"query":"rain"}',
+      status: 'completed',
+    };
+    let call = 0;
+    const transport = {
+      request: vi.fn(async (body: string) => {
+        bodies.push(JSON.parse(body) as Record<string, unknown>);
+        call += 1;
+        if (call === 1) {
+          return new Response(
+            sse([
+              {
+                type: 'response.output_item.done',
+                output_index: 0,
+                item: reasoningItem,
+              },
+              {
+                type: 'response.output_item.added',
+                output_index: 1,
+                item: {
+                  id: 'fc_codex_1',
+                  type: 'function_call',
+                  call_id: 'call-codex-1',
+                  name: 'search',
+                  arguments: '',
+                  status: 'in_progress',
+                },
+              },
+              {
+                type: 'response.function_call_arguments.delta',
+                item_id: 'fc_codex_1',
+                output_index: 1,
+                delta: '{"query":"rain"}',
+              },
+              {
+                type: 'response.output_item.done',
+                output_index: 1,
+                item: functionItem,
+              },
+              {
+                type: 'response.completed',
+                response: {
+                  status: 'completed',
+                  // The ChatGPT Codex backend streams complete output items but
+                  // currently omits them from the terminal response snapshot.
+                  output: [],
+                  usage: { input_tokens: 40, output_tokens: 12 },
+                },
+              },
+            ]),
+            { status: 200, headers: { 'content-type': 'text/event-stream' } },
+          );
+        }
+        return new Response(
+          sse([
+            {
+              type: 'response.completed',
+              response: {
+                status: 'completed',
+                output: [],
+                usage: { input_tokens: 50, output_tokens: 8 },
+              },
+            },
+          ]),
+          { status: 200, headers: { 'content-type': 'text/event-stream' } },
+        );
+      }),
+    };
+    const driver = new OpenAIResponsesAgentDriver({
+      provider: 'openai-codex',
+      defaultModel: 'gpt-5.6-sol',
+      transport,
+    });
+
+    await expect(
+      collect(driver, request({ provider: 'openai-codex' })),
+    ).resolves.toContainEqual({ type: 'finish', reason: 'tool_use' });
+
+    await expect(
+      collect(
+        driver,
+        request({
+          provider: 'openai-codex',
+          iteration: 2,
+          context: {
+            systemPrompt: 'Use only certified tools.',
+            messages: [
+              {
+                type: 'model_message',
+                sourceIds: ['message/user/1'],
+                message: { role: 'user', content: 'Search rain.' },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/assistant/1/tool'],
+                message: {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'tool_call',
+                      callId: 'call-codex-1',
+                      name: 'search',
+                      arguments: { query: 'rain' },
+                      rawArguments: '{"query":"rain"}',
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/tool/1'],
+                message: {
+                  role: 'tool',
+                  content: [
+                    {
+                      callId: 'call-codex-1',
+                      name: 'search',
+                      ok: true,
+                      content: '{"matches":["rain"]}',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    ).resolves.toContainEqual({ type: 'finish', reason: 'end_turn' });
+
+    expect(bodies[1]?.input).toEqual([
+      { role: 'user', content: 'Search rain.' },
+      reasoningItem,
+      functionItem,
+      {
+        type: 'function_call_output',
+        call_id: 'call-codex-1',
+        output: '{"matches":["rain"]}',
+      },
+    ]);
+  });
+
   it('still fails locally when an active reasoning tool call has no replay state', async () => {
     const fetchMock = vi.fn();
     const driver = new OpenAIResponsesAgentDriver({ apiKey: 'test', fetch: fetchMock });
@@ -594,6 +748,72 @@ describe('OpenAI Responses Agent driver', () => {
       stream: true,
       store: false,
     });
+  });
+
+  it('mirrors the official CLI body on the ChatGPT subscription route', async () => {
+    const transport = {
+      request: vi.fn(
+        async (_body: string) =>
+          new Response(
+            sse([
+              {
+                type: 'response.completed',
+                response: {
+                  status: 'completed',
+                  output: [],
+                  usage: { input_tokens: 1, output_tokens: 1 },
+                },
+              },
+            ]),
+            { status: 200 },
+          ),
+      ),
+    };
+    const driver = new OpenAIResponsesAgentDriver({
+      provider: 'openai-codex',
+      defaultModel: 'gpt-5.6-luna',
+      transport,
+    });
+    expect(driver.capabilities.context.id).toBe('gpt-5.6-sol:responses-codex-v1');
+
+    await expect(
+      collect(
+        driver,
+        request({
+          provider: 'openai-codex',
+          model: 'gpt-5.6-luna',
+          tools: [],
+          reasoning: { enabled: false },
+        }),
+      ),
+    ).resolves.toContainEqual({ type: 'finish', reason: 'end_turn' });
+    const body = JSON.parse(transport.request.mock.calls[0]![0]) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      model: 'gpt-5.6-luna',
+      stream: true,
+      store: false,
+      text: { verbosity: 'medium' },
+    });
+    expect(typeof body.instructions).toBe('string');
+    expect(body).not.toHaveProperty('max_output_tokens');
+  });
+
+  it('tells the author to sign in when the subscription credential is missing', async () => {
+    const driver = new OpenAIResponsesAgentDriver({
+      provider: 'openai-codex',
+      transport: {
+        request: async () => {
+          throw new Error('CODEX_CREDENTIAL_MISSING: no ChatGPT subscription is signed in');
+        },
+      },
+    });
+
+    await expect(
+      collect(
+        driver,
+        request({ provider: 'openai-codex', tools: [], reasoning: { enabled: false } }),
+      ),
+    ).rejects.toThrow('ChatGPT subscription is not signed in');
   });
 
   it('surfaces native model entitlement and request id without raw response data', async () => {

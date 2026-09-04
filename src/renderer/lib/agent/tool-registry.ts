@@ -1593,9 +1593,19 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     description: '最终回复前更新或明确不更新共享 Working Memory。',
     parametersSchema: Type.Object(
       {
-        operation: Type.Union([Type.Literal('update'), Type.Literal('noop')]),
-        expectedRevision: Type.Integer({ minimum: 0 }),
-        contentMd: Type.Optional(Type.String({ maxLength: 64_000 })),
+        operation: Type.Union([Type.Literal('update'), Type.Literal('noop')], {
+          description: '使用 update 替换 Working Memory；无需改动时使用 noop',
+        }),
+        expectedRevision: Type.Integer({
+          minimum: 0,
+          description: '回合开始时或重新读取后得到的精确 Working Memory revision',
+        }),
+        contentMd: Type.Optional(
+          Type.String({
+            maxLength: 64_000,
+            description: 'update 时提供完整替换 Markdown；noop 时省略',
+          }),
+        ),
       },
       { additionalProperties: false },
     ),

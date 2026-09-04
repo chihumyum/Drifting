@@ -32,9 +32,19 @@ export {
 const readSchema = Type.Object({}, { additionalProperties: false });
 const checkpointSchema = Type.Object(
   {
-    operation: Type.Union([Type.Literal('update'), Type.Literal('noop')]),
-    expectedRevision: Type.Integer({ minimum: 0 }),
-    contentMd: Type.Optional(Type.String({ maxLength: 64_000 })),
+    operation: Type.Union([Type.Literal('update'), Type.Literal('noop')], {
+      description: 'Use update to replace Working Memory, or noop when it should remain unchanged',
+    }),
+    expectedRevision: Type.Integer({
+      minimum: 0,
+      description: 'Exact revision from the turn-start Working Memory header or a fresh read',
+    }),
+    contentMd: Type.Optional(
+      Type.String({
+        maxLength: 64_000,
+        description: 'Complete replacement Markdown for update; omit for noop',
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -112,8 +122,14 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
           if (operation === 'update' && (typeof contentMd !== 'string' || !contentMd.trim())) {
             return { ok: false, error: 'update requires non-empty contentMd' };
           }
-          if (operation === 'noop' && contentMd !== undefined) {
-            return { ok: false, error: 'noop must omit contentMd' };
+          if (operation === 'noop') {
+            // Some otherwise-valid function callers materialize an optional
+            // string as "". It carries exactly the same no-content semantics
+            // as omission for a noop. Retain the exact provider arguments for
+            // durable replay while continuing to reject any non-empty payload.
+            if (typeof contentMd === 'string' && contentMd.trim()) {
+              return { ok: false, error: 'noop contentMd must be omitted or blank' };
+            }
           }
           return checked;
         },

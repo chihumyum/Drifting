@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useReducer } from 'react';
 import { BYOKCredentialsProvider } from '../ai/credentials/byok';
 import { ChainCredentialsProvider } from '../ai/credentials/chain';
 import { EnvCredentialsProvider } from '../ai/credentials/env';
+import { platform } from '../../platform';
 import type { GeneralAgentAuthStatus } from './protocol';
 import { createDriftingAgentProductComposition } from './runtime';
 import { installGeneralAgentTransport, type GeneralAgentTransport } from './transport';
@@ -44,11 +45,15 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
     new EnvCredentialsProvider(),
     new BYOKCredentialsProvider(),
   ]);
+  const provider = useSettingsStore.getState().agentProvider;
   let connected = false;
   try {
-    connected = Boolean(
-      await credentials.getApiKey(useSettingsStore.getState().agentProvider),
-    );
+    // The ChatGPT subscription has no renderer-readable key; native status is
+    // the only signal that a sign-in exists.
+    connected =
+      provider === 'openai-codex'
+        ? (await platform.codexSubscription.status()).signedIn
+        : Boolean(await credentials.getApiKey(provider));
   } catch {
     connected = false;
   }

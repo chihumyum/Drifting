@@ -210,6 +210,16 @@ describe('Drifting Agent capability manifest', () => {
       'deepseek',
       'anthropic',
       'openai',
+      'openai-codex',
+    ]);
+    expect(
+      platform.certifiedProviders
+        .find((item) => item.provider === 'openai-codex')
+        ?.models.map((model) => model.wireContract),
+    ).toEqual([
+      'gpt-5.6-sol:responses-codex-v1',
+      'gpt-5.6-terra:responses-codex-v1',
+      'gpt-5.6-luna:responses-codex-v1',
     ]);
     expect(
       platform.certifiedProviders.find((item) => item.provider === 'openai')?.models,

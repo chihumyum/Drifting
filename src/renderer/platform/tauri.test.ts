@@ -253,10 +253,11 @@ describe('tauri native OpenAI and Keychain status transport', () => {
         throw new Error(`unexpected command: ${command}`);
       }
       const payload = args as {
-        input: { body: string; requestId: string; timeoutMs: number };
+        input: { body: string; requestId: string; timeoutMs: number; credentialSource: string };
         onEvent: { onmessage: (event: unknown) => void };
       };
       expect(payload.input.body).toBe('{"model":"gpt-5.6-luna"}');
+      expect(payload.input.credentialSource).toBe('api_key');
       expect(JSON.stringify(payload)).not.toContain('Authorization');
       payload.onEvent.onmessage({
         type: 'started',
@@ -281,6 +282,75 @@ describe('tauri native OpenAI and Keychain status transport', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('x-request-id')).toBe('req_native_1');
     await expect(response.text()).resolves.toBe(ssePayload);
+  });
+
+  it('sends ChatGPT subscription requests through the same native stream with their own credential source', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string, args?: unknown) => {
+      if (command !== 'openai_responses_stream') {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      const payload = args as {
+        input: { credentialSource: string };
+        onEvent: { onmessage: (event: unknown) => void };
+      };
+      expect(payload.input.credentialSource).toBe('chatgpt_subscription');
+      expect(JSON.stringify(payload)).not.toContain('access_token');
+      payload.onEvent.onmessage({
+        type: 'started',
+        status: 200,
+        requestId: null,
+        errorCode: null,
+        errorMessage: null,
+      });
+      payload.onEvent.onmessage({ type: 'finished' });
+      return undefined;
+    });
+
+    const response = await tauriPlatform.codexSubscription.request(
+      '{"model":"gpt-5.6-luna"}',
+      new AbortController().signal,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe('');
+  });
+
+  it('drives ChatGPT sign-in through native OAuth commands that never return tokens', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'codex_oauth_start') {
+        return {
+          attemptId: 'attempt-1',
+          phase: 'awaiting_authorization',
+          userCode: 'ABCD-1234',
+          verificationUrl: 'https://auth.openai.com/codex/device',
+          expiresAtMs: 1,
+          failure: null,
+        };
+      }
+      if (command === 'codex_oauth_status') {
+        return {
+          signedIn: true,
+          account: { accountId: 'acct_1', email: 'author@example.com', plan: 'plus' },
+          login: null,
+        };
+      }
+      if (command === 'codex_oauth_cancel') return false;
+      if (command === 'codex_oauth_logout') return true;
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    await expect(tauriPlatform.codexSubscription.startLogin()).resolves.toMatchObject({
+      userCode: 'ABCD-1234',
+      phase: 'awaiting_authorization',
+    });
+    await expect(tauriPlatform.codexSubscription.status()).resolves.toMatchObject({
+      signedIn: true,
+      account: { email: 'author@example.com' },
+    });
+    await expect(tauriPlatform.codexSubscription.cancelLogin()).resolves.toBe(false);
+    await expect(tauriPlatform.codexSubscription.logout()).resolves.toBe(true);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_start', undefined);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_logout', undefined);
   });
 
   it('forwards AbortSignal cancellation to the active native request', async () => {

@@ -10,6 +10,7 @@ import {
   streamProviderAttemptWithRetry,
 } from './provider-attempt-retry';
 import type {
+  AgentModelContextProfile,
   AgentModelDriver,
   AgentModelMessage,
   AgentModelRequest,
@@ -21,12 +22,19 @@ import type {
 import {
   resolveAgentProviderContextProfile,
   resolveAgentProviderReasoningProfile,
+  type OpenAIResponsesProviderId,
 } from '../agent-provider-contract';
 
 type FetchLike = typeof fetch;
 type ResponsesItem = Record<string, unknown>;
 
 export interface OpenAIResponsesAgentDriverOptions {
+  /**
+   * `openai` bills an API key against the public API. `openai-codex` sends the
+   * same body to the ChatGPT Codex backend through the native subscription
+   * transport and mirrors the official CLI's request shape.
+   */
+  provider?: OpenAIResponsesProviderId;
   apiKey?: string;
   defaultModel?: string;
   endpoint?: string;
@@ -51,11 +59,12 @@ interface OpenAIFunctionCallState {
 /** Native Responses API adapter for GPT-5.6 reasoning plus Agent tools. */
 export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   readonly id = 'openai-responses-stream';
-  readonly capabilities = {
-    reasoning: true,
-    context: resolveAgentProviderContextProfile('openai', 'gpt-5.6-sol'),
-  } as const;
+  readonly capabilities: {
+    readonly reasoning: true;
+    readonly context: Readonly<AgentModelContextProfile>;
+  };
 
+  private readonly provider: OpenAIResponsesProviderId;
   private readonly apiKey: string | null;
   private readonly defaultModel: string;
   private readonly endpoint: string;
@@ -69,6 +78,11 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     const apiKey = options.apiKey?.trim() ?? '';
     if (!apiKey && !options.transport) throw new Error('OpenAI API key is empty');
     this.apiKey = apiKey || null;
+    this.provider = options.provider ?? 'openai';
+    this.capabilities = {
+      reasoning: true,
+      context: resolveAgentProviderContextProfile(this.provider, 'gpt-5.6-sol'),
+    };
     this.defaultModel = options.defaultModel ?? 'gpt-5.6-sol';
     this.endpoint = options.endpoint ?? 'https://api.openai.com/v1/responses';
     this.fetchImpl = options.fetch ?? fetch;
@@ -101,7 +115,8 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
-    const reasoningProfile = resolveAgentProviderReasoningProfile('openai', model);
+    const reasoningProfile = resolveAgentProviderReasoningProfile(this.provider, model);
+    const subscription = this.provider === 'openai-codex';
     const configuredReasoningEnabled = request.reasoning?.enabled === true;
     const reasoningEnabled =
       configuredReasoningEnabled &&
@@ -130,7 +145,10 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       model,
       instructions: requirePlannedSystem(request.context.systemPrompt),
       input,
-      max_output_tokens: request.maxOutputTokens,
+      // The Codex backend is exercised with the official CLI's request shape,
+      // which never sends an output ceiling; the planner budget still bounds
+      // the turn and the incomplete-reason projection is unchanged.
+      ...(subscription ? {} : { max_output_tokens: request.maxOutputTokens }),
       stream: true,
       store: false,
       // OpenAI prefix caching is automatic; the key only routes requests that
@@ -142,6 +160,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
         ...(reasoningEnabled ? { summary: 'auto', context: 'current_turn' } : {}),
       },
       ...(reasoningEnabled ? { include: ['reasoning.encrypted_content'] } : {}),
+      ...(subscription ? { text: { verbosity: 'medium' } } : {}),
       ...(request.tools.length > 0
         ? {
             tools: request.tools.map((tool) => ({
@@ -173,10 +192,17 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       if (request.signal.aborted) throw abortError();
       throw requestStartError(error);
     }
-    if (!response.ok) throw responseError(response);
+    if (!response.ok) throw responseError(response, this.provider);
 
     const callsByItemId = new Map<string, OpenAIFunctionCallState>();
     const callIds = new Set<string>();
+    // The public Responses API repeats every completed output item on the
+    // terminal response. The ChatGPT Codex backend can instead leave
+    // `response.completed.response.output` empty while still sending the
+    // authoritative `response.output_item.done` events. Retain those completed
+    // items by output index so the active tool loop can reconstruct the exact
+    // replay batch without trusting deltas or inventing provider state.
+    const streamedOutputByIndex = new Map<number, ResponsesItem>();
     let terminalSeen = false;
 
     for await (const event of parseSseJson(response, request.signal)) {
@@ -233,6 +259,11 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       }
       if (type === 'response.output_item.done') {
         const item = recordField(event, 'item');
+        const outputIndex = optionalResponseOutputIndex(event.output_index);
+        if (outputIndex !== undefined) {
+          if (streamedOutputByIndex.has(outputIndex)) throw invalidStream();
+          streamedOutputByIndex.set(outputIndex, structuredClone(item));
+        }
         if (item.type !== 'function_call') continue;
         const state = callsByItemId.get(nonBlankString(item.id, 'function item id'));
         if (!state || state.ended) throw invalidStream();
@@ -256,7 +287,11 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
         if (terminalSeen) throw invalidStream();
         terminalSeen = true;
         const completed = recordField(event, 'response');
-        const output = arrayOfRecords(completed.output, 'response output');
+        const terminalOutput = arrayOfRecords(completed.output, 'response output');
+        const output = resolveCompletedResponsesOutput(
+          terminalOutput,
+          streamedOutputByIndex,
+        );
         finishOpenFunctionCalls(callsByItemId, output);
         const replay = output.map((item) => structuredClone(item));
         if (reasoningEnabled) {
@@ -501,6 +536,33 @@ function responseFunctionCallIds(output: readonly ResponsesItem[]): string[] {
   );
 }
 
+/**
+ * Resolve the complete provider output for active-turn replay.
+ *
+ * The normal API terminal response is authoritative when it contains output.
+ * The Codex subscription backend currently sends an empty terminal array, so
+ * only in that case do we fall back to complete `output_item.done` snapshots.
+ * Indices must be unique and contiguous; a partial or reordered projection
+ * still fails closed before any tool effect can escape.
+ */
+function resolveCompletedResponsesOutput(
+  terminalOutput: readonly ResponsesItem[],
+  streamedOutputByIndex: ReadonlyMap<number, ResponsesItem>,
+): ResponsesItem[] {
+  if (terminalOutput.length > 0 || streamedOutputByIndex.size === 0) {
+    return terminalOutput.map((item) => structuredClone(item));
+  }
+  const entries = [...streamedOutputByIndex.entries()].sort(([left], [right]) => left - right);
+  if (entries.some(([outputIndex], position) => outputIndex !== position)) {
+    throw invalidStream();
+  }
+  return entries.map(([, item]) => structuredClone(item));
+}
+
+function optionalResponseOutputIndex(value: unknown): number | undefined {
+  return value === undefined ? undefined : nonNegativeInteger(value, 'response output index');
+}
+
 function normalizeResponsesUsage(value: unknown): AgentRuntimeUsage {
   const usage = recordValue(value, 'response usage');
   const inputTokens = nonNegativeInteger(usage.input_tokens, 'input tokens');
@@ -654,8 +716,12 @@ function optionalNonNegativeInteger(value: unknown): number {
   return value === undefined ? 0 : nonNegativeInteger(value, 'cached tokens');
 }
 
-function responseError(response: Response): AgentModelDriverError {
+function responseError(
+  response: Response,
+  provider: OpenAIResponsesProviderId,
+): AgentModelDriverError {
   const status = response.status;
+  const subscription = provider === 'openai-codex';
   const errorCode = response.headers.get('x-drifting-openai-error-code');
   const requestId = response.headers.get('x-request-id');
   const suffix =
@@ -663,15 +729,25 @@ function responseError(response: Response): AgentModelDriverError {
       ? ` Request ID: ${requestId}.`
       : '';
   if (errorCode === 'quota_exhausted') {
-    return new AgentModelDriverError(`OpenAI quota or billing access is unavailable.${suffix}`);
+    return new AgentModelDriverError(
+      subscription
+        ? `ChatGPT subscription usage limit reached; wait for the window to reset.${suffix}`
+        : `OpenAI quota or billing access is unavailable.${suffix}`,
+    );
   }
   if (errorCode === 'model_unavailable' || status === 404) {
     return new AgentModelDriverError(
-      `The selected OpenAI model is unavailable to this API key.${suffix}`,
+      subscription
+        ? `The selected model is unavailable to this ChatGPT subscription.${suffix}`
+        : `The selected OpenAI model is unavailable to this API key.${suffix}`,
     );
   }
   if (status === 401 || status === 403) {
-    return new AgentModelDriverError(`OpenAI authentication or project access failed.${suffix}`);
+    return new AgentModelDriverError(
+      subscription
+        ? `ChatGPT subscription sign-in was rejected. Sign in again under Settings → Models & API.${suffix}`
+        : `OpenAI authentication or project access failed.${suffix}`,
+    );
   }
   if (status === 429) {
     return new AgentModelDriverError(`OpenAI rate limit reached.${suffix}`, true, {
@@ -689,6 +765,27 @@ function responseError(response: Response): AgentModelDriverError {
 
 function requestStartError(error: unknown): AgentModelDriverError {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('CODEX_CREDENTIAL_MISSING')) {
+    return new AgentModelDriverError(
+      'ChatGPT subscription is not signed in. Sign in under Settings → Models & API.',
+    );
+  }
+  if (message.includes('CODEX_CREDENTIAL_EXPIRED')) {
+    return new AgentModelDriverError(
+      'ChatGPT subscription sign-in is no longer valid. Sign in again under Settings → Models & API.',
+    );
+  }
+  if (message.includes('CODEX_CREDENTIAL_UNAVAILABLE')) {
+    return new AgentModelDriverError(
+      'ChatGPT subscription sign-in could not be read from Keychain. Check the macOS access prompt.',
+    );
+  }
+  if (message.includes('CODEX_REFRESH_FAILED')) {
+    return new AgentModelDriverError(
+      'ChatGPT subscription token could not be refreshed. Check the network and retry.',
+      true,
+    );
+  }
   if (message.includes('OPENAI_CREDENTIAL_MISSING')) {
     return new AgentModelDriverError('OpenAI API key is not configured in Keychain.');
   }

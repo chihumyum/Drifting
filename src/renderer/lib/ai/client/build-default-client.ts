@@ -65,6 +65,14 @@ export async function buildDefaultLLMClient(
     new EnvCredentialsProvider(),
     new BYOKCredentialsProvider(),
   ]);
+  if (options.provider === 'openai-codex') {
+    // The subscription token never enters the renderer, so no direct BYOK
+    // client can exist for it; General Agent routes it natively instead.
+    throw new AIError(
+      'auth',
+      'The ChatGPT subscription route is served only by the native General Agent transport.',
+    );
+  }
   const provider = proxyTransport
     ? new ServerProxyProvider()
     : options.provider

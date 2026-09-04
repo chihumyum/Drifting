@@ -8,6 +8,13 @@ import type {
 /** Providers whose BYOK wire contract is certified for the General Agent. */
 export type AgentProviderId = AgentProviderChoice;
 
+/**
+ * Providers served by the native OpenAI Responses transport. `openai` bills an
+ * API key against the public API; `openai-codex` is the experimental ChatGPT
+ * subscription route against the Codex backend with the same request body.
+ */
+export type OpenAIResponsesProviderId = Extract<AgentProviderId, 'openai' | 'openai-codex'>;
+
 export interface AgentProviderModelOption {
   value: string;
   label: string;
@@ -137,6 +144,36 @@ export const AGENT_PROVIDER_OPTIONS: readonly AgentProviderOption[] = Object.fre
         label: 'GPT-5.6 Luna · efficient',
         short: '5.6 Luna',
         context: profile('gpt-5.6-luna:responses-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
+      },
+    ]),
+  },
+  {
+    // Experimental, unsupported: the author's own ChatGPT subscription signed
+    // in through the Codex device flow. Same GPT-5.6 wire contract, different
+    // origin and credential; the backend may withdraw it without notice.
+    value: 'openai-codex',
+    label: 'OpenAI · ChatGPT subscription',
+    models: Object.freeze([
+      {
+        value: 'gpt-5.6-sol',
+        label: 'GPT-5.6 Sol · frontier',
+        short: '5.6 Sol',
+        context: profile('gpt-5.6-sol:responses-codex-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
+      },
+      {
+        value: 'gpt-5.6-terra',
+        label: 'GPT-5.6 Terra · balanced',
+        short: '5.6 Terra',
+        context: profile('gpt-5.6-terra:responses-codex-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
+      },
+      {
+        value: 'gpt-5.6-luna',
+        label: 'GPT-5.6 Luna · efficient',
+        short: '5.6 Luna',
+        context: profile('gpt-5.6-luna:responses-codex-v1', 1_050_000, 128_000, 640),
         reasoning: ADAPTIVE_REASONING,
       },
     ]),

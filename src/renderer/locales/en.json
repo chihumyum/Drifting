@@ -664,6 +664,7 @@
         "deepseek": "Shared by Copilot and General Agent.",
         "anthropic": "Shared by Copilot and General Agent.",
         "openai": "Shared by Copilot and General Agent.",
+        "openaiCodex": "Experimental: General Agent can run GPT-5.6 on your own ChatGPT subscription through OpenAI's Codex device sign-in. OpenAI offers no third-party contract for this path, so it is unsupported and may stop working without notice; usage counts against your ChatGPT plan.",
         "google": "Currently available to Copilot; its key is still managed here.",
         "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
       },
@@ -691,6 +692,27 @@
       "setCurrent": "Set current",
       "invalidKey": "Invalid key",
       "requestFailed": "Request failed (provider unavailable or network issue)"
+    },
+    "codexSubscription": {
+      "name": "ChatGPT subscription",
+      "signedInAs": "Signed in",
+      "notSignedIn": "Not signed in",
+      "signIn": "Sign in with ChatGPT",
+      "signOut": "Sign out",
+      "openVerification": "Open verification page",
+      "codeLabel": "One-time code",
+      "codeHint": "enter it on the OpenAI device page; Drifting keeps checking until you approve",
+      "exchanging": "approved, completing sign-in…",
+      "plan": "Plan",
+      "startFailed": "Sign-in could not start. Check the network and retry.",
+      "cancelled": "Sign-in cancelled.",
+      "failure": {
+        "expired": "The code expired before it was approved.",
+        "provider_rejected": "OpenAI rejected the sign-in.",
+        "network_failed": "OpenAI could not be reached.",
+        "invalid_response": "OpenAI returned an unexpected response.",
+        "storage_failed": "The sign-in could not be saved to Keychain."
+      }
     },
     "agentAuth": {
       "statusTitle": "Status",

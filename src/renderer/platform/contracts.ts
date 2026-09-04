@@ -384,12 +384,49 @@ export interface McpHttpResponseResult {
   body: string;
 }
 
+/** Native credential that authorizes a Responses request. */
+export type OpenAIResponsesCredentialSource = 'api_key' | 'chatgpt_subscription';
+
 export interface OpenAIResponsesRequestInput {
   /** Transport-only cancellation identity; never an OpenAI response id. */
   requestId: string;
   /** Responses API JSON body. Authorization is injected by native code. */
   body: string;
   timeoutMs: number;
+  /** Defaults to the `byok.openai` API key when omitted. */
+  credentialSource?: OpenAIResponsesCredentialSource;
+}
+
+export type CodexLoginPhase =
+  | 'awaiting_authorization'
+  | 'exchanging'
+  | 'authenticated'
+  | 'failed'
+  | 'cancelled';
+
+/** Renderer-visible projection of one ChatGPT device-code sign-in attempt. */
+export interface CodexLoginProjection {
+  attemptId: string;
+  phase: CodexLoginPhase;
+  /** One-time code the author types at `verificationUrl`. */
+  userCode: string;
+  verificationUrl: string;
+  expiresAtMs: number;
+  /** Bounded failure class; never provider text. */
+  failure: string | null;
+}
+
+/** Non-secret claims from the signed-in ChatGPT account. */
+export interface CodexAccountSummary {
+  accountId: string | null;
+  email: string | null;
+  plan: string | null;
+}
+
+export interface CodexSubscriptionStatus {
+  signedIn: boolean;
+  account: CodexAccountSummary | null;
+  login: CodexLoginProjection | null;
 }
 
 export type OpenAIResponsesStreamEvent =
@@ -684,6 +721,10 @@ export interface TauriCommandContract {
     result: void;
   };
   openai_responses_cancel: { args: { requestId: string }; result: boolean };
+  codex_oauth_start: { args: undefined; result: CodexLoginProjection };
+  codex_oauth_status: { args: undefined; result: CodexSubscriptionStatus };
+  codex_oauth_cancel: { args: undefined; result: boolean };
+  codex_oauth_logout: { args: undefined; result: boolean };
 }
 
 export interface TauriEventContract {

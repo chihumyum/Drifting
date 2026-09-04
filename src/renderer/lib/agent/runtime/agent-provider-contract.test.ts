@@ -63,6 +63,22 @@ describe('General Agent provider contract', () => {
     }
   });
 
+  it('certifies the ChatGPT subscription route as a twin of the OpenAI body with its own wire id', () => {
+    const openai = AGENT_PROVIDER_OPTIONS.find((item) => item.value === 'openai')!;
+    const codex = AGENT_PROVIDER_OPTIONS.find((item) => item.value === 'openai-codex')!;
+    expect(codex.models.map((model) => model.value)).toEqual(
+      openai.models.map((model) => model.value),
+    );
+    for (const model of codex.models) {
+      const twin = openai.models.find((candidate) => candidate.value === model.value)!;
+      expect(model.context.id).toBe(`${model.value}:responses-codex-v1`);
+      expect(model.context.contextWindowTokens).toBe(twin.context.contextWindowTokens);
+      expect(model.context.maxOutputTokens).toBe(twin.context.maxOutputTokens);
+      expect(model.reasoning).toEqual(twin.reasoning);
+    }
+    expect(normalizeAgentProviderModel('openai-codex', 'deepseek-v4-flash')).toBe('gpt-5.6-sol');
+  });
+
   it('normalizes thinking and effort inside each model capability profile', () => {
     expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v4-pro', 'low')).toBe(
       'high',

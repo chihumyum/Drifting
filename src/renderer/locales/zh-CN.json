@@ -664,6 +664,7 @@
         "deepseek": "可供 Copilot 与 General Agent 共用。",
         "anthropic": "可供 Copilot 与 General Agent 共用。",
         "openai": "可供 Copilot 与 General Agent 共用。",
+        "openaiCodex": "实验性：General Agent 可通过 OpenAI 的 Codex 设备登录，用你自己的 ChatGPT 订阅运行 GPT-5.6。OpenAI 未对第三方应用开放此路径，因此不受支持、可能随时失效；用量计入你的 ChatGPT 套餐。",
         "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。",
         "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
       },
@@ -691,6 +692,27 @@
       "setCurrent": "设为当前",
       "invalidKey": "密钥无效",
       "requestFailed": "请求失败（provider 不可用或网络问题）"
+    },
+    "codexSubscription": {
+      "name": "ChatGPT 订阅",
+      "signedInAs": "已登录",
+      "notSignedIn": "未登录",
+      "signIn": "使用 ChatGPT 登录",
+      "signOut": "退出登录",
+      "openVerification": "打开验证页面",
+      "codeLabel": "一次性代码",
+      "codeHint": "在 OpenAI 设备页面输入；Drifting 会持续检查直到你批准",
+      "exchanging": "已批准，正在完成登录…",
+      "plan": "套餐",
+      "startFailed": "无法开始登录，请检查网络后重试。",
+      "cancelled": "已取消登录。",
+      "failure": {
+        "expired": "代码在批准前已过期。",
+        "provider_rejected": "OpenAI 拒绝了这次登录。",
+        "network_failed": "无法连接到 OpenAI。",
+        "invalid_response": "OpenAI 返回了意外的响应。",
+        "storage_failed": "登录信息无法保存到 Keychain。"
+      }
     },
     "agentAuth": {
       "statusTitle": "状态",

@@ -4,6 +4,7 @@ mod android_image_codec;
 mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
+mod codex_oauth;
 mod commands;
 mod data_paths;
 mod database;
@@ -164,6 +165,7 @@ pub fn run() {
         .manage(mcp_http::McpHttpState::default())
         .manage(mcp_stdio::McpStdioState::default())
         .manage(openai_responses::OpenAIResponsesState::default())
+        .manage(codex_oauth::CodexOAuthState::default())
         .manage(google_drive_sync::GoogleDriveState::default())
         .manage(native_capabilities::AssetImportSession::default())
         .invoke_handler(tauri::generate_handler![
@@ -188,6 +190,10 @@ pub fn run() {
             mcp_stdio::mcp_stdio_status,
             openai_responses::openai_responses_stream,
             openai_responses::openai_responses_cancel,
+            codex_oauth::codex_oauth_start,
+            codex_oauth::codex_oauth_status,
+            codex_oauth::codex_oauth_cancel,
+            codex_oauth::codex_oauth_logout,
             system_fonts::typography_list_system_fonts,
             secure_storage::keychain_get,
             secure_storage::keychain_has,

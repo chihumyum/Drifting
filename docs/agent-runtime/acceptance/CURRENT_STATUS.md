@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-26
+Updated: 2026-09-04
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -175,6 +175,15 @@ pnpm agent:capabilities:check
 - DeepSeek, Anthropic, and OpenAI deterministic wire conformance is certified.
   Exact supported models, thinking modes, and effort combinations come from the
   generated capability inventory.
+- `openai-codex` reuses the certified OpenAI Responses body on the ChatGPT Codex
+  backend with the author's own subscription sign-in. It is experimental and
+  unsupported: OpenAI publishes no third-party contract for it, the native host
+  presents the official CLI's client identity to be accepted, and it is not a
+  release claim. A bounded local Headless Agent run on 2026-09-04 validated the
+  current checkout with `gpt-5.6-sol`: reasoning, streamed function-call
+  assembly, tool execution/result replay, final text, usage, and durable turn
+  commit all completed through the author's ChatGPT sign-in. This is
+  checkout-specific canary evidence, not a stable upstream compatibility claim.
 - Project-scoped MCP supports bounded desktop stdio and native Streamable HTTP.
   Configuration, health, lifecycle generations, secret references, and exact
   durable grants remain renderer/native authority.
