@@ -99,7 +99,12 @@ editing, timeline, material, comment, and Agent capabilities.
 - `/login` and `/register` use the mobile authentication presentation while
   retaining existing session, OTP, reset, OAuth callback, and adoption logic.
 - `/` uses the mobile project shelf and global settings path without mounting a
-  project runtime merely to show settings.
+  project runtime merely to show settings. The shelf defaults to one immersive
+  horizontally paged project per viewport; one persistent grid Toggle opens a
+  compact all-project overview and closes it again. The overview owns search,
+  filters, edit/delete actions, and a responsive cover grid. Its view, query,
+  filter, scroll position, and focused project survive the trip into Project
+  Home, while the pager always retains the complete unfiltered project set.
 - Opening a project mounts `MobileAppShell` and the shared
   `ProjectRuntimeProvider`; it does not enter `DesktopAppShell` or the former
   deferred workspace page.

@@ -36,20 +36,37 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 2px;
   padding: 4px 14px 0;
 }
 
-.m-shelf-pager__corners > button {
+.m-shelf-pager__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.m-shelf__view-toggle,
+.m-shelf__corner-button {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: hsl(var(--ink-3));
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.m-shelf__view-toggle.is-active,
+.m-shelf__view-toggle[aria-pressed='true'] {
+  color: hsl(var(--ink-1));
+  background: hsl(var(--surface));
+  box-shadow: inset 0 0 0 1px hsl(var(--rule));
 }
 
 .m-shelf-pager {
@@ -140,9 +157,6 @@
   gap: 5px;
   min-height: 48px;
   padding: 0 6px;
-  border: 0;
-  background: transparent;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .m-shelf-pager__dots > span {
@@ -177,17 +191,6 @@
   min-width: 0;
 }
 
-.m-shelf__back {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 44px;
-  border: 0;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  -webkit-tap-highlight-color: transparent;
-}
-
 .m-shelf__head {
   min-height: 72px;
   display: flex;
@@ -197,10 +200,28 @@
   border-bottom: 1px solid hsl(var(--rule));
 }
 
+.m-shelf[data-view='overview'] {
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.m-shelf[data-view='overview']::-webkit-scrollbar {
+  display: none;
+}
+
 .m-shelf__head > div:first-child {
   min-width: 0;
-  display: grid;
-  gap: 3px;
+}
+
+.m-shelf__head > .m-shelf__head-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .m-shelf__head span {
@@ -325,52 +346,102 @@
 
 .m-shelf__list {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-items: start;
+  gap: 18px 12px;
+  padding: 18px 0 28px;
 }
 
 .m-shelf-card {
   position: relative;
-  overflow: hidden;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 2px;
-  background: hsl(var(--paper));
+  overflow: visible;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
 }
 
 .m-shelf-card__open {
   width: 100%;
-  min-height: 132px;
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 14px;
-  padding: 13px 48px 13px 13px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 0 10px;
   border: 0;
   background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .m-shelf-card__cover {
-  min-height: 102px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 4 / 5;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 10px 8px;
+  padding: 16px 13px 13px;
   border: 1px solid color-mix(in srgb, var(--m-shelf-color) 55%, hsl(var(--rule)));
-  border-radius: 1px;
+  border-radius: 4px;
   color: hsl(var(--ink-1));
   background: color-mix(in srgb, var(--m-shelf-color) 12%, hsl(var(--paper)));
+  box-shadow: 0 8px 24px hsl(var(--ink-1) / 0.045);
 }
 
-.m-shelf-card__cover strong { font-family: var(--font-serif); font-size: 22px; font-weight: 520; }
-.m-shelf-card__cover small { overflow: hidden; color: hsl(var(--ink-4)); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.m-shelf-card__body { min-width: 0; display: flex; flex-direction: column; }
-.m-shelf-card__title { overflow: hidden; padding-right: 2px; color: hsl(var(--ink-1)); font-size: 16px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.m-shelf-card__summary { min-height: 34px; margin-top: 6px; overflow: hidden; color: hsl(var(--ink-3)); font-size: 11px; line-height: 1.55; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.m-shelf-card__meta { margin-top: auto; display: flex; flex-wrap: wrap; gap: 3px 10px; color: hsl(var(--ink-4)); font-size: 9px; }
+.m-shelf-card__cover strong {
+  font-family: var(--font-serif);
+  font-size: clamp(26px, 9vw, 38px);
+  font-weight: 520;
+}
+
+.m-shelf-card__cover small {
+  overflow: hidden;
+  color: hsl(var(--ink-4));
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.m-shelf-card__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 2px;
+}
+
+.m-shelf-card__title {
+  overflow: hidden;
+  padding-right: 2px;
+  color: hsl(var(--ink-1));
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-shelf-card__summary {
+  display: none;
+}
+
+.m-shelf-card__meta {
+  margin-top: 5px;
+  display: grid;
+  gap: 2px;
+  color: hsl(var(--ink-4));
+  font-size: 9px;
+}
 
 .m-shelf-card__progress {
   width: 100%;
   height: 2px;
-  margin-top: 9px;
+  margin-top: 7px;
   overflow: hidden;
   background: hsl(var(--rule));
 }
@@ -379,23 +450,28 @@
 
 .m-shelf-card__more {
   position: absolute;
-  top: 8px;
-  right: 6px;
+  top: 7px;
+  right: 7px;
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 50%;
+  background: hsl(var(--paper-deep) / 0.82);
   color: hsl(var(--ink-3));
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .m-shelf-card__actions {
   min-height: 48px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-top: 1px solid hsl(var(--rule));
+  margin-top: -4px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
   background: hsl(var(--paper-deep));
 }
 
@@ -468,7 +544,6 @@ html[data-shell-mode='mobile'] .pp-modal__btn {
 @media (max-width: 390px) {
   .m-shelf__create span { display: none; }
   .m-shelf__create { width: 48px; justify-content: center; padding: 0; }
-  .m-shelf-card__open { grid-template-columns: 68px minmax(0, 1fr); gap: 11px; padding-left: 10px; }
 }
 
 .m-workspace-deferred {

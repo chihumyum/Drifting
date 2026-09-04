@@ -13,6 +13,10 @@ import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-s
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 import { MobileProjectShelfContent } from '../shells/mobile/standalone/MobileProjectShelfContent';
+import {
+  readMobileProjectShelfSession,
+  updateMobileProjectShelfSession,
+} from '../shells/mobile/standalone/mobile-project-shelf-session';
 import { events } from '../lib/events';
 
 function WindowDragStrip() {
@@ -146,13 +150,18 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     userId: user?.id ?? '',
   });
   const avatarRef = useRef<HTMLButtonElement | null>(null);
+  const [initialMobileShelfSession] = useState(readMobileProjectShelfSession);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>('grid');
-  const [filter, setFilter] = useState<Filter>('all');
-  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>(() =>
+    presentation === 'mobile' ? initialMobileShelfSession.filter : 'all',
+  );
+  const [query, setQuery] = useState(() =>
+    presentation === 'mobile' ? initialMobileShelfSession.query : '',
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProjectSummary | null>(null);
@@ -199,6 +208,11 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
       events.off('sync:project-changed', refresh);
     };
   }, [fetchProjects, user?.id]);
+
+  useEffect(() => {
+    if (presentation !== 'mobile') return;
+    updateMobileProjectShelfSession({ filter, query });
+  }, [filter, presentation, query]);
 
   const decorated = useMemo(
     () =>
@@ -318,6 +332,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <MobileProjectShelfContent
           loading={loading}
           rows={filtered}
+          allRows={decorated}
           total={decorated.length}
           counts={counts}
           filter={filter}

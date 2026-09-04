@@ -1,7 +1,14 @@
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import {
-  ArrowLeft,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
+import {
   ArrowRight,
+  LayoutGrid,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -15,15 +22,20 @@ import type { ProjectSummary } from '../../../usecase/useProject';
 import type { DecoratedRow } from '../../../views/ProjectPickerView';
 import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
 import { hostedAccountSettingsEnabled } from '../../../features/settings/hosted-settings-policy';
-
-type MobileShelfFilter = 'all' | 'active' | 'paused';
+import {
+  readMobileProjectShelfSession,
+  updateMobileProjectShelfSession,
+  type MobileProjectShelfFilter,
+  type MobileProjectShelfView,
+} from './mobile-project-shelf-session';
 
 interface MobileProjectShelfContentProps {
   loading: boolean;
   rows: DecoratedRow[];
+  allRows: DecoratedRow[];
   total: number;
-  counts: Record<MobileShelfFilter, number>;
-  filter: MobileShelfFilter;
+  counts: Record<MobileProjectShelfFilter, number>;
+  filter: MobileProjectShelfFilter;
   query: string;
   user: User | null;
   userInitial: string;
@@ -31,7 +43,7 @@ interface MobileProjectShelfContentProps {
   menuOpen: boolean;
   onMenuOpenChange: Dispatch<SetStateAction<boolean>>;
   onQueryChange: (query: string) => void;
-  onFilterChange: (filter: MobileShelfFilter) => void;
+  onFilterChange: (filter: MobileProjectShelfFilter) => void;
   onCreate: () => void;
   onSettings: () => void;
   onOpen: (project: ProjectSummary) => void;
@@ -39,13 +51,13 @@ interface MobileProjectShelfContentProps {
   onDelete: (project: ProjectSummary) => void;
 }
 
-/** The shelf's default face: one work per screen, swiped horizontally — the
- * author's book is the hero, chrome stays in the corners. The page dots (or
- * the search corner) open the management list, which keeps every capability:
- * search, filters, edit, delete. */
+/** The shelf has two explicit faces: an immersive, horizontally paged work and
+ * a compact all-project overview. One persistent grid button toggles between
+ * them; search opens and focuses the overview without masquerading as Back. */
 export function MobileProjectShelfContent({
   loading,
   rows,
+  allRows,
   total,
   counts,
   filter,
@@ -64,17 +76,92 @@ export function MobileProjectShelfContent({
   onDelete,
 }: MobileProjectShelfContentProps) {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<'pager' | 'list'>('pager');
+  const [initialSession] = useState(readMobileProjectShelfSession);
+  const [view, setView] = useState<MobileProjectShelfView>(initialSession.view);
   const [actionsProjectId, setActionsProjectId] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const pagerRef = useRef<HTMLDivElement | null>(null);
+  const overviewRef = useRef<HTMLElement | null>(null);
+  const overviewScrollTopRef = useRef(initialSession.overviewScrollTop);
+  const focusedProjectIdRef = useRef(initialSession.focusedProjectId);
+  const viewRef = useRef(view);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const focusSearchOnOverviewRef = useRef(false);
   const isZh = i18n.language.startsWith('zh');
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
+
+  useEffect(() => {
+    viewRef.current = view;
+    if (view !== 'overview') return;
+    const frame = window.requestAnimationFrame(() => {
+      if (overviewRef.current) overviewRef.current.scrollTop = overviewScrollTopRef.current;
+      if (focusSearchOnOverviewRef.current) {
+        focusSearchOnOverviewRef.current = false;
+        searchInputRef.current?.focus();
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, rows.length, view]);
+
+  useEffect(() => {
+    if (view !== 'pager' || !pagerRef.current || allRows.length === 0) return;
+    const savedIndex = allRows.findIndex(
+      ({ project }) => project.id === focusedProjectIdRef.current,
+    );
+    const nextIndex = savedIndex >= 0 ? savedIndex : 0;
+    pagerRef.current.scrollLeft = nextIndex * pagerRef.current.clientWidth;
+    focusedProjectIdRef.current = allRows[nextIndex]?.project.id ?? null;
+    setPageIndex(nextIndex);
+  }, [allRows, view]);
+
+  useEffect(
+    () => () => {
+      updateMobileProjectShelfSession({
+        view: viewRef.current,
+        focusedProjectId: focusedProjectIdRef.current,
+        overviewScrollTop: overviewScrollTopRef.current,
+      });
+    },
+    [],
+  );
+
+  const showOverview = (focusSearch = false) => {
+    const currentProjectId = allRows[pageIndex]?.project.id ?? focusedProjectIdRef.current;
+    focusedProjectIdRef.current = currentProjectId;
+    focusSearchOnOverviewRef.current = focusSearch;
+    updateMobileProjectShelfSession({ view: 'overview', focusedProjectId: currentProjectId });
+    setView('overview');
+  };
+
+  const showPager = () => {
+    overviewScrollTopRef.current = overviewRef.current?.scrollTop ?? overviewScrollTopRef.current;
+    updateMobileProjectShelfSession({
+      view: 'pager',
+      focusedProjectId: focusedProjectIdRef.current,
+      overviewScrollTop: overviewScrollTopRef.current,
+    });
+    setView('pager');
+  };
+
+  const openProject = (project: ProjectSummary) => {
+    focusedProjectIdRef.current = project.id;
+    overviewScrollTopRef.current = overviewRef.current?.scrollTop ?? overviewScrollTopRef.current;
+    updateMobileProjectShelfSession({
+      view,
+      focusedProjectId: project.id,
+      overviewScrollTop: overviewScrollTopRef.current,
+    });
+    onOpen(project);
+  };
 
   const trackPagerScroll = () => {
     const pager = pagerRef.current;
     if (!pager || pager.clientWidth === 0) return;
-    const nearest = Math.round(pager.scrollLeft / pager.clientWidth);
+    const nearest = Math.min(
+      Math.max(0, Math.round(pager.scrollLeft / pager.clientWidth)),
+      Math.max(0, allRows.length - 1),
+    );
+    focusedProjectIdRef.current = allRows[nearest]?.project.id ?? null;
     setPageIndex((previous) => (previous === nearest ? previous : nearest));
   };
 
@@ -104,15 +191,32 @@ export function MobileProjectShelfContent({
         <header className="m-shelf-pager__corners">
           <button
             type="button"
-            onClick={() => setView('list')}
-            aria-label={isZh ? '搜索项目' : 'Search projects'}
+            className="m-shelf__view-toggle"
+            onClick={() => showOverview()}
+            aria-label={t('projectPicker.allProjectsCn')}
+            aria-pressed="false"
           >
-            <Search size={18} aria-hidden="true" />
+            <LayoutGrid size={18} strokeWidth={1.8} aria-hidden="true" />
           </button>
-          <button type="button" onClick={onSettings} aria-label={t('userMenu.settings')}>
-            <Settings size={18} strokeWidth={1.7} aria-hidden="true" />
-          </button>
-          {accountCorner}
+          <div className="m-shelf-pager__actions">
+            <button
+              type="button"
+              className="m-shelf__corner-button"
+              onClick={() => showOverview(true)}
+              aria-label={isZh ? '搜索项目' : 'Search projects'}
+            >
+              <Search size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="m-shelf__corner-button"
+              onClick={onSettings}
+              aria-label={t('userMenu.settings')}
+            >
+              <Settings size={18} strokeWidth={1.7} aria-hidden="true" />
+            </button>
+            {accountCorner}
+          </div>
         </header>
 
         {loading ? (
@@ -124,14 +228,14 @@ export function MobileProjectShelfContent({
           </div>
         ) : (
           <div className="m-shelf-pager" ref={pagerRef} onScroll={trackPagerScroll}>
-            {rows.map((row) => {
+            {allRows.map((row) => {
               const { project, meta, lastEditedRel } = row;
               return (
                 <button
                   key={project.id}
                   type="button"
                   className="m-shelf-pager__page"
-                  onClick={() => onOpen(project)}
+                  onClick={() => openProject(project)}
                 >
                   <span className="m-shelf-pager__kicker">
                     {meta.genre || t('projectPicker.source.localDraft')}
@@ -158,16 +262,11 @@ export function MobileProjectShelfContent({
         )}
 
         <footer className="m-shelf-pager__foot">
-          <button
-            type="button"
-            className="m-shelf-pager__dots"
-            onClick={() => setView('list')}
-            aria-label={t('projectPicker.allProjectsCn')}
-          >
-            {rows.map((row, index) => (
+          <div className="m-shelf-pager__dots" aria-hidden="true">
+            {allRows.map((row, index) => (
               <span key={row.project.id} data-current={index === pageIndex ? 'true' : 'false'} />
             ))}
-          </button>
+          </div>
           <button type="button" className="m-shelf-pager__create" onClick={onCreate}>
             <Plus size={14} strokeWidth={2} aria-hidden="true" />
             <span>{t('projectPicker.newProject')}</span>
@@ -178,16 +277,24 @@ export function MobileProjectShelfContent({
   }
 
   return (
-    <main className="m-shelf" data-view="list">
+    <main
+      ref={overviewRef}
+      className="m-shelf"
+      data-view="overview"
+      onScroll={(event) => {
+        overviewScrollTopRef.current = event.currentTarget.scrollTop;
+      }}
+    >
       <header className="m-shelf__head">
         <div className="m-shelf__head-lead">
           <button
             type="button"
-            className="m-shelf__back"
-            onClick={() => setView('pager')}
-            aria-label={t('navigation.back')}
+            className="m-shelf__view-toggle is-active"
+            onClick={showPager}
+            aria-label={isZh ? '切换到单本浏览' : 'Show one project at a time'}
+            aria-pressed="true"
           >
-            <ArrowLeft size={20} aria-hidden="true" />
+            <LayoutGrid size={18} strokeWidth={1.8} aria-hidden="true" />
           </button>
           <h1>{t('projectPicker.header.titleEm')}</h1>
         </div>
@@ -208,6 +315,7 @@ export function MobileProjectShelfContent({
         <label className="m-shelf__search">
           <Search size={18} aria-hidden="true" />
           <input
+            ref={searchInputRef}
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -227,7 +335,7 @@ export function MobileProjectShelfContent({
             ['all', t('projectPicker.filters.all'), counts.all],
             ['active', t('projectPicker.filters.active'), counts.active],
             ['paused', t('projectPicker.filters.paused'), counts.paused],
-          ] as Array<[MobileShelfFilter, string, number]>
+          ] as Array<[MobileProjectShelfFilter, string, number]>
         ).map(([key, label, count]) => (
           <button
             key={key}
@@ -263,7 +371,7 @@ export function MobileProjectShelfContent({
                 <button
                   type="button"
                   className="m-shelf-card__open"
-                  onClick={() => onOpen(project)}
+                  onClick={() => openProject(project)}
                   aria-label={project.name}
                 >
                   <span className="m-shelf-card__cover" aria-hidden="true">
