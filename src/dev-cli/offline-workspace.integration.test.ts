@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,7 @@ import { loadScenario, runScenario } from './scenario';
 
 const directories: string[] = [];
 const PROJECT_ID = 'cli-project';
+const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 afterEach(async () => {
   await Promise.all(
@@ -154,5 +156,62 @@ describe('offline workspace CLI runtime', () => {
     } finally {
       await product.close();
     }
+  });
+
+  it('launches the package CLI with ESM-only runtime dependencies', async () => {
+    installHeadlessRendererGlobals();
+    const directory = await mkdtemp(path.join(tmpdir(), 'drifting-dev-cli-launch-'));
+    directories.push(directory);
+    const databasePath = path.join(directory, 'launch.db');
+    const product = new OfflineProductDatabase(databasePath, { migrate: true });
+    await product.open();
+    try {
+      const at = '2026-08-13T00:00:00.000Z';
+      await product.client.insert(ProjectTable).values({
+        id: PROJECT_ID,
+        userId: 'cli-user',
+        name: 'CLI Launch Book',
+        summary: '',
+        kvJson: '[]',
+        storylineTemplateKvJson: '[]',
+        createdAt: at,
+        updatedAt: at,
+      });
+    } finally {
+      await product.close();
+    }
+
+    const environment = { ...process.env };
+    delete environment.NODE_OPTIONS;
+    const launched = spawnSync(
+      process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+      [
+        'dev:cli',
+        'workspace',
+        'call',
+        'get_project_overview',
+        '--project',
+        PROJECT_ID,
+        '--db',
+        databasePath,
+      ],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: 'utf8',
+        env: environment,
+        timeout: 30_000,
+      },
+    );
+
+    expect(launched.status, `${launched.stdout}\n${launched.stderr}`).toBe(0);
+    const jsonLine = launched.stdout
+      .split('\n')
+      .find((line) => line.startsWith('{"ok"'));
+    expect(jsonLine, launched.stdout).toBeTruthy();
+    expect(JSON.parse(jsonLine ?? '{}')).toMatchObject({
+      ok: true,
+      command: 'workspace call get_project_overview',
+      data: { result: { ok: true, data: { name: 'CLI Launch Book' } } },
+    });
   });
 });

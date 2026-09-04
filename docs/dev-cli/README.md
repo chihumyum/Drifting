@@ -14,6 +14,11 @@ pnpm drifting help --human
 pnpm drifting capabilities
 ```
 
+The package entrypoint supplies Node's `import` export condition so the CLI's
+CommonJS launcher can load ESM-only runtime dependencies such as `cborg` on
+every supported Node release, including Node 22 and Node 24. Callers do not
+need to set `NODE_OPTIONS` or another compatibility environment variable.
+
 JSON is the default output. Every invocation emits one stable envelope with
 `ok`, `command`, `requestId`, `data` or `error`, and execution `meta`. Use
 `--human` only for interactive inspection. Domain arguments may be written as
@@ -176,6 +181,7 @@ pnpm drifting:check
 
 `pnpm drifting:check` checks generated-file drift, exact schema-table
 accountability, argument/protocol behavior, offline safety, resource invariants,
-and a real product-migration SQLite/Yjs chapter lifecycle with durable Agent
-receipts. It does not prove an authenticated remote server, a paid provider,
-or physical-device behavior unless those modes are invoked separately.
+the package-level CLI launch path with ESM-only dependencies, and a real
+product-migration SQLite/Yjs chapter lifecycle with durable Agent receipts. It
+does not prove an authenticated remote server, a paid provider, or
+physical-device behavior unless those modes are invoked separately.
