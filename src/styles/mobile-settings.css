@@ -173,12 +173,88 @@
   grid-template-columns: 1fr;
 }
 
+/* The desktop preview deliberately breaks out of its 760px content column and
+   subtracts the 232px rail from the viewport. Mobile has no rail, so retaining
+   that geometry collapses a 402px viewport to roughly 82px and makes Chinese
+   prose look vertical. Keep the same live editor variables, but present them
+   as a centered, readable miniature of the configured paper width. */
+.m-settings__content #editor .set-preview {
+  width: min(100%, var(--set-mobile-preview-width, 100%));
+  max-width: 100%;
+  margin: 4px auto 0;
+  transform: none;
+  padding: 16px;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Desktop settings controls are intentionally compact and mouse-sized. On the
+   phone the same controls fill the available row, expose a 44px touch target,
+   and keep their current value visible beside the input. */
+.m-settings__content #editor .set-slider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.m-settings__content #editor .set-slider input[type='range'] {
+  width: 100% !important;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  touch-action: pan-y;
+}
+
+.m-settings__content #editor .segmented-control {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.m-settings__content #editor .segmented-control__option {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  padding: 6px 8px;
+  line-height: 1.2;
+  white-space: normal;
+  touch-action: manipulation;
+}
+
+.m-settings__content #editor .set-font-tool {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.m-settings__content #editor .set-font-tool__actions,
+.m-settings__content #editor .set-font-tool__manual-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.m-settings__content #editor .set-font-tool__select,
+.m-settings__content #editor .set-font-tool__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.m-settings__content #editor .set-font-tool__manual-actions .set-btn {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 430px) {
   .m-settings__content .set-row:not(.set-row--top) {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .m-settings__content .set-row__control {
+    width: 100%;
     justify-content: flex-start;
   }
 

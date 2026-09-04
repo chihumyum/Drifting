@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrashPanel } from '../../../components/TrashPanel';
 import {
@@ -518,6 +518,13 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     category: t('settings.editor.entity_link_kind_category'),
     storyline: t('settings.editor.entity_link_kind_storyline'),
   };
+  // A phone cannot render the 480–1280px paper width literally. Preserve a
+  // readable sample while scaling that range into a visible 78–100% miniature
+  // so the paper-width control still has immediate feedback on mobile.
+  const mobilePreviewWidth = 78 + ((maxLineWidth - 480) / (1280 - 480)) * 22;
+  const previewStyle = {
+    '--set-mobile-preview-width': `${mobilePreviewWidth.toFixed(2)}%`,
+  } as CSSProperties;
 
   return (
     <section className="set-panel" ref={registerRef} id="editor">
@@ -534,7 +541,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             and the Tab 缩进 width all update here as the controls below change. */}
         {/* The box's own width tracks 纸张宽度 (--editor-max-width), capped to the
             settings column, so narrowing the page narrows the preview too. */}
-        <div className="set-preview" aria-hidden="true">
+        <div className="set-preview" style={previewStyle} aria-hidden="true">
           <p>{t('settings.editor.preview_p1')}</p>
           <p>{t('settings.editor.preview_p2')}</p>
           <p>{t('settings.editor.preview_p3')}</p>

@@ -49,7 +49,12 @@ the maintainer has not tested that chain and it is not a claimed mobile
 capability. See [`voice-authored-capture.md`](voice-authored-capture.md). The three Super Views (Elements, Story Graph, Library/Memo) are
 independent controller surfaces with preserved per-view state
 (`MobileSuperViewHost.tsx`), and Settings exposes a compact Google Drive
-surface over the shared sync product commands.
+surface over the shared sync product commands. The mobile Editor Settings
+surface reuses the desktop preference authority and live `--editor-*` preview,
+but replaces the desktop rail breakout with a readable phone-width miniature:
+font, size, line height, paragraph spacing/indent, Tab indent, and the scaled
+paper-width model update immediately while range and segmented controls retain
+full-width touch targets.
 
 This is an implemented foundation with static, build, state-machine, and dated
 Simulator evidence. It is not a claim that current interactions have passed
