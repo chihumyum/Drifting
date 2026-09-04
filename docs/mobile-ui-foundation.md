@@ -157,6 +157,12 @@ editing, timeline, material, comment, and Agent capabilities.
   panel, overlays a full panel, and follows the keyboard inset. Its center paper
   identity opens Overview; its structure/tool buttons cycle
   `none -> docked -> full -> none` through the workspace controller.
+- A material Google Drive transfer appears in a compact, non-interactive status
+  capsule below the top safe-area chrome on every project surface. It reuses the
+  shared sanitized phase, object, and byte progress: remote discovery is
+  indeterminate until its total is known, then pull and push are determinate.
+  Empty background polls do not create the capsule, and sync status never moves
+  into or captures input from the keyboard-aware unified bar.
 - The top panel's one-level 56px rail contains Chapters, Elements, and
   Inspiration. The general `MobileRightSidebar` contains Planning, Review,
   Agent, and Library; comments and TODOs are filters of the one Review surface,

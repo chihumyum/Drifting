@@ -1,6 +1,6 @@
 /**
  * Global task notification feed. Copilot emits an `ai-task` event while the
- * desktop sync feed projects sanitized Google Drive runtime progress. Both are
+ * sync feed projects sanitized Google Drive runtime progress. Both are
  * ingested into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the
  *     most-recent result for a few seconds, else an unread-count bell), and
@@ -8,8 +8,8 @@
  *
  * A task's phases collapse into ONE row keyed by `id` (started → completed),
  * so the pill morphs in place instead of stacking duplicates. The subscription
- * that feeds this store lives in App (always mounted) so history is collected
- * even when the pill itself isn't rendered.
+ * that feeds this store lives in the active project shell, so desktop and
+ * mobile can project the same sanitized transfer lifecycle independently.
  */
 import { create } from 'zustand';
 import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';

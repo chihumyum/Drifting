@@ -20,7 +20,7 @@ resumable sessions, provider handles, object bytes, or filesystem paths.
 | Disconnect | Requires confirmation, follows durable native revoke ordering, and returns to Local mode without deleting local SQLite, Yjs, assets, or Project identity. |
 | Reconnect after disconnect | Discovers Drive before activation. An attached Project uses its `projectId`; an offline-deleted Project resolves the same unique identity from its terminal generation journal. An exact `projectId` + `projectSyncId` + `syncGenerationId` match rebinds without restoring over offline work or publishing a second genesis. Existing provider-object inventory rows retain their durable SQLite primary keys when the connect receipt references the commit marker. Because the provider object log is immutable, discovery may also return older generations that this device has already durably retired or purged; those terminal local receipts are skipped without resurrection or blocking the still-active generation. The runtime then publishes pending edits or the terminal Project purge. New remote Projects still restore normally; an ambiguous or mismatched identity fails closed. |
 | Retry an interrupted remote restore | Discovery may reuse a project-less staged generation after its authenticated marker has already resolved `projectSyncId`. Resuming the same durable attempt, or cancelling it and later starting a fresh connect, revalidates the marker and continues restore instead of reporting local ownership. A staged row with Project state, authored journal state, a provider binding, or an activated history still fails closed. |
-| Status and diagnostics | Settings shows Local, connecting/discovering, syncing, synced, paused, offline, or attention plus Project and pending-work counts. Active transfers appear in the desktop top-right notification center rather than the Footer: pull/push phases use one row per cycle, show sanitized object/byte progress, and fold that row into completion, cancellation, or failure. Transport generation identifiers stay internal. |
+| Status and diagnostics | Settings shows Local, connecting/discovering, syncing, synced, paused, offline, or attention plus Project and pending-work counts. Active transfers appear in the desktop top-right notification center and a non-interactive mobile safe-area capsule rather than the Footer: pull/push phases share one sanitized object/byte lifecycle per cycle, with indeterminate discovery and determinate transfer progress. Desktop folds the row into completion, cancellation, or failure; mobile removes the transient capsule. Transport generation identifiers stay internal. |
 
 The panel states the privacy boundary next to the connection action: SQLite is
 the local working copy; the selected Google account and Drive are trusted with
@@ -57,7 +57,8 @@ production composition tests. The recorded command set also runs
 `mobile-v2-google-drive.acceptance.test.ts`,
 `mobile-workspace-controller.acceptance.test.ts`,
 `pending-transition-cancel.integration.test.ts`,
-`notification-store.test.ts`, the remote-sync UI acceptance test,
+`notification-store.test.ts`, `mobile-google-drive-progress.acceptance.test.ts`,
+the remote-sync UI acceptance test,
 `google-drive-physical-evidence.acceptance.test.ts`, and
 `pnpm mobile:google-drive:acceptance:contract`. The Google Drive restore
 integration suite also

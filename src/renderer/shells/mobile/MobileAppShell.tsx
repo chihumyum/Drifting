@@ -28,6 +28,8 @@ import {
   type MobileSuperViewId,
 } from './workspace/mobile-workspace-controller';
 import { useMobileWorkspaceBack } from './workspace/useMobileWorkspaceBack';
+import { MobileGoogleDriveProgress } from './workspace/MobileGoogleDriveProgress';
+import { useNotificationFeed } from '../../hooks/useNotificationFeed';
 import {
   captureMobileSuperViewReturnPoint,
   mobileSuperViewReturnPointMatches,
@@ -43,6 +45,7 @@ function readActivePaperScrollTop(): number | undefined {
 }
 
 function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
+  useNotificationFeed();
   const navigate = useNavigate();
   const location = useLocation();
   const { state, navigator, open, activate, close, clear, rememberScroll } =
@@ -344,6 +347,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
       {voiceSessionProjectId === projectId && workspaceUi.surface.kind !== 'voice' && (
         <MobileVoicePill onExpand={() => dispatchWorkspaceUi({ type: 'show-voice' })} />
       )}
+      <MobileGoogleDriveProgress />
       <EntitySnapshotHistoryModal />
       <DriftBindModal />
     </WorkspaceNavigationProvider>

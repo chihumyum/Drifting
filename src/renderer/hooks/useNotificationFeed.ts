@@ -53,7 +53,7 @@ function phaseKey(status: SyncGenerationRuntimeStatus): string {
 
 /**
  * Wires Copilot lifecycle events and sanitized Google Drive transfer progress
- * into the desktop notification store. One Drive cycle stays one row from its
+ * into the shared notification store. One Drive cycle stays one row from its
  * first material transfer through completion, cancellation, or failure.
  */
 export function useNotificationFeed(): void {

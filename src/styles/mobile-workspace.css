@@ -18,6 +18,111 @@
   visibility: hidden;
 }
 
+/* Project-wide Google Drive transfer status. This is deliberately separate
+ * from the keyboard-aware bottom unified bar: sync never owns navigation,
+ * editor focus, or touch input. */
+.m-drive-progress {
+  position: fixed;
+  z-index: 98;
+  top: calc(env(safe-area-inset-top) + 54px);
+  left: 50%;
+  width: min(380px, calc(100dvw - 24px));
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 8px 10px 7px;
+  translate: -50% 0;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 14px;
+  background: color-mix(in srgb, hsl(var(--page)) 92%, transparent);
+  box-shadow: 0 12px 28px -18px hsl(var(--ink-1) / 0.56);
+  color: hsl(var(--ink-2));
+  backdrop-filter: blur(20px) saturate(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(1.06);
+  pointer-events: none;
+  animation: m-drive-progress-in 160ms ease-out both;
+}
+
+.m-drive-progress__summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-drive-progress__summary > svg {
+  flex: 0 0 auto;
+  color: hsl(var(--accent));
+}
+
+.m-drive-progress__copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 1px;
+}
+
+.m-drive-progress__copy strong,
+.m-drive-progress__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-drive-progress__copy strong {
+  font: 600 11.5px/1.25 var(--font-ui);
+  color: hsl(var(--ink-1));
+}
+
+.m-drive-progress__copy small,
+.m-drive-progress__percent {
+  font: 500 10px/1.25 var(--font-ui);
+  color: hsl(var(--ink-4));
+}
+
+.m-drive-progress__percent {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.m-drive-progress__track {
+  position: relative;
+  display: block;
+  height: 2px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: hsl(var(--ink-1) / 0.1);
+}
+
+.m-drive-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: inherit;
+  background: hsl(var(--accent));
+  transition: width 160ms ease-out;
+}
+
+.m-drive-progress[data-determinate='false'] .m-drive-progress__fill {
+  animation: m-drive-progress-scan 1.15s ease-in-out infinite;
+}
+
+@keyframes m-drive-progress-in {
+  from {
+    opacity: 0;
+    translate: -50% -5px;
+  }
+  to {
+    opacity: 1;
+    translate: -50% 0;
+  }
+}
+
+@keyframes m-drive-progress-scan {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(300%); }
+}
+
 .m-project-home {
   position: fixed;
   inset: 0;
@@ -3155,8 +3260,12 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
 @media (prefers-reduced-motion: reduce) {
   .m-paper-deck,
   .m-context-workspace,
-  .m-unified-bar {
+  .m-unified-bar,
+  .m-drive-progress,
+  .m-drive-progress__fill {
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 
   .m-paper-row {
