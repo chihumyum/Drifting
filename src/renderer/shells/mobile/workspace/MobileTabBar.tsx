@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export type MobileTabBarTab = 'chapters' | 'elements' | 'drifts';
@@ -10,11 +11,12 @@ export function MobileTabBar({
   hidden = false,
   onOpen,
   onOpenPaperTools,
+  paperToolsAnchorRef,
 }: {
   hidden?: boolean;
+  paperToolsAnchorRef?: RefObject<HTMLButtonElement | null>;
   onOpen: (tab: MobileTabBarTab) => void;
-  /** Present only on the paper surface: the ⁂ entry opens the paper-bound
-   * tool face (大纲/批注/搜索/统计/情节). */
+  /** Present only on paper: ⁂ opens its outline/sticky-note switches. */
   onOpenPaperTools?: () => void;
 }) {
   const { t } = useTranslation();
@@ -41,6 +43,7 @@ export function MobileTabBar({
         <button
           type="button"
           tabIndex={hidden ? -1 : undefined}
+          ref={paperToolsAnchorRef}
           onClick={onOpenPaperTools}
           data-debug-id="mobile-open-paper-tools"
         >

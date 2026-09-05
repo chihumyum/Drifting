@@ -178,11 +178,10 @@ editing, timeline, material, comment, and Agent capabilities.
   Empty background polls do not create the capsule, and sync status never moves
   into or captures input from the keyboard-aware unified bar.
 - The top panel's one-level 56px rail contains Chapters, Elements, and
-  Inspiration. The general `MobileRightSidebar` contains Planning, Review,
+  Inspiration. The general `MobileRightSidebar` contains Stats, Review,
   Agent, and Library; comments and TODOs are filters of the one Review surface,
-  not separate tool destinations. Stats is not a rail destination: the current entity's Stats open
-  as a dedicated sheet (`MobilePaperStatsSheet.tsx`) reusing the shared desktop
-  `EntityStatsContent`.
+  not separate tool destinations. Stats reuses the shared desktop `EntityStatsContent` for the current entity;
+  Timeline now opens above the persistent paper toolbar.
 - Project Home exposes a project-options menu beside the project title:
   name/summary editing, device-local writing goals, project Trash, and a
   separated destructive project-deletion action. The Settings gear still
@@ -206,7 +205,8 @@ editing, timeline, material, comment, and Agent capabilities.
   adjacent paper by a 72-96px distance or 0.45px/ms velocity threshold, and
   cancels undecided stationary holds after 180ms. Reduced motion settles
   immediately without changing the result.
-- The paper tools bar exposes the shared semantic TOC and sticky-note action.
+- The 本纸 tab opens a small fixed, body-portaled popover with only the shared
+  semantic TOC and sticky-note switches.
   Narrow screens show at most one rail at a time without reflowing prose. The
   TOC keeps canonical jumps, active ancestry, omission reveals, and all five
   structural levels, but uses a 34px touch pitch so density reduction happens
@@ -277,3 +277,30 @@ pnpm agent:capabilities:check
 Focused mobile reducer, route, gesture-state, overlay, paper-session, and import
 boundary tests supplement this baseline. They prove deterministic contracts,
 not physical-device appearance or feel.
+
+### Persistent paper toolbar and General Agent — 2026-09-05
+
+The paper toolbar stays at the bottom in reading mode while the lighter navigation
+row above it can recede with scroll. During editing it follows native keyboard
+geometry and exposes undo, redo, formatting, Agent, Search, Plot and Timeline.
+Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
+display switches. Stats lives in the right panel alongside Review, Agent and Library.
+
+Agent replaces the toolbar with the existing General Agent composer, including its
+provider/model configuration and dictation controls. Before selecting a conversation,
+three recent project sessions and searchable full history appear above the input.
+First send creates the canonical conversation; selecting history creates no new row.
+A selected conversation fills the available height above the composer with frosted
+edges, and its header switches sessions. Back leaves Agent and restores the original
+reading/editing mode. Leaving this surface never aborts its running turn.
+
+The local paper-to-conversation association survives reload; drafts are renderer-local
+and isolated by paper and conversation. Invalid/deleted conversation pointers reopen
+a fresh composer. Hydration and rapid switching are guarded; a late load cannot restore
+a stale draft. The right panel and shortcut use the same conversation store and runtime.
+The association is **UI state only**: shortcut sends and retries contain only the
+user's text, with no paper, selection, title, prose or added context instruction.
+Reading does not summon the keyboard until the input is tapped.
+
+Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests and
+`docs/qa/mobile-paper-agent-2026-09-05.md`.

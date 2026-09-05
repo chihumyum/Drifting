@@ -49,11 +49,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(bar).not.toContain(
       'onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop())',
     );
-    // Search now opens from the paper tool face (read mode only); the bar
-    // never carries a search entry of its own.
+    // Search and Agent share the persistent toolbar with editor input ownership.
     expect(bar).not.toContain('mobile-open-search');
     const face = source('shells/mobile/workspace/MobilePaperToolsBar.tsx');
-    expect(face).toContain('onOpenSearch');
+    expect(face).not.toContain('onOpenSearch');
+    expect(bar).toContain("['search', Search,");
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");
     expect(controller).toContain('returnTo: state.paperMode');

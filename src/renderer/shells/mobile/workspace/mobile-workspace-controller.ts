@@ -15,12 +15,7 @@ export type MobilePaperMode =
 
 export type MobileSearchReturnMode = MobilePaperMode;
 
-/** Launcher overlays. The bottom tab bar opens the three structure overlays
- * (the desktop left bar's vocabulary); on the paper, ⁂ raises the paper
- * tools bar in place ('paper-tools' — the tab bar shrinks to three while the
- * bar carries 大纲/批注/搜索/统计/情节), whose 情节 entry opens the
- * full-screen plot face ('plot'); 'tools' is the project tool face behind
- * the top-right control (the desktop right bar: 时间线, Agent, 素材库). */
+/** Structure launchers, the right panel, paper switches, and toolbar workspaces. */
 export type MobileWorkspaceOverlay =
   | 'none'
   | 'chapters'
@@ -28,7 +23,8 @@ export type MobileWorkspaceOverlay =
   | 'drifts'
   | 'tools'
   | 'paper-tools'
-  | 'plot';
+  | 'plot'
+  | 'timeline';
 
 export type MobileWorkspaceTransient =
   | { kind: 'none' }
@@ -37,9 +33,8 @@ export type MobileWorkspaceTransient =
       scope: 'paper' | 'project';
       returnTo: MobileSearchReturnMode;
     }
-  | { kind: 'agent-input' }
+  | { kind: 'agent-input'; returnTo?: MobilePaperMode }
   | { kind: 'popover'; id: string }
-  | { kind: 'paper-stats' }
   | { kind: 'entity-preview'; target: WorkspaceTarget }
   | { kind: 'dialog'; dialog: 'project-trash' | 'destructive' | 'native' };
 
@@ -62,6 +57,7 @@ export type MobileWorkspaceAction =
   | { type: 'open-project-trash' }
   | { type: 'set-overlay'; overlay: MobileWorkspaceOverlay }
   | { type: 'open-search'; scope: 'paper' | 'project' }
+  | { type: 'open-agent' }
   | {
       type: 'set-transient';
       transient: Exclude<MobileWorkspaceTransient, { kind: 'search' }>;
@@ -94,6 +90,7 @@ export interface MobileBackResolution {
   effect:
     | 'none'
     | 'blur-editor'
+    | 'blur-input'
     | 'focus-editor'
     | 'navigate-project-home'
     | 'leave-project';
@@ -154,14 +151,14 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     if (
       (state.overlay === 'tools' ||
         state.overlay === 'paper-tools' ||
-        state.overlay === 'plot') &&
+        state.overlay === 'plot' || state.overlay === 'timeline') &&
       !atPaper
     ) {
       issues.push('the tool faces belong to the paper surface');
     }
     if (state.overlay !== 'paper-tools') {
       if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
-      if (state.keyboard !== 'closed') {
+      if (state.keyboard !== 'closed' && state.overlay !== 'plot') {
         issues.push('a launcher overlay requires a closed keyboard');
       }
       if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
@@ -195,9 +192,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   if (
     state.keyboard === 'open' &&
     state.paperMode.kind !== 'edit' &&
-    !transientOwnsInput(state.transient)
+    !transientOwnsInput(state.transient) && state.overlay !== 'plot'
   ) {
-    issues.push('an open keyboard requires edit, search, or Agent input ownership');
+    issues.push('an open keyboard requires edit, search, plot, or Agent input ownership');
   }
 
   return issues;
@@ -247,13 +244,13 @@ export function mobileWorkspaceReducer(
     case 'set-overlay': {
       if (action.overlay === 'none') {
         if (state.overlay === 'none') return state;
-        return checked({ ...state, overlay: 'none' });
+        return checked({ ...state, overlay: 'none', keyboard: state.overlay === 'plot' ? 'closed' : state.keyboard });
       }
       if (state.surface.kind === 'super-view' || state.surface.kind === 'voice') return state;
       if (
         (action.overlay === 'tools' ||
           action.overlay === 'paper-tools' ||
-          action.overlay === 'plot') &&
+          action.overlay === 'plot' || action.overlay === 'timeline') &&
         state.surface.kind !== 'paper'
       ) {
         return state;
@@ -267,17 +264,16 @@ export function mobileWorkspaceReducer(
       });
     }
     case 'open-search':
+    case 'open-agent':
       if (state.surface.kind !== 'paper' || state.transient.kind !== 'none') return state;
       return checked({
         ...state,
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
         overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
-        transient: {
-          kind: 'search',
-          scope: action.scope,
-          returnTo: state.paperMode,
-        },
+        transient: action.type === 'open-agent'
+          ? { kind: 'agent-input', returnTo: state.paperMode }
+          : { kind: 'search', scope: action.scope, returnTo: state.paperMode },
         // Editing already owns a visible IME. Search transfers that same input
         // session to its field; declaring a closed intermediate frame would
         // collapse the shared paper geometry before the field can take focus.
@@ -301,7 +297,6 @@ export function mobileWorkspaceReducer(
       }
       if (
         action.transient.kind === 'entity-preview' ||
-        action.transient.kind === 'paper-stats' ||
         action.transient.kind === 'popover'
       ) {
         return checked({
@@ -323,6 +318,7 @@ export function mobileWorkspaceReducer(
       });
     }
     case 'sync-editor':
+      if (action.editing && state.paperMode.kind === 'edit') return state;
       if (!action.editing) {
         // Search and Agent input own their own keyboard while the paper remains
         // read-only. A delayed editor blur must not close that input keyboard.
@@ -357,7 +353,7 @@ export function mobileWorkspaceReducer(
       if (
         action.keyboard === 'open' &&
         state.paperMode.kind !== 'edit' &&
-        !transientOwnsInput(state.transient)
+        !transientOwnsInput(state.transient) && state.overlay !== 'plot'
       ) {
         return state;
       }
@@ -388,13 +384,12 @@ export function resolveMobileWorkspaceBack(
   }
   if (
     state.transient.kind === 'popover' ||
-    state.transient.kind === 'paper-stats' ||
     state.transient.kind === 'entity-preview'
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
-  if (state.transient.kind === 'search') {
-    const returnTo = state.transient.returnTo;
+  if (state.transient.kind === 'search' || state.transient.kind === 'agent-input') {
+    const returnTo = state.transient.returnTo ?? READ_MODE;
     const returnToEditing = returnTo.kind === 'edit';
     return resolution(
       'input',
@@ -420,19 +415,10 @@ export function resolveMobileWorkspaceBack(
       'blur-editor',
     );
   }
-  if (state.transient.kind === 'agent-input') {
-    return resolution('input', {
-      ...state,
-      transient: NO_TRANSIENT,
-      keyboard: 'closed',
-    });
-  }
   if (state.keyboard === 'open') {
-    return resolution('keyboard', { ...state, keyboard: 'closed' });
+    return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');
   }
-  if (state.overlay === 'plot') {
-    return resolution('overlay', { ...state, overlay: 'paper-tools' });
-  }
+
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });
   }
@@ -476,12 +462,11 @@ export function resolveMobileWorkspaceBack(
 export function selectMobileUnifiedBarProjection(
   state: MobileWorkspaceUiState,
 ): MobileUnifiedBarProjection {
-  // The raised paper tools bar is compatible chrome: the unified bar (search
-  // mode and the keyboard accessory) must keep working above it.
+  // Paper switches and toolbar workspaces retain the persistent tool strip.
   const visible =
     state.surface.kind === 'paper' &&
     state.transient.kind !== 'dialog' &&
-    (state.overlay === 'none' || state.overlay === 'paper-tools');
+    (state.overlay === 'none' || state.overlay === 'paper-tools' || state.overlay === 'plot' || state.overlay === 'timeline');
   const mode =
     state.transient.kind === 'search'
       ? 'search'

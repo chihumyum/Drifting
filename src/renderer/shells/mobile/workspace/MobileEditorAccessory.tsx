@@ -20,6 +20,8 @@ import {
   Strikethrough,
   Type,
   Underline,
+  Undo2,
+  Redo2,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -258,6 +260,8 @@ export function MobileEditorAccessory({
       })}
     >
       {mode === 'navigation' && (
+        <>
+        {[{ label: t('mobileWorkspace.editorAccessory.undo'), Icon: Undo2, run: () => editor.commands.undo(), enabled: editor.can().undo() }, { label: t('mobileWorkspace.editorAccessory.redo'), Icon: Redo2, run: () => editor.commands.redo(), enabled: editor.can().redo() }].map(({ label, Icon, run: action, enabled }) => <button key={label} type="button" className="m-editor-accessory__action" aria-label={label} disabled={!enabled || editor.view.composing} onPointerDown={keepEditorFocused} onMouseDown={(event) => event.preventDefault()} onPointerUp={(event) => { if (!editor.view.composing) run(event, action); }} onClick={(event) => { if (event.detail === 0 && !editor.view.composing) action(); }}><Icon size={18} /></button>)}
         <span
           role="button"
           className="m-editor-accessory__toggle"
@@ -273,6 +277,7 @@ export function MobileEditorAccessory({
           <Type size={18} strokeWidth={1.8} aria-hidden="true" />
           <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
         </span>
+        </>
       )}
 
       {mode === 'formatting' && (

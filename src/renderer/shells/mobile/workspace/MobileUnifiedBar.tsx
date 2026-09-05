@@ -1,4 +1,5 @@
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import { ArrowLeft, ChevronDown, ChevronUp, Sparkles, Search, Workflow, CalendarRange } from 'lucide-react';
 import {
   useEffect,
   useLayoutEffect,
@@ -11,6 +12,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getActiveEditor } from '../../../lib/active-editor';
+import { MobilePaperAgent } from './MobilePaperAgent';
 import { MobileEditorAccessory } from './MobileEditorAccessory';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
 import {
@@ -186,6 +188,9 @@ function MobileUnifiedBackAction({
 
 export function MobileUnifiedBar({
   workspaceUi,
+  projectId,
+  paperKey,
+  onOpenTool,
   keyboardInset,
   editorAccessoryMode,
   onEditorAccessoryModeChange,
@@ -195,6 +200,9 @@ export function MobileUnifiedBar({
   onKeyboardViewportOffsetTopChange,
 }: {
   workspaceUi: MobileWorkspaceUiState;
+  projectId: string;
+  paperKey: string;
+  onOpenTool: (tool: 'agent' | 'search' | 'plot' | 'timeline') => void;
   keyboardInset: number;
   editorAccessoryMode: 'navigation' | 'formatting';
   onEditorAccessoryModeChange: (mode: 'navigation' | 'formatting') => void;
@@ -212,7 +220,7 @@ export function MobileUnifiedBar({
   );
 
   useEffect(() => {
-    if (projection.mode !== 'search') return undefined;
+    if (projection.mode !== 'search' && projection.mode !== 'agent-input' && workspaceUi.overlay !== 'plot') return undefined;
     const viewport = window.visualViewport;
     let frame = 0;
     const sync = () => {
@@ -240,13 +248,14 @@ export function MobileUnifiedBar({
     onKeyboardInsetChange,
     onKeyboardStateChange,
     projection.mode,
+    workspaceUi.overlay,
     searchOwner,
   ]);
   // Every editor-owned Back must keep ProseMirror focused until the typed Back
   // request resolves. Otherwise pointerdown emits blur first, the controller
   // becomes read, and the later click is incorrectly resolved as paper-root.
   const backPreservesFocusUntilResolution =
-    projection.mode === 'edit' || projection.mode === 'search';
+    projection.mode === 'edit' || projection.mode === 'search' || projection.mode === 'agent-input' || (workspaceUi.overlay === 'plot' && workspaceUi.keyboard === 'open');
   const handleBack = () =>
     requestMobileWorkspaceBack('visible', {
       preflightDom: projection.mode !== 'edit' && projection.mode !== 'search',
@@ -263,13 +272,25 @@ export function MobileUnifiedBar({
     event.preventDefault();
   };
 
+  const rootTools = [
+    ['agent', Sparkles, 'Agent'],
+    ['search', Search, t('mobileWorkspace.search.open')],
+    ['plot', Workflow, t('mobileWorkspace.paperAgent.plot')],
+    ['timeline', CalendarRange, t('mobileWorkspace.paperAgent.timeline')],
+  ] as const;
   return (
+    <>
+    <AnimatePresence>
+    {projection.visible && projection.mode === 'agent-input' && <MobilePaperAgent key={paperKey} projectId={projectId} paperKey={paperKey} keyboardInset={keyboardInset}
+      focusComposer={workspaceUi.transient.kind === 'agent-input' && workspaceUi.transient.returnTo?.kind === 'edit'} onClose={handleBack} />}
+    </AnimatePresence>
     <footer
       className="m-unified-bar"
       data-debug-id="mobile-unified-bar"
+      inert={!projection.visible || projection.mode === 'agent-input'}
       data-mode={projection.mode}
       data-keyboard={workspaceUi.keyboard}
-      data-visible={projection.visible ? 'true' : 'false'}
+      data-visible={projection.visible && projection.mode !== 'agent-input' ? 'true' : 'false'}
       style={{ '--m-unified-keyboard-inset': `${keyboardInset}px` } as CSSProperties}
       aria-label={t('mobileWorkspace.unifiedBar', { defaultValue: '移动工作栏' })}
     >
@@ -303,24 +324,33 @@ export function MobileUnifiedBar({
           </>
         ) : (
           <>
-            {projection.mode !== 'read' && (
+            {(projection.mode !== 'read' || workspaceUi.overlay === 'plot' || workspaceUi.overlay === 'timeline') && (
               <MobileUnifiedBackAction
                 preserveFocusUntilBack={backPreservesFocusUntilResolution}
                 onBack={handleBack}
                 label={backLabel}
               />
             )}
-            <MobileEditorAccessory
+            {projection.mode !== 'agent-input' && <MobileEditorAccessory
               active={projection.mode === 'edit'}
               mode={editorAccessoryMode}
               onModeChange={onEditorAccessoryModeChange}
               onEditingStateChange={onEditingStateChange}
               onKeyboardInsetChange={onKeyboardInsetChange}
               onKeyboardViewportOffsetTopChange={onKeyboardViewportOffsetTopChange}
-            />
+            />}
+            {(projection.mode === 'read' || (projection.mode === 'edit' && editorAccessoryMode === 'navigation')) && rootTools.map(([tool, Icon, label]) => (
+              <button key={tool} type="button" className="m-unified-bar__tool" data-debug-id={`mobile-tool-${tool}`}
+                aria-label={label} aria-pressed={workspaceUi.overlay === tool}
+                onPointerDown={(event) => event.preventDefault()}
+                onMouseDown={(event) => event.preventDefault()}
+                onPointerUp={(event) => { event.preventDefault(); onOpenTool(tool); }}
+                onClick={(event) => { if (event.detail === 0) onOpenTool(tool); }}><Icon size={18} aria-hidden="true" /><span>{label}</span></button>
+            ))}
           </>
         )}
       </div>
     </footer>
+    </>
   );
 }

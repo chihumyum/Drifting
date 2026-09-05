@@ -63,21 +63,20 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(css).toContain('touch-action: pan-x');
   });
 
-  it('gives the resting paper fixed corner chrome instead of a floating bar', () => {
+  it('keeps the folio and tab navigation alongside persistent paper tools', () => {
     const bar = source('shells/mobile/workspace/MobileUnifiedBar.tsx');
     const deck = source('shells/mobile/workspace/MobilePaperDeck.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    // The folio row owns back/identity/overview/tools; the bar only surfaces
-    // for search and the keyboard accessory. No variable-height panels remain.
+    // The folio owns navigation; the persistent bar owns paper tools.
     expect(deck).toContain('data-debug-id="mobile-paper-folio"');
     expect(deck).toContain('<MobileRightSidebar');
     expect(deck).toContain('<MobileTabBar');
-    expect(deck).toContain('<MobilePaperStatsSheet');
+    expect(bar).toContain('<MobilePaperAgent');
     expect(bar).not.toContain('MobilePanelPullHandle');
     expect(bar).not.toContain('mobile-open-overview');
     expect(deck).not.toContain('MobileWorkspacePanels');
-    expect(css).toContain(".m-unified-bar[data-mode='read']");
+    expect(css).toContain(".m-unified-bar__tool");
     expect(css).not.toContain('.m-panel-pull-handle');
   });
 });

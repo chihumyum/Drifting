@@ -17,8 +17,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(panels).toContain("import { MobileAgentPanel } from './MobileAgentPanel'");
     expect(panels).toContain('<MobileAgentPanel projectId={projectId} target={target} />');
     expect(panels).not.toMatch(/DesktopAgent|DesktopRightSidebar/);
-    expect(agent).toContain("send({ turnContext, toolAccess: 'read_write' })");
-    expect(agent).toContain("send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' })");
+    expect(agent).toContain("{ turnContext, toolAccess: 'read_write' }");
+    expect(agent).toContain("{ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' }");
     expect(agent).not.toContain('writeChapterProse');
     expect(agent).not.toContain('continueTask');
     expect(store).toContain('turnContext?: readonly AgentConversationContextRef[]');
@@ -71,18 +71,11 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(css).toContain('min-height: 44px');
   });
 
-  it('reuses desktop-right-sidebar Stats in a draggable entity-owned Sheet', () => {
+  it('puts the shared Stats content back in the right sidebar', () => {
     const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
-    const statsSheet = source('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
-    const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
-
-    expect(panels).not.toContain("| 'stats'");
-    expect(panels).not.toContain('<EntityStatsContent');
-    expect(statsSheet).toContain("from '../../../features/stats/EntityStatsContent'");
-    expect(statsSheet).toContain('<EntityStatsContent');
-    expect(statsSheet).toContain('setPointerCapture');
-    expect(statsSheet).toContain('offset >= 96 || velocity >= 0.75');
-    expect(css).toContain('.m-paper-stats-sheet__grab');
-    expect(css).toContain('.m-paper-stats-sheet__content [role=\'button\']');
+    const stats = source('shells/mobile/workspace/MobilePaperStats.tsx');
+    expect(panels).toContain('<MobilePaperStats target={target} />');
+    expect(stats).toContain("from '../../../features/stats/EntityStatsContent'");
+    expect(stats).toContain('<EntityStatsContent');
   });
 });

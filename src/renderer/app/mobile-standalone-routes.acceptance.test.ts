@@ -59,7 +59,7 @@ describe('mobile standalone routes', () => {
       'shells/mobile/workspace/useMobileWorkspaceSession.ts',
     );
     const previewSheet = rendererSource('shells/mobile/workspace/MobileEntityPreviewSheet.tsx');
-    const statsSheet = rendererSource('shells/mobile/workspace/MobilePaperStatsSheet.tsx');
+    const statsSheet = rendererSource('shells/mobile/workspace/MobilePaperStats.tsx');
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const railPresentation = rendererSource('components/editor/editor-rail-presentation.ts');
     const outlineRail = rendererSource('components/editor/EditorOutlineRail.tsx');
@@ -110,10 +110,9 @@ describe('mobile standalone routes', () => {
     expect(overlay).toContain('<ElementPanel');
     expect(overlay).toContain('<DriftPanel');
     expect(overlay).toContain('presentation="mobile"');
-    expect(toolsFace).toContain("type ToolTab = 'planning' | 'review' | 'agent' | 'library'");
-    expect(toolsFace).not.toContain("| 'stats'");
+    expect(toolsFace).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
+    expect(toolsFace).toContain('<MobilePaperStats target={target} />');
     expect(statsSheet).toContain('<EntityStatsContent');
-    expect(statsSheet).toContain('onPointerMove={(event) =>');
     expect(paperTools).toContain('<PlotGridEditor');
     expect(toolsFace).toContain('<ReviewPanel focused={focused} />');
     expect(toolsFace).not.toContain('<UserAvatar');
@@ -132,7 +131,7 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('.m-project-trash__content');
     expect(overview).not.toContain('ArrowUp');
     expect(overview).not.toContain('ArrowDown');
-    expect(toolsFace).toContain('<BottomTimeline presentation="mobile" />');
+    expect(paperDeck).toContain('<BottomTimeline presentation="mobile" />');
     expect(toolsFace).not.toContain('MobileTimelineWorkspace');
     expect(bottomTimeline).toContain('presentation?: BottomTimelinePresentation');
     expect(bottomTimeline).toContain('className={`btl btl--${presentation}`}');
@@ -177,7 +176,7 @@ describe('mobile standalone routes', () => {
     // The rail menu is gone: 大纲/便笺 hand off from the paper tool face into
     // the same bar sheets over the live paper.
     // 大纲/便笺 are toggles for the in-paper rails, not sheet launchers.
-    expect(paperToolsBar).toContain('aria-pressed={openRails[rail]}');
+    expect(paperToolsBar).toContain('aria-checked={openRails[rail]}');
     expect(paperToolsBar).toContain('onToggleRail');
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');

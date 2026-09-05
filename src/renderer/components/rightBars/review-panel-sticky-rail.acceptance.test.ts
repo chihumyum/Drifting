@@ -38,7 +38,7 @@ describe('unified Review surface acceptance', () => {
 
     expect(desktop).toContain("activeRightPanel === 'review'");
     expect(desktop).toContain('<ReviewPanel focused={focusedForPanel} />');
-    expect(mobile).toContain("type ToolTab = 'planning' | 'review' | 'agent' | 'library'");
+    expect(mobile).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
     expect(mobile).toContain('<ReviewPanel focused={focused} />');
     expect(mobile).toContain('lastMobileRightSidebarTab');
     expect(store).toContain("activeRightPanel: 'review' | 'library' | 'stats'");

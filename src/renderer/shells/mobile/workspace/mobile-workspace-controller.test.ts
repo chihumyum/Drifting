@@ -383,3 +383,40 @@ describe('Launcher overlays (bottom tab bar and the paper tool face)', () => {
     expect(reduce(superView, { type: 'set-overlay', overlay: 'chapters' }).overlay).toBe('none');
   });
 });
+
+describe('persistent paper tools', () => {
+  it('keeps reading and planning tools visible and closes a secondary to the toolbar', () => {
+    const root = paperRoot();
+    expect(selectMobileUnifiedBarProjection(root)).toMatchObject({ visible: true, mode: 'read' });
+    for (const overlay of ['plot', 'timeline'] as const) {
+      const tool = reduce(root, { type: 'set-overlay', overlay });
+      expect(selectMobileUnifiedBarProjection(tool).visible).toBe(true);
+      expect(resolveMobileWorkspaceBack(tool, 'visible').nextState.overlay).toBe('none');
+    }
+  });
+  it('opens Agent without an IME from reading and transfers editing keyboard ownership', () => {
+    const root = paperRoot();
+    const readAgent = reduce(root, { type: 'open-agent' });
+    expect(readAgent.keyboard).toBe('closed');
+    expect(selectMobileUnifiedBarProjection(readAgent).mode).toBe('agent-input');
+    expect(resolveMobileWorkspaceBack(readAgent, 'visible').nextState).toEqual(root);
+    const editing = reduce(root, { type: 'sync-editor', editing: true });
+    const agent = reduce(editing, { type: 'open-agent' });
+    expect(agent.keyboard).toBe('open');
+    expect(reduce(agent, { type: 'sync-editor', editing: false })).toEqual(agent);
+    const back = resolveMobileWorkspaceBack(agent, 'visible');
+    expect(back.effect).toBe('focus-editor'); expect(back.nextState).toEqual(editing);
+  });
+});
+
+
+it('lets Plot own its keyboard and dismisses it without an illegal launcher state', () => {
+  const plot = reduce(paperRoot(), { type: 'set-overlay', overlay: 'plot' });
+  const typing = reduce(plot, { type: 'sync-keyboard', keyboard: 'open' });
+  expect(typing.keyboard).toBe('open');
+  const back = resolveMobileWorkspaceBack(typing, 'visible');
+  expect(back.effect).toBe('blur-input');
+  expect(back.nextState.overlay).toBe('plot');
+  expect(back.nextState.keyboard).toBe('closed');
+  expect(reduce(typing, { type: 'set-overlay', overlay: 'none' }).keyboard).toBe('closed');
+});

@@ -119,7 +119,7 @@ function MobileNormalizedPlotGridEditor({
   );
 }
 
-/** The full-screen 情节规划器 face, opened from the paper tools bar. */
+/** Plot planning above the persistent paper toolbar. */
 export function MobilePaperTools({
   projectId,
   target,
@@ -135,7 +135,7 @@ export function MobilePaperTools({
 
   return (
     <section
-      className="m-tools-face"
+      className="m-tools-face m-paper-tool-surface"
       role="dialog"
       aria-modal="true"
       data-debug-id="mobile-paper-tools"

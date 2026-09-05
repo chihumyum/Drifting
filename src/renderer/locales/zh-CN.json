@@ -3056,6 +3056,17 @@
     }
   },
   "mobileWorkspace": {
+    "paperAgent": {
+      "outline": "大纲",
+      "placeholder": "问问 Agent…",
+      "plot": "情节",
+      "timeline": "时间线",
+      "recent": "最近会话",
+      "allSessions": "全部会话",
+      "searchSessions": "搜索会话",
+      "loadFailed": "会话读取失败，可以重选会话或开始新对话。",
+      "steer": "发送"
+    },
     "projectActions": {
       "menu": "项目选项",
       "details": "项目信息",
@@ -3077,6 +3088,8 @@
       "dismiss": "下拉关闭统计"
     },
     "editorAccessory": {
+      "undo": "撤销",
+      "redo": "重做",
       "label": "编辑格式附件栏",
       "format": "格式",
       "expand": "展开格式栏",

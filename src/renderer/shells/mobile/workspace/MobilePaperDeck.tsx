@@ -25,7 +25,7 @@ import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobilePaperContent } from './MobilePaperContent';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
-import { MobilePaperStatsSheet } from './MobilePaperStatsSheet';
+import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileTabBar } from './MobileTabBar';
 import { MobileRightSidebar } from './MobileRightSidebar';
@@ -225,6 +225,7 @@ export function MobilePaperDeck({
     toc: false,
     comments: false,
   });
+  const paperToolsAnchorRef = useRef<HTMLButtonElement>(null);
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
   const activeRailTarget =
     active && active.target.entityType !== 'all-chapters'
@@ -244,9 +245,6 @@ export function MobilePaperDeck({
     }),
     [openRails.toc, stickyNoteRail.visible],
   );
-  const activeIndex = active
-    ? session.papers.findIndex((paper) => paper.key === active.key)
-    : -1;
   const editorActive = workspaceUi.paperMode.kind === 'edit';
   const paperChromeVisible =
     workspaceUi.surface.kind === 'paper' &&
@@ -684,15 +682,6 @@ export function MobilePaperDeck({
         />
       )}
 
-      {workspaceUi.transient.kind === 'paper-stats' && active && activeIndex >= 0 && (
-        <MobilePaperStatsSheet
-          target={active.target}
-          onClose={() =>
-            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'none' } })
-          }
-        />
-      )}
-
       <AnimatePresence>
         {workspaceUi.overlay === 'tools' && active && (
           <MobileRightSidebar
@@ -712,8 +701,11 @@ export function MobilePaperDeck({
         />
       )}
 
+      {workspaceUi.overlay === 'timeline' && <section className="m-paper-tool-surface m-paper-timeline" aria-label={t('mobileWorkspace.paperAgent.timeline')} data-debug-id="mobile-paper-timeline"><BottomTimeline presentation="mobile" /></section>}
+
       {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
         <MobilePaperToolsBar
+          anchorRef={paperToolsAnchorRef}
           hidden={chromeScrolledAway}
           openRails={effectiveOpenRails}
           onToggleRail={(rail) => {
@@ -724,11 +716,6 @@ export function MobilePaperDeck({
             setOpenRails((current) => ({ ...current, [rail]: !current[rail] }));
           }}
           onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
-          onOpenStats={() =>
-            onWorkspaceUiAction({ type: 'set-transient', transient: { kind: 'paper-stats' } })
-          }
-          onOpenSearch={openSearch}
-          onOpenPlot={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'plot' })}
         />
       )}
 
@@ -736,9 +723,10 @@ export function MobilePaperDeck({
         <MobileTabBar
           hidden={chromeScrolledAway}
           onOpen={(tab) => onWorkspaceUiAction({ type: 'set-overlay', overlay: tab })}
+          paperToolsAnchorRef={paperToolsAnchorRef}
           onOpenPaperTools={
             workspaceUi.overlay === 'paper-tools'
-              ? undefined
+              ? () => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })
               : () => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'paper-tools' })
           }
         />
@@ -753,6 +741,17 @@ export function MobilePaperDeck({
       <MobilePaperSearchOwnerMount paper={active} />
       <MobileUnifiedBar
         workspaceUi={workspaceUi}
+        projectId={projectId}
+        paperKey={active?.key ?? ''}
+        onOpenTool={(tool) => {
+          if (!active) return;
+          if (tool === 'agent') onWorkspaceUiAction({ type: 'open-agent' });
+          else if (tool === 'search') openSearch();
+          else {
+            getActiveEditor()?.commands.blur();
+            onWorkspaceUiAction({ type: 'set-overlay', overlay: workspaceUi.overlay === tool ? 'none' : tool });
+          }
+        }}
         keyboardInset={keyboardInset}
         editorAccessoryMode={
           workspaceUi.paperMode.kind === 'edit'

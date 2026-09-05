@@ -41,6 +41,7 @@ export function useMobileWorkspaceBack({
       if (latest.state.surface.kind === 'super-view') return false;
       const resolved = resolveMobileWorkspaceBack(latest.state, source);
       if (!resolved.handled) return false;
+      if (resolved.effect === 'blur-input' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
       if (resolved.effect === 'focus-editor') {
         const editor = getActiveEditor();
         if (editor && !editor.isDestroyed) {

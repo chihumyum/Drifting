@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
+import type { MobilePaperAgentBinding } from './mobile-paper-agent-session';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
@@ -68,9 +70,10 @@ function targetLabel(target: WorkspaceTarget | null, t: (key: string) => string)
   return data.bookElementCategories.find((item) => item.id === target.id)?.name || t('agentPanel.mobile.target.untitledCategory');
 }
 
-function useSelectedBlockId(target: WorkspaceTarget | null): string | undefined {
-  const [blockId, setBlockId] = useState(() => selectedMobileAgentBlockId(getActiveEditor()));
+function useSelectedBlockId(target: WorkspaceTarget | null, enabled = true): string | undefined {
+  const [blockId, setBlockId] = useState(() => enabled ? selectedMobileAgentBlockId(getActiveEditor()) : undefined);
   useEffect(() => {
+    if (!enabled) return;
     let editor = getActiveEditor();
     const update = () => setBlockId(selectedMobileAgentBlockId(editor));
     const bind = (next: typeof editor) => {
@@ -85,7 +88,7 @@ function useSelectedBlockId(target: WorkspaceTarget | null): string | undefined 
       unsubscribe();
       editor?.off('selectionUpdate', update);
     };
-  }, [target?.entityType, target?.id]);
+  }, [enabled, target?.entityType, target?.id]);
   return blockId;
 }
 
@@ -135,9 +138,15 @@ function evidenceLabel(evidence: MobileAgentEvidenceRef, deletedLabel: string): 
 export function MobileAgentPanel({
   projectId,
   target,
+  paperBinding,
+  onClose,
+  focusComposer = false,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
+  paperBinding?: MobilePaperAgentBinding;
+  onClose?: () => void;
+  focusComposer?: boolean;
 }) {
   const { t } = useTranslation();
   const api = generalAgentTransport;
@@ -168,18 +177,18 @@ export function MobileAgentPanel({
   const { open } = useWorkspaceNavigator();
   const bookNode = useBookNode({ projectId, userId });
   const comment = useComment({ projectId, userId });
-  const blockId = useSelectedBlockId(target);
+  const blockId = useSelectedBlockId(target, !paperBinding);
   const label = useDataStore(() => targetLabel(target, t));
   const turnContext = useMemo(
     () =>
-      buildMobileAgentTurnContext({
+      paperBinding ? [] : buildMobileAgentTurnContext({
         projectId,
         projectName,
         target,
         targetLabel: label,
         blockId,
       }),
-    [blockId, label, projectId, projectName, target],
+    [blockId, label, paperBinding, projectId, projectName, target],
   );
   const evidence = useMemo(() => collectMobileAgentEvidence(messages), [messages]);
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
@@ -187,9 +196,12 @@ export function MobileAgentPanel({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [actionState, setActionState] = useState<Record<number, string>>({});
+  const panelRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const textAreaRef = useAutosizeTextArea(prompt);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const setComposerRef = useCallback((element: HTMLTextAreaElement | null) => { composerRef.current = element; textAreaRef(element); }, [textAreaRef]);
 
   const refreshStatus = useCallback(() => {
     if (!api.capability.available) {
@@ -207,7 +219,10 @@ export function MobileAgentPanel({
     );
   }, [api]);
 
-  useEffect(() => bindProject(projectId), [bindProject, projectId]);
+  useEffect(() => { if (!paperBinding) bindProject(projectId); }, [bindProject, projectId, paperBinding]);
+  useLayoutEffect(() => {
+    if (focusComposer) composerRef.current?.focus({ preventScroll: true });
+  }, [focusComposer, textAreaRef]);
   useEffect(refreshStatus, [refreshStatus]);
   useEffect(() => {
     events.on('agent:auth-changed', refreshStatus);
@@ -234,13 +249,13 @@ export function MobileAgentPanel({
   const handleSend = () => {
     stickRef.current = true;
     setAtBottom(true);
-    void send({ turnContext, toolAccess: 'read_write' });
+    void send(paperBinding ? { toolAccess: 'read_write' } : { turnContext, toolAccess: 'read_write' });
   };
   const handleRetry = () => {
     const previous = [...messages].reverse().find((message) => message.kind === 'user');
     if (!previous || previous.kind !== 'user') return;
     setPrompt(previous.text);
-    void send({ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' });
+    void send(paperBinding ? { toolAccess: 'read_write' } : { turnContext: previous.context ?? turnContext, toolAccess: 'read_write' });
   };
 
   const runOutputAction = async (
@@ -282,11 +297,44 @@ export function MobileAgentPanel({
     }
   };
 
+  const chooseConversation = (id: string | null) => {
+    setView('chat');
+    setHistoryOpen(false);
+    if (paperBinding) void paperBinding.select(id);
+    else if (id) void loadConversation(id);
+    else newConversation();
+  };
+  const [historyQuery, setHistoryQuery] = useState('');
+  useEffect(() => {
+    if (!historyOpen) return;
+    const closeHistory = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopImmediatePropagation(); setHistoryOpen(false);
+    };
+    window.addEventListener('keydown', closeHistory, true);
+    return () => window.removeEventListener('keydown', closeHistory, true);
+  }, [historyOpen]);
+  const expanded = !paperBinding || Boolean(activeConvId) || historyOpen;
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!paperBinding || !expanded || !panel) return;
+    if (historyOpen) panel.querySelector<HTMLElement>('.m-agent-history header button')?.focus({ preventScroll: true });
+    else if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+  }, [paperBinding, expanded, historyOpen]);
   return (
-    <div className="m-agent" data-mobile-agent="read-write">
+    <div ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
+      onKeyDown={(event) => {
+        if (!paperBinding || !expanded || event.key !== 'Tab') return;
+        const scope = historyOpen ? panelRef.current?.querySelector('.m-agent-history') : panelRef.current;
+        const controls = Array.from(scope?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0]; const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }} data-paper-agent={paperBinding ? 'true' : undefined} data-expanded={expanded} data-mobile-agent="read-write">
       <header className="m-agent__header">
-        <button type="button" aria-current={view === 'chat' ? 'page' : undefined} onClick={() => setView('chat')}>
-          {activeConversation?.title || t('agentPanel.newConversation')}
+        {paperBinding && <button type="button" aria-label={t('navigation.back')} onClick={onClose}><ArrowLeft size={18} /></button>}
+        <button type="button" aria-current={view === 'chat' ? 'page' : undefined} onClick={() => { if (paperBinding) setHistoryOpen(true); else setView('chat'); }}>
+          {activeConversation?.title || t('agentPanel.newConversation')}{paperBinding && <ChevronDown size={14} />}
         </button>
         <button type="button" aria-current={view === 'memory' ? 'page' : undefined} onClick={() => setView('memory')}>
           {t('agentPanel.toolbar.workingMemory')}
@@ -304,10 +352,14 @@ export function MobileAgentPanel({
         <AgentWorkingMemoryView key={projectId} projectId={projectId} />
       ) : (
         <>
-          <ContextChips refs={turnContext} />
-          <div className="m-agent__safety" role="status">
+          {!paperBinding && <ContextChips refs={turnContext} />}
+          {!paperBinding && <div className="m-agent__safety" role="status">
             {t('agentPanel.mobile.safety')}
-          </div>
+          </div>}
+          {paperBinding && !expanded && <div className="m-paper-agent__recent" aria-label={t('mobileWorkspace.paperAgent.recent')}>
+            <div><span>{t('mobileWorkspace.paperAgent.recent')}</span><button type="button" onClick={() => setHistoryOpen(true)}>{t('mobileWorkspace.paperAgent.allSessions')}</button></div>
+            {convList.slice(0, 3).map((conversation) => <button type="button" key={conversation.id} disabled={paperBinding.loading} onClick={() => chooseConversation(conversation.id)}>{runningTurns[conversation.id] ? '● ' : ''}{conversation.title || t('agentPanel.history.untitled')}</button>)}
+          </div>}
           {!usable && (
             <div className="m-agent__provider-state" data-state={status === null ? 'loading' : 'error'}>
               <span>
@@ -408,6 +460,9 @@ export function MobileAgentPanel({
           </div>
 
           <div className="m-agent__composer">
+            {paperBinding && !expanded && <div className="m-paper-agent__composer-heading"><button type="button" aria-label={t('navigation.back')} onClick={onClose}><ArrowLeft size={18} /></button><span>Agent</span><small>{t('agentPanel.newConversation')}</small></div>}
+            {paperBinding?.loading && <div role="status">{t('common.loading')}</div>}
+            {paperBinding?.error && <div role="alert">{t('mobileWorkspace.paperAgent.loadFailed')}</div>}
             {retryable && !running && (
               <button className="m-agent__retry" type="button" disabled={!usable} onClick={handleRetry}>
                 {t('agentPanel.mobile.retry')}
@@ -415,13 +470,15 @@ export function MobileAgentPanel({
             )}
             <div className="agt-composer">
               <textarea
-                ref={textAreaRef}
+                ref={setComposerRef}
                 className="agt-composer__text"
+                aria-label={t('agentPanel.composer.placeholder')}
+                data-debug-id="mobile-agent-composer"
                 value={prompt}
                 rows={1}
-                disabled={!usable || starting || Boolean(pendingControl?.requiresContinuation)}
-                placeholder={usable ? t('agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
-                onChange={(event) => setPrompt(event.target.value)}
+                disabled={(!usable && !paperBinding) || starting || Boolean(pendingControl?.requiresContinuation)}
+                placeholder={usable ? t(paperBinding ? 'mobileWorkspace.paperAgent.placeholder' : 'agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
+                onChange={(event) => (paperBinding?.setPrompt ?? setPrompt)(event.target.value)}
               />
               <div className="agt-composer__bar">
                 <AgentComposerConfig />
@@ -432,7 +489,7 @@ export function MobileAgentPanel({
                   }
                 />
                 <span className="agt-composer__spacer" />
-                {running ? (
+                {running && !prompt.trim() ? (
                   <button type="button" className="agt-send agt-send--stop" onClick={abort}>
                     {t('agentPanel.composer.stop')}
                   </button>
@@ -440,10 +497,10 @@ export function MobileAgentPanel({
                   <button
                     type="button"
                     className="agt-send"
-                    disabled={!usable || starting || !prompt.trim()}
+                    disabled={!usable || starting || Boolean(paperBinding?.loading) || Boolean(pendingControl?.requiresContinuation) || !prompt.trim()}
                     onClick={handleSend}
                   >
-                    {t('agentPanel.composer.send')}
+                    {running ? t('mobileWorkspace.paperAgent.steer') : t('agentPanel.composer.send')}
                   </button>
                 )}
               </div>
@@ -456,7 +513,7 @@ export function MobileAgentPanel({
         <div className="m-agent-history" role="dialog" aria-label={t('agentPanel.toolbar.historyTitle')}>
           <header>
             <strong>{t('agentPanel.toolbar.history')}</strong>
-            <button type="button" onClick={() => { newConversation(); setHistoryOpen(false); }}>
+            <button type="button" onClick={() => chooseConversation(null)}>
               ＋ {t('agentPanel.newConversation')}
             </button>
             <button type="button" onClick={() => setHistoryOpen(false)} aria-label={t('common.close')}>
@@ -465,9 +522,10 @@ export function MobileAgentPanel({
           </header>
           <div>
             {convList.length === 0 && <div className="m-tool-empty">{t('agentPanel.history.empty')}</div>}
-            {convList.map((conversation) => (
+            <input type="search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder={t('mobileWorkspace.paperAgent.searchSessions')} aria-label={t('mobileWorkspace.paperAgent.searchSessions')} />
+            {convList.filter((conversation) => !historyQuery || conversation.title.toLocaleLowerCase().includes(historyQuery.toLocaleLowerCase())).map((conversation) => (
               <article key={conversation.id} data-active={conversation.id === activeConvId || undefined}>
-                <button type="button" onClick={() => { void loadConversation(conversation.id); setHistoryOpen(false); }}>
+                <button type="button" disabled={paperBinding?.loading} onClick={() => chooseConversation(conversation.id)}>
                   <strong>{runningTurns[conversation.id] ? '● ' : ''}{conversation.title || t('agentPanel.history.untitled')}</strong>
                   <span>{relTime(conversation.updatedAt)}</span>
                 </button>

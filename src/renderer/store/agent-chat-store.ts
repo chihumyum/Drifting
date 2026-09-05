@@ -241,7 +241,7 @@ interface AgentChatState {
   setPrompt: (p: string) => void;
   /** Mount/route hook: switch to this project's history. Background runs and the
    *  in-flight turn are preserved across the switch. */
-  bindProject: (projectId: string) => void;
+  bindProject: (projectId: string, options?: { restoreLastConversation?: boolean }) => void;
   refreshList: () => void;
   send: (options?: AgentChatSendOptions) => Promise<void>;
   /** Re-authorize continuous execution for the current durable task. */
@@ -397,7 +397,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       .catch(() => set({ convList: [] }));
   },
 
-  bindProject: (projectId) => {
+  bindProject: (projectId, options) => {
     ensureSubscription();
     if (get().boundProjectId === projectId) {
       // Same project (e.g. a remount) — keep the live transcript, just refresh.
@@ -447,7 +447,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       const lastId = useSettingsStore.getState().lastAgentConvByProject[projectId];
       // Only restore a conversation that still exists (listByProject already
       // filters soft-deleted rows) and only if the user hasn't opened one.
-      if (lastId && !get().activeConvId && rows.some((r) => r.id === lastId)) {
+      if (options?.restoreLastConversation !== false && lastId && !get().activeConvId && rows.some((r) => r.id === lastId)) {
         await get().loadConversation(lastId);
       }
     })();

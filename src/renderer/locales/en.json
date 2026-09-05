@@ -3056,6 +3056,17 @@
     }
   },
   "mobileWorkspace": {
+    "paperAgent": {
+      "outline": "Outline",
+      "placeholder": "Ask Agent…",
+      "plot": "Plot",
+      "timeline": "Timeline",
+      "recent": "Recent sessions",
+      "allSessions": "All sessions",
+      "searchSessions": "Search sessions",
+      "loadFailed": "Could not load this session. Choose again or start a new conversation.",
+      "steer": "Send"
+    },
     "projectActions": {
       "menu": "Project options",
       "details": "Project details",
@@ -3077,6 +3088,8 @@
       "dismiss": "Pull down to dismiss statistics"
     },
     "editorAccessory": {
+      "undo": "Undo",
+      "redo": "Redo",
       "label": "Editing format accessory",
       "format": "Format",
       "expand": "Show formatting",

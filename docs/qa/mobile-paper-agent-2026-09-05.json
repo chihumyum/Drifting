@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-05",
+  "device": {
+    "model": "iPhone 17 Pro",
+    "os": "iOS 26.5 Simulator",
+    "viewport": {
+      "width": 402,
+      "height": 874
+    }
+  },
+  "agent": {
+    "restoredAfterRendererReload": true,
+    "frame": {
+      "x": 8,
+      "y": 70,
+      "width": 386,
+      "height": 762,
+      "top": 70,
+      "right": 394,
+      "bottom": 832,
+      "left": 8
+    },
+    "paperContextAdded": false,
+    "selectionContextAdded": false,
+    "providerExecution": "local stub; no real model request",
+    "runtimeAbortOnClose": false
+  },
+  "timeline": {
+    "rowHeight": 72,
+    "toolbar": {
+      "x": 10,
+      "y": 784,
+      "width": 382,
+      "height": 56,
+      "top": 784,
+      "right": 392,
+      "bottom": 840,
+      "left": 10
+    },
+    "pane": {
+      "x": 8,
+      "y": 62,
+      "width": 386,
+      "height": 714,
+      "top": 62,
+      "right": 394,
+      "bottom": 776,
+      "left": 8
+    }
+  },
+  "plotKeyboard": {
+    "focus": "DIV",
+    "keyboard": "open",
+    "viewport": 539,
+    "pane": {
+      "x": 8,
+      "y": 62,
+      "width": 386,
+      "height": 407,
+      "top": 62,
+      "right": 394,
+      "bottom": 469,
+      "left": 8
+    },
+    "toolbar": {
+      "x": 10,
+      "y": 477,
+      "width": 382,
+      "height": 56,
+      "top": 477,
+      "right": 392,
+      "bottom": 533,
+      "left": 10
+    }
+  },
+  "rightPanel": {
+    "tabs": "统计\nReview\nAgent\n素材库\n",
+    "stats": true,
+    "rect": {
+      "x": 8,
+      "y": 0,
+      "width": 394,
+      "height": 874,
+      "top": 0,
+      "right": 402,
+      "bottom": 874,
+      "left": 8
+    }
+  },
+  "paperSwitches": {
+    "switches": [
+      "大纲",
+      "便笺"
+    ],
+    "parent": "BODY",
+    "position": "fixed",
+    "rect": {
+      "x": 177.03125,
+      "y": 642,
+      "width": 190,
+      "height": 102,
+      "top": 642,
+      "right": 367.03125,
+      "bottom": 744,
+      "left": 177.03125
+    }
+  },
+  "search": {
+    "resultCount": 1,
+    "scope": "paper"
+  }
+}

@@ -7,13 +7,13 @@ import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { ReviewPanel } from '../../../components/rightBars/ReviewPanel';
 import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
 import { MobileAgentPanel } from './MobileAgentPanel';
-import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
+import { MobilePaperStats } from './MobilePaperStats';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 import { usePaperGlyph } from './mobile-paper-glyph';
 
-type ToolTab = 'planning' | 'review' | 'agent' | 'library';
+type ToolTab = 'stats' | 'review' | 'agent' | 'library';
 
-let lastMobileRightSidebarTab: ToolTab = 'planning';
+let lastMobileRightSidebarTab: ToolTab = 'stats';
 
 function focusedEntity(target: WorkspaceTarget | null): FocusedEntity {
   if (!target || target.entityType === 'all-chapters') {
@@ -42,7 +42,7 @@ export function MobileRightSidebar({
   const glyph = usePaperGlyph(target);
   const focused = focusedEntity(target);
   const tabs = [
-    ['planning', t('bottomTimeline.title', { defaultValue: '时间线' })],
+    ['stats', t('rightSidebar.tabs.stats')],
     ['review', t('rightSidebar.tabs.review')],
     ['agent', 'Agent'],
     ['library', t('rightSidebar.tabs.library')],
@@ -155,11 +155,9 @@ export function MobileRightSidebar({
           </button>
         </header>
         <div className="m-tools-face__pane">
-          {tab === 'planning' && (
+          {tab === 'stats' && (
             <div className="m-context-workspace__pane m-context-workspace__body">
-              <div className="m-bottom-timeline">
-                <BottomTimeline presentation="mobile" />
-              </div>
+              <MobilePaperStats target={target} />
             </div>
           )}
           {tab === 'review' && (
