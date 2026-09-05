@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-06",
+  "device": {
+    "model": "iPhone 17 Pro",
+    "os": "iOS 26.5 Simulator"
+  },
+  "build": "Fresh native debug build from working checkout",
+  "inputPath": {
+    "scroll": "frontend debug bridge synthetic DOM scroll",
+    "agentOpenClose": "native simulator touch"
+  },
+  "observations": {
+    "stacked": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "height": 56,
+        "left": 10,
+        "right": 392,
+        "hidden": null,
+        "visible": "true",
+        "bottomInset": "98px",
+        "transitionDuration": "0.22s, 0.14s, 0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1), ease, cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "tabs": {
+        "top": 784,
+        "bottom": 874,
+        "height": 90,
+        "left": 0,
+        "right": 402,
+        "hidden": "false",
+        "visible": null,
+        "bottomInset": "0px",
+        "transitionDuration": "0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "pane": null,
+      "scrollTop": 0
+    },
+    "hidden": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "height": 56,
+        "left": 10,
+        "right": 392,
+        "hidden": null,
+        "visible": "true",
+        "bottomInset": "34px",
+        "transitionDuration": "0.22s, 0.14s, 0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1), ease, cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "tabs": {
+        "top": 874,
+        "bottom": 964,
+        "height": 90,
+        "left": 0,
+        "right": 402,
+        "hidden": "true",
+        "visible": null,
+        "bottomInset": "0px",
+        "transitionDuration": "0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "pane": null,
+      "scrollTop": 700
+    },
+    "restored": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "height": 56,
+        "left": 10,
+        "right": 392,
+        "hidden": null,
+        "visible": "true",
+        "bottomInset": "98px",
+        "transitionDuration": "0.22s, 0.14s, 0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1), ease, cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "tabs": {
+        "top": 784,
+        "bottom": 874,
+        "height": 90,
+        "left": 0,
+        "right": 402,
+        "hidden": "false",
+        "visible": null,
+        "bottomInset": "0px",
+        "transitionDuration": "0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "pane": null,
+      "scrollTop": 0
+    },
+    "timeline": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "height": 56,
+        "left": 10,
+        "right": 392,
+        "hidden": null,
+        "visible": "true",
+        "bottomInset": "34px",
+        "transitionDuration": "0.22s, 0.14s, 0.22s",
+        "transitionTimingFunction": "cubic-bezier(0.32, 0.72, 0, 1), ease, cubic-bezier(0.32, 0.72, 0, 1)"
+      },
+      "tabs": null,
+      "pane": {
+        "top": 62,
+        "bottom": 776,
+        "height": 714,
+        "left": 8,
+        "right": 394,
+        "hidden": null,
+        "visible": null,
+        "bottomInset": "98px",
+        "transitionDuration": "0s",
+        "transitionTimingFunction": "ease"
+      },
+      "scrollTop": 0
+    }
+  },
+  "assertions": {
+    "toolbarAboveTabs": true,
+    "tabsAtViewportBottom": true,
+    "hiddenTabsOutsideViewport": true,
+    "toolbarRemainsVisible": true,
+    "toolbarDescends64px": true,
+    "bottomSafeAreaPreserved": true,
+    "upwardScrollRestoresStack": true,
+    "matchingSlideDuration": true,
+    "timelineHasNoTabReservation": true,
+    "timelineClearsToolbar": true
+  }
+}

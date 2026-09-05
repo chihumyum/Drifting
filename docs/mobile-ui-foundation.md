@@ -280,8 +280,10 @@ not physical-device appearance or feel.
 
 ### Persistent paper toolbar and General Agent — 2026-09-05
 
-The paper toolbar stays at the bottom in reading mode while the lighter navigation
-row above it can recede with scroll. During editing it follows native keyboard
+The paper toolbar stacks above the bottom navigation row in reading mode. When
+navigation recedes with scroll, the toolbar descends to the bottom safe area;
+scrolling back restores the stack. Both rows share the same transition timing.
+During editing the toolbar follows native keyboard
 geometry and exposes undo, redo, formatting, Agent, Search, Plot and Timeline.
 Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
 display switches. Stats lives in the right panel alongside Review, Agent and Library.
@@ -303,4 +305,5 @@ user's text, with no paper, selection, title, prose or added context instruction
 Reading does not summon the keyboard until the input is tapped.
 
 Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests and
-`docs/qa/mobile-paper-agent-2026-09-05.md`.
+`docs/qa/mobile-paper-agent-2026-09-05.md`. The corrected navigation/toolbar stacking
+is recorded in `docs/qa/mobile-toolbar-stack-2026-09-06.md`.

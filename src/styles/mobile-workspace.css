@@ -1,6 +1,7 @@
 .m-workspace {
   --m-unified-bar-height: 56px;
   --m-unified-bar-gap: 8px;
+  --m-paper-tabbar-height: 56px;
   --m-editor-top-scroll-reserve: 0px;
   position: fixed;
   inset: 0;
@@ -3385,11 +3386,22 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Persistent paper tools. Navigation can recede; these tools keep their position. */
+/* Paper tools stack above bottom navigation, then descend as navigation recedes. */
 .m-workspace > .m-tabbar {
-  bottom: calc(56px + max(8px, env(safe-area-inset-bottom)));
-  padding-bottom: 4px;
+  height: calc(var(--m-paper-tabbar-height) + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  padding-block: 0 env(safe-area-inset-bottom);
   background: linear-gradient(transparent, hsl(var(--paper) / 0.94));
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.m-workspace > .m-tabbar[data-hidden='false'] ~ .m-unified-bar[data-keyboard='closed'] {
+  bottom: calc(var(--m-paper-tabbar-height) + env(safe-area-inset-bottom) + var(--m-unified-bar-gap));
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-workspace > .m-tabbar,
+  .m-workspace > .m-unified-bar {
+    transition: none;
+  }
 }
 .m-unified-bar__tool {
   flex: 1 1 0;
