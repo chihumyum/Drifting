@@ -1,0 +1,1226 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-06",
+  "device": {
+    "model": "iPhone 17 Pro",
+    "os": "iOS 26.5 Simulator",
+    "width": 402,
+    "height": 874
+  },
+  "inputPath": {
+    "scroll": "frontend bridge DOM scroll",
+    "editSearchAndBack": "native simulator touch",
+    "appearance": "fresh iOS Debug build with live stylesheet reload and device screenshot"
+  },
+  "fixture": "Existing synthetic harbour paragraphs; no prose writes or provider calls.",
+  "observations": {
+    "before-visible": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "content": {
+        "top": 1,
+        "bottom": 873,
+        "width": 400,
+        "height": 872,
+        "paddingTop": "62px",
+        "paddingBottom": "158px"
+      },
+      "scroller": {
+        "top": 63,
+        "bottom": 715,
+        "width": 400,
+        "height": 652,
+        "scrollTop": 0,
+        "scrollHeight": 3557,
+        "clientHeight": 652,
+        "beforeHeight": "auto"
+      },
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": false
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 301.015625,
+        "lastBottom": 869.203125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 784,
+        "bottom": 874,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": 0,
+        "bottom": 108,
+        "width": 402,
+        "height": 108,
+        "opacity": "1"
+      }
+    },
+    "before-hidden": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 1,
+        "bottom": 873,
+        "width": 400,
+        "height": 872,
+        "paddingTop": "62px",
+        "paddingBottom": "102px"
+      },
+      "scroller": {
+        "top": 63,
+        "bottom": 771,
+        "width": 400,
+        "height": 708,
+        "scrollTop": 1600,
+        "scrollHeight": 3557,
+        "clientHeight": 708,
+        "beforeHeight": "auto"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": false
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -21.40625,
+        "lastBottom": 861.59375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0"
+      }
+    },
+    "after-hidden": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 1600,
+        "scrollHeight": 3590,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": true
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": true
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 23.59375,
+        "lastBottom": 877.59375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0"
+      }
+    },
+    "after-visible": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 1460,
+        "scrollHeight": 3590,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": false
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -15.40625,
+        "lastBottom": 867.59375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 784,
+        "bottom": 874,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": 0,
+        "bottom": 108,
+        "width": 402,
+        "height": 108,
+        "opacity": "1"
+      }
+    },
+    "document-start": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 0,
+        "scrollHeight": 3590,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": false
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 300.015625,
+        "lastBottom": 868.203125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": 104,
+        "bottom": 132,
+        "left": 24,
+        "right": 378,
+        "width": 354,
+        "height": 28
+      },
+      "snapshots": [],
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "tabbar": {
+        "top": 784,
+        "bottom": 874,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": 0,
+        "bottom": 108,
+        "width": 402,
+        "height": 108,
+        "opacity": "1"
+      }
+    },
+    "document-end": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 2716,
+        "scrollHeight": 3590,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": true
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": true
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 5.59375,
+        "lastBottom": 603.78125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": -2612,
+        "bottom": -2584,
+        "left": 24,
+        "right": 378,
+        "width": 354,
+        "height": 28
+      },
+      "snapshots": [],
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0"
+      }
+    },
+    "whole-book-hidden": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 1662,
+        "scrollHeight": 3607,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": true
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": true
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -9.40625,
+        "lastBottom": 874.578125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": -1600,
+        "bottom": 1944.78125,
+        "left": 0,
+        "right": 402,
+        "width": 402,
+        "height": 3544.78125
+      },
+      "snapshots": [
+        {
+          "top": 0,
+          "bottom": 874,
+          "left": 402,
+          "right": 804,
+          "width": 402,
+          "height": 874,
+          "paddingTop": "0px",
+          "paddingBottom": "0px",
+          "opacity": "1",
+          "transform": "none"
+        }
+      ],
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0"
+      }
+    },
+    "whole-book-end": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "scrollTop": 2733,
+        "scrollHeight": 3607,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": true
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": true
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -11.40625,
+        "lastBottom": 586.78125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": -2671,
+        "bottom": 873.78125,
+        "left": 0,
+        "right": 402,
+        "width": 402,
+        "height": 3544.78125
+      },
+      "snapshots": [
+        {
+          "top": 0,
+          "bottom": 874,
+          "left": 402,
+          "right": 804,
+          "width": 402,
+          "height": 874,
+          "paddingTop": "0px",
+          "paddingBottom": "0px",
+          "opacity": "1",
+          "transform": "none"
+        }
+      ],
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0"
+      }
+    },
+    "editing": {
+      "viewport": {
+        "width": 402,
+        "height": 846,
+        "visualHeight": 539,
+        "offsetTop": 27.65625
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "chromeHidden": "false",
+      "content": {
+        "top": -28,
+        "bottom": 846,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "377.34375px"
+      },
+      "scroller": {
+        "top": -28,
+        "bottom": 468.65625,
+        "width": 402,
+        "height": 496.65625,
+        "scrollTop": 27,
+        "scrollHeight": 3617,
+        "clientHeight": 497,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 476.65625,
+        "bottom": 532.65625,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 828,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 721,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 781,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 272.671875,
+        "lastBottom": 840.859375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "tabbar": null,
+      "folio": null
+    },
+    "search-keyboard": {
+      "viewport": {
+        "width": 402,
+        "height": 846,
+        "visualHeight": 539,
+        "offsetTop": 27.65625
+      },
+      "mode": "read",
+      "keyboard": "open",
+      "chromeHidden": "false",
+      "content": {
+        "top": -28,
+        "bottom": 846,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "377.34375px"
+      },
+      "scroller": {
+        "top": -28,
+        "bottom": 468.65625,
+        "width": 402,
+        "height": 496.65625,
+        "scrollTop": 27,
+        "scrollHeight": 3617,
+        "clientHeight": 497,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 476.65625,
+        "bottom": 532.65625,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 828,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 721,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 781,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 272.671875,
+        "lastBottom": 840.859375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "tabbar": null,
+      "folio": null
+    },
+    "search-returned": {
+      "viewport": {
+        "width": 402,
+        "height": 846,
+        "visualHeight": 539,
+        "offsetTop": 27.65625
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "chromeHidden": "false",
+      "content": {
+        "top": -28,
+        "bottom": 846,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "377.34375px"
+      },
+      "scroller": {
+        "top": -28,
+        "bottom": 468.65625,
+        "width": 402,
+        "height": 496.65625,
+        "scrollTop": 27,
+        "scrollHeight": 3617,
+        "clientHeight": 497,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 476.65625,
+        "bottom": 532.65625,
+        "width": 382,
+        "height": 56
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 828,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 721,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 781,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": 272.671875,
+        "lastBottom": 840.859375
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "tabbar": null,
+      "folio": null
+    },
+    "chrome-solid-visible": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "false",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px",
+        "backgroundColor": "rgb(255, 255, 255)",
+        "backgroundImage": "none"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "backgroundImage": "none",
+        "scrollTop": 714,
+        "scrollHeight": 3607,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 720,
+        "bottom": 776,
+        "width": 382,
+        "height": 56,
+        "backgroundColor": "color(srgb 1 1 1 / 0.9)",
+        "backgroundImage": "none"
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": false
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": false
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": false
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": false
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -0.796875,
+        "lastBottom": 886.578125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": -652,
+        "bottom": 2892.78125,
+        "left": 0,
+        "right": 402,
+        "width": 402,
+        "height": 3544.78125
+      },
+      "snapshots": [
+        {
+          "top": 0,
+          "bottom": 874,
+          "left": 402,
+          "right": 804,
+          "width": 402,
+          "height": 874,
+          "paddingTop": "0px",
+          "paddingBottom": "0px",
+          "opacity": "1",
+          "transform": "none",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "backgroundImage": "none"
+        }
+      ],
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 784,
+        "bottom": 874,
+        "width": 402,
+        "height": 90,
+        "opacity": "1",
+        "backgroundColor": "rgb(247, 246, 245)",
+        "backgroundImage": "none"
+      },
+      "folio": {
+        "top": 0,
+        "bottom": 108,
+        "width": 402,
+        "height": 108,
+        "opacity": "1",
+        "backgroundColor": "rgb(247, 246, 245)",
+        "backgroundImage": "none"
+      }
+    },
+    "chrome-solid-hidden": {
+      "viewport": {
+        "width": 402,
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "chromeHidden": "true",
+      "content": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "paddingTop": "0px",
+        "paddingBottom": "0px",
+        "backgroundColor": "rgb(255, 255, 255)",
+        "backgroundImage": "none"
+      },
+      "scroller": {
+        "top": 0,
+        "bottom": 874,
+        "width": 402,
+        "height": 874,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "backgroundImage": "none",
+        "scrollTop": 1074,
+        "scrollHeight": 3607,
+        "clientHeight": 874,
+        "beforeHeight": "62px"
+      },
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "width": 382,
+        "height": 56,
+        "backgroundColor": "color(srgb 1 1 1 / 0.9)",
+        "backgroundImage": "none"
+      },
+      "points": [
+        {
+          "x": 80,
+          "y": 20,
+          "insideScroller": true
+        },
+        {
+          "x": 80,
+          "y": 856,
+          "insideScroller": true
+        },
+        {
+          "x": 28,
+          "y": 749,
+          "insideScroller": true
+        },
+        {
+          "x": 4,
+          "y": 809,
+          "insideScroller": true
+        }
+      ],
+      "visibleProseLineBounds": {
+        "firstTop": -19.796875,
+        "lastBottom": 884.578125
+      },
+      "safe": {
+        "top": 62,
+        "bottom": 34
+      },
+      "firstContent": {
+        "top": -1012,
+        "bottom": 2532.78125,
+        "left": 0,
+        "right": 402,
+        "width": 402,
+        "height": 3544.78125
+      },
+      "snapshots": [
+        {
+          "top": 0,
+          "bottom": 874,
+          "left": 402,
+          "right": 804,
+          "width": 402,
+          "height": 874,
+          "paddingTop": "0px",
+          "paddingBottom": "0px",
+          "opacity": "1",
+          "transform": "none",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "backgroundImage": "none"
+        }
+      ],
+      "editorFocused": false,
+      "selection": {
+        "from": 1,
+        "to": 1
+      },
+      "tabbar": {
+        "top": 874,
+        "bottom": 964,
+        "width": 402,
+        "height": 90,
+        "opacity": "1",
+        "backgroundColor": "rgb(247, 246, 245)",
+        "backgroundImage": "none"
+      },
+      "folio": {
+        "top": -108,
+        "bottom": 0,
+        "width": 402,
+        "height": 108,
+        "opacity": "0",
+        "backgroundColor": "rgb(247, 246, 245)",
+        "backgroundImage": "none"
+      }
+    }
+  },
+  "assertions": {
+    "hiddenReadingFillsViewport": true,
+    "visibleReadingFillsViewport": true,
+    "chromeDoesNotResizeScroller": true,
+    "noOuterSafeAreaPadding": true,
+    "statusAndAccessorySurroundingsBelongToPaper": true,
+    "textPassesBehindStatusBar": true,
+    "textContinuesBelowAccessory": true,
+    "initialContentClearsStatusBar": true,
+    "accessoryStackPreserved": true,
+    "documentEndReached": true,
+    "lastLineClearsAccessory": true,
+    "wholeBookFillsViewport": true,
+    "snapshotFillsViewport": true,
+    "wholeBookLastLineClearsAccessory": true,
+    "editingClearsInput": true,
+    "searchKeepsKeyboardAndGeometry": true,
+    "searchReturnsFocusAndCaret": true,
+    "tabbarVisibleIsOpaque": true,
+    "folioVisibleIsOpaque": true,
+    "solidChromeLeavesNoHiddenBand": true
+  }
+}

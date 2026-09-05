@@ -283,6 +283,16 @@ not physical-device appearance or feel.
 The paper toolbar stacks above the bottom navigation row in reading mode. When
 navigation recedes with scroll, the toolbar descends to the bottom safe area;
 scrolling back restores the stack. Both rows share the same transition timing.
+The paper scroll viewport fills the entire screen in reading mode, including
+the status-bar and home-indicator areas. Navigation and the accessory overlay
+that viewport. Visible top and bottom navigation have opaque backgrounds; each
+background moves away with its own bar when hidden, leaving no reserved band.
+Hiding navigation changes no paper height or clipping boundary.
+The initial top safe-area spacer belongs to the scrolling content, including
+whole-book rows and adjacent frozen papers. Existing document-end spacing lets
+the last prose line clear the accessory. Only an open editing/search keyboard
+reduces the paper viewport. Native geometry and hit-test evidence is recorded in
+`docs/qa/mobile-fullscreen-flow-2026-09-06.json`.
 During editing the toolbar follows native keyboard
 geometry and exposes undo, redo, formatting, Agent, Search, Plot and Timeline.
 Plot and Timeline suspend the originating prose mode while open. Their Back

@@ -747,7 +747,6 @@
   height: 100dvh;
   overflow: hidden;
   background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule));
   box-shadow: 0 18px 48px -22px hsl(var(--ink-1) / 0.5);
 }
 
@@ -785,19 +784,11 @@
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(
-    var(--m-unified-bar-height) + 20px + env(safe-area-inset-bottom)
-  );
   background: hsl(var(--page));
-  transition: padding-bottom 200ms ease;
 }
 
-/* When reading slides the chrome away, the freed band belongs to the text. */
-.m-workspace[data-chrome-hidden='true'] .m-paper-deck__content {
-  padding-bottom: calc(10px + env(safe-area-inset-bottom));
-}
-
+/* Only an open input keyboard reduces the paper viewport. Reading chrome and
+   the accessory float over the full-screen scroll owner. */
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
   .m-paper-deck__content,
 .m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
@@ -818,10 +809,6 @@
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(
-    var(--m-unified-bar-height) + 20px + env(safe-area-inset-bottom)
-  );
   pointer-events: none;
   background: hsl(var(--page));
 }
@@ -897,7 +884,7 @@
   align-items: center;
   min-height: calc(46px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) 6px 0;
-  background: linear-gradient(to bottom, hsl(var(--paper)) 58%, hsl(var(--paper) / 0));
+  background: hsl(var(--paper));
   color: hsl(var(--ink-3));
 }
 
@@ -2541,6 +2528,16 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   touch-action: pan-y;
 }
 
+/* Keep the document start below the status bar, but let this space scroll away
+   with the prose. This also covers whole-book rows and frozen adjacent papers.
+   Existing page/spread end spacing lets the final line clear the floating bar. */
+.m-workspace .editor-scroll::before {
+  content: '';
+  display: block;
+  height: env(safe-area-inset-top);
+  pointer-events: none;
+}
+
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
   .editor-scroll,
 .m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
@@ -3391,7 +3388,7 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
   height: calc(var(--m-paper-tabbar-height) + env(safe-area-inset-bottom));
   box-sizing: border-box;
   padding-block: 0 env(safe-area-inset-bottom);
-  background: linear-gradient(transparent, hsl(var(--paper) / 0.94));
+  background: hsl(var(--paper));
   transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .m-workspace > .m-tabbar[data-hidden='false'] ~ .m-unified-bar[data-keyboard='closed'] {
@@ -3510,10 +3507,6 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
 .m-paper-agent__toolbar > .m-agent__retry { margin-inline: 12px; font-size: 12px; }
 .m-paper-agent__toolbar .agt-send { border-radius: 999px; }
 .m-agent-history input[type='search'] { width: calc(100% - 20px); margin: 8px 10px; min-height: 40px; padding: 8px 12px; border: 1px solid hsl(var(--rule)); border-radius: 12px; background: hsl(var(--paper)); color: hsl(var(--ink-1)); font-size: 16px; }
-.m-workspace[data-controller-paper-mode='read'] .m-paper-deck__content,
-.m-workspace[data-controller-paper-mode='read'] .m-paper-snapshot { padding-bottom: calc(124px + env(safe-area-inset-bottom)); }
-.m-workspace[data-chrome-hidden='true'][data-controller-paper-mode='read'] .m-paper-deck__content { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
-.m-workspace[data-controller-transient='search'][data-controller-keyboard='open'] .m-paper-deck__content { padding-bottom: calc(70px + var(--m-unified-keyboard-inset)); }
 .m-paper-agent[data-keyboard='open'] { bottom: calc(var(--m-unified-keyboard-inset) + 6px); }
 .m-paper-agent[inert] { pointer-events: none; }
 .m-paper-tool-surface > .m-tools-face__header { min-height: 44px; padding: 0 8px 0 12px; }
