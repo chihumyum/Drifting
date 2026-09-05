@@ -3056,6 +3056,19 @@
     }
   },
   "mobileWorkspace": {
+    "projectActions": {
+      "menu": "Project options",
+      "details": "Project details",
+      "summary": "Project summary",
+      "goals": "Writing goals",
+      "trash": "Project trash",
+      "delete": "Delete project",
+      "deleteBody": "Delete “{{name}}”? Its chapters, inspirations, elements, Agent conversations and trash will be permanently deleted. This cannot be undone.",
+      "deleteFailed": "The project could not be deleted. Please try again.",
+      "saveFailed": "Your changes could not be saved. Please try again.",
+      "invalidGoal": "Enter a whole number of words greater than or equal to 0.",
+      "goalsDevice": "Writing goals are saved on this device for Home, the bookshelf and writing statistics."
+    },
     "unifiedBar": "Mobile workspace bar",
     "openPapers": "Open papers",
     "dismissKeyboard": "Dismiss keyboard",

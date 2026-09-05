@@ -18,6 +18,7 @@ import { MobileVoiceFace } from './workspace/MobileVoiceFace';
 import { MobileVoicePill } from './workspace/MobileVoicePill';
 import { useVoiceCaptureStore } from '../../store/voice-capture-store';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
+import { removeMobileWorkspaceSession } from './workspace/mobile-workspace-session-storage';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
 import { requestMobileWorkspaceBack } from './workspace/mobile-workspace-back';
 import { saveActiveEditor } from '../../lib/active-editor';
@@ -268,6 +269,11 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
           }
           onOpenVoice={openVoice}
+          onOpenTrash={() => dispatchWorkspaceUi({ type: 'open-project-trash' })}
+          onProjectDeleted={() => {
+            removeMobileWorkspaceSession(localStorage, projectId);
+            leaveProject();
+          }}
         />
       )}
       <MobilePaperDeck

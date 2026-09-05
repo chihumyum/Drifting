@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ArrowRight, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -100,12 +100,13 @@ function EntityPill({
 
 interface MobileProjectFlowProps {
   onOpenChapters(): void;
+  projectActions?: ReactNode;
 }
 
 /** The project home as one downward flow of the author's material: a dense
  * first screen with chapters, drifts, and elements together, storylines and
  * quiet entries below. Chrome stays in the corners; content fills the page. */
-export function MobileProjectFlow({ onOpenChapters }: MobileProjectFlowProps) {
+export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProjectFlowProps) {
   const { t } = useTranslation();
   const { projectId, openEntity } = useProjectNavigation();
   const currentProject = useProjectStore((s) => s.currentProject);
@@ -180,6 +181,7 @@ export function MobileProjectFlow({ onOpenChapters }: MobileProjectFlowProps) {
             target: formatWords(wordTarget),
           })}
         </span>
+        {projectActions}
       </div>
       <span className="m-flow__progress" aria-hidden="true">
         <span

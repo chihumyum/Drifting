@@ -48,3 +48,18 @@ export function writeMobileWorkspaceSession(
     return false;
   }
 }
+
+/** Forget both readable formats so a deleted project cannot revive old papers. */
+export function removeMobileWorkspaceSession(
+  storage: Pick<Storage, 'removeItem'> | null,
+  projectId: string,
+): boolean {
+  if (!storage) return false;
+  try {
+    storage.removeItem(mobileWorkspaceSessionStorageKey(projectId));
+    storage.removeItem(legacyMobileWorkspaceSessionStorageKey(projectId));
+    return true;
+  } catch {
+    return false;
+  }
+}

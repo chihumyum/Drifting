@@ -179,6 +179,14 @@ editing, timeline, material, comment, and Agent capabilities.
   not separate tool destinations. Stats is not a rail destination: the current entity's Stats open
   as a dedicated sheet (`MobilePaperStatsSheet.tsx`) reusing the shared desktop
   `EntityStatsContent`.
+- Project Home exposes a project-options menu beside the project title:
+  name/summary editing, device-local writing goals, project Trash, and a
+  separated destructive project-deletion action. The Settings gear still
+  opens the standalone app settings route. Deletion requires a second dialog
+  with the project name and irreversible scope, initially focuses Cancel,
+  retains errors for retry, and returns to the shelf only after the shared
+  project deletion commits. Both readable mobile paper-session formats are
+  then forgotten. See `qa/mobile-project-home-actions-2026-09-05.md`.
 - The mobile right sidebar covers the full viewport height and reaches the
   right edge, leaving only an 8px reveal on the left. Its paper background
   extends behind the status bar and home indicator; only the 44px tab row and

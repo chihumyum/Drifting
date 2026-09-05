@@ -6,6 +6,24 @@ const root = path.resolve(import.meta.dirname, '../../..');
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 describe('Project Home cross-platform acceptance', () => {
+  it('exposes project management separately from app settings and confirms project deletion', () => {
+    const home = read('src/renderer/shells/mobile/workspace/MobileProjectHome.tsx');
+    const actions = read('src/renderer/shells/mobile/workspace/MobileProjectActions.tsx');
+    const shell = read('src/renderer/shells/mobile/MobileAppShell.tsx');
+    expect(home).toContain('<MobileProjectActions');
+    expect(home).toContain('onClick={onOpenSettings}');
+    expect(actions).toContain('<AnchoredPopover');
+    expect(actions).toContain("openDialog('delete')");
+    expect(actions).toContain('menu-surface__item--danger');
+    expect(actions).toContain('await deleteProject(project.id)');
+    expect(actions.indexOf('if (!deleted) throw')).toBeLessThan(actions.indexOf('onProjectDeleted();'));
+    expect(actions).toContain('disabled={busy} autoFocus');
+    expect(actions).toContain('role="alert"');
+    expect(actions).toContain('await updateProject(project.id,');
+    expect(actions).toContain('store.setProjectWordTarget(project.id, words[0])');
+    expect(shell).toContain('removeMobileWorkspaceSession(localStorage, projectId)');
+    expect(shell).toContain("onOpenTrash={() => dispatchWorkspaceUi({ type: 'open-project-trash' })}");
+  });
   it('keeps Home outside the shared content target and exposes explicit navigation', () => {
     const target = read('src/renderer/features/workspace/navigation/workspace-target.ts');
     expect(target).toContain('showProjectHome(options?: { replace?: boolean }): void');

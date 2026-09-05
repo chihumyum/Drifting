@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   readMobileWorkspaceSession,
+  removeMobileWorkspaceSession,
   writeMobileWorkspaceSession,
 } from './mobile-workspace-session-storage';
 import {
@@ -15,10 +16,25 @@ function memoryStorage() {
   return {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => { values.delete(key); },
   };
 }
 
 describe('mobile workspace restart restoration', () => {
+  it('forgets deleted-project papers in both readable formats without touching other projects', () => {
+    const storage = memoryStorage();
+    const state = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
+      type: 'open', target: chapter('a'),
+    });
+    writeMobileWorkspaceSession(storage, 'deleted', state);
+    storage.setItem('drifting:mobile-workspace:1:deleted', JSON.stringify(state));
+    writeMobileWorkspaceSession(storage, 'retained', state);
+    expect(removeMobileWorkspaceSession(storage, 'deleted')).toBe(true);
+    expect(readMobileWorkspaceSession(storage, 'deleted')).toEqual(EMPTY_MOBILE_WORKSPACE_SESSION);
+    expect(readMobileWorkspaceSession(storage, 'retained')).toEqual(state);
+    expect(removeMobileWorkspaceSession(null, 'deleted')).toBe(false);
+    expect(removeMobileWorkspaceSession({ removeItem: () => { throw new Error('unavailable'); } }, 'deleted')).toBe(false);
+  });
   it('round-trips order, active paper, targets, and independent scroll positions', () => {
     let state = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
       type: 'open',

@@ -2,6 +2,7 @@ import { ArrowLeft, Layers3, Mic, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { MobileProjectFlow } from './MobileProjectFlow';
+import { MobileProjectActions } from './MobileProjectActions';
 import { MobileTabBar, type MobileTabBarTab } from './MobileTabBar';
 
 interface MobileProjectHomeProps {
@@ -11,6 +12,8 @@ interface MobileProjectHomeProps {
   onOpenSettings(): void;
   onOpenStructure(tab: MobileTabBarTab): void;
   onOpenVoice(): void;
+  onOpenTrash(): void;
+  onProjectDeleted(): void;
 }
 
 /** Project home. A single fixed header row carries all the chrome — paper
@@ -25,6 +28,8 @@ export function MobileProjectHome({
   onOpenSettings,
   onOpenStructure,
   onOpenVoice,
+  onOpenTrash,
+  onProjectDeleted,
 }: MobileProjectHomeProps) {
   const { t } = useTranslation();
   return (
@@ -67,7 +72,10 @@ export function MobileProjectHome({
           </button>
         </div>
       </header>
-      <MobileProjectFlow onOpenChapters={() => onOpenStructure('chapters')} />
+      <MobileProjectFlow
+        onOpenChapters={() => onOpenStructure('chapters')}
+        projectActions={<MobileProjectActions onOpenTrash={onOpenTrash} onProjectDeleted={onProjectDeleted} />}
+      />
       <MobileTabBar onOpen={onOpenStructure} />
     </main>
   );

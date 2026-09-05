@@ -3056,6 +3056,19 @@
     }
   },
   "mobileWorkspace": {
+    "projectActions": {
+      "menu": "项目选项",
+      "details": "项目信息",
+      "summary": "项目简介",
+      "goals": "写作目标",
+      "trash": "项目回收站",
+      "delete": "删除项目",
+      "deleteBody": "确定删除《{{name}}》吗？项目内的章节、灵感、元素、Agent 对话和回收站内容都将被永久删除，无法恢复。",
+      "deleteFailed": "删除未完成，请重试。",
+      "saveFailed": "保存未完成，请重试。",
+      "invalidGoal": "请输入大于或等于 0 的整数字数。",
+      "goalsDevice": "写作目标保存在当前设备，用于首页、书架和写作统计。"
+    },
     "unifiedBar": "移动工作栏",
     "openPapers": "打开的纸张",
     "dismissKeyboard": "收起键盘",
