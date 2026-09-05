@@ -285,16 +285,23 @@ navigation recedes with scroll, the toolbar descends to the bottom safe area;
 scrolling back restores the stack. Both rows share the same transition timing.
 During editing the toolbar follows native keyboard
 geometry and exposes undo, redo, formatting, Agent, Search, Plot and Timeline.
+Plot and Timeline suspend the originating prose mode while open. Their Back
+path restores editor focus, selection, and the previous accessory level; a
+Plot-owned keyboard is dismissed before leaving that tool.
 Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
 display switches. Stats lives in the right panel alongside Review, Agent and Library.
 
-Agent replaces the toolbar with the existing General Agent composer, including its
-provider/model configuration and dictation controls. Before selecting a conversation,
-three recent project sessions and searchable full history appear above the input.
+Agent uses the paper accessory surface with shared provider/model configuration,
+dictation and send controls. Back stays in the lower action row, below the input,
+even after selecting a conversation. It dismisses the Agent keyboard first, then
+returns to the originating paper mode. Recent sessions extend directly upward
+from the accessory under one outer contour, without a gap or border between layers.
+Three recent project sessions and searchable full history appear above the input.
 First send creates the canonical conversation; selecting history creates no new row.
-A selected conversation fills the available height above the composer with frosted
-edges, and its header switches sessions. Back leaves Agent and restores the original
-reading/editing mode. Leaving this surface never aborts its running turn.
+A selected conversation uses a flat, borderless plane above the raised accessory;
+its header clears the status bar and switches sessions. Non-input actions such as
+Latest preserve composer focus and the keyboard. Startup makes the paper input
+briefly read-only instead of disabling it. Leaving this surface never aborts its running turn.
 
 The local paper-to-conversation association survives reload; drafts are renderer-local
 and isolated by paper and conversation. Invalid/deleted conversation pointers reopen
@@ -307,3 +314,5 @@ Reading does not summon the keyboard until the input is tapped.
 Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests and
 `docs/qa/mobile-paper-agent-2026-09-05.md`. The corrected navigation/toolbar stacking
 is recorded in `docs/qa/mobile-toolbar-stack-2026-09-06.md`.
+Input ownership and the revised Agent surface are recorded in
+`docs/qa/mobile-toolbar-input-2026-09-06.md`.

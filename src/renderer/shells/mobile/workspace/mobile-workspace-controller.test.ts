@@ -404,7 +404,11 @@ describe('persistent paper tools', () => {
     const agent = reduce(editing, { type: 'open-agent' });
     expect(agent.keyboard).toBe('open');
     expect(reduce(agent, { type: 'sync-editor', editing: false })).toEqual(agent);
-    const back = resolveMobileWorkspaceBack(agent, 'visible');
+    const dismiss = resolveMobileWorkspaceBack(agent, 'visible');
+    expect(dismiss.effect).toBe('blur-input');
+    expect(dismiss.nextState.transient).toEqual(agent.transient);
+    expect(dismiss.nextState.keyboard).toBe('closed');
+    const back = resolveMobileWorkspaceBack(dismiss.nextState, 'visible');
     expect(back.effect).toBe('focus-editor'); expect(back.nextState).toEqual(editing);
   });
 });
@@ -419,4 +423,51 @@ it('lets Plot own its keyboard and dismisses it without an illegal launcher stat
   expect(back.nextState.overlay).toBe('plot');
   expect(back.nextState.keyboard).toBe('closed');
   expect(reduce(typing, { type: 'set-overlay', overlay: 'none' }).keyboard).toBe('closed');
+});
+
+
+describe('toolbar workspace edit suspension', () => {
+  it.each(['plot', 'timeline'] as const)('restores the original formatting mode after %s', (overlay) => {
+    const editing = reduce(reduce(paperRoot(), { type: 'sync-editor', editing: true }),
+      { type: 'set-editor-accessory', accessory: 'formatting' });
+    const tool = reduce(editing, { type: 'set-overlay', overlay });
+    expect(tool.paperMode.kind).toBe('read');
+    expect(tool.keyboard).toBe('closed');
+    // Native blur/IME callbacks and stale editor focus cannot erase the origin.
+    expect(reduce(tool, { type: 'sync-editor', editing: false })).toEqual(tool);
+    expect(reduce(tool, { type: 'sync-editor', editing: true })).toEqual(tool);
+    expect(reduce(tool, { type: 'sync-keyboard', keyboard: 'closed' })).toEqual(tool);
+    const back = resolveMobileWorkspaceBack(tool, 'visible');
+    expect(back.nextState).toEqual(editing);
+    expect(back.effect).toBe('focus-editor');
+    expect(reduce(tool, { type: 'set-overlay', overlay: 'none' })).toEqual(editing);
+  });
+
+  it('dismisses Plot input before restoring the suspended prose editor', () => {
+    const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    const tool = reduce(editing, { type: 'set-overlay', overlay: 'plot' });
+    const typing = reduce(tool, { type: 'sync-keyboard', keyboard: 'open' });
+    const dismiss = resolveMobileWorkspaceBack(typing, 'android-hardware');
+    expect(dismiss.effect).toBe('blur-input');
+    expect(dismiss.nextState).toEqual(tool);
+    expect(resolveMobileWorkspaceBack(dismiss.nextState, 'visible').nextState).toEqual(editing);
+  });
+
+  it('retains the original editor across secondary tools and Agent', () => {
+    const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    const plot = reduce(editing, { type: 'set-overlay', overlay: 'plot' });
+    const timeline = reduce(plot, { type: 'set-overlay', overlay: 'timeline' });
+    expect(resolveMobileWorkspaceBack(timeline, 'visible').nextState).toEqual(editing);
+    const agent = reduce(timeline, { type: 'open-agent' });
+    expect(resolveMobileWorkspaceBack(agent, 'visible').nextState).toEqual(editing);
+  });
+
+  it('never revives editing after leaving the paper or opening a structure overlay', () => {
+    const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+    const tool = reduce(editing, { type: 'set-overlay', overlay: 'timeline' });
+    expect(reduce(tool, { type: 'show-paper' })).toEqual(paperRoot());
+    const structure = reduce(tool, { type: 'set-overlay', overlay: 'chapters' });
+    expect(structure.toolReturnTo).toBeUndefined();
+    expect(resolveMobileWorkspaceBack(structure, 'visible').nextState).toEqual(paperRoot());
+  });
 });

@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronDown, ChevronUp, Sparkles, Search, Workflow, CalendarRange } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Search, Workflow, CalendarRange } from 'lucide-react';
 import {
   useEffect,
   useLayoutEffect,
@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getActiveEditor } from '../../../lib/active-editor';
+import { MobileUnifiedBackAction } from './MobileUnifiedBackAction';
 import { MobilePaperAgent } from './MobilePaperAgent';
 import { MobileEditorAccessory } from './MobileEditorAccessory';
 import { requestMobileWorkspaceBack } from './mobile-workspace-back';
@@ -133,58 +134,6 @@ function MobileUnifiedSearchStep({
   );
 }
 
-function MobileUnifiedBackAction({
-  preserveFocusUntilBack,
-  onBack,
-  label,
-}: {
-  preserveFocusUntilBack: boolean;
-  onBack: () => void;
-  label: string;
-}) {
-  if (!preserveFocusUntilBack) {
-    return (
-      <button
-        type="button"
-        className="m-unified-bar__action"
-        data-debug-id="mobile-unified-back"
-        onClick={onBack}
-        aria-label={label}
-      >
-        <ArrowLeft size={20} aria-hidden="true" />
-      </button>
-    );
-  }
-
-  const keepEditorFocused = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-  const handlePointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onBack();
-  };
-  const handleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.detail === 0) onBack();
-  };
-
-  return (
-    <span
-      role="button"
-      className="m-unified-bar__action"
-      data-debug-id="mobile-unified-back"
-      onPointerDown={keepEditorFocused}
-      onPointerUp={handlePointerUp}
-      onClick={handleClick}
-      aria-label={label}
-    >
-      <ArrowLeft size={20} aria-hidden="true" />
-    </span>
-  );
-}
 
 export function MobileUnifiedBar({
   workspaceUi,

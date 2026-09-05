@@ -46,6 +46,8 @@ export interface MobileWorkspaceUiState {
   overlay: MobileWorkspaceOverlay;
   transient: MobileWorkspaceTransient;
   keyboard: MobileKeyboardState;
+  /** Suspended prose mode while a toolbar workspace owns the paper. */
+  toolReturnTo?: MobilePaperMode;
 }
 
 export type MobileWorkspaceAction =
@@ -143,6 +145,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   const issues: string[] = [];
   const atPaper = state.surface.kind === 'paper';
 
+  if (state.toolReturnTo && state.overlay !== 'plot' && state.overlay !== 'timeline') {
+    issues.push('suspended editing belongs to a toolbar workspace');
+  }
   if (!atPaper && state.paperMode.kind !== 'read') issues.push('non-paper surface cannot edit');
   if (state.overlay !== 'none') {
     if (state.surface.kind === 'super-view') {
@@ -210,6 +215,22 @@ function checked(state: MobileWorkspaceUiState): MobileWorkspaceUiState {
   return state;
 }
 
+function withoutToolReturnMode(state: MobileWorkspaceUiState): MobileWorkspaceUiState {
+  const next = { ...state };
+  delete next.toolReturnTo;
+  return next;
+}
+
+function closeToolbarWorkspace(state: MobileWorkspaceUiState): MobileWorkspaceUiState {
+  const paperMode = state.toolReturnTo ?? READ_MODE;
+  return {
+    ...withoutToolReturnMode(state),
+    overlay: 'none',
+    paperMode,
+    keyboard: paperMode.kind === 'edit' ? 'open' : 'closed',
+  };
+}
+
 export function mobileWorkspaceReducer(
   state: MobileWorkspaceUiState,
   action: MobileWorkspaceAction,
@@ -244,7 +265,10 @@ export function mobileWorkspaceReducer(
     case 'set-overlay': {
       if (action.overlay === 'none') {
         if (state.overlay === 'none') return state;
-        return checked({ ...state, overlay: 'none', keyboard: state.overlay === 'plot' ? 'closed' : state.keyboard });
+        if (state.overlay === 'plot' || state.overlay === 'timeline') {
+          return checked(closeToolbarWorkspace(state));
+        }
+        return checked({ ...state, overlay: 'none' });
       }
       if (state.surface.kind === 'super-view' || state.surface.kind === 'voice') return state;
       if (
@@ -256,7 +280,10 @@ export function mobileWorkspaceReducer(
         return state;
       }
       return checked({
-        ...state,
+        ...withoutToolReturnMode(state),
+        ...(action.overlay === 'plot' || action.overlay === 'timeline'
+          ? { toolReturnTo: state.toolReturnTo ?? state.paperMode }
+          : {}),
         paperMode: READ_MODE,
         overlay: action.overlay,
         transient: NO_TRANSIENT,
@@ -267,13 +294,13 @@ export function mobileWorkspaceReducer(
     case 'open-agent':
       if (state.surface.kind !== 'paper' || state.transient.kind !== 'none') return state;
       return checked({
-        ...state,
+        ...withoutToolReturnMode(state),
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
         overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
         transient: action.type === 'open-agent'
-          ? { kind: 'agent-input', returnTo: state.paperMode }
-          : { kind: 'search', scope: action.scope, returnTo: state.paperMode },
+          ? { kind: 'agent-input', returnTo: state.toolReturnTo ?? state.paperMode }
+          : { kind: 'search', scope: action.scope, returnTo: state.toolReturnTo ?? state.paperMode },
         // Editing already owns a visible IME. Search transfers that same input
         // session to its field; declaring a closed intermediate frame would
         // collapse the shared paper geometry before the field can take focus.
@@ -300,7 +327,7 @@ export function mobileWorkspaceReducer(
         action.transient.kind === 'popover'
       ) {
         return checked({
-          ...state,
+          ...withoutToolReturnMode(state),
           surface: PAPER_SURFACE,
           paperMode: READ_MODE,
           overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
@@ -309,7 +336,7 @@ export function mobileWorkspaceReducer(
         });
       }
       return checked({
-        ...state,
+        ...withoutToolReturnMode(state),
         surface: PAPER_SURFACE,
         paperMode: READ_MODE,
         overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
@@ -318,6 +345,7 @@ export function mobileWorkspaceReducer(
       });
     }
     case 'sync-editor':
+      if (state.overlay === 'plot' || state.overlay === 'timeline') return state;
       if (action.editing && state.paperMode.kind === 'edit') return state;
       if (!action.editing) {
         // Search and Agent input own their own keyboard while the paper remains
@@ -388,6 +416,9 @@ export function resolveMobileWorkspaceBack(
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
   }
+  if (state.transient.kind === 'agent-input' && state.keyboard === 'open') {
+    return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');
+  }
   if (state.transient.kind === 'search' || state.transient.kind === 'agent-input') {
     const returnTo = state.transient.returnTo ?? READ_MODE;
     const returnToEditing = returnTo.kind === 'edit';
@@ -419,6 +450,10 @@ export function resolveMobileWorkspaceBack(
     return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');
   }
 
+  if (state.overlay === 'plot' || state.overlay === 'timeline') {
+    return resolution('overlay', closeToolbarWorkspace(state),
+      state.toolReturnTo?.kind === 'edit' ? 'focus-editor' : 'none');
+  }
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });
   }

@@ -697,7 +697,7 @@ export function MobilePaperDeck({
         <MobilePaperTools
           projectId={projectId}
           target={active.target}
-          onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+          onClose={() => requestMobileWorkspaceBack('visible')}
         />
       )}
 
@@ -748,8 +748,13 @@ export function MobilePaperDeck({
           if (tool === 'agent') onWorkspaceUiAction({ type: 'open-agent' });
           else if (tool === 'search') openSearch();
           else {
-            getActiveEditor()?.commands.blur();
-            onWorkspaceUiAction({ type: 'set-overlay', overlay: workspaceUi.overlay === tool ? 'none' : tool });
+            if (workspaceUi.overlay === tool) {
+              requestMobileWorkspaceBack('visible');
+              return;
+            }
+            // Capture the originating edit mode before the native blur fires.
+            onWorkspaceUiAction({ type: 'set-overlay', overlay: tool });
+            getActiveEditor()?.view.dom.blur();
           }
         }}
         keyboardInset={keyboardInset}

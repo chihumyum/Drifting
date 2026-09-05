@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { MobilePaperAgentComposer } from './MobilePaperAgentComposer';
 import type { MobilePaperAgentBinding } from './mobile-paper-agent-session';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -298,6 +299,9 @@ export function MobileAgentPanel({
   };
 
   const chooseConversation = (id: string | null) => {
+    if (paperBinding && document.activeElement instanceof HTMLInputElement) {
+      composerRef.current?.focus({ preventScroll: true });
+    }
     setView('chat');
     setHistoryOpen(false);
     if (paperBinding) void paperBinding.select(id);
@@ -314,15 +318,54 @@ export function MobileAgentPanel({
     window.addEventListener('keydown', closeHistory, true);
     return () => window.removeEventListener('keydown', closeHistory, true);
   }, [historyOpen]);
+  const composerControls = (<>
+                <AgentComposerConfig />
+                <VoiceDictationButton
+                  projectId={projectId}
+                  onNeedsSetup={() =>
+                    navigate('/settings', { state: { from: location.pathname } })
+                  }
+                />
+                <span className="agt-composer__spacer" />
+                {running && !prompt.trim() ? (
+                  <button type="button" className="agt-send agt-send--stop" onClick={abort}>
+                    {t('agentPanel.composer.stop')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="agt-send"
+                    disabled={!usable || starting || Boolean(paperBinding?.loading) || Boolean(pendingControl?.requiresContinuation) || !prompt.trim()}
+                    onClick={handleSend}
+                  >
+                    {running ? t('mobileWorkspace.paperAgent.steer') : t('agentPanel.composer.send')}
+                  </button>
+                )}
+  </>);
+  const composerFeedback = (<>
+            {paperBinding?.loading && <div role="status">{t('common.loading')}</div>}
+            {paperBinding?.error && <div role="alert">{t('mobileWorkspace.paperAgent.loadFailed')}</div>}
+            {retryable && !running && (
+              <button className="m-agent__retry" type="button" disabled={!usable} onClick={handleRetry}>
+                {t('agentPanel.mobile.retry')}
+              </button>
+            )}
+
+  </>);
   const expanded = !paperBinding || Boolean(activeConvId) || historyOpen;
   useLayoutEffect(() => {
     const panel = panelRef.current;
     if (!paperBinding || !expanded || !panel) return;
-    if (historyOpen) panel.querySelector<HTMLElement>('.m-agent-history header button')?.focus({ preventScroll: true });
+    if (historyOpen && document.activeElement !== composerRef.current) panel.querySelector<HTMLElement>('.m-agent-history header button')?.focus({ preventScroll: true });
     else if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   }, [paperBinding, expanded, historyOpen]);
+  const keepPaperInputFocus = (event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>) => {
+    if (!paperBinding || !(event.target instanceof Element) || !event.target.closest('button')) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) event.preventDefault();
+  };
   return (
-    <div ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
+    <div onPointerDownCapture={keepPaperInputFocus} onMouseDownCapture={keepPaperInputFocus} ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
       onKeyDown={(event) => {
         if (!paperBinding || !expanded || event.key !== 'Tab') return;
         const scope = historyOpen ? panelRef.current?.querySelector('.m-agent-history') : panelRef.current;
@@ -330,9 +373,8 @@ export function MobileAgentPanel({
         const first = controls[0]; const last = controls[controls.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }} data-paper-agent={paperBinding ? 'true' : undefined} data-expanded={expanded} data-mobile-agent="read-write">
+      }} data-paper-agent={paperBinding ? 'true' : undefined} data-expanded={expanded} data-session-selected={paperBinding ? Boolean(activeConvId) : undefined} data-mobile-agent="read-write">
       <header className="m-agent__header">
-        {paperBinding && <button type="button" aria-label={t('navigation.back')} onClick={onClose}><ArrowLeft size={18} /></button>}
         <button type="button" aria-current={view === 'chat' ? 'page' : undefined} onClick={() => { if (paperBinding) setHistoryOpen(true); else setView('chat'); }}>
           {activeConversation?.title || t('agentPanel.newConversation')}{paperBinding && <ChevronDown size={14} />}
         </button>
@@ -447,7 +489,10 @@ export function MobileAgentPanel({
             {!atBottom && (
               <button
                 className="m-agent__latest"
+                data-debug-id="mobile-agent-latest"
                 type="button"
+                onPointerDown={(event) => event.preventDefault()}
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
                   stickRef.current = true;
@@ -459,53 +504,24 @@ export function MobileAgentPanel({
             )}
           </div>
 
-          <div className="m-agent__composer">
-            {paperBinding && !expanded && <div className="m-paper-agent__composer-heading"><button type="button" aria-label={t('navigation.back')} onClick={onClose}><ArrowLeft size={18} /></button><span>Agent</span><small>{t('agentPanel.newConversation')}</small></div>}
-            {paperBinding?.loading && <div role="status">{t('common.loading')}</div>}
-            {paperBinding?.error && <div role="alert">{t('mobileWorkspace.paperAgent.loadFailed')}</div>}
-            {retryable && !running && (
-              <button className="m-agent__retry" type="button" disabled={!usable} onClick={handleRetry}>
-                {t('agentPanel.mobile.retry')}
-              </button>
-            )}
-            <div className="agt-composer">
-              <textarea
-                ref={setComposerRef}
-                className="agt-composer__text"
-                aria-label={t('agentPanel.composer.placeholder')}
-                data-debug-id="mobile-agent-composer"
-                value={prompt}
-                rows={1}
-                disabled={(!usable && !paperBinding) || starting || Boolean(pendingControl?.requiresContinuation)}
-                placeholder={usable ? t(paperBinding ? 'mobileWorkspace.paperAgent.placeholder' : 'agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
-                onChange={(event) => (paperBinding?.setPrompt ?? setPrompt)(event.target.value)}
-              />
-              <div className="agt-composer__bar">
-                <AgentComposerConfig />
-                <VoiceDictationButton
-                  projectId={projectId}
-                  onNeedsSetup={() =>
-                    navigate('/settings', { state: { from: location.pathname } })
-                  }
-                />
-                <span className="agt-composer__spacer" />
-                {running && !prompt.trim() ? (
-                  <button type="button" className="agt-send agt-send--stop" onClick={abort}>
-                    {t('agentPanel.composer.stop')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="agt-send"
-                    disabled={!usable || starting || Boolean(paperBinding?.loading) || Boolean(pendingControl?.requiresContinuation) || !prompt.trim()}
-                    onClick={handleSend}
-                  >
-                    {running ? t('mobileWorkspace.paperAgent.steer') : t('agentPanel.composer.send')}
-                  </button>
-                )}
+          {paperBinding ? (
+            <MobilePaperAgentComposer value={prompt} onChange={paperBinding.setPrompt} textAreaRef={setComposerRef}
+              onBack={onClose ?? (() => undefined)} disabled={Boolean(pendingControl?.requiresContinuation)} readOnly={starting}
+              placeholder={t('mobileWorkspace.paperAgent.placeholder')}
+              feedback={composerFeedback} controls={composerControls} />
+          ) : (
+            <div className="m-agent__composer">
+              {composerFeedback}
+              <div className="agt-composer">
+                <textarea ref={setComposerRef} className="agt-composer__text" aria-label={t('agentPanel.composer.placeholder')}
+                  data-debug-id="mobile-agent-composer" value={prompt} rows={1}
+                  disabled={!usable || starting || Boolean(pendingControl?.requiresContinuation)}
+                  placeholder={usable ? t('agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
+                  onChange={(event) => setPrompt(event.target.value)} />
+                <div className="agt-composer__bar">{composerControls}</div>
               </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-06",
+  "device": {
+    "model": "iPhone 17 Pro",
+    "os": "iOS 26.5 Simulator",
+    "width": 402,
+    "height": 874
+  },
+  "inputPath": {
+    "toolEntryAndBack": "native simulator touch",
+    "latestActivation": "native simulator touch after frontend bridge scroll",
+    "send": "native simulator touch with local provider stub"
+  },
+  "observations": {
+    "editing": {
+      "viewport": {
+        "height": 845,
+        "visualHeight": 539,
+        "offsetTop": 28.65625
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 476.65625,
+        "bottom": 532.65625,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": null,
+      "log": null
+    },
+    "plot-suspended": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": {
+        "top": 62,
+        "bottom": 776,
+        "left": 8,
+        "right": 394,
+        "height": 714
+      },
+      "log": null
+    },
+    "plot-restored": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 477,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": null,
+      "log": null
+    },
+    "timeline-suspended": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 784,
+        "bottom": 840,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": {
+        "top": 62,
+        "bottom": 776,
+        "left": 8,
+        "right": 394,
+        "height": 714
+      },
+      "log": null
+    },
+    "timeline-restored": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 477,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": null,
+      "log": null
+    },
+    "agent-scrolled": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": true,
+      "expanded": "true",
+      "frame": {
+        "top": 70,
+        "bottom": 533,
+        "left": 0,
+        "right": 402,
+        "height": 463
+      },
+      "header": {
+        "top": 70,
+        "bottom": 114,
+        "left": 0,
+        "right": 402,
+        "height": 44
+      },
+      "toolbar": {
+        "top": 433,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 100
+      },
+      "back": {
+        "top": 482,
+        "bottom": 526,
+        "left": 23,
+        "right": 67,
+        "height": 44
+      },
+      "pane": null,
+      "log": {
+        "top": 1081,
+        "height": 311,
+        "full": 2392
+      }
+    },
+    "agent-latest": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": true,
+      "expanded": "true",
+      "frame": {
+        "top": 70,
+        "bottom": 533,
+        "left": 0,
+        "right": 402,
+        "height": 463
+      },
+      "header": {
+        "top": 70,
+        "bottom": 114,
+        "left": 0,
+        "right": 402,
+        "height": 44
+      },
+      "toolbar": {
+        "top": 433,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 100
+      },
+      "back": {
+        "top": 482,
+        "bottom": 526,
+        "left": 23,
+        "right": 67,
+        "height": 44
+      },
+      "pane": null,
+      "log": {
+        "top": 2081,
+        "height": 311,
+        "full": 2392
+      }
+    },
+    "agent-keyboard-dismissed": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 874,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "closed",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "expanded": "true",
+      "frame": {
+        "top": 70,
+        "bottom": 840,
+        "left": 0,
+        "right": 402,
+        "height": 770
+      },
+      "header": {
+        "top": 70,
+        "bottom": 114,
+        "left": 0,
+        "right": 402,
+        "height": 44
+      },
+      "toolbar": {
+        "top": 740,
+        "bottom": 840,
+        "left": 10,
+        "right": 392,
+        "height": 100
+      },
+      "back": {
+        "top": 789,
+        "bottom": 833,
+        "left": 23,
+        "right": 67,
+        "height": 44
+      },
+      "pane": null,
+      "log": {
+        "top": 1774,
+        "height": 618,
+        "full": 2392
+      }
+    },
+    "agent-returned": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": false,
+      "frame": null,
+      "header": null,
+      "toolbar": {
+        "top": 477,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 56
+      },
+      "back": null,
+      "pane": null,
+      "log": null
+    },
+    "agent-recent-stack": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": true,
+      "expanded": "false",
+      "frame": {
+        "top": 311,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 222
+      },
+      "header": {
+        "top": 0,
+        "bottom": 0,
+        "left": 0,
+        "right": 0,
+        "height": 0
+      },
+      "toolbar": {
+        "top": 434,
+        "bottom": 532,
+        "left": 11,
+        "right": 391,
+        "height": 98
+      },
+      "back": {
+        "top": 482,
+        "bottom": 526,
+        "left": 23,
+        "right": 67,
+        "height": 44
+      },
+      "pane": null,
+      "log": {
+        "top": 0,
+        "height": 0,
+        "full": 0
+      }
+    },
+    "agent-sent": {
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "offsetTop": 0
+      },
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "selection": {
+        "from": 7,
+        "to": 7
+      },
+      "composerFocused": true,
+      "expanded": "true",
+      "frame": {
+        "top": 70,
+        "bottom": 533,
+        "left": 0,
+        "right": 402,
+        "height": 463
+      },
+      "header": {
+        "top": 70,
+        "bottom": 114,
+        "left": 0,
+        "right": 402,
+        "height": 44
+      },
+      "toolbar": {
+        "top": 433,
+        "bottom": 533,
+        "left": 10,
+        "right": 392,
+        "height": 100
+      },
+      "back": {
+        "top": 482,
+        "bottom": 526,
+        "left": 23,
+        "right": 67,
+        "height": 44
+      },
+      "pane": null,
+      "log": {
+        "top": 0,
+        "height": 311,
+        "full": 311
+      }
+    }
+  },
+  "recentStack": {
+    "recent": {
+      "x": 11,
+      "y": 312,
+      "width": 380,
+      "height": 122,
+      "top": 312,
+      "right": 391,
+      "bottom": 434,
+      "left": 11
+    },
+    "toolbar": {
+      "x": 11,
+      "y": 434,
+      "width": 380,
+      "height": 98,
+      "top": 434,
+      "right": 391,
+      "bottom": 532,
+      "left": 11
+    },
+    "input": {
+      "x": 15,
+      "y": 438,
+      "width": 372,
+      "height": 44,
+      "top": 438,
+      "right": 387,
+      "bottom": 482,
+      "left": 15
+    },
+    "border": "0px"
+  },
+  "assertions": {
+    "plotSuspendsEditor": true,
+    "plotRestoresEditor": true,
+    "plotPreservesCaret": true,
+    "timelineSuspendsEditor": true,
+    "timelineRestoresEditor": true,
+    "timelinePreservesCaret": true,
+    "latestKeepsKeyboard": true,
+    "latestReachesBottom": true,
+    "backFirstDismissesKeyboard": true,
+    "backThenRestoresEditor": true,
+    "headerClearsStatusBar": true,
+    "conversationUsesFullWidth": true,
+    "backBelowInput": true,
+    "recentContinuesFromAccessory": true,
+    "noBorderBetweenLayers": true,
+    "sentPromptUnchanged": true,
+    "sendKeepsKeyboard": true
+  }
+}
