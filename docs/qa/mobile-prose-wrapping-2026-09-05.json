@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "sample": "这是一段只用于排版验收的合成文本。手机正文应当依照可用宽度自然换行，短的末行保留留白，前面的完整行不应提前收窄。",
+  "device": "iPhone 17 Pro Simulator",
+  "system": "iOS 26.5",
+  "engine": "WKWebView",
+  "scope": "Offscreen synthetic fixtures using loaded application CSS; mobile chapter visually inspected separately.",
+  "cases": [
+    {
+      "mode": "mobile",
+      "viewportWidth": 375,
+      "pageWidth": 375,
+      "proseWidth": 327,
+      "gutters": {
+        "left": 24,
+        "right": 24
+      },
+      "textWrap": "wrap",
+      "lineWidths": [
+        320.17,
+        320.17,
+        303.32
+      ],
+      "prettyLineWidths": [
+        303.32,
+        320.17,
+        320.17
+      ]
+    },
+    {
+      "mode": "mobile",
+      "viewportWidth": 402,
+      "pageWidth": 402,
+      "proseWidth": 354,
+      "gutters": {
+        "left": 24,
+        "right": 24
+      },
+      "textWrap": "wrap",
+      "lineWidths": [
+        353.88,
+        337.02,
+        252.77
+      ],
+      "prettyLineWidths": [
+        303.32,
+        320.17,
+        320.17
+      ]
+    },
+    {
+      "mode": "mobile",
+      "viewportWidth": 430,
+      "pageWidth": 430,
+      "proseWidth": 382,
+      "gutters": {
+        "left": 24,
+        "right": 24
+      },
+      "textWrap": "wrap",
+      "lineWidths": [
+        370.73,
+        370.73,
+        202.21
+      ],
+      "prettyLineWidths": [
+        320.17,
+        320.17,
+        303.32
+      ]
+    },
+    {
+      "mode": "desktop",
+      "viewportWidth": 1000,
+      "pageWidth": 720,
+      "proseWidth": 624,
+      "gutters": {
+        "left": 188,
+        "right": 188
+      },
+      "textWrap": "pretty",
+      "lineWidths": [
+        539.24,
+        404.43
+      ],
+      "prettyLineWidths": [
+        539.24,
+        404.43
+      ]
+    }
+  ]
+}

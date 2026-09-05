@@ -2683,6 +2683,9 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
 .m-workspace .page__body .ProseMirror {
   font-size: max(17px, var(--editor-font-size, 17.5px));
   line-height: max(1.72, var(--editor-line-height, 1.75));
+  /* Fill each phone-width line before wrapping. Desktop paragraph prettifying
+     can shorten every CJK line and leave an apparent empty rail on the right. */
+  text-wrap: wrap;
 }
 
 .m-tab-overview {

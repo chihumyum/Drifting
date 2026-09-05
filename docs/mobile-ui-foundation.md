@@ -120,6 +120,10 @@ editing, timeline, material, comment, and Agent capabilities.
   sessions. A manually arbitrated horizontal flex row exposes adjacent static
   papers during read-state swipe, then activates exactly one neighboring paper
   through the canonical session and URL path after settlement.
+- Mobile manuscript prose uses normal line wrapping within its symmetric page
+  gutters. It overrides desktop `text-wrap: pretty`, which can shorten every
+  CJK line on narrow WebKit pages and resemble an empty right rail. See
+  `qa/mobile-prose-wrapping-2026-09-05.md` for measured acceptance.
 - Top structure and bottom tool workspaces reuse shared feature content but use
   mobile-owned panels, sheets, reveal state, and safe-area geometry.
 - The bottom tool workspace mounts the shared full `BottomTimeline` surface,
