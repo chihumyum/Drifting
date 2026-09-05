@@ -305,14 +305,16 @@ the native touch-end focus default before buttons can disappear or be replaced.
 Accessory background taps also leave the active input focused.
 Plot and Timeline cover the originating prose mode without blurring its input
 or closing its keyboard. Back returns directly to that editor and its saved
-accessory level. If a Plot field has taken focus, Back dismisses that input first.
+accessory level, including when a Plot field has taken focus. Keyboard visibility
+does not insert another Back step inside an accessory destination.
 Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
 display switches. Stats lives in the right panel alongside Review, Agent and Library.
 
 Agent uses the paper accessory surface with shared provider/model configuration,
 dictation and send controls. Back stays in the lower action row, below the input,
-even after selecting a conversation. It dismisses the Agent keyboard first, then
-returns to the originating paper mode. Recent sessions extend directly upward
+even after selecting a conversation. One Back exits Agent and returns directly
+to the originating paper mode. An editing origin regains prose focus without
+closing the keyboard; a reading origin returns to reading and closes the tool input. Recent sessions extend directly upward
 from the accessory under one outer contour, without a gap or border between layers.
 Three recent project sessions and searchable full history appear above the input.
 First send creates the canonical conversation; selecting history creates no new row.
@@ -338,3 +340,38 @@ Input ownership and the revised Agent surface are recorded in
 
 Accessory activation and keyboard continuity are recorded in
 `docs/qa/mobile-accessory-focus-2026-09-06.md` and its measured JSON record.
+
+
+### Accessory navigation contract (2026-09-06 correction)
+
+The author-visible level comes before keyboard dismissal. Input focus is an
+execution detail of the active level, never an extra navigation level. Model
+menus, history selection and dialogs close their own child layer first. Outside
+those child layers, the accessory Back resolves the following table.
+
+| Destination | Presentation and function | Entered from reading | Entered from editing | One accessory Back |
+| --- | --- | --- | --- | --- |
+| Format | Horizontal prose style buttons | Absent; entering prose editing opens it | Applies styles to the live editor while preserving focus | Returns to the entry list with the editor and keyboard active |
+| Search | Search field, count, previous/next matches over live prose | Focuses Search; prose stays in reading mode | Transfers focus to Search and retains the originating editor state | Closes Search; restores reading, or the saved editor and open keyboard |
+| Agent, no session | Composer with its action row; recent sessions extend directly above it | Shows the dock; keyboard opens only after tapping the input | Transfers focus to the composer without dismissing the keyboard | Exits Agent in one step; restores reading, or the saved editor and open keyboard |
+| Agent, selected session | Flat conversation plane above the same composer; header switches sessions | Restores the paper's selected session without forcing input focus | Opens the same conversation plane with composer focus | Same as the unselected dock; selection/draft remain associated with the paper |
+| Plot | Plot workspace above the accessory, with its own editable fields | Prose stays in reading mode; a tool field may open the keyboard | Covers the editor and retains its return state | Exits Plot directly, including when a tool field owns focus; restores the origin |
+| Timeline | Timeline workspace above the accessory | Prose stays in reading mode | Covers the editor and retains its return state | Exits Timeline directly and restores the origin |
+
+For ordinary editing entry-list navigation, the complete path is:
+`editor + entry list + keyboard → tool → Back → editor + entry list + keyboard
+→ Back → reading + entry list + no keyboard`.
+The last step is the only accessory Back that dismisses an editor-owned keyboard.
+A reading-origin tool never invents an editor state on return. Native keyboard
+hide gestures can change keyboard visibility without replacing the saved origin.
+
+While the unselected Agent dock is visible, prose remains a full-screen scroll
+owner. Its scrolling content compensates WebKit viewport panning at the top and
+the measured dock overlap at the bottom. This adds reachable scroll travel,
+not another fixed background or clipping band. A selected conversation instead
+owns its own scroll area; its underlying prose is covered by the conversation plane.
+
+Acceptance distinguishes controller contract tests, source wiring checks and
+native end-to-end observations. A passing wiring check is not interaction proof.
+The corrected Back paths and scroll geometry are recorded in
+`docs/qa/mobile-accessory-return-2026-09-06.md` and the adjacent measured JSON.

@@ -39,16 +39,15 @@ export function useMobileWorkspaceBack({
       // The mounted Super View stack owns its child layers and root. It consumes
       // the same request in useSuperViewEscapeStack before this shell acts.
       if (latest.state.surface.kind === 'super-view') return false;
-      const resolved = resolveMobileWorkspaceBack(latest.state, source,
-        getActiveEditor()?.isFocused ? 'editor' : 'other');
+      const resolved = resolveMobileWorkspaceBack(latest.state, source);
       if (!resolved.handled) return false;
       if (resolved.effect === 'blur-input' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
       if (resolved.effect === 'focus-editor') {
         const editor = getActiveEditor();
         if (editor && !editor.isDestroyed) {
           // TipTap's mobile focus command is delayed to a later frame. Hand the
-          // live editable DOM focus synchronously from Search to ProseMirror,
-          // before React can unmount the search field and dismiss the IME.
+          // live editable DOM focus synchronously from the tool to ProseMirror,
+          // before React can unmount its input and dismiss the IME.
           editor.view.focus();
         }
       }

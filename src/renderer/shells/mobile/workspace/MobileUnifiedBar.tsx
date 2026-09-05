@@ -22,6 +22,7 @@ import {
 import {
   MOBILE_NATIVE_KEYBOARD_GEOMETRY_EVENT,
   readMobileKeyboardInset,
+  readMobileKeyboardViewportOffsetTop,
   readMobileSoftwareKeyboardVisible,
 } from './mobile-keyboard-geometry';
 import {
@@ -154,6 +155,7 @@ export function MobileUnifiedBar({
       frame = requestAnimationFrame(() => {
         const inset = readMobileKeyboardInset();
         onKeyboardInsetChange(inset);
+        onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop());
         onKeyboardStateChange(readMobileSoftwareKeyboardVisible() ? 'open' : 'closed');
       });
     };
@@ -172,6 +174,7 @@ export function MobileUnifiedBar({
     };
   }, [
     onKeyboardInsetChange,
+    onKeyboardViewportOffsetTopChange,
     onKeyboardStateChange,
     projection.mode,
     workspaceUi.overlay,

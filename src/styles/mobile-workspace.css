@@ -2541,10 +2541,18 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
   .editor-scroll,
 .m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
+  .editor-scroll,
+.m-workspace[data-controller-transient='agent-input'][data-controller-keyboard='open']
   .editor-scroll {
   padding-top: var(--m-editor-top-scroll-reserve);
 }
 
+
+/* The dock overlays full-screen prose. Add travel inside its scroll owner so
+   the last line can pass above the dock, without an opaque viewport cutout. */
+.m-workspace[data-controller-transient='agent-input'] .editor-scroll {
+  padding-bottom: var(--m-paper-agent-scroll-clearance, 0px);
+}
 
 .m-workspace .editor-scroll::-webkit-scrollbar {
   display: none;

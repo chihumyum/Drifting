@@ -405,7 +405,6 @@ function resolution(
 export function resolveMobileWorkspaceBack(
   state: MobileWorkspaceUiState,
   source: MobileBackSource,
-  focusedInput: 'editor' | 'other' = 'other',
 ): MobileBackResolution {
   void source;
   if (state.transient.kind === 'dialog') {
@@ -416,9 +415,6 @@ export function resolveMobileWorkspaceBack(
     state.transient.kind === 'entity-preview'
   ) {
     return resolution('transient', { ...state, transient: NO_TRANSIENT });
-  }
-  if (state.transient.kind === 'agent-input' && state.keyboard === 'open') {
-    return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');
   }
   if (state.transient.kind === 'search' || state.transient.kind === 'agent-input') {
     const returnTo = state.transient.returnTo ?? READ_MODE;
@@ -431,7 +427,7 @@ export function resolveMobileWorkspaceBack(
         transient: NO_TRANSIENT,
         keyboard: returnToEditing ? 'open' : 'closed',
       },
-      returnToEditing ? 'focus-editor' : 'none',
+      returnToEditing ? 'focus-editor' : state.keyboard === 'open' ? 'blur-input' : 'none',
     );
   }
   if (state.paperMode.kind === 'edit' && state.paperMode.accessory === 'formatting') {
@@ -447,19 +443,16 @@ export function resolveMobileWorkspaceBack(
       'blur-editor',
     );
   }
-  // A paper tool can cover prose without interrupting its input session. Back
-  // returns directly to that editor; a tool's own field still dismisses first.
-  if ((state.overlay === 'plot' || state.overlay === 'timeline') &&
-      state.toolReturnTo?.kind === 'edit' && focusedInput === 'editor') {
-    return resolution('overlay', closeToolbarWorkspace(state), 'focus-editor');
+  // Back exits the accessory destination before dismissing an input keyboard.
+  // Focus ownership cannot change the author's navigation hierarchy: both a
+  // tool field and the covered prose editor return to the same saved origin.
+  if (state.overlay === 'plot' || state.overlay === 'timeline') {
+    return resolution('overlay', closeToolbarWorkspace(state),
+      state.toolReturnTo?.kind === 'edit' ? 'focus-editor'
+        : state.keyboard === 'open' ? 'blur-input' : 'none');
   }
   if (state.keyboard === 'open') {
     return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');
-  }
-
-  if (state.overlay === 'plot' || state.overlay === 'timeline') {
-    return resolution('overlay', closeToolbarWorkspace(state),
-      state.toolReturnTo?.kind === 'edit' ? 'focus-editor' : 'none');
   }
   if (state.overlay !== 'none') {
     return resolution('overlay', { ...state, overlay: 'none' });

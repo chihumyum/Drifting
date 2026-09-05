@@ -1,5 +1,9 @@
 # Mobile accessory activation and keyboard continuity — 2026-09-06
 
+The keyboard-first Agent Back expectation in this historical run was incorrect.
+The corrected navigation contract and native paths are recorded in
+[the later Back acceptance](mobile-accessory-return-2026-09-06.md).
+
 Fresh iOS Debug build on iPhone 17 Pro / iOS 26.5 Simulator, with the final
 renderer changes loaded through the development server. Existing synthetic
 harbour prose was used; its final document hash exactly matched the starting

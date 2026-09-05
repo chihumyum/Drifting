@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-06",
+  "device": "iPhone 17 Pro / iOS 26.5 Simulator",
+  "evidenceBoundary": {
+    "navigation": "native Simulator button taps and software keyboard input after renderer reload",
+    "scroll": "live WKWebView scroll positions, bounds and hit tests driven through the renderer debug bridge; no native finger-pan claim",
+    "provider": "one synthetic conversation and a local availability stub; no provider request"
+  },
+  "nativeBackObservations": {
+    "formatBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "agentEditBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "entryListBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "agentReadBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "searchEditBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "plotFieldEditBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "timelineEditBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      }
+    },
+    "searchReadBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false
+    },
+    "plotFieldReadBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false
+    },
+    "timelineReadBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false
+    },
+    "agentSelectedEditBack": {
+      "mode": "edit",
+      "keyboard": "open",
+      "transient": "none",
+      "accessory": "navigation",
+      "editorFocused": true,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false
+    },
+    "agentSelectedReopened": {
+      "mode": "read",
+      "keyboard": "open",
+      "transient": "agent-input",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false,
+      "sessionSelected": "true",
+      "composerValue": "Q"
+    },
+    "agentSelectedReadOpened": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "agent-input",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false,
+      "sessionSelected": "true",
+      "composerValue": "Q"
+    },
+    "agentSelectedReadBack": {
+      "mode": "read",
+      "keyboard": "closed",
+      "transient": "none",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false
+    },
+    "historyBack": {
+      "mode": "read",
+      "keyboard": "open",
+      "transient": "agent-input",
+      "editorFocused": false,
+      "selection": {
+        "from": 23,
+        "to": 23
+      },
+      "historyOpen": false,
+      "sessionSelected": "true",
+      "composerValue": ""
+    }
+  },
+  "scrollObservations": {
+    "read-agent-scroll-final": {
+      "top": {
+        "scrollTop": 222,
+        "first": {
+          "top": 75.015625,
+          "bottom": 133.015625,
+          "height": 58
+        },
+        "dock": {
+          "top": 321,
+          "bottom": 505,
+          "height": 184
+        },
+        "hit": true
+      },
+      "bottom": {
+        "scrollTop": 3014,
+        "last": {
+          "top": 222.78125,
+          "bottom": 309.78125,
+          "height": 87
+        },
+        "dock": {
+          "top": 321,
+          "bottom": 505,
+          "height": 184
+        },
+        "hit": true
+      },
+      "keyboard": "open",
+      "focused": "mobile-agent-composer"
+    },
+    "edit-agent-scroll-final": {
+      "top": {
+        "scrollTop": 222,
+        "first": {
+          "top": 75.015625,
+          "bottom": 133.015625,
+          "height": 58
+        },
+        "dock": {
+          "top": 349,
+          "bottom": 533,
+          "height": 184
+        },
+        "hit": true
+      },
+      "bottom": {
+        "scrollTop": 2986,
+        "last": {
+          "top": 250.78125,
+          "bottom": 337.78125,
+          "height": 87
+        },
+        "dock": {
+          "top": 349,
+          "bottom": 533,
+          "height": 184
+        },
+        "hit": true
+      },
+      "keyboard": "open",
+      "focused": "mobile-agent-composer"
+    },
+    "agent-log-scroll": {
+      "top": 0,
+      "bottom": 1841,
+      "clientHeight": 311,
+      "scrollHeight": 2152,
+      "visibleTop": 114,
+      "visibleBottom": 425,
+      "keyboard": "open",
+      "focused": "mobile-agent-composer"
+    }
+  },
+  "assertions": {
+    "formatBack": true,
+    "agentEditBack": true,
+    "searchEditBack": true,
+    "plotFieldEditBack": true,
+    "timelineEditBack": true,
+    "agentSelectedEditBack": true,
+    "entryListBack": true,
+    "agentReadBack": true,
+    "searchReadBack": true,
+    "plotFieldReadBack": true,
+    "timelineReadBack": true,
+    "agentSelectedReadBack": true,
+    "sessionAndDraftSurviveBack": true,
+    "readingSessionDoesNotOpenKeyboard": true,
+    "historyBackClosesOnlyHistory": true,
+    "read-agent-scroll-final": true,
+    "edit-agent-scroll-final": true,
+    "conversationScrollHasFullRange": true,
+    "fullScreenProsePreserved": true,
+    "proseUnchanged": true,
+    "fixtureCleaned": true
+  }
+}

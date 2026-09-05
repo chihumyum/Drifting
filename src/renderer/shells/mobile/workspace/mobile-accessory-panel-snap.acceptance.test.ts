@@ -44,9 +44,6 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
 
     expect(bar).toContain('focus({ preventScroll: true })');
     expect(bar).not.toMatch(/<input[\s\S]{0,160}\sautoFocus(?:=|\s|>)/u);
-    expect(bar).not.toContain(
-      'onKeyboardViewportOffsetTopChange(readMobileKeyboardViewportOffsetTop())',
-    );
     // Search and Agent share the persistent toolbar with editor input ownership.
     expect(bar).not.toContain('mobile-open-search');
     const face = source('shells/mobile/workspace/MobilePaperToolsBar.tsx');
@@ -56,7 +53,6 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(controller).toContain("type: 'open-search'");
     expect(controller).toContain('returnTo: state.toolReturnTo ?? state.paperMode');
     expect(controller).toContain("keyboard: state.keyboard");
-    expect(controller).toContain("returnToEditing ? 'focus-editor' : 'none'");
     expect(back).toContain("resolved.effect === 'focus-editor'");
     expect(back).toContain('editor.view.focus()');
     expect(back).not.toContain('commands.focus');
