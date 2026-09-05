@@ -50,9 +50,15 @@ describe('Review panel and sticky-note rail acceptance', () => {
     expect(openRuleStart).toBeGreaterThanOrEqual(0);
     expect(openRule).toContain('background: transparent;');
     expect(openRule).not.toContain('linear-gradient');
-    expect(css).toContain('@keyframes m-right-sidebar-enter');
-    expect(css).toContain('transform: translateY(-34px);');
-    expect(css).not.toMatch(/\.m-tools-face\.m-right-sidebar[\s\S]*translateX/);
+    const sidebar = source('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
+    const deck = source('src/renderer/shells/mobile/workspace/MobilePaperDeck.tsx');
+    expect(css).toContain('inset: 0 0 0 max(8px, env(safe-area-inset-left));');
+    expect(css).toContain('min-height: calc(44px + env(safe-area-inset-top));');
+    expect(deck).toMatch(/<AnimatePresence>[\s\S]*?<MobileRightSidebar[\s\S]*?<\/AnimatePresence>/u);
+    expect(sidebar).toContain("{ x: 28, y: '-100%' }");
+    expect(sidebar).toContain("y: reducedMotion ? 0 : '-100%'");
+    expect(sidebar).toContain('inert={!isPresent}');
+    expect(css).not.toContain('@keyframes m-right-sidebar-enter');
   });
 
   it('records the cross-platform behavior and validation boundary durably', () => {

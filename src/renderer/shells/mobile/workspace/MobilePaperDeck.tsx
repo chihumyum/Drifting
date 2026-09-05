@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { ArrowLeft, Ellipsis, Layers3 } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { CommentTargetKind } from '../../../domain/comment';
@@ -692,13 +693,16 @@ export function MobilePaperDeck({
         />
       )}
 
-      {workspaceUi.overlay === 'tools' && active && (
-        <MobileRightSidebar
-          projectId={projectId}
-          target={active.target}
-          onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
-        />
-      )}
+      <AnimatePresence>
+        {workspaceUi.overlay === 'tools' && active && (
+          <MobileRightSidebar
+            key="right-sidebar"
+            projectId={projectId}
+            target={active.target}
+            onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+          />
+        )}
+      </AnimatePresence>
 
       {workspaceUi.overlay === 'plot' && active && (
         <MobilePaperTools

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
+import { motion, useIsPresent, useReducedMotion } from 'framer-motion';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { ReviewPanel } from '../../../components/rightBars/ReviewPanel';
@@ -34,6 +35,8 @@ export function MobileRightSidebar({
 }) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLElement | null>(null);
+  const isPresent = useIsPresent();
+  const reducedMotion = useReducedMotion();
   const [tab, setTab] = useState<ToolTab>(() => lastMobileRightSidebarTab);
   const presentation = useMobilePaperPresentation(target);
   const glyph = usePaperGlyph(target);
@@ -54,6 +57,7 @@ export function MobileRightSidebar({
   }, []);
 
   const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.defaultPrevented) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();
@@ -84,23 +88,40 @@ export function MobileRightSidebar({
   };
 
   return (
-    <div className="m-right-sidebar-layer" data-debug-id="mobile-right-sidebar-layer">
-      <button
+    <div
+      className="m-right-sidebar-layer"
+      data-debug-id="mobile-right-sidebar-layer"
+      data-state={isPresent ? 'open' : 'closing'}
+    >
+      <motion.button
         type="button"
         className="m-right-sidebar__backdrop"
-        onClick={onClose}
+        onClick={() => { if (isPresent) onClose(); }}
         tabIndex={-1}
         aria-hidden="true"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: reducedMotion ? 0 : 0.2 }}
       />
-      <section
+      <motion.section
         ref={dialogRef}
         className="m-tools-face m-right-sidebar"
         role="dialog"
         aria-modal="true"
+        inert={!isPresent}
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
         data-debug-id="mobile-right-sidebar"
         aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
+        initial={reducedMotion ? false : { x: 28, y: '-100%' }}
+        animate={{ x: 0, y: 0 }}
+        exit={{
+          x: 0,
+          y: reducedMotion ? 0 : '-100%',
+          transition: { duration: reducedMotion ? 0 : 0.24, ease: [0.4, 0, 1, 1] },
+        }}
+        transition={{ duration: reducedMotion ? 0 : 0.3, ease: [0.22, 0.8, 0.2, 1] }}
       >
         <header className="m-tools-face__header">
           <span className="m-tools-face__identity">
@@ -157,7 +178,7 @@ export function MobileRightSidebar({
             </div>
           )}
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 }

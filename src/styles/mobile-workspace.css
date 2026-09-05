@@ -1062,13 +1062,14 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* The desktop right sidebar becomes an almost-full-screen mobile workspace.
-   It enters from the top because its launcher is a button, not a screen-edge
-   gesture target; the backdrop and short travel keep the motion legible. */
+/* One edge-to-edge surface, with only a narrow paper reveal on the left.
+   The header owns the top safe area once; the pane owns the home indicator.
+   Presence in MobilePaperDeck keeps the sheet mounted for its upward exit. */
 .m-right-sidebar-layer {
   position: fixed;
   inset: 0;
   z-index: 70;
+  overflow: hidden;
 }
 
 .m-right-sidebar__backdrop {
@@ -1078,21 +1079,32 @@
   height: 100%;
   border: 0;
   background: hsl(var(--ink-1) / 0.2);
-  animation: m-right-sidebar-backdrop-in 160ms ease-out;
 }
 
 .m-tools-face.m-right-sidebar {
   position: absolute;
-  inset:
-    max(8px, env(safe-area-inset-top))
-    max(8px, env(safe-area-inset-right))
-    max(8px, env(safe-area-inset-bottom))
-    max(8px, env(safe-area-inset-left));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 12px;
-  box-shadow: 0 28px 70px -24px hsl(var(--ink-1) / 0.65);
+  inset: 0 0 0 max(8px, env(safe-area-inset-left));
+  border: 0;
+  border-left: 1px solid hsl(var(--rule-strong));
+  border-radius: 0;
+  outline: none;
+  box-shadow: -12px 0 32px -16px hsl(var(--ink-1) / 0.45);
   overflow: hidden;
-  animation: m-right-sidebar-enter 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.m-right-sidebar .m-tools-face__header {
+  min-height: calc(44px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(4px, env(safe-area-inset-right)) 0 8px;
+  gap: 6px;
+}
+
+.m-right-sidebar .m-tools-face__identity {
+  max-width: 64px;
+  letter-spacing: 0;
+}
+
+.m-right-sidebar .m-tools-face__close {
+  flex: 0 0 44px;
 }
 
 .m-right-sidebar .m-tools-face__tabs {
@@ -1102,12 +1114,24 @@
   scrollbar-width: none;
 }
 
+.m-right-sidebar .m-tools-face__tabs button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-block: 0;
+  white-space: nowrap;
+}
+
 .m-right-sidebar .m-tools-face__tabs::-webkit-scrollbar {
   display: none;
 }
 
 .m-right-sidebar .m-tools-face__pane {
-  padding-bottom: 0;
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.m-right-sidebar .m-agent__composer {
+  padding-bottom: 8px;
 }
 
 .m-review-workspace {
@@ -1130,29 +1154,6 @@
 
 html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   min-height: 44px;
-}
-
-@keyframes m-right-sidebar-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-34px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes m-right-sidebar-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .m-tools-face.m-right-sidebar,
-  .m-right-sidebar__backdrop {
-    animation-duration: 1ms;
-  }
 }
 
 .m-unified-bar {
@@ -1621,11 +1622,11 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
 }
 
 .m-agent__header {
-  flex: 0 0 48px;
+  flex: 0 0 44px;
   display: flex;
   align-items: stretch;
   gap: 2px;
-  padding: 2px 6px;
+  padding: 0 4px;
   border-bottom: 1px solid hsl(var(--rule));
   overflow-x: auto;
   scrollbar-width: none;
@@ -1643,6 +1644,7 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   background: transparent;
   color: hsl(var(--ink-3));
   padding-inline: 10px;
+  font: 400 12px/1.25 var(--font-ui);
   white-space: nowrap;
   touch-action: manipulation;
 }

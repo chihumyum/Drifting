@@ -179,6 +179,14 @@ editing, timeline, material, comment, and Agent capabilities.
   not separate tool destinations. Stats is not a rail destination: the current entity's Stats open
   as a dedicated sheet (`MobilePaperStatsSheet.tsx`) reusing the shared desktop
   `EntityStatsContent`.
+- The mobile right sidebar covers the full viewport height and reaches the
+  right edge, leaving only an 8px reveal on the left. Its paper background
+  extends behind the status bar and home indicator; only the 44px tab row and
+  pane apply their respective safe-area insets. Agent subtabs use 12px text
+  with 44px touch targets. It slides down from above the top-right corner and
+  exits upward before unmounting, including controller Back dismissal; reduced
+  motion removes the travel. Simulator evidence and geometry assertions are
+  recorded in `qa/mobile-right-sidebar-2026-09-05.md`.
 - Read-paper swipe starts on the full paper only when no editor, selection,
   composition, panel, transient, keyboard, TOC/sticky-note rail, Timeline, Plot
   Grid, canvas, interactive target, or nested horizontal scroller owns the
