@@ -49,18 +49,14 @@ describe('Mobile V2 workspace controller', () => {
     });
   });
 
-  it('switches accessory levels without leaving edit mode or closing the keyboard', () => {
-    let state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
+  it('opens formatting on edit entry and preserves an already chosen accessory', () => {
+    const state = reduce(paperRoot(), { type: 'sync-editor', editing: true });
     expect(state).toMatchObject({
-      paperMode: { kind: 'edit', accessory: 'navigation' },
-      keyboard: 'open',
+      paperMode: { kind: 'edit', accessory: 'formatting' }, keyboard: 'open',
     });
-
-    state = reduce(state, { type: 'set-editor-accessory', accessory: 'formatting' });
-    expect(state).toMatchObject({
-      paperMode: { kind: 'edit', accessory: 'formatting' },
-      keyboard: 'open',
-    });
+    const navigation = reduce(state, { type: 'set-editor-accessory', accessory: 'navigation' });
+    expect(navigation.paperMode).toEqual({ kind: 'edit', accessory: 'navigation' });
+    expect(reduce(navigation, { type: 'sync-editor', editing: true })).toBe(navigation);
   });
 
   it('claims the paper for an entity preview sheet', () => {
@@ -124,7 +120,7 @@ describe('Mobile V2 workspace controller', () => {
       transient: {
         kind: 'search',
         scope: 'paper',
-        returnTo: { kind: 'edit', accessory: 'navigation' },
+        returnTo: { kind: 'edit', accessory: 'formatting' },
       },
       keyboard: 'open',
     });
@@ -217,7 +213,7 @@ describe('Mobile V2 Back priority', () => {
       layer: 'input',
       effect: 'focus-editor',
       nextState: {
-        paperMode: { kind: 'edit', accessory: 'navigation' },
+        paperMode: { kind: 'edit', accessory: 'formatting' },
         transient: { kind: 'none' },
         keyboard: 'open',
       },
@@ -432,12 +428,12 @@ describe('toolbar workspace edit suspension', () => {
       { type: 'set-editor-accessory', accessory: 'formatting' });
     const tool = reduce(editing, { type: 'set-overlay', overlay });
     expect(tool.paperMode.kind).toBe('read');
-    expect(tool.keyboard).toBe('closed');
+    expect(tool.keyboard).toBe('open');
     // Native blur/IME callbacks and stale editor focus cannot erase the origin.
     expect(reduce(tool, { type: 'sync-editor', editing: false })).toEqual(tool);
     expect(reduce(tool, { type: 'sync-editor', editing: true })).toEqual(tool);
-    expect(reduce(tool, { type: 'sync-keyboard', keyboard: 'closed' })).toEqual(tool);
-    const back = resolveMobileWorkspaceBack(tool, 'visible');
+    expect(reduce(tool, { type: 'sync-keyboard', keyboard: 'closed' }).toolReturnTo).toEqual(editing.paperMode);
+    const back = resolveMobileWorkspaceBack(tool, 'visible', 'editor');
     expect(back.nextState).toEqual(editing);
     expect(back.effect).toBe('focus-editor');
     expect(reduce(tool, { type: 'set-overlay', overlay: 'none' })).toEqual(editing);
@@ -449,7 +445,7 @@ describe('toolbar workspace edit suspension', () => {
     const typing = reduce(tool, { type: 'sync-keyboard', keyboard: 'open' });
     const dismiss = resolveMobileWorkspaceBack(typing, 'android-hardware');
     expect(dismiss.effect).toBe('blur-input');
-    expect(dismiss.nextState).toEqual(tool);
+    expect(dismiss.nextState).toEqual({ ...tool, keyboard: 'closed' });
     expect(resolveMobileWorkspaceBack(dismiss.nextState, 'visible').nextState).toEqual(editing);
   });
 
@@ -457,9 +453,11 @@ describe('toolbar workspace edit suspension', () => {
     const editing = reduce(paperRoot(), { type: 'sync-editor', editing: true });
     const plot = reduce(editing, { type: 'set-overlay', overlay: 'plot' });
     const timeline = reduce(plot, { type: 'set-overlay', overlay: 'timeline' });
-    expect(resolveMobileWorkspaceBack(timeline, 'visible').nextState).toEqual(editing);
+    expect(resolveMobileWorkspaceBack(timeline, 'visible', 'editor').nextState).toEqual(editing);
     const agent = reduce(timeline, { type: 'open-agent' });
-    expect(resolveMobileWorkspaceBack(agent, 'visible').nextState).toEqual(editing);
+    const dismissed = resolveMobileWorkspaceBack(agent, 'visible');
+    expect(dismissed.effect).toBe('blur-input');
+    expect(resolveMobileWorkspaceBack(dismissed.nextState, 'visible').nextState).toEqual(editing);
   });
 
   it('never revives editing after leaving the paper or opening a structure overlay', () => {

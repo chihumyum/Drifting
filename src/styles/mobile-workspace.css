@@ -3512,7 +3512,7 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
 .m-paper-tool-surface > .m-tools-face__header { min-height: 44px; padding: 0 8px 0 12px; }
 .m-paper-tool-surface > .m-tools-face__pane { padding-bottom: 0; }
 .m-paper-timeline .btl-row { flex: 0 0 72px; min-height: 72px; }
-.m-workspace[data-controller-keyboard='open'] .m-paper-tool-surface { bottom: calc(var(--m-unified-keyboard-inset) + 70px); }
+.m-workspace[data-controller-keyboard='open'] .m-paper-tool-surface { top: calc(max(8px, env(safe-area-inset-top)) + var(--m-editor-top-scroll-reserve)); bottom: calc(var(--m-unified-keyboard-inset) + 70px); }
 @media (max-width: 380px) {
   .m-unified-bar[data-mode='read'] .m-unified-bar__tool { flex-direction: column; gap: 2px; font-size: 10.5px; }
   .m-editor-accessory__toggle { width: 40px; min-width: 40px; padding: 0; }

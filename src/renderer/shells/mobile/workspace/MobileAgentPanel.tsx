@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useInputPreservingActions } from '../../../hooks/useInputPreservingActions';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { MobilePaperAgentComposer } from './MobilePaperAgentComposer';
 import type { MobilePaperAgentBinding } from './mobile-paper-agent-session';
@@ -319,7 +320,7 @@ export function MobileAgentPanel({
     return () => window.removeEventListener('keydown', closeHistory, true);
   }, [historyOpen]);
   const composerControls = (<>
-                <AgentComposerConfig />
+                <AgentComposerConfig preserveInputFocus={Boolean(paperBinding)} />
                 <VoiceDictationButton
                   projectId={projectId}
                   onNeedsSetup={() =>
@@ -359,13 +360,9 @@ export function MobileAgentPanel({
     if (historyOpen && document.activeElement !== composerRef.current) panel.querySelector<HTMLElement>('.m-agent-history header button')?.focus({ preventScroll: true });
     else if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   }, [paperBinding, expanded, historyOpen]);
-  const keepPaperInputFocus = (event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>) => {
-    if (!paperBinding || !(event.target instanceof Element) || !event.target.closest('button')) return;
-    const focused = document.activeElement;
-    if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) event.preventDefault();
-  };
+  const inputActions = useInputPreservingActions<HTMLDivElement>(Boolean(paperBinding));
   return (
-    <div onPointerDownCapture={keepPaperInputFocus} onMouseDownCapture={keepPaperInputFocus} ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
+    <div {...inputActions} ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
       onKeyDown={(event) => {
         if (!paperBinding || !expanded || event.key !== 'Tab') return;
         const scope = historyOpen ? panelRef.current?.querySelector('.m-agent-history') : panelRef.current;

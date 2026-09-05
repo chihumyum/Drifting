@@ -26,10 +26,8 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(bar).not.toContain('m-unified-search__scope');
     expect(bar).toContain('seededOwnerRef.current === owner');
     expect(bar.match(/<MobileUnifiedSearchStep/g)).toHaveLength(2);
-    expect(bar).toContain('onPointerDown={activateFromPointer}');
-    expect(bar).not.toContain('onPointerUp={activateFromPointer}');
-    expect(bar).toContain('onPointerDownCapture={preserveSearchFocus}');
-    expect(bar).toContain('onMouseDownCapture={preserveSearchFocus}');
+    expect(bar).toContain('useInputPreservingActions');
+    expect(bar).toContain('onClick={onActivate}');
     expect(runtime).toContain('projectSearchQuery');
     expect(overview).toContain('useMobileProjectSearch(searchQuery ?? \'\')');
     expect(overview).toContain('onActivateSearchResult(group.target)');
@@ -58,7 +56,7 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(accessory).toContain("data-mode={mode}");
     expect(accessory).toContain('m-editor-accessory__actions');
     expect(accessory).toContain("mode === 'formatting'");
-    expect(accessory).toContain('event.preventDefault()');
+    expect(accessory).not.toContain('onPointerDown=');
     expect(accessory).toContain('item.run(editor)');
     expect(css).toContain("[data-rail-toc='true'] .editor__toc-rail");
     expect(css).toContain("[data-rail-comments='true'] .editor__margin");

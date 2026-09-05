@@ -48,11 +48,11 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(accessory).toContain("mode === 'formatting'");
     expect(accessory).toContain("mode === 'navigation'");
     expect(accessory).toContain("onModeChange?.('formatting')");
-    expect(accessory).toContain('onPointerDown={keepEditorFocused}');
-    expect(accessory).toContain('onPointerUp={toggle}');
-    expect(accessory).toContain('onClick={handleToggleClick}');
+    expect(bar).toContain('useInputPreservingActions');
+    expect(accessory).not.toContain('onPointerDown=');
+    expect(accessory).not.toContain('onPointerUp=');
     expect(accessory).not.toContain('editor.view.focus();');
-    expect(accessory).toContain('role="button"');
+    expect(accessory).toContain('historyActions.filter(({ available }) => available)');
     expect(bar).toContain('backPreservesFocusUntilResolution');
     expect(bar).toContain("projection.mode === 'edit' || projection.mode === 'search'");
     expect(bar).toContain("requestMobileWorkspaceBack('visible', {");

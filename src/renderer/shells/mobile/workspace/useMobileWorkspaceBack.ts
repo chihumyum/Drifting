@@ -39,7 +39,8 @@ export function useMobileWorkspaceBack({
       // The mounted Super View stack owns its child layers and root. It consumes
       // the same request in useSuperViewEscapeStack before this shell acts.
       if (latest.state.surface.kind === 'super-view') return false;
-      const resolved = resolveMobileWorkspaceBack(latest.state, source);
+      const resolved = resolveMobileWorkspaceBack(latest.state, source,
+        getActiveEditor()?.isFocused ? 'editor' : 'other');
       if (!resolved.handled) return false;
       if (resolved.effect === 'blur-input' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
       if (resolved.effect === 'focus-editor') {

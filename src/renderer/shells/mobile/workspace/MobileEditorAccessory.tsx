@@ -5,8 +5,6 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
@@ -154,9 +152,11 @@ export function MobileEditorAccessory({
   }, [editor]);
 
   useLayoutEffect(() => {
-    onEditingStateChange?.(editing);
-    return () => onEditingStateChange?.(false);
-  }, [editing, onEditingStateChange]);
+    // Returning from Agent can focus prose before the native IME reopens. Do
+    // not erase the restored accessory level during that opening interval.
+    // Unmounting for another input owner is not an editor-blur notification.
+    if (editing || !editorFocused) onEditingStateChange?.(editing);
+  }, [editing, editorFocused, onEditingStateChange]);
 
   useEffect(() => {
     onKeyboardInsetChange?.(keyboardInset);
@@ -221,35 +221,14 @@ export function MobileEditorAccessory({
     return () => window.clearTimeout(timer);
   }, [editor, editorFocused, softwareKeyboardVisible]);
 
-  const keepEditorFocused = (event: ReactPointerEvent<HTMLElement>) => {
-    // The Format label is intentionally not a native form control. Consuming
-    // pointerdown keeps ProseMirror as the DOM focus owner without asking
-    // WebKit to focus it again and potentially repan the visual viewport.
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
   if (!active || !editing || !editor || editor.isDestroyed) return null;
 
-  const openFormatting = () => {
-    onModeChange?.('formatting');
-  };
-  const toggle = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openFormatting();
-  };
-  const handleToggleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    // Pointer activation already switched on pointerup. A zero-detail click is
-    // the accessibility activation path and must perform the same operation.
-    if (event.detail === 0) openFormatting();
-  };
-  const run = (event: ReactPointerEvent<HTMLButtonElement>, action: () => void) => {
-    event.preventDefault();
-    action();
-  };
+  const historyActions = [
+    { id: 'undo', label: t('mobileWorkspace.editorAccessory.undo'), Icon: Undo2,
+      run: () => editor.commands.undo(), available: editor.can().undo() },
+    { id: 'redo', label: t('mobileWorkspace.editorAccessory.redo'), Icon: Redo2,
+      run: () => editor.commands.redo(), available: editor.can().redo() },
+  ];
   return (
     <aside
       className="m-editor-accessory"
@@ -259,25 +238,21 @@ export function MobileEditorAccessory({
         defaultValue: '编辑样式附件栏',
       })}
     >
+      {historyActions.filter(({ available }) => available).map(({ id, label, Icon, run }) => (
+        <button key={id} type="button" className="m-editor-accessory__action"
+          data-debug-id={`mobile-editor-${id}`} aria-label={label}
+          disabled={editor.view.composing} onClick={() => { if (!editor.view.composing) run(); }}>
+          <Icon size={18} />
+        </button>
+      ))}
       {mode === 'navigation' && (
-        <>
-        {[{ label: t('mobileWorkspace.editorAccessory.undo'), Icon: Undo2, run: () => editor.commands.undo(), enabled: editor.can().undo() }, { label: t('mobileWorkspace.editorAccessory.redo'), Icon: Redo2, run: () => editor.commands.redo(), enabled: editor.can().redo() }].map(({ label, Icon, run: action, enabled }) => <button key={label} type="button" className="m-editor-accessory__action" aria-label={label} disabled={!enabled || editor.view.composing} onPointerDown={keepEditorFocused} onMouseDown={(event) => event.preventDefault()} onPointerUp={(event) => { if (!editor.view.composing) run(event, action); }} onClick={(event) => { if (event.detail === 0 && !editor.view.composing) action(); }}><Icon size={18} /></button>)}
-        <span
-          role="button"
-          className="m-editor-accessory__toggle"
-          data-debug-id="mobile-toggle-formatting"
-          aria-expanded="false"
-          aria-label={t('mobileWorkspace.editorAccessory.expand', {
-            defaultValue: '展开格式栏',
-          })}
-          onPointerDown={keepEditorFocused}
-          onPointerUp={toggle}
-          onClick={handleToggleClick}
-        >
+        <button type="button" className="m-editor-accessory__toggle"
+          data-debug-id="mobile-toggle-formatting" aria-expanded="false"
+          aria-label={t('mobileWorkspace.editorAccessory.expand', { defaultValue: '展开格式栏' })}
+          onClick={() => onModeChange?.('formatting')}>
           <Type size={18} strokeWidth={1.8} aria-hidden="true" />
           <span>{t('mobileWorkspace.editorAccessory.format', { defaultValue: '格式' })}</span>
-        </span>
-        </>
+        </button>
       )}
 
       {mode === 'formatting' && (
@@ -289,10 +264,9 @@ export function MobileEditorAccessory({
               className="m-editor-accessory__action"
               aria-label={label}
               aria-pressed={item.isActive?.(editor) ?? false}
-              onPointerDown={(event) => run(event, () => item.run(editor))}
-              onClick={(event) => {
-                if (event.detail === 0) item.run(editor);
-              }}
+              data-debug-id={`mobile-format-${item.id}`}
+              disabled={editor.view.composing}
+              onClick={() => { if (!editor.view.composing) item.run(editor); }}
             >
               <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
             </button>

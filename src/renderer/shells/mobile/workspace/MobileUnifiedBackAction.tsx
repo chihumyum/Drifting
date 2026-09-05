@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import { useInputPreservingActions } from '../../../hooks/useInputPreservingActions';
 
 export function MobileUnifiedBackAction({
   preserveFocusUntilBack,
@@ -10,53 +10,17 @@ export function MobileUnifiedBackAction({
   onBack: () => void;
   label: string;
 }) {
-  if (!preserveFocusUntilBack) {
-    return (
-      <button
-        type="button"
-        className="m-unified-bar__action"
-        data-debug-id="mobile-unified-back"
-        onClick={onBack}
-        aria-label={label}
-      >
-        <ArrowLeft size={20} aria-hidden="true" />
-      </button>
-    );
-  }
-
-  const keepEditorFocused = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-  const handlePointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onBack();
-  };
-  const handleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.detail === 0) onBack();
-  };
-
+  const inputActions = useInputPreservingActions<HTMLButtonElement>(preserveFocusUntilBack);
   return (
-    <span
-      role="button"
+    <button
+      {...inputActions}
+      type="button"
       className="m-unified-bar__action"
       data-debug-id="mobile-unified-back"
-      onPointerDown={keepEditorFocused}
-      onMouseDown={(event) => event.preventDefault()}
-      onPointerUp={handlePointerUp}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        onBack();
-      }}
-      onClick={handleClick}
+      onClick={onBack}
       aria-label={label}
     >
       <ArrowLeft size={20} aria-hidden="true" />
-    </span>
+    </button>
   );
 }

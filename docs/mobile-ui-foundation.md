@@ -294,10 +294,18 @@ the last prose line clear the accessory. Only an open editing/search keyboard
 reduces the paper viewport. Native geometry and hit-test evidence is recorded in
 `docs/qa/mobile-fullscreen-flow-2026-09-06.json`.
 During editing the toolbar follows native keyboard
-geometry and exposes undo, redo, formatting, Agent, Search, Plot and Timeline.
-Plot and Timeline suspend the originating prose mode while open. Their Back
-path restores editor focus, selection, and the previous accessory level; a
-Plot-owned keyboard is dismissed before leaving that tool.
+geometry. Fresh edit entry opens formatting directly; returning from another
+accessory preserves its saved level, including while the native keyboard reopens.
+Undo and Redo appear independently only when their respective history stack has
+an operation, in either editing accessory level. Formatting activates after a
+stationary release; horizontal panning, leaving a button, and pointer cancellation
+never apply a style. One input-preserving action boundary handles the editor,
+Search, Agent controls and the Agent's portalled configuration menu. It cancels
+the native touch-end focus default before buttons can disappear or be replaced.
+Accessory background taps also leave the active input focused.
+Plot and Timeline cover the originating prose mode without blurring its input
+or closing its keyboard. Back returns directly to that editor and its saved
+accessory level. If a Plot field has taken focus, Back dismisses that input first.
 Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
 display switches. Stats lives in the right panel alongside Review, Agent and Library.
 
@@ -310,7 +318,8 @@ Three recent project sessions and searchable full history appear above the input
 First send creates the canonical conversation; selecting history creates no new row.
 A selected conversation uses a flat, borderless plane above the raised accessory;
 its header clears the status bar and switches sessions. Non-input actions such as
-Latest preserve composer focus and the keyboard. Startup makes the paper input
+Latest preserve composer focus and the keyboard. The paper Agent configuration
+menu neither autofocuses an option nor restores focus to its trigger. Startup makes the paper input
 briefly read-only instead of disabling it. Leaving this surface never aborts its running turn.
 
 The local paper-to-conversation association survives reload; drafts are renderer-local
@@ -326,3 +335,6 @@ Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests an
 is recorded in `docs/qa/mobile-toolbar-stack-2026-09-06.md`.
 Input ownership and the revised Agent surface are recorded in
 `docs/qa/mobile-toolbar-input-2026-09-06.md`.
+
+Accessory activation and keyboard continuity are recorded in
+`docs/qa/mobile-accessory-focus-2026-09-06.md` and its measured JSON record.

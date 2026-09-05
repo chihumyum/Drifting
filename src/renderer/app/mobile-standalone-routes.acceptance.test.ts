@@ -169,7 +169,10 @@ describe('mobile standalone routes', () => {
     expect(editorAccessory).toContain('getInlineFormatItems()');
     expect(editorAccessory).toContain('data-mode={mode}');
     expect(editorAccessory).toContain('editorFocused && softwareKeyboardVisible');
-    expect(editorAccessory).toContain('event.preventDefault()');
+    expect(unifiedBar).toContain('useInputPreservingActions');
+    const inputActions = rendererSource('hooks/useInputPreservingActions.ts');
+    expect(inputActions).toContain('onTouchEndCapture');
+    expect(inputActions).toContain('event.preventDefault()');
     expect(paperDeck).toContain('data-rail-toc={openRails.toc');
     expect(paperDeck).toContain('<EditorRailPresentationContext.Provider');
     expect(paperDeck).toContain('outlineLabelPitch: 34');

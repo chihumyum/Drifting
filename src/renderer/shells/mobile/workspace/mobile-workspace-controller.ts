@@ -163,7 +163,7 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
     }
     if (state.overlay !== 'paper-tools') {
       if (state.paperMode.kind !== 'read') issues.push('a launcher overlay requires read mode');
-      if (state.keyboard !== 'closed' && state.overlay !== 'plot') {
+      if (state.keyboard !== 'closed' && state.overlay !== 'plot' && state.overlay !== 'timeline') {
         issues.push('a launcher overlay requires a closed keyboard');
       }
       if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
@@ -197,9 +197,9 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
   if (
     state.keyboard === 'open' &&
     state.paperMode.kind !== 'edit' &&
-    !transientOwnsInput(state.transient) && state.overlay !== 'plot'
+    !transientOwnsInput(state.transient) && state.overlay !== 'plot' && state.overlay !== 'timeline'
   ) {
-    issues.push('an open keyboard requires edit, search, plot, or Agent input ownership');
+    issues.push('an open keyboard requires edit, search, a paper tool, or Agent input ownership');
   }
 
   return issues;
@@ -287,7 +287,7 @@ export function mobileWorkspaceReducer(
         paperMode: READ_MODE,
         overlay: action.overlay,
         transient: NO_TRANSIENT,
-        keyboard: 'closed',
+        keyboard: action.overlay === 'plot' || action.overlay === 'timeline' ? state.keyboard : 'closed',
       });
     }
     case 'open-search':
@@ -304,7 +304,7 @@ export function mobileWorkspaceReducer(
         // Editing already owns a visible IME. Search transfers that same input
         // session to its field; declaring a closed intermediate frame would
         // collapse the shared paper geometry before the field can take focus.
-        keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed',
+        keyboard: state.keyboard,
       });
     case 'set-transient': {
       if (
@@ -362,7 +362,7 @@ export function mobileWorkspaceReducer(
       return checked({
         ...state,
         overlay: state.overlay === 'paper-tools' ? 'paper-tools' : 'none',
-        paperMode: { kind: 'edit', accessory: 'navigation' },
+        paperMode: { kind: 'edit', accessory: 'formatting' },
         keyboard: 'open',
       });
     case 'set-editor-accessory':
@@ -381,7 +381,7 @@ export function mobileWorkspaceReducer(
       if (
         action.keyboard === 'open' &&
         state.paperMode.kind !== 'edit' &&
-        !transientOwnsInput(state.transient) && state.overlay !== 'plot'
+        !transientOwnsInput(state.transient) && state.overlay !== 'plot' && state.overlay !== 'timeline'
       ) {
         return state;
       }
@@ -405,6 +405,7 @@ function resolution(
 export function resolveMobileWorkspaceBack(
   state: MobileWorkspaceUiState,
   source: MobileBackSource,
+  focusedInput: 'editor' | 'other' = 'other',
 ): MobileBackResolution {
   void source;
   if (state.transient.kind === 'dialog') {
@@ -445,6 +446,12 @@ export function resolveMobileWorkspaceBack(
       { ...state, paperMode: READ_MODE, keyboard: 'closed' },
       'blur-editor',
     );
+  }
+  // A paper tool can cover prose without interrupting its input session. Back
+  // returns directly to that editor; a tool's own field still dismisses first.
+  if ((state.overlay === 'plot' || state.overlay === 'timeline') &&
+      state.toolReturnTo?.kind === 'edit' && focusedInput === 'editor') {
+    return resolution('overlay', closeToolbarWorkspace(state), 'focus-editor');
   }
   if (state.keyboard === 'open') {
     return resolution('keyboard', { ...state, keyboard: 'closed' }, 'blur-input');

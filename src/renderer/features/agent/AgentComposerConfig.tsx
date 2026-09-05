@@ -19,7 +19,7 @@ import { DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS } from '../../lib/agent/runtim
  * upward menu. The menu adjusts the active model, provider-aware reasoning,
  * context budget and edit-review behavior.
  */
-export function AgentComposerConfig() {
+export function AgentComposerConfig({ preserveInputFocus = false }: { preserveInputFocus?: boolean }) {
   const { t } = useTranslation();
   const agentProvider = useSettingsStore((s) => s.agentProvider);
   const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
@@ -92,6 +92,8 @@ export function AgentComposerConfig() {
       <AnchoredPopover
         anchorRef={triggerRef}
         open={open}
+        autoFocus={!preserveInputFocus}
+        restoreFocus={!preserveInputFocus}
         onClose={close}
         placement="top-start"
         maxHeight={360}

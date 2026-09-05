@@ -6,11 +6,10 @@ import {
   useRef,
   useSyncExternalStore,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useInputPreservingActions } from '../../../hooks/useInputPreservingActions';
 import { getActiveEditor } from '../../../lib/active-editor';
 import { MobileUnifiedBackAction } from './MobileUnifiedBackAction';
 import { MobilePaperAgent } from './MobilePaperAgent';
@@ -104,33 +103,11 @@ function MobileUnifiedSearchStep({
   label: string;
   children: ReactNode;
 }) {
-  const activateFromPointer = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!disabled) onActivate();
-  };
-  const keepSearchFocusedFromMouse = (event: ReactMouseEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-  const activateFromAccessibility = (event: ReactMouseEvent<HTMLSpanElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!disabled && event.detail === 0) onActivate();
-  };
-
   return (
-    <span
-      role="button"
-      className="m-unified-bar__action m-unified-search__step"
-      aria-disabled={disabled ? 'true' : 'false'}
-      aria-label={label}
-      onPointerDown={activateFromPointer}
-      onMouseDown={keepSearchFocusedFromMouse}
-      onClick={activateFromAccessibility}
-    >
+    <button type="button" className="m-unified-bar__action m-unified-search__step"
+      disabled={disabled} aria-label={label} onClick={onActivate}>
       {children}
-    </span>
+    </button>
   );
 }
 
@@ -169,7 +146,7 @@ export function MobileUnifiedBar({
   );
 
   useEffect(() => {
-    if (projection.mode !== 'search' && projection.mode !== 'agent-input' && workspaceUi.overlay !== 'plot') return undefined;
+    if (projection.mode !== 'search' && projection.mode !== 'agent-input' && workspaceUi.overlay !== 'plot' && workspaceUi.overlay !== 'timeline') return undefined;
     const viewport = window.visualViewport;
     let frame = 0;
     const sync = () => {
@@ -204,22 +181,13 @@ export function MobileUnifiedBar({
   // request resolves. Otherwise pointerdown emits blur first, the controller
   // becomes read, and the later click is incorrectly resolved as paper-root.
   const backPreservesFocusUntilResolution =
-    projection.mode === 'edit' || projection.mode === 'search' || projection.mode === 'agent-input' || (workspaceUi.overlay === 'plot' && workspaceUi.keyboard === 'open');
+    projection.mode === 'edit' || projection.mode === 'search' || projection.mode === 'agent-input' || ((workspaceUi.overlay === 'plot' || workspaceUi.overlay === 'timeline') && workspaceUi.keyboard === 'open');
   const handleBack = () =>
     requestMobileWorkspaceBack('visible', {
       preflightDom: projection.mode !== 'edit' && projection.mode !== 'search',
     });
   const backLabel = t('navigation.back');
-  const preserveSearchFocus = (
-    event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
-  ) => {
-    if (projection.mode !== 'search') return;
-    if (event.target instanceof Element && event.target.closest('input')) return;
-    // WKWebView may still synthesize a compatibility mousedown after a touch
-    // pointer. Cancelling both defaults at the bar boundary makes the search
-    // field the sole DOM focus owner for every non-Back search action.
-    event.preventDefault();
-  };
+  const inputActions = useInputPreservingActions<HTMLElement>(true, true);
 
   const rootTools = [
     ['agent', Sparkles, 'Agent'],
@@ -234,6 +202,7 @@ export function MobileUnifiedBar({
       focusComposer={workspaceUi.transient.kind === 'agent-input' && workspaceUi.transient.returnTo?.kind === 'edit'} onClose={handleBack} />}
     </AnimatePresence>
     <footer
+      {...inputActions}
       className="m-unified-bar"
       data-debug-id="mobile-unified-bar"
       inert={!projection.visible || projection.mode === 'agent-input'}
@@ -245,8 +214,6 @@ export function MobileUnifiedBar({
     >
       <div
         className="m-unified-bar__content"
-        onPointerDownCapture={preserveSearchFocus}
-        onMouseDownCapture={preserveSearchFocus}
       >
         {projection.mode === 'search' ? (
           <>
@@ -291,10 +258,7 @@ export function MobileUnifiedBar({
             {(projection.mode === 'read' || (projection.mode === 'edit' && editorAccessoryMode === 'navigation')) && rootTools.map(([tool, Icon, label]) => (
               <button key={tool} type="button" className="m-unified-bar__tool" data-debug-id={`mobile-tool-${tool}`}
                 aria-label={label} aria-pressed={workspaceUi.overlay === tool}
-                onPointerDown={(event) => event.preventDefault()}
-                onMouseDown={(event) => event.preventDefault()}
-                onPointerUp={(event) => { event.preventDefault(); onOpenTool(tool); }}
-                onClick={(event) => { if (event.detail === 0) onOpenTool(tool); }}><Icon size={18} aria-hidden="true" /><span>{label}</span></button>
+                onClick={() => onOpenTool(tool)}><Icon size={18} aria-hidden="true" /><span>{label}</span></button>
             ))}
           </>
         )}

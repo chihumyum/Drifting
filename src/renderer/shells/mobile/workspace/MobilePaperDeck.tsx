@@ -752,9 +752,8 @@ export function MobilePaperDeck({
               requestMobileWorkspaceBack('visible');
               return;
             }
-            // Capture the originating edit mode before the native blur fires.
+            // The tool covers the editor while preserving its input session.
             onWorkspaceUiAction({ type: 'set-overlay', overlay: tool });
-            getActiveEditor()?.view.dom.blur();
           }
         }}
         keyboardInset={keyboardInset}

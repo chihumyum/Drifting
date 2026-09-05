@@ -1,0 +1,490 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-06",
+  "device": "iPhone 17 Pro / iOS 26.5 Simulator",
+  "inputPaths": {
+    "buttons": "native Simulator taps",
+    "typing": "native software keyboard",
+    "pan": "renderer pointer/touch sequence and horizontal scroll; native automation did not deliver drag move events",
+    "providerAndMicrophone": "local stubs; no provider request or microphone capture"
+  },
+  "observations": {
+    "formatting-initial": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": 0,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "typed": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": true,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": 0,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": true,
+      "redoVisible": false,
+      "proseMatchesBaseline": false
+    },
+    "undone": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": false,
+      "redo": true,
+      "marks": [],
+      "formatScrollLeft": 0,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": true,
+      "proseMatchesBaseline": true
+    },
+    "redone": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": true,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": 0,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": true,
+      "redoVisible": false,
+      "proseMatchesBaseline": false
+    },
+    "format-before-pan": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": 0,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "format-after-pan": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "formatting",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": 44,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "plot-open": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "plot-returned": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "navigation",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "timeline-open": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "timeline-returned": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "navigation",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-open": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-config-open": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-model-menu": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-voice-start": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-history-open": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-selected": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-sent": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-latest": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-back-dismissed": {
+      "mode": "read",
+      "keyboard": "closed",
+      "editorFocused": false,
+      "focused": "BODY",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 874,
+        "visualHeight": 874,
+        "top": 0
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-accessory-background": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "mobile-agent-composer",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 846,
+        "visualHeight": 539,
+        "top": 27.65625
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "agent-returned-final": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "navigation",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "top": 0
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "search-result-steps": {
+      "mode": "read",
+      "keyboard": "open",
+      "editorFocused": false,
+      "focused": "INPUT",
+      "accessory": null,
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "top": 0
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    },
+    "search-returned-final": {
+      "mode": "edit",
+      "keyboard": "open",
+      "editorFocused": true,
+      "focused": "DIV",
+      "accessory": "navigation",
+      "undo": false,
+      "redo": false,
+      "marks": [],
+      "formatScrollLeft": null,
+      "viewport": {
+        "height": 874,
+        "visualHeight": 539,
+        "top": 0
+      },
+      "undoVisible": false,
+      "redoVisible": false,
+      "proseMatchesBaseline": true
+    }
+  },
+  "cleanup": {
+    "removedFixtureConversations": 1,
+    "providerAndMicrophoneRestored": true,
+    "starts": 1,
+    "voiceStarts": 1,
+    "voiceStops": 1
+  },
+  "assertions": {
+    "freshEditOpensFormatting": true,
+    "emptyStacksHideBothActions": true,
+    "typingShowsOnlyUndo": true,
+    "undoRestoresProse": true,
+    "undoKeepsKeyboardAndFocus": true,
+    "undoShowsOnlyRedo": true,
+    "redoRestoresTypedText": true,
+    "redoKeepsKeyboardAndFocus": true,
+    "redoShowsOnlyUndo": true,
+    "panMovesFormatList": true,
+    "panDoesNotApplyFormat": true,
+    "panKeepsKeyboard": true,
+    "plotKeepsInput": true,
+    "plotRestoresAccessory": true,
+    "timelineKeepsInput": true,
+    "timelineRestoresAccessory": true,
+    "agent-openKeepsComposer": true,
+    "agent-config-openKeepsComposer": true,
+    "agent-model-menuKeepsComposer": true,
+    "agent-voice-startKeepsComposer": true,
+    "agent-history-openKeepsComposer": true,
+    "agent-selectedKeepsComposer": true,
+    "agent-sentKeepsComposer": true,
+    "agent-latestKeepsComposer": true,
+    "agent-accessory-backgroundKeepsComposer": true,
+    "explicitAgentBackDismissesKeyboard": true,
+    "agentReturnPreservesChosenAccessory": true,
+    "searchStepsKeepInput": true,
+    "searchReturnPreservesChosenAccessory": true,
+    "documentRestoredExactly": true,
+    "localFixtureCleanedUp": true
+  }
+}

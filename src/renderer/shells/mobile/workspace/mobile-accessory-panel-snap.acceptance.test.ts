@@ -17,13 +17,11 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
 
     expect(accessory).toContain('data-debug-id="mobile-toggle-formatting"');
     expect(accessory).toMatch(/\{mode === 'navigation' && \([\s\S]*?mobile-toggle-formatting/u);
-    expect(accessory).toMatch(/<span\s+role="button"[\s\S]*?className="m-editor-accessory__toggle"/u);
-    expect(accessory).not.toMatch(/<button[\s\S]{0,160}m-editor-accessory__toggle/u);
+    expect(accessory).toContain('onClick={() => onModeChange?.(\'formatting\')}');
+    expect(accessory).not.toContain('onPointerDown=');
+    expect(accessory).not.toContain('onPointerUp=');
     expect(accessory).not.toContain('editor.view.focus();');
-    expect(accessory).not.toContain('queueMicrotask(refocusEditor);');
-    expect(accessory).toContain('onPointerUp={toggle}');
-    expect(accessory).toContain('onClick={handleToggleClick}');
-    expect(source('shells/mobile/workspace/MobileUnifiedBackAction.tsx').match(/data-debug-id="mobile-unified-back"/g)).toHaveLength(2);
+    expect(source('shells/mobile/workspace/MobileUnifiedBackAction.tsx')).toContain('useInputPreservingActions');
     expect(bar).toContain('backPreservesFocusUntilResolution');
     expect(bar).toContain("projection.mode === 'edit' || projection.mode === 'search'");
     expect(bar).toContain(
@@ -57,7 +55,7 @@ describe('Mobile format-level toggle and panel close snap correction', () => {
     expect(controller).toContain('paperMode: READ_MODE');
     expect(controller).toContain("type: 'open-search'");
     expect(controller).toContain('returnTo: state.toolReturnTo ?? state.paperMode');
-    expect(controller).toContain("keyboard: state.paperMode.kind === 'edit' ? 'open' : 'closed'");
+    expect(controller).toContain("keyboard: state.keyboard");
     expect(controller).toContain("returnToEditing ? 'focus-editor' : 'none'");
     expect(back).toContain("resolved.effect === 'focus-editor'");
     expect(back).toContain('editor.view.focus()');
