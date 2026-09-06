@@ -32,6 +32,7 @@ for (const command of [
   'pnpm lint',
   'pnpm typecheck',
   'pnpm agent:capabilities:check',
+  'pnpm agent:conversation-sync:check',
   'pnpm exec vite build --config vite.renderer.config.ts',
 ]) {
   if (!ci.includes(command)) errors.push(`client checks are missing: ${command}`);

@@ -47,6 +47,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm agent:conversation-sync:check
       - run: pnpm agent:capabilities:check
       - run: pnpm exec vite build --config vite.renderer.config.ts
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check

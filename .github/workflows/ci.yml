@@ -37,6 +37,7 @@ jobs:
       - run: pnpm public:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm agent:conversation-sync:check
       - run: pnpm agent:capabilities:check
       - run: pnpm exec vite build --config vite.renderer.config.ts
 
