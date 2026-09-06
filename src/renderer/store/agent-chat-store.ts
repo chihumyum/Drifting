@@ -23,6 +23,8 @@
  * reinterpreted as a self-hosted runtime session.
  */
 import { create } from 'zustand';
+import { events } from '../lib/events';
+import { AgentConversationSyncRepository } from '../sync/agent-chat/repository';
 import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
 import { useProjectStore } from './project-store';
@@ -393,8 +395,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!pid) return;
     void repo
       .listByProject(pid)
-      .then((rows) => set({ convList: rows }))
-      .catch(() => set({ convList: [] }));
+      .then((rows) => { if (get().boundProjectId === pid) set({ convList: rows }); })
+      .catch(() => { if (get().boundProjectId === pid) set({ convList: [] }); });
   },
 
   bindProject: (projectId, options) => {
@@ -545,6 +547,18 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           /* persistence is best-effort — chat still works in-memory */
         }
         if (!isCurrentStart()) return;
+      }
+      const previousId = convId;
+      try {
+        convId = await new AgentConversationSyncRepository().forkForContinuation(convId);
+      } catch (error) {
+        appendRunError(convId, error instanceof Error ? error.message : String(error));
+        return;
+      }
+      if (!isCurrentStart()) return;
+      if (convId !== previousId) {
+        const previous = get().runs[previousId];
+        if (previous) set((state) => ({ runs: { ...state.runs, [convId!]: { ...previous, runtimeSessionId: null, seenJournalEventIds: {}, controlStatus: null, pendingControl: null, longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } }));
       }
       const cid = convId;
 
@@ -1425,4 +1439,13 @@ function ensureSubscription(): void {
   const subscription = generalAgentTransport.subscribeJournal(handleEvent);
   if (!subscription.ok) return;
   subscribed = true;
+  events.on('agent:conversations-changed', ({ projectId, conversationIds }) => {
+    const state = useAgentChatStore.getState();
+    if (state.boundProjectId !== projectId) return;
+    state.refreshList();
+    const activeId = state.activeConvId;
+    // Keep live runs intact. Idle histories may have acquired a remote tail.
+    useAgentChatStore.setState((current) => ({ runs: Object.fromEntries(Object.entries(current.runs).filter(([id, run]) => !conversationIds.includes(id) || Boolean(current.runningTurns[id]) || ['armed', 'evaluating', 'scheduled'].includes(run.automaticContinuation.status))) }));
+    if (activeId && conversationIds.includes(activeId) && !useAgentChatStore.getState().runs[activeId]) void state.loadConversation(activeId);
+  });
 }

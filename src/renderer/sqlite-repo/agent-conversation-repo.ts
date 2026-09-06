@@ -1,13 +1,14 @@
 /**
  * Local SQLite repo for Agent conversations (right-sidebar chat history).
  *
- * Local-only: not wired to the sync outbox. The display transcript lives in
- * messages_json; resuming context is the SDK's job via sdkSessionId. Soft-delete
- * via deletedAt to match the rest of the schema.
+ * Display projection and local execution pointers. SQL triggers queue authored
+ * changes for the independent Agent chat protocol; canonical history is exported
+ * by the application sync supervisor. Soft-delete uses durable branch tombstones.
  */
 import { and, desc, eq, isNull } from 'drizzle-orm';
+import { events } from '../lib/events';
 import { getDb } from '../lib/db';
-import { AgentConversationTable } from '../schema/drizzle';
+import { AgentChatBranchTable, AgentConversationTable } from '../schema/drizzle';
 import type {
   AgentChatMessage,
   AgentConversation,
@@ -98,6 +99,11 @@ export interface AgentConversationRepository {
   ): Promise<AgentConversationUsage[]>;
 }
 
+async function wakeConversationSync(id: string): Promise<void> {
+  const [row] = await getDb().select({ projectId: AgentConversationTable.projectId }).from(AgentConversationTable).where(eq(AgentConversationTable.id, id));
+  if (row) events.emit('agent:conversation-committed', { projectId: row.projectId });
+}
+
 export function createAgentConversationRepository(): AgentConversationRepository {
   return {
     async listByProject(projectId) {
@@ -116,7 +122,15 @@ export function createAgentConversationRepository(): AgentConversationRepository
           ),
         )
         .orderBy(desc(AgentConversationTable.updatedAt));
-      return rows.map((r) => ({
+      const branches = await getDb().select().from(AgentChatBranchTable).where(eq(AgentChatBranchTable.projectId, projectId));
+      const hidden = new Set(branches.filter((branch) => {
+        const children = branches.filter((child) => child.parentBranchId === branch.id && !child.deletedAt);
+        return children.length === 1 && children[0].readiness === 'ready' && branch.headTurnId !== null && children[0].forkTurnId === branch.headTurnId;
+      }).map((branch) => branch.id));
+      const visible = rows.filter((row) => !hidden.has(row.id));
+      return visible.map((r) => ({
+        ...(branches.some((branch) => branch.id === r.id) ? { syncState: branches.find((branch) => branch.id === r.id)!.readiness as import('../domain/agent-conversation').AgentConversationSyncState } : {}),
+        ...(visible.filter((row) => row.title === r.title).length > 1 ? { branchLabel: r.id.slice(-6) } : {}),
         id: r.id,
         title: r.title,
         mode: coerceMode(r.mode),
@@ -191,6 +205,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         updatedAt: input.updatedAt,
       };
       await getDb().insert(AgentConversationTable).values(row);
+      events.emit('agent:conversation-committed', { projectId: input.projectId });
     },
 
     async update(id, patch) {
@@ -206,6 +221,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         .update(AgentConversationTable)
         .set(set)
         .where(eq(AgentConversationTable.id, id));
+      void wakeConversationSync(id).catch(() => {});
     },
 
     async softDelete(id, deletedAt) {
@@ -213,6 +229,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         .update(AgentConversationTable)
         .set({ deletedAt, updatedAt: deletedAt })
         .where(eq(AgentConversationTable.id, id));
+      void wakeConversationSync(id).catch(() => {});
     },
 
     async softDeleteAllByProject(projectId, deletedAt) {
@@ -225,6 +242,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
             isNull(AgentConversationTable.deletedAt),
           ),
         );
+      events.emit('agent:conversation-committed', { projectId });
     },
   };
 }

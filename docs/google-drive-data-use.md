@@ -1,6 +1,6 @@
 # Google Drive data use
 
-Last updated: 2026-08-20
+Last updated: 2026-09-05
 
 Google Drive sync is optional and does not require a Drifting account. The
 official desktop Alpha requests only OpenID identity and Google Drive
@@ -10,9 +10,15 @@ hidden application-data folder.
 
 When connected, Drifting can send project names and metadata, full manuscript
 content encoded as Yjs checkpoints and updates, comments, relationships,
-history needed for convergence, persistent Agent memory, and original imported
+history needed for convergence, persistent Agent memory, settled Agent conversations
+(including necessary tool results and context summaries), and original imported
 images and PDFs. These objects are not end-to-end encrypted against Google.
 Google and the selected account are therefore inside the trust boundary.
+
+Connected projects automatically include existing conversation history. Running
+tasks, pending approvals and device execution authority remain local. Historical
+deletion uses tombstones; it does not immediately erase immutable cloud objects.
+See [Agent conversation sync](sync-engine/agent-conversation-sync.md).
 
 Drifting does not send BYOK credentials, OAuth tokens as project objects,
 device UI preferences, thumbnails, caches, or unrelated Drive files. The

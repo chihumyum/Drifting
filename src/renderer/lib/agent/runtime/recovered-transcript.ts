@@ -97,6 +97,7 @@ export async function loadCanonicalAgentChatProjection(
   const snapshot = await repository.loadRecoverySnapshot(sessionId);
   if (!snapshot) return null;
   const recovered = await recoverAgentRuntimeSnapshot(snapshot);
+  const imported = await repository.loadPortableDisplay?.(sessionId);
   const visibleUsers = cachedVisibleUserBundles(visibleCache ?? []);
   let visibleUserIndex = 0;
   let messages: AgentChatMessage[] = [];
@@ -153,6 +154,11 @@ export async function loadCanonicalAgentChatProjection(
   const messageById = new Map(snapshot.messages.map((message) => [message.id, message]));
 
   for (const turn of [...snapshot.turns].sort((left, right) => left.ordinal - right.ordinal)) {
+    if (imported?.turnId === turn.id) {
+      messages.push(...imported.messages);
+      for (const message of imported.messages) if (message.kind === 'user') takeVisibleUser(message.text, false, message.at);
+      continue;
+    }
     const turnMessageStart = messages.length;
     const recoveredTurn = recovered.turns.find((candidate) => candidate.turnId === turn.id);
     const rows = eventsByTurn.get(turn.id) ?? [];

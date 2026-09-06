@@ -14,6 +14,12 @@ const IMMUTABLE_BASELINE_SHA256 =
   '2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2';
 
 const APPLICATION_TABLES = [
+  'agent_chat_binding',
+  'agent_chat_branch',
+  'agent_chat_cursor',
+  'agent_chat_delivery',
+  'agent_chat_object',
+  'agent_chat_queue',
   'agent_conversation',
   'agent_mcp_server',
   'agent_memory',
@@ -101,6 +107,9 @@ const APPLICATION_TABLES = [
 ] as const;
 
 const APPLICATION_TRIGGERS = [
+  'agent_chat_queue_conversation_insert',
+  'agent_chat_queue_conversation_update',
+  'agent_chat_queue_terminal',
   'element_portrait_asset_binding_insert',
   'element_portrait_asset_binding_update',
   'element_portrait_asset_owner_insert',
@@ -198,7 +207,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(1);
+    expect(journal.entries).toHaveLength(2);
+    expect(journal.entries[1]?.tag).toBe('0001_agent_chat_sync');
     expect(journal.entries[0]?.idx).toBe(0);
     expect(journal.entries[0]?.tag).toBe('0000_local_first_baseline');
     const baselineBytes = readFileSync(
@@ -209,7 +219,7 @@ describe('product file-backed migration acceptance', () => {
     );
 
     const first = new ProductFileBackedSqliteGateway(target);
-    expect((await first.open('drifting.db')).migrationsApplied).toBe(1);
+    expect((await first.open('drifting.db')).migrationsApplied).toBe(journal.entries.length);
     expect(
       first.database
         .prepare('SELECT hash, created_at FROM __drizzle_migrations')
@@ -230,7 +240,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 191 });
+    ).toEqual({ count: 194 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

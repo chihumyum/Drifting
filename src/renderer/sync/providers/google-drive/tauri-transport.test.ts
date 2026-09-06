@@ -60,6 +60,15 @@ function nativeApi(): GoogleDrivePlatformApi {
 }
 
 describe('TauriGoogleDriveObjectTransport', () => {
+  it('opens an explicit Agent namespace while preserving the released project call shape', async () => {
+    const native = nativeApi();
+    const input = { credentialSecretRef: 'opaque', accountSubject: 'subject', bindingId: 'binding', syncGenerationId: 'generation', authorityGeneration: 1 };
+    await new TauriGoogleDriveObjectTransport(native).openGeneration(input);
+    expect(native.openGeneration).toHaveBeenLastCalledWith(input);
+    await new TauriGoogleDriveObjectTransport(native, 'agent-chat').openGeneration(input);
+    expect(native.openGeneration).toHaveBeenLastCalledWith({ ...input, namespace: 'agent-chat' });
+  });
+
   it('projects only opaque references and immutable metadata across the native boundary', async () => {
     const native = nativeApi();
     const transport = new TauriGoogleDriveObjectTransport(native);

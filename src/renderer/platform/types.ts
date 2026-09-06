@@ -171,6 +171,7 @@ export interface GoogleDrivePlatformApi {
     bindingId: string;
     syncGenerationId: string;
     authorityGeneration: number;
+    namespace?: 'project' | 'agent-chat';
   }): Promise<GoogleDriveNativeGeneration>;
   captureStartCursor(generationRef: string): Promise<string>;
   listInventory(input: {

@@ -29,7 +29,8 @@ own storage encryption do not change that boundary.
 
 The client may transmit the Google account subject, project metadata, Yjs
 checkpoints and updates containing full manuscript content, snapshots,
-comments, synced Agent memory, and imported project assets such as images or
+comments, synced Agent memory, settled Agent conversations and necessary tool
+results, and imported project assets such as images or
 PDFs. Google can process those objects under the terms and policies applicable
 to the selected Google account.
 
@@ -47,7 +48,8 @@ object has been deleted from Google's systems.
 An operator can configure a compatible service and explicitly enable account
 and synchronization features. The client may then transmit account and device
 identifiers, project metadata, Yjs checkpoints and updates containing full
-manuscript content, snapshots, comments, synced Agent memory, and uploaded
+manuscript content, snapshots, comments, synced Agent memory, settled Agent
+conversations and necessary tool results, and uploaded
 project assets such as images or PDFs. Unless that service publishes and proves
 a separate encryption contract, synced manuscript content must be treated as
 readable within that service's trust boundary.

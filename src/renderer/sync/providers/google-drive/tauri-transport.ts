@@ -41,7 +41,10 @@ function remoteChange(
 
 /** The only product adapter allowed to cross from ObjectLogProvider into Tauri. */
 export class TauriGoogleDriveObjectTransport implements GoogleDriveObjectTransportPort {
-  constructor(private readonly native: GoogleDrivePlatformApi = platform.googleDrive) {}
+  constructor(
+    private readonly native: GoogleDrivePlatformApi = platform.googleDrive,
+    private readonly namespace: 'project' | 'agent-chat' = 'project',
+  ) {}
 
   async openGeneration(input: {
     credentialSecretRef: string;
@@ -50,7 +53,7 @@ export class TauriGoogleDriveObjectTransport implements GoogleDriveObjectTranspo
     syncGenerationId: string;
     authorityGeneration: number;
   }): Promise<GoogleDriveTransportSyncGeneration> {
-    const value = await this.native.openGeneration(input);
+    const value = await this.native.openGeneration({ ...input, ...(this.namespace === 'project' ? {} : { namespace: this.namespace }) });
     return {
       generationRef: createGoogleDriveTransportGenerationRef(value.generationRef),
       syncGenerationId: value.syncGenerationId,

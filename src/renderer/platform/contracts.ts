@@ -554,6 +554,7 @@ export interface TauriCommandContract {
   };
   google_drive_open_generation: {
     args: {
+      namespace?: 'project' | 'agent-chat';
       credentialSecretRef: string;
       accountSubject: string;
       bindingId: string;

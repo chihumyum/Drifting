@@ -53,7 +53,7 @@ const expandedTables = SYNC_DOMAIN_MANIFEST_V1.tables.map((table) => ({
 }));
 const fieldPolicies = expandedTables.flatMap((table) => table.fields);
 const classCounts = Object.fromEntries(
-  ['authored', 'crdt', 'derived', 'device-local', 'secret', 'transport'].map((classification) => [
+  ['authored', 'crdt', 'derived', 'device-local', 'secret', 'transport', 'extension'].map((classification) => [
     classification,
     fieldPolicies.filter((field) => field.classification === classification).length,
   ]),

@@ -59,6 +59,8 @@ export type AppEvents = {
   'db:error': { error: string };
   /** The single App-wide cloud provider generation changed after durable activation. */
   'sync:authority-changed': void;
+  'agent:conversation-committed': { projectId: string };
+  'agent:conversations-changed': { projectId: string; conversationIds: string[] };
   /** Runtime persisted a provider binding state that product authority UI must re-read. */
   'sync:runtime-state-changed': void;
   /** A remote change-set committed locally after exact live-Yjs reconciliation. */

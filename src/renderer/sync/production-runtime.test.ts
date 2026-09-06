@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { events } from '../lib/events';
 import type { DbClient } from '../lib/db';
 import type { ActiveProviderRuntimeBinding } from './app-authority-repository';
 import { SyncEngineCoordinator, type RegisteredSyncGenerationRuntime } from './engine';
@@ -85,6 +86,33 @@ function dependencies(input: {
 }
 
 describe('ProductionSyncRuntimeSupervisor', () => {
+  it('keeps prose running when chat fails and schedules durable chat commits independently', async () => {
+    vi.useFakeTimers();
+    const fixture = dependencies({ listBindings: async () => [{ ...binding('g'), projectId: 'p' }] });
+    const prose = vi.fn(async () => ({ pulledObjects: 0, publishedBlobs: 0, publishedSegments: 0, checkpointCreated: false, converged: true, requiresRepull: false }));
+    const chat = vi.fn(async () => { throw new Error('Synthetic chat failure'); });
+    const deps: ProductionSyncRuntimeDependencies = { ...fixture.deps,
+      createSyncGenerationRuntime: () => ({ syncGenerationId: 'g', runCycle: prose }),
+      createAgentChatRuntime: () => ({ syncGenerationId: 'g:agent-chat', runCycle: chat }),
+      installCoordinator: (coordinator) => { coordinator.triggerStart(); return () => coordinator.shutdown(); },
+    };
+    const supervisor = new ProductionSyncRuntimeSupervisor(deps);
+    try {
+      supervisor.requestReload(); await supervisor.drain();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(prose).toHaveBeenCalledOnce(); expect(chat).toHaveBeenCalledOnce();
+      events.emit('agent:conversation-committed', { projectId: 'p' });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(chat.mock.calls.length).toBeGreaterThan(1);
+      expect(prose).toHaveBeenCalledOnce();
+      supervisor.stop();
+      const calls = chat.mock.calls.length;
+      events.emit('agent:conversation-committed', { projectId: 'p' });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(chat).toHaveBeenCalledTimes(calls);
+    } finally { supervisor.stop(); vi.useRealTimers(); }
+  });
+
   it('keeps the local App provider-free and does not resolve native identity', async () => {
     const fixture = dependencies({ listBindings: vi.fn(async () => []) });
     const supervisor = new ProductionSyncRuntimeSupervisor(fixture.deps);

@@ -13,6 +13,7 @@ export const SYNC_DOMAIN_FIELD_CLASSES = [
   'device-local',
   'secret',
   'transport',
+  'extension',
 ] as const;
 
 export type SyncDomainFieldClass = (typeof SYNC_DOMAIN_FIELD_CLASSES)[number];
@@ -816,6 +817,15 @@ const tables: SyncDomainTablePolicy[] = [
     ],
   }),
 ];
+
+tables.push(
+  defineTable({ table: 'agent_chat_binding', scope: 'project-via-reference', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('device-local', 'Agent chat extension storage; project v1 excludes these fields.', 'conversation_id', 'local_owner', 'session_id', 'exported_ordinal', 'seeded_through')] }),
+  defineTable({ table: 'agent_chat_branch', scope: 'project-direct', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('extension', 'Agent chat extension storage; project v1 excludes these fields.', 'id', 'project_id', 'root_id', 'parent_branch_id', 'fork_turn_id', 'head_turn_id', 'title', 'title_clock', 'deleted_at', 'created_at', 'updated_at', 'readiness')] }),
+  defineTable({ table: 'agent_chat_cursor', scope: 'global', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('device-local', 'Agent chat extension storage; project v1 excludes these fields.', 'id', 'cursor', 'backfill_complete')] }),
+  defineTable({ table: 'agent_chat_delivery', scope: 'global', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('device-local', 'Agent chat extension storage; project v1 excludes these fields.', 'scope_id', 'object_id', 'remote_id', 'state', 'detail')] }),
+  defineTable({ table: 'agent_chat_object', scope: 'project-direct', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('extension', 'Agent chat extension storage; project v1 excludes these fields.', 'id', 'project_id', 'branch_id', 'kind', 'body_json', 'hash', 'created_at')] }),
+  defineTable({ table: 'agent_chat_queue', scope: 'project-via-reference', disposition: 'exclude', reason: 'Owned by the isolated Agent chat extension, never the project v1 wire.', groups: [group('device-local', 'Agent chat extension storage; project v1 excludes these fields.', 'conversation_id', 'revision')] }),
+);
 
 const runtimeTables: Readonly<Record<string, readonly string[]>> = {
   agent_conversation: [

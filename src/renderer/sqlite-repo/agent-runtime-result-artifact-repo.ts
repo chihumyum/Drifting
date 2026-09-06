@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, notExists, sql } from 'drizzle-orm';
 
 import type {
   AgentRuntimeResultArtifactGcResult,
@@ -10,7 +10,7 @@ import type {
   ReadAgentRuntimeResultArtifactPage,
 } from '../domain/agent-runtime-result-artifact';
 import { getDb, type DbExecutor } from '../lib/db';
-import { AgentRuntimeResultArtifactTable, AgentRuntimeResultBlobTable } from '../schema/drizzle';
+import { AgentConversationTable, AgentRuntimeSessionTable, AgentRuntimeResultArtifactTable, AgentRuntimeResultBlobTable } from '../schema/drizzle';
 import { canonicalAgentRuntimeJson } from './agent-runtime-persistence-repo';
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -420,7 +420,9 @@ export function createAgentRuntimeResultArtifactRepository(
       requireNonEmpty(input.projectId, 'projectId');
       requireNonEmpty(input.sessionId, 'sessionId');
       const row = await selectArtifact(database(), input);
-      return row ? await verifyArtifactRow(row) : null;
+      if (row) return verifyArtifactRow(row);
+      const { readImportedChatArtifact } = await import('../sync/agent-chat/imported-history');
+      return readImportedChatArtifact(database() as import('../lib/db').DbClient, input);
     },
 
     async readPage(
@@ -431,8 +433,8 @@ export function createAgentRuntimeResultArtifactRepository(
       }
       requirePositiveSafeInteger(input.limit, 'limit');
       const row = await selectArtifact(database(), input);
-      if (!row) return null;
-      const artifact = await verifyArtifactRow(row);
+      const artifact = row ? await verifyArtifactRow(row) : await (await import('../sync/agent-chat/imported-history')).readImportedChatArtifact(database() as import('../lib/db').DbClient, input);
+      if (!artifact) return null;
       if (input.offset > artifact.charCount) {
         fail(
           'INVALID_ARTIFACT',
@@ -484,6 +486,8 @@ export function createAgentRuntimeResultArtifactRepository(
       return database().transaction(
         async (tx) => {
           const scope = and(
+            // A live chat may still be waiting for its first portable export.
+            notExists(tx.select({ id: AgentConversationTable.id }).from(AgentConversationTable).innerJoin(AgentRuntimeSessionTable, eq(AgentRuntimeSessionTable.conversationId, AgentConversationTable.id)).where(and(eq(AgentRuntimeSessionTable.id, AgentRuntimeResultArtifactTable.sessionId), isNull(AgentConversationTable.deletedAt)))),
             lt(
               AgentRuntimeResultArtifactTable.createdAt,
               expiresAt.toISOString(),

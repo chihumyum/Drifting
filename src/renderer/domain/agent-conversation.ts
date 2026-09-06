@@ -110,7 +110,11 @@ export interface AgentConversation {
 }
 
 /** A lightweight list row (returned by `listByProject`) — no transcript. */
+export type AgentConversationSyncState = 'ready' | 'pending' | 'archive' | 'conflict';
+
 export interface AgentConversationSummary {
+  syncState?: AgentConversationSyncState;
+  branchLabel?: string;
   id: string;
   title: string;
   mode: AgentConvMode;

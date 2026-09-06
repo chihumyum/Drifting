@@ -473,6 +473,9 @@ describe('durable Agent result artifact repository', () => {
     ).rejects.toMatchObject({
       code: 'INVALID_ARTIFACT',
     });
+    await expect(repository.collectGarbage({ expiresBefore: '2026-07-30T00:00:02.000Z', projectId: 'project-1', sessionId: 'session-1' })).resolves.toEqual({ deletedArtifacts: 0, deletedBlobs: 0 });
+    // Active conversation history pins its results, including pre-sync backfill.
+    gateway!.database.exec("UPDATE agent_conversation SET deleted_at = '2026-07-30T00:00:01.000Z'");
     await expect(
       repository.collectGarbage({
         expiresBefore: '2026-07-30T00:00:02.000Z',

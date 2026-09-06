@@ -14,10 +14,6 @@ import type {
 } from '../../../../platform/database';
 
 const DRIZZLE_DIRECTORY = new URL('../../../../../../drizzle/', import.meta.url);
-const CURRENT_BASELINE = new URL(
-  '0000_local_first_baseline.sql',
-  DRIZZLE_DIRECTORY,
-);
 
 /**
  * Runtime acceptance uses the same complete schema as a fresh product
@@ -25,10 +21,7 @@ const CURRENT_BASELINE = new URL(
  * constraints and foreign keys to drift away from the product baseline.
  */
 function currentBaselineSql(): string {
-  return readFileSync(CURRENT_BASELINE, 'utf8').replaceAll(
-    '--> statement-breakpoint',
-    '',
-  );
+  return readProductMigrationJournal().entries.map((entry) => readFileSync(new URL(`${entry.tag}.sql`, DRIZZLE_DIRECTORY), 'utf8').replaceAll('--> statement-breakpoint', '')).join('\n');
 }
 
 interface ProductMigrationJournalEntry {

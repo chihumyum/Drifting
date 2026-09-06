@@ -2,23 +2,276 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "ce696ed43754afa6ee04dc8744a80432a64513a0c715df3c0442ae956d206fdf",
+  "schemaSha256": "c7415e0b817c8602a26b48591ddf742d0d34c48eb104bcd019082a23f4c03fba",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 84,
-    "fieldCount": 923,
+    "tableCount": 90,
+    "fieldCount": 957,
     "includedTableCount": 26,
-    "excludedTableCount": 58,
+    "excludedTableCount": 64,
     "classCounts": {
       "authored": 168,
       "crdt": 10,
       "derived": 83,
-      "device-local": 354,
+      "device-local": 369,
       "secret": 5,
-      "transport": 303
+      "transport": 303,
+      "extension": 19
     }
   },
   "tables": [
+    {
+      "table": "agent_chat_binding",
+      "scope": "project-via-reference",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "conversation_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "exported_ordinal",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "local_owner",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "seeded_through",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "session_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
+    {
+      "table": "agent_chat_branch",
+      "scope": "project-direct",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "created_at",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "deleted_at",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "fork_turn_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "head_turn_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "parent_branch_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "project_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "readiness",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "root_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "title",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "title_clock",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "updated_at",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
+    {
+      "table": "agent_chat_cursor",
+      "scope": "global",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "backfill_complete",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "cursor",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
+    {
+      "table": "agent_chat_delivery",
+      "scope": "global",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "detail",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "object_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "remote_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "scope_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "state",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
+    {
+      "table": "agent_chat_object",
+      "scope": "project-direct",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "body_json",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "branch_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "created_at",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "hash",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "kind",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "project_id",
+          "classification": "extension",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
+    {
+      "table": "agent_chat_queue",
+      "scope": "project-via-reference",
+      "disposition": "exclude",
+      "reason": "Owned by the isolated Agent chat extension, never the project v1 wire.",
+      "fields": [
+        {
+          "field": "conversation_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        },
+        {
+          "field": "revision",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent chat extension storage; project v1 excludes these fields."
+        }
+      ]
+    },
     {
       "table": "agent_conversation",
       "scope": "project-direct",

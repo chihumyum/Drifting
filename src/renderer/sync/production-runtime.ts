@@ -2,6 +2,7 @@ import loglevel from 'loglevel';
 import { eq } from 'drizzle-orm';
 
 import { events } from '../lib/events';
+import { AgentChatSyncRuntime } from './agent-chat/runtime';
 import { getDb, type DbClient } from '../lib/db';
 import { flushLocalApplicationPersistence } from '../lib/persistence-lifecycle';
 import { reconcileOpenYjsDocumentSessions } from '../services/yjs-document-session';
@@ -65,6 +66,7 @@ export interface ProductionSyncRuntimeDependencies {
     writerIdentity: SyncWriterIdentitySource;
     checkpoint: SyncEngineCheckpointHook;
   }) => RegisteredSyncGenerationRuntime;
+  readonly createAgentChatRuntime?: (input: { database: DbClient; binding: ActiveProviderRuntimeBinding }) => RegisteredSyncGenerationRuntime | null;
   readonly installCoordinator: (coordinator: SyncEngineCoordinator) => () => void;
   readonly exposeCoordinator: (coordinator: SyncEngineCoordinator) => () => void;
   readonly onError: (error: unknown) => void;
@@ -156,6 +158,10 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       checkpoint,
     });
   },
+  createAgentChatRuntime({ database, binding }) {
+    if (!binding.projectId || binding.mode !== 'google-drive') return null;
+    return new AgentChatSyncRuntime({ db: database, projectId: binding.projectId, binding: binding.binding, provider: new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport(platform.googleDrive, 'agent-chat')), codec: nativeSyncObjectCodec });
+  },
   installCoordinator: installSyncEngineCoordinatorRuntime,
   exposeCoordinator: (coordinator) => productSyncRuntimeControl.attach(coordinator),
   onError(error) {
@@ -234,6 +240,8 @@ export class ProductionSyncRuntimeSupervisor {
     let hideCoordinator: () => void = () => {};
     try {
       for (const binding of bindings) {
+        const chatRuntime = this.dependencies.createAgentChatRuntime?.({ database, binding });
+
         const checkpoint = this.dependencies.createCheckpoint({
           database,
           binding,
@@ -250,8 +258,14 @@ export class ProductionSyncRuntimeSupervisor {
             }),
           ),
         );
+        if (chatRuntime) unregister.push(coordinator.register(chatRuntime));
       }
-      uninstallSignals = this.dependencies.installCoordinator(coordinator);
+      const wakeChat = ({ projectId }: { projectId: string }) => {
+        for (const binding of bindings) if (binding.projectId === projectId) coordinator.triggerLocalCommit(`${binding.binding.syncGenerationId}:agent-chat`);
+      };
+      const disposeSignals = this.dependencies.installCoordinator(coordinator);
+      events.on('agent:conversation-committed', wakeChat);
+      uninstallSignals = () => { events.off('agent:conversation-committed', wakeChat); disposeSignals(); };
       hideCoordinator = this.dependencies.exposeCoordinator(coordinator);
       this.cleanupActive = () => {
         hideCoordinator();

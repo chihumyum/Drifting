@@ -40,13 +40,8 @@ import {
   type AgentRuntimeUsage,
 } from './types';
 
-const baselineSql = readFileSync(
-  new URL(
-    '../../../../../drizzle/0000_local_first_baseline.sql',
-    import.meta.url,
-  ),
-  'utf8',
-).replaceAll('--> statement-breakpoint', '');
+const migrationDirectory = new URL('../../../../../drizzle/', import.meta.url);
+const baselineSql = (JSON.parse(readFileSync(new URL('meta/_journal.json', migrationDirectory), 'utf8')) as { entries: Array<{ tag: string }> }).entries.map((entry) => readFileSync(new URL(`${entry.tag}.sql`, migrationDirectory), 'utf8').replaceAll('--> statement-breakpoint', '')).join('\n');
 
 const NOW = '2026-07-30T10:00:00.000Z';
 const ENDED = '2026-07-30T10:00:01.000Z';

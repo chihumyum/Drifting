@@ -353,6 +353,13 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   comment_action: 'comment_action',
   library_item: 'library_item',
   agent_conversation: 'agent_conversation',
+  agent_chat_branch: 'agent_runtime',
+  agent_chat_object: 'agent_runtime',
+  agent_chat_binding: 'agent_runtime',
+  agent_chat_queue: 'agent_runtime',
+  agent_chat_cursor: 'agent_runtime',
+  agent_chat_delivery: 'agent_runtime',
+
   agent_runtime_session: 'agent_runtime',
   agent_runtime_turn: 'agent_runtime',
   agent_runtime_message: 'agent_runtime',

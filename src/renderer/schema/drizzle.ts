@@ -11,6 +11,60 @@ import {
   foreignKey,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+// Agent chat uses a separate versioned object stream. These tables never enter
+// project protocol v1 snapshots; runtime sessions and grants remain local.
+export const AgentChatBranchTable = sqliteTable('agent_chat_branch', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
+  rootId: text('root_id').notNull(),
+  parentBranchId: text('parent_branch_id'),
+  forkTurnId: text('fork_turn_id'),
+  headTurnId: text('head_turn_id'),
+  title: text('title').notNull(),
+  titleClock: text('title_clock').notNull(),
+  deletedAt: text('deleted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  readiness: text('readiness').notNull().default('pending'),
+}, (t) => [index('idx_agent_chat_branch_project').on(t.projectId)]);
+
+export const AgentChatObjectTable = sqliteTable('agent_chat_object', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
+  branchId: text('branch_id'),
+  kind: text('kind').notNull(),
+  bodyJson: text('body_json').notNull(),
+  hash: text('hash').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (t) => [index('idx_agent_chat_object_project').on(t.projectId), index('idx_agent_chat_object_branch').on(t.branchId)]);
+
+export const AgentChatBindingTable = sqliteTable('agent_chat_binding', {
+  conversationId: text('conversation_id').primaryKey().references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
+  localOwner: integer('local_owner', { mode: 'boolean' }).notNull(),
+  sessionId: text('session_id'),
+  exportedOrdinal: integer('exported_ordinal').notNull().default(-1),
+  seededThrough: text('seeded_through'),
+});
+
+export const AgentChatQueueTable = sqliteTable('agent_chat_queue', {
+  conversationId: text('conversation_id').primaryKey().references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
+  revision: integer('revision').notNull().default(1),
+});
+
+export const AgentChatCursorTable = sqliteTable('agent_chat_cursor', {
+  id: text('id').primaryKey(),
+  cursor: text('cursor'),
+  backfillComplete: integer('backfill_complete', { mode: 'boolean' }).notNull().default(false),
+});
+
+export const AgentChatDeliveryTable = sqliteTable('agent_chat_delivery', {
+  scopeId: text('scope_id').notNull(),
+  objectId: text('object_id').notNull(),
+  remoteId: text('remote_id'),
+  state: text('state').notNull(),
+  detail: text('detail'),
+}, (t) => [primaryKey({ columns: [t.scopeId, t.objectId] })]);
 // schema definition in users' local sqlite database.
 
 // project

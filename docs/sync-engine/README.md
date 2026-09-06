@@ -7,6 +7,9 @@ restore, and product terminology.
 
 ## Current architecture
 
+- [`agent-conversation-sync.md`](agent-conversation-sync.md): isolated settled
+  history sync, portable continuation and concurrent branches.
+
 - [`phase0-domain-manifest.md`](phase0-domain-manifest.md): authored and synced
   domain classification.
 - [`phase1-local-runtime-boundary.md`](phase1-local-runtime-boundary.md): local

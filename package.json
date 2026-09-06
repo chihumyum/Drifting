@@ -54,6 +54,8 @@
     "agent:debug:turn": "node scripts/agent-headless-debug-turn.mjs",
     "agent:debug:review": "node scripts/agent-headless-debug-review.mjs",
     "agent:debug:writes": "node scripts/agent-headless-debug-write-matrix.mjs",
+    "agent:conversation-sync:evidence": "tsx scripts/generate-agent-conversation-sync.ts",
+    "agent:conversation-sync:check": "tsx scripts/generate-agent-conversation-sync.ts --check && vitest run src/renderer/sync/agent-chat --reporter=verbose",
     "agent:capabilities:generate": "tsx scripts/generate-agent-capabilities.ts",
     "agent:capabilities:check": "tsx scripts/generate-agent-capabilities.ts --check && vitest run src/renderer/lib/agent/runtime/drifting-agent-capability-manifest.test.ts src/renderer/lib/agent/runtime/acceptance/retired-shadow-arc-evolve.acceptance.test.ts src/renderer/lib/agent/runtime/acceptance/ambient-editor-design.acceptance.test.ts --reporter=verbose",
     "eval:agent:tool-reliability": "node src/renderer/lib/agent/runtime/acceptance/milestone-b-tool-reliability.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-b-tool-reliability.json",

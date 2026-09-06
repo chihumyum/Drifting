@@ -82,6 +82,23 @@ const PROP_LOGICAL: &str = "driftingLogicalKeyId";
 const PROP_HASH: &str = "driftingStoredSha256";
 const PROP_SIZE: &str = "driftingSizeBytes";
 const PROTOCOL_VALUE: &str = "object-v2";
+const AGENT_CHAT_PROTOCOL_VALUE: &str = "agent-chat-v1";
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum DriveNamespace {
+    #[default]
+    Project,
+    AgentChat,
+}
+impl DriveNamespace {
+    fn protocol(self) -> &'static str {
+        match self {
+            Self::Project => PROTOCOL_VALUE,
+            Self::AgentChat => AGENT_CHAT_PROTOCOL_VALUE,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,6 +159,7 @@ struct MobileSdkCredentialV1 {
 
 #[derive(Clone, Debug)]
 struct OpenGeneration {
+    namespace: DriveNamespace,
     credential_secret_ref: String,
     account_subject: String,
     sync_generation_id: String,
@@ -852,6 +870,14 @@ fn parse_drive_file(
     file: DriveFile,
     sync_generation_id: &str,
 ) -> Result<Option<RemoteObject>, NativeError> {
+    parse_drive_file_scoped(file, sync_generation_id, DriveNamespace::Project)
+}
+
+fn parse_drive_file_scoped(
+    file: DriveFile,
+    sync_generation_id: &str,
+    namespace: DriveNamespace,
+) -> Result<Option<RemoteObject>, NativeError> {
     let Some(properties) = file.app_properties else {
         return Ok(None);
     };
@@ -864,7 +890,7 @@ fn parse_drive_file(
     if remote_generation != sync_generation_id {
         return Ok(None);
     }
-    if protocol != PROTOCOL_VALUE {
+    if protocol != namespace.protocol() {
         return Err(NativeError::corrupt(
             "Drive sync object protocol version is unsupported",
         ));
@@ -915,9 +941,10 @@ fn parse_drive_file(
     }))
 }
 
-fn parse_drive_change(
+fn parse_drive_change_scoped(
     change: DriveChange,
     sync_generation_id: &str,
+    namespace: DriveNamespace,
 ) -> Result<RemoteChange, NativeError> {
     let object_id = change
         .file_id
@@ -936,9 +963,11 @@ fn parse_drive_change(
     // Any record that no longer parses as this Sync Generation's immutable object must
     // still reach the reducer as degradation of the known file ID. Unknown IDs
     // are ignored by the renderer, while a known immutable ID becomes corrupt.
-    let parsed = change
-        .file
-        .and_then(|file| parse_drive_file(file, sync_generation_id).ok().flatten());
+    let parsed = change.file.and_then(|file| {
+        parse_drive_file_scoped(file, sync_generation_id, namespace)
+            .ok()
+            .flatten()
+    });
     match parsed {
         Some(object) if object.object_id == object_id => Ok(RemoteChange::Present { object }),
         _ => Ok(RemoteChange::Removed {
@@ -948,13 +977,16 @@ fn parse_drive_change(
     }
 }
 
+#[cfg(test)]
 fn parse_drive_changes(
     changes: Vec<DriveChange>,
     sync_generation_id: &str,
 ) -> Result<Vec<RemoteChange>, NativeError> {
     changes
         .into_iter()
-        .map(|change| parse_drive_change(change, sync_generation_id))
+        .map(|change| {
+            parse_drive_change_scoped(change, sync_generation_id, DriveNamespace::Project)
+        })
         .collect()
 }
 
@@ -2120,6 +2152,7 @@ async fn list_inventory(
     let query = format!(
         "trashed = false and appProperties has {{ key='{PROP_PROTOCOL}' and value='{PROTOCOL_VALUE}' }} and appProperties has {{ key='{PROP_SYNC_GENERATION}' and value='{}' }}",
         escape_drive_query_value(&generation.sync_generation_id),
+        PROTOCOL_VALUE = generation.namespace.protocol(),
     );
     let response = authorized_send(app, state, generation, |client, token| {
         let mut request = client
@@ -2151,7 +2184,9 @@ async fn list_inventory(
     let mut objects = Vec::new();
     let mut logical_keys = HashSet::new();
     for file in wire.files {
-        if let Some(object) = parse_drive_file(file, &generation.sync_generation_id)? {
+        if let Some(object) =
+            parse_drive_file_scoped(file, &generation.sync_generation_id, generation.namespace)?
+        {
             if !logical_keys.insert(object.logical_key_id.clone()) {
                 return Err(NativeError::corrupt(
                     "Drive inventory contains duplicate immutable logical keys",
@@ -2277,7 +2312,13 @@ async fn list_changes(
         return Err(response_error(response).await);
     }
     let wire: ChangeList = parse_json(response).await?;
-    let changes = parse_drive_changes(wire.changes, &generation.sync_generation_id)?;
+    let changes = wire
+        .changes
+        .into_iter()
+        .map(|change| {
+            parse_drive_change_scoped(change, &generation.sync_generation_id, generation.namespace)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     for token in [
         wire.next_page_token.as_deref(),
         wire.new_start_page_token.as_deref(),
@@ -2320,6 +2361,7 @@ async fn stat_objects(
         "trashed = false and appProperties has {{ key='{PROP_PROTOCOL}' and value='{PROTOCOL_VALUE}' }} and appProperties has {{ key='{PROP_SYNC_GENERATION}' and value='{}' }} and appProperties has {{ key='{PROP_LOGICAL}' and value='{}' }}",
         escape_drive_query_value(&generation.sync_generation_id),
         escape_drive_query_value(logical_key_id),
+        PROTOCOL_VALUE = generation.namespace.protocol(),
     );
     let response = authorized_send(app, state, generation, |client, token| {
         client
@@ -2339,7 +2381,9 @@ async fn stat_objects(
     let wire: FileList = parse_json(response).await?;
     let mut objects = Vec::new();
     for file in wire.files {
-        if let Some(object) = parse_drive_file(file, &generation.sync_generation_id)? {
+        if let Some(object) =
+            parse_drive_file_scoped(file, &generation.sync_generation_id, generation.namespace)?
+        {
             objects.push(object);
         }
     }
@@ -2461,7 +2505,7 @@ fn upload_metadata(
         "name": "drifting-sync-object",
         "parents": [APP_DATA_FOLDER],
         "appProperties": {
-            PROP_PROTOCOL: PROTOCOL_VALUE,
+            PROP_PROTOCOL: generation.namespace.protocol(),
             PROP_SYNC_GENERATION: generation.sync_generation_id,
             PROP_KIND: kind.as_str(),
             PROP_LOGICAL: logical_key_id,
@@ -2741,8 +2785,12 @@ async fn upload_impl(
         };
         if let Some(response) = completed {
             let file: DriveFile = parse_json(response).await?;
-            let object = parse_drive_file(file, &generation.sync_generation_id)?
-                .ok_or_else(|| NativeError::corrupt("Completed upload returned no sync object"))?;
+            let object = parse_drive_file_scoped(
+                file,
+                &generation.sync_generation_id,
+                generation.namespace,
+            )?
+            .ok_or_else(|| NativeError::corrupt("Completed upload returned no sync object"))?;
             let object =
                 verify_uploaded_object(object, kind, &logical_key_id, &stored_sha256, size_bytes)?;
             let app_for_remove = app.clone();
@@ -2802,8 +2850,12 @@ async fn upload_impl(
         .await?;
         if response.status().is_success() {
             let uploaded: DriveFile = parse_json(response).await?;
-            let object = parse_drive_file(uploaded, &generation.sync_generation_id)?
-                .ok_or_else(|| NativeError::corrupt("Drive upload returned no sync object"))?;
+            let object = parse_drive_file_scoped(
+                uploaded,
+                &generation.sync_generation_id,
+                generation.namespace,
+            )?
+            .ok_or_else(|| NativeError::corrupt("Drive upload returned no sync object"))?;
             let object =
                 verify_uploaded_object(object, kind, &logical_key_id, &stored_sha256, size_bytes)?;
             let app_for_remove = app.clone();
@@ -2837,8 +2889,12 @@ async fn upload_impl(
         NativeError::transient("Drive did not commit the completed resumable upload")
     })?;
     let uploaded: DriveFile = parse_json(response).await?;
-    let object = parse_drive_file(uploaded, &generation.sync_generation_id)?
-        .ok_or_else(|| NativeError::corrupt("Drive upload returned no sync object"))?;
+    let object = parse_drive_file_scoped(
+        uploaded,
+        &generation.sync_generation_id,
+        generation.namespace,
+    )?
+    .ok_or_else(|| NativeError::corrupt("Drive upload returned no sync object"))?;
     let object = verify_uploaded_object(object, kind, &logical_key_id, &stored_sha256, size_bytes)?;
     let app_for_remove = app.clone();
     let transfer_for_remove = transfer_id.clone();
@@ -2889,7 +2945,7 @@ async fn fetch_remote_metadata(
         return Err(response_error(response).await);
     }
     let wire: DriveFile = parse_json(response).await?;
-    parse_drive_file(wire, &generation.sync_generation_id)?
+    parse_drive_file_scoped(wire, &generation.sync_generation_id, generation.namespace)?
         .ok_or_else(|| NativeError::corrupt("Drive file is not an object in this Sync Generation"))
 }
 
@@ -3124,11 +3180,14 @@ pub(crate) async fn google_drive_open_generation(
     binding_id: String,
     sync_generation_id: String,
     authority_generation: u64,
+    namespace: Option<DriveNamespace>,
 ) -> Result<NativeResult<OpenGenerationResult>, String> {
     let result: Result<OpenGenerationResult, NativeError> = async {
+        let namespace = namespace.unwrap_or_default();
         validate_plain_token(&credential_secret_ref, "Credential secret reference", 128)?;
         validate_plain_token(&account_subject, "Google account subject", 255)?;
         validate_plain_token(&binding_id, "Binding ID", 255)?;
+        let binding_id = format!("{}:{}", namespace.protocol(), binding_id);
         validate_plain_token(&sync_generation_id, "Sync Generation ID", 255)?;
         if authority_generation == 0 || authority_generation > NumberSafeInteger::MAX {
             return Err(NativeError::invalid("Authority generation is invalid"));
@@ -3176,6 +3235,7 @@ pub(crate) async fn google_drive_open_generation(
             .insert(
                 generation_ref.clone(),
                 OpenGeneration {
+                    namespace,
                     credential_secret_ref,
                     account_subject,
                     sync_generation_id: sync_generation_id.clone(),
@@ -3214,6 +3274,7 @@ async fn discovery_account(
     )
     .await?;
     Ok(OpenGeneration {
+        namespace: DriveNamespace::Project,
         credential_secret_ref,
         account_subject,
         sync_generation_id: "project-discovery".into(),
@@ -4312,6 +4373,64 @@ mod tests {
             )
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn agent_chat_namespace_isolated_from_project_inventory_and_changes() {
+        mod legacy {
+            include!("google_drive_sync_legacy_fixture.rs");
+            pub(super) fn read_changes(changes: Vec<DriveChange>) -> Vec<RemoteChange> {
+                parse_drive_changes(changes, "generation-a").unwrap()
+            }
+            pub(super) fn read_object(file: DriveFile) -> Option<RemoteObject> {
+                parse_drive_file(file, "generation-a").ok().flatten()
+            }
+            pub(super) fn discover(file: DriveFile) -> Option<ProjectSnapshotCandidate> {
+                parse_drive_project_snapshot(file).ok().flatten()
+            }
+        }
+        let mut chat = properties();
+        chat.insert(PROP_PROTOCOL.into(), AGENT_CHAT_PROTOCOL_VALUE.into());
+        assert!(parse_drive_file_scoped(
+            drive_file(chat.clone()),
+            "generation-a",
+            DriveNamespace::AgentChat
+        )
+        .unwrap()
+        .is_some());
+        assert!(parse_drive_file(drive_file(chat.clone()), "generation-a").is_err());
+        assert!(parse_drive_project_snapshot(drive_file(chat.clone()))
+            .unwrap()
+            .is_none());
+        assert!(parse_drive_file_scoped(
+            drive_file(properties()),
+            "generation-a",
+            DriveNamespace::AgentChat
+        )
+        .is_err());
+        // The released client selects object-v2 for inventory/discovery. Its
+        // account-wide changes parser treats unrecognized IDs as unrelated.
+        let change = serde_json::from_value(serde_json::json!({
+            "fileId": "chat-file", "removed": false,
+            "file": { "id": "chat-file", "size": "42", "appProperties": chat }
+        }))
+        .unwrap();
+        let legacy_changes = legacy::read_changes(vec![change]);
+        assert!(legacy::read_object(drive_file(chat.clone())).is_none());
+        assert!(legacy::discover(drive_file(chat)).is_none());
+        let prose = legacy::read_object(drive_file(properties())).unwrap();
+        assert_eq!(
+            prose.logical_key_id,
+            parse_drive_file(drive_file(properties()), "generation-a")
+                .unwrap()
+                .unwrap()
+                .logical_key_id
+        );
+        assert!(
+            matches!(&legacy_changes[0], RemoteChange::Removed { object_id, .. } if object_id == "chat-file")
+        );
+        assert_eq!(DriveNamespace::default(), DriveNamespace::Project);
+        assert_ne!(DriveNamespace::AgentChat.protocol(), PROTOCOL_VALUE);
     }
 
     #[test]

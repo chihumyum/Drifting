@@ -203,6 +203,10 @@ export function createRepositoryAgentTransportPersistence(
     ): Promise<AgentTransportPreparedTurn> {
       throwIfAborted(signal);
       assertDurableRoute(input.route);
+      if (input.route.kind === 'chat' && input.route.conversationId && input.route.projectId) {
+        await repository.preparePortableHistory?.({ conversationId: input.route.conversationId, projectId: input.route.projectId, provider: input.provider, model: input.model });
+        throwIfAborted(signal);
+      }
       let session = await resolveSession(repository, input);
       throwIfAborted(signal);
       let recoveredSnapshot = session

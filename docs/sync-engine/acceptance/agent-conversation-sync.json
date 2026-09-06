@@ -1,0 +1,228 @@
+{
+  "contract": {
+    "protocol": "drifting.agent-chat.v1",
+    "nativeNamespace": "agent-chat",
+    "driveProtocol": "agent-chat-v1",
+    "projectProtocol": "object-v2",
+    "projectDomainVersion": 1,
+    "sqliteMigration": "0001_agent_chat_sync",
+    "extensionTables": [
+      "agent_chat_binding",
+      "agent_chat_branch",
+      "agent_chat_cursor",
+      "agent_chat_delivery",
+      "agent_chat_object",
+      "agent_chat_queue"
+    ],
+    "sourceSha256": {
+      "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
+      "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
+      "scripts/generate-agent-conversation-sync.ts": "71d0c87e5d3f7541c09713e11081d49cf86a19343badd6a5f3d77899e13b3f90",
+      "src-tauri/src/database.rs": "0ea35c92ffd8af943dbcd2f71554a6c840fca74dfeb004d2c86036bffa71149f",
+      "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
+      "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
+      "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "7ff82042550b516ac46b2b047bbe58fb06895dd871d784f6ba7dc1d49b489029",
+      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "819b986847d962fd39d4e4107c20bc2bfdbf4810304de90945c7e407b67f5e55",
+      "src/renderer/lib/agent/runtime/recovered-transcript.ts": "14ecc81282cb318199d49f37ee27f5e3148d86554c7e822ced2fb2d16ab310e0",
+      "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "ddf6e45584275945c215414aa37549c83d8d30f47d4b684f3c643e2adb830e12",
+      "src/renderer/lib/events.ts": "19099180a4fdcabd403f1e437f8504fd45148202a0824f197d08b1393f1fe039",
+      "src/renderer/platform/contracts.ts": "d7abe5e13130fce84ae3832ff48a56bbf17bf8dd0441cd5a654bddcc3041ceb0",
+      "src/renderer/platform/types.ts": "48a1b88e2af5c1676be225722e235dc54faadb55ec61164c7e21db09d4ef77aa",
+      "src/renderer/schema/drizzle.ts": "213132eacae7fb530c21537e42a19f8e43c523b3c2ecc87cb3957611f0b55764",
+      "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "c5a9c8a9316c7967434dc5dadc8fb58c1ab9a377c0384624957f0e9f00af35f6",
+      "src/renderer/sqlite-repo/agent-conversation-repo.ts": "50d712fb9ed8f69207848603830fa465c76afd3818a58ee36623b8b47661e963",
+      "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts": "68153df981c09a602bbc1835bdb3e03290b6a5c06f220c5afeafea4d4c4c35e8",
+      "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316",
+      "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f",
+      "src/renderer/store/agent-chat-store.ts": "7981d8e265fea4ba3d471970da1f000ab94f64fbf5cea2bddfcb401579eb1536",
+      "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217",
+      "src/renderer/sync/agent-chat/imported-history.ts": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af",
+      "src/renderer/sync/agent-chat/payload.ts": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c",
+      "src/renderer/sync/agent-chat/protocol.ts": "368d5bab483867663ece81db2ec9fb492d6df9bd76d961e096fc8623e5321464",
+      "src/renderer/sync/agent-chat/repository.ts": "836b39f0c4ce44e318b020251110f2326e6df579a2566108b5f1ffdae349e02e",
+      "src/renderer/sync/agent-chat/runtime.ts": "c5edf303fc6942f14a0777160cf928a4f8b9afd53f4cbf3f533b8be66bc53e0c",
+      "src/renderer/sync/agent-chat/seed.ts": "4f335f75d8203c2196817b313926808ce6300791f0ef8d728fab647a034c7766",
+      "src/renderer/sync/production-runtime.test.ts": "3b0af580f9d88f9ee58c0ba718baa7d578749cff4553afcc962abdcc7cd7aa45",
+      "src/renderer/sync/production-runtime.ts": "ade081ca2396829e4d319ce66e1b312d3ac0e6486612cdb135c13f8d7e33bdee",
+      "src/renderer/sync/protocol/domain-manifest.ts": "351373b649d81bda422c34a27b58291d564b03d96ab19ac7c5045a34d5015f53",
+      "src/renderer/sync/providers/google-drive/tauri-transport.test.ts": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1",
+      "src/renderer/sync/providers/google-drive/tauri-transport.ts": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
+    }
+  },
+  "automated": {
+    "status": "passed",
+    "renderer": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "Agent chat extension: two independent product databases converges concurrent deletion timestamps independently of receive order",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases converges simultaneous title edits and quarantines malformed display per branch",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases does not advance a cancelled account cursor or apply its responses",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases does not publish an executing root or block its first local session during backfill",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases imports repeated call IDs, verified summaries and paged results as inert local history",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases keeps legacy display caches read-only and blocks incomplete history",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases leaves publication pending across a transport failure and restart",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases leaves v1 prose snapshot bytes unchanged and blocks deleted project generations",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases preserves concurrent continuations and converges after reordered/repeated delivery",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases preserves visible author context without displaying hidden runtime instructions",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases publishes committed canonical history and resumes under a new local session",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases rebuilds an acknowledged inbox after a crash before its conversation projection",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases rejects immutable identity conflicts and foreign-generation envelopes",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases resumes bounded backfill and recovers an expired cursor without duplicate turns",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases retains tombstones when a late local turn completes",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases retries database interruptions at export and receive without acknowledging lost objects",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases syncs aborted display without promoting partial replies into model history",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases syncs failed display without promoting partial replies into model history",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat extension: two independent product databases waits for all referenced chunks before opening a received turn",
+          "status": "passed"
+        },
+        {
+          "name": "durable Agent result artifact repository deduplicates blobs and refuses quota overflow without invalidating existing refs",
+          "status": "passed"
+        },
+        {
+          "name": "durable Agent result artifact repository fails closed on content corruption and on a single result above quota",
+          "status": "passed"
+        },
+        {
+          "name": "durable Agent result artifact repository isolates project/session access and performs age-scoped garbage collection",
+          "status": "passed"
+        },
+        {
+          "name": "durable Agent result artifact repository pages exact Unicode content after closing and reopening the repository",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance creates the exact current baseline and reopens idempotently",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance enforces immutable, single-owner assets while preserving project cascade",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance fails closed when an applied baseline hash is tampered",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance fails closed when application tables have no current baseline history",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance preserves continuous chapter coordinates in integer-affinity baseline columns",
+          "status": "passed"
+        },
+        {
+          "name": "product file-backed migration acceptance refuses a database created by a newer migration journal",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+          "status": "passed"
+        },
+        {
+          "name": "TauriGoogleDriveObjectTransport opens an explicit Agent namespace while preserving the released project call shape",
+          "status": "passed"
+        },
+        {
+          "name": "TauriGoogleDriveObjectTransport projects only opaque references and immutable metadata across the native boundary",
+          "status": "passed"
+        }
+      ]
+    },
+    "native": {
+      "passed": 108,
+      "failed": 0,
+      "ignored": 1,
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"
+    }
+  },
+  "physical": {
+    "status": "not-run",
+    "platforms": [
+      "macOS",
+      "iOS",
+      "Android"
+    ],
+    "gates": [
+      "same-account restore and continuation",
+      "offline concurrent branches",
+      "deletion and restart",
+      "fresh device recovery",
+      "account reauthorization",
+      "previous-client bidirectional prose sync"
+    ]
+  }
+}

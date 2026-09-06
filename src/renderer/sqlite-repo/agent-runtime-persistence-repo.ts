@@ -1,3 +1,4 @@
+import { events } from '../lib/events';
 import {
   and,
   asc,
@@ -118,6 +119,8 @@ export type AppendAgentRuntimeEventResult =
   | { outcome: 'duplicate'; event: PersistedAgentRuntimeEvent };
 
 export interface AgentRuntimePersistenceRepository {
+  loadPortableDisplay?(sessionId: string): Promise<{ turnId: string; messages: import('../domain/agent-conversation').AgentChatMessage[] } | null>;
+  preparePortableHistory?(input: { conversationId: string; projectId: string; provider: string; model: string | null }): Promise<void>;
   createSession(session: PersistedAgentRuntimeSession): Promise<void>;
   getSession(id: string): Promise<PersistedAgentRuntimeSession | null>;
   updateSession(id: string, patch: UpdateAgentRuntimeSession): Promise<void>;
@@ -766,6 +769,14 @@ export function createAgentRuntimePersistenceRepository(
   };
 
   return {
+    async loadPortableDisplay(sessionId) {
+      const { loadImportedChatDisplay } = await import('../sync/agent-chat/imported-history');
+      return loadImportedChatDisplay(dbProvider() as import('../lib/db').DbClient, sessionId);
+    },
+    async preparePortableHistory(input) {
+      const { seedAgentChatSession } = await import('../sync/agent-chat/seed');
+      await seedAgentChatSession(dbProvider() as import('../lib/db').DbClient, input.conversationId, input.projectId, input.provider, input.model);
+    },
     async createSession(session) {
       await dbProvider().insert(AgentRuntimeSessionTable).values(session);
     },
@@ -1328,7 +1339,11 @@ export function createAgentRuntimePersistenceRepository(
           .set({ status: 'idle', updatedAt: endedAt, endedAt: null })
           .where(eq(AgentRuntimeSessionTable.id, sessionId));
         return 'inserted';
-      }, { behavior: 'immediate' });
+      }, { behavior: 'immediate' }).then((outcome) => {
+        // The transaction owns durability; wakeups are only an optimization.
+        void getSession(sessionId).then((session) => { if (session?.conversationId) events.emit('agent:conversation-committed', { projectId: session.projectId }); }).catch(() => {});
+        return outcome;
+      });
     },
 
     async interruptSession(sessionId, interruptedAt) {

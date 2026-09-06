@@ -1001,7 +1001,9 @@ fn open_database(
         &database_path,
         env!("CARGO_PKG_VERSION"),
     )?;
-    let migrations_applied = if database_existed && !marker_is_current {
+    let migrations_applied = if database_existed
+        && (!marker_is_current || database_has_pending_migrations(&connection)?)
+    {
         checkpoint_database(&connection)?;
         let safety_backup = create_pre_update_safety_backup(
             &connection,
@@ -1094,6 +1096,31 @@ fn database_version_is_current(
     Ok(fs::read_to_string(marker)
         .map(|value| value.trim() == app_version)
         .unwrap_or(false))
+}
+
+/// A development build can append a public migration without changing its
+/// package version. Such an upgrade still requires the verified shadow path.
+fn database_has_pending_migrations(connection: &Connection) -> DatabaseResult<bool> {
+    let journal_file = DRIZZLE_MIGRATIONS
+        .get_file("meta/_journal.json")
+        .ok_or_else(|| "embedded Drizzle migration journal is missing".to_string())?;
+    let journal: MigrationJournal = serde_json::from_slice(journal_file.contents())
+        .map_err(|error| format!("invalid embedded Drizzle migration journal: {error}"))?;
+    validate_migration_journal(&journal)?;
+    let exists: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = '__drizzle_migrations')", [], |row| row.get(0),
+    ).map_err(|error| format!("failed to inspect migration journal: {error}"))?;
+    if !exists {
+        return Ok(true);
+    }
+    let applied: usize = connection
+        .query_row(
+            &format!("SELECT count(*) FROM {MIGRATIONS_TABLE}"),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("failed to count applied migrations: {error}"))?;
+    Ok(applied < journal.entries.len())
 }
 
 fn database_opened_version(
@@ -1670,6 +1697,7 @@ fn create_pre_update_safety_backup(
     if fs::read_to_string(&marker)
         .map(|value| value.trim() == app_version)
         .unwrap_or(false)
+        && !database_has_pending_migrations(connection)?
     {
         return Ok(None);
     }
@@ -2694,6 +2722,135 @@ mod tests {
     }
 
     #[test]
+    fn agent_chat_upgrade_preserves_published_history_with_a_same_version_safety_snapshot() {
+        use sha2::{Digest, Sha256};
+        for inject_failure in [false, true] {
+            let (directory, gateway) = gateway();
+            let database_path = directory.path().join("published.db");
+            let connection = Connection::open(&database_path).unwrap();
+            let journal: MigrationJournal = serde_json::from_slice(
+                DRIZZLE_MIGRATIONS
+                    .get_file("meta/_journal.json")
+                    .unwrap()
+                    .contents(),
+            )
+            .unwrap();
+            let baseline = DRIZZLE_MIGRATIONS
+                .get_file("0000_local_first_baseline.sql")
+                .unwrap();
+            connection
+                .execute_batch(std::str::from_utf8(baseline.contents()).unwrap())
+                .unwrap();
+            connection.execute_batch("CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric);").unwrap();
+            connection
+                .execute(
+                    "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?1, ?2)",
+                    rusqlite::params![
+                        format!("{:x}", Sha256::digest(baseline.contents())),
+                        journal.entries[0].when
+                    ],
+                )
+                .unwrap();
+            connection.execute_batch("INSERT INTO project (id, name, user_id, created_at, updated_at) VALUES ('p', 'Synthetic project', 'local', '2026-09-05T00:00:00.000Z', '2026-09-05T00:00:00.000Z');
+                INSERT INTO agent_conversation (id, project_id, title, messages_json, created_at, updated_at) VALUES ('c', 'p', 'Synthetic history', '[]', '2026-09-05T00:00:00.000Z', '2026-09-05T00:00:00.000Z');").unwrap();
+            if inject_failure {
+                connection
+                    .execute_batch("CREATE TABLE agent_chat_branch (id TEXT PRIMARY KEY);")
+                    .unwrap();
+            }
+            drop(connection);
+            record_opened_app_version(directory.path(), &database_path, env!("CARGO_PKG_VERSION"))
+                .unwrap();
+            let result = gateway.open("published.db".into(), CLIENT_SESSION.into(), false);
+            let backups = std::fs::read_dir(
+                directory
+                    .path()
+                    .join("safety-backups")
+                    .join(env!("CARGO_PKG_VERSION")),
+            )
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == "sqlite")
+            })
+            .collect::<Vec<_>>();
+            assert_eq!(backups.len(), 1);
+            let backup = Connection::open(backups[0].path()).unwrap();
+            assert_eq!(
+                backup
+                    .query_row("SELECT count(*) FROM __drizzle_migrations", [], |row| row
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                backup
+                    .query_row(
+                        "SELECT title FROM agent_conversation WHERE id='c'",
+                        [],
+                        |row| row.get::<_, String>(0)
+                    )
+                    .unwrap(),
+                "Synthetic history"
+            );
+            if inject_failure {
+                assert!(result.unwrap_err().contains("database-recovery:"));
+                // Opening can checkpoint WAL headers, but no migration changes the source schema/data.
+                let active = Connection::open(&database_path).unwrap();
+                assert_eq!(
+                    active
+                        .query_row("SELECT count(*) FROM __drizzle_migrations", [], |row| row
+                            .get::<_, i64>(
+                            0
+                        ))
+                        .unwrap(),
+                    1
+                );
+                assert_eq!(
+                    active
+                        .query_row(
+                            "SELECT count(*) FROM sqlite_schema WHERE name='agent_chat_object'",
+                            [],
+                            |row| row.get::<_, i64>(0)
+                        )
+                        .unwrap(),
+                    0
+                );
+                assert_eq!(
+                    active
+                        .query_row(
+                            "SELECT title FROM agent_conversation WHERE id='c'",
+                            [],
+                            |row| row.get::<_, String>(0)
+                        )
+                        .unwrap(),
+                    "Synthetic history"
+                );
+            } else {
+                assert_eq!(result.unwrap().migrations_applied, 1);
+                let rows = gateway
+                    .query(
+                        "SELECT title FROM agent_conversation WHERE id='c'".into(),
+                        vec![],
+                        None,
+                        CLIENT_SESSION.into(),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    rows.rows,
+                    [vec![DatabaseValue::Text("Synthetic history".into())]]
+                );
+                gateway.close(CLIENT_SESSION.into()).unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn refuses_a_tampered_applied_baseline_and_requires_reset() {
         let (directory, gateway) = gateway();
         gateway
@@ -3061,6 +3218,7 @@ mod tests {
         let directory = TempDir::new().expect("temporary database directory");
         let database_path = directory.path().join("library.db");
         let connection = Connection::open(&database_path).expect("open source database");
+        apply_migrations(&connection).expect("current public migration baseline");
         connection
             .execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE prose (body TEXT NOT NULL); INSERT INTO prose VALUES ('kept');")
             .expect("seed source database");
