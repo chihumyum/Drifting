@@ -577,23 +577,7 @@ export function PlotGridEditor({
     );
   };
 
-  const grip = (floating: boolean) => (
-    <button
-      type="button"
-      className={`pl-resize-grip${floating ? ' pl-resize-grip--float' : ''}`}
-      title={t('plotGrid.resize')}
-      aria-label={t('plotGrid.resize')}
-      onPointerDown={onGripPointerDown}
-    >
-      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-        <line x1="11" y1="4" x2="4" y2="11" />
-        <line x1="11" y1="8" x2="8" y2="11" />
-      </svg>
-    </button>
-  );
-
   return (
-    <div className="planner-host">
     <div
       ref={wrapRef}
       className="planner-wrap"
@@ -687,8 +671,21 @@ export function PlotGridEditor({
           ))}
         </tbody>
       </table>
-      {/* Desktop: the grip sits on the table's own corner. */}
-      {!mobile && grip(false)}
+      {/* Desktop: the grip sits on the table's own corner; the phone resizes by pinch. */}
+      {!mobile && (
+        <button
+          type="button"
+          className="pl-resize-grip"
+          title={t('plotGrid.resize')}
+          aria-label={t('plotGrid.resize')}
+          onPointerDown={onGripPointerDown}
+        >
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+            <line x1="11" y1="4" x2="4" y2="11" />
+            <line x1="11" y1="8" x2="8" y2="11" />
+          </svg>
+        </button>
+      )}
       </div>
 
       {!mobile && menu && (
@@ -716,10 +713,6 @@ export function PlotGridEditor({
           ))}
         </AnchoredPopover>
       )}
-    </div>
-    {/* Phone: the grip floats at the host's corner so it stays reachable while
-        the table pans; dragging changes width and height independently. */}
-    {mobile && grip(true)}
     </div>
   );
 }

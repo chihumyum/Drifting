@@ -172,9 +172,8 @@ editing, timeline, material, comment, and Agent capabilities.
   phone keeps a device-local size per grid, fits once on first open, and
   changes it by pinch: fingers starting side by side scale only the width,
   fingers stacked vertically only the height, a diagonal pinch both, so the
-  aspect ratio is adjustable; a floating corner grip at the tool's bottom-right
-  drags width and height independently the same way the desktop corner grip
-  does; the live size shows in a badge while it changes. The row header column hugs its widest label between a
+  aspect ratio is adjustable without a grip; the live size shows in a badge
+  while it changes. The row header column hugs its widest label between a
   per-presentation minimum and maximum, and long labels wrap (three lines on
   desktop, four on the phone) instead of truncating; the header menu button
   floats over the label end on hover rather than reserving a gutter. Tool
