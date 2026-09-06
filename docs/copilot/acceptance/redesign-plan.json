@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "implementation_plan",
+  "maintainedBy": "human",
+  "updatedAt": "2026-09-05",
+  "document": "docs/copilot/redesign-plan.md",
+  "planStatus": "recorded",
+  "redesignImplementationStatus": "not_started",
+  "evidenceMeaning": "Empty evidence means planned acceptance only, not a passed check or shipped capability.",
+  "phases": [
+    {
+      "id": "P1",
+      "title": "修复可靠性",
+      "dependsOn": [],
+      "status": "planned",
+      "acceptance": [
+        { "id": "C01", "requirement": "检测处理版本与摘要覆盖独立，任意完成顺序不遗漏任务", "evidence": [] },
+        { "id": "C02", "requirement": "源变更使旧结果失效，陈旧摘要不作为当前事实", "evidence": [] },
+        { "id": "C03", "requirement": "修改校验原文与所有目标，保留格式结构并支持撤销", "evidence": [] },
+        { "id": "C04", "requirement": "接受幂等可恢复，失败不记为已处理，手动任务有终态", "evidence": [] }
+      ]
+    },
+    {
+      "id": "P2",
+      "title": "改善手动辅助和转交",
+      "dependsOn": ["P1"],
+      "status": "planned",
+      "acceptance": [
+        { "id": "C05", "requirement": "自然语言正确区分回答与准备修改，避免宽泛词误拒绝", "evidence": [] },
+        { "id": "C06", "requirement": "作用范围清楚准确，手动调用独立于自动设置", "evidence": [] },
+        { "id": "C07", "requirement": "同会话讨论可返回，项目隔离，过期原文重新准备", "evidence": [] },
+        { "id": "C08", "requirement": "General Agent 转交可审阅取消，发送幂等且保留路由权限", "evidence": [] }
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "建立编辑调度和建议生命周期",
+      "dependsOn": ["P1", "P2"],
+      "status": "planned",
+      "acceptance": [
+        { "id": "C09", "requirement": "区分事务来源，合并编辑，初始化和重复挂载不误触发", "evidence": [] },
+        { "id": "C10", "requirement": "手动优先、并发、预算、延迟恢复与取消可确定性验证", "evidence": [] },
+        { "id": "C11", "requirement": "稳定事项身份与有范围的作者反馈控制后续建议", "evidence": [] },
+        { "id": "C12", "requirement": "作者决定持久保留，新增域通过同步与安全迁移验收", "evidence": [] }
+      ]
+    },
+    {
+      "id": "P4",
+      "title": "上线结合上下文的自动建议",
+      "dependsOn": ["P3"],
+      "status": "planned",
+      "acceptance": [
+        { "id": "C13", "requirement": "单次机会判断和候选生成支持无建议且不扩大权限", "evidence": [] },
+        { "id": "C14", "requirement": "证据、新鲜度、去重和请求输出预算得到执行", "evidence": [] },
+        { "id": "C15", "requirement": "提示不打断输入，展示前重验，复用 Review 且至多主动提示一项", "evidence": [] },
+        { "id": "C16", "requirement": "设置迁移保留作者选择，仅一条自动路径且无隐式 Provider 切换", "evidence": [] }
+      ]
+    },
+    {
+      "id": "P5",
+      "title": "真实写作验收与发布",
+      "dependsOn": ["P4"],
+      "status": "planned",
+      "acceptance": [
+        { "id": "C17", "requirement": "合成轨迹无遗漏、过期写入、重复接受和未授权自动写入", "evidence": [] },
+        { "id": "C18", "requirement": "真实 Provider 的质量边界、错误、取消、延迟和成本有记录", "evidence": [] },
+        { "id": "C19", "requirement": "对照旧行为记录有用性、重复、打扰、手动效率和成本以决定上线", "evidence": [] },
+        { "id": "C20", "requirement": "必要检查通过，文档准确区分实现、实机验收与发布", "evidence": [] }
+      ]
+    }
+  ]
+}
