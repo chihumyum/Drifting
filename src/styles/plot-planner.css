@@ -339,6 +339,25 @@
   color: hsl(var(--ink-4));
 }
 
+/* Live cell size while the grip or a pinch is changing it. */
+.pl-size-badge {
+  position: sticky;
+  top: 6px;
+  left: 6px;
+  z-index: 5;
+  display: inline-block;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  font: 11px var(--font-sans);
+  line-height: 22px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 /* Mobile cells are tap targets that hand editing to the sheet. */
 .pl-cell--tap {
   display: -webkit-box;

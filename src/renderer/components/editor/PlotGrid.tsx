@@ -327,27 +327,40 @@ export function PlotGridEditor({
     window.addEventListener('pointercancel', cancel);
   };
 
-  // Mobile pinch: two fingers scale both dimensions around the current size.
-  const pinchRef = useRef<{ distance: number; start: PlotGridCellSize; last: PlotGridCellSize } | null>(null);
-  const touchDistance = (touches: React.TouchList) =>
+  // Mobile pinch, direction-aware so the aspect ratio is adjustable: two
+  // fingers that start roughly side by side scale only the width, fingers
+  // stacked vertically scale only the height, a diagonal pinch scales both.
+  const pinchRef = useRef<{
+    dx: number;
+    dy: number;
+    distance: number;
+    axis: 'w' | 'h' | 'both';
+    start: PlotGridCellSize;
+    last: PlotGridCellSize;
+  } | null>(null);
+  const touchDelta = (touches: React.TouchList) =>
     touches.length < 2
-      ? 0
-      : Math.hypot(
-          touches[0]!.clientX - touches[1]!.clientX,
-          touches[0]!.clientY - touches[1]!.clientY,
-        );
+      ? { dx: 0, dy: 0 }
+      : {
+          dx: Math.abs(touches[0]!.clientX - touches[1]!.clientX),
+          dy: Math.abs(touches[0]!.clientY - touches[1]!.clientY),
+        };
   const onPinchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
     if (!mobile || e.touches.length < 2) return;
+    const { dx, dy } = touchDelta(e.touches);
+    const axis = dx >= dy * 2 ? 'w' : dy >= dx * 2 ? 'h' : 'both';
     const start = { cellW: draft.grid.cellW, cellH: draft.grid.cellH };
-    pinchRef.current = { distance: touchDistance(e.touches), start, last: start };
+    pinchRef.current = { dx, dy, distance: Math.hypot(dx, dy), axis, start, last: start };
   };
   const onPinchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
     const pinch = pinchRef.current;
     if (!pinch || e.touches.length < 2 || pinch.distance <= 0) return;
     if (e.cancelable) e.preventDefault();
-    const ratio = touchDistance(e.touches) / pinch.distance;
+    const { dx, dy } = touchDelta(e.touches);
+    const ratioW = pinch.axis === 'h' ? 1 : pinch.axis === 'w' ? dx / Math.max(1, pinch.dx) : Math.hypot(dx, dy) / pinch.distance;
+    const ratioH = pinch.axis === 'w' ? 1 : pinch.axis === 'h' ? dy / Math.max(1, pinch.dy) : Math.hypot(dx, dy) / pinch.distance;
     pinch.last = clampPlotGridCellSize(
-      { cellW: pinch.start.cellW * ratio, cellH: pinch.start.cellH * ratio },
+      { cellW: pinch.start.cellW * ratioW, cellH: pinch.start.cellH * ratioH },
       presentation,
     );
     setLiveSize(pinch.last);
@@ -578,6 +591,11 @@ export function PlotGridEditor({
       onTouchEnd={mobile ? onPinchEnd : undefined}
       onTouchCancel={mobile ? onPinchEnd : undefined}
     >
+      {liveSize && (
+        <span className="pl-size-badge" aria-live="polite">
+          {liveSize.cellW} × {liveSize.cellH}
+        </span>
+      )}
       <div className="pl-table-box" style={{ width: layout.tableW }}>
       <table className="pl-table" style={{ width: layout.tableW }}>
         <colgroup>

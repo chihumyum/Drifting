@@ -170,7 +170,9 @@ editing, timeline, material, comment, and Agent capabilities.
   host and stores it. Desktop stores that size in the synced `cellW` / `cellH`
   record (`size.set`) and also changes it by hand with the corner grip; the
   phone keeps a device-local size per grid, fits once on first open, and
-  changes it by pinch. The row header column hugs its widest label between a
+  changes it by pinch: fingers starting side by side scale only the width,
+  fingers stacked vertically only the height, a diagonal pinch both, so the
+  aspect ratio is adjustable; the live size shows in a badge while it changes. The row header column hugs its widest label between a
   per-presentation minimum and maximum, and long labels wrap (three lines on
   desktop, four on the phone) instead of truncating; the header menu button
   floats over the label end on hover rather than reserving a gutter. Tool
