@@ -58,3 +58,23 @@ under concurrent native-build/test load (a runtime timeout and a 21.67ms tool
 search p95 against a 20ms limit). Both files passed on a serial rerun, 41/41.
 The working checkout's unrelated local signing and sync changes were excluded
 from the publication candidate.
+
+## Settings entry — 2026-09-06
+
+The expanded sidebar header places a Settings gear immediately to the left of
+Close, after the tool tabs. Both actions keep a 44px touch target and the same
+visual weight; the tab strip remains horizontally scrollable on narrow screens.
+The gear opens the existing standalone mobile Settings index. Navigation stays
+owned by `MobileAppShell`, with the source paper path passed through route state,
+so Settings Back returns to that paper. Settings is not an additional tool tab.
+
+`mobile-standalone-routes.acceptance.test.ts` covers header placement, callback
+wiring, source-route return and fixed action widths. This addition has not yet
+been checked on a Simulator or physical device; the Simulator evidence above
+predates the Settings button.
+
+Current-checkout validation passed CI contract, typecheck, lint (zero errors,
+76 warnings), Agent capabilities (19 tests), and the full suite (2,071 passed,
+one skipped). The public-boundary
+check is blocked by the checkout's pre-existing local Xcode development-team
+setting, which this change does not modify.

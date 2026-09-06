@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { Settings, X } from 'lucide-react';
 import { motion, useIsPresent, useReducedMotion } from 'framer-motion';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
@@ -28,10 +28,12 @@ export function MobileRightSidebar({
   projectId,
   target,
   onClose,
+  onOpenSettings,
 }: {
   projectId: string;
   target: WorkspaceTarget;
   onClose: () => void;
+  onOpenSettings: () => void;
 }) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -145,6 +147,14 @@ export function MobileRightSidebar({
               </button>
             ))}
           </nav>
+          <button
+            type="button"
+            className="m-tools-face__settings"
+            onClick={onOpenSettings}
+            aria-label={t('settings.title')}
+          >
+            <Settings size={18} strokeWidth={1.7} aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="m-tools-face__close"

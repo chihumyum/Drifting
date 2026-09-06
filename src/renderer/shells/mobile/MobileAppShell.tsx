@@ -283,6 +283,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         onActivate={(paper) => activatePaper(paper.target)}
         onOpenPaper={openPaper}
         onRememberScroll={rememberScroll}
+        onOpenSettings={() => navigate('/settings', { state: { from: location.pathname } })}
         onOpenOverview={() => {
           setProjectSearchQuery(null);
           dispatchWorkspaceUi({ type: 'show-overview' });

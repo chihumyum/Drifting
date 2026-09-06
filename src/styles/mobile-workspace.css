@@ -1016,6 +1016,7 @@
   box-shadow: inset 0 -1.5px 0 hsl(var(--ink-1));
 }
 
+.m-tools-face__settings,
 .m-tools-face__close {
   display: grid;
   place-items: center;
@@ -1095,6 +1096,7 @@
   letter-spacing: 0;
 }
 
+.m-right-sidebar .m-tools-face__settings,
 .m-right-sidebar .m-tools-face__close {
   flex: 0 0 44px;
 }

@@ -193,6 +193,7 @@ export function MobilePaperDeck({
   onOpenPaper,
   onRememberScroll,
   onOpenOverview,
+  onOpenSettings,
   workspaceUi,
   onWorkspaceUiAction,
 }: {
@@ -203,6 +204,7 @@ export function MobilePaperDeck({
   onOpenPaper: (target: WorkspaceTarget) => void;
   onRememberScroll: (key: string, scrollTop: number) => void;
   onOpenOverview: () => void;
+  onOpenSettings: () => void;
   workspaceUi: MobileWorkspaceUiState;
   onWorkspaceUiAction: Dispatch<MobileWorkspaceAction>;
 }) {
@@ -690,6 +692,7 @@ export function MobilePaperDeck({
             projectId={projectId}
             target={active.target}
             onClose={() => onWorkspaceUiAction({ type: 'set-overlay', overlay: 'none' })}
+            onOpenSettings={onOpenSettings}
           />
         )}
       </AnimatePresence>

@@ -292,6 +292,27 @@ describe('mobile standalone routes', () => {
     expect(settings).not.toContain('LucideIcon');
   });
 
+  it('opens settings beside the right-sidebar close action and returns to the source paper', () => {
+    const sidebar = rendererSource('shells/mobile/workspace/MobileRightSidebar.tsx');
+    const deck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
+    const shell = rendererSource('shells/mobile/MobileAppShell.tsx');
+    const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');
+    const css = fs.readFileSync(path.join(stylesRoot, 'mobile-workspace.css'), 'utf8');
+
+    expect(sidebar).toMatch(
+      /<\/nav>\s*<button[^>]*className="m-tools-face__settings"[^>]*onClick=\{onOpenSettings\}[^>]*aria-label=\{t\('settings.title'\)\}[\s\S]*?<\/button>\s*<button[^>]*className="m-tools-face__close"/,
+    );
+    expect(deck).toMatch(/<MobileRightSidebar[\s\S]*?onOpenSettings=\{onOpenSettings\}/);
+    expect(shell).toMatch(
+      /<MobilePaperDeck[\s\S]*?onOpenSettings=\{\(\) => navigate\('\/settings', \{ state: \{ from: location.pathname \} \}\)\}/,
+    );
+    expect(settings).toContain('setSearchParams({}, { replace: true, state: location.state })');
+    expect(settings).toContain("navigate(typeof from === 'string' && from.startsWith('/') ? from : '/', { replace: true })");
+    expect(css).toMatch(
+      /\.m-right-sidebar \.m-tools-face__settings,\s*\.m-right-sidebar \.m-tools-face__close \{\s*flex: 0 0 44px;/,
+    );
+  });
+
   it('gives mobile settings safe areas, stacked content and touch-sized controls', () => {
     const css = fs.readFileSync(path.join(stylesRoot, 'mobile-settings.css'), 'utf8');
     expect(css).toContain('.m-settings__index');
