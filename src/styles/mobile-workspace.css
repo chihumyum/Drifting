@@ -788,14 +788,14 @@
 }
 
 /* Only an open input keyboard reduces the paper viewport. Reading chrome and
-   the accessory float over the full-screen scroll owner. */
+   the accessory float over the full-screen scroll owner, so the prose keeps
+   scrolling underneath the accessory instead of stopping at an opaque band
+   above the keyboard (the accessory may become translucent). */
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
   .m-paper-deck__content,
 .m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
   .m-paper-deck__content {
-  padding-bottom: calc(
-    var(--m-unified-bar-height) + 14px + var(--m-unified-keyboard-inset)
-  );
+  padding-bottom: var(--m-unified-keyboard-inset);
 }
 
 .m-paper-scroll-memory {
@@ -2508,6 +2508,14 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   display: block;
   height: env(safe-area-inset-top);
   pointer-events: none;
+}
+/* The accessory overlays the bottom of the scroll owner: caret and focus
+   reveals keep clear of it, and the document end can still travel above it. */
+.m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
+  .editor-scroll,
+.m-workspace[data-controller-transient='search'][data-controller-keyboard='open']
+  .editor-scroll {
+  scroll-padding-bottom: calc(var(--m-unified-bar-height) + 14px);
 }
 
 .m-workspace[data-controller-paper-mode='edit'][data-controller-keyboard='open']
