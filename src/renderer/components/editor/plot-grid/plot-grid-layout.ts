@@ -1,32 +1,100 @@
-import { cellKey, type PlotAxis, type PlotGrid } from '../../../domain/plot-grid';
+import {
+  MAX_CELL_H,
+  MAX_CELL_W,
+  MIN_CELL_H,
+  MIN_CELL_W,
+  cellKey,
+  type PlotAxis,
+  type PlotGrid,
+} from '../../../domain/plot-grid';
 
 /**
  * Plot Grid presentation geometry (shared by the desktop dock and the mobile
- * paper tool). The table always fills the host's body: cells stretch on both
- * axes down to a per-presentation minimum, then the overflowing axis scrolls
- * while its opposite header stays pinned. `cellW` / `cellH` in the domain
- * record are the retired corner-grip preferences and no longer drive layout.
+ * paper tool).
+ *
+ * Cells have a SIZE of their own. Adding rows or columns never squeezes the
+ * existing cells: the table grows and the overflowing axis scrolls with the
+ * opposite header pinned. "Fit" is an ACTION that computes the size at which
+ * the whole table fills the host exactly, writes it into that size, and then
+ * leaves it fixed again. The desktop size is the synced cellW / cellH record;
+ * the mobile size is device-local (a phone-sized cell means nothing on a
+ * desktop and vice versa), so each presentation carries its own bounds.
  */
 export type PlotGridPresentation = 'desktop' | 'mobile';
+
+export interface PlotGridCellSize {
+  readonly cellW: number;
+  readonly cellH: number;
+}
 
 export interface PlotGridLayoutMetrics {
   readonly minCellW: number;
   readonly minCellH: number;
+  readonly maxCellW: number;
+  readonly maxCellH: number;
   readonly rowHeaderW: number;
   readonly colHeaderH: number;
 }
 
 export const PLOT_GRID_LAYOUT_METRICS: Record<PlotGridPresentation, PlotGridLayoutMetrics> = {
-  desktop: { minCellW: 120, minCellH: 64, rowHeaderW: 96, colHeaderH: 30 },
-  mobile: { minCellW: 84, minCellH: 72, rowHeaderW: 60, colHeaderH: 34 },
+  // Desktop bounds equal the domain record's bounds so every size is storable.
+  desktop: {
+    minCellW: MIN_CELL_W,
+    minCellH: MIN_CELL_H,
+    maxCellW: MAX_CELL_W,
+    maxCellH: MAX_CELL_H,
+    rowHeaderW: 96,
+    colHeaderH: 30,
+  },
+  mobile: { minCellW: 84, minCellH: 72, maxCellW: 440, maxCellH: 380, rowHeaderW: 60, colHeaderH: 34 },
 };
 
-export interface PlotGridLayoutInput {
+export function clampPlotGridCellSize(
+  size: PlotGridCellSize,
+  presentation: PlotGridPresentation,
+): PlotGridCellSize {
+  const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
+  const clamp = (value: number, min: number, max: number, fallback: number) =>
+    Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
+  return {
+    cellW: clamp(size.cellW, metrics.minCellW, metrics.maxCellW, metrics.minCellW),
+    cellH: clamp(size.cellH, metrics.minCellH, metrics.maxCellH, metrics.minCellH),
+  };
+}
+
+export interface PlotGridFitInput {
   readonly width: number;
   readonly height: number;
   readonly rows: number;
   readonly cols: number;
   readonly presentation: PlotGridPresentation;
+}
+
+/**
+ * The cell size at which the table fills the host on both axes, clamped to the
+ * presentation bounds (a crowded axis therefore still overflows at the
+ * minimum). Callers store the result; it is a one-time action, not a mode.
+ */
+export function fitPlotGridCellSize({
+  width,
+  height,
+  rows,
+  cols,
+  presentation,
+}: PlotGridFitInput): PlotGridCellSize {
+  const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
+  const safeRows = Math.max(1, rows);
+  const safeCols = Math.max(1, cols);
+  const availableW = Math.max(0, width - metrics.rowHeaderW);
+  const availableH = Math.max(0, height - metrics.colHeaderH);
+  return clampPlotGridCellSize(
+    { cellW: Math.floor(availableW / safeCols), cellH: Math.floor(availableH / safeRows) },
+    presentation,
+  );
+}
+
+export interface PlotGridLayoutInput extends PlotGridFitInput {
+  readonly cellSize: PlotGridCellSize;
 }
 
 export interface PlotGridLayout {
@@ -40,34 +108,36 @@ export interface PlotGridLayout {
   readonly scrollY: boolean;
   readonly tableW: number;
   readonly tableH: number;
+  /** True when the table already fills the host on both axes (fit is a no-op). */
+  readonly fitted: boolean;
 }
 
-/** Fill both axes; clamp at the minimum and let that axis scroll. */
+/** Lay the table out at its fixed cell size; whichever axis overflows scrolls. */
 export function resolvePlotGridLayout({
   width,
   height,
   rows,
   cols,
   presentation,
+  cellSize,
 }: PlotGridLayoutInput): PlotGridLayout {
   const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
   const safeRows = Math.max(1, rows);
   const safeCols = Math.max(1, cols);
-  const availableW = Math.max(0, width - metrics.rowHeaderW);
-  const availableH = Math.max(0, height - metrics.colHeaderH);
-  const fillW = Math.floor(availableW / safeCols);
-  const fillH = Math.floor(availableH / safeRows);
-  const cellW = Math.max(metrics.minCellW, fillW);
-  const cellH = Math.max(metrics.minCellH, fillH);
+  const { cellW, cellH } = clampPlotGridCellSize(cellSize, presentation);
+  const tableW = metrics.rowHeaderW + cellW * safeCols;
+  const tableH = metrics.colHeaderH + cellH * safeRows;
+  const fit = fitPlotGridCellSize({ width, height, rows, cols, presentation });
   return {
     cellW,
     cellH,
     rowHeaderW: metrics.rowHeaderW,
     colHeaderH: metrics.colHeaderH,
-    scrollX: cellW * safeCols > availableW + 0.5,
-    scrollY: cellH * safeRows > availableH + 0.5,
-    tableW: metrics.rowHeaderW + cellW * safeCols,
-    tableH: metrics.colHeaderH + cellH * safeRows,
+    scrollX: tableW > width + 0.5,
+    scrollY: tableH > height + 0.5,
+    tableW,
+    tableH,
+    fitted: fit.cellW === cellW && fit.cellH === cellH,
   };
 }
 

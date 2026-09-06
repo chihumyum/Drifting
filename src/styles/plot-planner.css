@@ -93,6 +93,9 @@
 .planner-wrap[data-scroll-y='false'] {
   overflow-y: hidden;
 }
+.planner-wrap[data-presentation='desktop'] .pl-table-box {
+  margin: 0 12px 12px 0;
+}
 
 /* ── table ── */
 .pl-table {
@@ -296,6 +299,46 @@
   outline: 1.5px solid hsl(var(--ink-1));
   outline-offset: -1.5px;
   background: hsl(var(--accent) / 0.06);
+}
+
+/* ── table box: the scrolled extent; hosts the corner grip ── */
+.pl-table-box {
+  position: relative;
+}
+/* Corner grip: drag to change the cell size (both dimensions); "fit" sizes
+   the table to the host, the grip sizes it by hand. Desktop only. */
+.pl-resize-grip {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 1px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-4));
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.14s, color 0.14s, background 0.14s;
+  z-index: 4;
+}
+.planner-wrap:hover .pl-resize-grip {
+  opacity: 0.75;
+}
+.pl-resize-grip:hover {
+  opacity: 1;
+  color: hsl(var(--accent));
+  background: hsl(var(--page));
+}
+.pl-resize-grip svg {
+  width: 12px;
+  height: 12px;
+}
+.planner-wrap[data-fitted='true'] .plot-planner__fit {
+  color: hsl(var(--ink-4));
 }
 
 /* Mobile cells are tap targets that hand editing to the sheet. */

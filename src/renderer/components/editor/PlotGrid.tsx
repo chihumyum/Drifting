@@ -9,19 +9,24 @@ import {
   type ClipboardEvent as ReactClipboardEvent,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefObject,
+  type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MoreHorizontal } from 'lucide-react';
 import type { PlotAxis, PlotGrid } from '../../domain/plot-grid';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import {
+  clampPlotGridCellSize,
+  fitPlotGridCellSize,
   plotGridCellLineClamp,
   plotGridCellPosition,
   plotGridNeighbor,
   plotGridView,
   resolvePlotGridLayout,
   type PlotGridCellPosition,
+  type PlotGridCellSize,
   type PlotGridDirection,
   type PlotGridPresentation,
   type PlotGridView,
@@ -67,6 +72,14 @@ export interface PlotGridEditorApi {
   axisLabel(axis: PlotGridVisualAxis, id: string): string;
   axisIndex(axis: PlotGridVisualAxis, id: string): number;
   getGrid(): PlotGrid;
+  /** Size the cells so the table fills the host exactly (a one-time action). */
+  fit(): void;
+  /** True when the current size already fills the host on both axes. */
+  isFitted(): boolean;
+  getCellSize(): PlotGridCellSize;
+  setCellSize(size: PlotGridCellSize): void;
+  /** Multiply both dimensions (pinch, zoom shortcuts); clamped per presentation. */
+  scaleCellSize(factor: number): void;
 }
 
 interface PlotGridEditorProps {
@@ -81,6 +94,16 @@ interface PlotGridEditorProps {
   apiRef?: RefObject<PlotGridEditorApi | null>;
   /** Hosts that render from the API (mobile sheets) receive it as state. */
   onApi?: (api: PlotGridEditorApi | null) => void;
+  /**
+   * Cell size ownership. Desktop persists it through the synced record
+   * (`size.set`); the mobile tool passes its device-local size and stores
+   * every change itself. Without a stored size the host may ask for one fit
+   * on mount so the first look is tidy.
+   */
+  initialCellSize?: PlotGridCellSize | null;
+  persistCellSize?: boolean;
+  onCellSizeChange?: (size: PlotGridCellSize) => void;
+  fitOnMount?: boolean;
 }
 
 interface HeaderMenuState {
@@ -136,15 +159,25 @@ export function PlotGridEditor({
   selectedHeader = null,
   apiRef,
   onApi,
+  initialCellSize = null,
+  persistCellSize = presentation === 'desktop',
+  onCellSizeChange,
+  fitOnMount = false,
 }: PlotGridEditorProps) {
   const { t } = useTranslation();
-  const draft = usePlotGridDraft(initialJson, onChange);
+  const draft = usePlotGridDraft(initialJson, onChange, {
+    persistSize: persistCellSize,
+    initialSize: initialCellSize,
+  });
   const view: PlotGridView = useMemo(
     () => plotGridView(draft.grid, transposed),
     [draft.grid, transposed],
   );
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  // Live size while a grip drag or pinch is in flight; committed on release.
+  const [liveSize, setLiveSize] = useState<PlotGridCellSize | null>(null);
+  const fittedOnMountRef = useRef(false);
   const [menu, setMenu] = useState<HeaderMenuState | null>(null);
   const [focusToken, setFocusToken] = useState<{ axis: PlotGridVisualAxis; id: string; n: number } | null>(
     null,
@@ -170,6 +203,10 @@ export function PlotGridEditor({
     return () => observer.disconnect();
   }, []);
 
+  const cellSize = useMemo<PlotGridCellSize>(
+    () => liveSize ?? { cellW: draft.grid.cellW, cellH: draft.grid.cellH },
+    [draft.grid.cellH, draft.grid.cellW, liveSize],
+  );
   const layout = useMemo(
     () =>
       resolvePlotGridLayout({
@@ -178,9 +215,114 @@ export function PlotGridEditor({
         rows: view.rows.length,
         cols: view.cols.length,
         presentation,
+        cellSize,
       }),
-    [presentation, size.height, size.width, view.cols.length, view.rows.length],
+    [cellSize, presentation, size.height, size.width, view.cols.length, view.rows.length],
   );
+
+  const commitSize = useCallback(
+    (next: PlotGridCellSize) => {
+      const clamped = clampPlotGridCellSize(next, presentation);
+      draft.setSize(clamped);
+      onCellSizeChange?.(clamped);
+    },
+    [draft, onCellSizeChange, presentation],
+  );
+  const fit = useCallback(() => {
+    if (size.width <= 0 || size.height <= 0) return;
+    commitSize(
+      fitPlotGridCellSize({
+        width: size.width,
+        height: size.height,
+        rows: view.rows.length,
+        cols: view.cols.length,
+        presentation,
+      }),
+    );
+  }, [commitSize, presentation, size.height, size.width, view.cols.length, view.rows.length]);
+  useEffect(() => {
+    if (!fitOnMount || fittedOnMountRef.current || size.width <= 0 || size.height <= 0) return;
+    fittedOnMountRef.current = true;
+    fit();
+  }, [fit, fitOnMount, size.height, size.width]);
+
+  // Desktop corner grip: the table's bottom-right corner moves `count×` per
+  // unit of cell size, so the pointer delta is divided by the axis counts.
+  const onGripPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pointerId = e.pointerId;
+    const start = { x: e.clientX, y: e.clientY };
+    const startSize = { cellW: draft.grid.cellW, cellH: draft.grid.cellH };
+    const cols = Math.max(1, view.cols.length);
+    const rows = Math.max(1, view.rows.length);
+    let last = startSize;
+    let frame = 0;
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      last = clampPlotGridCellSize(
+        {
+          cellW: startSize.cellW + (ev.clientX - start.x) / cols,
+          cellH: startSize.cellH + (ev.clientY - start.y) / rows,
+        },
+        presentation,
+      );
+      if (!frame) {
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          setLiveSize(last);
+        });
+      }
+    };
+    const finish = (ev: PointerEvent, commit: boolean) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      if (frame) window.cancelAnimationFrame(frame);
+      setLiveSize(null);
+      if (commit) commitSize(last);
+    };
+    const up = (ev: PointerEvent) => finish(ev, true);
+    const cancel = (ev: PointerEvent) => finish(ev, false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+  };
+
+  // Mobile pinch: two fingers scale both dimensions around the current size.
+  const pinchRef = useRef<{ distance: number; start: PlotGridCellSize; last: PlotGridCellSize } | null>(null);
+  const touchDistance = (touches: React.TouchList) =>
+    touches.length < 2
+      ? 0
+      : Math.hypot(
+          touches[0]!.clientX - touches[1]!.clientX,
+          touches[0]!.clientY - touches[1]!.clientY,
+        );
+  const onPinchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!mobile || e.touches.length < 2) return;
+    const start = { cellW: draft.grid.cellW, cellH: draft.grid.cellH };
+    pinchRef.current = { distance: touchDistance(e.touches), start, last: start };
+  };
+  const onPinchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
+    const pinch = pinchRef.current;
+    if (!pinch || e.touches.length < 2 || pinch.distance <= 0) return;
+    if (e.cancelable) e.preventDefault();
+    const ratio = touchDistance(e.touches) / pinch.distance;
+    pinch.last = clampPlotGridCellSize(
+      { cellW: pinch.start.cellW * ratio, cellH: pinch.start.cellH * ratio },
+      presentation,
+    );
+    setLiveSize(pinch.last);
+  };
+  const onPinchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    const pinch = pinchRef.current;
+    if (!pinch || e.touches.length >= 2) return;
+    pinchRef.current = null;
+    setLiveSize(null);
+    commitSize(pinch.last);
+  };
 
   const api = useMemo<PlotGridEditorApi>(
     () => ({
@@ -210,8 +352,14 @@ export function PlotGridEditor({
       axisIndex: (axis, id) =>
         (axis === 'row' ? view.rows : view.cols).findIndex((item) => item.id === id),
       getGrid: () => draft.grid,
+      fit,
+      isFitted: () => layout.fitted,
+      getCellSize: () => ({ cellW: draft.grid.cellW, cellH: draft.grid.cellH }),
+      setCellSize: (next) => commitSize(next),
+      scaleCellSize: (factor) =>
+        commitSize({ cellW: draft.grid.cellW * factor, cellH: draft.grid.cellH * factor }),
     }),
-    [draft, view],
+    [commitSize, draft, fit, layout.fitted, view],
   );
   useImperativeHandle(apiRef, () => api, [api]);
   useEffect(() => {
@@ -370,8 +518,14 @@ export function PlotGridEditor({
       data-transposed={transposed ? 'true' : 'false'}
       data-scroll-x={layout.scrollX ? 'true' : 'false'}
       data-scroll-y={layout.scrollY ? 'true' : 'false'}
+      data-fitted={layout.fitted ? 'true' : 'false'}
       style={wrapStyle}
+      onTouchStart={mobile ? onPinchStart : undefined}
+      onTouchMove={mobile ? onPinchMove : undefined}
+      onTouchEnd={mobile ? onPinchEnd : undefined}
+      onTouchCancel={mobile ? onPinchEnd : undefined}
     >
+      <div className="pl-table-box" style={{ width: layout.tableW, height: layout.tableH }}>
       <table className="pl-table" style={{ width: layout.tableW }}>
         <colgroup>
           <col style={{ width: layout.rowHeaderW }} />
@@ -445,6 +599,21 @@ export function PlotGridEditor({
           ))}
         </tbody>
       </table>
+      {!mobile && (
+        <button
+          type="button"
+          className="pl-resize-grip"
+          title={t('plotGrid.resize')}
+          aria-label={t('plotGrid.resize')}
+          onPointerDown={onGripPointerDown}
+        >
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+            <line x1="11" y1="4" x2="4" y2="11" />
+            <line x1="11" y1="8" x2="8" y2="11" />
+          </svg>
+        </button>
+      )}
+      </div>
 
       {!mobile && menu && (
         <AnchoredPopover

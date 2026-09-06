@@ -17,6 +17,17 @@ export type PlotGridDataAxis = 'row' | 'col';
  * to diff and persist. Actions speak in DATA axes; the transposed view maps
  * screen directions before calling in.
  */
+export interface PlotGridDraftOptions {
+  /**
+   * Desktop persists the cell size through the synced record (`size.set`);
+   * the mobile tool keeps a device-local size and never writes the field, so
+   * its emitted snapshots carry the record's stored size unchanged.
+   */
+  readonly persistSize?: boolean;
+  /** Overrides the record's stored size (the mobile device-local size). */
+  readonly initialSize?: { cellW: number; cellH: number } | null;
+}
+
 export interface PlotGridDraft {
   readonly grid: PlotGrid;
   /** Bumps on structural or explicitly re-rendered cell changes. */
@@ -34,15 +45,23 @@ export interface PlotGridDraft {
   move(axis: PlotGridDataAxis, id: string, delta: -1 | 1): boolean;
   /** Ensure the grid has at least `rows` × `cols` axes (paste growth); returns the new axes. */
   grow(rows: number, cols: number): { rows: PlotAxis[]; cols: PlotAxis[] };
+  /** Fixed cell size; persisted or device-local per `PlotGridDraftOptions`. */
+  setSize(size: { cellW: number; cellH: number }): void;
 }
 
 export function usePlotGridDraft(
   initialJson: string,
   onChange: (grid: PlotGrid) => void,
+  options: PlotGridDraftOptions = {},
 ): PlotGridDraft {
+  const persistSize = options.persistSize ?? true;
   const [initial] = useState<PlotGrid>(() => parsePlotGrid(initialJson));
   const [rows, setRows] = useState<PlotAxis[]>(initial.rows);
   const [cols, setCols] = useState<PlotAxis[]>(initial.cols);
+  const [size, setSizeState] = useState<{ cellW: number; cellH: number }>(
+    () => options.initialSize ?? { cellW: initial.cellW, cellH: initial.cellH },
+  );
+  const sizeRef = useRef(size);
   const [version, setVersion] = useState(0);
   // `cells` mirrors the ref at every re-rendering commit point so render never
   // touches the ref; inline desktop typing only updates the ref (and the DOM).
@@ -60,10 +79,20 @@ export function usePlotGridDraft(
       rows: rowsRef.current,
       cols: colsRef.current,
       cells: { ...cellsRef.current },
-      cellW: initial.cellW,
-      cellH: initial.cellH,
+      cellW: persistSize ? sizeRef.current.cellW : initial.cellW,
+      cellH: persistSize ? sizeRef.current.cellH : initial.cellH,
     });
-  }, [initial.cellH, initial.cellW]);
+  }, [initial.cellH, initial.cellW, persistSize]);
+
+  const setSize = useCallback<PlotGridDraft['setSize']>(
+    (next) => {
+      if (next.cellW === sizeRef.current.cellW && next.cellH === sizeRef.current.cellH) return;
+      sizeRef.current = next;
+      setSizeState(next);
+      if (persistSize) emit();
+    },
+    [emit, persistSize],
+  );
 
   const commitAxes = useCallback(
     (axis: PlotGridDataAxis, next: PlotAxis[]) => {
@@ -184,12 +213,12 @@ export function usePlotGridDraft(
   );
 
   const grid = useMemo<PlotGrid>(
-    () => ({ rows, cols, cells, cellW: initial.cellW, cellH: initial.cellH }),
-    [rows, cols, cells, initial.cellH, initial.cellW],
+    () => ({ rows, cols, cells, cellW: size.cellW, cellH: size.cellH }),
+    [rows, cols, cells, size.cellH, size.cellW],
   );
 
   return useMemo(
-    () => ({ grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow }),
-    [grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow],
+    () => ({ grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow, setSize }),
+    [grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow, setSize],
   );
 }

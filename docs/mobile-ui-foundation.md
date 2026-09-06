@@ -165,8 +165,13 @@ editing, timeline, material, comment, and Agent capabilities.
   row × column labels, the row's column strip and four-way navigation; headers
   open a menu sheet with rename, move, insert and delete. Moves persist as
   explicit `row.move` / `column.move` mutations through the normalized writer.
-  The corner size grip is retired; `cellW` / `cellH` stay in the record but are
-  no longer written. While the cell sheet is open the unified bar yields
+  Cells keep a size of their own, so adding rows or columns overflows (the
+  overflowing axis scrolls) instead of squeezing the table. "Fit" is a header
+  action, not a mode: it computes the size at which the whole table fills the
+  host and stores it. Desktop stores that size in the synced `cellW` / `cellH`
+  record (`size.set`) and also changes it by hand with the corner grip; the
+  phone keeps a device-local size per grid, fits once on first open, and
+  changes it by pinch. While the cell sheet is open the unified bar yields
   (`tool:plot-cell` popover), and Back closes any Plot sheet before the tool.
 - Focusing a rich-text editor opens a keyboard accessory in its compact circular
   state. The same button expands or collapses a horizontally scrollable set of

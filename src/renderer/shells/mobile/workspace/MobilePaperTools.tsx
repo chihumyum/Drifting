@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, X } from 'lucide-react';
+import { Maximize2, Plus, X } from 'lucide-react';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import {
   PlotGridEditor,
@@ -8,6 +8,7 @@ import {
   type PlotGridEditorApi,
   type PlotGridHeaderRef,
 } from '../../../components/editor/PlotGrid';
+import type { PlotGridCellSize } from '../../../components/editor/plot-grid/plot-grid-layout';
 import {
   clonePlotGrid,
   diffPlotGrid,
@@ -26,12 +27,35 @@ import type { MobileWorkspaceAction, MobileWorkspaceUiState } from './mobile-wor
 export const MOBILE_PLOT_CELL_TRANSIENT_ID = 'tool:plot-cell';
 export const MOBILE_PLOT_HEADER_TRANSIENT_ID = 'tool:plot-header';
 const TRANSPOSED_STORAGE_KEY = 'plot-grid-transposed';
+const CELL_SIZE_STORAGE_PREFIX = 'plot-grid-cell-size:';
 
 function readTransposed(): boolean {
   try {
     return localStorage.getItem(TRANSPOSED_STORAGE_KEY) === '1';
   } catch {
     return false;
+  }
+}
+
+/** The phone's cell size is a device-local preference per grid, never synced. */
+function readLocalCellSize(nodeId: string): PlotGridCellSize | null {
+  try {
+    const raw = localStorage.getItem(CELL_SIZE_STORAGE_PREFIX + nodeId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PlotGridCellSize>;
+    return typeof parsed.cellW === 'number' && typeof parsed.cellH === 'number'
+      ? { cellW: parsed.cellW, cellH: parsed.cellH }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalCellSize(nodeId: string, size: PlotGridCellSize): void {
+  try {
+    localStorage.setItem(CELL_SIZE_STORAGE_PREFIX + nodeId, JSON.stringify(size));
+  } catch {
+    // Preference only.
   }
 }
 
@@ -45,6 +69,7 @@ function MobileNormalizedPlotGridEditor({
   onCellPress,
   onHeaderPress,
   onApi,
+  initialCellSize,
 }: {
   nodeId: string;
   initialJson: string;
@@ -55,6 +80,7 @@ function MobileNormalizedPlotGridEditor({
   onCellPress: (cell: PlotGridCellRef) => void;
   onHeaderPress: (header: PlotGridHeaderRef) => void;
   onApi: (api: PlotGridEditorApi | null) => void;
+  initialCellSize: PlotGridCellSize | null;
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedGridRef = useRef<PlotGrid | null>(readPlotGridProjection(initialJson));
@@ -94,6 +120,10 @@ function MobileNormalizedPlotGridEditor({
       onCellPress={onCellPress}
       onHeaderPress={onHeaderPress}
       onApi={onApi}
+      persistCellSize={false}
+      initialCellSize={initialCellSize}
+      fitOnMount={initialCellSize === null}
+      onCellSizeChange={(size) => writeLocalCellSize(nodeId, size)}
       onChange={(grid) => {
         latestGridRef.current = clonePlotGrid(grid);
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -255,6 +285,16 @@ export function MobilePaperTools({
         </button>
         <button
           type="button"
+          className="m-plot__fit"
+          title={t('plotGrid.fitTitle')}
+          aria-label={t('plotGrid.fitTitle')}
+          disabled={!api}
+          onClick={() => api?.fit()}
+        >
+          <Maximize2 size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className="m-tools-face__close"
           onClick={onClose}
           aria-label={t('findPanel.closeTitle')}
@@ -283,6 +323,7 @@ export function MobilePaperTools({
             onCellPress={openCell}
             onHeaderPress={openHeader}
             onApi={setApi}
+            initialCellSize={readLocalCellSize(nodeId)}
           />
         )}
       </div>

@@ -1244,7 +1244,9 @@
     "cellPosition": "Row {{row}}/{{rows}} · Column {{col}}/{{cols}}",
     "thisRow": "This row",
     "done": "Done",
-    "emptyCell": "Write something…"
+    "emptyCell": "Write something…",
+    "fit": "Fit",
+    "fitTitle": "Fit to the window: size the whole table to fill it; new rows and columns then overflow instead of squeezing"
   },
   "editorMainArea": {
     "openDashboard": "Open project home",

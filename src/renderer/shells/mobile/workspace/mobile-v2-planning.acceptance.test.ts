@@ -93,7 +93,16 @@ describe('Mobile V2 Planning acceptance wiring', () => {
     expect(layout).toContain('export function plotGridView(');
     expect(grid).toContain('resolvePlotGridLayout({');
     expect(grid).toContain('onPaste={(e) => handlePaste(cell, e)}');
-    expect(grid).not.toContain('onGripDown');
+    // Cells keep their own size: fit is an action, the desktop grip and the
+    // mobile pinch change the size by hand, adding rows/columns only overflows.
+    expect(layout).toContain('export function fitPlotGridCellSize(');
+    expect(layout).toContain('cellSize: PlotGridCellSize;');
+    expect(grid).toContain('fitPlotGridCellSize({');
+    expect(grid).toContain('onPointerDown={onGripPointerDown}');
+    expect(grid).toContain('onTouchMove={mobile ? onPinchMove : undefined}');
+    expect(tools).toContain('persistCellSize={false}');
+    expect(tools).toContain('fitOnMount={initialCellSize === null}');
+    expect(tools).toContain("CELL_SIZE_STORAGE_PREFIX = 'plot-grid-cell-size:'");
     expect(draft).toContain("move(axis: PlotGridDataAxis, id: string, delta: -1 | 1): boolean;");
     expect(domain).toContain("readonly type: 'row.move'");
     expect(domain).toContain("readonly type: 'column.move'");

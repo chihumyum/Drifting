@@ -2129,6 +2129,9 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   min-height: 44px;
 }
 
+.m-plot__fit { width: 36px; height: 36px; display: grid; place-items: center; border: 0; background: transparent; color: hsl(var(--ink-3)); border-radius: 999px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.m-plot__fit:disabled { opacity: 0.4; }
+.m-plot .planner-wrap { touch-action: pan-x pan-y; }
 /* Plot paper tool: header with orientation switch + quick add, table fills the rest. */
 .m-plot { display: flex; flex-direction: column; }
 .m-plot__header { gap: 2px; padding-right: 4px; }

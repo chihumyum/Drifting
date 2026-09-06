@@ -1244,7 +1244,9 @@
     "cellPosition": "第 {{row}}/{{rows}} 行 · 第 {{col}}/{{cols}} 列",
     "thisRow": "这一行",
     "done": "完成",
-    "emptyCell": "写点什么…"
+    "emptyCell": "写点什么…",
+    "fit": "适应",
+    "fitTitle": "适应窗口：让整张表正好填满，之后加行加列只溢出不挤压"
   },
   "editorMainArea": {
     "openDashboard": "打开项目主页",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Maximize2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import {
@@ -186,6 +186,15 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
         >
           <Plus aria-hidden="true" />
           {t('plotGrid.addColumnShort')}
+        </button>
+        <button
+          type="button"
+          className="plot-planner__add plot-planner__fit"
+          title={t('plotGrid.fitTitle')}
+          onClick={() => gridApiRef.current?.fit()}
+        >
+          <Maximize2 aria-hidden="true" />
+          {t('plotGrid.fit')}
         </button>
       </div>
       <div className="plot-planner__body">
