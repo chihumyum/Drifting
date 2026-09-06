@@ -196,6 +196,46 @@ describe('normalized Plot Grid authored writer', () => {
     ]);
   });
 
+  it('re-keys a moved axis through one named order action and rebuilds the projection', async () => {
+    const db = await createDatabase();
+    await apply(db, diffPlotGrid(null, GRID));
+    const next: PlotGrid = {
+      ...GRID,
+      rows: [...GRID.rows].reverse(),
+      cols: [...GRID.cols].reverse(),
+    };
+    await apply(db, diffPlotGrid(GRID, next));
+
+    const rows = await db.select().from(PlotGridRowTable);
+    const orderedRows = [...rows].sort((a, b) =>
+      a.positionKey === b.positionKey ? a.id.localeCompare(b.id) : a.positionKey < b.positionKey ? -1 : 1,
+    );
+    expect(orderedRows.map(({ id }) => id)).toEqual(['row-b', 'row-a']);
+    const columns = await db.select().from(PlotGridColumnTable);
+    const orderedColumns = [...columns].sort((a, b) =>
+      a.positionKey === b.positionKey ? a.id.localeCompare(b.id) : a.positionKey < b.positionKey ? -1 : 1,
+    );
+    expect(orderedColumns.map(({ id }) => id)).toEqual(['column-b', 'column-a']);
+    expect(await db.select().from(PlotGridCellTable)).toMatchObject([
+      { rowId: 'row-a', columnId: 'column-a', value: 'Arrives' },
+    ]);
+    expect((await db.select().from(NodeContentTable))[0]?.plotGridJson).toBe(
+      serializePlotGrid(next),
+    );
+
+    const changeSets = await db.select().from(SyncChangeSetTable);
+    expect(changeSets).toHaveLength(2);
+    const moves = await db
+      .select()
+      .from(SyncMutationTable)
+      .where(eq(SyncMutationTable.changeSetId, changeSets[1]!.changeSetId));
+    expect(moves.map(({ action, targetKind }) => ({ action, targetKind }))).toEqual([
+      { action: 'order.move', targetKind: 'plot-grid-row' },
+      { action: 'order.move', targetKind: 'plot-grid-column' },
+    ]);
+    expect(await db.select().from(SyncOrderRegisterTable)).toHaveLength(4);
+  });
+
   it('keeps cell identity and LWW value authority when the sparse projection clears it', async () => {
     const db = await createDatabase();
     await apply(db, diffPlotGrid(null, GRID));

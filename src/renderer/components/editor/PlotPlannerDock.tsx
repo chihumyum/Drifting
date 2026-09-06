@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import {
   clonePlotGrid,
@@ -8,7 +10,7 @@ import {
   type PlotGridMutation,
 } from '../../domain/plot-grid';
 import { clampDimension, verticalDockBounds } from '../../lib/layout-geometry';
-import { PlotGridEditor } from './PlotGrid';
+import { PlotGridEditor, type PlotGridEditorApi } from './PlotGrid';
 import '../../../styles/plot-planner.css';
 
 const DEFAULT_HEIGHT = 280;
@@ -28,6 +30,7 @@ interface PlotPlannerDockProps {
 }
 
 export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerDockProps) {
+  const { t } = useTranslation();
   const storedHeight = useUiStore((s) => s.plotPlannerHeight);
   const setStoredHeight = useUiStore((s) => s.setPlotPlannerHeight);
 
@@ -35,6 +38,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
   const [isResizing, setIsResizing] = useState(false);
 
   const dockRef = useRef<HTMLDivElement>(null);
+  const gridApiRef = useRef<PlotGridEditorApi | null>(null);
   const grabOffsetRef = useRef(0);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedGridRef = useRef<PlotGrid | null>(readPlotGridProjection(initialJson));
@@ -163,8 +167,34 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
       ref={dockRef}
       style={{ height, maxHeight: `calc(100% - ${MIN_PROSE_HEIGHT}px)` }}
     >
+      <div className="plot-planner__header">
+        <span className="plot-planner__title">{t('plotGrid.title')}</span>
+        <button
+          type="button"
+          className="plot-planner__add"
+          title={t('plotGrid.addRow')}
+          onClick={() => gridApiRef.current?.addVisual('row')}
+        >
+          <Plus aria-hidden="true" />
+          {t('plotGrid.addRowShort')}
+        </button>
+        <button
+          type="button"
+          className="plot-planner__add"
+          title={t('plotGrid.addColumn')}
+          onClick={() => gridApiRef.current?.addVisual('col')}
+        >
+          <Plus aria-hidden="true" />
+          {t('plotGrid.addColumnShort')}
+        </button>
+      </div>
       <div className="plot-planner__body">
-        <PlotGridEditor initialJson={initialJson} onChange={handleChange} />
+        <PlotGridEditor
+          initialJson={initialJson}
+          onChange={handleChange}
+          presentation="desktop"
+          apiRef={gridApiRef}
+        />
       </div>
       <div
         className="plot-planner__resize"

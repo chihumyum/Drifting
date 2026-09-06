@@ -166,7 +166,14 @@ export function mobileWorkspaceStateIssues(state: MobileWorkspaceUiState): strin
       if (state.keyboard !== 'closed' && state.overlay !== 'plot' && state.overlay !== 'timeline') {
         issues.push('a launcher overlay requires a closed keyboard');
       }
-      if (state.transient.kind !== 'none' && state.transient.kind !== 'dialog') {
+      if (
+        state.transient.kind !== 'none' &&
+        state.transient.kind !== 'dialog' &&
+        !(
+          state.transient.kind === 'popover' &&
+          (state.overlay === 'plot' || state.overlay === 'timeline')
+        )
+      ) {
         issues.push('a launcher overlay cannot coexist with a workspace transient');
       }
     }
@@ -321,6 +328,15 @@ export function mobileWorkspaceReducer(
       }
       if (action.transient.kind === 'none') {
         return checked({ ...state, transient: NO_TRANSIENT });
+      }
+      if (
+        action.transient.kind === 'popover' &&
+        (state.overlay === 'plot' || state.overlay === 'timeline')
+      ) {
+        // A paper tool owns its own sheets (cell editor, header and chapter
+        // menus). The popover rides on top of the tool: Back closes it first
+        // and the suspended prose mode stays parked in toolReturnTo.
+        return checked({ ...state, transient: action.transient });
       }
       if (
         action.transient.kind === 'entity-preview' ||
@@ -498,9 +514,14 @@ export function selectMobileUnifiedBarProjection(
   state: MobileWorkspaceUiState,
 ): MobileUnifiedBarProjection {
   // Paper switches and toolbar workspaces retain the persistent tool strip.
+  // The Plot cell editor owns the keyboard row itself (same as Agent input),
+  // so the strip yields while that sheet is open.
+  const yieldsToToolSheet =
+    state.transient.kind === 'popover' && state.transient.id === 'tool:plot-cell';
   const visible =
     state.surface.kind === 'paper' &&
     state.transient.kind !== 'dialog' &&
+    !yieldsToToolSheet &&
     (state.overlay === 'none' || state.overlay === 'paper-tools' || state.overlay === 'plot' || state.overlay === 'timeline');
   const mode =
     state.transient.kind === 'search'

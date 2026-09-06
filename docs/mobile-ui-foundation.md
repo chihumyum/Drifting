@@ -126,33 +126,48 @@ editing, timeline, material, comment, and Agent capabilities.
   `qa/mobile-prose-wrapping-2026-09-05.md` for measured acceptance.
 - Top structure and bottom tool workspaces reuse shared feature content but use
   mobile-owned panels, sheets, reveal state, and safe-area geometry.
-- The bottom tool workspace mounts the shared full `BottomTimeline` surface,
-  not a mobile-only storyline/chapter list. Book and narrative views therefore
-  retain the desktop model and writes: Act Rail, narrative markers, placed and
-  unplaced chapters, the unaffiliated lane, spread and locate actions,
-  cross-storyline links, marker/act drift binding, context actions, order and
-  primary-storyline updates, persisted horizontal position, and timeline
-  pinch scale. The mobile presentation fills the enclosing bottom panel rather
-  than restoring the desktop dock height, uses a narrower sticky rail and
-  touch-sized rows and controls, opens chapters as mobile papers, supports
-  direct touch dragging, and maps long press to the same node, storyline, act,
-  and marker menus used by desktop. Bottom Timeline and Storyline Graph use the
-  same window-level pointer controller for placed cards and portaled unplaced
-  chips, so their committed lane/order change does not depend on WebView HTML
-  drag/drop delivery. The controller hides the source card and moves one
-  full-style compositor ghost with `requestAnimationFrame` instead of updating
-  React state on every pointer event; it also locks document selection for the
-  active drag. Both book and narrative views preserve the card's grabbed point,
-  including when the source is a narrow unplaced chip, and preview the card
-  continuously under the pointer. Chapter dragging has no separate center-line
-  drop indicator: the ghost itself is the placement preview. The exact finite
-  axis coordinate is persisted on pointer-up. `bookOrder` and `narrativeOrder`
-  are the authored coordinates: their numeric order determines chapter sequence
-  and narrative time, with entity ID as the deterministic tie-break for equal
-  coordinates.
-  Empty marker and act tracks keep their creation menus. The act-head `+`
-  creates one first act at the left edge; every act, including the first, can
-  then move to a finite coordinate, leaving earlier chapters outside all acts.
+- The bottom tool workspace on phones mounts `MobileVerticalTimeline`: the
+  desktop coordinate system turned vertical, not the horizontal
+  `BottomTimeline` (which stays the desktop and large-screen surface). Book and
+  narrative views keep the desktop model and writes. `useBottomTimelineSelectors`
+  supplies `orderToPosition` / `positionToOrder`, acts derive from
+  `deriveActSegments`, markers come from `useTimelineMarkers`, spread runs
+  `spreadTimelineNodes`, chapter moves commit through `commitChapterLaneDrop`
+  and `moveChapterOnTimeline`, and the window-level pointer controller in
+  `chapter-lane-drag.ts` drives the drag with a vertical edge-autoscroll axis
+  and a lift-on-hold behavior. `bookOrder` and `narrativeOrder` remain the
+  authored continuous coordinates with entity ID as the tie-break.
+  Dots in the track gutter sit at exactly the mapped coordinate and own every
+  gesture: a tap opens the chapter menu sheet; a still hold past 180ms followed
+  by movement, or a 500ms hold, lifts the nearest dot by y within 22px and
+  drags it; pointer-up persists the finger's continuous coordinate; a long
+  press on empty track opens the create sheet; act boundary handles and marker
+  heads drag with the same rule. The entries on the right are a pure projection
+  (`vertical-timeline-projection.ts`): their level follows the free space below
+  the dot (large ≥120px with summary, medium ≥64px, small ≥36px, minimal 24px),
+  they never overlap, a crowded entry slides down and every entry keeps a
+  hairline leader back to its dot, and three or more consecutive chapters that
+  pile up collapse into one cluster entry whose tap raises the pinch scale until
+  the run spreads out. Entries accept taps only. Pinch changes the vertical
+  scale (0.5–3×, persisted separately from the desktop scale) anchored on the
+  two-finger midpoint. Storyline pills filter by dimming; unaffiliated chapters
+  ride a dashed track toggled from the ⋯ menu; narrative view keeps unplaced
+  chapters in a bottom drawer whose chips act as their own dots and drag out to
+  place. Chapter, act, marker and create menus are bottom sheets that ride the
+  tool overlay as `popover` transients so Back closes them before the tool.
+- The Plot paper tool and the desktop Plot Planner dock share one
+  `PlotGridEditor` table that fills its host on both axes (mobile minimum
+  84×72, desktop 120×64) and scrolls only the overflowing axis with the
+  opposite header pinned. The mobile header carries the across / down switch
+  (a transposed view, persisted per device) and the append row / column
+  buttons; the desktop dock carries the same buttons in a slim header and edits
+  inline. Cells on phones open an editing sheet above the keyboard with the
+  row × column labels, the row's column strip and four-way navigation; headers
+  open a menu sheet with rename, move, insert and delete. Moves persist as
+  explicit `row.move` / `column.move` mutations through the normalized writer.
+  The corner size grip is retired; `cellW` / `cellH` stay in the record but are
+  no longer written. While the cell sheet is open the unified bar yields
+  (`tool:plot-cell` popover), and Back closes any Plot sheet before the tool.
 - Focusing a rich-text editor opens a keyboard accessory in its compact circular
   state. The same button expands or collapses a horizontally scrollable set of
   paragraph, heading, quote, and inline-mark controls. Commands preserve the
@@ -375,3 +390,17 @@ Acceptance distinguishes controller contract tests, source wiring checks and
 native end-to-end observations. A passing wiring check is not interaction proof.
 The corrected Back paths and scroll geometry are recorded in
 `docs/qa/mobile-accessory-return-2026-09-06.md` and the adjacent measured JSON.
+
+### Plot Grid and vertical Timeline — 2026-09-06
+
+Design source: `docs/design/mobile-v2/plot-timeline-proto-v3.html` and the
+v3 section of `docs/design/mobile-v2/README.md`. Acceptance:
+`shells/mobile/workspace/mobile-v2-planning.acceptance.test.ts` (wiring),
+`shells/mobile/workspace/timeline/vertical-timeline-projection.test.ts`
+(levels, leaders, clusters), `vertical-timeline-gestures.test.ts` (hit-testing,
+slots), `components/editor/plot-grid/plot-grid-layout.test.ts` (fill rules,
+transposed view), `domain/plot-grid.test.ts` and
+`usecase/plot-grid-write.integration.test.ts` (explicit moves), and
+`mobile-workspace-controller-tool-sheets.test.ts` (sheet transients). Device
+feel — long-press timing, pinch anchoring, drawer drag-out — is still to be
+recorded from a physical device.

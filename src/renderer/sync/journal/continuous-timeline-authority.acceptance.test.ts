@@ -72,7 +72,11 @@ describe('continuous Bottom Timeline authority', () => {
     const bottomTimeline = source(
       'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
     );
-    expect(bottomTimeline).toContain('const positionToOrder = useCallback(');
+    // The continuous inverse mapping now lives beside orderToPosition in the
+    // shared selectors so the vertical mobile axis reuses it unchanged.
+    const selectors = source('src/renderer/components/BottomTimeline/useBottomTimelineSelectors.ts');
+    expect(selectors).toContain('const positionToOrder = useCallback(');
+    expect(bottomTimeline).toContain('positionToOrder,\n  } = useBottomTimelineSelectors({');
     expect(bottomTimeline).not.toContain('disabled={snapValues.length === 0}');
 
     const timelinePin = source('src/renderer/components/timeline/TimelinePin.tsx');

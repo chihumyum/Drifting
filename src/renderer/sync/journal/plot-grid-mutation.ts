@@ -52,6 +52,14 @@ export function appendPlotGridRowCreateMutation(
     payload: { seed: { documentId: row.documentId } },
   });
   appendPlotGridRowLabelSetMutation(changes, row);
+  appendPlotGridRowMoveMutation(changes, row);
+}
+
+/** One named order action per row placement; numeric positions never use field.set. */
+export function appendPlotGridRowMoveMutation(
+  changes: SyncChangeBuilder,
+  row: Pick<PlotGridAxisMutationRecord, 'id' | 'documentId' | 'positionKey'>,
+): void {
   changes.add({
     action: 'order.move',
     target: { family: 'order', kind: 'plot-grid-row', id: row.id, incarnation: 0 },
@@ -91,6 +99,14 @@ export function appendPlotGridColumnCreateMutation(
     payload: { seed: { documentId: column.documentId } },
   });
   appendPlotGridColumnLabelSetMutation(changes, column);
+  appendPlotGridColumnMoveMutation(changes, column);
+}
+
+/** One named order action per column placement; numeric positions never use field.set. */
+export function appendPlotGridColumnMoveMutation(
+  changes: SyncChangeBuilder,
+  column: Pick<PlotGridAxisMutationRecord, 'id' | 'documentId' | 'positionKey'>,
+): void {
   changes.add({
     action: 'order.move',
     target: {

@@ -85,6 +85,22 @@ interface StartChapterLanePointerDragInput {
   mobileTouch?: {
     onMenu: () => void;
     scrollContainer: HTMLElement | null;
+    /**
+     * Which scroll axis the edge autoscroll follows: the desktop track pans
+     * horizontally, the mobile vertical timeline scrolls downwards.
+     */
+    axis?: 'x' | 'y';
+    /**
+     * What a still hold does after MOBILE_PLANNING_CONTEXT_MENU_MS: open the
+     * host menu (desktop's mobile presentation) or LIFT the source so the
+     * following movement drags it (the vertical timeline, where a tap already
+     * opens the menu). A lifted pointer released without moving simply
+     * cancels; `onLift` lets the host show the lifted state.
+     */
+    holdBehavior?: 'menu' | 'lift';
+    onLift?: () => void;
+    /** A lifted pointer released or cancelled without ever dragging. */
+    onLiftCancel?: () => void;
   };
 }
 
@@ -135,9 +151,17 @@ export function startChapterLanePointerDrag({
   const grabOffsetY = startClientY - sourceRect.top;
   const previousVisibility = sourceElement.style.visibility;
   const commitDrop = createExactlyOnceChapterDrop(onDrop);
+  const autoscrollAxis = mobileTouch?.axis ?? 'x';
+  let lifted = false;
   let menuTimer = mobileTouchEnabled
     ? window.setTimeout(() => {
         if (settled || dragging) return;
+        if (mobileTouch?.holdBehavior === 'lift') {
+          lifted = true;
+          menuTimer = 0;
+          mobileTouch.onLift?.();
+          return;
+        }
         settled = true;
         stopListening();
         cleanupVisuals();
@@ -160,14 +184,26 @@ export function startChapterLanePointerDrag({
     const scrollContainer = mobileTouch?.scrollContainer;
     if (scrollContainer) {
       const rect = scrollContainer.getBoundingClientRect();
-      const delta = mobilePlanningEdgeAutoscrollDelta({
-        clientX: pendingClientX,
-        left: rect.left,
-        right: rect.right,
-        scrollLeft: scrollContainer.scrollLeft,
-        maxScrollLeft: scrollContainer.scrollWidth - scrollContainer.clientWidth,
-      });
-      if (delta !== 0) scrollContainer.scrollLeft += delta;
+      const delta =
+        autoscrollAxis === 'y'
+          ? mobilePlanningEdgeAutoscrollDelta({
+              clientX: pendingClientY,
+              left: rect.top,
+              right: rect.bottom,
+              scrollLeft: scrollContainer.scrollTop,
+              maxScrollLeft: scrollContainer.scrollHeight - scrollContainer.clientHeight,
+            })
+          : mobilePlanningEdgeAutoscrollDelta({
+              clientX: pendingClientX,
+              left: rect.left,
+              right: rect.right,
+              scrollLeft: scrollContainer.scrollLeft,
+              maxScrollLeft: scrollContainer.scrollWidth - scrollContainer.clientWidth,
+            });
+      if (delta !== 0) {
+        if (autoscrollAxis === 'y') scrollContainer.scrollTop += delta;
+        else scrollContainer.scrollLeft += delta;
+      }
       target = resolveTarget(pendingClientX, pendingClientY);
       if (delta !== 0) frame = window.requestAnimationFrame(paintDrag);
       return;
@@ -211,7 +247,7 @@ export function startChapterLanePointerDrag({
   const handleMove = (event: PointerEvent) => {
     if (settled || event.pointerId !== pointerId) return;
     const distance = Math.hypot(event.clientX - startClientX, event.clientY - startClientY);
-    if (mobileTouchEnabled && !dragging) {
+    if (mobileTouchEnabled && !dragging && !lifted) {
       const intent = resolveMobilePlanningGesture({
         surface: 'card',
         elapsedMs: Date.now() - startedAt,
@@ -249,6 +285,7 @@ export function startChapterLanePointerDrag({
     stopListening();
     if (!dragging) {
       cleanupVisuals();
+      if (lifted) mobileTouch?.onLiftCancel?.();
       return;
     }
     const finalTarget = target;
@@ -265,6 +302,7 @@ export function startChapterLanePointerDrag({
     stopListening();
     cleanupVisuals();
     if (dragging) onDragEnd();
+    else if (lifted) mobileTouch?.onLiftCancel?.();
   };
   const handleAdditionalPointer = (event: PointerEvent) => {
     if (
@@ -279,6 +317,7 @@ export function startChapterLanePointerDrag({
     stopListening();
     cleanupVisuals();
     if (dragging) onDragEnd();
+    else if (lifted) mobileTouch?.onLiftCancel?.();
   };
 
   window.addEventListener('pointermove', handleMove, { passive: false });

@@ -11,9 +11,11 @@ import {
   appendPlotGridCellValueSetMutation,
   appendPlotGridColumnCreateMutation,
   appendPlotGridColumnLabelSetMutation,
+  appendPlotGridColumnMoveMutation,
   appendPlotGridColumnPurgeMutation,
   appendPlotGridRowCreateMutation,
   appendPlotGridRowLabelSetMutation,
+  appendPlotGridRowMoveMutation,
   appendPlotGridRowPurgeMutation,
   appendPlotGridSizeSetMutation,
   runAuthoredTransaction,
@@ -87,6 +89,11 @@ export async function applyPlotGridMutationsInTransaction(
         appendPlotGridRowLabelSetMutation(changes, row);
         break;
       }
+      case 'row.move': {
+        const row = await gridRepo.moveRow(input.nodeId, mutation.rowId, mutation.afterRowId);
+        appendPlotGridRowMoveMutation(changes, row);
+        break;
+      }
       case 'row.remove': {
         const removed = await gridRepo.removeRow(input.nodeId, mutation.rowId);
         for (const cell of removed.cells) appendPlotGridCellPurgeMutation(changes, cell.id);
@@ -109,6 +116,15 @@ export async function applyPlotGridMutationsInTransaction(
           mutation.label,
         );
         appendPlotGridColumnLabelSetMutation(changes, column);
+        break;
+      }
+      case 'column.move': {
+        const column = await gridRepo.moveColumn(
+          input.nodeId,
+          mutation.columnId,
+          mutation.afterColumnId,
+        );
+        appendPlotGridColumnMoveMutation(changes, column);
         break;
       }
       case 'column.remove': {

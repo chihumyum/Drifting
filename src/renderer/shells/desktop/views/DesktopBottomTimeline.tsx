@@ -418,6 +418,7 @@ export function DesktopBottomTimeline({
     timelineWidth,
     nodeWidth,
     orderToPosition,
+    positionToOrder,
   } = useBottomTimelineSelectors({
     nodesWithStorylines,
     storylines,
@@ -429,12 +430,6 @@ export function DesktopBottomTimeline({
     extraMaxOrder: rightAnchorOrder,
     runwayUnits: TIMELINE_CONFIG.RUNWAY_UNITS,
   });
-
-  const positionToOrder = useCallback(
-    (position: number) =>
-      minOrder + Math.max(0, position) / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor),
-    [minOrder, scaleFactor],
-  );
 
   // Helper: which storyline owns this node as its "main" row. Reads the
   // primary from the link table (via the store), falling back to the first

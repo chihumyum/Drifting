@@ -58,6 +58,8 @@ export interface PlotGridRepository {
     input: { id: string; label: string; afterRowId: string | null },
   ): Promise<PlotGridAxisRecord>;
   setRowLabel(nodeId: string, rowId: string, label: string): Promise<PlotGridAxisRecord>;
+  /** Re-key one existing row right after `afterRowId` (null = first). */
+  moveRow(nodeId: string, rowId: string, afterRowId: string | null): Promise<PlotGridAxisRecord>;
   removeRow(
     nodeId: string,
     rowId: string,
@@ -70,6 +72,12 @@ export interface PlotGridRepository {
     nodeId: string,
     columnId: string,
     label: string,
+  ): Promise<PlotGridAxisRecord>;
+  /** Re-key one existing column right after `afterColumnId` (null = first). */
+  moveColumn(
+    nodeId: string,
+    columnId: string,
+    afterColumnId: string | null,
   ): Promise<PlotGridAxisRecord>;
   removeColumn(
     nodeId: string,
@@ -326,6 +334,21 @@ export function createPlotGridRepository(dbOverride?: DbExecutor): PlotGridRepos
       return { ...row, label };
     },
 
+    async moveRow(nodeId, rowId, afterRowId) {
+      if (afterRowId === rowId) throw new Error('Plot Grid row cannot follow itself');
+      const document = await requireDocument(nodeId);
+      const row = await requireRow(document.id, rowId);
+      const others = (await orderedRows(document.id)).filter(({ id }) => id !== rowId);
+      const positionKey = positionAfter(others, afterRowId, 'row');
+      await db()
+        .update(PlotGridRowTable)
+        .set({ positionKey })
+        .where(
+          and(eq(PlotGridRowTable.id, rowId), eq(PlotGridRowTable.documentId, document.id)),
+        );
+      return { ...row, positionKey };
+    },
+
     async removeRow(nodeId, rowId) {
       const document = await requireDocument(nodeId);
       const rows = await orderedRows(document.id);
@@ -382,6 +405,24 @@ export function createPlotGridRepository(dbOverride?: DbExecutor): PlotGridRepos
           ),
         );
       return { ...column, label };
+    },
+
+    async moveColumn(nodeId, columnId, afterColumnId) {
+      if (afterColumnId === columnId) throw new Error('Plot Grid column cannot follow itself');
+      const document = await requireDocument(nodeId);
+      const column = await requireColumn(document.id, columnId);
+      const others = (await orderedColumns(document.id)).filter(({ id }) => id !== columnId);
+      const positionKey = positionAfter(others, afterColumnId, 'column');
+      await db()
+        .update(PlotGridColumnTable)
+        .set({ positionKey })
+        .where(
+          and(
+            eq(PlotGridColumnTable.id, columnId),
+            eq(PlotGridColumnTable.documentId, document.id),
+          ),
+        );
+      return { ...column, positionKey };
     },
 
     async removeColumn(nodeId, columnId) {

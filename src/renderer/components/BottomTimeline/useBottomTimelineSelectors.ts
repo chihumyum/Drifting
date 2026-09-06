@@ -144,6 +144,14 @@ export function useBottomTimelineSelectors({
     [minOrder, gridUnit, scaleFactor],
   );
 
+  // Inverse of orderToPosition for pointer → coordinate conversion. Shared by
+  // the horizontal desktop track and the vertical mobile axis: both feed the
+  // same continuous bookOrder / narrativeOrder values back to the writers.
+  const positionToOrder = useCallback(
+    (position: number) => minOrder + Math.max(0, position) / (gridUnit * scaleFactor),
+    [minOrder, gridUnit, scaleFactor],
+  );
+
   const getNodesInStoryline = useCallback(
     (storylineId: string) => {
       return nodesByStoryline.get(storylineId) ?? [];
@@ -166,5 +174,6 @@ export function useBottomTimelineSelectors({
     timelineWidth,
     nodeWidth,
     orderToPosition,
+    positionToOrder,
   };
 }

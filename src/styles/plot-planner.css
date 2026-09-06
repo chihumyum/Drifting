@@ -1,14 +1,13 @@
 /* ============================================================
-   In-chapter Plot Planner
-   A top dock between the editor bar and the prose, pushing the
-   editor down. Hosts a lightweight "mini-Excel" grid used to draft
-   a chapter's plot before writing. Decoupled from the prose — pure
-   scratchpad. Resized by its BOTTOM border. No header text: the
-   grid is centered in a faintly recessed tray; the top-bar button
-   is the only toggle.
-
-   Content cells form one contiguous, hairline-divided grid. Row/column
-   headers remain visually quiet so this reads as a working table.
+   Plot Grid
+   One contiguous, hairline-divided mini-Excel that fills its host.
+   Desktop hosts it in a top dock between the editor bar and the
+   prose (resized by its BOTTOM border, structure buttons in a slim
+   header); the mobile paper tool hosts the same table under its own
+   header. Cells stretch on both axes down to a per-presentation
+   minimum, then the overflowing axis scrolls while the opposite
+   header stays pinned. Row/column headers remain quiet labels so
+   this reads as a working table, never as a card grid.
    ============================================================ */
 
 .plot-planner {
@@ -22,10 +21,50 @@
   box-shadow: inset 0 8px 14px -12px hsl(var(--ink-1) / 0.22);
   font-family: var(--font-sans);
 }
+.plot-planner__header {
+  flex: 0 0 30px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 14px;
+  border-bottom: 0.5px solid var(--workspace-local-border);
+  color: hsl(var(--ink-3));
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.plot-planner__title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plot-planner__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: 12px var(--font-sans);
+  cursor: pointer;
+}
+.plot-planner__add:hover,
+.plot-planner__add:focus-visible {
+  color: hsl(var(--ink-1));
+  background: var(--workspace-cell-hover-bg, hsl(var(--ink-1) / 0.06));
+  outline: none;
+}
+.plot-planner__add svg {
+  width: 13px;
+  height: 13px;
+}
 .plot-planner__body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
 }
 
 .plot-planner__resize {
@@ -38,54 +77,84 @@
   z-index: 30;
 }
 
-/* ── centered grid ── */
+/* ── scroll owner ── */
 .planner-wrap {
-  display: flex;
-  justify-content: safe center;
-  align-items: flex-start;
-  padding: 22px 40px 40px;
-}
-.planner {
   position: relative;
-  display: inline-block;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.planner-wrap[data-scroll-x='false'] {
+  overflow-x: hidden;
+}
+.planner-wrap[data-scroll-y='false'] {
+  overflow-y: hidden;
 }
 
 /* ── table ── */
 .pl-table {
   border-collapse: collapse;
   border-spacing: 0;
+  table-layout: fixed;
 }
 
 .pl-corner {
-  background: transparent;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  height: var(--pl-col-head-h, 30px);
+  background: hsl(var(--paper-deep));
   border: 0;
   padding: 0;
 }
 
-/* ── headers: borderless italic labels, centered text ── */
+/* ── headers: borderless quiet labels, pinned on scroll ── */
 .pl-head {
   position: relative;
-  background: transparent;
+  background: hsl(var(--paper-deep));
   border: 0;
-  padding: 0 8px 6px;
+  padding: 0 6px;
   vertical-align: middle;
   font-family: var(--font-sans);
   font-style: normal;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 400;
   color: hsl(var(--ink-3));
   text-align: center;
 }
+.pl-head--col {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: var(--pl-col-head-h, 30px);
+}
 .pl-head--row {
-  padding: 0 12px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--pl-row-head-w, 96px);
+  padding: 0 24px 0 6px;
+  text-align: right;
   white-space: nowrap;
+}
+.pl-head--col:hover,
+.pl-head--row:hover {
+  color: hsl(var(--ink-2));
 }
 .pl-head__text {
   display: inline-block;
+  max-width: 100%;
   outline: none;
   min-width: 14px;
   border-radius: 0;
   padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.12s, color 0.12s;
 }
 .pl-head__text:focus {
@@ -96,50 +165,77 @@
   content: attr(data-ph);
   color: hsl(var(--ink-5));
 }
+.pl-head__text--tap {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.pl-head__text--tap[data-empty='1'] {
+  color: hsl(var(--ink-5));
+}
+.pl-head__text.is-selected {
+  color: hsl(var(--ink-1));
+  box-shadow: inset 0 -1.5px 0 hsl(var(--ink-1));
+}
 
-/* Header delete (×) — revealed on header hover. */
-.pl-head__del {
+/* Header menu (⋯) — revealed on header hover, desktop only. */
+.pl-head__menu {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 1px;
-  background: hsl(var(--surface));
+  border-radius: var(--radius-xs);
+  background: hsl(var(--paper-deep));
   color: hsl(var(--ink-4));
-  font-size: 13px;
-  line-height: 1;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, color 0.12s;
 }
-/* Both deletes sit at the header's outer corner. */
-.pl-head--col .pl-head__del {
-  top: -6px;
-  right: -4px;
+.pl-head--col .pl-head__menu {
+  right: 2px;
 }
-.pl-head--row .pl-head__del {
-  top: -6px;
-  left: -4px;
+.pl-head--row .pl-head__menu {
+  left: auto;
+  right: 2px;
 }
-.pl-head:hover .pl-head__del {
+.pl-head:hover .pl-head__menu,
+.pl-head__menu:focus-visible,
+.pl-head__menu[aria-expanded='true'] {
   opacity: 1;
 }
-.pl-head__del:hover {
+.pl-head__menu:hover {
   color: hsl(var(--accent));
+}
+.pl-head-menu .menu-surface__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pl-head-menu__hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: hsl(var(--ink-4));
 }
 
 /* ── content cells ── */
 .pl-cell-td {
   padding: 0;
   vertical-align: top;
+  width: var(--pl-cell-w, 184px);
+  height: var(--pl-cell-h, 96px);
 }
 .pl-cell {
   position: relative;
-  width: var(--pl-cell-w, 184px);
-  min-height: var(--pl-cell-h, 96px);
-  padding: 11px 12px;
+  display: block;
+  width: 100%;
+  height: var(--pl-cell-h, 96px);
+  padding: 10px 12px;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.55;
@@ -148,6 +244,7 @@
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow: hidden;
 }
 /* faint guide-dot in empty cells, fades on hover/focus */
 .pl-cell[data-empty='1']::before {
@@ -167,91 +264,59 @@
   opacity: 0;
 }
 
+/* One shared hairline lattice: right/bottom on every cell, top/left on the
+   first row/column only, so adjacent cells never double their borders. */
 .pl-cell {
   background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule-strong));
+  border-right: 1px solid hsl(var(--rule-strong));
+  border-bottom: 1px solid hsl(var(--rule-strong));
   border-radius: 0;
   box-shadow: none;
   transition: background 0.12s, border-color 0.12s;
 }
 .pl-cell:hover {
-  border-color: hsl(var(--accent) / 0.4);
   background: hsl(var(--surface));
+}
+.pl-table tbody tr:first-child .pl-cell {
+  border-top: 1px solid hsl(var(--rule-strong));
+}
+.pl-table th + td .pl-cell {
+  border-left: 1px solid hsl(var(--rule-strong));
 }
 .pl-cell:focus {
-  border-color: hsl(var(--accent) / 0.55);
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.3);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.45);
   background: hsl(var(--surface));
 }
+.pl-cell[data-selected='true'] {
+  outline: 1.5px solid hsl(var(--ink-1));
+  outline-offset: -1.5px;
+  background: hsl(var(--accent) / 0.06);
+}
 
-/* ── add row / col (floating, revealed on grid hover) ── */
-.pl-add {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  border: 1px dashed hsl(var(--rule-strong));
-  border-radius: 0;
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-4));
+/* Mobile cells are tap targets that hand editing to the sheet. */
+.pl-cell--tap {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--pl-clamp, 3);
+  -webkit-box-orient: vertical;
+  text-align: left;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.14s, color 0.14s, border-color 0.14s, background 0.14s;
+  font-family: var(--font-content, var(--font-sans));
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.planner:hover .pl-add {
-  opacity: 1;
+.pl-cell--tap[data-empty='1']::before {
+  display: none;
 }
-.pl-add:hover {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent) / 0.5);
-  background: hsl(var(--page));
+.planner-wrap[data-presentation='mobile'] .pl-head {
+  font-size: 12px;
 }
-.pl-add svg {
-  width: 14px;
-  height: 14px;
+.planner-wrap[data-presentation='mobile'] .pl-head--row {
+  padding: 0 8px 0 4px;
 }
-/* Bars align to the DATA region only (exclude the header row/col), measured
-   into --pl-data-* by the component. */
-.pl-add--col {
-  top: var(--pl-data-top, 0);
-  height: var(--pl-data-h, 100%);
-  right: -30px;
-  width: 22px;
-}
-.pl-add--row {
-  left: var(--pl-data-left, 0);
-  width: var(--pl-data-w, 100%);
-  bottom: -30px;
-  height: 22px;
-}
-
-/* corner grip — drag to resize cells (size + proportions) */
-.pl-resize-grip {
-  position: absolute;
-  left: calc(var(--pl-data-left, 0px) + var(--pl-data-w, 0px));
-  top: calc(var(--pl-data-top, 0px) + var(--pl-data-h, 0px));
-  transform: translate(-50%, -50%);
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 1px;
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-4));
-  cursor: nwse-resize;
-  touch-action: none;
-  opacity: 0;
-  transition: opacity 0.14s, color 0.14s, background 0.14s;
-  z-index: 4;
-}
-.planner:hover .pl-resize-grip {
-  opacity: 0.75;
-}
-.pl-resize-grip:hover {
-  opacity: 1;
-  color: hsl(var(--accent));
-  background: hsl(var(--page));
-}
-.pl-resize-grip svg {
-  width: 12px;
-  height: 12px;
+.planner-wrap[data-presentation='mobile'] .pl-head__text {
+  padding: 6px 4px;
+  min-height: 34px;
 }

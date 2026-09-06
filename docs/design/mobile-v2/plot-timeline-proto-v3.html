@@ -1067,7 +1067,7 @@
           <li><b>坐标层复用</b>：useBottomTimelineSelectors、timeline-spread、book-act、useTimelineMarkers、moveChapterOnTimeline / updateMarker / moveBoundary、startChapterLanePointerDrag + commitChapterLaneDrop、mobile-planning-gesture 原样用；positionToOrder 从 DesktopBottomTimeline 抬进 selectors。</li>
           <li><b>pinch</b>：useTimelineExpandedScale 加 axis 参数，锚定改用 scrollTop 与中点 Y；比例上下限沿用 0.5–3，存储键与横向分开。</li>
           <li><b>目标解析</b>：竖向版本的 resolvePointerTarget（clientY → order，故事线恒为当前）；长按命中按 y 取最近圆点。</li>
-          <li><b>条目投影引擎</b>：纯函数，输入圆点 y 列表、幕 / 标记 y、视口比例，输出每个条目的档位、top、是否顺延、连线端点、簇分组；阈值大 ≥120 / 中 64 / 小 36 / 最小 24，顺延超 48px 且连续 ≥3 个即聚簇。单独写测试。</li>
+          <li><b>条目投影引擎</b>：纯函数，输入圆点 y 列表、幕 / 标记 y、视口比例，输出每个条目的档位、top、是否顺延、连线端点、簇分组；阈值大 ≥120 / 中 64 / 小 36 / 最小 24，连续三个及以上条目挤在一起顺延即聚簇。单独写测试。</li>
           <li><b>Plot Grid</b>：同 v2。新增 row.move / column.move mutation、writer、manifest；一套新网格组件，桌面 Dock 只换壳。</li>
           <li><b>移动端壳</b>：附件栏「时间线」改挂竖向组件；大屏设备走桌面 UI 的判定另开。</li>
           <li><b>文档与守护测试</b>：mobile-ui-foundation 里「底部工具面挂载共享 BottomTimeline」那段契约重写，mobile-v2-planning 和 tool-workspaces 验收随之改。</li>

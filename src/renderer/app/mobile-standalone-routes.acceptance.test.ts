@@ -131,7 +131,10 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('.m-project-trash__content');
     expect(overview).not.toContain('ArrowUp');
     expect(overview).not.toContain('ArrowDown');
-    expect(paperDeck).toContain('<BottomTimeline presentation="mobile" />');
+    // Phones mount the vertical timeline over the shared coordinate system;
+    // the horizontal BottomTimeline stays the desktop (large-screen) surface.
+    expect(paperDeck).toContain('<MobileVerticalTimeline');
+    expect(paperDeck).not.toContain('<BottomTimeline presentation="mobile" />');
     expect(toolsFace).not.toContain('MobileTimelineWorkspace');
     expect(bottomTimeline).toContain('presentation?: BottomTimelinePresentation');
     expect(bottomTimeline).toContain('className={`btl btl--${presentation}`}');
@@ -146,7 +149,8 @@ describe('mobile standalone routes', () => {
     expect(timelinePin).toContain("event.pointerType === 'touch'");
     expect(actRail).toContain('beginTouchMenu(event');
     expect(bottomTimeline).toContain("value: 'narrative'");
-    expect(plotGrid).toContain('onPointerDown={onGripDown}');
+    expect(plotGrid).toContain('onCellPress?.(cell)');
+    expect(plotGrid).not.toContain('onGripDown');
     expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_AXIS_LOCK_PX = 8');
     expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_AXIS_RATIO = 1.2');
     expect(paperSwipe).toContain('MOBILE_PAPER_SWIPE_HOLD_CANCEL_MS = 180');

@@ -37,9 +37,17 @@ export type PlotGridMutation =
   | { readonly type: 'row.add'; readonly row: PlotAxis; readonly afterRowId: string | null }
   | { readonly type: 'row.label.set'; readonly rowId: string; readonly label: string }
   | { readonly type: 'row.remove'; readonly rowId: string }
+  /** Explicit reorder: place an existing row right after `afterRowId` (null = first). */
+  | { readonly type: 'row.move'; readonly rowId: string; readonly afterRowId: string | null }
   | { readonly type: 'column.add'; readonly column: PlotAxis; readonly afterColumnId: string | null }
   | { readonly type: 'column.label.set'; readonly columnId: string; readonly label: string }
   | { readonly type: 'column.remove'; readonly columnId: string }
+  /** Explicit reorder: place an existing column right after `afterColumnId` (null = first). */
+  | {
+      readonly type: 'column.move';
+      readonly columnId: string;
+      readonly afterColumnId: string | null;
+    }
   | {
       readonly type: 'cell.value.set';
       readonly rowId: string;
@@ -168,24 +176,66 @@ export function serializePlotGrid(grid: PlotGrid): string {
   } satisfies PlotGrid);
 }
 
-function assertStableRelativeOrder(
-  previous: readonly PlotAxis[],
-  next: readonly PlotAxis[],
-  axis: 'row' | 'column',
-): void {
-  const previousIds = new Set(previous.map(({ id }) => id));
-  const nextIds = new Set(next.map(({ id }) => id));
-  const before = previous.map(({ id }) => id).filter((id) => nextIds.has(id));
-  const after = next.map(({ id }) => id).filter((id) => previousIds.has(id));
-  if (before.some((id, index) => id !== after[index])) {
-    throw new Error(`${axis} reordering requires an explicit order.move writer`);
+/** Ids of the longest common subsequence of two id sequences (deterministic tie-break). */
+function longestCommonSubsequence(a: readonly string[], b: readonly string[]): Set<string> {
+  const m = a.length;
+  const n = b.length;
+  const table: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i -= 1) {
+    for (let j = n - 1; j >= 0; j -= 1) {
+      table[i]![j] =
+        a[i] === b[j]
+          ? table[i + 1]![j + 1]! + 1
+          : Math.max(table[i + 1]![j]!, table[i]![j + 1]!);
+    }
   }
+  const kept = new Set<string>();
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      kept.add(a[i]!);
+      i += 1;
+      j += 1;
+    } else if (table[i + 1]![j]! >= table[i]![j + 1]!) {
+      i += 1;
+    } else {
+      j += 1;
+    }
+  }
+  return kept;
 }
 
 /**
- * Translate two UI snapshots into semantic author actions. Array position is
- * only used to identify the predecessor of a newly-created axis; existing-axis
- * order is never accepted as an implicit replacement authority.
+ * Axes whose relative order survived between two snapshots. Every other kept
+ * axis becomes an explicit `move` placed right after its next-order
+ * predecessor; applying those moves in next-order sequence reproduces `next`.
+ */
+function stableAxisIds(previous: readonly PlotAxis[], next: readonly PlotAxis[]): Set<string> {
+  const previousIds = new Set(previous.map(({ id }) => id));
+  const nextIds = new Set(next.map(({ id }) => id));
+  return longestCommonSubsequence(
+    previous.map(({ id }) => id).filter((id) => nextIds.has(id)),
+    next.map(({ id }) => id).filter((id) => previousIds.has(id)),
+  );
+}
+
+/** Move one axis by `delta` slots (UI helper for header menus). Returns the same array when a no-op. */
+export function movePlotAxis(axes: readonly PlotAxis[], id: string, delta: -1 | 1): PlotAxis[] {
+  const index = axes.findIndex((axis) => axis.id === id);
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= axes.length) return [...axes];
+  const next = [...axes];
+  const [moved] = next.splice(index, 1);
+  next.splice(target, 0, moved!);
+  return next;
+}
+
+/**
+ * Translate two UI snapshots into semantic author actions. Array position
+ * identifies the predecessor of a newly-created axis and of every axis whose
+ * relative order changed; the latter become explicit `row.move` /
+ * `column.move` actions instead of an implicit whole-order replacement.
  */
 export function diffPlotGrid(
   previous: PlotGrid | null,
@@ -194,10 +244,8 @@ export function diffPlotGrid(
   if (next.rows.length === 0 || next.cols.length === 0) {
     throw new Error('Plot Grid must keep at least one row and one column');
   }
-  if (previous) {
-    assertStableRelativeOrder(previous.rows, next.rows, 'row');
-    assertStableRelativeOrder(previous.cols, next.cols, 'column');
-  }
+  const stableRows = previous ? stableAxisIds(previous.rows, next.rows) : new Set<string>();
+  const stableColumns = previous ? stableAxisIds(previous.cols, next.cols) : new Set<string>();
 
   const mutations: PlotGridMutation[] = [];
   if (!previous || previous.cellW !== next.cellW || previous.cellH !== next.cellH) {
@@ -217,7 +265,16 @@ export function diffPlotGrid(
         row: { ...row },
         afterRowId: next.rows[index - 1]?.id ?? null,
       });
-    } else if (prior.label !== row.label) {
+      return;
+    }
+    if (!stableRows.has(row.id)) {
+      mutations.push({
+        type: 'row.move',
+        rowId: row.id,
+        afterRowId: next.rows[index - 1]?.id ?? null,
+      });
+    }
+    if (prior.label !== row.label) {
       mutations.push({ type: 'row.label.set', rowId: row.id, label: row.label });
     }
   });
@@ -229,7 +286,16 @@ export function diffPlotGrid(
         column: { ...column },
         afterColumnId: next.cols[index - 1]?.id ?? null,
       });
-    } else if (prior.label !== column.label) {
+      return;
+    }
+    if (!stableColumns.has(column.id)) {
+      mutations.push({
+        type: 'column.move',
+        columnId: column.id,
+        afterColumnId: next.cols[index - 1]?.id ?? null,
+      });
+    }
+    if (prior.label !== column.label) {
       mutations.push({
         type: 'column.label.set',
         columnId: column.id,

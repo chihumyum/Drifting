@@ -1,49 +1,108 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
-  cellKey,
-  MAX_CELL_H,
-  MAX_CELL_W,
-  MIN_CELL_H,
-  MIN_CELL_W,
-  newAxisId,
-  parsePlotGrid,
-  type PlotAxis,
-  type PlotGrid,
-} from '../../domain/plot-grid';
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from 'react';
+import { useTranslation } from 'react-i18next';
+import { MoreHorizontal } from 'lucide-react';
+import type { PlotAxis, PlotGrid } from '../../domain/plot-grid';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
+import {
+  plotGridCellLineClamp,
+  plotGridCellPosition,
+  plotGridNeighbor,
+  plotGridView,
+  resolvePlotGridLayout,
+  type PlotGridCellPosition,
+  type PlotGridDirection,
+  type PlotGridPresentation,
+  type PlotGridView,
+  type PlotGridVisualAxis,
+} from './plot-grid/plot-grid-layout';
+import { usePlotGridDraft } from './plot-grid/usePlotGridDraft';
+import '../../../styles/plot-planner.css';
 
 /**
- * The "mini-Excel" grid surface for the in-chapter plot planner. Follows the
- * Claude-design prototype: a centered table whose row/col headers render as
- * borderless *labels* (not dark cells), and content cells render as the shared
- * contiguous hairline grid treatment. No color tagging.
- *
- * Editing model (from the prototype): cell text lives in a ref and is committed
- * imperatively on input, so typing never re-renders and the caret never jumps.
- * Structural edits (add/delete row-col, paste, resize) re-render; cell DOM
- * re-syncs from the ref on each render. `onChange` fires the full grid for the
- * dock to persist.
- *
- * Cell size (cellW × cellH) is uniform and dragged from the table's bottom-right
- * corner grip — this changes both the table's size and its proportions.
+ * The shared Plot Grid surface: one contiguous hairline table that fills its
+ * host. Desktop writes straight into the cells and edits headers inline; the
+ * mobile paper tool hands cell and header presses to its own sheets through
+ * `onCellPress` / `onHeaderPress` and drives structure through `apiRef`.
+ * Every host action is expressed in SCREEN axes so a transposed view keeps
+ * "row" meaning "the thing that runs across".
  */
+export interface PlotGridCellRef {
+  readonly rowId: string;
+  readonly colId: string;
+}
 
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+export interface PlotGridHeaderRef {
+  readonly axis: PlotGridVisualAxis;
+  readonly id: string;
+}
+
+export interface PlotGridEditorApi {
+  addVisual(axis: PlotGridVisualAxis): PlotAxis;
+  insertVisual(axis: PlotGridVisualAxis, id: string, side: 'before' | 'after'): PlotAxis | null;
+  removeVisual(axis: PlotGridVisualAxis, id: string): boolean;
+  moveVisual(axis: PlotGridVisualAxis, id: string, delta: -1 | 1): boolean;
+  setLabel(axis: PlotGridVisualAxis, id: string, label: string): void;
+  setCell(cell: PlotGridCellRef, text: string): void;
+  cellText(cell: PlotGridCellRef): string;
+  neighbor(cell: PlotGridCellRef, direction: PlotGridDirection): PlotGridCellRef | null;
+  position(cell: PlotGridCellRef): PlotGridCellPosition | null;
+  /** Visual row of a data cell: its id and the visual columns to hop across. */
+  visualRowOf(cell: PlotGridCellRef): { rowId: string; cols: readonly PlotAxis[] };
+  dataCell(visualRowId: string, visualColId: string): PlotGridCellRef;
+  axisCount(axis: PlotGridVisualAxis): number;
+  /** Filled cells along one visual axis (for the delete warning). */
+  filledCells(axis: PlotGridVisualAxis, id: string): number;
+  axisLabel(axis: PlotGridVisualAxis, id: string): string;
+  axisIndex(axis: PlotGridVisualAxis, id: string): number;
+  getGrid(): PlotGrid;
+}
 
 interface PlotGridEditorProps {
   initialJson: string;
   onChange: (grid: PlotGrid) => void;
+  presentation?: PlotGridPresentation;
+  transposed?: boolean;
+  onCellPress?: (cell: PlotGridCellRef) => void;
+  onHeaderPress?: (header: PlotGridHeaderRef) => void;
+  selectedCell?: PlotGridCellRef | null;
+  selectedHeader?: PlotGridHeaderRef | null;
+  apiRef?: RefObject<PlotGridEditorApi | null>;
+  /** Hosts that render from the API (mobile sheets) receive it as state. */
+  onApi?: (api: PlotGridEditorApi | null) => void;
 }
 
-function HeaderLabel({
+interface HeaderMenuState {
+  axis: PlotGridVisualAxis;
+  id: string;
+}
+
+function DesktopHeaderLabel({
   value,
   placeholder,
   onCommit,
+  focusToken,
 }: {
   value: string;
   placeholder: string;
   onCommit: (text: string) => void;
+  focusToken: number;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (focusToken > 0) ref.current?.focus();
+  }, [focusToken]);
   return (
     <div
       className="pl-head__text"
@@ -52,6 +111,7 @@ function HeaderLabel({
       role="textbox"
       data-ph={placeholder}
       ref={(el) => {
+        ref.current = el;
         if (el && el.textContent !== value) el.textContent = value;
       }}
       onInput={(e) => onCommit(e.currentTarget.textContent || '')}
@@ -65,319 +125,352 @@ function HeaderLabel({
   );
 }
 
-export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
+export function PlotGridEditor({
+  initialJson,
+  onChange,
+  presentation = 'desktop',
+  transposed = false,
+  onCellPress,
+  onHeaderPress,
+  selectedCell = null,
+  selectedHeader = null,
+  apiRef,
+  onApi,
+}: PlotGridEditorProps) {
   const { t } = useTranslation();
-  const [initial] = useState<PlotGrid>(() => parsePlotGrid(initialJson));
-  const [rows, setRows] = useState<PlotAxis[]>(initial.rows);
-  const [cols, setCols] = useState<PlotAxis[]>(initial.cols);
-  const [cellW, setCellW] = useState(initial.cellW);
-  const [cellH, setCellH] = useState(initial.cellH);
-  // Cell text is held imperatively so typing doesn't re-render (stable caret).
-  const cellsRef = useRef<Record<string, string>>(initial.cells);
+  const draft = usePlotGridDraft(initialJson, onChange);
+  const view: PlotGridView = useMemo(
+    () => plotGridView(draft.grid, transposed),
+    [draft.grid, transposed],
+  );
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [menu, setMenu] = useState<HeaderMenuState | null>(null);
+  const [focusToken, setFocusToken] = useState<{ axis: PlotGridVisualAxis; id: string; n: number } | null>(
+    null,
+  );
+  const menuAnchorRef = useRef<HTMLElement | null>(null);
+  const mobile = presentation === 'mobile';
 
-  const plannerRef = useRef<HTMLDivElement>(null);
-  const tbodyRef = useRef<HTMLTableSectionElement>(null);
-  const firstCellRef = useRef<HTMLTableCellElement>(null);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    const measure = () => {
+      const rect = wrap.getBoundingClientRect();
+      setSize((current) =>
+        Math.abs(current.width - rect.width) < 0.5 && Math.abs(current.height - rect.height) < 0.5
+          ? current
+          : { width: rect.width, height: rect.height },
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, []);
 
-  const emit = (next: { rows?: PlotAxis[]; cols?: PlotAxis[]; cellW?: number; cellH?: number }) => {
-    onChange({
-      rows: next.rows ?? rows,
-      cols: next.cols ?? cols,
-      cells: cellsRef.current,
-      cellW: next.cellW ?? cellW,
-      cellH: next.cellH ?? cellH,
-    });
-  };
+  const layout = useMemo(
+    () =>
+      resolvePlotGridLayout({
+        width: size.width,
+        height: size.height,
+        rows: view.rows.length,
+        cols: view.cols.length,
+        presentation,
+      }),
+    [presentation, size.height, size.width, view.cols.length, view.rows.length],
+  );
 
-  const addCol = () => {
-    const next = [...cols, { id: newAxisId('c'), label: '' }];
-    setCols(next);
-    emit({ cols: next });
-  };
-  const addRow = () => {
-    const next = [...rows, { id: newAxisId('r'), label: '' }];
-    setRows(next);
-    emit({ rows: next });
-  };
-  const delCol = (id: string) => {
-    if (cols.length <= 1) return;
-    for (const r of rows) delete cellsRef.current[cellKey(r.id, id)];
-    const next = cols.filter((c) => c.id !== id);
-    setCols(next);
-    emit({ cols: next });
-  };
-  const delRow = (id: string) => {
-    if (rows.length <= 1) return;
-    for (const c of cols) delete cellsRef.current[cellKey(id, c.id)];
-    const next = rows.filter((r) => r.id !== id);
-    setRows(next);
-    emit({ rows: next });
-  };
-  const setColLabel = (id: string, label: string) => {
-    const next = cols.map((c) => (c.id === id ? { ...c, label } : c));
-    setCols(next);
-    emit({ cols: next });
-  };
-  const setRowLabel = (id: string, label: string) => {
-    const next = rows.map((r) => (r.id === id ? { ...r, label } : r));
-    setRows(next);
-    emit({ rows: next });
-  };
+  const api = useMemo<PlotGridEditorApi>(
+    () => ({
+      addVisual: (axis) => draft.add(view.dataAxis(axis)),
+      insertVisual: (axis, id, side) => draft.insert(view.dataAxis(axis), id, side),
+      removeVisual: (axis, id) => draft.remove(view.dataAxis(axis), id),
+      moveVisual: (axis, id, delta) => draft.move(view.dataAxis(axis), id, delta),
+      setLabel: (axis, id, label) => draft.setLabel(view.dataAxis(axis), id, label),
+      setCell: (cell, text) => draft.setCell(cell.rowId, cell.colId, text, { rerender: true }),
+      cellText: (cell) => draft.cellText(cell.rowId, cell.colId),
+      neighbor: (cell, direction) => plotGridNeighbor(view, cell, direction),
+      position: (cell) => plotGridCellPosition(view, cell),
+      visualRowOf: (cell) => ({
+        rowId: view.transposed ? cell.colId : cell.rowId,
+        cols: view.cols,
+      }),
+      dataCell: (visualRowId, visualColId) => view.dataCell(visualRowId, visualColId),
+      axisCount: (axis) => (axis === 'row' ? view.rows.length : view.cols.length),
+      filledCells: (axis, id) => {
+        const opposite = axis === 'row' ? view.cols : view.rows;
+        return opposite.filter((other) =>
+          axis === 'row' ? view.cellText(id, other.id).length > 0 : view.cellText(other.id, id).length > 0,
+        ).length;
+      },
+      axisLabel: (axis, id) =>
+        (axis === 'row' ? view.rows : view.cols).find((item) => item.id === id)?.label ?? '',
+      axisIndex: (axis, id) =>
+        (axis === 'row' ? view.rows : view.cols).findIndex((item) => item.id === id),
+      getGrid: () => draft.grid,
+    }),
+    [draft, view],
+  );
+  useImperativeHandle(apiRef, () => api, [api]);
+  useEffect(() => {
+    onApi?.(api);
+    return () => onApi?.(null);
+  }, [api, onApi]);
 
-  const setCell = (rowId: string, colId: string, text: string) => {
-    const k = cellKey(rowId, colId);
-    if (text.length === 0) delete cellsRef.current[k];
-    else cellsRef.current[k] = text;
-    emit({}); // no setState — caret stays put; persist the current snapshot
-  };
-
-  // Paste a tab/newline block (e.g. straight from Excel) starting at a cell,
-  // growing rows/cols as needed.
-  const pasteBlock = (rowId: string, colId: string, text: string) => {
-    const lines = text.replace(/\r\n?/g, '\n').split('\n');
-    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-    const matrix = lines.map((l) => l.split('\t'));
-    const widest = matrix.reduce((m, r) => Math.max(m, r.length), 0);
-
-    const startR = Math.max(0, rows.findIndex((r) => r.id === rowId));
-    const startC = Math.max(0, cols.findIndex((c) => c.id === colId));
-
-    const nextRows = [...rows];
-    while (nextRows.length < startR + matrix.length) nextRows.push({ id: newAxisId('r'), label: '' });
-    const nextCols = [...cols];
-    while (nextCols.length < startC + widest) nextCols.push({ id: newAxisId('c'), label: '' });
-
-    matrix.forEach((line, dr) => {
-      line.forEach((val, dc) => {
-        const k = cellKey(nextRows[startR + dr].id, nextCols[startC + dc].id);
-        if (val.length === 0) delete cellsRef.current[k];
-        else cellsRef.current[k] = val;
+  // Paste a tab / newline block (straight from Excel) starting at a cell,
+  // growing the grid along the screen axes as needed.
+  const pasteBlock = useCallback(
+    (cell: PlotGridCellRef, text: string) => {
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
+      if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+      const matrix = lines.map((line) => line.split('\t'));
+      const widest = matrix.reduce((max, line) => Math.max(max, line.length), 0);
+      const visualRowId = view.transposed ? cell.colId : cell.rowId;
+      const visualColId = view.transposed ? cell.rowId : cell.colId;
+      const startRow = Math.max(0, view.rows.findIndex((row) => row.id === visualRowId));
+      const startCol = Math.max(0, view.cols.findIndex((col) => col.id === visualColId));
+      const grown = view.transposed
+        ? draft.grow(startCol + widest, startRow + matrix.length)
+        : draft.grow(startRow + matrix.length, startCol + widest);
+      const nextRows = view.transposed ? grown.cols : grown.rows;
+      const nextCols = view.transposed ? grown.rows : grown.cols;
+      matrix.forEach((line, dr) => {
+        line.forEach((value, dc) => {
+          const target = view.dataCell(nextRows[startRow + dr]!.id, nextCols[startCol + dc]!.id);
+          draft.setCell(target.rowId, target.colId, value, { rerender: true });
+        });
       });
-    });
-    setRows(nextRows);
-    setCols(nextCols);
-    emit({ rows: nextRows, cols: nextCols });
-  };
+    },
+    [draft, view],
+  );
 
-  const handlePaste = (rowId: string, colId: string, e: React.ClipboardEvent) => {
+  const handlePaste = (cell: PlotGridCellRef, e: ReactClipboardEvent) => {
     const text = e.clipboardData.getData('text/plain');
     e.preventDefault();
-    if (text.includes('\t') || text.includes('\n')) {
-      pasteBlock(rowId, colId, text);
-    } else {
-      document.execCommand('insertText', false, text);
+    if (text.includes('\t') || text.includes('\n')) pasteBlock(cell, text);
+    else document.execCommand('insertText', false, text);
+  };
+
+  const openMenu = (e: ReactMouseEvent<HTMLButtonElement>, header: HeaderMenuState) => {
+    e.stopPropagation();
+    menuAnchorRef.current = e.currentTarget;
+    setMenu(header);
+  };
+
+  const menuItems = (header: HeaderMenuState) => {
+    const isRow = header.axis === 'row';
+    const count = api.axisCount(header.axis);
+    const index = api.axisIndex(header.axis, header.id);
+    const filled = api.filledCells(header.axis, header.id);
+    const close = () => setMenu(null);
+    return [
+      {
+        key: 'rename',
+        label: t('plotGrid.rename'),
+        onClick: () => {
+          close();
+          setFocusToken((current) => ({ axis: header.axis, id: header.id, n: (current?.n ?? 0) + 1 }));
+        },
+      },
+      {
+        key: 'move-back',
+        label: t(isRow ? 'plotGrid.moveUp' : 'plotGrid.moveLeft'),
+        disabled: index <= 0,
+        onClick: () => api.moveVisual(header.axis, header.id, -1),
+      },
+      {
+        key: 'move-forward',
+        label: t(isRow ? 'plotGrid.moveDown' : 'plotGrid.moveRight'),
+        disabled: index >= count - 1,
+        onClick: () => api.moveVisual(header.axis, header.id, 1),
+      },
+      {
+        key: 'insert-before',
+        label: t(isRow ? 'plotGrid.insertRowAbove' : 'plotGrid.insertColumnLeft'),
+        onClick: () => {
+          close();
+          api.insertVisual(header.axis, header.id, 'before');
+        },
+      },
+      {
+        key: 'insert-after',
+        label: t(isRow ? 'plotGrid.insertRowBelow' : 'plotGrid.insertColumnRight'),
+        onClick: () => {
+          close();
+          api.insertVisual(header.axis, header.id, 'after');
+        },
+      },
+      {
+        key: 'delete',
+        label: t(isRow ? 'plotGrid.deleteRow' : 'plotGrid.deleteColumn'),
+        hint: filled > 0 ? t('plotGrid.deleteClears', { count: filled }) : undefined,
+        danger: true,
+        disabled: count <= 1,
+        onClick: () => {
+          close();
+          api.removeVisual(header.axis, header.id);
+        },
+      },
+    ];
+  };
+
+  const wrapStyle = {
+    '--pl-cell-w': `${layout.cellW}px`,
+    '--pl-cell-h': `${layout.cellH}px`,
+    '--pl-row-head-w': `${layout.rowHeaderW}px`,
+    '--pl-col-head-h': `${layout.colHeaderH}px`,
+    '--pl-clamp': String(plotGridCellLineClamp(layout.cellH)),
+  } as CSSProperties;
+
+  const renderHeader = (axis: PlotGridVisualAxis, item: PlotAxis) => {
+    const isSelected = selectedHeader?.axis === axis && selectedHeader.id === item.id;
+    const placeholder = t(axis === 'row' ? 'plotGrid.rowPlaceholder' : 'plotGrid.columnPlaceholder');
+    if (mobile) {
+      return (
+        <button
+          type="button"
+          className={`pl-head__text pl-head__text--tap${isSelected ? ' is-selected' : ''}`}
+          data-empty={item.label ? '0' : '1'}
+          onClick={() => onHeaderPress?.({ axis, id: item.id })}
+        >
+          {item.label || placeholder}
+        </button>
+      );
     }
+    return (
+      <>
+        <DesktopHeaderLabel
+          value={item.label}
+          placeholder={placeholder}
+          onCommit={(text) => api.setLabel(axis, item.id, text)}
+          focusToken={focusToken?.axis === axis && focusToken.id === item.id ? focusToken.n : 0}
+        />
+        <button
+          type="button"
+          className="pl-head__menu"
+          title={t('plotGrid.headerMenu')}
+          aria-label={t('plotGrid.headerMenu')}
+          aria-haspopup="menu"
+          aria-expanded={menu?.axis === axis && menu.id === item.id}
+          onClick={(e) => openMenu(e, { axis, id: item.id })}
+        >
+          <MoreHorizontal size={14} aria-hidden="true" />
+        </button>
+      </>
+    );
   };
-
-  // Measure the DATA region (excludes header row/col) into --pl-data-* so the
-  // add-row/col bars align to it and the corner grip sits on its bottom-right.
-  const measureData = () => {
-    const planner = plannerRef.current;
-    const tbody = tbodyRef.current;
-    const firstCell = firstCellRef.current;
-    if (!planner || !tbody || !firstCell) return;
-    const p = planner.getBoundingClientRect();
-    const b = tbody.getBoundingClientRect();
-    const f = firstCell.getBoundingClientRect();
-    planner.style.setProperty('--pl-data-top', `${b.top - p.top}px`);
-    planner.style.setProperty('--pl-data-h', `${b.height}px`);
-    planner.style.setProperty('--pl-data-left', `${f.left - p.left}px`);
-    planner.style.setProperty('--pl-data-w', `${b.right - f.left}px`);
-  };
-
-  // Drag the bottom-right grip to resize cells (size + proportions). The grip
-  // sits at the table's right/bottom edge, which is (count × cell size) from the
-  // origin, so the edge moves `count×` per unit cell size — divide the cursor
-  // delta accordingly. Horizontal has an extra wrinkle: while the grid is
-  // CENTERED, growing a cell pushes both edges out, so the right edge moves at
-  // HALF rate (gain = nc/2); once the table overflows and left-aligns it moves
-  // at full rate (gain = nc). We detect the regime each frame and accumulate
-  // incrementally so a drag crossing the boundary stays exact. Size is applied
-  // + re-measured SYNCHRONOUSLY here (no React round-trip, which would lag the
-  // grip a frame behind a fast drag); state is committed on release.
-  const onGripDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const planner = plannerRef.current;
-    if (!planner) return;
-    const nc = Math.max(1, cols.length);
-    const nr = Math.max(1, rows.length);
-    // Accumulate the UNCLAMPED size; clamp only for display. So when a cell is
-    // pinned at min/max and the cursor overshoots past the grip, the raw value
-    // runs past the limit and the cursor must return all the way back to the
-    // grip's real position before the displayed size starts changing again.
-    let rawW = cellW;
-    let rawH = cellH;
-    let lastW = cellW;
-    let lastH = cellH;
-    let prevX = e.clientX;
-    let prevY = e.clientY;
-    const pointerId = e.pointerId;
-    const move = (ev: PointerEvent) => {
-      if (ev.pointerId !== pointerId) return;
-      // Horizontal gain: nc/2 while centered (left margin present), else nc.
-      let gainX = nc;
-      const wrap = planner.parentElement;
-      if (wrap) {
-        const padL = parseFloat(getComputedStyle(wrap).paddingLeft) || 0;
-        const leftMargin =
-          planner.getBoundingClientRect().left - (wrap.getBoundingClientRect().left + padL);
-        if (leftMargin > 0.5) gainX = nc / 2;
-      }
-      rawW += (ev.clientX - prevX) / gainX;
-      rawH += (ev.clientY - prevY) / nr;
-      prevX = ev.clientX;
-      prevY = ev.clientY;
-      lastW = clamp(rawW, MIN_CELL_W, MAX_CELL_W);
-      lastH = clamp(rawH, MIN_CELL_H, MAX_CELL_H);
-      planner.style.setProperty('--pl-cell-w', `${lastW}px`);
-      planner.style.setProperty('--pl-cell-h', `${lastH}px`);
-      measureData(); // synchronous reflow → grip follows the cursor with no lag
-    };
-    const cleanup = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-    };
-    const up = (ev: PointerEvent) => {
-      if (ev.pointerId !== pointerId) return;
-      cleanup();
-      setCellW(lastW);
-      setCellH(lastH);
-      emit({ cellW: lastW, cellH: lastH });
-    };
-    const cancel = (ev: PointerEvent) => {
-      if (ev.pointerId !== pointerId) return;
-      cleanup();
-      planner.style.setProperty('--pl-cell-w', `${cellW}px`);
-      planner.style.setProperty('--pl-cell-h', `${cellH}px`);
-      measureData();
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-  };
-
-  // Keep --pl-data-* in sync on structural/size changes and content-driven
-  // resizes (the drag path measures inline; this covers everything else).
-  useLayoutEffect(() => {
-    const planner = plannerRef.current;
-    const tbody = tbodyRef.current;
-    if (!planner || !tbody) return;
-    measureData();
-    const ro = new ResizeObserver(() => measureData());
-    ro.observe(tbody);
-    ro.observe(planner);
-    return () => ro.disconnect();
-  }, [rows.length, cols.length, cellW, cellH]);
-
-  const plannerStyle = {
-    '--pl-cell-w': `${cellW}px`,
-    '--pl-cell-h': `${cellH}px`,
-  } as React.CSSProperties;
 
   return (
-    <div className="planner-wrap">
-      <div className="planner" ref={plannerRef} style={plannerStyle}>
-        <table className="pl-table">
-          <thead>
-            <tr>
-              <th className="pl-corner" />
-              {cols.map((c) => (
-                <th className="pl-head pl-head--col" key={c.id}>
-                  <HeaderLabel value={c.label} placeholder={t('plotGrid.columnPlaceholder')} onCommit={(v) => setColLabel(c.id, v)} />
-                  {cols.length > 1 && (
-                    <button
-                      type="button"
-                      className="pl-head__del"
-                      title={t('plotGrid.deleteColumn')}
-                      aria-label={t('plotGrid.deleteColumn')}
-                      onClick={() => delCol(c.id)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody ref={tbodyRef}>
-            {rows.map((r, ri) => (
-              <tr key={r.id}>
-                <th className="pl-head pl-head--row">
-                  <HeaderLabel value={r.label} placeholder={t('plotGrid.rowPlaceholder')} onCommit={(v) => setRowLabel(r.id, v)} />
-                  {rows.length > 1 && (
-                    <button
-                      type="button"
-                      className="pl-head__del"
-                      title={t('plotGrid.deleteRow')}
-                      aria-label={t('plotGrid.deleteRow')}
-                      onClick={() => delRow(r.id)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </th>
-                {cols.map((c, ci) => (
-                  <td
-                    className="pl-cell-td"
-                    key={c.id}
-                    ref={ri === 0 && ci === 0 ? firstCellRef : undefined}
-                  >
+    <div
+      ref={wrapRef}
+      className="planner-wrap"
+      data-presentation={presentation}
+      data-transposed={transposed ? 'true' : 'false'}
+      data-scroll-x={layout.scrollX ? 'true' : 'false'}
+      data-scroll-y={layout.scrollY ? 'true' : 'false'}
+      style={wrapStyle}
+    >
+      <table className="pl-table" style={{ width: layout.tableW }}>
+        <colgroup>
+          <col style={{ width: layout.rowHeaderW }} />
+          {view.cols.map((col) => (
+            <col key={col.id} style={{ width: layout.cellW }} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="pl-corner" />
+            {view.cols.map((col) => (
+              <th className="pl-head pl-head--col" key={col.id} scope="col">
+                {renderHeader('col', col)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {view.rows.map((row) => (
+            <tr key={row.id}>
+              <th className="pl-head pl-head--row" scope="row">
+                {renderHeader('row', row)}
+              </th>
+              {view.cols.map((col) => {
+                const cell = view.dataCell(row.id, col.id);
+                const text = draft.cellText(cell.rowId, cell.colId);
+                const isSelected =
+                  selectedCell?.rowId === cell.rowId && selectedCell.colId === cell.colId;
+                if (mobile) {
+                  return (
+                    <td className="pl-cell-td" key={col.id}>
+                      <button
+                        type="button"
+                        className="pl-cell pl-cell--tap"
+                        data-empty={text ? '0' : '1'}
+                        data-selected={isSelected ? 'true' : 'false'}
+                        onClick={() => onCellPress?.(cell)}
+                      >
+                        {text}
+                      </button>
+                    </td>
+                  );
+                }
+                return (
+                  <td className="pl-cell-td" key={col.id}>
                     <div
                       className="pl-cell"
                       contentEditable
                       suppressContentEditableWarning
                       role="textbox"
-                      // Seed/re-sync from the cells ref in the commit phase (not
-                      // during render): keeps structural re-renders in sync while
-                      // typing stays uncontrolled so the caret never jumps.
+                      data-selected={isSelected ? 'true' : 'false'}
+                      // Seed / re-sync from the draft in the commit phase; typing
+                      // stays uncontrolled so the caret never jumps.
                       ref={(el) => {
                         if (!el) return;
-                        const v = cellsRef.current[cellKey(r.id, c.id)] || '';
-                        if (el.textContent !== v) el.textContent = v;
-                        el.setAttribute('data-empty', v ? '0' : '1');
+                        const value = draft.cellText(cell.rowId, cell.colId);
+                        if (el.textContent !== value) el.textContent = value;
+                        el.setAttribute('data-empty', value ? '0' : '1');
                       }}
                       onInput={(e) => {
-                        const txt = e.currentTarget.textContent || '';
-                        e.currentTarget.setAttribute('data-empty', txt ? '0' : '1');
-                        setCell(r.id, c.id, txt);
+                        const value = e.currentTarget.textContent || '';
+                        e.currentTarget.setAttribute('data-empty', value ? '0' : '1');
+                        draft.setCell(cell.rowId, cell.colId, value);
                       }}
-                      onPaste={(e) => handlePaste(r.id, c.id, e)}
+                      onPaste={(e) => handlePaste(cell, e)}
                     />
                   </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-        <button type="button" className="pl-add pl-add--col" title={t('plotGrid.addColumn')} aria-label={t('plotGrid.addColumn')} onClick={addCol}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <line x1="8" y1="3" x2="8" y2="13" />
-            <line x1="3" y1="8" x2="13" y2="8" />
-          </svg>
-        </button>
-        <button type="button" className="pl-add pl-add--row" title={t('plotGrid.addRow')} aria-label={t('plotGrid.addRow')} onClick={addRow}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <line x1="8" y1="3" x2="8" y2="13" />
-            <line x1="3" y1="8" x2="13" y2="8" />
-          </svg>
-        </button>
-
-        <button
-          type="button"
-          className="pl-resize-grip"
-          title={t('plotGrid.resize')}
-          aria-label={t('plotGrid.resize')}
-          onPointerDown={onGripDown}
+      {!mobile && menu && (
+        <AnchoredPopover
+          anchorRef={menuAnchorRef}
+          open
+          onClose={() => setMenu(null)}
+          placement="bottom-start"
+          className="menu-surface menu-surface--compact pl-head-menu"
+          role="menu"
+          ariaLabel={t('plotGrid.headerMenu')}
         >
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-            <line x1="11" y1="4" x2="4" y2="11" />
-            <line x1="11" y1="8" x2="8" y2="11" />
-          </svg>
-        </button>
-      </div>
+          {menuItems(menu).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="menuitem"
+              className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
+              disabled={item.disabled}
+              onClick={item.onClick}
+            >
+              <span>{item.label}</span>
+              {item.hint && <small className="pl-head-menu__hint">{item.hint}</small>}
+            </button>
+          ))}
+        </AnchoredPopover>
+      )}
     </div>
   );
 }

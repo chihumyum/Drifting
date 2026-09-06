@@ -25,7 +25,7 @@ import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobilePaperContent } from './MobilePaperContent';
 import { MobilePaperSearchOwnerMount } from './MobilePaperSearchOwnerMount';
 import { MobilePaperSnapshot } from './MobilePaperSnapshot';
-import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
+import { MobileVerticalTimeline } from './timeline/MobileVerticalTimeline';
 import { MobileUnifiedBar } from './MobileUnifiedBar';
 import { MobileTabBar } from './MobileTabBar';
 import { MobileRightSidebar } from './MobileRightSidebar';
@@ -698,11 +698,21 @@ export function MobilePaperDeck({
         <MobilePaperTools
           projectId={projectId}
           target={active.target}
+          workspaceUi={workspaceUi}
+          onWorkspaceUiAction={onWorkspaceUiAction}
           onClose={() => requestMobileWorkspaceBack('visible')}
         />
       )}
 
-      {workspaceUi.overlay === 'timeline' && <section className="m-paper-tool-surface m-paper-timeline" aria-label={t('mobileWorkspace.paperAgent.timeline')} data-debug-id="mobile-paper-timeline"><BottomTimeline presentation="mobile" /></section>}
+      {workspaceUi.overlay === 'timeline' && (
+        <MobileVerticalTimeline
+          projectId={projectId}
+          target={active?.target ?? null}
+          workspaceUi={workspaceUi}
+          onWorkspaceUiAction={onWorkspaceUiAction}
+          onClose={() => requestMobileWorkspaceBack('visible')}
+        />
+      )}
 
       {paperChromeVisible && workspaceUi.overlay === 'paper-tools' && (
         <MobilePaperToolsBar

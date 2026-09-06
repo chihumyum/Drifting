@@ -7,9 +7,32 @@ export const EXPANDED_ZOOM_CONFIG = {
   STORAGE_KEY: 'timeline-expanded-scale',
 };
 
+export type TimelineScaleAxis = 'x' | 'y';
+
 interface UseTimelineExpandedScaleParams {
   isExpanded: boolean;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * Which scroll axis the pinch anchors. The desktop track scrolls
+   * horizontally; the mobile vertical axis scrolls the same coordinate space
+   * downwards. Defaults to 'x'.
+   */
+  axis?: TimelineScaleAxis;
+  /** Separate persisted scale per presentation (1.0 means different pixel densities). */
+  storageKey?: string;
+}
+
+/** Keep the content under the pinch midpoint stationary while the scale changes. */
+export function timelinePinchAnchoredScrollOffset(input: {
+  anchorContent: number;
+  nextScale: number;
+  midpointClient: number;
+  containerStart: number;
+  maxScroll: number;
+}) {
+  const localMidpoint = input.midpointClient - input.containerStart;
+  const desired = input.anchorContent * input.nextScale - localMidpoint;
+  return Math.min(Math.max(0, input.maxScroll), Math.max(0, desired));
 }
 
 export function timelinePinchAnchoredScrollLeft(input: {
@@ -19,17 +42,21 @@ export function timelinePinchAnchoredScrollLeft(input: {
   containerLeft: number;
   maxScrollLeft: number;
 }) {
-  const localMidpoint = input.midpointClientX - input.containerLeft;
-  const desired = input.anchorContentX * input.nextScale - localMidpoint;
-  return Math.min(Math.max(0, input.maxScrollLeft), Math.max(0, desired));
+  return timelinePinchAnchoredScrollOffset({
+    anchorContent: input.anchorContentX,
+    nextScale: input.nextScale,
+    midpointClient: input.midpointClientX,
+    containerStart: input.containerLeft,
+    maxScroll: input.maxScrollLeft,
+  });
 }
 
 function clampExpandedScaleValue(scale: number) {
   return Math.min(EXPANDED_ZOOM_CONFIG.MAX_SCALE, Math.max(EXPANDED_ZOOM_CONFIG.MIN_SCALE, scale));
 }
 
-function getInitialExpandedScale() {
-  const savedScale = localStorage.getItem(EXPANDED_ZOOM_CONFIG.STORAGE_KEY);
+function getInitialExpandedScale(storageKey: string) {
+  const savedScale = localStorage.getItem(storageKey);
   if (!savedScale) return 1;
   const parsed = Number.parseFloat(savedScale);
   if (!Number.isFinite(parsed)) return 1;
@@ -39,12 +66,14 @@ function getInitialExpandedScale() {
 export function useTimelineExpandedScale({
   isExpanded,
   scrollContainerRef,
+  axis = 'x',
+  storageKey = EXPANDED_ZOOM_CONFIG.STORAGE_KEY,
 }: UseTimelineExpandedScaleParams) {
-  const [expandedScale, setExpandedScale] = useState(getInitialExpandedScale);
+  const [expandedScale, setExpandedScale] = useState(() => getInitialExpandedScale(storageKey));
   const pinchStateRef = useRef<{
     startDistance: number;
     startScale: number;
-    anchorContentX: number;
+    anchorContent: number;
   } | null>(null);
   const pinchScrollFrameRef = useRef(0);
 
@@ -56,8 +85,8 @@ export function useTimelineExpandedScale({
   );
 
   useEffect(() => {
-    localStorage.setItem(EXPANDED_ZOOM_CONFIG.STORAGE_KEY, expandedScale.toString());
-  }, [expandedScale]);
+    localStorage.setItem(storageKey, expandedScale.toString());
+  }, [expandedScale, storageKey]);
 
   // Use a non-passive native wheel listener so preventDefault works for trackpad pinch zoom.
   useEffect(() => {
@@ -88,20 +117,34 @@ export function useTimelineExpandedScale({
     return Math.hypot(dx, dy);
   };
 
-  const getTouchMidpointX = (touches: React.TouchList): number =>
-    touches.length < 2 ? 0 : (touches[0].clientX + touches[1].clientX) / 2;
+  const getTouchMidpoint = (touches: React.TouchList): number =>
+    touches.length < 2
+      ? 0
+      : axis === 'x'
+        ? (touches[0].clientX + touches[1].clientX) / 2
+        : (touches[0].clientY + touches[1].clientY) / 2;
+
+  const containerStart = (container: HTMLElement) => {
+    const rect = container.getBoundingClientRect();
+    return axis === 'x' ? rect.left : rect.top;
+  };
+  const scrollOffset = (container: HTMLElement) =>
+    axis === 'x' ? container.scrollLeft : container.scrollTop;
+  const maxScroll = (container: HTMLElement) =>
+    axis === 'x'
+      ? container.scrollWidth - container.clientWidth
+      : container.scrollHeight - container.clientHeight;
 
   const handleTimelineTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isExpanded || e.touches.length < 2) return;
     const startDistance = getTouchDistance(e.touches);
     const container = scrollContainerRef.current;
     if (startDistance <= 0 || !container) return;
-    const midpointClientX = getTouchMidpointX(e.touches);
-    const localMidpoint = midpointClientX - container.getBoundingClientRect().left;
+    const localMidpoint = getTouchMidpoint(e.touches) - containerStart(container);
     pinchStateRef.current = {
       startDistance,
       startScale: expandedScale,
-      anchorContentX: (container.scrollLeft + localMidpoint) / expandedScale,
+      anchorContent: (scrollOffset(container) + localMidpoint) / expandedScale,
     };
   };
 
@@ -118,7 +161,7 @@ export function useTimelineExpandedScale({
     const ratio = currentDistance / pinchStateRef.current.startDistance;
     const nextScale = pinchStateRef.current.startScale * ratio;
     const clampedScale = clampExpandedScaleValue(nextScale);
-    const midpointClientX = getTouchMidpointX(e.touches);
+    const midpointClient = getTouchMidpoint(e.touches);
     setExpandedScale(clampedScale);
     if (pinchScrollFrameRef.current) cancelAnimationFrame(pinchScrollFrameRef.current);
     pinchScrollFrameRef.current = requestAnimationFrame(() => {
@@ -126,13 +169,15 @@ export function useTimelineExpandedScale({
       const container = scrollContainerRef.current;
       const pinch = pinchStateRef.current;
       if (!container || !pinch) return;
-      container.scrollLeft = timelinePinchAnchoredScrollLeft({
-        anchorContentX: pinch.anchorContentX,
+      const next = timelinePinchAnchoredScrollOffset({
+        anchorContent: pinch.anchorContent,
         nextScale: clampedScale,
-        midpointClientX,
-        containerLeft: container.getBoundingClientRect().left,
-        maxScrollLeft: container.scrollWidth - container.clientWidth,
+        midpointClient,
+        containerStart: containerStart(container),
+        maxScroll: maxScroll(container),
       });
+      if (axis === 'x') container.scrollLeft = next;
+      else container.scrollTop = next;
     });
   };
 
@@ -146,6 +191,7 @@ export function useTimelineExpandedScale({
 
   return {
     expandedScale,
+    setExpandedScale: (next: number) => setExpandedScale(clampExpandedScaleValue(next)),
     touchHandlers: {
       onTouchStart: handleTimelineTouchStart,
       onTouchMove: handleTimelineTouchMove,

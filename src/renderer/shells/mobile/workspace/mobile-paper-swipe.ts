@@ -46,6 +46,8 @@ const EXCLUDED_SELECTOR = [
   '[data-mobile-paper-swipe="exclude"]',
   '.btl',
   '.planner-wrap',
+  '.m-vtl',
+  '.m-plot',
   '.review-card',
   '.editor__toc-rail',
 ].join(',');
@@ -61,6 +63,8 @@ const ALWAYS_EXCLUDED_SELECTOR = [
   '[data-mobile-paper-swipe="exclude"]',
   '.btl',
   '.planner-wrap',
+  '.m-vtl',
+  '.m-plot',
   '.review-card',
   '.editor__toc-rail',
 ].join(',');
