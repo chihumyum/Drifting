@@ -201,8 +201,10 @@ export function MobileUnifiedBar({
   return (
     <>
     <AnimatePresence>
+    {/* Entering Agent always hands input to the composer: an editing origin
+        transfers its open IME, a reading origin summons it like Search does. */}
     {projection.visible && projection.mode === 'agent-input' && <MobilePaperAgent key={paperKey} projectId={projectId} paperKey={paperKey} keyboardInset={keyboardInset}
-      focusComposer={workspaceUi.transient.kind === 'agent-input' && workspaceUi.transient.returnTo?.kind === 'edit'} onClose={handleBack} />}
+      focusComposer={workspaceUi.transient.kind === 'agent-input'} onClose={handleBack} />}
     </AnimatePresence>
     <footer
       {...inputActions}

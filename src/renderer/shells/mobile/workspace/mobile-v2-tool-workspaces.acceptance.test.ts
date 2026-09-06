@@ -19,6 +19,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(panels).not.toMatch(/DesktopAgent|DesktopRightSidebar/);
     expect(agent).toContain("{ turnContext, toolAccess: 'read_write' }");
     expect(agent).toContain("{ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' }");
+    expect(agent).not.toContain('agentPanel.mobile.safety');
+    expect(agent).not.toContain('m-agent__safety');
     expect(agent).not.toContain('writeChapterProse');
     expect(agent).not.toContain('continueTask');
     expect(store).toContain('turnContext?: readonly AgentConversationContextRef[]');

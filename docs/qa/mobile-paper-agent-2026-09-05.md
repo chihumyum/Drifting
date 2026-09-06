@@ -11,7 +11,8 @@ and removed after acceptance.
 - Agent: three recent sessions, searchable full history, first-send expansion,
   header session switching, close/reopen and restore after renderer reload passed.
   The expanded frame measured x=8, y=70, width=386, height=762; it reserves no
-  manuscript reading gutter. Reading restoration did not summon the keyboard.
+  manuscript reading gutter. Reading restoration did not summon the keyboard in
+  this run; since 2026-09-06 entering Agent from reading focuses the composer.
 - Native touch: entering prose editing, transferring focus to Agent and back,
   and opening/closing the Agent keyboard passed. At visual viewport height 539,
   the composer ended at y=530, above the keyboard. The compatibility mousedown

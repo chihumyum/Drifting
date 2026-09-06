@@ -390,12 +390,19 @@ describe('persistent paper tools', () => {
       expect(resolveMobileWorkspaceBack(tool, 'visible').nextState.overlay).toBe('none');
     }
   });
-  it('opens Agent without an IME from reading and transfers editing keyboard ownership', () => {
+  it('opens Agent from reading, accepts the composer IME, and transfers editing keyboard ownership', () => {
     const root = paperRoot();
     const readAgent = reduce(root, { type: 'open-agent' });
+    // The composer focuses itself on mount; the reducer only learns about the
+    // IME once the viewport reports it, so the declared keyboard stays closed.
     expect(readAgent.keyboard).toBe('closed');
     expect(selectMobileUnifiedBarProjection(readAgent).mode).toBe('agent-input');
     expect(resolveMobileWorkspaceBack(readAgent, 'visible').nextState).toEqual(root);
+    const readTyping = reduce(readAgent, { type: 'sync-keyboard', keyboard: 'open' });
+    expect(readTyping.keyboard).toBe('open');
+    const readBack = resolveMobileWorkspaceBack(readTyping, 'visible');
+    expect(readBack.effect).toBe('blur-input');
+    expect(readBack.nextState).toEqual(root);
     const editing = reduce(root, { type: 'sync-editor', editing: true });
     const agent = reduce(editing, { type: 'open-agent' });
     expect(agent.keyboard).toBe('open');

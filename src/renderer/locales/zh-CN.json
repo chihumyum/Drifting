@@ -1538,7 +1538,6 @@
       "contextProject": "项目",
       "contextParagraph": "段落",
       "contextCurrent": "当前",
-      "safety": "读写模式 · Agent 可读取并修改本项目；每次改动都会列入证据区，点按即可核对。",
       "empty": "向 Agent 提问或下达修改指令。它可以读写本项目的章节、元素与关系；改动会列在证据区。",
       "actionsAria": "回答操作",
       "evidenceAria": "本轮证据",

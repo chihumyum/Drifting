@@ -1538,7 +1538,6 @@
       "contextProject": "Project",
       "contextParagraph": "Paragraph",
       "contextCurrent": "Current",
-      "safety": "Read-write mode · Agent can read and edit this project; every change is listed as evidence for you to review.",
       "empty": "Ask Agent a question or give it an instruction. It can read and write this project's chapters, elements, and relations; changes are listed as evidence.",
       "actionsAria": "Answer actions",
       "evidenceAria": "Turn evidence",

@@ -367,7 +367,8 @@ a fresh composer. Hydration and rapid switching are guarded; a late load cannot 
 a stale draft. The right panel and shortcut use the same conversation store and runtime.
 The association is **UI state only**: shortcut sends and retries contain only the
 user's text, with no paper, selection, title, prose or added context instruction.
-Reading does not summon the keyboard until the input is tapped.
+Entering Agent from reading focuses the composer and summons the keyboard at
+once, the same way Search does; Back blurs it and restores reading.
 
 Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests and
 `docs/qa/mobile-paper-agent-2026-09-05.md`. The corrected navigation/toolbar stacking
@@ -390,8 +391,8 @@ those child layers, the accessory Back resolves the following table.
 | --- | --- | --- | --- | --- |
 | Format | Horizontal prose style buttons | Absent; entering prose editing opens it | Applies styles to the live editor while preserving focus | Returns to the entry list with the editor and keyboard active |
 | Search | Search field, count, previous/next matches over live prose | Focuses Search; prose stays in reading mode | Transfers focus to Search and retains the originating editor state | Closes Search; restores reading, or the saved editor and open keyboard |
-| Agent, no session | Composer with its action row; recent sessions extend directly above it | Shows the dock; keyboard opens only after tapping the input | Transfers focus to the composer without dismissing the keyboard | Exits Agent in one step; restores reading, or the saved editor and open keyboard |
-| Agent, selected session | Flat conversation plane above the same composer; header switches sessions | Restores the paper's selected session without forcing input focus | Opens the same conversation plane with composer focus | Same as the unselected dock; selection/draft remain associated with the paper |
+| Agent, no session | Composer with its action row; recent sessions extend directly above it | Shows the dock with the composer focused and the keyboard open | Transfers focus to the composer without dismissing the keyboard | Exits Agent in one step; restores reading, or the saved editor and open keyboard |
+| Agent, selected session | Flat conversation plane above the same composer; header switches sessions | Restores the paper's selected session with composer focus | Opens the same conversation plane with composer focus | Same as the unselected dock; selection/draft remain associated with the paper |
 | Plot | Plot workspace above the accessory, with its own editable fields | Prose stays in reading mode; a tool field may open the keyboard | Covers the editor and retains its return state | Exits Plot directly, including when a tool field owns focus; restores the origin |
 | Timeline | Timeline workspace above the accessory | Prose stays in reading mode | Covers the editor and retains its return state | Exits Timeline directly and restores the origin |
 

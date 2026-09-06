@@ -393,9 +393,6 @@ export function MobileAgentPanel({
       ) : (
         <>
           {!paperBinding && <ContextChips refs={turnContext} />}
-          {!paperBinding && <div className="m-agent__safety" role="status">
-            {t('agentPanel.mobile.safety')}
-          </div>}
           {paperBinding && !expanded && <div className="m-paper-agent__recent" aria-label={t('mobileWorkspace.paperAgent.recent')}>
             <div><span>{t('mobileWorkspace.paperAgent.recent')}</span><button type="button" onClick={() => setHistoryOpen(true)}>{t('mobileWorkspace.paperAgent.allSessions')}</button></div>
             {convList.slice(0, 3).map((conversation) => <button type="button" key={conversation.id} disabled={paperBinding.loading} onClick={() => chooseConversation(conversation.id)}>{runningTurns[conversation.id] ? '● ' : ''}{conversation.title || t('agentPanel.history.untitled')}</button>)}

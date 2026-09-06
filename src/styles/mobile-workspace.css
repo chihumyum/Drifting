@@ -1680,17 +1680,6 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   padding: 0 0 4px;
 }
 
-.m-agent__safety {
-  flex: 0 0 auto;
-  margin: 0 10px 6px;
-  padding: 7px 9px;
-  border-radius: 7px;
-  background: hsl(var(--accent) / 0.08);
-  color: hsl(var(--ink-3));
-  font-size: 11px;
-  line-height: 1.45;
-}
-
 .m-agent__provider-state {
   flex: 0 0 auto;
   min-height: 48px;

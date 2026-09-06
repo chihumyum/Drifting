@@ -73,6 +73,9 @@ describe('Mobile V2 paper and keyboard-accessory interaction correction', () => 
     expect(deck).toContain('<MobileRightSidebar');
     expect(deck).toContain('<MobileTabBar');
     expect(bar).toContain('<MobilePaperAgent');
+    // Entering Agent focuses the composer from both reading and editing origins.
+    expect(bar).toContain("focusComposer={workspaceUi.transient.kind === 'agent-input'}");
+    expect(bar).not.toContain("returnTo?.kind === 'edit'");
     expect(bar).not.toContain('MobilePanelPullHandle');
     expect(bar).not.toContain('mobile-open-overview');
     expect(deck).not.toContain('MobileWorkspacePanels');
