@@ -36,6 +36,8 @@ describe('mobile standalone routes', () => {
     expect(mobileWorkspace).toContain('freezeLiveMobilePaperContent(active)');
     expect(mobileWorkspace).toContain('<MobileProjectTrashView');
     expect(mobileWorkspace).toContain('onOpenTrash={() =>');
+    expect(mobileWorkspace).toContain('onPreviewTarget={(target) =>');
+    expect(mobileWorkspace).toContain("transient: { kind: 'entity-preview', target }");
     expect(mobileWorkspace).not.toContain('DesktopAppShell');
     expect(mobileWorkspace).not.toContain('store/ui-store');
   });
@@ -110,6 +112,7 @@ describe('mobile standalone routes', () => {
     expect(overlay).toContain('<ElementPanel');
     expect(overlay).toContain('<DriftPanel');
     expect(overlay).toContain('presentation="mobile"');
+    expect(overlay).toContain('onPreviewTarget={onPreviewTarget}');
     expect(toolsFace).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
     expect(toolsFace).toContain('<MobilePaperStats target={target} />');
     expect(statsSheet).toContain('<EntityStatsContent');

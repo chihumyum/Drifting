@@ -9,21 +9,22 @@ import type { MobileTabBarTab } from './MobileTabBar';
 import type { MobileSuperViewId } from './mobile-workspace-controller';
 
 /** The near-full-screen structure layer behind a bottom tab bar entry. It
- * hosts the same panels as the desktop left bar; tapping an entry opens it
- * directly as a paper. Chapter-axis companions (通览全书, 叙事图) ride in the
- * header of the chapters layer. */
+ * hosts the same panels as the desktop left bar; tapping an existing entity
+ * raises its read-only preview before the author explicitly opens a paper.
+ * Chapter-axis companions (通览全书, 叙事图) ride in the header of the chapters
+ * layer. */
 export function MobileStructureOverlay({
   tab,
   target,
   onClose,
-  onOpenTarget,
+  onPreviewTarget,
   onOpenAllChapters,
   onOpenSuperView,
 }: {
   tab: MobileTabBarTab;
   target: WorkspaceTarget | null;
   onClose: () => void;
-  onOpenTarget: (target: WorkspaceTarget) => void;
+  onPreviewTarget: (target: WorkspaceTarget) => void;
   onOpenAllChapters: () => void;
   onOpenSuperView: (view: MobileSuperViewId) => void;
 }) {
@@ -95,21 +96,21 @@ export function MobileStructureOverlay({
             <ChapterPanel
               presentation="mobile"
               activeTarget={target}
-              onPreviewTarget={onOpenTarget}
+              onPreviewTarget={onPreviewTarget}
             />
           )}
           {tab === 'elements' && (
             <ElementPanel
               presentation="mobile"
               activeTarget={target}
-              onPreviewTarget={onOpenTarget}
+              onPreviewTarget={onPreviewTarget}
             />
           )}
           {tab === 'drifts' && (
             <DriftPanel
               presentation="mobile"
               activeTarget={target}
-              onPreviewTarget={onOpenTarget}
+              onPreviewTarget={onPreviewTarget}
             />
           )}
         </div>

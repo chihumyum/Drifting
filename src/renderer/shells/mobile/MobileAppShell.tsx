@@ -329,9 +329,11 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             state.papers.find((paper) => paper.key === state.activeKey)?.target ?? null
           }
           onClose={() => dispatchWorkspaceUi({ type: 'set-overlay', overlay: 'none' })}
-          onOpenTarget={(target) => {
-            openPaper(target);
-            dispatchWorkspaceUi({ type: 'show-paper' });
+          onPreviewTarget={(target) => {
+            dispatchWorkspaceUi({
+              type: 'set-transient',
+              transient: { kind: 'entity-preview', target },
+            });
           }}
           onOpenAllChapters={() => {
             openPaper({ entityType: 'all-chapters', id: 'self' });

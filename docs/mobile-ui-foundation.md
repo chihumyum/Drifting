@@ -249,8 +249,11 @@ editing, timeline, material, comment, and Agent capabilities.
   ordering are session-only per editor; Review open/close, resolve, conversion,
   and paper switching do not remove notes. An open rail blocks paper swipe so
   it cannot compete for touch.
-- Entity cells open a read-only preview sheet first; only an explicit action
-  inserts a new paper. Backdrop events are consumed and cannot click through.
+- Entity cells in the chapter, element, and drift structure overlays dispatch
+  the controller's read-only preview transient first; they do not mutate the
+  paper session. Only the Sheet's explicit action inserts or activates a paper.
+  Backdrop events are consumed and cannot click through. Newly created entities
+  may still open their editor directly.
 - Paper overview owns activation, close, close-all, grid reorder, Super View,
   settings, shelf, and all-chapters navigation.
 - Host page zoom is disabled in the mobile WebView. Canvas-based Super Views own
