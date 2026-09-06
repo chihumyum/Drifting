@@ -20,6 +20,7 @@ import { AnchoredPopover } from '../ui/AnchoredPopover';
 import {
   clampPlotGridCellSize,
   fitPlotGridCellSize,
+  plotGridCellRatio,
   plotGridCellLineClamp,
   plotGridCellPosition,
   plotGridNeighbor,
@@ -105,6 +106,12 @@ interface PlotGridEditorProps {
   persistCellSize?: boolean;
   onCellSizeChange?: (size: PlotGridCellSize) => void;
   fitOnMount?: boolean;
+  /**
+   * The cell ratio (width / height) a hand-set size fixed; fit keeps it and
+   * only scales. Hosts store it per grid on this device and report changes.
+   */
+  initialCellRatio?: number | null;
+  onCellRatioChange?: (ratio: number) => void;
 }
 
 interface HeaderMenuState {
@@ -185,6 +192,8 @@ export function PlotGridEditor({
   persistCellSize = presentation === 'desktop',
   onCellSizeChange,
   fitOnMount = false,
+  initialCellRatio = null,
+  onCellRatioChange,
 }: PlotGridEditorProps) {
   const { t } = useTranslation();
   const draft = usePlotGridDraft(initialJson, onChange, {
@@ -199,6 +208,7 @@ export function PlotGridEditor({
   const [size, setSize] = useState({ width: 0, height: 0 });
   // Live size while a grip drag or pinch is in flight; committed on release.
   const [liveSize, setLiveSize] = useState<PlotGridCellSize | null>(null);
+  const [cellRatio, setCellRatio] = useState<number | null>(initialCellRatio);
   const fittedOnMountRef = useRef(false);
   const [menu, setMenu] = useState<HeaderMenuState | null>(null);
   const [focusToken, setFocusToken] = useState<{ axis: PlotGridVisualAxis; id: string; n: number } | null>(
@@ -251,17 +261,25 @@ export function PlotGridEditor({
         presentation,
         cellSize,
         rowHeaderW,
+        ratio: cellRatio,
       }),
-    [cellSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length],
+    [cellRatio, cellSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length],
   );
 
+  // A size set by hand also fixes the cell ratio, which fit then keeps; a
+  // fit itself never changes the ratio.
   const commitSize = useCallback(
-    (next: PlotGridCellSize) => {
+    (next: PlotGridCellSize, options?: { byHand?: boolean }) => {
       const clamped = clampPlotGridCellSize(next, presentation);
       draft.setSize(clamped);
       onCellSizeChange?.(clamped);
+      if (options?.byHand) {
+        const ratio = plotGridCellRatio(clamped);
+        setCellRatio(ratio);
+        onCellRatioChange?.(ratio);
+      }
     },
-    [draft, onCellSizeChange, presentation],
+    [draft, onCellRatioChange, onCellSizeChange, presentation],
   );
   const fit = useCallback(() => {
     if (size.width <= 0 || size.height <= 0) return;
@@ -273,9 +291,10 @@ export function PlotGridEditor({
         cols: view.cols.length,
         presentation,
         rowHeaderW,
+        ratio: cellRatio,
       }),
     );
-  }, [commitSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length]);
+  }, [cellRatio, commitSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length]);
   useEffect(() => {
     if (!fitOnMount || fittedOnMountRef.current || size.width <= 0 || size.height <= 0) return;
     fittedOnMountRef.current = true;
@@ -319,7 +338,7 @@ export function PlotGridEditor({
       window.removeEventListener('pointercancel', cancel);
       if (frame) window.cancelAnimationFrame(frame);
       setLiveSize(null);
-      if (commit) commitSize(last);
+      if (commit) commitSize(last, { byHand: true });
     };
     const up = (ev: PointerEvent) => finish(ev, true);
     const cancel = (ev: PointerEvent) => finish(ev, false);
@@ -371,7 +390,7 @@ export function PlotGridEditor({
     if (!pinch || e.touches.length >= 2) return;
     pinchRef.current = null;
     setLiveSize(null);
-    commitSize(pinch.last);
+    commitSize(pinch.last, { byHand: true });
   };
 
   // A row or column appended past the visible extent scrolls into view so
@@ -422,9 +441,9 @@ export function PlotGridEditor({
       fit,
       isFitted: () => layout.fitted,
       getCellSize: () => ({ cellW: draft.grid.cellW, cellH: draft.grid.cellH }),
-      setCellSize: (next) => commitSize(next),
+      setCellSize: (next) => commitSize(next, { byHand: true }),
       scaleCellSize: (factor) =>
-        commitSize({ cellW: draft.grid.cellW * factor, cellH: draft.grid.cellH * factor }),
+        commitSize({ cellW: draft.grid.cellW * factor, cellH: draft.grid.cellH * factor }, { byHand: true }),
     }),
     [commitSize, draft, fit, layout.fitted, revealEnd, view],
   );

@@ -173,7 +173,12 @@ editing, timeline, material, comment, and Agent capabilities.
   changes it by pinch: fingers starting side by side scale only the width,
   fingers stacked vertically only the height, a diagonal pinch both, so the
   aspect ratio is adjustable without a grip; the live size shows in a badge
-  while it changes. The row header column hugs its widest label between a
+  while it changes. A size set by hand (grip or pinch) also fixes the cell
+  ratio, stored per grid on that device for both presentations; a later fit
+  keeps the ratio and only scales: near the balanced ratio the table scales
+  to be contained, far from it (beyond 1.5×) only the short axis fills and
+  the long axis overflows and scrolls. Without a hand-set ratio fit still
+  sizes both axes on their own. The row header column hugs its widest label between a
   per-presentation minimum and maximum, and long labels wrap (three lines on
   desktop, four on the phone) instead of truncating; the header menu button
   floats over the label end on hover rather than reserving a gutter. Tool

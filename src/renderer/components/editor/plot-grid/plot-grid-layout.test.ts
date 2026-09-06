@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PlotGrid } from '../../../domain/plot-grid';
 import {
+  PLOT_GRID_FIT_RATIO_TOLERANCE,
   clampPlotGridCellSize,
   fitPlotGridCellSize,
   plotGridCellLineClamp,
@@ -101,6 +102,92 @@ describe('plot grid fixed-size layout', () => {
       cellW: 440,
       cellH: 56,
     });
+  });
+
+  it('keeps a hand-set ratio and contains the table when the ratio is near the balanced one', () => {
+    // Balanced fit here is 96 × 110 (ratio 0.87); 1:1 is within tolerance.
+    const fit = fitPlotGridCellSize({
+      width: 348,
+      height: 588,
+      rows: 5,
+      cols: 3,
+      presentation: 'mobile',
+      rowHeaderW: 60,
+      ratio: 1,
+    });
+    expect(fit).toEqual({ cellW: 96, cellH: 96 });
+    const layout = resolvePlotGridLayout({
+      width: 348,
+      height: 588,
+      rows: 5,
+      cols: 3,
+      presentation: 'mobile',
+      cellSize: fit,
+      rowHeaderW: 60,
+      ratio: 1,
+    });
+    // Contained: the width binds, the rows leave slack; and fit is a no-op now.
+    expect(layout).toMatchObject({ scrollX: false, scrollY: false, fitted: true });
+    expect(
+      resolvePlotGridLayout({
+        width: 348,
+        height: 588,
+        rows: 5,
+        cols: 3,
+        presentation: 'mobile',
+        cellSize: { cellW: 96, cellH: 110 },
+        rowHeaderW: 60,
+        ratio: 1,
+      }).fitted,
+    ).toBe(false);
+  });
+
+  it('fills only the short axis when the hand-set ratio is far from balanced', () => {
+    // Balanced fit is 268 × 56 on desktop (ratio 4.8); the hand-set 1:1 is far
+    // off, so fitting both axes would make strips. The rows fill the width
+    // instead and the six rows overflow the 200px dock.
+    expect(PLOT_GRID_FIT_RATIO_TOLERANCE).toBe(1.5);
+    const fit = fitPlotGridCellSize({
+      width: 900,
+      height: 200,
+      rows: 6,
+      cols: 3,
+      presentation: 'desktop',
+      rowHeaderW: 96,
+      ratio: 1,
+    });
+    expect(fit).toEqual({ cellW: 268, cellH: 268 });
+    expect(
+      resolvePlotGridLayout({
+        width: 900,
+        height: 200,
+        rows: 6,
+        cols: 3,
+        presentation: 'desktop',
+        cellSize: fit,
+        rowHeaderW: 96,
+        ratio: 1,
+      }),
+    ).toMatchObject({ scrollX: false, scrollY: true, fitted: true });
+  });
+
+  it('clamps a ratio-keeping fit along the ratio, breaking it only when the bounds cannot hold it', () => {
+    // Very wide cells on the phone: the width maximum binds, the height follows.
+    expect(
+      fitPlotGridCellSize({ width: 348, height: 588, rows: 3, cols: 5, presentation: 'mobile', rowHeaderW: 60, ratio: 4 }),
+    ).toEqual({ cellW: 440, cellH: 110 });
+    // Tall cells at the width minimum keep their shape, so the rows overflow.
+    expect(
+      fitPlotGridCellSize({ width: 348, height: 588, rows: 3, cols: 5, presentation: 'mobile', rowHeaderW: 60, ratio: 0.25 }),
+    ).toEqual({ cellW: 84, cellH: 336 });
+    // A ratio no size within the bounds can express falls back to per-axis clamping.
+    expect(
+      fitPlotGridCellSize({ width: 348, height: 588, rows: 3, cols: 5, presentation: 'mobile', rowHeaderW: 60, ratio: 0.05 }),
+    ).toEqual({ cellW: 84, cellH: 380 });
+    // No ratio: each axis fits on its own, as before.
+    expect(
+      fitPlotGridCellSize({ width: 348, height: 588, rows: 5, cols: 3, presentation: 'mobile', rowHeaderW: 60, ratio: null }),
+    ).toEqual({ cellW: 96, cellH: 110 });
   });
 
   it('hugs the widest row label between the presentation bounds', () => {

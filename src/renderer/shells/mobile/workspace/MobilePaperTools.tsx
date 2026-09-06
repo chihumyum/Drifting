@@ -8,6 +8,10 @@ import {
   type PlotGridEditorApi,
   type PlotGridHeaderRef,
 } from '../../../components/editor/PlotGrid';
+import {
+  readLocalPlotGridCellRatio,
+  writeLocalPlotGridCellRatio,
+} from '../../../components/editor/plot-grid/plot-grid-cell-ratio-store';
 import type { PlotGridCellSize } from '../../../components/editor/plot-grid/plot-grid-layout';
 import {
   clonePlotGrid,
@@ -124,6 +128,8 @@ function MobileNormalizedPlotGridEditor({
       initialCellSize={initialCellSize}
       fitOnMount={initialCellSize === null}
       onCellSizeChange={(size) => writeLocalCellSize(nodeId, size)}
+      initialCellRatio={readLocalPlotGridCellRatio(nodeId)}
+      onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}
       onChange={(grid) => {
         latestGridRef.current = clonePlotGrid(grid);
         if (timerRef.current) clearTimeout(timerRef.current);

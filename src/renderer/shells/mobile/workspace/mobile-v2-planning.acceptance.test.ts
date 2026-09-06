@@ -78,6 +78,7 @@ describe('Mobile V2 Planning acceptance wiring', () => {
     const grid = source('components/editor/PlotGrid.tsx');
     const draft = source('components/editor/plot-grid/usePlotGridDraft.ts');
     const layout = source('components/editor/plot-grid/plot-grid-layout.ts');
+    const dock = source('components/editor/PlotPlannerDock.tsx');
     const tools = source('shells/mobile/workspace/MobilePaperTools.tsx');
     const sheets = source('shells/mobile/workspace/MobilePlotSheets.tsx');
     const domain = source('domain/plot-grid.ts');
@@ -105,6 +106,13 @@ describe('Mobile V2 Planning acceptance wiring', () => {
     expect(tools).toContain('persistCellSize={false}');
     expect(tools).toContain('fitOnMount={initialCellSize === null}');
     expect(tools).toContain("CELL_SIZE_STORAGE_PREFIX = 'plot-grid-cell-size:'");
+    // A hand-set size fixes the cell ratio per grid on this device; fit keeps it.
+    expect(layout).toContain('export const PLOT_GRID_FIT_RATIO_TOLERANCE');
+    expect(grid).toContain('ratio: cellRatio,');
+    expect(grid).toContain('commitSize(pinch.last, { byHand: true })');
+    expect(grid).toContain('commitSize(last, { byHand: true })');
+    expect(tools).toContain('onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}');
+    expect(dock).toContain('onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}');
     expect(draft).toContain("move(axis: PlotGridDataAxis, id: string, delta: -1 | 1): boolean;");
     expect(domain).toContain("readonly type: 'row.move'");
     expect(domain).toContain("readonly type: 'column.move'");

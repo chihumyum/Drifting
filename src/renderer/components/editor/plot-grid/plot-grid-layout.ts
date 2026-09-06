@@ -13,12 +13,19 @@ import {
  * paper tool).
  *
  * Cells have a SIZE of their own. Adding rows or columns never squeezes the
- * existing cells: the table grows and the overflowing axis scrolls with the
- * opposite header pinned. "Fit" is an ACTION that computes the size at which
- * the whole table fills the host exactly, writes it into that size, and then
- * leaves it fixed again. The desktop size is the synced cellW / cellH record;
- * the mobile size is device-local (a phone-sized cell means nothing on a
- * desktop and vice versa), so each presentation carries its own bounds.
+ * existing cells: the table grows and the overflowing axis scrolls. "Fit" is
+ * an ACTION that computes the size at which the whole table fills the host,
+ * writes it into that size, and then leaves it fixed again. The desktop size
+ * is the synced cellW / cellH record; the mobile size is device-local (a
+ * phone-sized cell means nothing on a desktop and vice versa), so each
+ * presentation carries its own bounds.
+ *
+ * A size set BY HAND (grip, pinch) also fixes the cell's aspect RATIO, kept
+ * device-local per grid. A later fit keeps that ratio and only scales: when
+ * the ratio is close to the one that would fill both axes, the table scales
+ * to be contained; when it is far from it, fitting both axes would turn the
+ * cells into strips, so only the short axis is filled and the long axis
+ * overflows and scrolls.
  */
 export type PlotGridPresentation = 'desktop' | 'mobile';
 
@@ -81,6 +88,17 @@ export function resolvePlotGridRowHeaderWidth(
   );
 }
 
+/** The hand-set cell shape, width over height. */
+export function plotGridCellRatio(size: PlotGridCellSize): number {
+  return size.cellW / size.cellH;
+}
+
+/**
+ * How far a hand-set ratio may sit from the balanced (both-axes) fit before a
+ * ratio-keeping fit stops containing the table and fills the short axis only.
+ */
+export const PLOT_GRID_FIT_RATIO_TOLERANCE = 1.5;
+
 export function clampPlotGridCellSize(
   size: PlotGridCellSize,
   presentation: PlotGridPresentation,
@@ -102,12 +120,16 @@ export interface PlotGridFitInput {
   readonly presentation: PlotGridPresentation;
   /** Measured row header width (see resolvePlotGridRowHeaderWidth). */
   readonly rowHeaderW?: number;
+  /** A hand-set cell ratio (width / height) the fit must keep; null fits both axes. */
+  readonly ratio?: number | null;
 }
 
 /**
- * The cell size at which the table fills the host on both axes, clamped to the
- * presentation bounds (a crowded axis therefore still overflows at the
- * minimum). Callers store the result; it is a one-time action, not a mode.
+ * The cell size at which the table fills the host, clamped to the presentation
+ * bounds (a crowded axis therefore still overflows at the minimum). Without a
+ * hand-set ratio each axis fits on its own; with one, the cells only scale
+ * (see the module note). Callers store the result; it is a one-time action,
+ * not a mode.
  */
 export function fitPlotGridCellSize({
   width,
@@ -116,12 +138,29 @@ export function fitPlotGridCellSize({
   cols,
   presentation,
   rowHeaderW,
+  ratio = null,
 }: PlotGridFitInput): PlotGridCellSize {
   const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
   const safeRows = Math.max(1, rows);
   const safeCols = Math.max(1, cols);
   const availableW = Math.max(0, width - (rowHeaderW ?? metrics.rowHeaderW));
   const availableH = Math.max(0, height - metrics.colHeaderH);
+  if (ratio !== null && Number.isFinite(ratio) && ratio > 0) {
+    // Both candidates are cell heights: the one that fills the width at this
+    // ratio and the one that fills the height.
+    const byWidth = availableW / (safeCols * ratio);
+    const byHeight = availableH / safeRows;
+    const short = Math.min(byWidth, byHeight);
+    const long = Math.max(byWidth, byHeight);
+    const balanced = short > 0 && long / short <= PLOT_GRID_FIT_RATIO_TOLERANCE;
+    let cellH = balanced ? short : long;
+    // Clamp along the ratio so the shape survives whenever the bounds allow.
+    const minH = Math.max(metrics.minCellH, metrics.minCellW / ratio);
+    const maxH = Math.min(metrics.maxCellH, metrics.maxCellW / ratio);
+    if (minH <= maxH) cellH = Math.min(maxH, Math.max(minH, cellH));
+    cellH = Math.floor(cellH);
+    return clampPlotGridCellSize({ cellW: Math.floor(cellH * ratio), cellH }, presentation);
+  }
   return clampPlotGridCellSize(
     { cellW: Math.floor(availableW / safeCols), cellH: Math.floor(availableH / safeRows) },
     presentation,
@@ -143,7 +182,7 @@ export interface PlotGridLayout {
   readonly scrollY: boolean;
   readonly tableW: number;
   readonly tableH: number;
-  /** True when the table already fills the host on both axes (fit is a no-op). */
+  /** True when the current size is what fit would produce (fit is a no-op). */
   readonly fitted: boolean;
 }
 
@@ -156,6 +195,7 @@ export function resolvePlotGridLayout({
   presentation,
   cellSize,
   rowHeaderW,
+  ratio = null,
 }: PlotGridLayoutInput): PlotGridLayout {
   const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
   const safeRows = Math.max(1, rows);
@@ -164,7 +204,7 @@ export function resolvePlotGridLayout({
   const headerW = rowHeaderW ?? metrics.rowHeaderW;
   const tableW = headerW + cellW * safeCols;
   const tableH = metrics.colHeaderH + cellH * safeRows;
-  const fit = fitPlotGridCellSize({ width, height, rows, cols, presentation, rowHeaderW: headerW });
+  const fit = fitPlotGridCellSize({ width, height, rows, cols, presentation, rowHeaderW: headerW, ratio });
   return {
     cellW,
     cellH,

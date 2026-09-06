@@ -11,6 +11,10 @@ import {
 } from '../../domain/plot-grid';
 import { clampDimension, verticalDockBounds } from '../../lib/layout-geometry';
 import { PlotGridEditor, type PlotGridEditorApi } from './PlotGrid';
+import {
+  readLocalPlotGridCellRatio,
+  writeLocalPlotGridCellRatio,
+} from './plot-grid/plot-grid-cell-ratio-store';
 import '../../../styles/plot-planner.css';
 
 const DEFAULT_HEIGHT = 280;
@@ -203,6 +207,8 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           onChange={handleChange}
           presentation="desktop"
           apiRef={gridApiRef}
+          initialCellRatio={readLocalPlotGridCellRatio(nodeId)}
+          onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}
         />
       </div>
       <div
