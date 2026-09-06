@@ -360,9 +360,26 @@ export function PlotGridEditor({
     commitSize(pinch.last);
   };
 
+  // A row or column appended past the visible extent scrolls into view so
+  // the new axis is never added off-screen (the table no longer squeezes).
+  const [reveal, setReveal] = useState<{ axis: PlotGridVisualAxis; n: number } | null>(null);
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!reveal || !wrap) return;
+    if (reveal.axis === 'col') wrap.scrollTo({ left: wrap.scrollWidth, behavior: 'smooth' });
+    else wrap.scrollTo({ top: wrap.scrollHeight, behavior: 'smooth' });
+  }, [reveal]);
+  const revealEnd = useCallback((axis: PlotGridVisualAxis) => {
+    setReveal((current) => ({ axis, n: (current?.n ?? 0) + 1 }));
+  }, []);
+
   const api = useMemo<PlotGridEditorApi>(
     () => ({
-      addVisual: (axis) => draft.add(view.dataAxis(axis)),
+      addVisual: (axis) => {
+        const created = draft.add(view.dataAxis(axis));
+        revealEnd(axis);
+        return created;
+      },
       insertVisual: (axis, id, side) => draft.insert(view.dataAxis(axis), id, side),
       removeVisual: (axis, id) => draft.remove(view.dataAxis(axis), id),
       moveVisual: (axis, id, delta) => draft.move(view.dataAxis(axis), id, delta),
@@ -395,7 +412,7 @@ export function PlotGridEditor({
       scaleCellSize: (factor) =>
         commitSize({ cellW: draft.grid.cellW * factor, cellH: draft.grid.cellH * factor }),
     }),
-    [commitSize, draft, fit, layout.fitted, view],
+    [commitSize, draft, fit, layout.fitted, revealEnd, view],
   );
   useImperativeHandle(apiRef, () => api, [api]);
   useEffect(() => {
