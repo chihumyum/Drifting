@@ -94,7 +94,8 @@ export function useNotificationFeed(): void {
         }
         if (!tracked) continue;
 
-        const name = projectName(generation.projectId);
+        const chat = generation.syncGenerationId.endsWith(':agent-chat');
+        const name = [projectName(generation.projectId), chat ? t('notifications.googleDrive.agentChat') : null].filter(Boolean).join(' · ') || null;
         const title = t(`notifications.googleDrive.${phaseKey(generation)}`);
         if (generation.phase !== 'idle') {
           if (progress) tracked.lastProgress = progress;
@@ -134,7 +135,8 @@ export function useNotificationFeed(): void {
         }
 
         const stopped = generation.lastOutcome === 'cancelled';
-        const failed = generation.lastOutcome === 'failed';
+        const failed = generation.lastOutcome === 'failed' || (chat && (generation.pending.openConflicts > 0 || generation.pending.quarantinedObjects > 0));
+        const pending = chat && (generation.pending.openGaps > 0 || generation.pending.pendingChangeSets > 0 || generation.pending.pendingTransfers > 0);
         ingest({
           id: tracked.id,
           source: 'google-drive',
@@ -144,7 +146,7 @@ export function useNotificationFeed(): void {
               ? 'notifications.googleDrive.failed'
               : stopped
                 ? 'notifications.googleDrive.stopped'
-                : 'notifications.googleDrive.completed',
+                : pending ? 'notifications.googleDrive.pending' : 'notifications.googleDrive.completed',
           ),
           detail: name ?? undefined,
           outcome: failed ? 'error' : 'ok',

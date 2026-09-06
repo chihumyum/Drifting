@@ -1307,7 +1307,9 @@
       "bytesDiscovered": "已传输 {{transferred}}",
       "objectsKnown": "{{completed}} / {{total}} 项",
       "objectsDiscovered": "已处理 {{completed}} 项",
-      "progressLabel": "Google Drive 同步进度"
+      "progressLabel": "Google Drive 同步进度",
+      "agentChat": "Agent 对话",
+      "pending": "对话历史仍有待同步内容"
     },
     "time": {
       "justNow": "刚刚",
@@ -1591,6 +1593,11 @@
       "steerTitle": "把补充或纠正加入当前任务，在当前操作结束后交给 Agent 处理",
       "answer": "回答",
       "send": "发送"
+    },
+    "historySync": {
+      "pending": "正在同步这段对话，完成后可继续。",
+      "archive": "这段历史只有展示记录，可查看，无法继续。",
+      "conflict": "这段对话的数据不完整或存在冲突，暂时无法继续。"
     }
   },
   "voiceAgent": {

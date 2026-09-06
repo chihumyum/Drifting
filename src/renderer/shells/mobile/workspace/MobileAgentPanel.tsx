@@ -247,6 +247,7 @@ export function MobileAgentPanel({
     );
   const retryable = !running && messages.some((message) => message.kind === 'error');
   const activeConversation = convList.find((conversation) => conversation.id === activeConvId);
+  const historyUnavailable = !running && Boolean(activeConversation?.syncState && activeConversation.syncState !== 'ready');
 
   const handleSend = () => {
     stickRef.current = true;
@@ -336,7 +337,7 @@ export function MobileAgentPanel({
                   <button
                     type="button"
                     className="agt-send"
-                    disabled={!usable || starting || Boolean(paperBinding?.loading) || Boolean(pendingControl?.requiresContinuation) || !prompt.trim()}
+                    disabled={historyUnavailable || !usable || starting || Boolean(paperBinding?.loading) || Boolean(pendingControl?.requiresContinuation) || !prompt.trim()}
                     onClick={handleSend}
                   >
                     {running ? t('mobileWorkspace.paperAgent.steer') : t('agentPanel.composer.send')}
@@ -347,7 +348,7 @@ export function MobileAgentPanel({
             {paperBinding?.loading && <div role="status">{t('common.loading')}</div>}
             {paperBinding?.error && <div role="alert">{t('mobileWorkspace.paperAgent.loadFailed')}</div>}
             {retryable && !running && (
-              <button className="m-agent__retry" type="button" disabled={!usable} onClick={handleRetry}>
+              <button className="m-agent__retry" type="button" disabled={historyUnavailable || !usable} onClick={handleRetry}>
                 {t('agentPanel.mobile.retry')}
               </button>
             )}
@@ -373,7 +374,7 @@ export function MobileAgentPanel({
       }} data-paper-agent={paperBinding ? 'true' : undefined} data-expanded={expanded} data-session-selected={paperBinding ? Boolean(activeConvId) : undefined} data-mobile-agent="read-write">
       <header className="m-agent__header">
         <button type="button" aria-current={view === 'chat' ? 'page' : undefined} onClick={() => { if (paperBinding) setHistoryOpen(true); else setView('chat'); }}>
-          {activeConversation?.title || t('agentPanel.newConversation')}{paperBinding && <ChevronDown size={14} />}
+          {activeConversation?.title || t('agentPanel.newConversation')}{paperBinding && <ChevronDown size={14} />}{activeConversation?.branchLabel ? ` · ${activeConversation.branchLabel}` : ''}
         </button>
         <button type="button" aria-current={view === 'memory' ? 'page' : undefined} onClick={() => setView('memory')}>
           {t('agentPanel.toolbar.workingMemory')}
@@ -503,8 +504,8 @@ export function MobileAgentPanel({
 
           {paperBinding ? (
             <MobilePaperAgentComposer value={prompt} onChange={paperBinding.setPrompt} textAreaRef={setComposerRef}
-              onBack={onClose ?? (() => undefined)} disabled={Boolean(pendingControl?.requiresContinuation)} readOnly={starting}
-              placeholder={t('mobileWorkspace.paperAgent.placeholder')}
+              onBack={onClose ?? (() => undefined)} disabled={historyUnavailable || Boolean(pendingControl?.requiresContinuation)} readOnly={starting}
+              placeholder={historyUnavailable ? t(`agentPanel.historySync.${activeConversation?.syncState}`) : t('mobileWorkspace.paperAgent.placeholder')}
               feedback={composerFeedback} controls={composerControls} />
           ) : (
             <div className="m-agent__composer">
@@ -512,8 +513,8 @@ export function MobileAgentPanel({
               <div className="agt-composer">
                 <textarea ref={setComposerRef} className="agt-composer__text" aria-label={t('agentPanel.composer.placeholder')}
                   data-debug-id="mobile-agent-composer" value={prompt} rows={1}
-                  disabled={!usable || starting || Boolean(pendingControl?.requiresContinuation)}
-                  placeholder={usable ? t('agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
+                  disabled={historyUnavailable || !usable || starting || Boolean(pendingControl?.requiresContinuation)}
+                  placeholder={historyUnavailable ? t(`agentPanel.historySync.${activeConversation?.syncState}`) : usable ? t('agentPanel.composer.placeholder') : t('agentPanel.setup.title')}
                   onChange={(event) => setPrompt(event.target.value)} />
                 <div className="agt-composer__bar">{composerControls}</div>
               </div>
@@ -539,7 +540,7 @@ export function MobileAgentPanel({
             {convList.filter((conversation) => !historyQuery || conversation.title.toLocaleLowerCase().includes(historyQuery.toLocaleLowerCase())).map((conversation) => (
               <article key={conversation.id} data-active={conversation.id === activeConvId || undefined}>
                 <button type="button" disabled={paperBinding?.loading} onClick={() => chooseConversation(conversation.id)}>
-                  <strong>{runningTurns[conversation.id] ? '● ' : ''}{conversation.title || t('agentPanel.history.untitled')}</strong>
+                  <strong>{runningTurns[conversation.id] ? '● ' : ''}{conversation.title || t('agentPanel.history.untitled')}{conversation.branchLabel ? ` · ${conversation.branchLabel}` : ''}</strong>
                   <span>{relTime(conversation.updatedAt)}</span>
                 </button>
                 <button type="button" aria-label={t('agentPanel.history.delete')} onClick={() => void deleteConversation(conversation.id)}>

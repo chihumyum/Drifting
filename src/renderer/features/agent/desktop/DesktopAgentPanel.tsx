@@ -210,6 +210,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   // The active conversation's summary (gives the current session's title). Null
   // until the first turn persists a row — a fresh chat has no name to rename.
   const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
+  const historyUnavailable = !running && Boolean(activeConv?.syncState && activeConv.syncState !== 'ready');
   const sessionName = activeConv
     ? activeConv.title || t('common.untitled')
     : t('agentPanel.newConversation');
@@ -380,7 +381,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
             disabled={!activeConv}
             title={activeConv ? t('agentPanel.toolbar.renameTitle') : undefined}
           >
-            {sessionName}
+            {sessionName}{activeConv?.branchLabel ? ` · ${activeConv.branchLabel}` : ''}
           </button>
         )}
         <div className="agt-panel-toolbar__right">
@@ -479,7 +480,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
                 <button type="button" style={historyLoadButton} onClick={() => handleLoad(c.id)}>
                   <span style={historyTitle}>
                     {runningTurns[c.id] && <span className="agt-history__running-dot" />}
-                    {c.title || t('agentPanel.history.untitled')}
+                    {c.title || t('agentPanel.history.untitled')}{c.branchLabel ? ` · ${c.branchLabel}` : ''}
                   </span>
                   <span style={historyTime}>{relTime(c.updatedAt)}</span>
                 </button>
@@ -618,13 +619,13 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
               }
             }}
             placeholder={
-              pendingControl?.status === 'waiting_user' && !pendingControl.requiresContinuation
+              historyUnavailable ? t(`agentPanel.historySync.${activeConv?.syncState}`) : pendingControl?.status === 'waiting_user' && !pendingControl.requiresContinuation
                 ? t('agentPanel.composer.answerPlaceholder')
                 : running
                   ? t('agentPanel.composer.steerPlaceholder')
                   : t('agentPanel.composer.placeholder')
             }
-            disabled={starting || Boolean(pendingControl?.requiresContinuation)}
+            disabled={historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
             rows={1}
           />
           <div className="agt-composer__bar">
@@ -670,7 +671,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
                 type="button"
                 className="agt-send"
                 onClick={handleSend}
-                disabled={starting || Boolean(pendingControl?.requiresContinuation)}
+                disabled={historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
               >
                 {t('agentPanel.composer.send')}
               </button>

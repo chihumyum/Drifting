@@ -1307,7 +1307,9 @@
       "bytesDiscovered": "{{transferred}} transferred",
       "objectsKnown": "{{completed}} / {{total}} items",
       "objectsDiscovered": "{{completed}} items processed",
-      "progressLabel": "Google Drive sync progress"
+      "progressLabel": "Google Drive sync progress",
+      "agentChat": "Agent conversations",
+      "pending": "Conversation history still has pending data"
     },
     "time": {
       "justNow": "just now",
@@ -1591,6 +1593,11 @@
       "steerTitle": "Add or correct instructions for the running task after the current operation finishes",
       "answer": "Answer",
       "send": "Send"
+    },
+    "historySync": {
+      "pending": "This conversation is syncing. Continue when its history is ready.",
+      "archive": "This display-only archive can be read but cannot be continued.",
+      "conflict": "This conversation has missing or conflicting data and cannot be continued yet."
     }
   },
   "voiceAgent": {
