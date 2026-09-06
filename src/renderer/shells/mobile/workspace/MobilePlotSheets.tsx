@@ -66,6 +66,7 @@ export function MobilePlotCellSheet({
       onClose={onClose}
       keyboardAware
       tall
+      aboveBar={false}
       className="m-plot-cell"
       debugId="mobile-plot-cell-sheet"
     >

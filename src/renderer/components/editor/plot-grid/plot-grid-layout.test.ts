@@ -9,6 +9,7 @@ import {
   plotGridNeighbor,
   plotGridView,
   resolvePlotGridLayout,
+  resolvePlotGridRowHeaderWidth,
 } from './plot-grid-layout';
 
 const GRID: PlotGrid = {
@@ -38,6 +39,7 @@ describe('plot grid fixed-size layout', () => {
       cols: 5,
       presentation: 'mobile',
       cellSize: { cellW: 96, cellH: 110 },
+      rowHeaderW: 60,
     });
     expect(layout).toMatchObject({ cellW: 96, cellH: 110, scrollX: true, scrollY: false, fitted: false });
     expect(layout.tableW).toBe(60 + 96 * 5);
@@ -67,7 +69,14 @@ describe('plot grid fixed-size layout', () => {
   });
 
   it('fits the whole table into the host on both axes and reports it as fitted', () => {
-    const fit = fitPlotGridCellSize({ width: 348, height: 588, rows: 5, cols: 3, presentation: 'mobile' });
+    const fit = fitPlotGridCellSize({
+      width: 348,
+      height: 588,
+      rows: 5,
+      cols: 3,
+      presentation: 'mobile',
+      rowHeaderW: 60,
+    });
     expect(fit).toEqual({ cellW: 96, cellH: 110 });
     const layout = resolvePlotGridLayout({
       width: 348,
@@ -76,23 +85,30 @@ describe('plot grid fixed-size layout', () => {
       cols: 3,
       presentation: 'mobile',
       cellSize: fit,
+      rowHeaderW: 60,
     });
     expect(layout).toMatchObject({ scrollX: false, scrollY: false, fitted: true });
   });
 
   it('clamps a fit to the presentation bounds so a crowded axis still overflows', () => {
-    expect(fitPlotGridCellSize({ width: 348, height: 588, rows: 3, cols: 5, presentation: 'mobile' })).toEqual({
-      cellW: 84,
-      cellH: 184,
-    });
-    expect(fitPlotGridCellSize({ width: 900, height: 200, rows: 6, cols: 3, presentation: 'desktop' })).toEqual({
-      cellW: 268,
-      cellH: 56,
-    });
+    expect(
+      fitPlotGridCellSize({ width: 348, height: 588, rows: 3, cols: 5, presentation: 'mobile', rowHeaderW: 60 }),
+    ).toEqual({ cellW: 84, cellH: 184 });
+    expect(
+      fitPlotGridCellSize({ width: 900, height: 200, rows: 6, cols: 3, presentation: 'desktop', rowHeaderW: 96 }),
+    ).toEqual({ cellW: 268, cellH: 56 });
     expect(clampPlotGridCellSize({ cellW: 9999, cellH: Number.NaN }, 'desktop')).toEqual({
       cellW: 440,
       cellH: 56,
     });
+  });
+
+  it('hugs the widest row label between the presentation bounds', () => {
+    expect(resolvePlotGridRowHeaderWidth(0, 'mobile')).toBe(44);
+    expect(resolvePlotGridRowHeaderWidth(40, 'mobile')).toBe(58);
+    expect(resolvePlotGridRowHeaderWidth(400, 'mobile')).toBe(132);
+    expect(resolvePlotGridRowHeaderWidth(120, 'desktop')).toBe(138);
+    expect(resolvePlotGridRowHeaderWidth(Number.NaN, 'desktop')).toBe(52);
   });
 
   it('derives the line clamp from the cell height', () => {

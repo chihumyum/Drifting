@@ -32,7 +32,10 @@ export interface PlotGridLayoutMetrics {
   readonly minCellH: number;
   readonly maxCellW: number;
   readonly maxCellH: number;
+  /** Default row header width; the editor measures labels and overrides it. */
   readonly rowHeaderW: number;
+  readonly minRowHeaderW: number;
+  readonly maxRowHeaderW: number;
   readonly colHeaderH: number;
 }
 
@@ -43,11 +46,40 @@ export const PLOT_GRID_LAYOUT_METRICS: Record<PlotGridPresentation, PlotGridLayo
     minCellH: MIN_CELL_H,
     maxCellW: MAX_CELL_W,
     maxCellH: MAX_CELL_H,
-    rowHeaderW: 96,
+    rowHeaderW: 72,
+    minRowHeaderW: 52,
+    maxRowHeaderW: 220,
     colHeaderH: 30,
   },
-  mobile: { minCellW: 84, minCellH: 72, maxCellW: 440, maxCellH: 380, rowHeaderW: 60, colHeaderH: 34 },
+  mobile: {
+    minCellW: 84,
+    minCellH: 72,
+    maxCellW: 440,
+    maxCellH: 380,
+    rowHeaderW: 56,
+    minRowHeaderW: 44,
+    maxRowHeaderW: 132,
+    colHeaderH: 34,
+  },
 };
+
+/**
+ * Row header width from the widest measured label: hugs short labels, grows
+ * with long ones, and caps at the presentation maximum so a very long label
+ * wraps onto further lines instead of stealing the table's width.
+ */
+export function resolvePlotGridRowHeaderWidth(
+  widestLabelPx: number,
+  presentation: PlotGridPresentation,
+  paddingPx = 18,
+): number {
+  const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
+  const measured = Number.isFinite(widestLabelPx) ? widestLabelPx : 0;
+  return Math.min(
+    metrics.maxRowHeaderW,
+    Math.max(metrics.minRowHeaderW, Math.ceil(measured + paddingPx)),
+  );
+}
 
 export function clampPlotGridCellSize(
   size: PlotGridCellSize,
@@ -68,6 +100,8 @@ export interface PlotGridFitInput {
   readonly rows: number;
   readonly cols: number;
   readonly presentation: PlotGridPresentation;
+  /** Measured row header width (see resolvePlotGridRowHeaderWidth). */
+  readonly rowHeaderW?: number;
 }
 
 /**
@@ -81,11 +115,12 @@ export function fitPlotGridCellSize({
   rows,
   cols,
   presentation,
+  rowHeaderW,
 }: PlotGridFitInput): PlotGridCellSize {
   const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
   const safeRows = Math.max(1, rows);
   const safeCols = Math.max(1, cols);
-  const availableW = Math.max(0, width - metrics.rowHeaderW);
+  const availableW = Math.max(0, width - (rowHeaderW ?? metrics.rowHeaderW));
   const availableH = Math.max(0, height - metrics.colHeaderH);
   return clampPlotGridCellSize(
     { cellW: Math.floor(availableW / safeCols), cellH: Math.floor(availableH / safeRows) },
@@ -120,18 +155,20 @@ export function resolvePlotGridLayout({
   cols,
   presentation,
   cellSize,
+  rowHeaderW,
 }: PlotGridLayoutInput): PlotGridLayout {
   const metrics = PLOT_GRID_LAYOUT_METRICS[presentation];
   const safeRows = Math.max(1, rows);
   const safeCols = Math.max(1, cols);
   const { cellW, cellH } = clampPlotGridCellSize(cellSize, presentation);
-  const tableW = metrics.rowHeaderW + cellW * safeCols;
+  const headerW = rowHeaderW ?? metrics.rowHeaderW;
+  const tableW = headerW + cellW * safeCols;
   const tableH = metrics.colHeaderH + cellH * safeRows;
-  const fit = fitPlotGridCellSize({ width, height, rows, cols, presentation });
+  const fit = fitPlotGridCellSize({ width, height, rows, cols, presentation, rowHeaderW: headerW });
   return {
     cellW,
     cellH,
-    rowHeaderW: metrics.rowHeaderW,
+    rowHeaderW: headerW,
     colHeaderH: metrics.colHeaderH,
     scrollX: tableW > width + 0.5,
     scrollY: tableH > height + 0.5,

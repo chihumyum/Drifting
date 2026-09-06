@@ -171,7 +171,12 @@ editing, timeline, material, comment, and Agent capabilities.
   host and stores it. Desktop stores that size in the synced `cellW` / `cellH`
   record (`size.set`) and also changes it by hand with the corner grip; the
   phone keeps a device-local size per grid, fits once on first open, and
-  changes it by pinch. While the cell sheet is open the unified bar yields
+  changes it by pinch. The row header column hugs its widest label between a
+  per-presentation minimum and maximum, and long labels wrap (three lines on
+  desktop, four on the phone) instead of truncating; the header menu button
+  floats over the label end on hover rather than reserving a gutter. Tool
+  sheets rest on top of the unified bar, except the cell editor, which owns
+  the keyboard row. While the cell sheet is open the unified bar yields
   (`tool:plot-cell` popover), and Back closes any Plot sheet before the tool.
 - Focusing a rich-text editor opens a keyboard accessory in its compact circular
   state. The same button expands or collapses a horizontally scrollable set of

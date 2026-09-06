@@ -87,12 +87,6 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
-.planner-wrap[data-scroll-x='false'] {
-  overflow-x: hidden;
-}
-.planner-wrap[data-scroll-y='false'] {
-  overflow-y: hidden;
-}
 .planner-wrap[data-presentation='desktop'] .pl-table-box {
   margin: 0 12px 12px 0;
 }
@@ -139,15 +133,17 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  width: var(--pl-row-head-w, 96px);
-  padding: 0 24px 0 6px;
+  width: var(--pl-row-head-w, 72px);
+  padding: 0 8px 0 6px;
   text-align: right;
-  white-space: nowrap;
 }
 .pl-head--col:hover,
 .pl-head--row:hover {
   color: hsl(var(--ink-2));
 }
+/* Labels wrap instead of truncating: the row header column hugs the widest
+   label (up to a cap), a long label then takes up to three lines; column
+   labels take up to two lines of their cell width. Focus lifts the cap. */
 .pl-head__text {
   display: inline-block;
   max-width: 100%;
@@ -155,12 +151,20 @@
   min-width: 14px;
   border-radius: 0;
   padding: 1px 4px;
-  white-space: nowrap;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: background 0.12s, color 0.12s;
 }
+.pl-head--row .pl-head__text {
+  max-height: calc(3 * 1.35em + 2px);
+}
+.pl-head--col .pl-head__text {
+  max-height: calc(2 * 1.35em + 2px);
+}
 .pl-head__text:focus {
+  max-height: none;
   background: hsl(var(--surface));
   color: hsl(var(--ink-1));
 }
@@ -200,12 +204,14 @@
   opacity: 0;
   transition: opacity 0.12s, color 0.12s;
 }
+/* No reserved gutter: the button floats over the label's end on hover, on
+   the header's own background so it stays readable. */
 .pl-head--col .pl-head__menu {
   right: 2px;
 }
 .pl-head--row .pl-head__menu {
   left: auto;
-  right: 2px;
+  right: 0;
 }
 .pl-head:hover .pl-head__menu,
 .pl-head__menu:focus-visible,
@@ -362,9 +368,17 @@
   font-size: 12px;
 }
 .planner-wrap[data-presentation='mobile'] .pl-head--row {
-  padding: 0 8px 0 4px;
+  padding: 0 6px 0 4px;
 }
 .planner-wrap[data-presentation='mobile'] .pl-head__text {
   padding: 6px 4px;
   min-height: 34px;
+  text-align: inherit;
+}
+/* Phone cells are tall, so a row label may take four lines; column labels two. */
+.planner-wrap[data-presentation='mobile'] .pl-head--row .pl-head__text {
+  max-height: calc(4 * 1.35em + 12px);
+}
+.planner-wrap[data-presentation='mobile'] .pl-head--col .pl-head__text {
+  max-height: calc(2 * 1.35em + 12px);
 }

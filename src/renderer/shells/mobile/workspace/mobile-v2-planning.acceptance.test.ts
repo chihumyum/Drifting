@@ -89,7 +89,9 @@ describe('Mobile V2 Planning acceptance wiring', () => {
     expect(swipe).toContain("'.m-vtl'");
     expect(swipe).toContain("'.m-plot'");
     // One shared table: fill rules, transposed view, header menu, no corner grip.
-    expect(layout).toContain("mobile: { minCellW: 84, minCellH: 72");
+    expect(layout).toContain('minCellW: 84,');
+    expect(layout).toContain('minCellH: 72,');
+    expect(layout).toContain('export function resolvePlotGridRowHeaderWidth(');
     expect(layout).toContain('export function plotGridView(');
     expect(grid).toContain('resolvePlotGridLayout({');
     expect(grid).toContain('onPaste={(e) => handlePaste(cell, e)}');

@@ -25,6 +25,7 @@ import {
   plotGridNeighbor,
   plotGridView,
   resolvePlotGridLayout,
+  resolvePlotGridRowHeaderWidth,
   type PlotGridCellPosition,
   type PlotGridCellSize,
   type PlotGridDirection,
@@ -109,6 +110,27 @@ interface PlotGridEditorProps {
 interface HeaderMenuState {
   axis: PlotGridVisualAxis;
   id: string;
+}
+
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
+/** Widest label in px at the header font; 0 outside a DOM (tests, SSR). */
+function measureWidestLabel(labels: readonly string[], font: string): number {
+  if (typeof document === 'undefined') return 0;
+  if (measureContext === undefined) {
+    measureContext = document.createElement('canvas').getContext('2d');
+  }
+  const context = measureContext;
+  if (!context) return 0;
+  context.font = font;
+  let widest = 0;
+  for (const label of labels) {
+    // Only the longest line of a multi-line label decides the width.
+    for (const line of label.split('\n')) {
+      widest = Math.max(widest, context.measureText(line).width);
+    }
+  }
+  return widest;
 }
 
 function DesktopHeaderLabel({
@@ -207,6 +229,18 @@ export function PlotGridEditor({
     () => liveSize ?? { cellW: draft.grid.cellW, cellH: draft.grid.cellH },
     [draft.grid.cellH, draft.grid.cellW, liveSize],
   );
+  // The row header hugs its labels (placeholders count) instead of reserving
+  // a fixed column; past the maximum a label wraps rather than widening it.
+  const rowHeaderW = useMemo(() => {
+    const placeholder = t('plotGrid.rowPlaceholder');
+    const labels = view.rows.map((row) => row.label || placeholder);
+    const family =
+      typeof getComputedStyle === 'function'
+        ? getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim()
+        : '';
+    const font = `${mobile ? 12 : 12.5}px ${family || 'sans-serif'}`;
+    return resolvePlotGridRowHeaderWidth(measureWidestLabel(labels, font), presentation);
+  }, [mobile, presentation, t, view.rows]);
   const layout = useMemo(
     () =>
       resolvePlotGridLayout({
@@ -216,8 +250,9 @@ export function PlotGridEditor({
         cols: view.cols.length,
         presentation,
         cellSize,
+        rowHeaderW,
       }),
-    [cellSize, presentation, size.height, size.width, view.cols.length, view.rows.length],
+    [cellSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length],
   );
 
   const commitSize = useCallback(
@@ -237,9 +272,10 @@ export function PlotGridEditor({
         rows: view.rows.length,
         cols: view.cols.length,
         presentation,
+        rowHeaderW,
       }),
     );
-  }, [commitSize, presentation, size.height, size.width, view.cols.length, view.rows.length]);
+  }, [commitSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length]);
   useEffect(() => {
     if (!fitOnMount || fittedOnMountRef.current || size.width <= 0 || size.height <= 0) return;
     fittedOnMountRef.current = true;
@@ -525,7 +561,7 @@ export function PlotGridEditor({
       onTouchEnd={mobile ? onPinchEnd : undefined}
       onTouchCancel={mobile ? onPinchEnd : undefined}
     >
-      <div className="pl-table-box" style={{ width: layout.tableW, height: layout.tableH }}>
+      <div className="pl-table-box" style={{ width: layout.tableW }}>
       <table className="pl-table" style={{ width: layout.tableW }}>
         <colgroup>
           <col style={{ width: layout.rowHeaderW }} />
