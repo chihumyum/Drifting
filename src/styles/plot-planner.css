@@ -212,6 +212,11 @@
 .pl-head__menu:hover {
   color: hsl(var(--accent));
 }
+/* Portaled to body; the editor shell's stacking contexts would otherwise
+   paint over a fixed surface with no z-index (same tier as the other menus). */
+.pl-head-menu {
+  z-index: var(--z-context-menu);
+}
 .pl-head-menu .menu-surface__item {
   display: flex;
   align-items: center;

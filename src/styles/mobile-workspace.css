@@ -3557,6 +3557,7 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
 .m-vtl__ibtn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: hsl(var(--ink-3)); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .m-vtl__ibtn:disabled { opacity: 0.35; }
 .m-vtl__ibtn[aria-expanded='true'] { color: hsl(var(--ink-1)); background: hsl(var(--paper-deep)); }
+.m-vtl__more { z-index: var(--z-context-menu); }
 .m-vtl__more .menu-surface__item { min-height: 40px; display: flex; align-items: center; gap: 8px; }
 .m-vtl__more .menu-surface__item[aria-checked='true']::after { content: '✓'; margin-left: auto; color: hsl(var(--ink-3)); }
 .m-vtl__more-label { padding: 8px 8px 2px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: hsl(var(--ink-4)); }
