@@ -156,17 +156,16 @@ editing, timeline, material, comment, and Agent capabilities.
   place. Chapter, act, marker and create menus are bottom sheets that ride the
   tool overlay as `popover` transients so Back closes them before the tool.
 - The Plot paper tool and the desktop Plot Planner dock share one
-  `PlotGridEditor` table that fills its host on both axes (mobile minimum
-  84×72, desktop 120×64) and scrolls only the overflowing axis with the
-  opposite header pinned. The mobile header carries the across / down switch
+  `PlotGridEditor` table whose cells keep their own size; the overflowing
+  axis scrolls, and the headers scroll with the table rather than sticking,
+  so a wide row label never sits over the pan. The mobile header carries the across / down switch
   (a transposed view, persisted per device) and the append row / column
   buttons; the desktop dock carries the same buttons in a slim header and edits
   inline. Cells on phones open an editing sheet above the keyboard with the
   row × column labels, the row's column strip and four-way navigation; headers
   open a menu sheet with rename, move, insert and delete. Moves persist as
   explicit `row.move` / `column.move` mutations through the normalized writer.
-  Cells keep a size of their own, so adding rows or columns overflows (the
-  overflowing axis scrolls) instead of squeezing the table. "Fit" is a header
+  Adding rows or columns therefore overflows instead of squeezing the table. "Fit" is a header
   action, not a mode: it computes the size at which the whole table fills the
   host and stores it. Desktop stores that size in the synced `cellW` / `cellH`
   record (`size.set`) and also changes it by hand with the corner grip; the

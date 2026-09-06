@@ -99,17 +99,15 @@
 }
 
 .pl-corner {
-  position: sticky;
-  top: 0;
-  left: 0;
-  z-index: 3;
   height: var(--pl-col-head-h, 30px);
   background: hsl(var(--paper-deep));
   border: 0;
   padding: 0;
 }
 
-/* ── headers: borderless quiet labels, pinned on scroll ── */
+/* ── headers: borderless quiet labels that scroll with the table ──
+   Headers are not sticky: a wide row label would otherwise sit over the
+   table for the whole pan and eat the narrow phone width. ── */
 .pl-head {
   position: relative;
   background: hsl(var(--paper-deep));
@@ -124,15 +122,9 @@
   text-align: center;
 }
 .pl-head--col {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   height: var(--pl-col-head-h, 30px);
 }
 .pl-head--row {
-  position: sticky;
-  left: 0;
-  z-index: 1;
   width: var(--pl-row-head-w, 72px);
   padding: 0 8px 0 6px;
   text-align: right;
