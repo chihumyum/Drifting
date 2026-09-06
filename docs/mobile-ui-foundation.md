@@ -178,7 +178,9 @@ editing, timeline, material, comment, and Agent capabilities.
   keeps the ratio and only scales: near the balanced ratio the table scales
   to be contained, far from it (beyond 1.5×) only the short axis fills and
   the long axis overflows and scrolls. Without a hand-set ratio fit still
-  sizes both axes on their own. The row header column hugs its widest label between a
+  sizes both axes on their own. The transposed view turns the cells with the
+  table: on screen the cell width and height swap and the ratio inverts, while
+  the stored size and ratio stay in the author's frame. The row header column hugs its widest label between a
   per-presentation minimum and maximum, and long labels wrap (three lines on
   desktop, four on the phone) instead of truncating; the header menu button
   floats over the label end on hover rather than reserving a gutter. Tool

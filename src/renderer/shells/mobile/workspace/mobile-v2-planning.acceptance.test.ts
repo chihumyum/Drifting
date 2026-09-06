@@ -108,7 +108,9 @@ describe('Mobile V2 Planning acceptance wiring', () => {
     expect(tools).toContain("CELL_SIZE_STORAGE_PREFIX = 'plot-grid-cell-size:'");
     // A hand-set size fixes the cell ratio per grid on this device; fit keeps it.
     expect(layout).toContain('export const PLOT_GRID_FIT_RATIO_TOLERANCE');
-    expect(grid).toContain('ratio: cellRatio,');
+    expect(grid).toContain('ratio: visualRatio,');
+    // The transposed view turns the cells too: stored size/ratio are in the author's frame.
+    expect(grid).toContain('plotGridVisualCellSize({ cellW: draft.grid.cellW, cellH: draft.grid.cellH }, transposed)');
     expect(grid).toContain('commitSize(pinch.last, { byHand: true })');
     expect(grid).toContain('commitSize(last, { byHand: true })');
     expect(tools).toContain('onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}');

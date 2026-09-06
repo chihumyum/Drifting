@@ -94,6 +94,20 @@ export function plotGridCellRatio(size: PlotGridCellSize): number {
 }
 
 /**
+ * The stored size and ratio live in the author's frame (rows down, columns
+ * across). The transposed view turns the whole table, cells included, so on
+ * screen the width and height swap and the ratio inverts. Both mappings are
+ * their own inverse: the same call maps a screen value back to storage.
+ */
+export function plotGridVisualCellSize(size: PlotGridCellSize, transposed: boolean): PlotGridCellSize {
+  return transposed ? { cellW: size.cellH, cellH: size.cellW } : size;
+}
+
+export function plotGridVisualCellRatio(ratio: number | null, transposed: boolean): number | null {
+  return transposed && ratio !== null && ratio > 0 ? 1 / ratio : ratio;
+}
+
+/**
  * How far a hand-set ratio may sit from the balanced (both-axes) fit before a
  * ratio-keeping fit stops containing the table and fills the short axis only.
  */

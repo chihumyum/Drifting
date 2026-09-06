@@ -21,6 +21,8 @@ import {
   clampPlotGridCellSize,
   fitPlotGridCellSize,
   plotGridCellRatio,
+  plotGridVisualCellRatio,
+  plotGridVisualCellSize,
   plotGridCellLineClamp,
   plotGridCellPosition,
   plotGridNeighbor,
@@ -235,10 +237,15 @@ export function PlotGridEditor({
     return () => observer.disconnect();
   }, []);
 
-  const cellSize = useMemo<PlotGridCellSize>(
-    () => liveSize ?? { cellW: draft.grid.cellW, cellH: draft.grid.cellH },
-    [draft.grid.cellH, draft.grid.cellW, liveSize],
+  // The stored size and ratio are in the author's frame; the transposed view
+  // turns the cells with the table, so everything below works on screen
+  // values and maps back to storage on commit.
+  const baseSize = useMemo<PlotGridCellSize>(
+    () => plotGridVisualCellSize({ cellW: draft.grid.cellW, cellH: draft.grid.cellH }, transposed),
+    [draft.grid.cellH, draft.grid.cellW, transposed],
   );
+  const visualRatio = plotGridVisualCellRatio(cellRatio, transposed);
+  const cellSize = liveSize ?? baseSize;
   // The row header hugs its labels (placeholders count) instead of reserving
   // a fixed column; past the maximum a label wraps rather than widening it.
   const rowHeaderW = useMemo(() => {
@@ -261,9 +268,9 @@ export function PlotGridEditor({
         presentation,
         cellSize,
         rowHeaderW,
-        ratio: cellRatio,
+        ratio: visualRatio,
       }),
-    [cellRatio, cellSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length],
+    [cellSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length, visualRatio],
   );
 
   // A size set by hand also fixes the cell ratio, which fit then keeps; a
@@ -271,15 +278,16 @@ export function PlotGridEditor({
   const commitSize = useCallback(
     (next: PlotGridCellSize, options?: { byHand?: boolean }) => {
       const clamped = clampPlotGridCellSize(next, presentation);
-      draft.setSize(clamped);
-      onCellSizeChange?.(clamped);
+      const stored = plotGridVisualCellSize(clamped, transposed);
+      draft.setSize(stored);
+      onCellSizeChange?.(stored);
       if (options?.byHand) {
-        const ratio = plotGridCellRatio(clamped);
+        const ratio = plotGridVisualCellRatio(plotGridCellRatio(clamped), transposed) ?? 1;
         setCellRatio(ratio);
         onCellRatioChange?.(ratio);
       }
     },
-    [draft, onCellRatioChange, onCellSizeChange, presentation],
+    [draft, onCellRatioChange, onCellSizeChange, presentation, transposed],
   );
   const fit = useCallback(() => {
     if (size.width <= 0 || size.height <= 0) return;
@@ -291,10 +299,10 @@ export function PlotGridEditor({
         cols: view.cols.length,
         presentation,
         rowHeaderW,
-        ratio: cellRatio,
+        ratio: visualRatio,
       }),
     );
-  }, [cellRatio, commitSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length]);
+  }, [commitSize, presentation, rowHeaderW, size.height, size.width, view.cols.length, view.rows.length, visualRatio]);
   useEffect(() => {
     if (!fitOnMount || fittedOnMountRef.current || size.width <= 0 || size.height <= 0) return;
     fittedOnMountRef.current = true;
@@ -310,7 +318,7 @@ export function PlotGridEditor({
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const pointerId = e.pointerId;
     const start = { x: e.clientX, y: e.clientY };
-    const startSize = { cellW: draft.grid.cellW, cellH: draft.grid.cellH };
+    const startSize = baseSize;
     const cols = Math.max(1, view.cols.length);
     const rows = Math.max(1, view.rows.length);
     let last = startSize;
@@ -369,7 +377,7 @@ export function PlotGridEditor({
     if (!mobile || e.touches.length < 2) return;
     const { dx, dy } = touchDelta(e.touches);
     const axis = dx >= dy * 2 ? 'w' : dy >= dx * 2 ? 'h' : 'both';
-    const start = { cellW: draft.grid.cellW, cellH: draft.grid.cellH };
+    const start = baseSize;
     pinchRef.current = { dx, dy, distance: Math.hypot(dx, dy), axis, start, last: start };
   };
   const onPinchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
@@ -440,12 +448,12 @@ export function PlotGridEditor({
       getGrid: () => draft.grid,
       fit,
       isFitted: () => layout.fitted,
-      getCellSize: () => ({ cellW: draft.grid.cellW, cellH: draft.grid.cellH }),
+      getCellSize: () => baseSize,
       setCellSize: (next) => commitSize(next, { byHand: true }),
       scaleCellSize: (factor) =>
-        commitSize({ cellW: draft.grid.cellW * factor, cellH: draft.grid.cellH * factor }, { byHand: true }),
+        commitSize({ cellW: baseSize.cellW * factor, cellH: baseSize.cellH * factor }, { byHand: true }),
     }),
-    [commitSize, draft, fit, layout.fitted, revealEnd, view],
+    [baseSize, commitSize, draft, fit, layout.fitted, revealEnd, view],
   );
   useImperativeHandle(apiRef, () => api, [api]);
   useEffect(() => {

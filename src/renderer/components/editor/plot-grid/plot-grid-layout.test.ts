@@ -9,6 +9,8 @@ import {
   plotGridCellPosition,
   plotGridNeighbor,
   plotGridView,
+  plotGridVisualCellRatio,
+  plotGridVisualCellSize,
   resolvePlotGridLayout,
   resolvePlotGridRowHeaderWidth,
 } from './plot-grid-layout';
@@ -206,6 +208,16 @@ describe('plot grid fixed-size layout', () => {
 });
 
 describe('plot grid transposed view', () => {
+  it('turns the cells with the table: size swaps, ratio inverts, and both map back', () => {
+    const stored = { cellW: 300, cellH: 84 };
+    expect(plotGridVisualCellSize(stored, false)).toBe(stored);
+    expect(plotGridVisualCellSize(stored, true)).toEqual({ cellW: 84, cellH: 300 });
+    expect(plotGridVisualCellSize(plotGridVisualCellSize(stored, true), true)).toEqual(stored);
+    expect(plotGridVisualCellRatio(4, true)).toBe(0.25);
+    expect(plotGridVisualCellRatio(4, false)).toBe(4);
+    expect(plotGridVisualCellRatio(null, true)).toBeNull();
+  });
+
   it('swaps axes without touching data coordinates', () => {
     const view = plotGridView(GRID, true);
     expect(view.rows.map(({ id }) => id)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5']);
