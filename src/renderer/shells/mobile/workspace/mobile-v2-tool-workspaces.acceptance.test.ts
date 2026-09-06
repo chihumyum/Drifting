@@ -20,6 +20,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(agent).toContain("{ turnContext, toolAccess: 'read_write' }");
     expect(agent).toContain("{ turnContext: previous.context ?? turnContext, toolAccess: 'read_write' }");
     expect(agent).not.toContain('agentPanel.mobile.safety');
+    // A touch on the dock never pans the prose or the keyboard viewport beneath it.
+    expect(agent).toContain('useTouchScrollFence(panelRef, Boolean(paperBinding))');
     expect(agent).not.toContain('m-agent__safety');
     expect(agent).not.toContain('writeChapterProse');
     expect(agent).not.toContain('continueTask');

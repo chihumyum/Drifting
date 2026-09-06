@@ -2,6 +2,7 @@ import { useInputPreservingActions } from '../../../hooks/useInputPreservingActi
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { MobilePaperAgentComposer } from './MobilePaperAgentComposer';
+import { useTouchScrollFence } from './useTouchScrollFence';
 import type { MobilePaperAgentBinding } from './mobile-paper-agent-session';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -362,6 +363,9 @@ export function MobileAgentPanel({
     else if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   }, [paperBinding, expanded, historyOpen]);
   const inputActions = useInputPreservingActions<HTMLDivElement>(Boolean(paperBinding));
+  // The dock floats over the prose: a pan that starts on it must never reach
+  // the prose or drag WebKit's keyboard viewport.
+  useTouchScrollFence(panelRef, Boolean(paperBinding));
   return (
     <div {...inputActions} ref={panelRef} tabIndex={paperBinding ? -1 : undefined} className="m-agent" role={paperBinding && expanded ? 'dialog' : undefined} aria-modal={paperBinding && expanded ? true : undefined} aria-label={paperBinding ? 'Agent' : undefined}
       onKeyDown={(event) => {

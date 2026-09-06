@@ -408,6 +408,11 @@ owner. Its scrolling content compensates WebKit viewport panning at the top and
 the measured dock overlap at the bottom. This adds reachable scroll travel,
 not another fixed background or clipping band. A selected conversation instead
 owns its own scroll area; its underlying prose is covered by the conversation plane.
+A touch that starts on the dock itself, in either state, never pans what lies
+beneath it: the panel fences `touchmove`, letting only a scrollable part of the
+dock that still has travel in that direction scroll natively and cancelling the
+rest, so neither the prose nor WebKit's keyboard viewport moves under a finger
+on the dock.
 
 Acceptance distinguishes controller contract tests, source wiring checks and
 native end-to-end observations. A passing wiring check is not interaction proof.
