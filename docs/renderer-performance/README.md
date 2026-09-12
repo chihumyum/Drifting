@@ -814,3 +814,63 @@ local-only renderer production build pass. The 58-case SQLite/transaction report
 and browser checks are regenerated after those checks, in isolation, and their
 source fingerprint is verified before commit. The renderer main bundle is
 approximately 5.32 MB; native startup performance remains unmeasured.
+
+## F6b1 — Reference index process recovery
+
+The new `f6-reference-recovery.json` report records 46 real SIGKILL cases and
+92 independent restart processes. The matrix uses two synthetic inputs for
+each Yjs edit, JSON patch edit and patch deletion at these boundaries:
+
+- Before the authored outer commit, and after commit before notification.
+- While the initial project queue is waiting, and after its catalog read.
+- After the affected source's index DELETE or INSERT, with the transaction open.
+- After the affected index transaction commits but before the queue acknowledges it.
+- After the project queue completes and acknowledges the pass.
+
+Deletion has no corresponding source INSERT, so that matrix cell is excluded.
+Boundary hooks wrap the real database adapter calls, execute the underlying
+operation first where appropriate, and hold the child alive until its parent
+receives the boundary message and confirms a SIGKILL exit. No worker shutdown,
+database close or checkpoint runs on the kill path. Each child has a timeout;
+temporary databases are removed after all owned child processes have exited.
+
+Each fixture starts with all five source kinds, two marked blocks per source,
+a deliberately stale node JSON cache and a second project's reference sentinel.
+The native installation identity is replaced with a synthetic identity; actual
+authored commands, production journal validation, database transaction adapter,
+reference repositories and project service run unchanged. SQLite files use WAL,
+FULL synchronization and the complete product migration chain.
+
+Recovery opens the same file in a new process, retains the actual project service
+and waits for its startup reconciliation. It compares every reference target and
+span against an independent fixture oracle, then against an uncached full rebuild.
+Hashes of every non-reference application table prove authoritative prose,
+revisions, sync journal and receipts survive the expected commit boundary and
+are unchanged by both rebuilds. Uncommitted replacement rows must roll back;
+the second project's full rows, foreign keys and SQLite integrity are checked.
+A second new process repeats recovery and must produce the same semantic result.
+Derived row IDs/timestamps may be regenerated; they are not author authority.
+
+Reproduce and check the generated report with:
+
+```bash
+pnpm reference:index:recovery
+pnpm reference:index:recovery --check
+```
+
+The report fingerprints renderer sources, schema, reference acceptance scripts,
+configuration and dependency manifests before execution and rejects changes
+during the run. No local database, synthetic body dump or personal path is
+committed. This is a correctness check, with no performance timing claim.
+
+This closes the renderer/file-backed-adapter process-recovery step needed before
+narrowing reads. F6-04 remains partial for native Rust gateway/device acceptance;
+SIGKILL does not simulate disk failure, OS crash or power loss. The current full
+catalog read cost on prose commits remains unresolved. No migration, durable
+progress table, author write behavior or product UI changed in this batch.
+
+The regular suite passes 2,301 tests with 1 skipped. Typecheck, lint (0 errors,
+74 existing warnings), CI/public contracts, capability checks and the configured
+local-only renderer production build pass. The reference queue/UI report is
+regenerated separately against the shared source fingerprint after the process
+matrix finishes. No browser performance measurement runs alongside the matrix.

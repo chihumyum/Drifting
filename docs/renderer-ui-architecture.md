@@ -173,8 +173,8 @@ subscriptions in product views. Per-field arrays can still change after a
 relevant update. Editor name and appearance selectors now return stable semantic
 results across metrics-only updates. Complete workspace captures now also reuse
 equal records and collections at the guarded store publication boundary, as
-described below; partial reads and reference-index recovery remain in the
-performance plan.
+described below; partial reads and native reference-index recovery remain in
+the performance plan.
 
 
 Desktop-only surfaces include `DesktopWorkspace`, `DesktopOverlayHost`, desktop
@@ -283,8 +283,9 @@ reverse memberships. A rejected stale result neither compares data nor emits
 a store notification. Sharing owns no asynchronous task, author state or
 project cache; the existing weak ID index follows the source array lifetime.
 Full capture, the structural refresh barrier and the non-blocking prose-only
-sync path remain intact. The reference queue below now owns derived indexing; durable hard-kill recovery
-and partial SQLite reads remain pending F6 work.
+sync path remain intact. The reference queue below owns derived indexing.
+Renderer process recovery is checked through the file-backed SQLite adapter;
+native gateway acceptance and partial SQLite reads remain pending F6 work.
 
 ### Project reference-index queue
 
@@ -344,9 +345,16 @@ advances its request generation on every reload, rejecting late older reads.
 Full source-catalog reads (including JSON bodies), database-wide Yjs version
 metadata and project inline coverage counts still occur on every pass, including
 pure prose commits. Source parsing/write locality is proven; database read
-latency and app-wide input performance are not. Forced process termination and
-restart coverage must be proven before F6b narrows those reads. Current owner
-restart/rollback tests are in-process and are not substitutes for that gate.
+latency and app-wide input performance are not. F6b1 adds actual SIGKILL and
+independent-process restart checks through the file-backed product-schema
+SQLite adapter. An uncached startup pass restores references after a committed
+write loses its notification, or after an interrupted replacement rolls back.
+The fixture checks Yjs changes, JSON patch edits and patch deletion, including
+two restarts, a separate full rebuild, authoritative-table hashes and project
+isolation. Only native installation identity is substituted. This proves the
+renderer recovery path without a new durable progress table; it does not prove
+native Rust gateway, physical-device or power-loss recovery. F6b can now narrow
+the headless-tested path while preserving full startup/repair reconstruction.
 
 ## Desktop universal create
 

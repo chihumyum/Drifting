@@ -351,7 +351,10 @@
         {
           "id": "F6-04",
           "requirement": "提交、排队和索引写入边界终止后可恢复，与权威内容完整重建一致",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f6-reference-recovery.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F6-05",
@@ -359,12 +362,13 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
-            "docs/renderer-performance/acceptance/f6-reference-queue.json"
+            "docs/renderer-performance/acceptance/f6-reference-queue.json",
+            "docs/renderer-performance/acceptance/f6-reference-recovery.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "complete_capture_sharing_and_project_reference_queue_implemented_process_recovery_and_partial_reads_pending"
+      "implementationStatus": "complete_capture_sharing_project_reference_queue_and_renderer_process_recovery_implemented_native_recovery_and_partial_reads_pending"
     },
     {
       "id": "F7",

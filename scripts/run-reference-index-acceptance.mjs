@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { platform, release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runReferenceIndexUiAcceptance } from './reference-index-ui-acceptance.mjs';
+import { referenceEvidenceFingerprint } from './reference-index-evidence.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
@@ -16,24 +16,7 @@ const suites = [
 ];
 const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9)
   ?? 'docs/renderer-performance/acceptance/f6-reference-queue.json';
-const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-
-function fingerprint() {
-  const files = [];
-  const visit = (directory, pattern) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const file = path.join(directory, entry.name);
-      if (entry.isDirectory()) visit(file, pattern);
-      else if (pattern.test(file)) files.push(path.relative(root, file));
-    }
-  };
-  visit(path.join(root, 'src/renderer'), /\.(ts|tsx|css)$/);
-  visit(path.join(root, 'src/styles'), /\.css$/);
-  visit(path.join(root, 'drizzle'), /\.(sql|json)$/);
-  files.push('scripts/run-reference-index-acceptance.mjs', 'vitest.config.ts', 'vitest.shared.ts', 'package.json', 'pnpm-lock.yaml');
-  files.push('scripts/reference-index-ui-acceptance.mjs', 'scripts/reference-index-ui-service.ts', 'scripts/reference-index-ui.tsx', 'scripts/reference-index-ui.html', 'src/renderer/locales/en.json', 'src/renderer/locales/zh-CN.json', 'tailwind.config.js');
-  return hash(files.sort().map((file) => `${file}\0${hash(readFileSync(file))}`).join('\n'));
-}
+const fingerprint = () => referenceEvidenceFingerprint(root);
 
 function validate(report) {
   assert.equal(report.schemaVersion, 1);
@@ -72,7 +55,7 @@ if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8'));
   validate(report);
   assert.equal(report.source.fingerprint, fingerprint(), 'Reference queue evidence is stale; regenerate it.');
-  console.log('Reference queue and UI evidence match source. Hard-kill recovery and partial reads remain pending.');
+  console.log('Reference queue and UI evidence match source. This suite does not exercise hard-kill recovery or partial reads.');
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-reference-evidence-'));
   try {
