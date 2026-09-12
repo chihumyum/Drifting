@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { useDeferredModuleIntent } from '../../hooks/useDeferredModuleIntent';
 import { createDeferredModule } from '../../lib/deferred-module';
 import { loadSettingsPanels } from 'virtual:settings-panels';
 
@@ -14,4 +15,8 @@ export function useSettingsPanels(active: boolean) {
     failed: state.status === 'error',
     retry: settingsPanels.load,
   };
+}
+
+export function useSettingsPreloadIntent(enabled = true) {
+  return useDeferredModuleIntent(enabled ? settingsPanels : undefined);
 }

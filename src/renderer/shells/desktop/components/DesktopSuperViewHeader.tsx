@@ -1,3 +1,4 @@
+import { useGraphPreloadIntent } from '../../../features/graph/deferred-graph-modules';
 import { useTranslation } from 'react-i18next';
 import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/SuperViewHeader';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
@@ -16,6 +17,8 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
   const { t } = useTranslation();
   const { active: activeSuperView, setActive: setActiveSuperView } = useSuperViewNavigation();
   const { rightSlot, ...headerProps } = props;
+  const graphIntent = useGraphPreloadIntent('graph');
+  const elementIntent = useGraphPreloadIntent('element');
   const relationCanvas =
     activeSuperView === 'element' || activeSuperView === 'graph' ? activeSuperView : null;
 
@@ -30,6 +33,7 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
           {SUPER_VIEW_OPTIONS.map((option) => (
             <button
               key={option.id}
+              {...(option.id === 'graph' ? graphIntent : option.id === 'element' ? elementIntent : {})}
               type="button"
               aria-current={activeSuperView === option.id ? 'page' : undefined}
               className="super-view-head__switcher-option"

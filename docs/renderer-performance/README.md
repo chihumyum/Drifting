@@ -1376,3 +1376,80 @@ Repository validation passes 2,402 tests with 1 existing skip, 8 architecture
 tests, typecheck, lint (0 errors, 74 existing warnings), CI/public contracts,
 Agent capabilities and the configured production renderer build. The normal
 production JS excludes graph/settings fixture APIs and evaluation observers.
+
+
+## F7d — Bounded entry-intent preloading
+
+The existing deferred module owners now expose separate preload and demand
+operations. A successful preload is reusable code; an unused failure remains
+idle and does not display an error on first visit. A click joining a pending
+preload shares its request and promotes any later failure to the normal local
+retry UI. Hover never retries a failed demand load.
+
+The renderer has one speculative task and one latest queued intent. Entries
+wait for 120 ms of hover, keyboard focus or touch hold, then an idle callback
+(with a 1,000 ms timeout and a timer fallback). Leaving the entry, canceling a
+touch, unmounting, window blur or page hiding cancels work that has not started.
+Started imports can finish into the code cache but cannot navigate or mount a
+feature. Each resource gets at most one speculative attempt per renderer.
+Foreground demand bypasses an unrelated background task. Data Saver, 2G,
+offline and hidden-page policies suppress only speculative work.
+
+Wiring covers desktop SUPER's last graph, both graph-header selectors, mobile
+structure graph entries, user-menu Settings/shortcuts, mobile right-sidebar
+Settings and mobile settings-index choices. Graph module ownership moved to
+`features/graph/deferred-graph-modules.ts`; these entry hooks do not introduce a
+mobile-to-desktop shell import or instantiate a project/runtime while warming
+code. No automatic startup preload is added.
+
+```bash
+pnpm perf:renderer:preload
+pnpm perf:renderer:preload --check
+pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json
+pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json --check
+```
+
+`acceptance/f7-intent-preloading.json` retains production main-entry module
+observation and the F7c desktop/mobile graph retry sequences, adds 65 focused
+tests, and mounts actual desktop SUPER and mobile settings controls in six
+isolated browser scenarios:
+
+- Idle, brief hover, focus departure, canceled touch and a synthetic hide/show
+  sequence make no graph/settings entry request.
+- A held graph preload permits editing the real synthetic Tiptap/Yjs draft;
+  after it finishes, the first graph open uses cached code with no loading-status
+  subtree. No graph instance mounts merely from hovering.
+- A failed shared-UI preload remains invisible; the first actual click fetches
+  it again with a fresh query and opens the graph without a Retry click.
+- Settings intent waits behind a held graph import. Leaving Settings cancels
+  that queued request; finishing the graph import does not navigate or open it.
+- Actually opening a settings panel bypasses the held graph import and fetches
+  panel code once. The late graph result does not replace Settings.
+- A synthetic Data Saver connection skips preloading while explicit opening
+  remains functional.
+
+All six scenarios preserve the draft's Y.Doc identity and single mount. The
+separate settings report includes 80 passing focused tests and reruns both standalone surfaces' panel fetching,
+retry/navigation, preference persistence and Vite development loading against
+the modified module owner. Earlier F7 reports remain historical snapshots;
+these commands generate the current reports instead of replacing those files.
+
+Initial static JS dependencies are 4,925,903 bytes, versus the historical F7c
+observation of 4,923,305: the queue and entry wiring add 2,598 bytes (about 0.05%).
+The story, element and shared UI bodies still have zero initial evaluation or
+parsing before intent. This is a small startup-code cost for preparing the
+selected feature before a click, not another bundle-size reduction. The warm
+click timing in the report is one automation observation, not an F0 p95 result.
+
+The fixture does not mount ChapterEditor or ProjectRuntimeProvider. Browser
+pointer/focus/touch inputs are synthetic interactions; visibility/connection
+policy values are explicitly injected. Physical touch/IME, native backgrounding,
+offline/upgrade asset protocols, complete app continuity and latency budgets
+remain unverified. Other heavy entry boundaries and F8 composition/native
+acceptance still remain; F7 stays `in_progress`.
+
+
+This batch passes 2,411 regular tests with 1 existing skip, 8 architecture tests,
+typecheck, lint (0 errors, 74 existing warnings), CI/public contracts, Agent
+capabilities and the generated-report checks. The normal renderer production
+build is checked separately from the instrumented browser fixture.

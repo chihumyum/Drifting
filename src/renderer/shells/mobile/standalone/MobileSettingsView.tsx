@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useSettingsPanels } from '../../../features/settings/useSettingsPanels';
+import { useSettingsPanels, useSettingsPreloadIntent } from '../../../features/settings/useSettingsPanels';
 import { SettingsLoadStatus } from '../../../features/settings/SettingsLoadStatus';
 import {
   hostedAccountSettingsEnabled,
@@ -119,6 +119,7 @@ function MobileSettingsPanel({
 }
 
 export function MobileSettingsView() {
+  const preloadSettings = useSettingsPreloadIntent();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,6 +186,7 @@ export function MobileSettingsView() {
                 {group.items.map((item) => (
                   <button
                     key={item.id}
+                    {...preloadSettings}
                     type="button"
                     className="set-rail__item"
                     onClick={() => setSearchParams({ section: item.id }, { state: location.state })}

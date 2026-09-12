@@ -1,3 +1,4 @@
+import { useSettingsPreloadIntent } from '../../features/settings/useSettingsPanels';
 import { useEffect, useRef, useState } from 'react';
 import {
   Sun,
@@ -60,6 +61,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const settingsBackRef = useRef<HTMLButtonElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [activeSettingsPage, setActiveSettingsPage] = useState<UserMenuSettingsPage | null>(null);
+  const settingsIntent = useSettingsPreloadIntent(open && activeSettingsPage === null);
 
   useEffect(() => {
     if (!open) setActiveSettingsPage(null);
@@ -317,6 +319,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               <MenuItem
                 icon={<Settings size={13} />}
                 label={t('userMenu.settings')}
+                intent={settingsIntent}
                 meta="⌘,"
                 onClick={() => {
                   events.emit('settings:open', {});
@@ -326,6 +329,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               <MenuItem
                 icon={<Keyboard size={13} />}
                 label={t('userMenu.keyboardShortcuts')}
+                intent={settingsIntent}
                 meta="⌘K ⌘/"
                 onClick={() => {
                   events.emit('settings:open', { railId: 'keys' });
@@ -338,6 +342,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             <MenuItem
               icon={<Settings size={13} />}
               label={t('userMenu.settings')}
+              intent={settingsIntent}
               onClick={() => {
                 navigate('/settings?section=sync', { state: { from: '/' } });
                 handleClose();
@@ -449,6 +454,7 @@ function MenuGroup({ children, last }: { children: React.ReactNode; last?: boole
 }
 
 interface MenuItemProps {
+  intent?: ReturnType<typeof useSettingsPreloadIntent>;
   icon: React.ReactNode;
   label: string;
   meta?: string;
@@ -456,7 +462,7 @@ interface MenuItemProps {
   onClick?: () => void;
 }
 
-function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
+function MenuItem({ icon, label, meta, tail, onClick, intent }: MenuItemProps) {
   const content = (
     <>
       <span
@@ -504,7 +510,8 @@ function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
   };
 
   return onClick ? (
-    <button type="button" onClick={onClick} className={className} style={style}>
+    <button
+      {...intent} type="button" onClick={onClick} className={className} style={style}>
       {content}
     </button>
   ) : (

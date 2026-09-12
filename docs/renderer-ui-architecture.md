@@ -146,6 +146,40 @@ with an actual synthetic Tiptap/Yjs editor, but do not mount ChapterEditor or
 ProjectRuntimeProvider. Native resource loading, mobile platform gesture paths,
 full project continuity and first-use latency budgets remain separate gates.
 
+### Intent-based code preloading
+
+`deferred-preloader.ts` owns one speculative request and one replaceable queued
+intent for the renderer. It starts after 120 ms of entry dwell and an idle
+callback (with a bounded timeout), or a timer fallback. The mounted entry hook
+cancels pending intent on pointer/focus departure, touch cancellation, unmount,
+window blur and page hiding. Data Saver, 2G, offline and hidden pages skip
+speculation. Explicit feature opening remains independent of these policies.
+An already started import cannot be canceled; completion only fills the code
+cache and cannot navigate or instantiate the feature.
+
+Desktop SUPER uses the last chosen graph; graph headers and mobile structure
+entries request only their corresponding graph. User-menu settings/shortcuts,
+mobile right-sidebar Settings and the mobile settings index share the settings
+resource. Graph module ownership is now in `features/graph/deferred-graph-modules`
+so mobile entries do not import the desktop shell. Pure entry imports still
+leave all heavy bodies unloaded until intent or demand.
+
+`createDeferredModule.preload` leaves the public snapshot idle until code is
+ready. A failed unused preload leaves it idle, allowing first demand to retry
+normally. Demand joining a pending preload promotes that same request: success
+is shared, while failure becomes a visible local error requiring explicit retry.
+Each resource is attempted speculatively at most once per renderer lifetime;
+failed demand is never retried merely by hover. Foreground loads bypass the
+speculative queue, so a slow unrelated background import cannot block a click.
+Only code is shared, with no added project/provider/document owner.
+
+The browser acceptance exercises the actual desktop SUPER and mobile settings
+entry controls with synthetic workspace navigation and a Tiptap/Yjs draft.
+Pointer/focus/touch cancellation, a queued settings intent behind a held graph
+request, promotion/retry and editing during preload are covered. Visibility and
+connection inputs are synthetic; native lifecycle, physical touch and full
+ChapterEditor/ProjectRuntime continuity and latency remain separate gates.
+
 ### Desktop editor-session continuity
 
 `EditorMainArea` is the desktop editor-session stage. It mounts Project Home

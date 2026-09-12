@@ -1,3 +1,4 @@
+import { useGraphPreloadIntent } from '../../../features/graph/deferred-graph-modules';
 import { GitBranch, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -29,6 +30,8 @@ export function MobileStructureOverlay({
   onOpenSuperView: (view: MobileSuperViewId) => void;
 }) {
   const { t } = useTranslation();
+  const graphIntent = useGraphPreloadIntent(tab === 'chapters' ? 'graph' : null);
+  const elementIntent = useGraphPreloadIntent(tab === 'elements' ? 'element' : null);
   const titles: Record<MobileTabBarTab, [string, string]> = {
     chapters: ['§', t('leftSidebar.tabs.chapters')],
     elements: ['◆', t('leftSidebar.tabs.elements')],
@@ -60,7 +63,7 @@ export function MobileStructureOverlay({
                 <span className="m-struct-overlay__aux-glyph" aria-hidden="true">☰</span>
                 <span>{t('rightSidebar.targets.allChapters', { defaultValue: '通览全书' })}</span>
               </button>
-              <button type="button" onClick={() => onOpenSuperView('graph')}>
+              <button type="button" {...graphIntent} onClick={() => onOpenSuperView('graph')}>
                 <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
                 <span>{t('dashboard.quick.graph', { defaultValue: '叙事图' })}</span>
               </button>
@@ -68,7 +71,7 @@ export function MobileStructureOverlay({
           )}
           {tab === 'elements' && (
             <span className="m-struct-overlay__aux">
-              <button type="button" onClick={() => onOpenSuperView('element')}>
+              <button type="button" {...elementIntent} onClick={() => onOpenSuperView('element')}>
                 <span className="m-struct-overlay__aux-glyph" aria-hidden="true">◆</span>
                 <span>{t('superElement.title')}</span>
               </button>

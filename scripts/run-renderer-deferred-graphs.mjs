@@ -8,16 +8,21 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { build, createServer, preview } from 'vite';
 import CDP from 'chrome-remote-interface';
+import { runPreloadAcceptance, validatePreloadAcceptance } from './renderer-preload-acceptance.mjs';
 import { referenceEvidenceFingerprint } from './reference-index-evidence.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
 const baseline = process.argv.includes('--baseline');
 const baselineCommit = 'd7e8c9a';
-const output = path.join(root, `docs/renderer-performance/acceptance/f7-graphs-${baseline ? 'baseline' : 'deferred'}.json`);
+const preload = process.argv.includes('--preload');
+assert(!baseline || !preload, 'Preload acceptance requires the current implementation.');
+const reportArg = process.argv.find(arg => arg.startsWith('--report='))?.slice('--report='.length);
+const output = path.resolve(root, reportArg ?? `docs/renderer-performance/acceptance/${preload ? 'f7-intent-preloading' : `f7-graphs-${baseline ? 'baseline' : 'deferred'}`}.json`);
 const fingerprint = (source) => createHash('sha256').update(referenceEvidenceFingerprint(source))
   .update(readFileSync(path.join(source, 'vite.renderer.config.ts')))
   .update(readFileSync(fileURLToPath(import.meta.url)))
+  .update(readFileSync(new URL('./renderer-preload-acceptance.mjs', import.meta.url)))
   .update(readFileSync(new URL('./renderer-graphs-ui.tsx', import.meta.url)))
   .update(readFileSync(new URL('./renderer-graphs-ui.html', import.meta.url)))
   .update(readFileSync(path.join(root, 'vite-plugins/deferred-settings.ts')))
@@ -59,6 +64,7 @@ function validate(report) {
     assert(report.tests.length > 4 && report.tests.every(t => t.status === 'passed'));
     assert.equal(report.devGraphs, 'passed');
   }
+  if (preload) validatePreloadAcceptance(report.preloading);
   assert.equal(report.acceptance.native, 'not-run'); assert.equal(report.acceptance.fullAppPerformance, 'not-run');
 }
 if (process.argv.includes('--check')) {
@@ -85,7 +91,7 @@ try {
   let tests = [];
   if (!baseline) {
     const json = path.join(temporary, 'tests.json');
-    execFileSync('pnpm', ['exec', 'vitest', 'run', 'src/renderer/lib/deferred-module.test.ts', 'src/renderer/features/graph/', 'src/renderer/hooks/useSuperViewEscapeStack.test.ts', 'src/renderer/architecture/renderer-boundaries.test.ts', '--reporter=json', `--outputFile=${json}`], { stdio: 'pipe' });
+    execFileSync('pnpm', ['exec', 'vitest', 'run', 'src/renderer/lib/deferred-', 'src/renderer/features/graph/', 'src/renderer/hooks/useSuperViewEscapeStack.test.ts', 'src/renderer/architecture/renderer-boundaries.test.ts', '--reporter=json', `--outputFile=${json}`], { stdio: 'pipe' });
     const result = JSON.parse(readFileSync(json, 'utf8')); assert(result.success && result.numFailedTests === 0 && result.numPendingTests === 0);
     tests = result.testResults.flatMap((suite) => suite.assertionResults.map((test) => ({ name: test.fullName, status: test.status, durationMs: test.duration })));
   }
@@ -129,7 +135,7 @@ try {
   const initial = { evaluated: await production.evaluate('globalThis.__GRAPH_EVALUATIONS__ ?? []'), parsed: [...parsed].sort(), requested: [...requested].sort() };
   await stopServer();
   const initialCss = new Set(chunks.filter(c => c.initial).flatMap(c => c.css));
-  const ui = []; let devGraphs = 'not-run';
+  const ui = []; let devGraphs = 'not-run'; let preloading = null;
   if (!baseline) {
     for (const suffix of ['DesktopStoryGraphView.tsx', 'DesktopSuperElementView.tsx', 'graph-ui-components.ts']) {
       const entry = chunks.find(c => c.facade?.endsWith('/' + suffix));
@@ -142,6 +148,7 @@ try {
     const uiDir = path.join(temporary, 'ui');
     await build({ root, configFile: path.join(root, 'vite.renderer.config.ts'), logLevel: 'warn', build: { outDir: uiDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-graphs-ui.html') } } });
     origin = await serve(uiDir);
+    if (preload) preloading = await runPreloadAcceptance({ page, origin, clients });
     for (const mobile of [false, true]) {
       const { client, evaluate, until, navigate } = await page();
       await client.Emulation.setDeviceMetricsOverride({ width: mobile ? 390 : 1280, height: mobile ? 844 : 800, deviceScaleFactor: 1, mobile: false });
@@ -236,7 +243,7 @@ try {
   const report = { schemaVersion: 1, kind: 'renderer_deferred_graphs', status: 'passed', mode: baseline ? 'baseline' : 'deferred', generatedAt: new Date().toISOString(),
     source: { commit, fingerprint: sourceFingerprint, dirty: Boolean(execFileSync('git', ['-C', source, 'status', '--porcelain'], { encoding: 'utf8' }).trim()) },
     environment: { platform: process.platform, node: process.version, browser: (await production.client.Browser.getVersion()).product },
-    initialJsBytes: chunks.filter((c) => c.initial).reduce((sum, c) => sum + c.bytes, 0), chunks, initial, ui, tests, devGraphs,
+    initialJsBytes: chunks.filter((c) => c.initial).reduce((sum, c) => sum + c.bytes, 0), chunks, initial, ui, tests, devGraphs, preloading,
     acceptance: { productionModuleLoading: 'passed', mountedGraphs: baseline ? 'not-run' : 'passed', native: 'not-run', fullAppPerformance: 'not-run' },
     limitations: [
       'The main-entry measurement builds actual production main.tsx/config with three module evaluation counters. No native bridge or author database is available; app readiness and native startup latency are not measured.',
@@ -247,7 +254,7 @@ try {
     ] };
   try { validate(report); } catch (error) { console.error(JSON.stringify({ ui })); throw error; }
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ output: path.relative(root, output), source: report.source, initialJsBytes: report.initialJsBytes, ui, tests: tests.length }));
+  console.log(JSON.stringify({ output: path.relative(root, output), source: report.source, initialJsBytes: report.initialJsBytes, ui, preloading, tests: tests.length }));
 } finally {
   for (const client of clients) await client.close();
   if (browser && browser.exitCode === null) { browser.kill('SIGTERM'); for (let n = 0; n < 30 && browser.exitCode === null; n++) await delay(100); if (browser.exitCode === null) { browser.kill('SIGKILL'); await new Promise((resolve) => browser.once('exit', resolve)); } }

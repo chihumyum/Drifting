@@ -1,0 +1,974 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_deferred_settings",
+  "status": "passed",
+  "mode": "deferred",
+  "generatedAt": "2026-09-12T13:55:35.795Z",
+  "source": {
+    "commit": "daa2fb52ef32bc0c0b5f37962725ce3efeced51b",
+    "fingerprint": "228cd0cbf4f12e3cd86e921d4575be6cc87eb9cd404a9105579061bf7726a0ea",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.19.0",
+    "browser": "Chrome/153.0.8010.36"
+  },
+  "initialJsBytes": 4925903,
+  "chunks": [
+    {
+      "file": "assets/react-vendor-DguZUK0D.js",
+      "bytes": 50500,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/tiptap-V2XhfRFI.js",
+      "bytes": 399863,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-BwJUMbRa.js",
+      "bytes": 1285506,
+      "entry": true,
+      "facade": "index.html",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/SettingsPrimitives-B7OcndYW.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/relation-edge-popover-2DhlmWpj.js",
+        "assets/runtime-6iyjH6Fp.js",
+        "assets/GhostIconButton-IOGVQSDZ.js",
+        "assets/Modal-B-7EigRL.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/persistence-lifecycle-fhSczhkl.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+        "assets/graph-view-HukQBejZ.js",
+        "assets/SegmentedControl-Y61LP1Bn.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/graph-ui-C6ZF0VKz.js",
+      "bytes": 23692,
+      "entry": true,
+      "facade": "src/renderer/features/graph/graph-ui-components.ts",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/relation-edge-popover-2DhlmWpj.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/GhostIconButton-IOGVQSDZ.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-B7Bi0ecI.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/relation-edge-popover-2DhlmWpj.js",
+      "bytes": 171155,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/GhostIconButton-IOGVQSDZ.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/settings-panels-CGl-vy1T.js",
+      "bytes": 173522,
+      "entry": true,
+      "facade": "src/renderer/features/settings/settings-panels.ts",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/SettingsPrimitives-B7OcndYW.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/runtime-6iyjH6Fp.js",
+        "assets/persistence-lifecycle-fhSczhkl.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/SegmentedControl-Y61LP1Bn.js",
+        "assets/active-editor-DC_px_c1.js"
+      ],
+      "targets": [
+        "AccountSettingsPanel",
+        "SubscriptionSettingsPanel",
+        "PreferenceSettingsPanels",
+        "IntelligenceSettingsPanels",
+        "AgentSettingsPanel",
+        "ControlSettingsPanels"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/SettingsPrimitives-B7OcndYW.js",
+      "bytes": 420420,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/persistence-lifecycle-fhSczhkl.js",
+        "assets/runtime-6iyjH6Fp.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/SegmentedControl-Y61LP1Bn.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/agent-activity-store-B7Bi0ecI.js",
+      "bytes": 1491009,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/story-graph-CWF-cSUo.js",
+      "bytes": 29360,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/graph-view-HukQBejZ.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+        "assets/SegmentedControl-Y61LP1Bn.js",
+        "assets/runtime-6iyjH6Fp.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/graph-view-HukQBejZ.js",
+      "bytes": 20563,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/SegmentedControl-Y61LP1Bn.js",
+      "bytes": 493,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/element-graph-DKBVQBhR.js",
+      "bytes": 37509,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopSuperElementView.tsx",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+        "assets/GhostIconButton-IOGVQSDZ.js",
+        "assets/Modal-B-7EigRL.js",
+        "assets/runtime-6iyjH6Fp.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/Modal-B-7EigRL.js",
+      "bytes": 1798,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/GhostIconButton-IOGVQSDZ.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/GhostIconButton-IOGVQSDZ.js",
+      "bytes": 807,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+      "bytes": 67965,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/runtime-6iyjH6Fp.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/useRelationTypePresentation--nIAgsHT.js",
+      "bytes": 63241,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/runtime-6iyjH6Fp.js",
+      "bytes": 1525,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/confirmation-store-DqlPzfaj.js",
+      "bytes": 926377,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/persistence-lifecycle-fhSczhkl.js",
+      "bytes": 1592,
+      "entry": false,
+      "facade": "src/renderer/lib/persistence-lifecycle.ts",
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/active-editor-DC_px_c1.js",
+      "bytes": 413,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/pdf-runtime-Dsq98h1n.js",
+      "bytes": 489688,
+      "entry": false,
+      "facade": "src/renderer/lib/pdf-runtime.ts",
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D9RGnu3n.js",
+      "bytes": 3685,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/y-prosemirror-B7ypnOaP.js",
+      "bytes": 5072,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D35Zzh6R.js",
+      "bytes": 312532,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/imported-history-BAxOs_cK.js",
+      "bytes": 1418,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/imported-history.ts",
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/agent-activity-store-B7Bi0ecI.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/seed-uV2AEFLm.js",
+      "bytes": 3253,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/seed.ts",
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-V2XhfRFI.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/repository-BBa1v7be.js",
+      "bytes": 22676,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/agent-activity-store-B7Bi0ecI.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/markdown-B1zFhg2s.js",
+      "bytes": 1288,
+      "entry": false,
+      "facade": "src/renderer/services/import/markdown.ts",
+      "imports": [
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-gEic4lYH.js",
+      "bytes": 405135,
+      "entry": false,
+      "facade": "src/renderer/services/import/docx.ts",
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/index-BwJUMbRa.js",
+        "assets/jszip.min-DdNwJInE.js",
+        "assets/tiptap-V2XhfRFI.js",
+        "assets/confirmation-store-DqlPzfaj.js",
+        "assets/SettingsPrimitives-B7OcndYW.js",
+        "assets/persistence-lifecycle-fhSczhkl.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/runtime-6iyjH6Fp.js",
+        "assets/repository-BBa1v7be.js",
+        "assets/agent-activity-store-B7Bi0ecI.js",
+        "assets/SegmentedControl-Y61LP1Bn.js",
+        "assets/relation-edge-popover-2DhlmWpj.js",
+        "assets/useRelationTypePresentation--nIAgsHT.js",
+        "assets/GhostIconButton-IOGVQSDZ.js",
+        "assets/Modal-B-7EigRL.js",
+        "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+        "assets/graph-view-HukQBejZ.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-BwKXEFhF.js",
+      "bytes": 508,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/jszip.min-DdNwJInE.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-DdNwJInE.js",
+      "bytes": 96734,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "targets": [],
+      "initial": false
+    }
+  ],
+  "initial": {
+    "evaluated": [],
+    "parsed": [
+      "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+      "assets/GhostIconButton-IOGVQSDZ.js",
+      "assets/Modal-B-7EigRL.js",
+      "assets/SegmentedControl-Y61LP1Bn.js",
+      "assets/SettingsPrimitives-B7OcndYW.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/agent-activity-store-B7Bi0ecI.js",
+      "assets/confirmation-store-DqlPzfaj.js",
+      "assets/graph-view-HukQBejZ.js",
+      "assets/index-BwJUMbRa.js",
+      "assets/persistence-lifecycle-fhSczhkl.js",
+      "assets/react-vendor-DguZUK0D.js",
+      "assets/relation-edge-popover-2DhlmWpj.js",
+      "assets/repository-BBa1v7be.js",
+      "assets/runtime-6iyjH6Fp.js",
+      "assets/tiptap-V2XhfRFI.js",
+      "assets/useRelationTypePresentation--nIAgsHT.js"
+    ],
+    "requested": [
+      "",
+      "assets/DesktopSuperViewHeader-B5ck_PkS.css",
+      "assets/DesktopSuperViewHeader-CXSEuDA_.js",
+      "assets/GhostIconButton-IOGVQSDZ.js",
+      "assets/Modal-B-7EigRL.js",
+      "assets/SegmentedControl-Y61LP1Bn.js",
+      "assets/SettingsPrimitives-B7OcndYW.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/agent-activity-store-B7Bi0ecI.js",
+      "assets/confirmation-store-DqlPzfaj.js",
+      "assets/graph-view-CA35WYBF.css",
+      "assets/graph-view-HukQBejZ.js",
+      "assets/index-BwJUMbRa.js",
+      "assets/index-CRWHumG2.css",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/persistence-lifecycle-fhSczhkl.js",
+      "assets/react-vendor-DguZUK0D.js",
+      "assets/relation-edge-popover-2DhlmWpj.js",
+      "assets/relation-edge-popover-BkWJLGpG.css",
+      "assets/repository-BBa1v7be.js",
+      "assets/runtime-6iyjH6Fp.js",
+      "assets/tiptap-V2XhfRFI.js",
+      "assets/useRelationTypePresentation--nIAgsHT.js"
+    ]
+  },
+  "ui": [
+    {
+      "modalClosedDuringLoad": true,
+      "platformShell": "desktop",
+      "initiallyDeferred": true,
+      "failedLocally": true,
+      "retryRecovered": true,
+      "headerPreserved": true,
+      "navigationDuringLoad": true,
+      "closeDuringLoad": true,
+      "cachedReopen": true,
+      "realPreferenceChanged": true,
+      "sentinelPreserved": true,
+      "blockedRequests": 1,
+      "retryRequests": 2,
+      "requestUrls": [
+        "/assets/settings-panels-Dk6nmmAu.js?settings-attempt=1",
+        "/assets/settings-panels-Dk6nmmAu.js?settings-attempt=2",
+        "/assets/settings-panels-k2R9TKZp.js"
+      ]
+    },
+    {
+      "modalClosedDuringLoad": null,
+      "platformShell": "mobile",
+      "initiallyDeferred": true,
+      "failedLocally": true,
+      "retryRecovered": true,
+      "headerPreserved": true,
+      "navigationDuringLoad": true,
+      "closeDuringLoad": true,
+      "cachedReopen": true,
+      "realPreferenceChanged": true,
+      "sentinelPreserved": true,
+      "blockedRequests": 1,
+      "retryRequests": 2,
+      "requestUrls": [
+        "/assets/settings-panels-Dk6nmmAu.js?settings-attempt=1",
+        "/assets/settings-panels-Dk6nmmAu.js?settings-attempt=2",
+        "/assets/settings-panels-k2R9TKZp.js"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "name": "mobile standalone routes selects the mobile auth presentation from native platform metadata",
+      "status": "passed",
+      "durationMs": 0.8281669999999934
+    },
+    {
+      "name": "mobile standalone routes selects the mobile project shelf and the independent mobile workspace shell",
+      "status": "passed",
+      "durationMs": 0.418042000000014
+    },
+    {
+      "name": "mobile standalone routes keeps the M3 paper workspace, unified bar and touch ownership in the mobile shell",
+      "status": "passed",
+      "durationMs": 5.714334000000008
+    },
+    {
+      "name": "mobile standalone routes keeps all three Super View destinations directly reachable in the mobile header",
+      "status": "passed",
+      "durationMs": 0.520875000000018
+    },
+    {
+      "name": "mobile standalone routes keeps mobile auth in the mobile shell path and reuses the auth flow",
+      "status": "passed",
+      "durationMs": 0.11308300000001736
+    },
+    {
+      "name": "mobile standalone routes owns safe area, dynamic viewport, touch targets and mobile input sizing",
+      "status": "passed",
+      "durationMs": 0.10054100000002109
+    },
+    {
+      "name": "mobile standalone routes gives the mobile shelf a single-column touch-first surface",
+      "status": "passed",
+      "durationMs": 0.11570799999998371
+    },
+    {
+      "name": "mobile standalone routes routes mobile settings outside project runtime and gates hosted account sections",
+      "status": "passed",
+      "durationMs": 0.1900410000000079
+    },
+    {
+      "name": "mobile standalone routes opens settings beside the right-sidebar close action and returns to the source paper",
+      "status": "passed",
+      "durationMs": 0.5274159999999881
+    },
+    {
+      "name": "mobile standalone routes gives mobile settings safe areas, stacked content and touch-sized controls",
+      "status": "passed",
+      "durationMs": 0.14679200000000492
+    },
+    {
+      "name": "mobile standalone routes keeps shared and custom overlays inside the native mobile viewport",
+      "status": "passed",
+      "durationMs": 0.49279200000000856
+    },
+    {
+      "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
+      "status": "passed",
+      "durationMs": 1.5776250000000118
+    },
+    {
+      "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
+      "status": "passed",
+      "durationMs": 0.2646660000000054
+    },
+    {
+      "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
+      "status": "passed",
+      "durationMs": 0.18516700000000696
+    },
+    {
+      "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
+      "status": "passed",
+      "durationMs": 0.22774999999998613
+    },
+    {
+      "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
+      "status": "passed",
+      "durationMs": 0.18145799999999213
+    },
+    {
+      "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
+      "status": "passed",
+      "durationMs": 0.08750000000000568
+    },
+    {
+      "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
+      "status": "passed",
+      "durationMs": 0.14429199999997877
+    },
+    {
+      "name": "Google Drive Settings presentation enables connection only when OAuth, Drive transport, and opaque staging are ready",
+      "status": "passed",
+      "durationMs": 1.4290829999999914
+    },
+    {
+      "name": "Google Drive Settings presentation maps account-mismatch to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.22670800000000213
+    },
+    {
+      "name": "Google Drive Settings presentation maps needs-reauth to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.07949999999999591
+    },
+    {
+      "name": "Google Drive Settings presentation maps permission-denied to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06233299999999531
+    },
+    {
+      "name": "Google Drive Settings presentation maps offline to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06058299999997985
+    },
+    {
+      "name": "Google Drive Settings presentation maps rate-limited to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.05266600000001631
+    },
+    {
+      "name": "Google Drive Settings presentation maps quota-exceeded to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.052791000000013355
+    },
+    {
+      "name": "Google Drive Settings presentation maps blocked-update to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.05833300000000463
+    },
+    {
+      "name": "Google Drive Settings presentation maps remote-corrupt to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06366699999998104
+    },
+    {
+      "name": "Google Drive Settings presentation maps configuration-required to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.08529199999998127
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code cancelled as cancelled",
+      "status": "passed",
+      "durationMs": 0.069500000000005
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code offline as offline",
+      "status": "passed",
+      "durationMs": 0.047584000000000515
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code needs-reauth as reauthorize",
+      "status": "passed",
+      "durationMs": 0.043417000000005146
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code permission-denied as permission",
+      "status": "passed",
+      "durationMs": 0.03912500000001273
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code rate-limited as rate-limited",
+      "status": "passed",
+      "durationMs": 0.036207999999987805
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code quota-exceeded as quota",
+      "status": "passed",
+      "durationMs": 0.03770799999998076
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code transient as retry",
+      "status": "passed",
+      "durationMs": 0.037499999999994316
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-cursor as retry",
+      "status": "passed",
+      "durationMs": 0.037499999999994316
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-page-token as data-integrity",
+      "status": "passed",
+      "durationMs": 0.042833000000001675
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-request as data-integrity",
+      "status": "passed",
+      "durationMs": 0.057458999999994376
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code local-object-invalid as data-integrity",
+      "status": "passed",
+      "durationMs": 0.03274999999999295
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code remote-object-missing as data-integrity",
+      "status": "passed",
+      "durationMs": 0.0342499999999859
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code immutable-conflict as data-integrity",
+      "status": "passed",
+      "durationMs": 0.03437500000001137
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code remote-corrupt as data-integrity",
+      "status": "passed",
+      "durationMs": 0.026332999999993945
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code configuration-required as configuration",
+      "status": "passed",
+      "durationMs": 0.13358400000001325
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code account-mismatch as account-mismatch",
+      "status": "passed",
+      "durationMs": 0.07287499999998204
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code unsupported-platform as configuration",
+      "status": "passed",
+      "durationMs": 0.0655840000000012
+    },
+    {
+      "name": "Google Drive Settings presentation never projects an arbitrary error message or unsafe reason code",
+      "status": "passed",
+      "durationMs": 0.10008399999998119
+    },
+    {
+      "name": "hosted settings boundary defaults public builds to local settings while preserving the hosted seam",
+      "status": "passed",
+      "durationMs": 1.0845000000000198
+    },
+    {
+      "name": "hosted settings boundary gates both desktop and standalone-mobile account panels before mounting them",
+      "status": "passed",
+      "durationMs": 0.3235420000000033
+    },
+    {
+      "name": "hosted settings boundary does not mount hosted telemetry controls in local-only Privacy settings",
+      "status": "passed",
+      "durationMs": 0.21729100000001722
+    },
+    {
+      "name": "hosted settings boundary does not mount the project-scoped import action in standalone mobile settings",
+      "status": "passed",
+      "durationMs": 0.21770899999998505
+    },
+    {
+      "name": "hosted settings boundary records a local-first onboarding contract without trial or hosted-storage claims",
+      "status": "passed",
+      "durationMs": 3.140874999999994
+    },
+    {
+      "name": "hosted settings boundary does not promise active cloud sync in always-visible local preferences",
+      "status": "passed",
+      "durationMs": 1.1608339999999941
+    },
+    {
+      "name": "hosted settings boundary removes account, plan and sign-out presentation from the local user menu",
+      "status": "passed",
+      "durationMs": 0.2631670000000099
+    },
+    {
+      "name": "hosted settings boundary omits inert help, update and Finder actions instead of rendering dead controls",
+      "status": "passed",
+      "durationMs": 1.1414160000000209
+    },
+    {
+      "name": "hosted settings boundary keeps the public production CSP free of an implicit hosted-service origin",
+      "status": "passed",
+      "durationMs": 0.1695839999999862
+    },
+    {
+      "name": "hosted settings boundary keeps the durable hosted-service document aligned with the UI contract",
+      "status": "passed",
+      "durationMs": 0.24916600000000244
+    },
+    {
+      "name": "mobile Editor Settings presentation reuses desktop preference state and the same live editor variables",
+      "status": "passed",
+      "durationMs": 1.340208000000004
+    },
+    {
+      "name": "mobile Editor Settings presentation removes desktop rail geometry and keeps the phone preview horizontal",
+      "status": "passed",
+      "durationMs": 0.33379200000000253
+    },
+    {
+      "name": "mobile Editor Settings presentation makes typography controls full-width and touch-sized without changing desktop CSS",
+      "status": "passed",
+      "durationMs": 0.2536670000000072
+    },
+    {
+      "name": "mobile Editor Settings presentation records the live preview and physical-device acceptance boundary",
+      "status": "passed",
+      "durationMs": 0.24774999999999636
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary reuses the provider-neutral product controls without mounting project import",
+      "status": "passed",
+      "durationMs": 1.0296249999999958
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary reauthorizes the same account and resumes the owned disconnect in one action",
+      "status": "passed",
+      "durationMs": 0.22291700000000958
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary fails closed until every native seam is available",
+      "status": "passed",
+      "durationMs": 0.19158400000000597
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary renders localized actions and sanitized codes instead of native error messages",
+      "status": "passed",
+      "durationMs": 2.8847920000000045
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps compact Settings portrait-safe, touch-sized, and hardware-Back owned",
+      "status": "passed",
+      "durationMs": 1.0990000000000038
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps production configuration local and the renderer credential contract opaque",
+      "status": "passed",
+      "durationMs": 0.2253340000000037
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps the real-account hard gate machine-complete and privacy-strict",
+      "status": "passed",
+      "durationMs": 1.4989170000000058
+    },
+    {
+      "name": "personal-cloud Settings boundary routes the trusted-cloud controls through the sanitized product command layer",
+      "status": "passed",
+      "durationMs": 1.6580000000000013
+    },
+    {
+      "name": "personal-cloud Settings boundary gates connection on the complete native OAuth, transport, and staging boundary",
+      "status": "passed",
+      "durationMs": 0.5652079999999984
+    },
+    {
+      "name": "personal-cloud Settings boundary localizes account, SDK-state, permission, network, and integrity failures",
+      "status": "passed",
+      "durationMs": 0.3365830000000045
+    },
+    {
+      "name": "personal-cloud Settings boundary has no recovery-code, QR, biometric, or recovery-confirmation surface",
+      "status": "passed",
+      "durationMs": 0.3429169999999999
+    },
+    {
+      "name": "personal-cloud Settings boundary requires an explicit second action before App-wide disconnect",
+      "status": "passed",
+      "durationMs": 0.1813749999999743
+    },
+    {
+      "name": "personal-cloud Settings boundary keeps connect and disconnect visibly busy instead of only disabling controls",
+      "status": "passed",
+      "durationMs": 4.428125000000023
+    },
+    {
+      "name": "personal-cloud Settings boundary closes the same-frame double-tap window before native cloud operations start",
+      "status": "passed",
+      "durationMs": 0.2813339999999869
+    },
+    {
+      "name": "personal-cloud Settings boundary grants only the native dialog message permission used by desktop UI",
+      "status": "passed",
+      "durationMs": 0.457917000000009
+    },
+    {
+      "name": "personal-cloud Settings boundary uses Google sign-in for both connection and automatic project discovery",
+      "status": "passed",
+      "durationMs": 1.5092919999999879
+    },
+    {
+      "name": "personal-cloud Settings boundary names projects publicly and states that Google is inside the trust boundary",
+      "status": "passed",
+      "durationMs": 1.531000000000006
+    },
+    {
+      "name": "personal-cloud Settings boundary separates durable authority attention from the last runtime cycle failure",
+      "status": "passed",
+      "durationMs": 1.3492089999999735
+    },
+    {
+      "name": "desktop settings section navigation jumps directly while preserving scroll-spy for manual scrolling",
+      "status": "passed",
+      "durationMs": 2.7315829999999863
+    },
+    {
+      "name": "desktop standalone settings lets a project-less user open Google sign-in and sync controls from the shelf menu",
+      "status": "passed",
+      "durationMs": 2.411457999999996
+    }
+  ],
+  "devSettings": "passed",
+  "acceptance": {
+    "productionModuleLoading": "passed",
+    "mountedStandaloneSettings": "passed",
+    "native": "not-run",
+    "fullAppPerformance": "not-run"
+  },
+  "limitations": [
+    "Production main.tsx and Vite config are unchanged by the graph observer except for six panel evaluation counters. The browser has no native bridge or author data; app readiness and startup latency are not measured.",
+    "Mounted UI acceptance uses actual desktop/mobile standalone settings and real dynamically fetched panel code in a separate synthetic MemoryRouter fixture. The sentinel is a textarea and effect counter, not a ProjectRuntimeProvider or prose editor.",
+    "Real browser module fetch is failed once, retried at the same emitted file with a fresh module-map query, and delayed while navigating/closing. Panel rendering after retry and real local preference persistence are checked. This is not failed module evaluation, missing upgrade assets, native offline loading or device input acceptance.",
+    "Full project settings panels, deep-link scroll in the complete modal, hardware Back and native/physical interaction still require project/device acceptance. No private database or account is loaded."
+  ]
+}

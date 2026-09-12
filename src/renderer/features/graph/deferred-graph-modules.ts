@@ -1,6 +1,7 @@
 import { loadStoryGraph } from 'virtual:story-graph';
 import { loadElementGraph } from 'virtual:element-graph';
 import { loadGraphUi } from 'virtual:graph-ui';
+import { useDeferredModuleIntent } from '../../hooks/useDeferredModuleIntent';
 import { createDeferredModule } from '../../lib/deferred-module';
 
 const graphUiModule = createDeferredModule(loadGraphUi);
@@ -14,3 +15,7 @@ export const superViewModules = {
   graph: createDeferredModule(async () => ({ graphUi: await graphUi(), View: (await loadStoryGraph()).DesktopStoryGraphView })),
   element: createDeferredModule(async () => ({ graphUi: await graphUi(), View: (await loadElementGraph()).DesktopSuperElementView })),
 };
+
+export function useGraphPreloadIntent(view: string | null) {
+  return useDeferredModuleIntent(view === 'graph' || view === 'element' ? superViewModules[view] : undefined);
+}

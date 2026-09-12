@@ -1,3 +1,4 @@
+import { useSettingsPreloadIntent } from '../../../features/settings/useSettingsPanels';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings, X } from 'lucide-react';
@@ -38,6 +39,7 @@ export function MobileRightSidebar({
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLElement | null>(null);
   const isPresent = useIsPresent();
+  const settingsIntent = useSettingsPreloadIntent(isPresent);
   const reducedMotion = useReducedMotion();
   const [tab, setTab] = useState<ToolTab>(() => lastMobileRightSidebarTab);
   const presentation = useMobilePaperPresentation(target);
@@ -150,6 +152,7 @@ export function MobileRightSidebar({
           <button
             type="button"
             className="m-tools-face__settings"
+            {...settingsIntent}
             onClick={onOpenSettings}
             aria-label={t('settings.title')}
           >

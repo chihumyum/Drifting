@@ -5,7 +5,7 @@ import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { useDriftPanelAnim } from '../../../hooks/useDriftPanelAnim';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
-import { superViewModules } from '../deferred-super-view-modules';
+import { superViewModules } from '../../../features/graph/deferred-graph-modules';
 // These shells/styles are immediate, including while feature code is loading.
 import '../../../../styles/graph-view.css';
 import '../../../../styles/drift-panel.css';

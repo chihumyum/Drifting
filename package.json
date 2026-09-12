@@ -53,6 +53,7 @@
     "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
     "perf:renderer:settings": "node scripts/run-renderer-deferred-settings.mjs",
     "perf:renderer:graphs": "node scripts/run-renderer-deferred-graphs.mjs",
+    "perf:renderer:preload": "node scripts/run-renderer-deferred-graphs.mjs --preload",
     "perf:renderer:libraries": "node scripts/run-renderer-deferred-libraries.mjs",
     "workspace:refresh:acceptance": "node scripts/run-workspace-refresh-acceptance.mjs",
     "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",

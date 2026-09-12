@@ -403,7 +403,9 @@
             "docs/renderer-performance/acceptance/f7-settings-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-baseline.json",
             "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
-            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json",
+            "docs/renderer-performance/acceptance/f7-intent-preloading.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-preload.json"
           ],
           "status": "partial"
         },
@@ -414,7 +416,9 @@
             "docs/renderer-performance/acceptance/f7-libraries-deferred.json",
             "docs/renderer-performance/acceptance/f7-settings-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
-            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json",
+            "docs/renderer-performance/acceptance/f7-intent-preloading.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-preload.json"
           ],
           "status": "partial"
         },
@@ -424,7 +428,9 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f7-settings-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
-            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json",
+            "docs/renderer-performance/acceptance/f7-intent-preloading.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-preload.json"
           ],
           "status": "partial"
         },
@@ -434,7 +440,7 @@
           "evidence": []
         }
       ],
-      "implementationStatus": "pdf_zip_settings_and_graphs_deferred_browser_fetch_retry_verified_preloading_native_and_full_app_budgets_pending"
+      "implementationStatus": "pdf_zip_settings_graphs_and_bounded_intent_preloading_implemented_browser_recovery_verified_other_entries_native_and_full_app_budgets_pending"
     },
     {
       "id": "F8",

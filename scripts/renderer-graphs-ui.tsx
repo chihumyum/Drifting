@@ -1,4 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
+import { WorkspaceNavigationButtons } from '../src/renderer/components/topBars/WorkspaceNavigationButtons';
+import { MobileSettingsView } from '../src/renderer/shells/mobile/standalone/MobileSettingsView';
+import { useUiStore } from '../src/renderer/store/ui-store';
 import { createRoot } from 'react-dom/client';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -40,7 +44,7 @@ function publish(projectId: string) {
   state.commitWorkspaceProjection(projectId, epoch, fixture);
 }
 const api = {
-  observations, open: (_view: View) => {}, project: (_project: string) => {},
+  observations, open: (_view: View) => {}, project: (_project: string) => {}, navigate: (_path: string) => {},
   edit() { editor!.commands.insertContent(' synthetic edit'); },
   inspect() { return { ...observations, text: editor?.getText() }; },
 };
@@ -57,20 +61,25 @@ export function Draft() {
   return <div id="synthetic-editor" ref={host} />;
 }
 export function Fixture() {
-  const [active, setActive] = useState<View>('none');
+  const active = useUiStore(state => state.activeSuperView);
+  const setActive = useUiStore(state => state.setActiveSuperView);
+  const route = useLocation();
+  const navigate = useNavigate();
+  const preload = new URLSearchParams(location.search).has('preload');
   const [projectId, setProjectId] = useState('synthetic-a');
   const mobile = new URLSearchParams(location.search).has('mobile');
   const navigator = useMemo(() => ({ projectId, open() {}, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} }), [projectId]);
-  const navigation = useMemo(() => ({ active, setActive }), [active]);
+  const navigation = useMemo(() => ({ active, setActive }), [active, setActive]);
   useLayoutEffect(() => {
     observations.active = active; observations.projectId = projectId;
-    api.open = setActive;
+    api.open = setActive; api.navigate = navigate;
     api.project = (next) => { publish(next); setProjectId(next); };
-  }, [active, projectId]);
+  }, [active, projectId, setActive, navigate]);
   return <WorkspaceNavigationProvider navigator={navigator}>
     <SuperViewRelationUiProvider projectId={projectId} key={projectId}>
       <SuperViewNavigationProvider value={navigation}>
         <Draft />
+        {preload && (route.pathname === '/settings' ? <MobileSettingsView /> : <WorkspaceNavigationButtons />)}
         {mobile ? <MobileSuperViewHost active={active === 'none' ? null : active} onActiveChange={(next) => setActive(next ?? 'none')} returnPointCaptured />
           : <>{active === 'graph' && <StoryGraphView />}{active === 'element' && <SuperElementView />}</>}
       </SuperViewNavigationProvider>
@@ -78,5 +87,6 @@ export function Fixture() {
   </WorkspaceNavigationProvider>;
 }
 publish('synthetic-a');
+useUiStore.setState({ activeSuperView: 'none', lastActiveSuperView: 'graph' });
 Object.assign(window, { __GRAPHS_UI__: api });
-createRoot(document.getElementById('root')!).render(<Fixture />);
+createRoot(document.getElementById('root')!).render(<MemoryRouter><Fixture /></MemoryRouter>);

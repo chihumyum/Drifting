@@ -2,6 +2,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDeferredModule } from './deferred-module';
 
 describe('deferred module ownership', () => {
+  it('does not expose a speculative failure and retries automatically on first demand', async () => {
+    const loader = vi.fn().mockRejectedValueOnce(new Error('Synthetic offline preload')).mockResolvedValue(42);
+    const resource = createDeferredModule(loader);
+    const idle = resource.getSnapshot();
+    const listener = vi.fn(); resource.subscribe(listener);
+    await resource.preload();
+    expect(resource.getSnapshot()).toBe(idle);
+    expect(listener).not.toHaveBeenCalled();
+    await resource.load();
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(resource.getSnapshot()).toEqual({ status: 'ready', value: 42 });
+  });
+
+  it('promotes an in-flight preload to demand without a second fetch and exposes its failure', async () => {
+    let reject!: (error: Error) => void;
+    const loader = vi.fn(() => new Promise<number>((_yes, no) => { reject = no; }));
+    const resource = createDeferredModule(loader);
+    const preload = resource.preload();
+    expect(resource.getSnapshot()).toEqual({ status: 'idle' });
+    expect(resource.load()).toBe(preload);
+    expect(resource.getSnapshot()).toEqual({ status: 'loading' });
+    await Promise.resolve();
+    reject(new Error('Synthetic interrupted foreground load')); await preload;
+    expect(resource.getSnapshot().status).toBe('error');
+    await resource.preload();
+    expect(loader).toHaveBeenCalledOnce();
+  });
+
+  it('shares successful preloaded code and coalesces reentrant demand notifications', async () => {
+    const loader = vi.fn(async () => 42);
+    const resource = createDeferredModule(loader);
+    resource.subscribe(() => { if (resource.getSnapshot().status === 'loading') void resource.load(); });
+    await resource.preload(); await resource.load();
+    expect(resource.getSnapshot()).toEqual({ status: 'ready', value: 42 });
+    expect(loader).toHaveBeenCalledOnce();
+    const demand = createDeferredModule(loader);
+    demand.subscribe(() => { if (demand.getSnapshot().status === 'loading') void demand.load(); });
+    await demand.load();
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
   it('stays idle until requested and shares concurrent and successful loads', async () => {
     const value = { component: 'synthetic' };
     const loader = vi.fn(async () => value);
