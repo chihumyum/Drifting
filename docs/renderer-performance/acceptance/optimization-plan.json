@@ -391,12 +391,15 @@
         "F3",
         "F5"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F7-01",
           "requirement": "未访问重型功能不加载执行其代码，静态导入没有串回首屏",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f7-libraries-baseline.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F7-02",
@@ -413,7 +416,8 @@
           "requirement": "首屏与首次功能访问达到 F0 预算，报告实际加载执行而非仅 gzip",
           "evidence": []
         }
-      ]
+      ],
+      "implementationStatus": "pdf_zip_production_entry_baseline_recorded_deferred_loading_pending"
     },
     {
       "id": "F8",

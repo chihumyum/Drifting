@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_deferred_libraries",
+  "status": "passed",
+  "mode": "baseline",
+  "generatedAt": "2026-09-12T12:01:31.822Z",
+  "source": {
+    "commit": "1e4000b01f2b7b99374630a0d91e334ea983e67d",
+    "fingerprint": "adc220f167879e398edad51d083992a12db7abc73862ca1fb0fda64748077fe9",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.19.0",
+    "browser": "Chrome/153.0.8010.36"
+  },
+  "chunks": [
+    {
+      "file": "assets/react-vendor-jAyCf2u5.js",
+      "entry": false,
+      "bytes": 50500,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/tiptap-Cns1KEfm.js",
+      "entry": false,
+      "bytes": 399867,
+      "imports": [
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-DWeuOXWS.js",
+      "entry": true,
+      "bytes": 5327125,
+      "imports": [
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [
+        "pdf",
+        "zip"
+      ],
+      "initial": true
+    },
+    {
+      "file": "assets/index-3icifUgI.js",
+      "entry": false,
+      "bytes": 3601,
+      "imports": [
+        "assets/index-DWeuOXWS.js",
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/y-prosemirror-CRyLq2cp.js",
+      "entry": false,
+      "bytes": 5046,
+      "imports": [
+        "assets/index-DWeuOXWS.js",
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D35Zzh6R.js",
+      "entry": false,
+      "bytes": 312532,
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/imported-history-CTC4XgCb.js",
+      "entry": false,
+      "bytes": 1328,
+      "imports": [
+        "assets/index-DWeuOXWS.js",
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/seed-B3xQ72f0.js",
+      "entry": false,
+      "bytes": 3162,
+      "imports": [
+        "assets/index-DWeuOXWS.js",
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/markdown-CK4ISnfC.js",
+      "entry": false,
+      "bytes": 1275,
+      "imports": [
+        "assets/tiptap-Cns1KEfm.js",
+        "assets/index-DWeuOXWS.js",
+        "assets/react-vendor-jAyCf2u5.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-CbUGjv1n.js",
+      "entry": false,
+      "bytes": 404550,
+      "imports": [
+        "assets/react-vendor-jAyCf2u5.js",
+        "assets/index-DWeuOXWS.js",
+        "assets/tiptap-Cns1KEfm.js"
+      ],
+      "targets": [],
+      "initial": false
+    }
+  ],
+  "initial": {
+    "evaluated": [
+      "pdf",
+      "zip"
+    ],
+    "parsed": [
+      "assets/index-DWeuOXWS.js",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-DWeuOXWS.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js",
+      "favicon.ico"
+    ]
+  },
+  "afterPdf": {
+    "evaluated": [
+      "pdf",
+      "zip"
+    ],
+    "parsed": [
+      "assets/index-DWeuOXWS.js",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-DWeuOXWS.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/pdf.worker-Dg_VPFYK.mjs",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js",
+      "favicon.ico"
+    ]
+  },
+  "afterArchive": {
+    "evaluated": [
+      "pdf",
+      "zip"
+    ],
+    "parsed": [
+      "assets/index-DWeuOXWS.js",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-DWeuOXWS.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/pdf.worker-Dg_VPFYK.mjs",
+      "assets/react-vendor-jAyCf2u5.js",
+      "assets/tiptap-Cns1KEfm.js",
+      "favicon.ico"
+    ]
+  },
+  "pdf": [
+    {
+      "elapsedMs": 76.59999990463257,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    },
+    {
+      "elapsedMs": 32,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    },
+    {
+      "elapsedMs": 31.90000009536743,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    }
+  ],
+  "archive": {
+    "filename": "drifting-all-books-markdown-2026-09-12.zip",
+    "sizeBytes": 497,
+    "elapsedMs": 3.100000023841858,
+    "files": [
+      "README.md",
+      "index.md"
+    ],
+    "valid": true
+  },
+  "acceptance": {
+    "moduleLoading": "passed",
+    "syntheticPdfRendering": "passed",
+    "archiveRoundTrip": "passed",
+    "fullAppPerformance": "not-run",
+    "nativeOrDevice": "not-run"
+  },
+  "limitations": [
+    "This builds the actual production renderer entry/config with two library evaluation counters and a synthetic invocation API added only by the acceptance build. Module ownership, static closure, browser requests and parsed scripts are recorded separately.",
+    "The plain browser has no native bridge, author database or account. Full app readiness/errors and native startup latency are not acceptance claims. Native event/bootstrap order is not replaced by the fixture.",
+    "PDF calls exercise the actual engine/worker and JPEG canvas output; ZIP bytes are validated independently by Python zipfile. No private files are read or exported.",
+    "One first call and two concurrent repeated PDF calls are diagnostics, not p95 budgets. This does not test failed chunk retrieval, offline native resource paths, physical devices or input continuity."
+  ]
+}

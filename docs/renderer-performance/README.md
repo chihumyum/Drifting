@@ -1115,3 +1115,33 @@ checks, CLI inventory generation checks and the configured local-only renderer
 production build. Reference recovery also passes 62 SIGKILL cases and 124
 independent restarts against the updated schema. No author database was opened
 or migrated for these checks.
+
+## F7a baseline — Libraries loaded before feature use
+
+The production renderer graph eagerly imported the PDF engine from both the
+platform thumbnail fallback and the library preview, and JSZip from relational
+Markdown export. `acceptance/f7-libraries-baseline.json` records an actual build
+of that source before changing the imports. The runner uses the product Vite
+config/entry, adds two module evaluation counters plus a synthetic invocation
+API only in the acceptance build, and observes parsed scripts and local resource
+requests through an isolated Chromium profile. Both libraries evaluate and are
+parsed before either feature is used. The static entry dependency closure is
+5,777,492 bytes of JavaScript (uncompressed, including observation code).
+
+The same run renders a generated red-rectangle PDF to JPEG once and then twice
+concurrently, verifies dimensions and pixel color, and independently validates
+the synthetic Markdown ZIP with Python zipfile. The plain browser has no native
+bridge, author database or account. This proves module loading and these library
+operations, not App readiness, native resource recovery, UI continuity or startup
+latency. The fixture, runner and baseline are committed before the deferred
+implementation so the original build remains reproducible.
+
+```bash
+node scripts/run-renderer-deferred-libraries.mjs --baseline
+node scripts/run-renderer-deferred-libraries.mjs --baseline --check
+```
+
+`--baseline` must run on this baseline checkout. Later checkouts use the default
+deferred-mode runner; baseline checking validates the historical report without
+claiming its source fingerprint matches a modified implementation. Other F7
+feature loading boundaries and all F7 native/app performance gates remain open.
