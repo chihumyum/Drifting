@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { BookNode } from '../domain/book-node';
 import { useDataStore, type WorkspaceDataProjection } from './data-store';
+import { createWorkspaceSharingFixture } from '../performance/workspace-fixture';
 
 function node(projectId: string, id: string): BookNode {
   return {
@@ -127,5 +128,62 @@ describe('workspace projection authority', () => {
       useDataStore.getState().clearWorkspaceProjection('project-a', staleProjectEpoch),
     ).toBe(false);
     expect(useDataStore.getState().workspaceRequestedProjectId).toBe('project-b');
+  });
+
+  it('shares unchanged records while publishing a changed relation and primary membership atomically', () => {
+    const initial = createWorkspaceSharingFixture('project-a', 20);
+    const epoch = useDataStore.getState().requestWorkspaceProjection('project-a', 'loading');
+    useDataStore.getState().commitWorkspaceProjection('project-a', epoch, initial);
+    const before = useDataStore.getState(); const next = structuredClone(initial);
+    next.storylineNodeMapping.main = next.storylineNodeMapping.main.slice(1);
+    next.primaryStorylineByNode['synthetic-node-0'] = 'support';
+    next.entityRelations[0].toId = 'synthetic-node-1';
+    const refresh = before.requestWorkspaceProjection('project-a', 'refreshing');
+    const observed: unknown[] = [];
+    const off = useDataStore.subscribe((state) => observed.push({
+      primary: state.primaryStorylineByNode['synthetic-node-0'],
+      reverse: state.nodeStorylineMapping['synthetic-node-0'], target: state.entityRelations[0]?.toId,
+    }));
+    useDataStore.getState().commitWorkspaceProjection('project-a', refresh, next); off();
+    const after = useDataStore.getState();
+    expect(observed).toEqual([{ primary: 'support', reverse: ['support'], target: 'synthetic-node-1' }]);
+    expect(after.bookNodes).toBe(before.bookNodes);
+    expect(after.nodeStorylineMapping['synthetic-node-1']).toBe(before.nodeStorylineMapping['synthetic-node-1']);
+  });
+
+  it('sorts markers before sharing and does not reuse a changed record solely by ID or timestamp', () => {
+    const initial = createWorkspaceSharingFixture('project-a', 20);
+    initial.timelineMarkers.push({ ...initial.timelineMarkers[0], id: 'earlier', narrativeOrder: -0.25 });
+    const epoch = useDataStore.getState().requestWorkspaceProjection('project-a', 'loading');
+    useDataStore.getState().commitWorkspaceProjection('project-a', epoch, initial);
+    const before = useDataStore.getState(); const next = structuredClone(initial);
+    next.bookNodes[1].wordCount = 77;
+    const refresh = before.requestWorkspaceProjection('project-a', 'refreshing');
+    useDataStore.getState().commitWorkspaceProjection('project-a', refresh, next);
+    const after = useDataStore.getState();
+    expect(after.timelineMarkers).toBe(before.timelineMarkers);
+    expect(after.timelineMarkers[0].id).toBe('earlier');
+    expect(after.bookNodes[0]).toBe(before.bookNodes[0]); expect(after.bookNodes[1].wordCount).toBe(77);
+  });
+
+  it('rejects stale epochs without notifying and clears reverse memberships at project/reset boundaries', () => {
+    const initial = createWorkspaceSharingFixture('project-a', 20);
+    const epoch = useDataStore.getState().requestWorkspaceProjection('project-a', 'loading');
+    useDataStore.getState().commitWorkspaceProjection('project-a', epoch, initial);
+    const before = useDataStore.getState();
+    const newer = before.requestWorkspaceProjection('project-a', 'refreshing');
+    let notifications = 0; const off = useDataStore.subscribe(() => { notifications++; });
+    expect(useDataStore.getState().commitWorkspaceProjection('project-a', epoch, structuredClone(initial))).toBe(false);
+    expect(useDataStore.getState().clearWorkspaceProjection('project-a', epoch)).toBe(false);
+    expect(useDataStore.getState().failWorkspaceProjection('project-a', epoch, 'stale')).toBe(false);
+    off(); expect(notifications).toBe(0);
+    const otherEpoch = useDataStore.getState().requestWorkspaceProjection('project-b', 'loading');
+    expect(useDataStore.getState().nodeStorylineMapping).toEqual({});
+    expect(useDataStore.getState().commitWorkspaceProjection('project-a', newer, initial)).toBe(false);
+    const other = createWorkspaceSharingFixture('project-b', 20);
+    useDataStore.getState().commitWorkspaceProjection('project-b', otherEpoch, other);
+    expect(useDataStore.getState().bookNodes[0]).not.toBe(before.bookNodes[0]);
+    useDataStore.getState().clearWorkspaceProjection('project-b', otherEpoch);
+    expect(useDataStore.getState().nodeStorylineMapping).toEqual({});
   });
 });

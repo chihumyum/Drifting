@@ -171,8 +171,10 @@ collection updates do not trigger React commits in those consumers. It owns no d
 lifecycle. The architecture check rejects unqualified whole-workspace hook
 subscriptions in product views. Per-field arrays can still change after a
 relevant update. Editor name and appearance selectors now return stable semantic
-results across metrics-only updates; broader entity read models and workspace
-record reference reuse remain tracked in the performance plan.
+results across metrics-only updates. Complete workspace captures now also reuse
+equal records and collections at the guarded store publication boundary, as
+described below; partial reads and reference-index recovery remain in the
+performance plan.
 
 
 Desktop-only surfaces include `DesktopWorkspace`, `DesktopOverlayHost`, desktop
@@ -256,6 +258,34 @@ preview fallback. Packing, clustering, track coordinates, and authored writes
 remain in their existing owners. Desktop chapter dragging continues through
 the imperative `chapter-lane-drag` controller; desktop cross-storyline links
 already derive memoized world coordinates and do not need DOM measurement.
+
+## Workspace snapshot publication
+
+`captureWorkspaceProjection` still reads the complete workspace in one SQLite
+transaction. The store accepts only the latest requested project/epoch. After
+that guard, `workspace-projection-sharing.ts` compares the incoming capture
+with the current same-project projection and reuses equal rows by ID and equal
+collections. It compares every captured field, including nested positions,
+aliases, relation endpoint kinds and block hashes. Timestamps alone cannot
+prove equality. Serialized body/KV/anchor JSON remains opaque; sharing neither
+parses nor serializes it. Unknown non-plain object values remain the incoming
+value. Array, keyed-map and trash-set iteration order are preserved.
+
+The normalized marker order and forward/primary/reverse storyline maps publish
+in the same store update as entity rows. Unchanged forward membership reuses
+the reverse map; changed membership reuses unaffected per-node lists. Forward
+and reverse derivation build membership sets once instead of repeatedly
+scanning and copying growing arrays. Duplicate links keep their original
+first-membership order and last-declared-primary behavior.
+
+Loading/project-switch/missing-project boundaries clear both forward and
+reverse memberships. A rejected stale result neither compares data nor emits
+a store notification. Sharing owns no asynchronous task, author state or
+project cache; the existing weak ID index follows the source array lifetime.
+Full capture, the structural refresh barrier and the non-blocking prose-only
+sync path remain intact. Reference rebuild queue ownership, source-version /
+generation validation, durable coverage and partial SQLite reads are pending
+F6 work; record sharing alone does not claim those guarantees.
 
 ## Desktop universal create
 

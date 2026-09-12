@@ -14,6 +14,7 @@ import { runGraphProjectionScenarios } from './graph-projection-scenarios';
 import { runGraphGeometryScenarios } from './graph-geometry-scenarios';
 import { runGraphOverlayScenarios } from './graph-overlay-scenarios';
 import { runTimelineScenarios } from './timeline-scenarios';
+import { runWorkspaceProjectionScenarios } from './workspace-projection-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -115,6 +116,7 @@ async function run() {
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),
     timeline: await runTimelineScenarios(),
+    workspaceProjection: await runWorkspaceProjectionScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

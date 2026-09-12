@@ -134,7 +134,8 @@
           "requirement": "派生缓存归属项目和 generation，切换恢复无残留或混合快照",
           "evidence": [
             "docs/renderer-performance/acceptance/f2-subscriptions.json",
-            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
           ],
           "status": "partial"
         },
@@ -143,7 +144,8 @@
           "requirement": "稳定引用和精确订阅通过通知计数与 React commit 验证，原子发布保留",
           "evidence": [
             "docs/renderer-performance/acceptance/f2-subscriptions.json",
-            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
           ],
           "status": "partial"
         }
@@ -314,7 +316,7 @@
       "dependsOn": [
         "F2"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F6-01",
@@ -324,12 +326,20 @@
         {
           "id": "F6-02",
           "requirement": "局部读取保持结构依赖与事务原子性，正文同步既有通道保留",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F6-03",
           "requirement": "乱序结果、项目切换、generation 更换不发布陈旧索引或快照",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F6-04",
@@ -339,9 +349,14 @@
         {
           "id": "F6-05",
           "requirement": "全量修复路径可用，读取、发布与解析成本分别记录；若有新迁移则通过兼容与快照验收",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "complete_capture_sharing_and_linear_memberships_implemented"
     },
     {
       "id": "F7",

@@ -231,6 +231,36 @@ if (report.timeline) {
     for (const check of act.checks) assert.equal(check.passed, true, check.id);
   }
 }
+if (report.workspaceProjection) {
+  const { membership, publication, subscriptions } = report.workspaceProjection;
+  const baseline = read(path.join(directory, 'f6-workspace-baseline.json')).workspaceProjection;
+  assert(['copy-and-includes', 'linear-membership-sets'].includes(membership.implementation));
+  assert(['replace-capture', 'share-capture-values'].includes(publication.implementation));
+  const optimized = publication.implementation === 'share-capture-values';
+  for (const [scenario, reference] of [[membership, baseline.membership], [publication, baseline.publication]]) {
+    assert.deepEqual(scenario.profiles.map((item) => item.nodes), [100, 1_000, 5_000]);
+    for (const [index, item] of scenario.profiles.entries()) {
+      assert.equal(item.fixtureHash, reference.profiles[index].fixtureHash, 'F6a1 fixture changed');
+      assert.equal(item.samplesMs.length, 5);
+      assert(item.samplesMs.every((value) => Number.isFinite(value) && value >= 0));
+      assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[2]);
+    }
+  }
+  for (const [index, item] of membership.profiles.entries()) {
+    assert.equal(item.links, item.nodes * 2); assert.equal(item.matchesFixture, true);
+    assert.equal(item.scannedSlots, membership.implementation === 'linear-membership-sets' ? 0 : item.nodes * (item.nodes - 1));
+    if (membership.implementation === 'linear-membership-sets') assert(item.medianMs <= [5, 10, 30][index], 'F6a1 membership budget exceeded');
+  }
+  for (const [index, item] of publication.profiles.entries()) {
+    assert.equal(item.elements, item.nodes / 5); assert.equal(item.slices, 17);
+    assert.equal(item.reusedNodeRecords, optimized ? item.nodes : 0);
+    assert.equal(item.stableCollections, optimized ? 16 : 0);
+    if (optimized) assert(item.medianMs <= [10, 30, 50][index], 'F6a1 publication comparison budget exceeded');
+  }
+  assert.equal(subscriptions.consumers, 20); assert.equal(subscriptions.refreshes, 100);
+  assert.deepEqual(subscriptions.unrelated, { fields: optimized ? 0 : 2_000, records: optimized ? 0 : 2_000 });
+  assert.deepEqual(subscriptions.rename, { fields: 20, records: optimized ? 1 : 20 });
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

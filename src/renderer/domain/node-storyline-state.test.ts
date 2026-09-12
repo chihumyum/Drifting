@@ -28,4 +28,17 @@ describe('node storyline state', () => {
     expect(resolvePrimaryStorylineId('story-2', ['story-1', 'story-2'])).toBe('story-2');
     expect(resolvePrimaryStorylineId(null, [])).toBeNull();
   });
+
+  it('preserves first membership order, duplicate suppression and last declared primary', () => {
+    const links = [
+      { nodeId: 'b', storylineId: 'support', isPrimary: true },
+      { nodeId: 'a', storylineId: 'support', isPrimary: false },
+      { nodeId: 'b', storylineId: 'support', isPrimary: false },
+      { nodeId: 'b', storylineId: 'main', isPrimary: true },
+    ];
+    expect(deriveNodeStorylineState(links)).toEqual({
+      storylineNodeMapping: { support: ['b', 'a'], main: ['b'] }, primaryStorylineByNode: { b: 'main' },
+    });
+    expect(links).toHaveLength(4);
+  });
 });

@@ -594,3 +594,78 @@ performance. Timing includes getter-wrapper overhead even with counters
 disabled; the algorithmic counts are the primary comparison. ActRail's own
 rail render, mobile packing/entry rendering and full graph card layout remain
 separate costs. F5 stays `in_progress`, and no device gate is marked complete.
+
+## F6a1 snapshot-sharing budgets
+
+Before changing workspace publication, synthetic captures will contain all 17
+workspace slices, nested position/alias/block-hash values and 100/1,000/5,000
+chapters with two storyline memberships each. Membership derivation must avoid
+growing-array scans/copies and stay within 5/10/30 ms warm medians. Captures
+containing only one changed comment must reuse every unchanged chapter record
+and all 16 unaffected slices. Publication's comparison work must stay within
+10/30/50 ms warm medians; it must not parse or stringify serialized body fields.
+
+One hundred such captures beside 20 real field consumers and 20 per-record
+consumers must commit neither group. A single chapter rename must update all
+20 collection consumers and exactly one record consumer. Ordering, nested
+values, deletions, same-project epochs, project switches, reverse memberships
+and atomicity must remain correct. SQLite capture stays a full read transaction;
+reference queue ownership and durable coverage/recovery are later F6 batches.
+
+## F6a1 complete-capture sharing
+
+`commitWorkspaceProjection` now accepts/rejects the project/epoch first and
+then shares unchanged records and collections against the current same-project
+state. The comparator covers every captured string/numeric/boolean field,
+nested position, alias/kind/block-ID arrays and block-hash objects; it does not
+trust `updatedAt` alone. Missing fields and sparse-array entries remain distinct,
+and unknown non-plain objects remain new. It preserves row order and keyed/set
+iteration order. Marker sorting happens before sharing. Reverse membership
+updates publish atomically with forward membership, primary assignment and
+entity rows, reusing unaffected per-node arrays. Loading or clearing a project
+also clears the previously omitted reverse map; stale capture/error/clear
+results return the current state without notifying subscribers.
+
+Forward and reverse membership derivation use locally built sets and preserve
+first-membership order, duplicate suppression and last-declared-primary behavior.
+They no longer scan and copy the growing member array for every link. The
+SQLite capture transaction and provider/epoch lifecycle remain unchanged.
+There is no new schema, persisted cache, mutable author-state store or runtime
+session owner in this batch.
+
+The generated [baseline](acceptance/f6-workspace-baseline.json) and
+[candidate](acceptance/f6-workspace-sharing.json) use matching fixture hashes:
+
+- At 100/1,000/5,000 chapters with two memberships each, growing-array scan
+  slots drop from 9,900/999,000/24,995,000 to zero. Membership input and ordered
+  output are unchanged; one set insertion per link replaces the growing scans.
+- A complete capture with one changed comment reuses all 100/1,000/5,000
+  chapter records and the other 16 of 17 workspace slices. The baseline reused
+  none. Per-record reuse remains valid across row insertion/reordering/deletion.
+- For 100 such captures and 20 consumers in each group, real React field
+  commits and record-selector commits both drop from 2,000 to zero. Renaming
+  one chapter still commits all 20 chapter-collection consumers, while the
+  per-record group commits only its one affected consumer (previously 20).
+
+Comparison adds publication work; this is not claimed as a zero-cost change.
+The report records that cost separately from membership derivation and React
+commits. In the final 5,000-chapter run, membership derivation changes from
+165.6 ms to 1.7 ms, while publication changes from 1.0 ms to 3.0 ms. All
+predeclared per-size budgets pass. The synthetic capture includes serialized body strings but performs
+no SQLite read, so it cannot establish database speed or total project-refresh
+latency. Actual reference parsing and writes remain on their previous paths.
+
+Unit coverage checks all 17 slices, timestamps that stay unchanged, nested
+edits, sparse arrays, unknown value types, bounded comparison reads, ordering,
+stale epochs, project reset, and atomic forward/primary/reverse updates. The
+impact table in the implementation plan separates prose, metrics, metadata,
+relations, lifecycle changes and restore/generation changes. Reference queue
+ownership, source-version checks, durable recovery and partial reads remain
+open; F6 stays `in_progress` and its reference/recovery gates are not passed.
+
+Validation: 2,247 Vitest tests pass (1 skipped); typecheck, lint (0 errors,
+74 existing warnings), CI/public contracts, capability checks and the CI-configured
+local-only renderer build pass. The new comparator's final array correction
+was followed by the full suite, typecheck, focused lint and production build.
+The browser report is regenerated from the final renderer source; its source
+fingerprint and both report contracts are checked before the batch is committed.

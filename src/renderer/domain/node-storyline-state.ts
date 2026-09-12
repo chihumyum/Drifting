@@ -13,18 +13,20 @@ export interface DerivedNodeStorylineState {
 export function deriveNodeStorylineState(
   links: NodeStorylineLinkState[],
 ): DerivedNodeStorylineState {
-  const storylineNodeMapping: Record<string, string[]> = {};
-  const primaryStorylineByNode: Record<string, string | null> = {};
+  const members = new Map<string, Set<string>>();
+  const primary = new Map<string, string>();
 
   for (const link of links) {
-    const nodeIds = storylineNodeMapping[link.storylineId] ?? [];
-    if (!nodeIds.includes(link.nodeId)) {
-      storylineNodeMapping[link.storylineId] = [...nodeIds, link.nodeId];
-    }
-    if (link.isPrimary) primaryStorylineByNode[link.nodeId] = link.storylineId;
+    let nodeIds = members.get(link.storylineId);
+    if (!nodeIds) { nodeIds = new Set(); members.set(link.storylineId, nodeIds); }
+    nodeIds.add(link.nodeId);
+    if (link.isPrimary) primary.set(link.nodeId, link.storylineId);
   }
 
-  return { storylineNodeMapping, primaryStorylineByNode };
+  return {
+    storylineNodeMapping: Object.fromEntries([...members].map(([id, nodeIds]) => [id, [...nodeIds]])),
+    primaryStorylineByNode: Object.fromEntries(primary),
+  };
 }
 
 /**

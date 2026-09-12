@@ -12,6 +12,7 @@ import type { DriftGroup } from '../domain/drift-group';
 import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 import type { EntityRelationType } from '../domain/entity-relation-type';
+import { shareWorkspaceKeyedValues, shareWorkspaceProjection } from './workspace-projection-sharing';
 
 // User-curated cross-entity link. Mirrors the `entity_relation` table row.
 // Inline mentions are NOT mirrored to the store; they're queried on demand
@@ -224,18 +225,15 @@ function sortMarkers(markers: TimelineMarker[]): TimelineMarker[] {
 }
 
 function deriveNodeStorylineMapping(forward: Record<string, string[]>): Record<string, string[]> {
-  const reverse: Record<string, string[]> = {};
-  Object.entries(forward).forEach(([storylineId, nodeIds]) => {
-    nodeIds.forEach((nodeId) => {
-      const arr = reverse[nodeId] || [];
-      if (!arr.includes(storylineId)) {
-        reverse[nodeId] = [...arr, storylineId];
-      } else {
-        reverse[nodeId] = arr;
-      }
-    });
-  });
-  return reverse;
+  const reverse = new Map<string, Set<string>>();
+  for (const [storylineId, nodeIds] of Object.entries(forward)) {
+    for (const nodeId of nodeIds) {
+      let memberships = reverse.get(nodeId);
+      if (!memberships) { memberships = new Set(); reverse.set(nodeId, memberships); }
+      memberships.add(storylineId);
+    }
+  }
+  return Object.fromEntries([...reverse].map(([id, memberships]) => [id, [...memberships]]));
 }
 
 function emptyWorkspaceProjection(): WorkspaceDataProjection {
@@ -272,7 +270,7 @@ export const useDataStore = create<DataState>((set) => ({
       epoch = state.workspaceProjectionEpoch + 1;
       const shouldClear = mode === 'loading' || state.workspaceProjectId !== projectId;
       return {
-        ...(shouldClear ? emptyWorkspaceProjection() : {}),
+        ...(shouldClear ? { ...emptyWorkspaceProjection(), nodeStorylineMapping: {} } : {}),
         workspaceProjectId: shouldClear ? null : state.workspaceProjectId,
         workspaceRequestedProjectId: projectId,
         workspaceProjectionEpoch: epoch,
@@ -289,13 +287,18 @@ export const useDataStore = create<DataState>((set) => ({
         state.workspaceRequestedProjectId !== projectId ||
         state.workspaceProjectionEpoch !== epoch
       ) {
-        return {};
+        return state;
       }
       accepted = true;
+      const sameProject = state.workspaceProjectId === projectId;
+      const normalized = { ...projection, timelineMarkers: sortMarkers(projection.timelineMarkers) };
+      const shared = sameProject ? shareWorkspaceProjection(state, normalized) : normalized;
+      const reverse = shared.storylineNodeMapping === state.storylineNodeMapping && sameProject
+        ? state.nodeStorylineMapping
+        : deriveNodeStorylineMapping(shared.storylineNodeMapping);
       return {
-        ...projection,
-        nodeStorylineMapping: deriveNodeStorylineMapping(projection.storylineNodeMapping),
-        timelineMarkers: sortMarkers(projection.timelineMarkers),
+        ...shared,
+        nodeStorylineMapping: sameProject ? shareWorkspaceKeyedValues(state.nodeStorylineMapping, reverse) : reverse,
         workspaceProjectId: projectId,
         workspaceProjectionStatus: 'ready',
         workspaceProjectionError: null,
@@ -310,11 +313,12 @@ export const useDataStore = create<DataState>((set) => ({
         state.workspaceRequestedProjectId !== projectId ||
         state.workspaceProjectionEpoch !== epoch
       ) {
-        return {};
+        return state;
       }
       accepted = true;
       return {
         ...emptyWorkspaceProjection(),
+        nodeStorylineMapping: {},
         workspaceProjectId: null,
         workspaceRequestedProjectId: null,
         workspaceProjectionStatus: 'idle',
@@ -330,7 +334,7 @@ export const useDataStore = create<DataState>((set) => ({
         state.workspaceRequestedProjectId !== projectId ||
         state.workspaceProjectionEpoch !== epoch
       ) {
-        return {};
+        return state;
       }
       accepted = true;
       return {
