@@ -20,8 +20,8 @@ interface WorkspaceProjectionRefreshOptions {
 /**
  * One project/database owner, one in-flight capture and one pending epoch.
  * A fixed first-arrival window bounds read starvation under continuous sync.
- * Every read is still a complete SQLite snapshot; partial capture must first
- * account for historical effects rematerialized by the canonical reducer.
+ * Complete snapshots share untouched collections only while the SQLite
+ * invalidation journal proves coverage across actual materialization writes.
  */
 export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRefreshOptions) {
   const { projectId, userId } = options;
@@ -33,6 +33,8 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running: Promise<void> | null = null;
   let retries = 0;
+  let pendingMode: 'full' | 'changes' = 'full';
+  let previousCapture: WorkspaceProjectionCapture | null = null;
 
   function isCurrent(epoch?: number): boolean {
     if (disposed) return false;
@@ -50,27 +52,30 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
     }, Math.min(MAX_RETRY_MS, WORKSPACE_REFRESH_WINDOW_MS * 2 ** retries));
   }
 
-  function request() {
+  function enqueue(mode: 'full' | 'changes') {
     if (!isCurrent()) return;
     if (pendingEpoch === null || !isCurrent(pendingEpoch)) {
+      pendingMode = mode;
       pendingEpoch = useDataStore.getState().requestWorkspaceProjection(projectId, 'refreshing');
-    }
+    } else if (mode === 'full') pendingMode = 'full';
     schedule();
   }
 
   function retry(epoch: number) {
     if (!isCurrent(epoch)) return;
     retries = Math.min(retries + 1, 4);
-    request();
+    enqueue('full');
   }
 
-  async function captureAndPublish(epoch: number) {
+  async function captureAndPublish(epoch: number, mode: 'full' | 'changes') {
     try {
       await flushDurability();
       if (!isCurrent(epoch)) return;
       const base = useDataStore.getState();
       const projectBase = useProjectStore.getState().currentProject;
-      const result = await capture({ projectId, userId });
+      const result = await capture({ projectId, userId,
+        previous: mode === 'changes' && previousCapture ? previousCapture : undefined,
+      });
       if (!isCurrent(epoch)) return;
       if (useProjectStore.getState().currentProject !== projectBase) {
         retry(epoch);
@@ -91,6 +96,7 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
         return;
       }
       retries = 0;
+      previousCapture = result;
       options.onPublished(result);
     } catch (error) {
       if (!isCurrent(epoch)) return;
@@ -106,7 +112,7 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
     if (pendingEpoch === null || !isCurrent()) return Promise.resolve();
     const epoch = pendingEpoch;
     pendingEpoch = null;
-    running = captureAndPublish(epoch).finally(() => {
+    running = captureAndPublish(epoch, pendingMode).finally(() => {
       running = null;
       schedule();
     });
@@ -114,7 +120,8 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
   }
 
   return {
-    request,
+    request: () => enqueue('full'),
+    requestChanges: () => enqueue('changes'),
     /** Drain one pass for acceptance/teardown; sustained arrivals stay bounded. */
     flush() {
       if (timer !== null) clearTimeout(timer);
@@ -123,6 +130,7 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
     },
     dispose() {
       disposed = true;
+      previousCapture = null;
       pendingEpoch = null;
       if (timer !== null) clearTimeout(timer);
       timer = null;

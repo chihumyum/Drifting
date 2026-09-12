@@ -362,6 +362,14 @@
       "note": "Sync generation identity, immutable journal, reducer clocks, frontiers, transfers and recovery state are engine-owned and never generic CRUD."
     },
     {
+      "name": "workspace_projection_coverage",
+      "scope": "ops",
+      "authority": "derived",
+      "coverage": "excluded",
+      "commands": [],
+      "note": "Local trigger-owned invalidation cursors are rebuildable projection metadata; no generic CRUD or sync authority."
+    },
+    {
       "name": "server_http_request",
       "scope": "server",
       "authority": "server",
@@ -390,6 +398,8 @@
   ],
   "tables": {
     "project": "project",
+    "workspace_projection_clock": "workspace_projection_coverage",
+    "workspace_projection_change": "workspace_projection_coverage",
     "element_category": "element_category",
     "project_asset": "project_asset",
     "storylines": "storyline",
@@ -413,6 +423,12 @@
     "comment_action": "comment_action",
     "library_item": "library_item",
     "agent_conversation": "agent_conversation",
+    "agent_chat_branch": "agent_runtime",
+    "agent_chat_object": "agent_runtime",
+    "agent_chat_binding": "agent_runtime",
+    "agent_chat_queue": "agent_runtime",
+    "agent_chat_cursor": "agent_runtime",
+    "agent_chat_delivery": "agent_runtime",
     "agent_runtime_session": "agent_runtime",
     "agent_runtime_turn": "agent_runtime",
     "agent_runtime_message": "agent_runtime",

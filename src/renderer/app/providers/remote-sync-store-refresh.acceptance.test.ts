@@ -32,7 +32,7 @@ describe('remote SyncEngine UI refresh boundary', () => {
       proseBranch,
     );
     const structuralRefresh = projectRuntime.indexOf(
-      'refresh.request()',
+      'refresh.requestChanges()',
       proseBranch,
     );
     expect(proseBranch).toBeGreaterThan(0);
@@ -60,7 +60,7 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(metrics).toContain('wordCountBasisRevision: result.node.wordCountBasisRevision');
 
     const projection = source('../../services/workspace-projection.service.ts');
-    expect(projection).toContain('return getDb().transaction(async (tx) =>');
+    expect(projection).toContain('return database.transaction(async (tx) =>');
     expect(projection).toContain('.where(eq(EntityRelationTable.projectId, input.projectId))');
 
     const picker = source('../../views/ProjectPickerView.tsx');

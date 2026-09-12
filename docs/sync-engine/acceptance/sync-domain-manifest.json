@@ -2,17 +2,17 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "c7415e0b817c8602a26b48591ddf742d0d34c48eb104bcd019082a23f4c03fba",
+  "schemaSha256": "35a9b39b44f67c39677e0c765438d763f87d2554a81d82442f561c2032a0fe80",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 90,
-    "fieldCount": 957,
+    "tableCount": 92,
+    "fieldCount": 966,
     "includedTableCount": 26,
-    "excludedTableCount": 64,
+    "excludedTableCount": 66,
     "classCounts": {
       "authored": 168,
       "crdt": 10,
-      "derived": 83,
+      "derived": 92,
       "device-local": 369,
       "secret": 5,
       "transport": 303,
@@ -6253,6 +6253,76 @@
           "classification": "derived",
           "disposition": "exclude",
           "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        }
+      ]
+    },
+    {
+      "table": "workspace_projection_change",
+      "scope": "project-direct",
+      "disposition": "exclude",
+      "reason": "Bounded local renderer invalidation hints, rebuilt by complete workspace capture after coverage loss.",
+      "fields": [
+        {
+          "field": "collection",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Actual row-change identities only; no prose, credentials, or author merge authority."
+        },
+        {
+          "field": "entity_id",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Actual row-change identities only; no prose, credentials, or author merge authority."
+        },
+        {
+          "field": "project_id",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Actual row-change identities only; no prose, credentials, or author merge authority."
+        },
+        {
+          "field": "replacement_revision",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Actual row-change identities only; no prose, credentials, or author merge authority."
+        },
+        {
+          "field": "revision",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Actual row-change identities only; no prose, credentials, or author merge authority."
+        }
+      ]
+    },
+    {
+      "table": "workspace_projection_clock",
+      "scope": "project-direct",
+      "disposition": "exclude",
+      "reason": "Rebuildable local renderer invalidation coverage, never authored state or a sync cursor.",
+      "fields": [
+        {
+          "field": "epoch",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "SQLite trigger-owned workspace read coverage; a fresh reader captures the full project."
+        },
+        {
+          "field": "project_id",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "SQLite trigger-owned workspace read coverage; a fresh reader captures the full project."
+        },
+        {
+          "field": "retained_after",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "SQLite trigger-owned workspace read coverage; a fresh reader captures the full project."
+        },
+        {
+          "field": "revision",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "SQLite trigger-owned workspace read coverage; a fresh reader captures the full project."
         }
       ]
     },

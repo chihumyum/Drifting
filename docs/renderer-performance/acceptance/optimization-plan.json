@@ -336,7 +336,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
             "docs/renderer-performance/acceptance/f6-reference-reads.json",
-            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
+            "docs/renderer-performance/acceptance/f6-workspace-reads.json"
           ],
           "status": "partial"
         },
@@ -349,7 +350,9 @@
             "docs/renderer-performance/acceptance/f6-reference-boundary.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
             "docs/renderer-performance/acceptance/f6-reference-reads.json",
-            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
+            "docs/renderer-performance/acceptance/f6-workspace-reads.json",
+            "docs/renderer-performance/acceptance/f6-workspace-recovery.json"
           ],
           "status": "partial"
         },
@@ -357,7 +360,8 @@
           "id": "F6-04",
           "requirement": "提交、排队和索引写入边界终止后可恢复，与权威内容完整重建一致",
           "evidence": [
-            "docs/renderer-performance/acceptance/f6-reference-recovery.json"
+            "docs/renderer-performance/acceptance/f6-reference-recovery.json",
+            "docs/renderer-performance/acceptance/f6-workspace-recovery.json"
           ],
           "status": "partial"
         },
@@ -370,12 +374,14 @@
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
             "docs/renderer-performance/acceptance/f6-reference-recovery.json",
             "docs/renderer-performance/acceptance/f6-reference-reads.json",
-            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
+            "docs/renderer-performance/acceptance/f6-workspace-reads.json",
+            "docs/renderer-performance/acceptance/f6-workspace-recovery.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "complete_capture_sharing_project_queue_scoped_yjs_reads_and_renderer_recovery_implemented_structural_partial_reads_native_recovery_and_app_performance_pending"
+      "implementationStatus": "covered_collection_and_node_row_reads_renderer_recovery_and_native_migration_safety_implemented_full_app_performance_and_native_renderer_recovery_pending"
     },
     {
       "id": "F7",

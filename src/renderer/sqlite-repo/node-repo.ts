@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, ProjectTable } from '../schema/drizzle';
-import { eq, asc, isNull, isNotNull, and } from 'drizzle-orm';
+import { eq, asc, isNull, isNotNull, and, inArray } from 'drizzle-orm';
 import type {
   BookNode,
   BookNodeKind,
@@ -62,7 +62,7 @@ export class BookNodeRevisionConflictError extends Error {
 
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
-  findAll(): Promise<BookNode[]>;
+  findAll(ids?: readonly string[]): Promise<BookNode[]>;
   findTrashed(): Promise<Array<BookNode & { deletedAt: string }>>;
   create(data: BookNodeCreateData): Promise<BookNode>;
   update(
@@ -137,12 +137,13 @@ export function createBookNodeSqliteRepository(
       return rows[0] ? toBookNode(rows[0]) : null;
     },
 
-    async findAll() {
+    async findAll(ids?: readonly string[]) {
+      if (ids?.length === 0) return [];
       const pid = currentProject;
       const rows = await dbProvider()
         .select()
         .from(BookNodeTable)
-        .where(and(eq(BookNodeTable.projectId, pid), isNull(BookNodeTable.deletedAt)))
+        .where(and(eq(BookNodeTable.projectId, pid), isNull(BookNodeTable.deletedAt), ids ? inArray(BookNodeTable.id, [...ids]) : undefined))
         .orderBy(asc(BookNodeTable.bookOrder));
       return rows.map(toBookNode);
     },

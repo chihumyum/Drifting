@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from './p3-file-backed-sqlite';
+import { WORKSPACE_PROJECTION_SOURCES } from '../../../../services/workspace-projection-sources';
 
 const DRIZZLE_DIRECTORY = new URL('../../../../../../drizzle/', import.meta.url);
 const IMMUTABLE_BASELINE_SHA256 =
@@ -99,6 +100,8 @@ const APPLICATION_TABLES = [
   'sync_set_tag',
   'sync_transfer',
   'timeline_marker',
+  'workspace_projection_change',
+  'workspace_projection_clock',
   'yjs_document_revision',
   'yjs_document_revision_provenance',
   'yjs_prose_command_receipt',
@@ -207,7 +210,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(2);
+    expect(journal.entries).toHaveLength(3);
+    expect(journal.entries[2]?.tag).toBe('0002_workspace_projection_journal');
     expect(journal.entries[1]?.tag).toBe('0001_agent_chat_sync');
     expect(journal.entries[0]?.idx).toBe(0);
     expect(journal.entries[0]?.tag).toBe('0000_local_first_baseline');
@@ -217,6 +221,9 @@ describe('product file-backed migration acceptance', () => {
     expect(createHash('sha256').update(baselineBytes).digest('hex')).toBe(
       IMMUTABLE_BASELINE_SHA256,
     );
+
+    expect(createHash('sha256').update(readFileSync(new URL('0001_agent_chat_sync.sql', DRIZZLE_DIRECTORY))).digest('hex'))
+      .toBe('b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0');
 
     const first = new ProductFileBackedSqliteGateway(target);
     expect((await first.open('drifting.db')).migrationsApplied).toBe(journal.entries.length);
@@ -232,7 +239,8 @@ describe('product file-backed migration acceptance', () => {
       APPLICATION_TABLES,
     );
     expect(applicationObjectNames(first.database, 'trigger')).toEqual(
-      APPLICATION_TRIGGERS,
+      [...APPLICATION_TRIGGERS, ...[...WORKSPACE_PROJECTION_SOURCES.map(({ table }) => table), 'sync_generation']
+        .flatMap((table) => ['insert', 'update', 'delete'].map((action) => `workspace_projection_${table}_${action}`))].sort(),
     );
     expect(
       first.database
@@ -240,7 +248,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 194 });
+    ).toEqual({ count: 195 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

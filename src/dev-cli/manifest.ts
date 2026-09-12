@@ -297,6 +297,14 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     note: 'Sync generation identity, immutable journal, reducer clocks, frontiers, transfers and recovery state are engine-owned and never generic CRUD.',
   },
   {
+    name: 'workspace_projection_coverage',
+    scope: 'ops',
+    authority: 'derived',
+    coverage: 'excluded',
+    commands: [],
+    note: 'Local trigger-owned invalidation cursors are rebuildable projection metadata; no generic CRUD or sync authority.',
+  },
+  {
     name: 'server_http_request',
     scope: 'server',
     authority: 'server',
@@ -330,6 +338,8 @@ export const DEV_CLI_PROVIDER_TOOLS = {
 /** Exact schema-table accountability, checked against Drizzle in tests. */
 export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   project: 'project',
+  workspace_projection_clock: 'workspace_projection_coverage',
+  workspace_projection_change: 'workspace_projection_coverage',
   element_category: 'element_category',
   project_asset: 'project_asset',
   storylines: 'storyline',

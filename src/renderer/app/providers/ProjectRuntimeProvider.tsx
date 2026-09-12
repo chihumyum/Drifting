@@ -256,7 +256,7 @@ export function ProjectRuntimeProvider({
         scheduleMetricReconciliation();
         return;
       }
-      refresh.request();
+      refresh.requestChanges();
     };
     const restore = (event: { projectIds: string[] }) => {
       if (event.projectIds.includes(projectId)) refresh.request();

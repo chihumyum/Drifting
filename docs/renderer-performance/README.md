@@ -998,7 +998,7 @@ pnpm workspace:refresh:acceptance
 pnpm workspace:refresh:acceptance --check
 ```
 
-**Partial workspace reads remain unimplemented.** Inspection found that
+**At the end of F6b3, partial workspace reads remained unimplemented.** Inspection found that
 `reduceSyncChangeSet` produces the canonical historical effect set, and the
 remote production kernel rematerializes its enabled effects. Therefore the
 current change-set's mutation IDs alone are not a sufficient dependency closure.
@@ -1016,3 +1016,102 @@ main chunk remains about 5.32 MB before gzip; F7 loading work is still pending.
 The reference read/UI and SIGKILL reports are regenerated against this source,
 separately from the new workspace correctness report. Earlier F6b2 timings above
 remain that batch's historical measurements, not a new workspace speed claim.
+
+## F6b4 — Covered workspace collection and node reads
+
+Ordinary structural refreshes now use a durable SQLite invalidation cursor.
+The remote reducer continues to rematerialize its canonical historical winners;
+no wire hint is treated as the complete set of changed entities. New migration
+`0002_workspace_projection_journal.sql` observes actual changes to all columns
+of 17 domain/dependency tables with triggers in the same transaction. The two
+metadata tables are excluded from authored sync/checkpoints and generic CLI
+CRUD. Published migrations 0000 and 0001 and their schema snapshots are unchanged.
+
+Each project clock has an epoch, revision and retention floor. Change identities
+coalesce, and triggers compact when the retained revision range exceeds 4,096.
+Readers behind that floor, with a missing/reset clock, after generation changes,
+or with unknown collections capture the complete workspace. Capture does not
+consume or acknowledge journal rows. A lost notification is repaired on the
+next capture; without another event there is no immediate-refresh guarantee.
+Startup, restore, explicit repair and a new queue's first refresh remain full.
+
+The queue reuses only its last accepted **authoritative capture**, bound to the
+same database by a private weak ownership map. Current optimistic store rows
+cannot serve as an authoritative base; the store still uses the separate
+pre-read reference guard to reject concurrent edits. Metadata-only changes to
+up to 128 nodes fetch those rows. Identity replacement, visibility/kind/order
+changes and larger batches read the complete node collection. The journal's
+replacement revision distinguishes a delete/reinsert even with identical IDs,
+timestamps and book order. Other affected collections still read completely.
+Full nodes/storylines include the ordered membership dependency. Trash iteration
+order, mappings and all dependent slices remain part of one atomic publication.
+
+`acceptance/f6-workspace-reads.json` records 84 passing behavior/measurement
+cases and 18 native database tests. Coverage exercises all collections, no-op
+writes, timestamp-independent invalidation, rollback, project/ID moves, cascade
+closures, retention compaction, reset/generation/database ownership, historical
+remote winners and delayed partial captures racing local edits. The native
+upgrade test covers both published prefixes (0000 and 0000+0001), success and
+injected failure, using the actual shadow migration and verified same-version
+safety snapshots. The native migration SIGKILL matrix also runs; it is distinct
+from renderer queue process recovery.
+
+`acceptance/f6-workspace-recovery.json` records 20 actual SIGKILL cases and 40
+independent restarts: node metadata and an element collection change, two seeds,
+interrupted before/after the authored commit, while queued, after capture before
+publication, and after publication. It executes the real authored transaction
+runner, canonical journal/validation, capture and store queue on disposable
+WAL/FULL files. The parent observes the exact boundary before killing the frozen
+child. Each fresh process takes the full path, checks a fixture field oracle and
+an independent full capture, and verifies all persistent rows—including journal,
+coverage metadata and the other project—remain unchanged by recovery.
+
+```bash
+pnpm workspace:refresh:acceptance
+pnpm workspace:refresh:acceptance --check
+pnpm workspace:projection:recovery
+pnpm workspace:projection:recovery --check
+```
+
+These commands generate the current F6b4 evidence; `f6-workspace-refresh.json`
+remains the historical F6b3 report. Source fingerprints cover renderer/migrations,
+the workspace runners, native Rust dependencies and CLI schema accountability.
+The broader reference read/recovery evidence is regenerated separately for this
+checkout. None of these reports proves full Tauri renderer restart, physical
+input, power-loss recovery or end-to-end app latency. F6 stays `in_progress`.
+
+The isolated read experiment uses one warm pair, then five alternating
+full/covered pairs. Each synthetic project has the listed number of nodes and
+prose-bearing elements, with 8,200 body characters per added element. Only one
+node title changes before each capture. Both paths publish exactly one node
+collection update and match the same authoritative full projection.
+
+| Added entities per kind | Queries full → covered | Returned rows | Serialized result bytes | Median capture | Median store publication |
+| --- | --- | --- | --- | --- | --- |
+| 64 | 22 → 4 | 149 → 4 | 554,792 → 384 | 2.11 → 0.47 ms | 0.128 → 0.025 ms |
+| 1,024 | 22 → 4 | 2,069 → 4 | 8,839,537 → 385 | 23.94 → 0.69 ms | 1.274 → 0.058 ms |
+
+Trigger writes have a measurable cost. A separate disposable-fixture control
+saves, drops and restores exactly the three node triggers; it does not add a
+product disable switch. Five alternating pairs each run 200 title updates in
+one transaction after warmup:
+
+| Added entities per kind | Median transaction without tracking | With tracking | Additional time per update in this batched control |
+| --- | --- | --- | --- |
+| 64 | 3.22 ms | 15.90 ms | 0.063 ms |
+| 1,024 | 3.12 ms | 23.04 ms | 0.100 ms |
+
+These compare paths in the same checkout and Node SQLite gateway, not native
+builds. Returned bytes are serialized query results rather than disk pages;
+capture time includes counter serialization. `queryAwaitMs` is a sum of
+potentially overlapping asynchronous gateway calls, so it is neither SQL CPU
+time nor an additive wall-clock phase. Store timing excludes the full React
+render tree. Batched writes do not model a separate fsync or native IPC per
+keystroke. Raw samples are preserved; no native latency budget is asserted.
+
+The completed batch passes 2,382 regular tests with 1 existing skip, typecheck,
+lint (0 errors, 74 existing warnings), CI/public contracts, Agent capability
+checks, CLI inventory generation checks and the configured local-only renderer
+production build. Reference recovery also passes 62 SIGKILL cases and 124
+independent restarts against the updated schema. No author database was opened
+or migrated for these checks.

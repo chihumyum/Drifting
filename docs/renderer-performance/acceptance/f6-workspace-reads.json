@@ -1,0 +1,952 @@
+{
+  "schemaVersion": 1,
+  "kind": "workspace_scoped_reads_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-12T11:48:31.881Z",
+  "source": {
+    "commit": "62d5cc687999406959b6620f86f2039f7d98b312",
+    "fingerprint": "dd1513d8f28fdaa0f4d3e304db80b6cc698ea6fbc3680bbfd3e6e248dda6d515",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.19.0",
+    "sqlite": "3.53.3"
+  },
+  "fixture": "Synthetic temporary WAL/FULL SQLite files with the complete product migrations; actual capture/repositories, refresh queue and Zustand stores. Coverage includes production historical remote materialization. Native tests use disposable databases and real shadow migration safety snapshots.",
+  "suites": [
+    "src/renderer/services/workspace-projection-refresh.integration.test.ts",
+    "src/renderer/services/workspace-projection-coverage.integration.test.ts",
+    "src/renderer/store/data-store.workspace-projection.test.ts",
+    "src/renderer/app/providers/remote-sync-store-refresh.acceptance.test.ts",
+    "src/renderer/app/providers/project-runtime-local-bootstrap.acceptance.test.ts",
+    "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts",
+    "src/renderer/sync/protocol/domain-manifest.test.ts",
+    "src/dev-cli/manifest.test.ts",
+    "src/renderer/services/workspace-projection-reads.acceptance.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "developer CLI capability manifest accounts for every checked-in Drizzle table exactly once",
+      "status": "passed",
+      "durationMs": 1.3047500000000127
+    },
+    {
+      "name": "developer CLI capability manifest keeps provider tool names unique and separates read from write",
+      "status": "passed",
+      "durationMs": 0.13887499999998454
+    },
+    {
+      "name": "developer CLI capability manifest never gives generic CRUD to append-only, derived, secret, or runtime evidence",
+      "status": "passed",
+      "durationMs": 0.36387499999995043
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual project row change",
+      "status": "passed",
+      "durationMs": 37.83666600000004
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual nodes row change",
+      "status": "passed",
+      "durationMs": 29.620290999999952
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual storylines row change",
+      "status": "passed",
+      "durationMs": 27.658833000000072
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual elements row change",
+      "status": "passed",
+      "durationMs": 26.856583
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual categories row change",
+      "status": "passed",
+      "durationMs": 28.23087499999997
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual assets row change",
+      "status": "passed",
+      "durationMs": 28.591583999999898
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual library row change",
+      "status": "passed",
+      "durationMs": 26.576291999999967
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual comments row change",
+      "status": "passed",
+      "durationMs": 25.6055419999999
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual comment-actions row change",
+      "status": "passed",
+      "durationMs": 24.765625
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual relations row change",
+      "status": "passed",
+      "durationMs": 26.127792
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual relation-types row change",
+      "status": "passed",
+      "durationMs": 26.770874999999933
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual sections row change",
+      "status": "passed",
+      "durationMs": 25.320749999999975
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual acts row change",
+      "status": "passed",
+      "durationMs": 24.304540999999972
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual drift-groups row change",
+      "status": "passed",
+      "durationMs": 25.882124999999974
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual markers row change",
+      "status": "passed",
+      "durationMs": 23.77475000000004
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual memberships row change",
+      "status": "passed",
+      "durationMs": 26.415875000000028
+    },
+    {
+      "name": "workspace projection invalidation coverage promotes node ordering and same-ID replacement to a complete node collection",
+      "status": "passed",
+      "durationMs": 26.443084
+    },
+    {
+      "name": "workspace projection invalidation coverage refuses coverage from a copied capture or a replaced database client",
+      "status": "passed",
+      "durationMs": 43.79995900000006
+    },
+    {
+      "name": "workspace projection invalidation coverage invalidates both project scopes when an unlinked node changes ownership and identity",
+      "status": "passed",
+      "durationMs": 27.348707999999988
+    },
+    {
+      "name": "workspace projection invalidation coverage rejects a delayed row-scoped capture after a local edit and recovers through full capture",
+      "status": "passed",
+      "durationMs": 26.181541000000152
+    },
+    {
+      "name": "workspace projection invalidation coverage records every queried table and column, including child dependencies",
+      "status": "passed",
+      "durationMs": 20.585542000000032
+    },
+    {
+      "name": "workspace projection invalidation coverage does not invalidate on a no-op write, and tracks changed fields without timestamp changes",
+      "status": "passed",
+      "durationMs": 22.596500000000106
+    },
+    {
+      "name": "workspace projection invalidation coverage rolls invalidation back with an aborted author transaction",
+      "status": "passed",
+      "durationMs": 23.136833000000024
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting chapter",
+      "status": "passed",
+      "durationMs": 23.850583000000142
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting drift",
+      "status": "passed",
+      "durationMs": 23.127457999999933
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting category",
+      "status": "passed",
+      "durationMs": 22.575375000000122
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting comment",
+      "status": "passed",
+      "durationMs": 22.069958999999926
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting main",
+      "status": "passed",
+      "durationMs": 22.781625000000076
+    },
+    {
+      "name": "workspace projection invalidation coverage preserves full trash iteration order across changes to different kinds",
+      "status": "passed",
+      "durationMs": 24.144833000000062
+    },
+    {
+      "name": "workspace projection invalidation coverage includes an earlier unnotified collection when a later refresh occurs",
+      "status": "passed",
+      "durationMs": 23.07333400000016
+    },
+    {
+      "name": "workspace projection invalidation coverage coalesces repeated identities and falls back after bounded coverage expires",
+      "status": "passed",
+      "durationMs": 332.5418749999999
+    },
+    {
+      "name": "workspace projection invalidation coverage bounds distinct changed identities while retaining the newest covered delta",
+      "status": "passed",
+      "durationMs": 278.28491600000007
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after generation coverage invalidation",
+      "status": "passed",
+      "durationMs": 24.392417000000023
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after reset coverage invalidation",
+      "status": "passed",
+      "durationMs": 23.3125
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after unknown coverage invalidation",
+      "status": "passed",
+      "durationMs": 22.97137500000008
+    },
+    {
+      "name": "workspace projection invalidation coverage isolates projects and invalidates a same-ID project recreation",
+      "status": "passed",
+      "durationMs": 23.62245800000005
+    },
+    {
+      "name": "workspace projection invalidation coverage observes historical materialization outside the current remote mutation targets",
+      "status": "passed",
+      "durationMs": 33.519875000000184
+    },
+    {
+      "name": "workspace projection invalidation coverage connects covered reads to the project queue while explicit repair wins over narrow requests",
+      "status": "passed",
+      "durationMs": 25.874249999999847
+    },
+    {
+      "name": "workspace refresh with product SQLite coalesces a burst and publishes node and membership changes in one snapshot",
+      "status": "passed",
+      "durationMs": 44.320333000000005
+    },
+    {
+      "name": "workspace refresh with product SQLite starts reading at the first-arrival deadline despite repeated sync events",
+      "status": "passed",
+      "durationMs": 30.081416999999988
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local title update, then recaptures",
+      "status": "passed",
+      "durationMs": 27.746666999999945
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local wordCount update, then recaptures",
+      "status": "passed",
+      "durationMs": 25.913375000000087
+    },
+    {
+      "name": "workspace refresh with product SQLite preserves an in-flight local project rename and retries before publishing project metadata",
+      "status": "passed",
+      "durationMs": 26.666875000000005
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a missing result after a local projection change in the same epoch",
+      "status": "passed",
+      "durationMs": 25.35145799999998
+    },
+    {
+      "name": "workspace refresh with product SQLite does not overwrite a newer full projection committed during its read",
+      "status": "passed",
+      "durationMs": 25.644707999999923
+    },
+    {
+      "name": "workspace refresh with product SQLite retains a new event after an external full refresh supersedes its pending epoch",
+      "status": "passed",
+      "durationMs": 25.953500000000076
+    },
+    {
+      "name": "workspace refresh with product SQLite backs off repeated local-write conflicts with one pending pass and recovers when writes settle",
+      "status": "passed",
+      "durationMs": 36.303042000000005
+    },
+    {
+      "name": "workspace refresh with product SQLite keeps one pending request behind an in-flight read and never publishes its superseded snapshot",
+      "status": "passed",
+      "durationMs": 27.153041999999914
+    },
+    {
+      "name": "workspace refresh with product SQLite waits for pending author durability before starting the SQLite capture",
+      "status": "passed",
+      "durationMs": 23.981917000000067
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded missing capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 23.060333000000014
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded error capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 22.51029200000005
+    },
+    {
+      "name": "workspace refresh with product SQLite reports a current read error and supports a fresh complete retry",
+      "status": "passed",
+      "durationMs": 22.65654200000006
+    },
+    {
+      "name": "workspace refresh with product SQLite clears a confirmed missing project only after its authoritative capture",
+      "status": "passed",
+      "durationMs": 22.884166999999934
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its project owner changes",
+      "status": "passed",
+      "durationMs": 22.455917
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its dispose owner changes",
+      "status": "passed",
+      "durationMs": 22.71383299999991
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its database owner changes",
+      "status": "passed",
+      "durationMs": 22.028542000000016
+    },
+    {
+      "name": "workspace refresh with product SQLite cancels a scheduled capture on disposal and lets a replacement owner refresh",
+      "status": "passed",
+      "durationMs": 23.577499999999986
+    },
+    {
+      "name": "workspace projection authority rejects a slow project capture after a newer project route owns the epoch",
+      "status": "passed",
+      "durationMs": 1.3257499999999993
+    },
+    {
+      "name": "workspace projection authority keeps the last complete project visible until one atomic refresh commit",
+      "status": "passed",
+      "durationMs": 0.4201669999999922
+    },
+    {
+      "name": "workspace projection authority clears only the authoritative missing-project projection",
+      "status": "passed",
+      "durationMs": 0.3503329999999778
+    },
+    {
+      "name": "workspace projection authority shares unchanged records while publishing a changed relation and primary membership atomically",
+      "status": "passed",
+      "durationMs": 1.0849580000000003
+    },
+    {
+      "name": "workspace projection authority sorts markers before sharing and does not reuse a changed record solely by ID or timestamp",
+      "status": "passed",
+      "durationMs": 0.4605410000000063
+    },
+    {
+      "name": "workspace projection authority rejects stale epochs without notifying and clears reverse memberships at project/reset boundaries",
+      "status": "passed",
+      "durationMs": 0.6195419999999956
+    },
+    {
+      "name": "local project bootstrap and lifecycle architecture hydrates the workspace from one local SQLite projection transaction",
+      "status": "passed",
+      "durationMs": 2.0550420000000003
+    },
+    {
+      "name": "local project bootstrap and lifecycle architecture keeps lifecycle durability local and exposes only the new SyncEngine hook",
+      "status": "passed",
+      "durationMs": 0.29724999999999113
+    },
+    {
+      "name": "local project bootstrap and lifecycle architecture records the retirement boundary in durable documentation",
+      "status": "passed",
+      "durationMs": 0.12162499999999454
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary notifies product state only after the durable remote Yjs reconcile barrier",
+      "status": "passed",
+      "durationMs": 1.0078329999999909
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary keeps pure remote prose live while structural changes use one project-scoped projection",
+      "status": "passed",
+      "durationMs": 0.6514170000000092
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary binds sync progress to top-right notifications and restored-tab cleanup to project identity",
+      "status": "passed",
+      "durationMs": 1.0148340000000076
+    },
+    {
+      "name": "SyncEngine v1 domain manifest classifies every persisted table and field in the current Drizzle schema",
+      "status": "passed",
+      "durationMs": 1.9357499999999845
+    },
+    {
+      "name": "SyncEngine v1 domain manifest fails closed when a schema field or table is added without a classification",
+      "status": "passed",
+      "durationMs": 1.329291000000012
+    },
+    {
+      "name": "SyncEngine v1 domain manifest keeps checked-in JSON and Markdown evidence current",
+      "status": "passed",
+      "durationMs": 376.20683299999996
+    },
+    {
+      "name": "SyncEngine v1 domain manifest locks the v1 include and exclusion boundaries",
+      "status": "passed",
+      "durationMs": 1.246499999999969
+    },
+    {
+      "name": "product file-backed migration acceptance creates the exact current baseline and reopens idempotently",
+      "status": "passed",
+      "durationMs": 27.521041000000025
+    },
+    {
+      "name": "product file-backed migration acceptance preserves continuous chapter coordinates in integer-affinity baseline columns",
+      "status": "passed",
+      "durationMs": 20.863833999999997
+    },
+    {
+      "name": "product file-backed migration acceptance enforces immutable, single-owner assets while preserving project cascade",
+      "status": "passed",
+      "durationMs": 22.39425
+    },
+    {
+      "name": "product file-backed migration acceptance fails closed when an applied baseline hash is tampered",
+      "status": "passed",
+      "durationMs": 25.609249999999975
+    },
+    {
+      "name": "product file-backed migration acceptance fails closed when application tables have no current baseline history",
+      "status": "passed",
+      "durationMs": 1.8184999999999718
+    },
+    {
+      "name": "product file-backed migration acceptance refuses a database created by a newer migration journal",
+      "status": "passed",
+      "durationMs": 26.112707999999998
+    },
+    {
+      "name": "workspace SQLite read scope and invalidation write cost measures full versus row-scoped capture with 64 nodes and prose-bearing elements",
+      "status": "passed",
+      "durationMs": 263.295542
+    },
+    {
+      "name": "workspace SQLite read scope and invalidation write cost measures full versus row-scoped capture with 1024 nodes and prose-bearing elements",
+      "status": "passed",
+      "durationMs": 1099.491416
+    }
+  ],
+  "nativeDatabase": {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "src-tauri/Cargo.toml",
+      "--lib",
+      "database::tests",
+      "--",
+      "--nocapture"
+    ],
+    "tests": [
+      {
+        "name": "database::tests::database_names_cannot_escape_the_managed_directory",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::malformed_recovery_receipt_stops_startup_instead_of_guessing",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::failed_shadow_candidate_never_changes_the_active_database",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::restart_after_replace_never_migrates_an_incomplete_active_database",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::shadow_migration_sigkill_worker",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::another_renderer_cannot_take_over_without_explicit_recovery",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::agent_runtime_migration_enforces_canonical_journal_constraints",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::a_fresh_renderer_session_recovers_a_stale_transaction",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::round_trips_every_sqlite_storage_class_without_losing_i64_precision",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::ordinary_requests_wait_until_the_owning_transaction_finishes",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::refuses_a_database_migrated_by_a_newer_client",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::current_local_first_baseline_is_exactly_recorded_and_idempotent",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::pre_update_safety_snapshot_is_standalone_and_once_per_version",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::restart_after_replace_completes_marker_only_after_validating_active_database",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::the_same_renderer_session_cannot_recover_its_own_active_transaction",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::project_upgrades_preserve_published_prefixes_with_same_version_safety_snapshots",
+        "status": "passed"
+      },
+      {
+        "name": "database::tests::sigkill_matrix_reconciles_to_exactly_old_or_new_database",
+        "status": "passed"
+      }
+    ]
+  },
+  "sqliteReads": [
+    {
+      "entitiesPerKind": 64,
+      "bodyCharacters": 8200,
+      "reads": [
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 149,
+            "serializedBytes": 554792,
+            "queryAwaitMs": 18.466500999999766
+          },
+          "captureMs": 2.7231670000000463,
+          "publicationMs": 0.15791699999999764,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 384,
+            "queryAwaitMs": 0.07166500000005271
+          },
+          "captureMs": 0.5092920000000163,
+          "publicationMs": 0.027874999999994543,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 149,
+            "serializedBytes": 554792,
+            "queryAwaitMs": 17.14037599999989
+          },
+          "captureMs": 2.0819999999999936,
+          "publicationMs": 0.17387500000000955,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 384,
+            "queryAwaitMs": 0.07504099999988512
+          },
+          "captureMs": 0.4692919999999958,
+          "publicationMs": 0.02524999999997135,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 149,
+            "serializedBytes": 554792,
+            "queryAwaitMs": 17.45454000000001
+          },
+          "captureMs": 2.114666999999997,
+          "publicationMs": 0.12820799999997234,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 384,
+            "queryAwaitMs": 0.06279200000005858
+          },
+          "captureMs": 0.445165999999972,
+          "publicationMs": 0.023832999999967797,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 149,
+            "serializedBytes": 554792,
+            "queryAwaitMs": 16.533209000000113
+          },
+          "captureMs": 2.0637499999999704,
+          "publicationMs": 0.12837500000000546,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 384,
+            "queryAwaitMs": 0.08708400000000438
+          },
+          "captureMs": 0.5305830000000356,
+          "publicationMs": 0.03187500000001364,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 149,
+            "serializedBytes": 554792,
+            "queryAwaitMs": 43.74783599999972
+          },
+          "captureMs": 3.5134160000000065,
+          "publicationMs": 0.1278340000000071,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 384,
+            "queryAwaitMs": 0.06308400000000347
+          },
+          "captureMs": 0.45487500000001546,
+          "publicationMs": 0.020375000000001364,
+          "publications": 1,
+          "nodeRead": "changed"
+        }
+      ],
+      "writes": [
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 13.585710000000688,
+          "transactionMs": 16.418416999999977
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8970009999993636,
+          "transactionMs": 3.2793329999999514
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 13.071741999999517,
+          "transactionMs": 15.57158400000003
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8867920000008098,
+          "transactionMs": 3.228207999999995
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 13.371708999999214,
+          "transactionMs": 15.902917000000002
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8937999999997146,
+          "transactionMs": 3.2209589999999935
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 13.402828000000568,
+          "transactionMs": 21.00420900000006
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8258649999993395,
+          "transactionMs": 3.1116670000000113
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 12.754591999999775,
+          "transactionMs": 15.10070799999994
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8573379999994586,
+          "transactionMs": 3.1282500000000937
+        }
+      ]
+    },
+    {
+      "entitiesPerKind": 1024,
+      "bodyCharacters": 8200,
+      "reads": [
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 2069,
+            "serializedBytes": 8839537,
+            "queryAwaitMs": 354.18895699999973
+          },
+          "captureMs": 24.49979200000007,
+          "publicationMs": 1.2736669999999322,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 385,
+            "queryAwaitMs": 0.08520999999996093
+          },
+          "captureMs": 0.7678750000000036,
+          "publicationMs": 0.0715420000000222,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 2069,
+            "serializedBytes": 8839537,
+            "queryAwaitMs": 316.79871100000014
+          },
+          "captureMs": 22.404375000000073,
+          "publicationMs": 1.1461249999999836,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 385,
+            "queryAwaitMs": 0.0756250000001728
+          },
+          "captureMs": 0.6853750000000218,
+          "publicationMs": 0.057833999999957086,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 2069,
+            "serializedBytes": 8839537,
+            "queryAwaitMs": 317.30737199999953
+          },
+          "captureMs": 24.395999999999958,
+          "publicationMs": 1.3088749999999436,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 385,
+            "queryAwaitMs": 0.07183299999996962
+          },
+          "captureMs": 0.6322500000001128,
+          "publicationMs": 0.04416599999990467,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 2069,
+            "serializedBytes": 8839537,
+            "queryAwaitMs": 310.95008200000007
+          },
+          "captureMs": 23.94250000000011,
+          "publicationMs": 1.8153330000000096,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 385,
+            "queryAwaitMs": 0.08408200000008037
+          },
+          "captureMs": 0.7299999999997908,
+          "publicationMs": 0.05912499999999454,
+          "publications": 1,
+          "nodeRead": "changed"
+        },
+        {
+          "mode": "full",
+          "reads": {
+            "queries": 22,
+            "rows": 2069,
+            "serializedBytes": 8839537,
+            "queryAwaitMs": 311.6615000000004
+          },
+          "captureMs": 22.007125000000087,
+          "publicationMs": 1.0596669999999904,
+          "publications": 1,
+          "nodeRead": "all"
+        },
+        {
+          "mode": "changes",
+          "reads": {
+            "queries": 4,
+            "rows": 4,
+            "serializedBytes": 385,
+            "queryAwaitMs": 0.07249800000022333
+          },
+          "captureMs": 0.6269170000000486,
+          "publicationMs": 0.055000000000063665,
+          "publications": 1,
+          "nodeRead": "changed"
+        }
+      ],
+      "writes": [
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 20.49603900000102,
+          "transactionMs": 23.04379199999994
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8476350000003094,
+          "transactionMs": 3.115000000000009
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 20.625416999998606,
+          "transactionMs": 23.089833999999883
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8603289999966819,
+          "transactionMs": 3.1204170000000886
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 21.57888500000081,
+          "transactionMs": 27.434416000000056
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8707039999992503,
+          "transactionMs": 3.275291000000152
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 20.05688100000043,
+          "transactionMs": 22.551500000000033
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.834376000000475,
+          "transactionMs": 3.1744169999999485
+        },
+        {
+          "tracking": true,
+          "updates": 200,
+          "executeMs": 20.385458000002018,
+          "transactionMs": 22.89037499999995
+        },
+        {
+          "tracking": false,
+          "updates": 200,
+          "executeMs": 0.8052099999990787,
+          "transactionMs": 3.0502500000000055
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "coveredCollections": "passed",
+    "changedNodeRows": "passed",
+    "fullFallback": "passed",
+    "nativeMigrationAndSafetySnapshot": "passed",
+    "headlessReadAndWriteCost": "measured",
+    "fullAppPerformance": "not-run",
+    "nativeRendererOrPhysicalDevice": "not-run"
+  },
+  "limitations": [
+    "Only covered metadata-only node changes read individual rows (up to 128 IDs). Other affected collections are read completely, with membership and cascade dependencies. Initial, restored, expired, reset or untrusted coverage reads the full workspace.",
+    "The production remote reducer may rematerialize historical winners. SQLite triggers record actual writes in the same transaction; current mutation IDs and delivery of every event are not assumed. A missed notification is reconciled on the next capture, not immediately without any event.",
+    "Read measurements use one warm pair and five alternating full/covered pairs on Node SQLite. Returned bytes are serialized results, not physical pages. Capture time includes observer serialization. queryAwaitMs sums overlapping asynchronous gateway calls and is not SQL CPU time or an additive wall-clock phase.",
+    "Write controls drop and restore exactly the three node triggers only inside a disposable fixture, then alternate five pairs of 200 updates in a single transaction. This isolates synthetic trigger cost; it does not model one fsync per keystroke or native IPC.",
+    "Virtual timers check queue scheduling and publication races, not latency. Headless store publication timing does not measure full React rendering, interaction latency or physical input.",
+    "Native tests prove both published migration prefixes upgrade through verified same-version safety snapshots and failures preserve the old database. The native migration SIGKILL matrix is separate from the renderer workspace queue SIGKILL report."
+  ]
+}

@@ -52,6 +52,7 @@
     "perf:renderer": "node scripts/run-renderer-performance.mjs",
     "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
     "workspace:refresh:acceptance": "node scripts/run-workspace-refresh-acceptance.mjs",
+    "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",
     "reference:index:acceptance": "node scripts/run-reference-index-acceptance.mjs",
     "reference:index:recovery": "node scripts/run-reference-index-recovery.mjs",
     "test:agent-runtime": "vitest run src/renderer/lib/agent/runtime --reporter=dot",

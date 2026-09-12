@@ -273,8 +273,37 @@ request, and dispose revokes scheduled and in-flight work. The project provider
 routes restore/authority changes through complete capture; pure-prose events
 continue directly to background metrics.
 
-`captureWorkspaceProjection` still reads the complete workspace in one SQLite
-transaction. The store accepts only the latest requested project/epoch. After
+`captureWorkspaceProjection` produces a complete workspace projection in one
+SQLite transaction. Ordinary structural refreshes can reuse covered collections
+from the queue's last accepted authoritative capture. A private weak ownership
+map binds that capture to the exact database client; copied/serialized captures
+and optimistic store rows cannot authorize reuse. Startup, explicit repair,
+restore, reset, expired coverage and unknown collections use full capture.
+
+Migration `0002_workspace_projection_journal.sql` adds a local, rebuildable
+invalidation clock and bounded change journal. Triggers cover all columns of
+the 17 queried domain/dependency tables and record actual row changes in the
+author/materializer transaction, including historical remote winners, cascades
+and derived metrics. No-op updates do not invalidate. Each project has an epoch,
+revision and retention floor; after 4,096 revisions the triggers compact older
+identities and readers behind the floor fall back to full capture. Generation
+changes reset coverage; project deletion cascades the metadata. Neither table
+is a sync/checkpoint authority or generic CLI CRUD surface. Future queried
+columns must extend trigger coverage in a new migration, never rewrite a
+published migration. Deleting only a damaged clock is an internal metadata
+repair: its changes cascade away, reads fall back to full, and the next domain
+write initializes a fresh epoch. There is no user-facing repair toggle here.
+
+Covered metadata-only changes to up to 128 nodes read those rows. Node identity
+replacement, visibility/kind/order changes or larger sets promote the node
+collection to a complete read. A replacement revision catches delete/reinsert
+even with identical timestamps. Other affected collections still read their
+complete repository projection; full nodes/storylines include ordered membership
+dependencies. Every selected result and reused slice publishes atomically.
+Missing notifications are covered on the next capture; no event means no
+immediate refresh promise. The first refresh owned by a new queue is full.
+
+The store accepts only the latest requested project/epoch. After
 that guard, `workspace-projection-sharing.ts` compares the incoming capture
 with the current same-project projection and reuses equal rows by ID and equal
 collections. It compares every captured field, including nested positions,
@@ -296,9 +325,10 @@ a store notification. Sharing owns no asynchronous task, author state or
 project cache; the existing weak ID index follows the source array lifetime.
 Full capture, the structural refresh barrier and the non-blocking prose-only
 sync path remain intact. The reference queue below owns derived indexing.
-Renderer process recovery is checked through the file-backed SQLite adapter;
-native gateway acceptance and structural workspace partial reads remain pending
-F6 work. Pure Yjs commits now scope reference reads as described below.
+Renderer process recovery is checked through the file-backed SQLite adapter.
+Native migration compatibility/safety snapshots are checked independently;
+full Tauri renderer recovery, app performance and physical-device acceptance
+remain pending F6 work. Pure Yjs commits scope reference reads as described below.
 
 ### Project reference-index queue
 

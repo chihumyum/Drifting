@@ -26,7 +26,7 @@ describe('local project bootstrap and lifecycle architecture', () => {
     expect(source('../../components/editor/PatchEditorCard.tsx')).not.toContain('createInlineMentionRepository');
 
     const projection = source('../../services/workspace-projection.service.ts');
-    expect(projection).toContain('return getDb().transaction(async (tx) =>');
+    expect(projection).toContain('return database.transaction(async (tx) =>');
     expect(projection).toContain('createBookNodeSqliteRepository(input.projectId, tx)');
   });
 

@@ -98,6 +98,16 @@ const runtimeState =
 
 const tables: SyncDomainTablePolicy[] = [
   defineTable({
+    table: 'workspace_projection_clock', scope: 'project-direct', disposition: 'exclude',
+    reason: 'Rebuildable local renderer invalidation coverage, never authored state or a sync cursor.',
+    groups: [group('derived', 'SQLite trigger-owned workspace read coverage; a fresh reader captures the full project.', 'project_id', 'epoch', 'revision', 'retained_after')],
+  }),
+  defineTable({
+    table: 'workspace_projection_change', scope: 'project-direct', disposition: 'exclude',
+    reason: 'Bounded local renderer invalidation hints, rebuilt by complete workspace capture after coverage loss.',
+    groups: [group('derived', 'Actual row-change identities only; no prose, credentials, or author merge authority.', 'project_id', 'collection', 'entity_id', 'revision', 'replacement_revision')],
+  }),
+  defineTable({
     table: 'project',
     scope: 'project-root',
     disposition: 'include',

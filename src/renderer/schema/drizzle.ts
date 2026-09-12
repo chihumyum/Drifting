@@ -90,6 +90,29 @@ export const ProjectTable = sqliteTable('project', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Rebuildable renderer invalidation metadata. SQLite triggers observe actual
+// row changes (including cascades/derived materialization) in the owning tx.
+// Neither table belongs to the authored sync/checkpoint domain.
+export const WorkspaceProjectionClockTable = sqliteTable('workspace_projection_clock', {
+  projectId: text('project_id').primaryKey().references(() => ProjectTable.id, { onDelete: 'cascade' }),
+  epoch: text('epoch').notNull().default(sql`(lower(hex(randomblob(16))))`),
+  revision: integer('revision').notNull().default(0),
+  retainedAfter: integer('retained_after').notNull().default(0),
+}, (t) => [check('workspace_projection_clock_range', sql`${t.revision} >= ${t.retainedAfter} and ${t.retainedAfter} >= 0`)]);
+
+export const WorkspaceProjectionChangeTable = sqliteTable('workspace_projection_change', {
+  projectId: text('project_id').notNull().references(() => WorkspaceProjectionClockTable.projectId, { onDelete: 'cascade' }),
+  collection: text('collection').notNull(),
+  entityId: text('entity_id').notNull(),
+  revision: integer('revision').notNull(),
+  replacementRevision: integer('replacement_revision').notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.projectId, t.collection, t.entityId] }),
+  index('idx_workspace_projection_change_revision').on(t.projectId, t.revision),
+  check('workspace_projection_change_revision_positive', sql`${t.revision} > 0`),
+  check('workspace_projection_change_replacement_range', sql`${t.replacementRevision} >= 0 and ${t.replacementRevision} <= ${t.revision}`),
+]);
+
 // Stable authored key/value facts shared by project, storyline and element
 // owners. The legacy *_kv_json columns are query/UI projections only. Entry
 // lifecycle/LWW clocks live in sync_entity_lifecycle/sync_field_clock and list
