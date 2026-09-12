@@ -1453,3 +1453,68 @@ This batch passes 2,411 regular tests with 1 existing skip, 8 architecture tests
 typecheck, lint (0 errors, 74 existing warnings), CI/public contracts, Agent
 capabilities and the generated-report checks. The normal renderer production
 build is checked separately from the instrumented browser fixture.
+
+## F8a — Complete native App control scenario
+
+The first native composition report now uses the complete desktop App,
+ProjectRuntimeProvider and ChapterEditor in a freshly built Tauri application.
+The [attended runner](native-composition.md) creates two independent synthetic
+SQLite fixtures through the offline Dev CLI domain runtime and checks their
+semantic hashes. The main project contains 50 chapters, 100 elements and 500
+relations; the isolation project contains 3 chapters and 3 elements. All 53
+chapters contain 5,000 synthetic Chinese characters, verified by independent
+read-only replay of Yjs snapshots and updates.
+
+```bash
+pnpm perf:renderer:native
+pnpm perf:renderer:native --check
+```
+
+`acceptance/f8-native-composition.json` records a packaged Debug native build
+with a production Vite renderer on Apple M3 Pro / 36 GiB. The runner validates
+the new bundle's identifier, version, modification time and binary hash before
+launching it. Database directories, app/WebKit storage, Keychain service and
+deep links are isolated. Only the temporary worktree receives the acceptance
+entry and lifecycle observer; normal product sources/configuration do not.
+
+The accepted first process checks:
+
+- Twenty actual target chapter surfaces open, with the first editor and live
+  Y.Doc preserved when returning. Its inserted marker can be undone and redone.
+- The real lazy story graph and fully loaded settings panels open and close
+  without replacing the active editor or restarting the project runtime.
+- A two-editor split preserves its shared document. Closing the tabs releases
+  all 20 live document registrations.
+- Project A → B → A restores each project's expected workspace counts, removes
+  the departed project's live document registrations, and reloads saved prose.
+  Runtime lifecycle events contain only those project transitions.
+
+The second native process restores the saved chapter. Both processes were
+ended with the app's real Cmd+Q command through Computer Use and exited with
+code zero. Afterwards, independent SQLite/Yjs inspection finds exactly one
+changed chapter containing the saved marker, 52 unchanged chapter hashes,
+unchanged element/relation counts, and passing integrity/foreign-key checks.
+The renderer reports no uncaught errors in either sequence.
+
+The report's 34 ms command-to-two-frame sample is synthetic and is not an input
+p95. Its first-process editor-ready observation includes waiting for the
+operator to bring the window forward; it must not be read as cold-start time.
+The second process's 470 ms observation is likewise a single instrumented
+renderer observation. Parent-process RSS excludes WebKit children. WebKit did
+not provide JS heap or long-task measurements; these are unavailable, not zero.
+
+This adds native control-scenario evidence to F0/F2/F3/F7 and starts F8. It does
+not complete F3's session/effect decomposition, comparative performance budgets,
+larger/combined stress workloads, graph geometry stress, pending-review masks,
+sync/crash scenarios, physical IME/touch, offline upgrade or device/account
+acceptance. F8 remains `in_progress`; historical browser reports retain their
+original scope and fingerprints.
+
+Three new tests cover refusal to adopt an existing database directory,
+read-only authoritative Yjs replay despite a stale prose cache, and absence of
+acceptance entry/credential changes in normal product sources. This batch
+passes 2,414 regular tests with 1 existing skip, 8 architecture tests, typecheck,
+lint (0 errors, 74 existing warnings), CI/public contracts and Agent capability
+checks. The ordinary production renderer build is verified separately from
+the native acceptance build; all 32 emitted JS chunks exclude the acceptance
+entry, synthetic marker/project identity and native credential namespace.

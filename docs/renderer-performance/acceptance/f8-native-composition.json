@@ -1,0 +1,175 @@
+{
+  "kind": "renderer_native_composition",
+  "status": "passed",
+  "generatedAt": "2026-09-12T14:43:31.012Z",
+  "source": {
+    "commit": "412a3bc4fd7a99ea405ef867cbe8621575c6aa35",
+    "fingerprint": "bad7762601b34767b2b345c5635879325c52e55a883c746452414fdd04b8f5a8",
+    "trackedProductChanges": true
+  },
+  "artifact": {
+    "bundleName": "Drifting Acceptance be3785c8707d.app",
+    "identifier": "cc.drifting.client.acceptance.rbe3785c8707d",
+    "version": "0.1.0-alpha.1",
+    "sha256": "3d5d7a25de195d9789fc24d18b24a2485a150e03b51db0c99208b102abc65ebe",
+    "modifiedAt": "2026-09-12T14:41:56.913Z",
+    "build": "packaged-debug-native-production-renderer",
+    "signed": false,
+    "instrumentation": [
+      "acceptance-only renderer import",
+      "ProjectRuntimeProvider lifecycle effect",
+      "isolated native keychain service",
+      "isolated app identifier and deep-link scheme",
+      "loopback report CSP"
+    ]
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "fixture": {
+    "specification": {
+      "version": 1,
+      "seed": "renderer-native-control-v1",
+      "projects": [
+        {
+          "id": "native-control-a",
+          "chapters": 50,
+          "elements": 100,
+          "relations": 500,
+          "characters": 5000
+        },
+        {
+          "id": "native-control-b",
+          "chapters": 3,
+          "elements": 3,
+          "relations": 0,
+          "characters": 5000
+        }
+      ]
+    },
+    "semanticSha256": "298b7c1c9bd82e3a8aa77490754b8f25b54049aeed36d71ef1a89a62d1412e49",
+    "reproducible": true
+  },
+  "runs": [
+    {
+      "phase": "composition",
+      "step": "project-switch",
+      "kind": "result",
+      "status": "passed",
+      "checks": {
+        "twentyTabsIdentityAndUndo": true,
+        "overlaysPreserveRuntimeAndEditor": true,
+        "splitDocumentIdentity": true,
+        "closedTabsReleaseLiveDocuments": true,
+        "projectSwitchAndSqliteRestore": true
+      },
+      "lifecycle": [
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        },
+        {
+          "projectId": "native-control-a",
+          "mounted": false
+        },
+        {
+          "projectId": "native-control-b",
+          "mounted": true
+        },
+        {
+          "projectId": "native-control-b",
+          "mounted": false
+        },
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        }
+      ],
+      "firstEditorReadyMs": 19774,
+      "runtime": {
+        "target": "desktop",
+        "shellMode": "desktop",
+        "appInfo": {
+          "name": "Drifting Acceptance be3785c8707d",
+          "version": "0.1.0-alpha.1",
+          "platform": "macos",
+          "architecture": "aarch64"
+        }
+      },
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "longTasks": null,
+      "jsHeap": null,
+      "uncaughtErrors": 0,
+      "exitCode": 0,
+      "shutdown": "attended native Quit command",
+      "launchToResultMs": 31981,
+      "nativeProcessPeakRssKiB": 164400,
+      "rssIncludesWebKitChildren": false
+    },
+    {
+      "phase": "restart",
+      "step": "opening-native-project",
+      "kind": "result",
+      "status": "passed",
+      "checks": {
+        "restartProse": true
+      },
+      "lifecycle": [
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        }
+      ],
+      "firstEditorReadyMs": 470,
+      "runtime": {
+        "target": "desktop",
+        "shellMode": "desktop",
+        "appInfo": {
+          "name": "Drifting Acceptance be3785c8707d",
+          "version": "0.1.0-alpha.1",
+          "platform": "macos",
+          "architecture": "aarch64"
+        }
+      },
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "longTasks": null,
+      "jsHeap": null,
+      "uncaughtErrors": 0,
+      "exitCode": 0,
+      "shutdown": "attended native Quit command",
+      "launchToResultMs": 1292,
+      "nativeProcessPeakRssKiB": 140592,
+      "rssIncludesWebKitChildren": false
+    }
+  ],
+  "observations": [
+    {
+      "phase": "composition",
+      "step": "project-switch",
+      "kind": "observation",
+      "syntheticCommandToTwoFramesMs": 34
+    }
+  ],
+  "persistence": {
+    "savedChapters": 1,
+    "unchangedChapters": 52,
+    "integrityCheck": "ok",
+    "foreignKeyCheck": "ok"
+  },
+  "acceptance": {
+    "fullAppComposition": "passed",
+    "sqliteYjsRestart": "passed",
+    "input": "synthetic Tiptap commands; product navigation actions and DOM clicks",
+    "physicalIme": "not-run",
+    "physicalGestures": "not-run",
+    "performanceBudget": "not-evaluated",
+    "reactCommits": "not-measured",
+    "jsHeap": "unavailable",
+    "memoryReclamation": "not-measured",
+    "deviceMatrix": "not-run"
+  }
+}
