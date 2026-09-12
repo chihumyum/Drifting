@@ -1,5 +1,5 @@
 import type { useDataStore } from '../store/data-store';
-import type { AutoDetectTarget, EntityKind } from './extensions/entity-link';
+import type { AutoDetectTarget, EntityKind, EntityLinkAutoDetectConfig } from './extensions/entity-link';
 
 type Workspace = ReturnType<typeof useDataStore.getState>;
 type NameInput = Pick<Workspace, 'workspaceProjectId' | 'workspaceProjectionEpoch' | 'bookElements' | 'bookNodes'>;
@@ -77,4 +77,21 @@ export function buildEntityAutoDetectTargets(
     if (node.title) targets.set(node.title, { kind: 'node', id: node.id });
   }
   return targets;
+}
+
+/** Agent writes select their source explicitly, independent of mounted views. */
+export function selectProseAutoDetectConfig(
+  state: NameInput,
+  enabled: boolean,
+  projectId: string | null,
+  sourceKind: EntityKind,
+  sourceId: string,
+): EntityLinkAutoDetectConfig {
+  if (!enabled || !projectId || state.workspaceProjectId !== projectId) {
+    return { autoDetectEnabled: false, autoDetectTargets: new Map() };
+  }
+  return {
+    autoDetectEnabled: true,
+    autoDetectTargets: buildEntityAutoDetectTargets(selectEntityLinkNames(state), sourceKind, sourceId),
+  };
 }

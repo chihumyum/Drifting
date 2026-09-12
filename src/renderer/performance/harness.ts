@@ -7,6 +7,7 @@ import { createRendererFixture, RENDERER_FIXTURE_PROFILES } from './fixture';
 import { runEntityLinkScenarios } from './entity-link-scenarios';
 import { runSemanticSubscriptionScenario, runSubscriptionScenarios } from './subscription-scenarios';
 import { runAgentDecorationScenarios, runDecorationReadinessScenario } from './agent-decoration-scenarios';
+import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -29,7 +30,6 @@ async function run() {
     } as unknown as EntityLinkColorState;
     const counts = { fullLinkQueries: 0, colorResolutions: 0, styleWrites: 0 };
     let count = false;
-    entityLinkConfig.autoDetectEnabled = false;
     entityLinkConfig.resolveTargetColor = (kind, id) => {
       if (count) counts.colorResolutions++;
       return resolveEntityLinkTargetColor(kind, id, colorState, 'contextual', DEFAULT_ENTITY_LINK_KIND_COLORS);
@@ -102,6 +102,7 @@ async function run() {
     semanticSubscriptions: runSemanticSubscriptionScenario(),
     agentDecorations: runAgentDecorationScenarios(),
     decorationReadiness: runDecorationReadinessScenario(),
+    entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

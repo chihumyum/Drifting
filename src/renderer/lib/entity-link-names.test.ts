@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { createSyntheticWorkspaceProjection } from '../performance/fixture';
-import { buildEntityAutoDetectTargets, releaseEntityLinkNames, selectEntityLinkNames } from './entity-link-names';
+import { buildEntityAutoDetectTargets, releaseEntityLinkNames, selectEntityLinkNames, selectProseAutoDetectConfig } from './entity-link-names';
 
 function input(projectId = 'synthetic-project') {
   return { ...createSyntheticWorkspaceProjection(projectId, 2, 2), workspaceProjectId: projectId, workspaceProjectionEpoch: 1 };
 }
 
 describe('shared entity-link name projection', () => {
+  it('selects closed prose sources explicitly and rejects a different project snapshot', () => {
+    const state = input();
+    const [first, second] = state.bookNodes;
+    const config = selectProseAutoDetectConfig(state, true, state.workspaceProjectId, 'node', first.id);
+    expect(config.autoDetectTargets.has(first.title)).toBe(false);
+    expect(config.autoDetectTargets.get(second.title)?.id).toBe(second.id);
+    expect(selectProseAutoDetectConfig(state, false, state.workspaceProjectId, 'node', first.id).autoDetectEnabled).toBe(false);
+    const wrong = selectProseAutoDetectConfig(state, true, 'different-project', 'node', first.id);
+    expect(wrong.autoDetectEnabled).toBe(false);
+    expect(wrong.autoDetectTargets.size).toBe(0);
+  });
   it('keeps semantic identity across metrics, summary and body updates', () => {
     const before = input();
     const names = selectEntityLinkNames(before);

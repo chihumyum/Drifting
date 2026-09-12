@@ -20,8 +20,7 @@ import {
 } from '../lib/extensions/agent-diff-decoration';
 import {
   EntityLink,
-  EntityLinkDanglingPluginKey,
-  entityLinkConfig,
+  isEntityLinkAutoDetectEnabled,
   linkEntityInDoc,
   type EntityKind,
   type EntityLinkRef,
@@ -42,7 +41,7 @@ import { projectInlineMentionsFromDoc } from '../services/reference-projection.s
 import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import type { EditorView } from '@tiptap/pm/view';
-import { useDataStore, trashedKey } from '../store/data-store';
+import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
 import { useAuthStore } from '../store/auth';
@@ -59,10 +58,7 @@ import {
 } from '../lib/editor-selection-memory';
 import type { CommentTargetKind } from '../domain/comment';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
-import {
-  buildEntityLinkColorSignature,
-  resolveEntityLinkTargetColor,
-} from '../lib/entity-link-appearance';
+import { useEntityLinkConfiguration } from '../features/editor/useEntityLinkConfiguration';
 import { useAgentEditorDecorations } from '../features/editor/useAgentEditorDecorations';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { buildEntityAutoDetectTargets, selectEntityLinkNames } from '../lib/entity-link-names';
@@ -645,20 +641,13 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
   const autoElementLinkEnabled = useSettingsStore((state) => state.autoElementLinkEnabled);
-  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
-  const entityLinkColorMode = useSettingsStore((state) => state.entityLinkColorMode);
-  const entityLinkKindColors = useSettingsStore((state) => state.entityLinkKindColors);
 
   // Name/appearance projections are shared across retained editors. Metric or
   // body updates can change domain arrays without invalidating these selectors.
   const entityNames = useDataStore(selectEntityLinkNames);
-  const trashedEntityIds = useDataStore((state) => state.trashedEntityIds);
   const autoDetectTargets = useMemo(
     () => buildEntityAutoDetectTargets(entityNames, sourceKind, sourceId, parentElementId),
     [entityNames, sourceKind, sourceId, parentElementId],
-  );
-  const entityLinkColorSignature = useDataStore((state) =>
-    buildEntityLinkColorSignature(state, entityLinkColorMode, entityLinkKindColors),
   );
 
   // @-picker source: pulled live from the store so the popover stays in sync.
@@ -1215,64 +1204,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     editorRef.current = editor;
   }, [editor]);
 
-  // Keep the entity-link plugin's mutable config in sync with the latest
-  // settings + entity list so auto-detect reacts without rebuilding the editor.
-  useEffect(() => {
-    entityLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
-    entityLinkConfig.autoDetectTargets = autoDetectTargets;
-    entityLinkConfig.interactionEnabled = entityLinkInteractive;
-    // Read the store live at resolve/click time so a link whose target was just
-    // deleted (its mark still embedded in this doc's content) is treated as
-    // non-alive: dimmed if the target sits in the trash (recoverable), stripped
-    // if it's gone for good — and never opens a phantom "untitled" editor.
-    entityLinkConfig.resolveTargetState = (kind, id) => {
-      const state = useDataStore.getState();
-      const alive = (() => {
-        switch (kind) {
-          case 'element':
-            return state.bookElements.some((e) => e.id === id);
-          case 'node':
-            return state.bookNodes.some((n) => n.id === id);
-          case 'storyline':
-            return state.storylines.some((s) => s.id === id);
-          case 'category':
-            return state.bookElementCategories.some((c) => c.id === id);
-          default:
-            // Kinds we don't track here (e.g. patch) stay navigable.
-            return true;
-        }
-      })();
-      if (alive) return 'alive';
-      return state.trashedEntityIds.has(trashedKey(kind, id)) ? 'trashed' : 'gone';
-    };
-    entityLinkConfig.resolveTargetColor = (kind, id) => {
-      const state = useDataStore.getState();
-      return resolveEntityLinkTargetColor(
-        kind,
-        id,
-        state,
-        entityLinkColorMode,
-        entityLinkKindColors,
-      );
-    };
-    entityLinkConfig.targetColorVersion += 1;
-    // The known-entity / trashed set just changed (e.g. an element was deleted,
-    // trashed, or restored while this doc is open). Nudge the dangling-link
-    // plugin to re-walk so links re-style immediately. A meta-only transaction
-    // adds no steps and never enters history.
-    if (editor && !editor.isDestroyed) {
-      editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
-    }
-  }, [
-    autoElementLinkEnabled,
-    autoDetectTargets,
-    entityLinkColorSignature,
-    entityLinkColorMode,
-    entityLinkKindColors,
-    entityLinkInteractive,
-    trashedEntityIds,
-    editor,
-  ]);
+  useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled });
 
   const decorationsReady = useAgentEditorDecorations(editor, sourceKind, sourceId, isVisible || isPreparing);
   const ready = canonicalReady && decorationsReady;
@@ -1286,7 +1218,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   useEffect(() => {
     if (!editor) return;
     const onElementCreated = ({ element }: { element: BookElement }) => {
-      if (editor.isDestroyed || !entityLinkConfig.autoDetectEnabled) return;
+      if (editor.isDestroyed || !isEntityLinkAutoDetectEnabled(editor)) return;
       // Mirror the autoDetectTargets exclusions: never self-link the entity (or
       // its parent element) this editor is editing.
       const { sourceKind: sk, sourceId: sid, parentElementId: pid } = sourceRef.current;

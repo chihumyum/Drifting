@@ -35,21 +35,21 @@ export type EntityLinkTargetColorResolver = (
   id: string,
 ) => string | null | undefined;
 
-export interface EntityLinkOptions {
+export interface EntityLinkAutoDetectConfig {
   // Targets eligible for auto-detection, keyed by their display name.
   // Names are matched verbatim. The @-picker covers the more general flow.
-  autoDetectTargets: Map<string, AutoDetectTarget>;
+  autoDetectTargets: ReadonlyMap<string, AutoDetectTarget>;
   autoDetectEnabled: boolean;
+}
+
+export interface EntityLinkOptions extends EntityLinkAutoDetectConfig {
   HTMLAttributes?: Record<string, string>;
   onClick?: (ref: EntityLinkRef) => void;
 }
 
-// Mutable shared config so the plugin can react to live changes without
-// re-creating the extension. The hook (`useEntityEditor`) updates these
-// fields whenever settings or the entity list changes.
+// Shared appearance/interaction preferences. Auto-detection is editor-owned:
+// self/parent exclusions must never be overwritten by another mounted editor.
 export const entityLinkConfig = {
-  autoDetectTargets: new Map<string, AutoDetectTarget>(),
-  autoDetectEnabled: true,
   // When false, clicks on entity-link marks are ignored (no navigation).
   // Visual styling is gated separately via the `data-entity-link-interactive`
   // attribute on <html> (see editor-preferences.ts and index.css).
@@ -164,6 +164,7 @@ const AUTO_DETECT_DEBOUNCE_MS = 500;
 
 interface AutoDetectViewState {
   timer: ReturnType<typeof setTimeout> | null;
+  config: EntityLinkAutoDetectConfig;
 }
 const autoDetectStates = new WeakMap<EditorView, AutoDetectViewState>();
 
@@ -174,19 +175,39 @@ const autoDetectStates = new WeakMap<EditorView, AutoDetectViewState>();
 // alias that is a prefix of another ("Mira" vs "Lady Mira") yields the longer
 // match at a position. Matching stays verbatim/case-sensitive — CJK-safe (no
 // word boundaries, which don't exist between CJK chars).
-let cachedMatcherMap: Map<string, AutoDetectTarget> | null = null;
-let cachedMatcher: RegExp | null = null;
-function getMergedMatcher(): RegExp | null {
-  const map = entityLinkConfig.autoDetectTargets;
-  if (cachedMatcherMap === map) return cachedMatcher;
-  cachedMatcherMap = map;
+const matchers = new WeakMap<ReadonlyMap<string, AutoDetectTarget>, RegExp | null>();
+function getMergedMatcher(map: ReadonlyMap<string, AutoDetectTarget>): RegExp | null {
+  if (matchers.has(map)) return matchers.get(map)!;
   const names = Array.from(map.keys())
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
-  cachedMatcher = names.length
+  const matcher = names.length
     ? new RegExp(names.map(escapeRegExp).join('|'), 'g')
     : null;
-  return cachedMatcher;
+  matchers.set(map, matcher);
+  return matcher;
+}
+
+function scheduleAutoDetect(view: EditorView, markType: MarkType, state: AutoDetectViewState): void {
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = null;
+  if (!state.config.autoDetectEnabled || state.config.autoDetectTargets.size === 0) return;
+  state.timer = setTimeout(() => runAutoDetect(view, markType), AUTO_DETECT_DEBOUNCE_MS);
+}
+
+/** Update one live view without recreating its extension, document or history. */
+export function configureEntityLinkAutoDetect(editor: Editor, config: EntityLinkAutoDetectConfig): void {
+  if (editor.isDestroyed) return;
+  const state = autoDetectStates.get(editor.view);
+  if (!state) return;
+  if (state.config.autoDetectEnabled === config.autoDetectEnabled && state.config.autoDetectTargets === config.autoDetectTargets) return;
+  state.config = config;
+  // A queued typing burst must use the new names/settings; disabling cancels it.
+  if (state.timer) scheduleAutoDetect(editor.view, editor.schema.marks.entityLink, state);
+}
+
+export function isEntityLinkAutoDetectEnabled(editor: Editor): boolean {
+  return !editor.isDestroyed && Boolean(autoDetectStates.get(editor.view)?.config.autoDetectEnabled);
 }
 
 // Walk the whole doc and link any unlinked run matching a registered name.
@@ -196,12 +217,14 @@ function getMergedMatcher(): RegExp | null {
 // clears any pending debounce timer for this view.
 function runAutoDetect(view: EditorView, markType: MarkType): void {
   const st = autoDetectStates.get(view);
+  if (!st) return;
   if (st?.timer) {
     clearTimeout(st.timer);
     st.timer = null;
   }
-  if (!entityLinkConfig.autoDetectEnabled) return;
-  const matcher = getMergedMatcher();
+  const { autoDetectEnabled, autoDetectTargets } = st.config;
+  if (!autoDetectEnabled) return;
+  const matcher = getMergedMatcher(autoDetectTargets);
   if (!matcher) return;
 
   const tr = view.state.tr;
@@ -213,7 +236,7 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
     let match: RegExpExecArray | null;
     while ((match = matcher.exec(text)) !== null) {
       const name = match[0];
-      const target = entityLinkConfig.autoDetectTargets.get(name);
+      const target = autoDetectTargets.get(name);
       if (!target) continue;
       // A PM text node is a uniform mark run, so one check covers it: if it
       // already links to this target, every match inside is already linked.
@@ -254,16 +277,16 @@ export interface EntityLinkSpan {
  * mention projection the relational tools depend on isn't silently dropped.
  * Returns [] when auto-detect is off or no targets are registered.
  */
-export function detectEntityLinkSpans(text: string): EntityLinkSpan[] {
-  if (!text || !entityLinkConfig.autoDetectEnabled) return [];
-  const matcher = getMergedMatcher();
+export function detectEntityLinkSpans(text: string, config: EntityLinkAutoDetectConfig): EntityLinkSpan[] {
+  if (!text || !config.autoDetectEnabled) return [];
+  const matcher = getMergedMatcher(config.autoDetectTargets);
   if (!matcher) return [];
   const spans: EntityLinkSpan[] = [];
   matcher.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = matcher.exec(text)) !== null) {
     const name = match[0];
-    const target = entityLinkConfig.autoDetectTargets.get(name);
+    const target = config.autoDetectTargets.get(name);
     if (!target) continue;
     spans.push({
       from: match.index,
@@ -301,11 +324,6 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
       HTMLAttributes: {},
       onClick: undefined,
     };
-  },
-
-  onCreate() {
-    entityLinkConfig.autoDetectTargets = this.options.autoDetectTargets;
-    entityLinkConfig.autoDetectEnabled = this.options.autoDetectEnabled;
   },
 
   addAttributes() {
@@ -355,6 +373,10 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
   addProseMirrorPlugins() {
     const markType = this.type;
     const onClick = this.options.onClick;
+    const initialAutoDetectConfig = {
+      autoDetectTargets: this.options.autoDetectTargets,
+      autoDetectEnabled: this.options.autoDetectEnabled,
+    };
 
     return [
       new Plugin({
@@ -371,7 +393,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         view(editorView) {
           applyEntityLinkTargetColors(editorView.dom);
           let appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
-          autoDetectStates.set(editorView, { timer: null });
+          autoDetectStates.set(editorView, { timer: null, config: initialAutoDetectConfig });
           return {
             update(view, prevState) {
               // New/replaced mark DOM is styled by renderHTML, including paste,
@@ -386,12 +408,9 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
               // React only to doc changes — cheap identity check (PM mints a new
               // doc node on any change); skip selection-only updates.
               if (!docChanged) return;
-              if (!entityLinkConfig.autoDetectEnabled) return;
-              if (entityLinkConfig.autoDetectTargets.size === 0) return;
               const st = autoDetectStates.get(view);
               if (!st) return;
-              if (st.timer) clearTimeout(st.timer);
-              st.timer = setTimeout(() => runAutoDetect(view, markType), AUTO_DETECT_DEBOUNCE_MS);
+              scheduleAutoDetect(view, markType, st);
             },
             destroy() {
               const st = autoDetectStates.get(editorView);

@@ -77,6 +77,12 @@ if (report.agentDecorations) {
   assert.equal(report.decorationReadiness.unfocusedVisiblePaneHasPresentation, true);
   assert.equal(report.decorationReadiness.unfocusedPaneOwnsCommands, false);
 }
+if (report.entityLinkOwnership) {
+  assert.deepEqual(report.entityLinkOwnership.groups.map((group) => group.editors), [1, 5, 20]);
+  for (const group of report.entityLinkOwnership.groups) assert.equal(group.correctEditors, group.editors);
+  assert(report.entityLinkOwnership.checks.length > 0);
+  for (const check of report.entityLinkOwnership.checks) assert.equal(check.passed, true, check.id);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

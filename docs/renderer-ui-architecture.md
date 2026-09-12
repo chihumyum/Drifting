@@ -106,6 +106,14 @@ masking, undo, listener disposal, and the lifecycle provider/hook handshake.
 Full-app tab/split interaction, scroll/draft continuity, native IME and retained
 document memory measurements remain separate acceptance work in the plan.
 
+Automatic linking is also view-owned. Each editor retains its own immutable
+target map and self/parent exclusions; live updates do not recreate its document.
+The view owns and cancels its debounce timer, while a weak map caches compiled
+matchers by target-map identity. Shared appearance/interaction preferences remain
+separate. Agent prose writes and review inverses pass an explicit source/project
+context to plain-text detection inside their existing Yjs transaction, so
+opening or closing a hidden editor cannot change those targets.
+
 Yjs-backed prose declares `documentMode: 'yjs'`. Its surface cannot become
 ready merely because a temporary TipTap object exists: readiness requires the
 Collaboration extension on that exact instance to reference the replayed

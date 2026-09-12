@@ -28,7 +28,7 @@ import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 
-import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
+import { parseDocId, proseDocId, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
@@ -41,6 +41,8 @@ import { hydrateProseJson } from './prose-hydrate-client';
 import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics.service';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { detectEntityLinkSpans } from '../extensions/entity-link';
+import { selectProseAutoDetectConfig } from '../entity-link-names';
+import { useSettingsStore } from '../../store/settings-store';
 import type { AgentToolContext } from './tool-handlers';
 import { runDerivedTransaction } from '../../sync/journal';
 import { appendAuthoredYjsUpdate } from '../../sync/journal/yjs-update';
@@ -75,7 +77,13 @@ function setBlockText(el: Y.XmlElement, text: string): void {
  * the agent transaction so the marks land with the edit. Each touched block is
  * plain text at this point (just written), so positions align with the string.
  */
-function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[]): void {
+function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], projectId: string | null, docId: string): void {
+  const source = parseDocId(docId);
+  if (!source) return;
+  const config = selectProseAutoDetectConfig(
+    useDataStore.getState(), useSettingsStore.getState().autoElementLinkEnabled,
+    projectId, source.kind === 'node-content' ? 'node' : source.kind, source.entityId,
+  );
   for (const blockId of blockIds) {
     const idx = blockIndexInFrag(frag, blockId);
     if (idx < 0) continue;
@@ -84,7 +92,7 @@ function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[]): void {
     for (const child of el.toArray()) {
       if (!(child instanceof Y.XmlText)) continue;
       const text = child.toString();
-      for (const span of detectEntityLinkSpans(text)) {
+      for (const span of detectEntityLinkSpans(text, config)) {
         child.format(span.from, span.to - span.from, { entityLink: span.attrs });
       }
     }
@@ -323,7 +331,7 @@ async function writeProseDoc(
     live.transact(() => {
       const frag = live.getXmlFragment('default');
       blockIds = yMutate(frag);
-      relinkBlockMentions(frag, blockIds); // re-derive @-mention marks on plain agent text
+      relinkBlockMentions(frag, blockIds, projectId, docId); // re-derive @-mention marks on plain agent text
     }, AGENT_ORIGIN);
     // The live editor persists Y.Doc updates through an asynchronous queue.
     // Do not acknowledge an Agent write until that exact queue is durable.
@@ -354,7 +362,7 @@ async function writeProseDoc(
       doc.transact(() => {
         const frag = doc.getXmlFragment('default');
         blockIds = yMutate(frag);
-        relinkBlockMentions(frag, blockIds); // re-derive @-mention marks on plain agent text
+        relinkBlockMentions(frag, blockIds, projectId, docId); // re-derive @-mention marks on plain agent text
       }, AGENT_ORIGIN);
       doc.off('update', onUpdate);
 
@@ -395,7 +403,7 @@ async function writeProseDoc(
     document.transact(() => {
       const fragment = document.getXmlFragment('default');
       blockIds = yMutate(fragment);
-      relinkBlockMentions(fragment, blockIds);
+      relinkBlockMentions(fragment, blockIds, projectId, docId);
     }, AGENT_ORIGIN);
     const fullState = Y.encodeStateAsUpdate(document);
     await appendAuthoredYjsUpdate(projectId, docId, fullState, { kind: 'agent' });
@@ -706,6 +714,8 @@ function blockTextInFrag(frag: Y.XmlFragment, blockId: string): string | null {
 function applyGuardedBlockRevert(
   frag: Y.XmlFragment,
   change: AgentBlockChange,
+  projectId: string | null,
+  docId: string,
 ): boolean {
   const currentText = blockTextInFrag(frag, change.blockId);
   if (change.op === 'changed') {
@@ -716,7 +726,7 @@ function applyGuardedBlockRevert(
       );
     }
     yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);
-    relinkBlockMentions(frag, [change.blockId]);
+    relinkBlockMentions(frag, [change.blockId], projectId, docId);
     return true;
   }
   if (change.op === 'new') {
@@ -736,7 +746,7 @@ function applyGuardedBlockRevert(
     );
   }
   yInsertBlockWithId(frag, change.afterPrevId, change.blockId, change.oldText);
-  relinkBlockMentions(frag, [change.blockId]);
+  relinkBlockMentions(frag, [change.blockId], projectId, docId);
   return true;
 }
 
@@ -765,7 +775,7 @@ export async function revertEntityBlock(
     // acknowledged the inverse, otherwise a reload can retain text whose badge
     // already disappeared.
     live.transact(
-      () => applyGuardedBlockRevert(live.getXmlFragment('default'), change),
+      () => applyGuardedBlockRevert(live.getXmlFragment('default'), change, context?.projectId ?? projectIdOverride ?? useDataStore.getState().workspaceProjectId, docId),
       REVERT_ORIGIN,
     );
     await flushOpenYjsDocument(docId);
@@ -796,7 +806,7 @@ export async function revertEntityBlock(
       };
       doc.on('update', onUpdate);
       doc.transact(
-        () => applyGuardedBlockRevert(doc.getXmlFragment('default'), change),
+        () => applyGuardedBlockRevert(doc.getXmlFragment('default'), change, projectId, docId),
         REVERT_ORIGIN,
       );
       doc.off('update', onUpdate);

@@ -163,7 +163,8 @@
           "id": "F3-01",
           "requirement": "不相关实体的 Agent 状态不触发编辑器装饰计算",
           "evidence": [
-            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json"
           ],
           "status": "passed"
         },
@@ -171,7 +172,8 @@
           "id": "F3-02",
           "requirement": "隐藏标签延迟安全的显示计算，仍接收权威更新并完成必要持久化",
           "evidence": [
-            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json"
           ],
           "status": "partial"
         },
@@ -179,7 +181,8 @@
           "id": "F3-03",
           "requirement": "标签返回及 split 保留草稿、撤销、选择、滚动和审阅遮罩，无空白或泄露帧",
           "evidence": [
-            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json"
           ],
           "status": "partial"
         },
@@ -187,12 +190,13 @@
           "id": "F3-04",
           "requirement": "多标签达到 F0 预算，关闭后监听器和文档保留数量不持续增长",
           "evidence": [
-            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "entity_scoped_review_decorations_and_preparation_barrier_implemented"
+      "implementationStatus": "scoped_review_decorations_preparation_and_editor_link_ownership_implemented"
     },
     {
       "id": "F4",

@@ -215,3 +215,37 @@ budgets remain passing. These are isolated controller/provider checks, not the
 full App's 1/5/20-tab matrix or native masking/scroll/IME acceptance. Other editor
 responsibilities and retained-document memory still require work; F3 remains
 `in_progress`.
+
+## F3b editor-owned automatic linking
+
+Automatic-link targets and enabled state now belong to each ProseMirror view.
+The extension no longer writes a process-wide automatic-link configuration on
+creation. `useEntityLinkConfiguration` applies live per-view changes in a layout
+effect and retains the existing shared appearance/interaction wiring. A changed
+configuration updates pending typing work; disabling or destroying the view
+cancels its timer. Compiled matchers use weak target-map keys, so alternating
+editors reuse their own matcher instead of replacing a single shared cache.
+
+Plain-string detection now requires an explicit context. Agent prose writes
+and guarded review inverses derive targets from their source entity and current
+project snapshot inside the existing Yjs transaction. They no longer depend on
+which editor last mounted; an unrelated project's snapshot cannot supply link
+targets. Persistence, journal acknowledgement and block-revert guards retain
+their existing ordering.
+
+Generated [f3-editor-link-ownership.json](acceptance/f3-editor-link-ownership.json)
+tests groups of 1/5/20 real editors, with inactive hosts kept mounted. Every
+editor preserves its self exclusion after creation callbacks; updating one
+view's targets leaves other views unchanged. Element self/alias and patch parent
+exclusions, runtime disable/re-enable, explicit flush and disposal of queued
+timers pass. Unit tests additionally prove 20 alternating immutable target maps
+are compiled once each across 2,000 detections, and real Yjs review reversion
+restores the target mention while leaving the source name unlinked without an
+editor mounted.
+
+Validation: 18 focused tests; full Vitest (2,181 passed, 1 skipped), typecheck,
+lint, public/CI contract, Agent capabilities and conversation-sync checks,
+production renderer build, guarded browser runner and report checker. Earlier
+input/Review/subscription checks remain passing. These editor-instance scenarios
+do not establish full-app tab navigation, native input or memory budgets. F3's
+remaining session/presentation work stays in progress.

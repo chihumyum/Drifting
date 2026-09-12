@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyEntityLinkTargetColors,
   entityLinkConfig,
+  detectEntityLinkSpans,
+  type AutoDetectTarget,
   type EntityLinkTargetColorResolver,
 } from './entity-link';
 
@@ -26,6 +28,30 @@ function colorRoot(targetId: string, targetKind = 'element', initialColor = '') 
 
 afterEach(() => {
   entityLinkConfig.resolveTargetColor = () => null;
+});
+
+describe('explicit entity-link detection context', () => {
+  it('keeps longest-first verbatim matches and explicit enabled state', () => {
+    const autoDetectTargets = new Map<string, AutoDetectTarget>([
+      ['山', { kind: 'element', id: 'short' }],
+      ['远山', { kind: 'element', id: 'long' }],
+      ['A+B', { kind: 'node', id: 'literal' }],
+    ]);
+    expect(detectEntityLinkSpans('远山 A+B 山', { autoDetectTargets, autoDetectEnabled: true }).map((span) => [span.from, span.to, span.attrs.targetId]))
+      .toEqual([[0, 2, 'long'], [3, 6, 'literal'], [7, 8, 'short']]);
+    expect(detectEntityLinkSpans('远山', { autoDetectTargets, autoDetectEnabled: false })).toEqual([]);
+  });
+
+  it('compiles each immutable target map once when alternating editor contexts', () => {
+    const maps = Array.from({ length: 20 }, (_, index) => new Map<string, AutoDetectTarget>([['合成', { kind: 'node', id: String(index) }]]));
+    const keys = maps.map((map) => vi.spyOn(map, 'keys'));
+    for (let iteration = 0; iteration < 100; iteration++) {
+      maps.forEach((autoDetectTargets, index) => {
+        expect(detectEntityLinkSpans('合成', { autoDetectTargets, autoDetectEnabled: true })[0].attrs.targetId).toBe(String(index));
+      });
+    }
+    for (const spy of keys) expect(spy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('applyEntityLinkTargetColors', () => {

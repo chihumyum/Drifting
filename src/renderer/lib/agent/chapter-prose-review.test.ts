@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { proseDocId } from '../yjs-doc-id';
 import { registerLiveYDoc } from '../yjs-doc-registry';
 import { registerLocalYjsDocument } from '../../services/yjs-local-durability.service';
+import { useDataStore } from '../../store/data-store';
+import { useSettingsStore } from '../../store/settings-store';
+import { createSyntheticWorkspaceProjection } from '../../performance/fixture';
 import {
   revertEntityBlock,
   yInsertBlockWithId,
@@ -28,6 +31,31 @@ describe('guarded block-level Agent review inverse', () => {
     release();
     releasePersistence();
     doc.destroy();
+  });
+
+  it('restores mention marks using the reviewed source without a mounted editor', async () => {
+    const before = useDataStore.getState();
+    const settings = useSettingsStore.getState();
+    try {
+      const fixture = createSyntheticWorkspaceProjection('project-review', 2, 1);
+      fixture.bookNodes[0] = { ...fixture.bookNodes[0], id: 'node-review', title: '源章节' };
+      fixture.bookNodes[1] = { ...fixture.bookNodes[1], title: '目标章节' };
+      useDataStore.setState({ ...fixture, workspaceProjectId: 'project-review', workspaceProjectionEpoch: 1 });
+      useSettingsStore.setState({ autoElementLinkEnabled: true });
+      const fragment = doc.getXmlFragment('default');
+      doc.transact(() => yInsertBlockWithId(fragment, null, 'mention-block', 'Agent 正文'));
+      await revertEntityBlock('node', 'node-review', {
+        blockId: 'mention-block', op: 'changed', oldText: '源章节与目标章节', newText: 'Agent 正文', afterPrevId: null,
+      }, undefined, 'project-review');
+      const paragraph = fragment.get(0) as Y.XmlElement;
+      const text = paragraph.get(0) as Y.XmlText;
+      const segments = text.toDelta() as { insert: string; attributes?: { entityLink?: { targetId: string } } }[];
+      expect(segments.filter((segment) => segment.attributes?.entityLink).map((segment) => [segment.insert, segment.attributes?.entityLink?.targetId]))
+        .toEqual([['目标章节', fixture.bookNodes[1].id]]);
+    } finally {
+      useDataStore.setState(before, true);
+      useSettingsStore.setState(settings, true);
+    }
   });
 
   it('removes one Agent-created block and is idempotent on retry', async () => {
