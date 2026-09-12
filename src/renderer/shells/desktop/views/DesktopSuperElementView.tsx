@@ -15,6 +15,7 @@ import { isChapter, isDrift } from '../../../domain/book-node';
 import type { Storyline } from '../../../domain/storyline';
 import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
+import { findById } from '../../../lib/immutable-id-index';
 import {
   solveSuperElementLayout,
   type LayoutInput,
@@ -50,6 +51,11 @@ import {
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
+import {
+  buildSuperElementWorldEdges,
+  projectSuperElementViewportEdges,
+  type SuperElementWorldEdge,
+} from '../../../features/graph/super-element-edge-model';
 import {
   beginSuperViewPinch,
   updateSuperViewPinch,
@@ -850,8 +856,8 @@ export function DesktopSuperElementView() {
   );
   const relationEndpointLabel = useCallback(
     (kind: string, id: string) => {
-      if (kind === 'element') return bookElements.find((element) => element.id === id)?.name ?? '?';
-      if (kind === 'node') return bookNodes.find((node) => node.id === id)?.title ?? '?';
+      if (kind === 'element') return findById(bookElements, id)?.name ?? '?';
+      if (kind === 'node') return findById(bookNodes, id)?.title ?? '?';
       return '?';
     },
     [bookElements, bookNodes],
@@ -1281,71 +1287,11 @@ export function DesktopSuperElementView() {
   // refs would leak into the world-edge layer with no position to anchor to.
   const driftIds = useMemo(() => new Set(bookNodes.filter(isDrift).map((n) => n.id)), [bookNodes]);
 
-  type WorldEdge = {
-    id: string;
-    refId: string;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    relationTypeId: string;
-    directed: boolean;
-    targetInsetX: number;
-    targetInsetY: number;
-    color: string;
-    fromName: string;
-    toName: string;
-  };
-  const worldEdges = useMemo<WorldEdge[]>(() => {
-    const out: WorldEdge[] = [];
-    for (const ref of entityRelations) {
-      if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
-      const fromIsEl = ref.fromKind === 'element';
-      const toIsEl = ref.toKind === 'element';
-      const fromIsNode = ref.fromKind === 'node';
-      const toIsNode = ref.toKind === 'node';
-      if (!fromIsEl && !toIsEl) continue;
-      if (fromIsNode && driftIds.has(ref.fromId)) continue;
-      if (toIsNode && driftIds.has(ref.toId)) continue;
-      const fromPt = fromIsEl
-        ? elementCenters.get(ref.fromId)
-        : fromIsNode
-          ? nodeCenters.get(ref.fromId)
-          : null;
-      const toPt = toIsEl
-        ? elementCenters.get(ref.toId)
-        : toIsNode
-          ? nodeCenters.get(ref.toId)
-          : null;
-      if (!fromPt || !toPt) continue;
-      const fromName = fromIsEl
-        ? (bookElements.find((e) => e.id === ref.fromId)?.name ?? '?')
-        : fromIsNode
-          ? (bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?')
-          : '?';
-      const toName = toIsEl
-        ? (bookElements.find((e) => e.id === ref.toId)?.name ?? '?')
-        : toIsNode
-          ? (bookNodes.find((n) => n.id === ref.toId)?.title ?? '?')
-          : '?';
-      out.push({
-        id: ref.id,
-        refId: ref.id,
-        x1: fromPt.x,
-        y1: fromPt.y,
-        x2: toPt.x,
-        y2: toPt.y,
-        relationTypeId: ref.relationTypeId,
-        directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
-        targetInsetX: (toIsNode ? BAND_PILL_PX : CELL_W) / 2 + 6,
-        targetInsetY: CELL_H / 2 + 6,
-        color: resolveRelationTypeColor(ref.relationTypeId),
-        fromName,
-        toName,
-      });
-    }
-    return out;
-  }, [
+  const worldEdges = useMemo(() => buildSuperElementWorldEdges({
+    entityRelations, hiddenRelationTypeIds, bookElements, bookNodes, elementCenters, nodeCenters,
+    driftIds, relationTypeById, resolveRelationTypeColor,
+    cellWidth: CELL_W, cellHeight: CELL_H, bandPillWidth: BAND_PILL_PX,
+  }), [
     entityRelations,
     hiddenRelationTypeIds,
     elementCenters,
@@ -2009,7 +1955,7 @@ export function DesktopSuperElementView() {
   // class on the SVG element by the pan handlers below.
   const driftEdgeLayerRef = useRef<SVGSVGElement | null>(null);
 
-  // Viewport-space edge layer — only used when bandSticky is ON. When the
+  // Viewport-space edge layer for the sticky band or viewport focus filter. When the
   // band sticks to a viewport edge, world-space edges (rendered inside the
   // world transform) point to the band's NATURAL position, not its clamped
   // sticky position, so element↔node edges visually float in space. To
@@ -2017,22 +1963,7 @@ export function DesktopSuperElementView() {
   // the committed pan/zoom + sticky-clamped bandY, and render in a
   // separate fixed-position SVG. During pan, this SVG is hidden via
   // data-panning the same way drift edges are.
-  type ViewportEdgeGeom = {
-    id: string;
-    refId: string;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    relationTypeId: string;
-    directed: boolean;
-    targetInsetX: number;
-    targetInsetY: number;
-    color: string;
-    fromName: string;
-    toName: string;
-  };
-  const [viewportEdgeGeom, setViewportEdgeGeom] = useState<ViewportEdgeGeom[]>([]);
+  const [viewportEdgeGeom, setViewportEdgeGeom] = useState<SuperElementWorldEdge[]>([]);
   const viewportEdgeLayerRef = useRef<SVGSVGElement | null>(null);
   useLayoutEffect(() => {
     if (!driftPanelOpen) {
@@ -2110,7 +2041,7 @@ export function DesktopSuperElementView() {
     relationTypeById,
   ]);
 
-  // ---- Viewport edge geometry (sticky mode only) ----
+  // ---- Viewport edge geometry (sticky band or focus filter) ----
   // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
   // at gesture end. During pan we don't bother — the layer is hidden via
   // data-panning until the gesture ends. This effect is also retriggered
@@ -2126,121 +2057,13 @@ export function DesktopSuperElementView() {
       return;
     }
     if (!viewportRef.current) return;
-    const z = zoom;
-    const pX = pan.x;
-    const pY = pan.y;
-    const viewportW = viewportRef.current.clientWidth;
-    const viewportH = viewportRef.current.clientHeight;
-    const bandPxH = bandHeightCells * CELL_H * z;
-    // Visibility check for an element endpoint — only filters when the
-    // 聚焦 toggle is on. Returns false when:
-    //   1. card is fully scrolled out of viewport, OR
-    //   2. (with sticky also on) the card is behind the sticky band
-    //      (its center y falls inside the band's clamped y range).
-    // Node endpoints are always considered visible because the band itself
-    // is by construction visible when sticky is on.
-    const elementVisible = (x: number, y: number): boolean => {
-      if (!edgesViewportOnly) return true;
-      const halfW = (CELL_W * z) / 2;
-      const halfH = (CELL_H * z) / 2;
-      if (x + halfW < 0 || x - halfW > viewportW) return false;
-      if (y + halfH < 0 || y - halfH > viewportH) return false;
-      if (bandSticky && y > bandY && y < bandY + bandPxH) return false;
-      return true;
-    };
-    // Sticky-clamped band screen y — mirrors applyTransform's logic so the
-    // SVG endpoint y for any node in the band matches the band's actual
-    // visible y on screen. Band's natural top in viewport is pan.y + zoom*bandTopWorldY.
-    const naturalBandY = pY + z * bandTopWorldY;
-    let bandY: number;
-    if (naturalBandY < 0) bandY = 0;
-    else if (naturalBandY + bandPxH > viewportH) bandY = viewportH - bandPxH;
-    else bandY = naturalBandY;
-
-    const out: ViewportEdgeGeom[] = [];
-    for (const ref of entityRelations) {
-      if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
-      const fromIsEl = ref.fromKind === 'element';
-      const toIsEl = ref.toKind === 'element';
-      const fromIsNode = ref.fromKind === 'node';
-      const toIsNode = ref.toKind === 'node';
-      if (!fromIsEl && !toIsEl) continue;
-      if (fromIsNode && driftIds.has(ref.fromId)) continue;
-      if (toIsNode && driftIds.has(ref.toId)) continue;
-      const fromCenter = fromIsEl
-        ? elementCenters.get(ref.fromId)
-        : fromIsNode
-          ? nodeCenters.get(ref.fromId)
-          : null;
-      const toCenter = toIsEl
-        ? elementCenters.get(ref.toId)
-        : toIsNode
-          ? nodeCenters.get(ref.toId)
-          : null;
-      if (!fromCenter || !toCenter) continue;
-      // Element endpoint screen pos: pan + zoom*world (rides world transform).
-      // Node endpoint screen pos: pan.x + zoom*world.x for x (band x = world x);
-      //   bandY + zoom*(world.y - bandTopWorldY) for y. The subtraction
-      //   converts the node's WORLD y (which already bakes in bandTopWorldY
-      //   via nodeCenters) back to band-local y, so adding bandY (the band's
-      //   screen top, sticky-clamped or natural) gives the pill's true screen
-      //   centre. Without the subtraction we double-count bandTopWorldY and
-      //   edges land z*bandTopWorldY pixels below the pill — visible as
-      //   edges terminating near the pill's bottom edge instead of its centre.
-      const fromX = pX + z * fromCenter.x;
-      const fromY = fromIsEl ? pY + z * fromCenter.y : bandY + z * (fromCenter.y - bandTopWorldY);
-      const toX = pX + z * toCenter.x;
-      const toY = toIsEl ? pY + z * toCenter.y : bandY + z * (toCenter.y - bandTopWorldY);
-      // Drop edges whose element endpoint is off-screen. Nodes (sticky band)
-      // always count as visible. This keeps the canvas clean when the user
-      // pans to a single category — we don't want lines flying off to
-      // unseen cards making the viewport feel busy.
-      if (fromIsEl && !elementVisible(fromX, fromY)) continue;
-      if (toIsEl && !elementVisible(toX, toY)) continue;
-      const fromName = fromIsEl
-        ? (bookElements.find((e) => e.id === ref.fromId)?.name ?? '?')
-        : fromIsNode
-          ? (bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?')
-          : '?';
-      const toName = toIsEl
-        ? (bookElements.find((e) => e.id === ref.toId)?.name ?? '?')
-        : toIsNode
-          ? (bookNodes.find((n) => n.id === ref.toId)?.title ?? '?')
-          : '?';
-      out.push({
-        id: ref.id,
-        refId: ref.id,
-        x1: fromX,
-        y1: fromY,
-        x2: toX,
-        y2: toY,
-        relationTypeId: ref.relationTypeId,
-        directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
-        targetInsetX: ((toIsNode ? BAND_PILL_PX : CELL_W) / 2 + 6) * z,
-        targetInsetY: (CELL_H / 2 + 6) * z,
-        color: resolveRelationTypeColor(ref.relationTypeId),
-        fromName,
-        toName,
-      });
-    }
-    setViewportEdgeGeom(out);
-  }, [
-    bandSticky,
-    edgesViewportOnly,
-    pan,
-    zoom,
-    bandHeightCells,
-    bandTopWorldY,
-    entityRelations,
-    hiddenRelationTypeIds,
-    elementCenters,
-    nodeCenters,
-    driftIds,
-    bookElements,
-    bookNodes,
-    resolveRelationTypeColor,
-    relationTypeById,
-  ]);
+    setViewportEdgeGeom(projectSuperElementViewportEdges(worldEdges, {
+      pan, zoom, bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
+      viewportWidth: viewportRef.current.clientWidth,
+      viewportHeight: viewportRef.current.clientHeight,
+      cellWidth: CELL_W, cellHeight: CELL_H,
+    }));
+  }, [bandSticky, edgesViewportOnly, pan, zoom, bandHeightCells, bandTopWorldY, worldEdges]);
 
   return (
     <SuperViewShell className="super-element-overlay">

@@ -1,5 +1,6 @@
 import type { EntityKind } from '../domain/entity-kinds';
 import type { useDataStore } from '../store/data-store';
+import { findById } from './immutable-id-index';
 
 export const ENTITY_LINK_COLOR_MODES = ['contextual', 'kind', 'hover', 'prose'] as const;
 export type EntityLinkColorMode = (typeof ENTITY_LINK_COLOR_MODES)[number];
@@ -55,22 +56,6 @@ export function normalizeEntityLinkKindColors(value: unknown): EntityLinkKindCol
       normalizeEntityLinkHexColor(input[kind], DEFAULT_ENTITY_LINK_KIND_COLORS[kind]),
     ]),
   ) as EntityLinkKindColors;
-}
-
-// Store collections are immutable snapshots. Share each collection's index
-// across resolvers/editors without retaining retired project arrays. Keeping
-// first-match behavior also matches the previous Array.find contract.
-const collectionIndexes = new WeakMap<readonly { id: string }[], ReadonlyMap<string, { id: string }>>();
-
-function findById<T extends { id: string }>(records: readonly T[], id: string): T | undefined {
-  let index = collectionIndexes.get(records);
-  if (!index) {
-    const next = new Map<string, T>();
-    for (const record of records) if (!next.has(record.id)) next.set(record.id, record);
-    index = next;
-    collectionIndexes.set(records, index);
-  }
-  return index.get(id) as T | undefined;
 }
 
 function contextualColor(

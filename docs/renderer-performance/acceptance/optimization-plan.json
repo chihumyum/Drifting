@@ -253,12 +253,16 @@
       "dependsOn": [
         "F2"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F5-01",
           "requirement": "关系投影使用 ID 索引，几何刷新不重复渲染未变化卡片",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f5-graph-baseline.json",
+            "docs/renderer-performance/acceptance/f5-graph-projection.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F5-02",
@@ -273,9 +277,14 @@
         {
           "id": "F5-04",
           "requirement": "大图达到 F0 预算；若实现裁剪，边、选区、焦点与浮层仍完整",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f5-graph-baseline.json",
+            "docs/renderer-performance/acceptance/f5-graph-projection.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "super_element_shared_world_and_viewport_projection_implemented"
     },
     {
       "id": "F6",

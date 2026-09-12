@@ -107,6 +107,31 @@ if (report.agentDisplay) {
   assert(scenario.checks.length > 0);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
 }
+if (report.graphProjection) {
+  const scenario = report.graphProjection;
+  assert(['array-find', 'shared-id-index'].includes(scenario.implementation));
+  assert.deepEqual(scenario.results.map((item) => item.elements), [100, 1_000, 5_000]);
+  const baseline = read(path.join(directory, 'f5-graph-baseline.json')).graphProjection;
+  for (const [index, item] of scenario.results.entries()) {
+    assert.equal(item.fixtureHash, baseline.results[index].fixtureHash, 'F5a fixture changed');
+    assert.equal(item.nodes, item.elements / 5);
+    assert.equal(item.relations, item.elements * 3);
+    assert.equal(item.projectedEdges, item.relations);
+    for (const count of [item.firstProjectionIdReads, item.repeatedProjectionIdReads]) {
+      assert(Number.isSafeInteger(count) && count >= 0);
+    }
+    assert.equal(item.samplesMs.length, 5);
+    assert(item.samplesMs.every((value) => Number.isFinite(value) && value >= 0));
+    assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[2]);
+    if (scenario.implementation === 'shared-id-index') {
+      assert(item.firstProjectionIdReads <= item.elements + item.nodes, 'F5a index read budget exceeded');
+      assert.equal(item.repeatedProjectionIdReads, 0);
+      assert.equal(item.viewportProjectionIdReads, 0);
+      assert.equal(item.worldProjectionMatchesFixture, true);
+      assert(item.medianMs <= [10, 30, 100][index], 'F5a projection time budget exceeded');
+    }
+  }
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

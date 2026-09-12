@@ -188,6 +188,21 @@ Pure layout, projection, relation, editor, graph, timeline, and domain logic
 should move downward when both shells need it. Shell interaction state should
 not be generalized merely to make it importable.
 
+Super Element's `features/graph/super-element-edge-model.ts` owns the pure world
+edge projection: supported endpoint kinds, hidden relation types, full-project
+drift exclusion, labels, orientation and insets. Both world and viewport SVG
+layers consume it. The viewport projection only transforms coordinates and
+applies the existing focus filter; when the band is not sticky, node endpoints
+retain their natural world position even if focus is enabled.
+
+`lib/immutable-id-index.ts` shares first-match ID indexes by immutable collection
+identity with entity-link appearance and relation labels. New array snapshots
+receive new indexes; weak keys do not keep retired project arrays alive. These
+are rebuildable read models, not persistence or mutable author state. World
+projection is O(entities + relations) on a cold snapshot and O(relations) on a
+warm one. DOM endpoint measurement and geometry state still live in the shell
+at this F5a milestone; their isolation and frame budgets remain pending.
+
 ## Desktop universal create
 
 The desktop tab model has one shell-owned `create` variant in addition to real

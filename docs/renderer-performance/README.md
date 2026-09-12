@@ -350,3 +350,60 @@ renderer build, browser/report checks, and regenerated conversation evidence
 (50 renderer tests, 108 native tests). Full desktop/mobile panel scrolling,
 selection, long-history layout, actual restart and native interaction remain
 pending. F4 stays `in_progress` until its remaining acceptance is proved.
+
+## F5 graph projection baseline and budgets
+
+The first graph fixture calls Super Element's actual world-edge projection,
+extracted without changing its filtering/geometry behavior. It uses
+100/1,000/5,000 elements, one fifth as many chapters and three times as many
+relations. Entity ID getters count the first and repeated projection separately;
+five timing samples follow with counting disabled and warm inputs. Synthetic
+getter overhead is present in both implementations, so timing is a local
+regression measure rather than native graph capacity.
+
+Before optimization, the F5a budget is at most one ID read per input entity to
+construct the shared index, zero entity ID reads on a repeated projection over
+the same immutable arrays, unchanged edge count/content, and warm projection
+median <=10/30/100 ms respectively on the recorded local Chromium environment.
+DOM measurement and React commit budgets will be measured separately in F5b.
+
+## F5a indexed world and viewport edge projections
+
+Super Element now builds relation labels through the same weak, immutable-array
+ID index used by editor link appearance. Duplicate IDs retain the first-match
+behavior of `Array.find`; replacement arrays get new indexes without a global
+project cache. The pure world model owns endpoint filtering, full-project drift
+exclusion, names, color, direction and target insets. The viewport model reuses
+that output and only transforms coordinates and applies the existing focus
+filter. Pan/zoom no longer repeats relation label lookups.
+
+The extraction also fixes focus-only mode clamping node endpoints to a sticky
+position while the chapter band itself remains at its natural position. Sticky
+top/bottom behavior, fractional zoom, band-local offsets and visibility boundary
+semantics have explicit regression tests. Either drift endpoint is still
+excluded from the ordinary world layer independently of panel visibility.
+
+Generated [baseline](acceptance/f5-graph-baseline.json) and
+[candidate](acceptance/f5-graph-projection.json) use matching fixture hashes:
+
+| Elements / relations | Baseline ID reads per projection | Candidate first / repeated reads | Warm median before / after |
+| --- | ---: | ---: | ---: |
+| 100 / 300 | 26,300 | 120 / 0 | 0.4 / 0.1 ms |
+| 1,000 / 3,000 | 2,603,000 | 1,200 / 0 | 27.9 / 0.4 ms |
+| 5,000 / 15,000 | 65,015,000 | 6,000 / 0 | 725.3 / 2.5 ms |
+
+All three viewport modes additionally read zero entity IDs. Every candidate
+edge is checked against independently derived fixture labels, coordinates,
+ordering and styles. The report checker enforces the predeclared F5a counts and
+time budgets. This measures pure projection in the isolated Chromium harness,
+including synthetic getter overhead; it is not full graph render or native
+interaction latency.
+
+Validation: full Vitest (2,205 passed, 1 skipped, including 10 new model/index
+tests), typecheck, lint (0 errors, 76 existing warnings), public/CI contracts,
+capabilities, conversation-sync checks, production renderer build and the
+browser/report checks. F5 remains `in_progress`: geometry still commits to the
+large parent view, DOM endpoints can still be measured repeatedly, and full
+graph gestures, cards, overlays, mobile/native interaction and clipping
+acceptance remain pending. F5b will address measurement scheduling and render
+ownership separately, without changing the domain relation model.
