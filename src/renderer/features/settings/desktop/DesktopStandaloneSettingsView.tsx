@@ -2,16 +2,8 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { getPlatformRuntime } from '../../../platform/runtime';
-import {
-  AppearancePanel,
-  LanguagePanel,
-} from '../panels/PreferenceSettingsPanels';
-import {
-  AboutPanel,
-  PrivacyPanel,
-  SyncPanel,
-  UpdatePanel,
-} from '../panels/ControlSettingsPanels';
+import { useSettingsPanels } from '../useSettingsPanels';
+import { SettingsLoadStatus } from '../SettingsLoadStatus';
 
 type StandaloneSettingsId =
   | 'appearance'
@@ -66,6 +58,9 @@ function isStandaloneSettingsId(value: string | null): value is StandaloneSettin
 }
 
 function StandaloneSettingsPanel({ id }: { id: StandaloneSettingsId }) {
+  const { panels, failed, retry } = useSettingsPanels(true);
+  if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
+  const { AppearancePanel, LanguagePanel, AboutPanel, PrivacyPanel, SyncPanel, UpdatePanel } = panels;
   switch (id) {
     case 'appearance':
       return <AppearancePanel registerRef={REGISTER_NOOP} />;

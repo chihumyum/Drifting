@@ -16,7 +16,7 @@ describe('desktop settings section navigation', () => {
 
     expect(settings).toContain('main.addEventListener(\'scroll\', onScroll');
     expect(settings).toContain('className="set-main set-main--instant-section-nav"');
-    expect(settings.match(/behavior: 'auto'/g)).toHaveLength(2);
+    expect(settings.match(/behavior: 'auto'/g)).toHaveLength(3);
     expect(settings).not.toContain("behavior: 'smooth'");
     expect(css).toMatch(
       /\.set-main--instant-section-nav\s*\{[\s\S]*?scroll-behavior:\s*auto;/,

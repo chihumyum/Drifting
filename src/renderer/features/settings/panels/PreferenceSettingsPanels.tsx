@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrashPanel } from '../../../components/TrashPanel';
 import {
   useSettingsStore,
   TYPEWRITER_POSITION_MAX,
@@ -35,20 +34,6 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-
-export function TrashRailPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
-  const { t } = useTranslation();
-  return (
-    <section className="set-panel" ref={registerRef} id="trash">
-      <SettingsPanelHeader
-        kicker={t('settings.trash.kicker')}
-        title={t('settings.trash.title')}
-        sub={t('settings.trash.sub')}
-      />
-      <TrashPanel />
-    </section>
-  );
-}
 
 export function AppearancePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();

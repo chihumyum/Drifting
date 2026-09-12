@@ -5,18 +5,10 @@ import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useAuthStore } from '../../../store/auth';
 import { useFeatureAccessStore } from '../../../lib/feature-access';
-import { AccountPanel } from '../../../features/settings/panels/AccountSettingsPanel';
-import { SubscriptionPanel } from '../../../features/settings/panels/SubscriptionSettingsPanel';
-import { AppearancePanel, EditorPanel, LanguagePanel, TrashRailPanel } from '../../../features/settings/panels/PreferenceSettingsPanels';
-import { CopilotPanel, ModelsPanel } from '../../../features/settings/panels/IntelligenceSettingsPanels';
-import { AgentPanel } from '../../../features/settings/panels/AgentSettingsPanel';
-import {
-  AboutPanel,
-  KeysPanel,
-  PrivacyPanel,
-  SyncPanel,
-  UpdatePanel,
-} from '../../../features/settings/panels/ControlSettingsPanels';
+import { useSettingsPanels } from '../useSettingsPanels';
+import { SettingsLoadStatus } from '../SettingsLoadStatus';
+import { TrashRailPanel } from '../panels/TrashSettingsPanel';
+
 import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
@@ -185,6 +177,11 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
   const mainRef = useRef<HTMLDivElement | null>(null);
   const panelRefs = useRef<Partial<Record<RailId, HTMLElement>>>({});
   const RAIL = useRail();
+  const { panels, failed, retry } = useSettingsPanels(isOpen);
+  const pendingRailRef = useRef<RailId | null>(null);
+  const registerPanel = useCallback((id: RailId, element: HTMLElement | null) => {
+    panelRefs.current[id] = element ?? undefined;
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -233,6 +230,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       RAIL_IDS.has(initialRailId as RailId) &&
       RAIL.some((item) => item.id === initialRailId);
     const target = hasDeepLink ? (initialRailId as RailId) : active;
+    pendingRailRef.current = target;
     const apply = () => {
       // Set the rail highlight here (deferred in the rAF, not synchronously in
       // the effect body) so it lands together with the scroll.
@@ -248,7 +246,21 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialRailId]);
 
+  // A rail can be selected while its code is loading. Scroll only after the
+  // selected panel has mounted, without replacing the shell or resetting query.
+  useEffect(() => {
+    if (!isOpen || !panels) return;
+    const raf = requestAnimationFrame(() => {
+      const el = panelRefs.current[pendingRailRef.current ?? active];
+      if (el && mainRef.current) mainRef.current.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
+    });
+    return () => cancelAnimationFrame(raf);
+    // Selection changes already scroll in onRail; loading completion is separate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, panels]);
+
   const onRail = useCallback((id: RailId) => {
+    pendingRailRef.current = id;
     setActive(id);
     const el = panelRefs.current[id];
     const main = mainRef.current;
@@ -274,41 +286,67 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
         <main className="set-main set-main--instant-section-nav" ref={mainRef}>
-          {accountSettingsEnabled && (
-            <>
-              <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
-              <SubscriptionPanel
-                registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
-              />
-            </>
+          {panels ? (
+            <LoadedSettingsPanels
+              panels={panels}
+              accountSettingsEnabled={accountSettingsEnabled}
+              active={active}
+              isOpen={isOpen}
+              registerPanel={registerPanel}
+            />
+          ) : (
+            <SettingsLoadStatus failed={failed} retry={retry} />
           )}
-          <TrashRailPanel registerRef={(el) => (panelRefs.current.trash = el ?? undefined)} />
-          <AppearancePanel registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)} />
-          <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
-          <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
-          <ModelsPanel
-            credentialsActive={active === 'models'}
-            registerRef={(el) => (panelRefs.current.models = el ?? undefined)}
-          />
-          <CopilotPanel
-            credentialsActive={active === 'copilot'}
-            registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)}
-          />
-          <AgentPanel
-            open={isOpen}
-            registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
-          />
-          <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
-          <SyncPanel
-            registerRef={(el) => (panelRefs.current.sync = el ?? undefined)}
-            projectImportEnabled
-          />
-          <UpdatePanel registerRef={(el) => (panelRefs.current.updates = el ?? undefined)} />
-          <PrivacyPanel registerRef={(el) => (panelRefs.current.privacy = el ?? undefined)} />
-          <AboutPanel registerRef={(el) => (panelRefs.current.about = el ?? undefined)} />
         </main>
       </div>
     </div>
+  );
+}
+
+function LoadedSettingsPanels({ panels, accountSettingsEnabled, active, isOpen, registerPanel }: {
+  panels: NonNullable<ReturnType<typeof useSettingsPanels>['panels']>;
+  accountSettingsEnabled: boolean;
+  active: RailId;
+  isOpen: boolean;
+  registerPanel: (id: RailId, element: HTMLElement | null) => void;
+}) {
+  const { AccountPanel, SubscriptionPanel, AppearancePanel, EditorPanel, LanguagePanel,
+    ModelsPanel, CopilotPanel, AgentPanel, KeysPanel, SyncPanel, UpdatePanel, PrivacyPanel, AboutPanel } = panels;
+  return (
+    <>
+      {accountSettingsEnabled && (
+        <>
+          <AccountPanel registerRef={(el) => registerPanel('account', el)} />
+          <SubscriptionPanel
+            registerRef={(el) => registerPanel('subscription', el)}
+          />
+        </>
+      )}
+      <TrashRailPanel registerRef={(el) => registerPanel('trash', el)} />
+      <AppearancePanel registerRef={(el) => registerPanel('appearance', el)} />
+      <EditorPanel registerRef={(el) => registerPanel('editor', el)} />
+      <LanguagePanel registerRef={(el) => registerPanel('language', el)} />
+      <ModelsPanel
+        credentialsActive={active === 'models'}
+        registerRef={(el) => registerPanel('models', el)}
+      />
+      <CopilotPanel
+        credentialsActive={active === 'copilot'}
+        registerRef={(el) => registerPanel('copilot', el)}
+      />
+      <AgentPanel
+        open={isOpen}
+        registerRef={(el) => registerPanel('agent', el)}
+      />
+      <KeysPanel registerRef={(el) => registerPanel('keys', el)} />
+      <SyncPanel
+        registerRef={(el) => registerPanel('sync', el)}
+        projectImportEnabled
+      />
+      <UpdatePanel registerRef={(el) => registerPanel('updates', el)} />
+      <PrivacyPanel registerRef={(el) => registerPanel('privacy', el)} />
+      <AboutPanel registerRef={(el) => registerPanel('about', el)} />
+    </>
   );
 }
 

@@ -44,6 +44,8 @@
     "continueLocal": "Continue locally"
   },
   "settings": {
+    "loading": "Loading settings…",
+    "loadFailed": "Settings could not be loaded. Try again.",
     "title": "Settings",
     "title_en": "",
     "esc_close": "Press Esc to close",

@@ -24,6 +24,32 @@ function sourceFiles(relativeDirectory: string): string[] {
 }
 
 describe('renderer ownership boundaries', () => {
+  it('keeps settings code behind its deferred entry while Trash stays independently reachable', () => {
+    const settingsRoot = path.join(rendererRoot, 'features/settings');
+    const facade = path.join(settingsRoot, 'settings-panels');
+    for (const file of sourceFiles('')) {
+      const ast = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+      for (const statement of ast.statements) {
+        if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+        if (ts.isImportDeclaration(statement) && statement.importClause?.isTypeOnly) continue;
+        if (ts.isExportDeclaration(statement) && statement.isTypeOnly) continue;
+        const specifier = statement.moduleSpecifier;
+        if (!specifier || !ts.isStringLiteral(specifier)) continue;
+        const imported = specifier.text.startsWith('@/')
+          ? path.resolve(rendererRoot, '..', specifier.text.slice(2))
+          : path.resolve(path.dirname(file), specifier.text);
+        const target = imported.replace(/\.(ts|tsx)$/, '');
+        expect(target, `${path.relative(rendererRoot, file)} eagerly imports settings`).not.toBe(facade);
+        if (!target.startsWith(path.join(settingsRoot, 'panels') + path.sep)) continue;
+        if (target.endsWith('/TrashSettingsPanel')) continue;
+        expect(
+          file === `${facade}.ts` || file.startsWith(path.join(settingsRoot, 'panels') + path.sep),
+          `${path.relative(rendererRoot, file)} bypasses the deferred settings entry`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it('requires explicit workspace fields or selectors in product consumers', () => {
     for (const directory of ['app', 'components', 'features', 'hooks', 'shells', 'views']) {
       for (const file of sourceFiles(directory)) {

@@ -88,13 +88,13 @@ if (process.argv.includes('--check')) {
           if (key) return `;(globalThis.__DEFERRED_LIBRARY_EVALUATIONS__ ??= []).push(${JSON.stringify(key)});\n${code}`;
         },
         generateBundle(_options, bundle) {
-          for (const item of Object.values(bundle)) if (item.type === 'chunk') chunks.push({ file: item.fileName, entry: item.isEntry, bytes: Buffer.byteLength(item.code), imports: item.imports, targets: [...new Set(Object.keys(item.modules).map(target).filter(Boolean))] });
+          for (const item of Object.values(bundle)) if (item.type === 'chunk') chunks.push({ file: item.fileName, entry: item.isEntry, htmlEntry: item.facadeModuleId === path.join(root, 'index.html'), bytes: Buffer.byteLength(item.code), imports: item.imports, targets: [...new Set(Object.keys(item.modules).map(target).filter(Boolean))] });
           else if (/pdf\.worker.*\.mjs$/.test(item.fileName)) workerAssets.push({ file: item.fileName, bytes: Buffer.byteLength(item.source) });
         },
       }], build: { outDir, emptyOutDir: true } });
     const initialFiles = new Set();
     function visit(file) { if (initialFiles.has(file)) return; initialFiles.add(file); for (const imported of chunks.find((chunk) => chunk.file === file)?.imports ?? []) visit(imported); }
-    for (const chunk of chunks.filter((chunk) => chunk.entry)) visit(chunk.file);
+    for (const chunk of chunks.filter((chunk) => chunk.htmlEntry)) visit(chunk.file);
     for (const chunk of chunks) chunk.initial = initialFiles.has(chunk.file);
     server = await preview({ root, configFile: false, envDir: false, logLevel: 'warn', build: { outDir }, preview: { host: '127.0.0.1', port: 0, open: false } });
     browser = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-extensions', '--disable-background-networking', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });

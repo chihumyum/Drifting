@@ -83,9 +83,37 @@ Relational Markdown export loads JSZip only when building an archive. The
 existing open-Yjs flush, transactionally consistent source capture, authored
 prose interpretation and native save/cancel flow remain the authority. Neither
 library owns the project runtime, editor sessions or native lifecycle listeners.
-Failed module-fetch retry, offline native paths, other heavy features and app
+PDF/ZIP module-fetch retry, offline native paths, other heavy features and app
 startup budgets remain F7 acceptance work; document-error recovery alone does
 not satisfy those gates.
+
+### Deferred settings content
+
+Desktop project settings, desktop standalone settings and mobile settings retain
+ownership of their navigation, search/selection and Back/close handlers. Only
+panel content waits for `useSettingsPanels`. The mobile settings index itself
+loads no panel code. Project Trash uses the independent `TrashSettingsPanel`,
+so it does not pull all preference controls into startup. Desktop modal rail
+refs remain owned by the modal through a registration callback; when content
+arrives it scrolls to the latest requested rail. Closing keeps the existing
+modal selection/query lifetime and prevents late content from mounting.
+
+The shared deferred module owner caches code and coalesces requests; it owns no
+project, editor, credentials or document. Failure stays local until explicit
+retry. Browser experiments showed that retrying an identical failed import URL
+stayed rejected. `vite-plugins/deferred-settings.ts` emits the typed settings
+entry and appends a fresh `settings-attempt` query on each load attempt, retaining
+the build's hashed file and local URL. Successful loads remain shared without
+further requests. The production graph check requires this entry's static JS
+dependencies to belong to the initial HTML entry closure, so this recovery path
+has only one cold module request. A separate emitted entry is not an HTML startup
+entry; loading evidence follows the HTML entry's static closure explicitly.
+
+The plugin also supplies a Vite development URL; native local-resource protocols,
+upgrade asset consistency and module evaluation failures still need acceptance.
+The complete project settings panels and their editor/runtime surroundings are
+not covered by standalone browser preference tests. No automatic app reload or
+new Suspense boundary surrounds the workspace.
 
 ### Desktop editor-session continuity
 

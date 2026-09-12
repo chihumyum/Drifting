@@ -2,23 +2,8 @@ import { useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { AccountPanel } from '../../../features/settings/panels/AccountSettingsPanel';
-import { SubscriptionPanel } from '../../../features/settings/panels/SubscriptionSettingsPanel';
-import {
-  AppearancePanel,
-  EditorPanel,
-  LanguagePanel,
-} from '../../../features/settings/panels/PreferenceSettingsPanels';
-import {
-  CopilotPanel,
-  ModelsPanel,
-} from '../../../features/settings/panels/IntelligenceSettingsPanels';
-import {
-  AboutPanel,
-  KeysPanel,
-  PrivacyPanel,
-  SyncPanel,
-} from '../../../features/settings/panels/ControlSettingsPanels';
+import { useSettingsPanels } from '../../../features/settings/useSettingsPanels';
+import { SettingsLoadStatus } from '../../../features/settings/SettingsLoadStatus';
 import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
@@ -104,6 +89,9 @@ function MobileSettingsPanel({
   id: MobileSettingsId;
   accountSettingsEnabled: boolean;
 }) {
+  const { panels, failed, retry } = useSettingsPanels(true);
+  if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
+  const { AccountPanel, SubscriptionPanel, AppearancePanel, EditorPanel, LanguagePanel, CopilotPanel, ModelsPanel, AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } = panels;
   switch (id) {
     case 'account':
       return accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;

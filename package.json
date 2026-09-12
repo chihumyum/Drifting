@@ -51,6 +51,7 @@
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
     "perf:renderer": "node scripts/run-renderer-performance.mjs",
     "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
+    "perf:renderer:settings": "node scripts/run-renderer-deferred-settings.mjs",
     "perf:renderer:libraries": "node scripts/run-renderer-deferred-libraries.mjs",
     "workspace:refresh:acceptance": "node scripts/run-workspace-refresh-acceptance.mjs",
     "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",

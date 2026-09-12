@@ -1217,3 +1217,84 @@ Only this F7 acceptance report is regenerated here; earlier phase reports remain
 historical evidence of their recorded source, not fresh native or performance
 claims. F7 remains `in_progress`, with settings/routes/graphs, robust chunk
 failure recovery and native/app startup gates still open.
+
+## F7b — Shared deferred settings with local recovery
+
+Three settings surfaces previously imported the same heavy panels statically.
+Deferring only the project modal would leave standalone desktop/mobile imports
+in the startup graph. The six panel groups now share `settings-panels.ts`, loaded
+when an actual panel is requested. Existing headers, navigation, search/selection,
+Back/close handlers and the project runtime stay in their original owners.
+Mobile's settings index loads no panel code. `TrashSettingsPanel` is independent
+so the project's mobile Trash entry does not import the entire preference module.
+
+`createDeferredModule` coalesces requests, retains successful code and exposes a
+local failure with explicit retry. It stores no feature instance or document.
+The first browser experiment demonstrated that clearing a rejected application
+Promise did not recover a cached failed import URL. The Vite plugin now emits a
+settings entry and uses a new query for each attempt to import that same hashed
+file. This avoids forcing a workspace reload. The production graph check verifies
+that all static dependencies of that entry already belong to startup's HTML
+entry closure; it does not claim recovery for another untested cold dependency,
+module evaluation error, missing upgrade asset or native resource protocol.
+
+The reports are generated with:
+
+```bash
+pnpm perf:renderer:settings --baseline
+pnpm perf:renderer:settings
+pnpm perf:renderer:settings --baseline --check
+pnpm perf:renderer:settings --check
+```
+
+The baseline command builds an isolated detached checkout of `4a6734d` using its
+actual production configuration and source. Both graph measurements add the same
+six evaluation counters; neither injects the UI fixture into `main.tsx`. The
+separate emitted settings entry is excluded from startup unless it belongs to the
+HTML entry's static closure. The earlier PDF/ZIP runner now uses this same HTML
+entry distinction for future measurements; its existing reports remain historical.
+
+| Production entry observation | Before settings deferral | After |
+| --- | ---: | ---: |
+| Initial static JS dependency bytes | 5,187,486 | 5,012,890 |
+| Settings panel groups evaluated before use | 6 | 0 |
+| Settings panel groups in parsed startup scripts | 6 | 0 |
+
+The observed initial JS footprint falls by 174,596 bytes (about 3.4%). The emitted
+settings entry is 173,262 bytes. This describes JS dependency bytes and actual
+browser parsing/evaluation, not startup latency, gzip transfer savings or an F0
+budget result. Source fingerprints and exact baseline commit are recorded.
+
+A separate production build mounts the real desktop/mobile standalone settings
+in a synthetic MemoryRouter, with real preference panels and localStorage. It
+fails an actual module request, retries the same file with a fresh query, holds
+the retry during user navigation, then releases it. Both surfaces pass:
+
+- Local error and retry, with header/Back still available.
+- Selection through real navigation buttons while content is loading.
+- Return to the shelf during the held request, without late settings mounting.
+- Real Language and Appearance panels after retry; language changes persisted.
+- Reopening from the module cache without a loading-status subtree appearing.
+- The same synthetic draft textarea and its owner surviving all transitions.
+
+The desktop project modal is additionally opened while its module request is
+held and closed with a browser keyboard Escape event. Its actual project panels
+are not mounted in this fixture. The sentinel is not a prose editor or a project
+runtime. The mobile run uses a 390×844 browser viewport and route Back buttons;
+it is not an Android hardware-Back, WebView or physical-device test. Error-state
+screenshots were inspected locally and contain only synthetic fixture UI.
+
+The report includes 77 focused tests for module request ownership and existing
+settings/routing contracts. A new ordinary architecture test rejects static
+imports that bypass the deferred settings entry, including the Trash path that
+caused the original indirect dependency. The Vite development URL also opens the
+real Language panel in a browser. The normal production build contains neither
+the fixture API nor panel evaluation observers.
+
+The batch passes 2,401 regular tests with 1 existing skip, typecheck, lint
+(0 errors, 74 existing warnings), CI/public contracts, Agent capabilities,
+7 renderer architecture tests and the configured production renderer build.
+Earlier phase artifacts are historical; only
+the settings reports are regenerated here. F7 remains `in_progress`: full project
+settings, graphs/other overlays, native loading/upgrade paths, first-use budgets
+and complete editor/runtime continuity still need acceptance.

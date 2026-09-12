@@ -44,6 +44,8 @@
     "continueLocal": "继续本地模式"
   },
   "settings": {
+    "loading": "正在加载设置…",
+    "loadFailed": "设置加载失败，请重试。",
     "title": "设定",
     "title_en": "Settings",
     "esc_close": "Esc 关闭",

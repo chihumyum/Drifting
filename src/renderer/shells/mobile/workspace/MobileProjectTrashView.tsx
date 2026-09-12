@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { TrashRailPanel } from '../../../features/settings/panels/PreferenceSettingsPanels';
+import { TrashRailPanel } from '../../../features/settings/panels/TrashSettingsPanel';
 
 const REGISTER_NOOP = () => undefined;
 
