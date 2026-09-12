@@ -122,6 +122,7 @@ export function applyEntityLinkTargetColors(
     const rawKind = link.getAttribute('data-target-kind');
     const targetKind = isEntityKind(rawKind) ? rawKind : 'element';
     const color = targetId ? resolveTargetColor(targetKind, targetId, resolver) : null;
+    if (link.style.getPropertyValue(ENTITY_LINK_COLOR_PROPERTY) === (color ?? '')) return;
     if (color) link.style.setProperty(ENTITY_LINK_COLOR_PROPERTY, color);
     else link.style.removeProperty(ENTITY_LINK_COLOR_PROPERTY);
   });
@@ -373,14 +374,12 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
           autoDetectStates.set(editorView, { timer: null });
           return {
             update(view, prevState) {
-              // A meta-only refresh is dispatched when entity ownership, colors,
-              // or the appearance preference changes. Restyle existing mark DOM
-              // without paying for a full DOM query on selection-only updates.
+              // New/replaced mark DOM is styled by renderHTML, including paste,
+              // undo and remote document changes. Existing marks only need a
+              // scan when their external appearance changes; ordinary typing
+              // must not repeatedly traverse and restyle the whole document.
               const docChanged = view.state.doc !== prevState.doc;
-              if (
-                docChanged ||
-                appliedTargetColorVersion !== entityLinkConfig.targetColorVersion
-              ) {
+              if (appliedTargetColorVersion !== entityLinkConfig.targetColorVersion) {
                 applyEntityLinkTargetColors(view.dom);
                 appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
               }

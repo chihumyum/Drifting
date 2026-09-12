@@ -57,39 +57,55 @@ export function normalizeEntityLinkKindColors(value: unknown): EntityLinkKindCol
   ) as EntityLinkKindColors;
 }
 
+// Store collections are immutable snapshots. Share each collection's index
+// across resolvers/editors without retaining retired project arrays. Keeping
+// first-match behavior also matches the previous Array.find contract.
+const collectionIndexes = new WeakMap<readonly { id: string }[], ReadonlyMap<string, { id: string }>>();
+
+function findById<T extends { id: string }>(records: readonly T[], id: string): T | undefined {
+  let index = collectionIndexes.get(records);
+  if (!index) {
+    const next = new Map<string, T>();
+    for (const record of records) if (!next.has(record.id)) next.set(record.id, record);
+    index = next;
+    collectionIndexes.set(records, index);
+  }
+  return index.get(id) as T | undefined;
+}
+
 function contextualColor(
   kind: EntityKind,
   id: string,
   state: EntityLinkColorState,
 ): string | null {
   if (kind === 'element') {
-    const element = state.bookElements.find((candidate) => candidate.id === id);
+    const element = findById(state.bookElements, id);
     if (!element?.categoryId) return null;
     return (
-      state.bookElementCategories.find((category) => category.id === element.categoryId)?.color ??
+      findById(state.bookElementCategories, element.categoryId)?.color ??
       null
     );
   }
 
   if (kind === 'node') {
-    const node = state.bookNodes.find((candidate) => candidate.id === id);
+    const node = findById(state.bookNodes, id);
     if (!node) return null;
     if (node.kind === 'drift') {
       if (!node.driftGroupId) return null;
-      return state.driftGroups.find((group) => group.id === node.driftGroupId)?.color ?? null;
+      return findById(state.driftGroups, node.driftGroupId)?.color ?? null;
     }
     const storylineId = state.primaryStorylineByNode[node.id] ?? null;
     return storylineId
-      ? state.storylines.find((storyline) => storyline.id === storylineId)?.color ?? null
+      ? findById(state.storylines, storylineId)?.color ?? null
       : null;
   }
 
   if (kind === 'category') {
-    return state.bookElementCategories.find((category) => category.id === id)?.color ?? null;
+    return findById(state.bookElementCategories, id)?.color ?? null;
   }
 
   if (kind === 'storyline') {
-    return state.storylines.find((storyline) => storyline.id === id)?.color ?? null;
+    return findById(state.storylines, id)?.color ?? null;
   }
 
   // Element patches are not hydrated in useDataStore, so contextual mode
@@ -104,7 +120,7 @@ function kindColor(
   colors: EntityLinkKindColors,
 ): string | null {
   if (kind === 'node') {
-    return state.bookNodes.find((node) => node.id === id)?.kind === 'drift'
+    return findById(state.bookNodes, id)?.kind === 'drift'
       ? colors.drift
       : colors.chapter;
   }

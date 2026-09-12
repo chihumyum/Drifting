@@ -22,6 +22,18 @@ The settings are exposed in Settings > Editor and applied to both the live
 TipTap editor and the static all-chapters renderer. `entityLinkInteractive`
 continues to control whether Entity Links respond to pointer interaction.
 
+New and replaced mark DOM receives its current color through the mark's
+`renderHTML` path, including paste, undo/redo and remote Yjs changes. Ordinary
+document edits do not query and recolor every existing link. An explicit
+appearance revision still restyles existing marks when owner colors or
+preferences change; unchanged CSS values are not written again.
+
+Color resolution shares ID indexes per immutable store collection. Weak keys
+allow retired collections to be collected and preserve independent snapshots.
+These are presentation caches: color values never become persisted mark attrs
+or a second source of prose truth. The static all-chapters renderer continues
+to use the same resolver and explicit restyling helper.
+
 ## Shared hover card
 
 `EntityHoverCard` is the single preview surface used by:
@@ -83,4 +95,10 @@ pnpm typecheck
 These checks cover preference normalization, color resolution, markup
 attributes, store-backed metadata, and viewport positioning. The broader
 renderer production check is `pnpm exec vite build`.
-Native Tauri visual behavior remains a manual acceptance boundary.
+The [F1 browser evidence](../renderer-performance/acceptance/f1-editor.json)
+adds real browser DOM, HTML paste, undo/redo and two-Y.Doc convergence checks.
+Run `pnpm perf:renderer --assert-input-budget` and
+`pnpm perf:renderer:check --report=.local-data/renderer-performance/latest.json`
+for the synthetic input regression. The harness is excluded from app builds.
+Native Tauri visual behavior and physical Chinese IME remain separate
+acceptance boundaries; Chromium timings are not native input-to-paint results.

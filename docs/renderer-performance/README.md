@@ -81,3 +81,36 @@ The initial F0 batch passed typecheck, lint, public/CI contract checks, capabili
 checks (19 tests), and the full Vitest suite (2,164 passed, 1 skipped). The three
 browser scenarios completed with final document integrity validated. These
 results cover the baseline harness, not subsequent optimization batches.
+
+## F1 input-path implementation
+
+The first production optimization is implemented. Tiptap already invokes the
+mark serializer for new/replaced mark DOM, so ordinary document edits no longer
+scan all existing links. External appearance revisions still refresh existing
+marks, with no-op CSS writes skipped. Color resolution uses shared weakly held
+indexes of immutable collections instead of per-link array searches. No new
+transaction-range cache or prose mutation is needed.
+
+Generated [f1-editor.json](acceptance/f1-editor.json) records 13 browser behavior
+checks, including HTML paste, undo/redo, changed mark attrs, external appearance
+changes and real two-Y.Doc convergence. All six deterministic/timing budget
+checks passed. Across 100 unchanged-mark insertions, all three profiles now
+produce zero full-link queries, color resolutions and color style writes.
+The 50k/500-link fixture's sampled synchronous transaction p95 changed from
+about 13.9 ms to 0.3 ms on the recorded machine. This is an isolated synthetic
+result, not a native app speedup or input-to-paint measurement.
+
+Validation: focused appearance tests (12 passed), typecheck, lint, full Vitest
+(2,167 passed, 1 skipped), public/CI contract, Agent capabilities and conversation
+sync checks, and the explicitly configured production renderer build. The
+production assets were checked to exclude the harness. The pre-existing large
+main chunk remains for F7. Physical IME, native latency and app-wide interaction
+remain NOT RUN, so F1 stays `in_progress` with partial acceptance rather than
+being declared fully complete.
+
+Reproduce the guarded candidate run with:
+
+```bash
+pnpm perf:renderer --assert-input-budget
+pnpm perf:renderer:check --report=.local-data/renderer-performance/latest.json
+```

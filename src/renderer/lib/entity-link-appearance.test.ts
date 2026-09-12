@@ -22,6 +22,39 @@ function state(overrides: Record<string, unknown> = {}): EntityLinkColorState {
 }
 
 describe('entity link appearance', () => {
+  it('shares immutable collection lookups without scanning IDs for each rendered link', () => {
+    let idReads = 0;
+    const data = state({
+      bookElements: Array.from({ length: 1_000 }, (_, index) => ({
+        get id() { idReads++; return `element-${index}`; },
+        categoryId: 'category-1',
+      })),
+      bookElementCategories: [{ id: 'category-1', color: '#AA5577' }],
+    });
+    const resolve = (snapshot: EntityLinkColorState) => resolveEntityLinkTargetColor(
+      'element', 'element-999', snapshot, 'contextual', DEFAULT_ENTITY_LINK_KIND_COLORS,
+    );
+    expect(resolve(data)).toBe('#AA5577');
+    const coldReads = idReads;
+    for (let index = 0; index < 100; index++) expect(resolve(data)).toBe('#AA5577');
+    expect(idReads).toBe(coldReads);
+    expect(resolve({ ...data, bookElementCategories: [{ id: 'category-1', color: '#123456' }] } as EntityLinkColorState)).toBe('#123456');
+    expect(resolve({ ...data, bookElements: [] })).toBeNull();
+    expect(resolve(data)).toBe('#AA5577');
+  });
+
+  it('preserves first matching ID behavior and isolates different collection snapshots', () => {
+    const data = state({ bookElementCategories: [
+      { id: 'same-id', color: '#112233' }, { id: 'same-id', color: '#445566' },
+    ] });
+    const resolve = (snapshot: EntityLinkColorState) => resolveEntityLinkTargetColor(
+      'category', 'same-id', snapshot, 'contextual', DEFAULT_ENTITY_LINK_KIND_COLORS,
+    );
+    expect(resolve(data)).toBe('#112233');
+    expect(resolve(state({ bookElementCategories: [{ id: 'same-id', color: '#778899' }] }))).toBe('#778899');
+    expect(resolve(data)).toBe('#112233');
+  });
+
   it('normalizes synced modes and custom colors', () => {
     expect(normalizeEntityLinkColorMode('kind')).toBe('kind');
     expect(normalizeEntityLinkColorMode('hover')).toBe('hover');

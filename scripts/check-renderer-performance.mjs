@@ -46,6 +46,9 @@ assert.match(report.source.commit, /^[0-9a-f]{40}$/);
 assert.match(report.source.rendererFingerprint, /^[0-9a-f]{64}$/);
 assert(report.limitations.length > 0);
 assert(report.scenarios.length > 0);
+for (const check of [...(report.behaviorChecks ?? []), ...(report.budgetChecks ?? [])]) {
+  assert.equal(check.passed, true, `failed check ${check.id}`);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

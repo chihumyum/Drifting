@@ -4,6 +4,7 @@ import { EntityLink, entityLinkConfig } from '../lib/extensions/entity-link';
 import { DEFAULT_ENTITY_LINK_KIND_COLORS, resolveEntityLinkTargetColor, type EntityLinkColorState } from '../lib/entity-link-appearance';
 import { useDataStore } from '../store/data-store';
 import { createRendererFixture, RENDERER_FIXTURE_PROFILES } from './fixture';
+import { runEntityLinkScenarios } from './entity-link-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -33,7 +34,7 @@ async function run() {
     };
     const element = document.createElement('div');
     document.body.appendChild(element);
-    const editor = new Editor({ element, extensions: [StarterKit, EntityLink], content: fixture.document });
+    const editor = new Editor({ element, extensions: [StarterKit, EntityLink.configure({ autoDetectEnabled: false })], content: fixture.document });
     const query = editor.view.dom.querySelectorAll.bind(editor.view.dom);
     editor.view.dom.querySelectorAll = ((selector: string) => {
       if (count && selector.includes('.entity-link')) counts.fullLinkQueries++;
@@ -94,6 +95,7 @@ async function run() {
   } finally { unsubscribe(); }
   return {
     scenarios,
+    behaviorChecks: runEntityLinkScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

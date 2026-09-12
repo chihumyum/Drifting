@@ -12,6 +12,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
 const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9)
   ?? '.local-data/renderer-performance/latest.json';
+const assertInputBudget = process.argv.includes('--assert-input-budget');
 const chrome = process.env.DRIFTING_PERF_CHROME ?? [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome',
@@ -89,9 +90,19 @@ try {
       'Agent, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
     ],
   };
+  if (assertInputBudget) {
+    report.budgetChecks = report.scenarios.flatMap((scenario) => [
+      { id: `${scenario.id}:input-locality`, passed: Object.values(scenario.counts).every((count) => count === 0) },
+      { id: `${scenario.id}:transaction-p95`, passed: scenario.transactionMs.p95 <= (scenario.fixture.characters > 20_000 ? 5 : 2) },
+    ]);
+    if (report.budgetChecks.some((check) => !check.passed)) {
+      report.status = 'failed';
+      process.exitCode = 1;
+    }
+  }
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ output, source: report.source, scenarios: report.scenarios.map(({ id, counts, transactionMs }) => ({ id, counts, transactionP95Ms: transactionMs.p95 })) }, null, 2));
+  console.log(JSON.stringify({ output, source: report.source, status: report.status, behaviorChecks: report.behaviorChecks, budgetChecks: report.budgetChecks, scenarios: report.scenarios.map(({ id, counts, transactionMs }) => ({ id, counts, transactionP95Ms: transactionMs.p95 })) }, null, 2));
 } finally {
   if (client) await client.close();
   if (browser && browser.exitCode === null) {

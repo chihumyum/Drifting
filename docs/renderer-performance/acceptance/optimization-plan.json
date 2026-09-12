@@ -66,29 +66,42 @@
       "dependsOn": [
         "F0"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F1-01",
           "requirement": "链接外普通输入不逐键全量查询链接，selection-only 不触发着色扫描",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f1-editor.json"
+          ],
+          "status": "passed"
         },
         {
           "id": "F1-02",
           "requirement": "颜色未改变时无冗余 style 写入，目标查找不逐链接遍历实体数组",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f1-editor.json"
+          ],
+          "status": "passed"
         },
         {
           "id": "F1-03",
           "requirement": "新链接、归属与颜色变化、粘贴、撤销、远程更新和中文 IME 正确",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f1-editor.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F1-04",
           "requirement": "同环境长文输入达到 F0 预算，保留持久化与自动链接契约",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f1-editor.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "implemented"
     },
     {
       "id": "F2",
