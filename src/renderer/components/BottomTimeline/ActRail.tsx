@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -111,6 +111,7 @@ export function ActRail({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuReturnFocusRef = useRef<HTMLElement | null>(null);
   const touchMenuCleanupRef = useRef<(() => void) | null>(null);
+  const boundaryDragCleanupRef = useRef<((updateState?: boolean) => void) | null>(null);
   const suppressTouchClickRef = useRef(false);
 
   const segments = useMemo(() => deriveActSegments(acts, chapters), [acts, chapters]);
@@ -142,6 +143,7 @@ export function ActRail({
   }, [menu]);
 
   useEffect(() => () => touchMenuCleanupRef.current?.(), []);
+  useLayoutEffect(() => () => boundaryDragCleanupRef.current?.(false), []);
 
   const beginTouchMenu = (event: React.PointerEvent, open: () => void) => {
     if (event.pointerType !== 'touch') return;
@@ -300,12 +302,14 @@ export function ActRail({
     // from registering as a drag (and from flashing the ghost line).
     e.stopPropagation();
 
+    boundaryDragCleanupRef.current?.();
     const startMouseX = e.clientX;
     const currentOrder = act.startOrder ?? axisMinOrder;
     const startPixel = orderToX(currentOrder);
     const pointerId = e.pointerId;
     let nextOrder = currentOrder;
     let dragging = false;
+    let ended = false;
     const onMove = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
       const dx = ev.clientX - startMouseX;
@@ -316,11 +320,15 @@ export function ActRail({
       setDragGhostX(nextX);
       onBoundaryDragMove?.(nextX);
     };
-    const cleanup = () => {
+    const cleanup = (updateState = true) => {
+      if (ended) return;
+      ended = true;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
-      setDragGhostX(null);
+      window.removeEventListener('blur', onBlur);
+      if (boundaryDragCleanupRef.current === cleanup) boundaryDragCleanupRef.current = null;
+      if (updateState) setDragGhostX(null);
       onBoundaryDragMove?.(null);
     };
     const onUp = (event: PointerEvent) => {
@@ -332,9 +340,12 @@ export function ActRail({
       if (event.pointerId !== pointerId) return;
       cleanup();
     };
+    const onBlur = () => cleanup();
+    boundaryDragCleanupRef.current = cleanup;
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('blur', onBlur);
   };
 
   const commitRename = (id: string, raw: string, fallback: string) => {

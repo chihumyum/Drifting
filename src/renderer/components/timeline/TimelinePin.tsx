@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -24,7 +25,6 @@ export interface TimelinePinProps {
   variant: 'bottom' | 'graph';
   xOffset?: number;
   pinHeight: number;
-  isDragging: boolean;
   editOnMount?: boolean;
   onChange: (
     patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label' | 'driftNodeId'>>,
@@ -48,7 +48,6 @@ export function TimelinePin({
   variant,
   xOffset = 0,
   pinHeight,
-  isDragging,
   editOnMount = false,
   onChange,
   onDelete,
@@ -60,10 +59,14 @@ export function TimelinePin({
   const { t } = useTranslation();
   const isBound = Boolean(marker.driftNodeId);
   const [editing, setEditing] = useState(editOnMount && !isBound);
+  const [isDragging, setIsDragging] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const dragCleanupRef = useRef<((updateState?: boolean) => void) | null>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const classPrefix = variant === 'graph' ? 'graph-pin' : 'btl-pin';
   const x = xOffset + orderToPosition(marker.narrativeOrder);
+
+  useLayoutEffect(() => () => dragCleanupRef.current?.(false), []);
 
   const openBoundDrift = useCallback(
     (fallback?: TimelinePinAnchor) => {
@@ -88,6 +91,7 @@ export function TimelinePin({
       if (event.button !== 0 || editing) return;
       event.preventDefault();
       event.stopPropagation();
+      dragCleanupRef.current?.();
 
       const startMouseX = event.clientX;
       const startPixel = orderToPosition(marker.narrativeOrder);
@@ -95,6 +99,7 @@ export function TimelinePin({
       const menuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
       let nextOrder = marker.narrativeOrder;
       let dragging = false;
+      let ended = false;
       let longPressed = false;
       let longPressTimer: number | null =
         event.pointerType === 'touch'
@@ -111,21 +116,30 @@ export function TimelinePin({
       };
 
       const onMove = (moveEvent: PointerEvent) => {
-        if (moveEvent.pointerId !== pointerId) return;
+        if (moveEvent.pointerId !== pointerId || longPressed) return;
         const dx = moveEvent.clientX - startMouseX;
         if (!dragging && Math.abs(dx) < 4) return;
         clearLongPress();
+        if (!dragging) setIsDragging(true);
         dragging = true;
 
         nextOrder = positionToOrder(startPixel + dx);
         onDragMove(orderToPosition(nextOrder));
       };
 
-      const cleanup = () => {
+      const cleanup = (updateState = true) => {
+        if (ended) return;
+        ended = true;
         clearLongPress();
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
+        window.removeEventListener('blur', onBlur);
+        if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+        if (dragging) {
+          if (updateState) setIsDragging(false);
+          onDragMove(null);
+        }
       };
       const onUp = (upEvent: PointerEvent) => {
         if (upEvent.pointerId !== pointerId) return;
@@ -135,7 +149,6 @@ export function TimelinePin({
           openBoundDrift();
           return;
         }
-        onDragMove(null);
         if (nextOrder !== marker.narrativeOrder) {
           onChange({ narrativeOrder: nextOrder });
         }
@@ -143,12 +156,14 @@ export function TimelinePin({
       const onCancel = (cancelEvent: PointerEvent) => {
         if (cancelEvent.pointerId !== pointerId) return;
         cleanup();
-        onDragMove(null);
       };
+      const onBlur = () => cleanup();
 
+      dragCleanupRef.current = cleanup;
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onCancel);
+      window.addEventListener('blur', onBlur);
     },
     [
       editing,

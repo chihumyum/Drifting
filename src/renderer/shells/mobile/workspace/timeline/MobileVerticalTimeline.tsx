@@ -53,6 +53,7 @@ import {
   MobileTimelineMarkerSheet,
   type TimelineView,
 } from './MobileTimelineSheets';
+import { projectVerticalTimelineLeaders } from './vertical-timeline-leaders';
 import {
   VERTICAL_TIMELINE_LEVELS,
   projectVerticalTimeline,
@@ -301,7 +302,7 @@ export function MobileVerticalTimeline({
   const visibleChapters = useMemo(
     () =>
       placedNodes
-        .map((node) => ({ node, trackIndex: trackIndexOf(node.id), order: orderOf(node) ?? 0 }))
+        .map((node) => ({ id: node.id, node, trackIndex: trackIndexOf(node.id), order: orderOf(node) ?? 0 }))
         .filter((item) => item.trackIndex >= 0),
     [orderOf, placedNodes, trackIndexOf],
   );
@@ -624,11 +625,9 @@ export function MobileVerticalTimeline({
         order: Math.round(drag.order * 10) / 10,
       })
     : null;
-  const leaderPoints = (entry: VerticalTimelineEntry, dotX: number) => {
-    const channel = gutterWidth + CHANNEL_OFFSET;
-    const left = gutterWidth + ENTRY_OFFSET;
-    return `${dotX},${entry.leader.fromY} ${channel},${entry.leader.fromY} ${channel},${entry.leader.toY} ${left},${entry.leader.toY}`;
-  };
+  const leaders = useMemo(() => projectVerticalTimelineLeaders(entries, visibleChapters, {
+    gutterWidth, trackX0: TRACK_X0, trackStep: TRACK_STEP, channelOffset: CHANNEL_OFFSET, entryOffset: ENTRY_OFFSET,
+  }), [entries, visibleChapters, gutterWidth]);
 
   const sheetNode = sheet?.kind === 'chapter' ? nodeById.get(sheet.id) : null;
   const sheetAct = sheet?.kind === 'act' ? actById.get(sheet.id) : null;
@@ -894,23 +893,12 @@ export function MobileVerticalTimeline({
 
           {/* leaders: every entry connects back to its dot */}
           <svg className="m-vtl__leads" aria-hidden="true">
-            {entries.map((entry) => {
-              if (entry.kind === 'act' || entry.kind === 'marker') return null;
-              const first = visibleChapters.find(({ node }) => node.id === entry.ids[0]);
-              const dotX = first ? trackX(first.trackIndex) : trackX(0);
-              const channel = gutterWidth + CHANNEL_OFFSET;
-              return (
-                <g key={`lead:${entry.id}`}>
-                  {entry.bracket && (
-                    <path
-                      className="m-vtl__bracket"
-                      d={`M${channel - 6},${entry.bracket.fromY} H${channel} V${entry.bracket.toY} H${channel - 6}`}
-                    />
-                  )}
-                  <polyline points={leaderPoints(entry, dotX)} />
-                </g>
-              );
-            })}
+            {leaders.map((leader) => (
+              <g key={`lead:${leader.id}`}>
+                {leader.bracket && <path className="m-vtl__bracket" d={leader.bracket} />}
+                <polyline points={leader.points} />
+              </g>
+            ))}
           </svg>
 
           {/* projected entries */}

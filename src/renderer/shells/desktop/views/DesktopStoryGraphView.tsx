@@ -19,6 +19,11 @@ import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
 import { useRelationTypePresentation } from '../../../hooks/useRelationTypePresentation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { ActRail } from '../../../components/BottomTimeline/ActRail';
+import {
+  TimelineMarkerLines,
+  TimelineActDragLine,
+} from '../../../components/timeline/TimelineGuideLines';
+import { createTimelineDragPreview } from '../../../features/graph/timeline-drag-preview';
 import { useBookAct } from '../../../usecase/useBookAct';
 import { actBoundDriftIds } from '../../../domain/book-act';
 import { events } from '../../../lib/events';
@@ -711,21 +716,10 @@ export function DesktopStoryGraphView() {
   // ---- Narrative time pins ----
   // Marker and act positions use the same continuous coordinate authority as
   // chapters. The visible grid is presentation only, never a write policy.
-  const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
+  const [dragPreview] = useState(() => createTimelineDragPreview());
   const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
   // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
   const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
-  // Live x of an in-flight act boundary/chip drag (track-relative px), lifted
-  // from ActRail so the drop indicator can extend down through the lanes.
-  const [actDragX, setActDragX] = useState<number | null>(null);
-  const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
-    setPinDragXs((prev) => {
-      const next = new Map(prev);
-      if (nextX === null) next.delete(id);
-      else next.set(id, nextX);
-      return next;
-    });
-  }, []);
   // "打散" — keeps relative ordering, reassigns the active order field
   // (bookOrder or narrativeOrder) with the same stride that new chapters
   // use (CHAPTER_ORDER_STRIDE = tile width + 1), so scatter spacing matches
@@ -1228,6 +1222,7 @@ export function DesktopStoryGraphView() {
               columns and scroll with them; sticky-top like the time axis. */}
           {actRailHeight > 0 && (
             <ActRail
+              key={projectId}
               className="actrail--sticky-top"
               acts={bookActs}
               chapters={placedNodes}
@@ -1239,7 +1234,7 @@ export function DesktopStoryGraphView() {
               maxOrder={orderSpan.max}
               onRenameAct={(id, name) => void updateAct(id, { name })}
               onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
-              onBoundaryDragMove={setActDragX}
+              onBoundaryDragMove={dragPreview.setAct}
               onDeleteAct={(id) => void deleteAct(id)}
               onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
               onAddAct={handleAddActSplit}
@@ -1348,7 +1343,6 @@ export function DesktopStoryGraphView() {
                       positionToOrder={positionToOrder}
                       variant="graph"
                       pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
-                      isDragging={pinDragXs.has(m.id)}
                       editOnMount={m.id === newlyAddedPinId}
                       onChange={(patch) => {
                         if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
@@ -1379,7 +1373,7 @@ export function DesktopStoryGraphView() {
                           },
                         });
                       }}
-                      onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
+                      onDragMove={(nextX) => dragPreview.setMarker(m.id, nextX)}
                     />
                   ))}
               </div>
@@ -1401,24 +1395,13 @@ export function DesktopStoryGraphView() {
               orderToX value). Explicit `height` because absolute children
               of `.graph-scroll` only see its viewport height, not its
               scrollHeight — `bottom: 0` alone would clip vertically. */}
-          {isNarrative &&
-            markers.map((m) => {
-              const dragX = pinDragXs.get(m.id);
-              const isDragging = dragX !== undefined;
-              const x = dragX ?? orderToX(m.narrativeOrder);
-              return (
-                <div
-                  key={`pinline-${m.id}`}
-                  className={`graph-pin-line${isDragging ? ' is-dragging' : ''}`}
-                  style={{
-                    left: GRAPH_CONFIG.RAIL_WIDTH + x,
-                    height:
-                      GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
-                  }}
-                  aria-hidden
-                />
-              );
-            })}
+          {isNarrative && (
+            <TimelineMarkerLines preview={dragPreview} markers={markers}
+              orderToPosition={orderToX} className="graph-pin-line"
+              xOffset={GRAPH_CONFIG.RAIL_WIDTH}
+              height={GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
+              ariaHidden />
+          )}
 
           {/* Act boundary lines (book view) — same vertical primitive as a
               marker's line, run down through every lane (behind the sticky act
@@ -1441,15 +1424,11 @@ export function DesktopStoryGraphView() {
           {/* Act drop indicator — follows the boundary/chip drag (x lifted from
               ActRail) as one accent line from the rail through every lane (the
               is-dragging z-index lifts it above the sticky act rail). */}
-          {!isNarrative && actDragX !== null && (
-            <div
-              className="graph-pin-line is-dragging"
-              style={{
-                left: GRAPH_CONFIG.RAIL_WIDTH + actDragX,
-                height: actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
-              }}
-              aria-hidden
-            />
+          {!isNarrative && (
+            <TimelineActDragLine preview={dragPreview} className="graph-pin-line"
+              xOffset={GRAPH_CONFIG.RAIL_WIDTH}
+              height={actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
+              ariaHidden />
           )}
 
           {/* Lane rows — each is a flex row of [sticky-left rail cell |

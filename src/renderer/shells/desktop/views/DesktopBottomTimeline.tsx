@@ -21,6 +21,11 @@ import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
 import { TimelinePin as SharedTimelinePin } from '../../../components/timeline/TimelinePin';
 import { ActRail } from '../../../components/BottomTimeline/ActRail';
+import {
+  TimelineMarkerLines,
+  TimelineActDragLine,
+} from '../../../components/timeline/TimelineGuideLines';
+import { createTimelineDragPreview } from '../../../features/graph/timeline-drag-preview';
 import { useBookAct } from '../../../usecase/useBookAct';
 import { events } from '../../../lib/events';
 import {
@@ -920,19 +925,10 @@ export function DesktopBottomTimeline({
         </div>
 
         <div data-node-container className="btl-track" style={{ minWidth: timelineWidth }}>
-          {isNarrative &&
-            markers.map((m) => {
-              const dragX = pinDragXs.get(m.id);
-              const isDragging = dragX !== undefined;
-              const left = dragX ?? orderToPosition(m.narrativeOrder);
-              return (
-                <div
-                  key={`pinline-${m.id}`}
-                  className={`btl-pin-line${isDragging ? ' is-dragging' : ''}`}
-                  style={{ left }}
-                />
-              );
-            })}
+          {isNarrative && (
+            <TimelineMarkerLines preview={dragPreview} markers={markers}
+              orderToPosition={orderToPosition} className="btl-pin-line" />
+          )}
 
           {/* Act boundary lines (book view) — the same vertical primitive as a
               marker's line, run down through every storyline track so an act
@@ -951,8 +947,8 @@ export function DesktopBottomTimeline({
           {/* Lane half of the act drop indicator — follows the boundary/chip
               drag (x lifted from ActRail) so the rail ghost extends down through
               the lanes as one continuous line. */}
-          {!isNarrative && actDragX !== null && (
-            <div className="btl-pin-line is-dragging" style={{ left: actDragX }} />
+          {!isNarrative && (
+            <TimelineActDragLine preview={dragPreview} className="btl-pin-line" />
           )}
 
           {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
@@ -1057,23 +1053,8 @@ export function DesktopBottomTimeline({
   const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
   // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
   const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
-  // Live x of an in-flight act boundary/chip drag (track-relative px), lifted
-  // from ActRail so the drop indicator can extend down through the lanes.
-  const [actDragX, setActDragX] = useState<number | null>(null);
-  // Live pixel position of each in-flight pin drag (relative to the track).
-  // Used to render the vertical drop-indicator line under the cursor; the
-  // pin head/label itself stays anchored to the persisted narrativeOrder
-  // until mouseup — same UX as chapter clips, no per-step snapping.
-  const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
-
-  const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
-    setPinDragXs((prev) => {
-      const next = new Map(prev);
-      if (nextX === null) next.delete(id);
-      else next.set(id, nextX);
-      return next;
-    });
-  }, []);
+  // Only guide layers subscribe to frame-coalesced preview motion.
+  const [dragPreview] = useState(() => createTimelineDragPreview());
 
   // "打散" — keeps relative ordering and deliberately redistributes the
   // active continuous coordinate. Ordinary dragging never applies this
@@ -1189,17 +1170,8 @@ export function DesktopBottomTimeline({
               while dragging, so this following line keeps the indicator present
               in the rail; the lane half is rendered per-track below, so the two
               read as one continuous line from rail to bottom. */}
-          {markers.map((m) => {
-            const dragX = pinDragXs.get(m.id);
-            if (dragX === undefined) return null;
-            return (
-              <div
-                key={`raildrag-${m.id}`}
-                className="btl-pin-line is-dragging"
-                style={{ left: dragX }}
-              />
-            );
-          })}
+          <TimelineMarkerLines preview={dragPreview} markers={markers}
+            orderToPosition={orderToPosition} className="btl-pin-line" onlyDragging />
         </div>
       </div>
     );
@@ -1480,6 +1452,7 @@ export function DesktopBottomTimeline({
             in its head cell is the create entry. */}
         {actRailHeight > 0 && (
           <ActRail
+            key={projectId}
             acts={bookActs}
             chapters={placedNodes}
             railWidth={railWidth}
@@ -1490,7 +1463,7 @@ export function DesktopBottomTimeline({
             maxOrder={maxOrder}
             onRenameAct={(id, name) => void updateAct(id, { name })}
             onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
-            onBoundaryDragMove={setActDragX}
+            onBoundaryDragMove={dragPreview.setAct}
             onDeleteAct={(id) => void deleteAct(id)}
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
             onAddAct={handleAddActSplit}
@@ -1521,7 +1494,6 @@ export function DesktopBottomTimeline({
               positionToOrder={positionToOrder}
               variant="bottom"
               xOffset={railOffset}
-              isDragging={pinDragXs.has(m.id)}
               pinHeight={overlayTopOffset}
               editOnMount={m.id === newlyAddedMarkerId}
               onChange={(patch) => {
@@ -1532,7 +1504,7 @@ export function DesktopBottomTimeline({
                 if (m.id === newlyAddedMarkerId) setNewlyAddedMarkerId(null);
                 deleteMarker(m.id);
               }}
-              onDragMove={(nextPixelX) => handlePinDragMove(m.id, nextPixelX)}
+              onDragMove={(nextPixelX) => dragPreview.setMarker(m.id, nextPixelX)}
               boundDriftTitle={m.driftNodeId ? (driftById.get(m.driftNodeId)?.title ?? null) : null}
               onRequestBind={() =>
                 events.emit('drift-bind:open', { target: { kind: 'marker', id: m.id } })

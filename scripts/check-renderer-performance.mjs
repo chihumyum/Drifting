@@ -182,6 +182,55 @@ if (report.graphOverlays) {
     for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
   }
 }
+if (report.timeline) {
+  const { leaders, marker, act } = report.timeline;
+  assert(['array-find', 'shared-id-index'].includes(leaders.implementation));
+  assert.deepEqual(leaders.profiles.map((item) => item.chapters), [100, 1_000, 5_000]);
+  for (const [index, item] of leaders.profiles.entries()) {
+    assert.equal(item.leaders, item.chapters);
+    assert.equal(item.samplesMs.length, 5);
+    assert(item.samplesMs.every((value) => Number.isFinite(value) && value >= 0));
+    assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[2]);
+    if (leaders.implementation === 'shared-id-index') {
+      assert(item.firstIdReads <= item.chapters, 'F5d leader index read budget exceeded');
+      assert.equal(item.repeatedIdReads, 0);
+      assert.equal(item.pathsMatchFixture, true);
+      assert(item.medianMs <= [10, 30, 50][index], 'F5d leader projection budget exceeded');
+    } else {
+      assert.equal(item.firstIdReads, item.chapters * (item.chapters + 1) / 2);
+      assert.equal(item.repeatedIdReads, item.firstIdReads);
+    }
+  }
+  assert(['parent-preview-state', 'local-pin-and-guide-preview'].includes(marker.implementation));
+  if (marker.implementation === 'parent-preview-state') {
+    assert.equal(marker.dragCardCommits, 2_000);
+    assert.deepEqual(marker.writes, [11.4]);
+  } else {
+    assert.deepEqual(marker.groups.map((group) => group.variant), ['bottom', 'graph']);
+    for (const group of marker.groups) {
+      assert.equal(group.cards, 20); assert.equal(group.moves, 100);
+      assert.equal(group.dragCardCommits, 0); assert.equal(group.frameNotifications, 1);
+      assert.deepEqual(group.writes, [11.4, 11.575]);
+      for (const id of ['pointer-burst-does-not-render-cards', 'one-frame-publishes-latest-guide',
+        'pin-line-hides-during-drag', 'display-frame-does-not-render-cards',
+        'pointer-up-commits-continuous-coordinate', 'pointer-up-clears-preview-immediately',
+        'pointer-up-before-frame-keeps-exact-final-coordinate', 'ended-preview-does-not-reappear',
+        'foreign-pointer-cannot-cancel-active-drag', 'cancel-clears-without-write',
+        'window-blur-cancels-without-write', 'pin-unmount-cancels-pending-drag-and-listeners']) {
+        assert(group.checks.some((check) => check.id === id && check.passed), `missing F5d marker check ${id}`);
+      }
+      for (const check of group.checks) assert.equal(check.passed, true, check.id);
+    }
+    assert.equal(act.cards, 20); assert.equal(act.moves, 100); assert.equal(act.dragCardCommits, 0);
+    assert.equal(act.frameNotifications, 1); assert.deepEqual(act.writes, [11.4, 11.575]);
+    for (const id of ['act-pointer-burst-does-not-render-cards', 'act-guide-coalesces-and-keeps-host-offset',
+      'act-commits-continuous-coordinate', 'act-commit-does-not-wait-for-frame',
+      'act-cancel-clears-without-write', 'act-unmount-cancels-without-write']) {
+      assert(act.checks.some((check) => check.id === id && check.passed), `missing F5d act check ${id}`);
+    }
+    for (const check of act.checks) assert.equal(check.passed, true, check.id);
+  }
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

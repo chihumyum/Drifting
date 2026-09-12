@@ -263,7 +263,9 @@
             "docs/renderer-performance/acceptance/f5-graph-projection.json",
             "docs/renderer-performance/acceptance/f5-geometry-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-geometry.json",
-            "docs/renderer-performance/acceptance/f5-graph-overlays.json"
+            "docs/renderer-performance/acceptance/f5-graph-overlays.json",
+            "docs/renderer-performance/acceptance/f5-timeline-baseline.json",
+            "docs/renderer-performance/acceptance/f5-timeline.json"
           ],
           "status": "partial"
         },
@@ -273,7 +275,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f5-geometry-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-geometry.json",
-            "docs/renderer-performance/acceptance/f5-graph-overlays.json"
+            "docs/renderer-performance/acceptance/f5-graph-overlays.json",
+            "docs/renderer-performance/acceptance/f5-timeline.json"
           ],
           "status": "partial"
         },
@@ -283,7 +286,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f5-geometry-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-geometry.json",
-            "docs/renderer-performance/acceptance/f5-graph-overlays.json"
+            "docs/renderer-performance/acceptance/f5-graph-overlays.json",
+            "docs/renderer-performance/acceptance/f5-timeline.json"
           ],
           "status": "partial"
         },
@@ -295,12 +299,14 @@
             "docs/renderer-performance/acceptance/f5-graph-projection.json",
             "docs/renderer-performance/acceptance/f5-geometry-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-geometry.json",
-            "docs/renderer-performance/acceptance/f5-graph-overlays.json"
+            "docs/renderer-performance/acceptance/f5-graph-overlays.json",
+            "docs/renderer-performance/acceptance/f5-timeline-baseline.json",
+            "docs/renderer-performance/acceptance/f5-timeline.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "super_element_and_story_graph_edge_geometry_isolated"
+      "implementationStatus": "super_element_story_graph_geometry_and_timeline_preview_isolated"
     },
     {
       "id": "F6",

@@ -233,8 +233,29 @@ resolves drift-card refs before storyline tile refs, as before.
 
 The shared measurement hook binds its viewport observer on the first frame,
 after child and parent refs have attached. A child layout effect alone cannot
-assume its parent DOM ref already exists. Timeline adoption and full graph/native
-interaction acceptance remain open in F5.
+assume its parent DOM ref already exists. Full graph/native interaction
+acceptance remains open in F5.
+
+Bottom Timeline and Story Graph each own one `createTimelineDragPreview`
+instance for their mounted lifetime. Only `TimelineMarkerLines` and
+`TimelineActDragLine` subscribe to it; pointer motion does not set state on the
+chapter/card parent. Pending preview coordinates coalesce per animation frame,
+while end/cancel clears synchronously. The final continuous coordinate belongs
+to the pointer handler and is committed independently of display publication.
+`TimelinePin` owns its dragging class locally. `ActRail` retains its rail-local
+ghost state. Both remove active pointer listeners during layout cleanup and
+cancel without a write on unmount or window blur. The act rail is keyed by
+project so an old project's gesture cannot survive a project switch. The last
+guide subscriber releases preview coordinates and pending frames; the preview
+can resubscribe during React StrictMode without a permanently disposed instance.
+
+Mobile Timeline keeps its own dot gestures and vertical packing projection.
+`vertical-timeline-leaders.ts` uses the shared immutable ID index to connect
+chapter/cluster entries to their first dot, including the existing unplaced
+preview fallback. Packing, clustering, track coordinates, and authored writes
+remain in their existing owners. Desktop chapter dragging continues through
+the imperative `chapter-lane-drag` controller; desktop cross-storyline links
+already derive memoized world coordinates and do not need DOM measurement.
 
 ## Desktop universal create
 

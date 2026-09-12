@@ -518,3 +518,79 @@ These are component/DOM and synthetic-card measurements, not complete graph
 shell or native gesture acceptance. Timeline review/adoption, end-to-end
 relationship creation/navigation, large-graph card layout and desktop/mobile
 device checks remain open; F5 stays `in_progress`.
+
+## F5d Timeline budgets
+
+Before changing Timeline hot paths, the mobile leader fixture will use
+100/1,000/5,000 chapters with sparse entries. The indexed candidate must read
+at most one chapter ID per input record on its first projection and zero on
+repeated projections over the same immutable array. Warm projection median
+budgets are 10/30/50 ms; chapter/cluster leader paths must remain equivalent.
+
+The marker-drag fixture mounts the real shared `TimelinePin` with 20 synthetic
+sibling cards and sends 100 pointer moves. Preview motion must not commit the
+card tree, must coalesce guide notifications per frame, and must preserve the
+continuous final coordinate at pointer-up even before the display frame.
+Cancellation/unmount must remove previews and listeners without a write.
+
+## F5d Timeline implementation and acceptance
+
+Bottom Timeline and Story Graph now own separate, mounted-lifetime preview
+instances. Only marker/act guide components subscribe. Motion coalesces into
+one animation-frame publication; end/cancel clears synchronously. The pointer
+handler keeps the exact last coordinate independently of the display snapshot.
+`TimelinePin` owns its dragging class; `ActRail` keeps its existing rail-local
+ghost. Layout cleanup removes active gesture listeners without committing a
+write, and blur cancels the gesture. Project-keyed act rails prevent an old
+gesture from surviving project navigation. Preview snapshots are immutable;
+last-unsubscribe cancels pending frames and releases coordinates without
+preventing a later StrictMode resubscription.
+
+The mobile leader projection now shares `indexById` over immutable visible
+chapter records. It preserves first-member track choice, crowded-cluster
+brackets and the unplaced-preview fallback. The mobile dot/packing controller
+retains its own coordinates and gestures. Desktop chapter dragging remains
+imperative. Desktop cross-storyline links already use memoized world
+coordinates, so this batch does not add DOM measurement to that path.
+
+The generated [baseline](acceptance/f5-timeline-baseline.json) measures the
+extracted original mobile lookup and parent-owned marker-preview state. The
+[candidate](acceptance/f5-timeline.json) measures the production projection,
+`TimelinePin`, `ActRail` and guide components beside synthetic un-memoized cards:
+
+- At 100/1,000/5,000 chapters, first-projection ID reads drop from
+  5,050/500,500/12,502,500 to 100/1,000/5,000; repeated projections read zero IDs
+  from the same array. Independent expected paths verify coordinate output.
+  The 5,000-chapter warm median changes from 301.9 ms to 0.8 ms in this isolated
+  getter-based fixture; this is not a full mobile interaction latency.
+- A 100-move marker burst beside 20 cards drops from 2,000 card commits to
+  zero for both bottom and graph variants. Each variant publishes one preview
+  notification at the display frame. The actual ActRail candidate also records
+  zero card commits and one guide notification; no act baseline timing is claimed.
+- Real guide DOM checks cover rail/lane alignment, graph offset and explicit
+  height, dragging classes and production hit-testing CSS. Pointer-up preserves
+  11.4 and 11.575 coordinates, including a commit before the display frame.
+  Foreign-pointer cancellation is ignored; cancel, blur and unmount leave no
+  tracked pointer/blur listeners or late marker writes. Act cancel/unmount
+  likewise clear without a write.
+
+Both reports pass `perf:renderer:check`. The candidate was regenerated after
+the final renderer edits and its source fingerprint was compared with the
+working tree; the recorded parent commit plus `dirty: true` describes that
+pre-commit source truthfully. All earlier browser scenarios reran as part of
+the candidate report.
+
+Six additional unit tests cover frame publication, immutable snapshots,
+multi-marker cleanup, surface isolation, cluster geometry and snapshot
+invalidation. Full Vitest passes 2,221 tests (1 skipped); typecheck, lint
+(0 errors, 74 existing warnings), public/CI contracts, capability checks and
+the production renderer build pass. Build verification uses
+`vite.renderer.config.ts` with the CI local-only environment; its main chunk
+remains about 5.305 MB (the F7 loading work is still pending).
+
+These synthetic component measurements do not mount the complete Timeline
+shell or prove native touch, scrolling, SQLite durability or physical-device
+performance. Timing includes getter-wrapper overhead even with counters
+disabled; the algorithmic counts are the primary comparison. ActRail's own
+rail render, mobile packing/entry rendering and full graph card layout remain
+separate costs. F5 stays `in_progress`, and no device gate is marked complete.
