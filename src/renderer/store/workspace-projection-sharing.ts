@@ -1,6 +1,26 @@
 import { indexById } from '../lib/immutable-id-index';
 import type { WorkspaceDataProjection } from './data-store';
 
+// Checked against the complete projection type: a new slice must participate
+// in the asynchronous capture guard as well as structural sharing.
+const projectionKeys = {
+  storylines: true, storylineNodeMapping: true, primaryStorylineByNode: true,
+  bookNodes: true, bookElementCategories: true, bookElements: true,
+  projectAssets: true, trashedEntityIds: true, libraryItems: true,
+  comments: true, commentActions: true, entityRelations: true,
+  entityRelationTypes: true, blockSections: true, bookActs: true,
+  driftGroups: true, timelineMarkers: true,
+} satisfies Record<keyof WorkspaceDataProjection, true>;
+
+/** Local reducers and derived metrics can advance without a refresh epoch. */
+export function isWorkspaceProjectionBaseCurrent(
+  current: WorkspaceDataProjection,
+  base: WorkspaceDataProjection,
+): boolean {
+  return (Object.keys(projectionKeys) as Array<keyof WorkspaceDataProjection>)
+    .every((key) => current[key] === base[key]);
+}
+
 /** Compare acyclic SQLite domain values. Body JSON stays an opaque string. */
 function equalCapturedValue(previous: unknown, next: unknown): boolean {
   if (Object.is(previous, next)) return true;

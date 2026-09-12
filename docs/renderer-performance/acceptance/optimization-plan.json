@@ -335,7 +335,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
-            "docs/renderer-performance/acceptance/f6-reference-reads.json"
+            "docs/renderer-performance/acceptance/f6-reference-reads.json",
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
           ],
           "status": "partial"
         },
@@ -347,7 +348,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-boundary.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
-            "docs/renderer-performance/acceptance/f6-reference-reads.json"
+            "docs/renderer-performance/acceptance/f6-reference-reads.json",
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
           ],
           "status": "partial"
         },
@@ -367,7 +369,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
             "docs/renderer-performance/acceptance/f6-reference-recovery.json",
-            "docs/renderer-performance/acceptance/f6-reference-reads.json"
+            "docs/renderer-performance/acceptance/f6-reference-reads.json",
+            "docs/renderer-performance/acceptance/f6-workspace-refresh.json"
           ],
           "status": "partial"
         }

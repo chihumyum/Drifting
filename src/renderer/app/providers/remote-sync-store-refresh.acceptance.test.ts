@@ -32,15 +32,20 @@ describe('remote SyncEngine UI refresh boundary', () => {
       proseBranch,
     );
     const structuralRefresh = projectRuntime.indexOf(
-      "requestWorkspaceProjection(projectId, 'refreshing')",
+      'refresh.request()',
       proseBranch,
     );
     expect(proseBranch).toBeGreaterThan(0);
     expect(metricReconciliation).toBeGreaterThan(proseBranch);
     expect(structuralRefresh).toBeGreaterThan(metricReconciliation);
-    expect(projectRuntime).toContain('await flushPendingAtomicSyncTransactions()');
+    const refresh = source('../../services/workspace-projection-refresh.ts');
+    expect(projectRuntime).toContain('createWorkspaceProjectionRefresh({');
+    expect(refresh).toContain('await flushDurability()');
     expect(projectRuntime).toContain('await captureWorkspaceProjection({ projectId, userId })');
-    expect(projectRuntime).toContain("requestWorkspaceProjection(projectId, 'refreshing')");
+    expect(refresh).toContain("requestWorkspaceProjection(projectId, 'refreshing')");
+    expect(refresh).toContain('commitWorkspaceProjection(projectId, epoch, result.data, base)');
+    expect(projectRuntime).toContain("events.on('sync:projects-restored', restore)");
+    expect(projectRuntime).toContain('refresh.dispose()');
     expect(projectRuntime).toContain('commitWorkspaceProjection(projectId, epoch, capture.data)');
     expect(projectRuntime).not.toContain('nodeUsecases.loadNodes()');
     expect(projectRuntime).toContain('clearWorkspaceProjection(projectId, epoch)');

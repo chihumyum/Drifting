@@ -956,3 +956,63 @@ Regular validation passes 2,323 tests with 1 skipped, typecheck, lint (0 errors,
 configured local-only renderer production build. No schema migration, author
 data format or visible UI changed. Structural workspace partial reads, native
 acceptance and full-app performance remain open; F6 stays `in_progress`.
+
+## F6b3 — Bounded structural refresh ownership
+
+`workspace-projection-refresh.ts` now owns one project/database refresh queue.
+The ready project provider retains the event routing, metric reconciliation and
+project/tab publication callbacks. Structural events immediately request the
+existing interaction barrier; the first arrival starts a fixed 250 ms capture
+window. Later arrivals share the pending epoch instead of extending the timer
+indefinitely. There is at most one in-flight capture and one pending request.
+Arrivals during a read supersede it and schedule a later full capture.
+
+The queue waits for pending author durability, captures a complete SQLite
+snapshot, then checks project, database, epoch and the data references observed
+before the read. Immutable local reducers and metric reconciliation can advance
+these references without advancing the epoch. Such changes now reject the old
+snapshot and schedule another read, with 500 ms to 4 s bounded backoff during
+repeated conflicts. Project metadata has its own identity check so an in-flight
+rename is not overwritten. Missing-project results use the same data guard;
+stale missing/error results cannot clear or fail the newer request. Disposal
+revokes both scheduled and in-flight work. Restore and authority changes request
+a complete refresh. Pure-prose notifications still only schedule background
+metrics; reference-only coverage invalidation does not acquire this barrier.
+
+Bootstrap also checks database ownership before publication and only reports a
+missing/error boot state when the corresponding store epoch accepts it.
+`workspace-projection-sharing.ts` has a type-checked list covering every workspace
+slice, so adding a slice requires extending the capture guard.
+
+The generated `acceptance/f6-workspace-refresh.json` records 28 passing cases,
+including 19 file-backed SQLite queue cases and the existing store/wiring guards.
+It covers atomic node/membership publication, continuous arrivals, author flush,
+local title/word-count/project-name races, newer full projections, stale missing
+and error results, retry backoff, project/database revocation and replacement
+owners. Fixture writes and delayed results exercise these boundaries without
+claiming to run the full React provider or native shell. Timers are virtual;
+this report makes no performance or physical-device claim.
+
+```bash
+pnpm workspace:refresh:acceptance
+pnpm workspace:refresh:acceptance --check
+```
+
+**Partial workspace reads remain unimplemented.** Inspection found that
+`reduceSyncChangeSet` produces the canonical historical effect set, and the
+remote production kernel rematerializes its enabled effects. Therefore the
+current change-set's mutation IDs alone are not a sufficient dependency closure.
+A narrow read must account for the complete actual materialization impact and
+prove notification coverage against durable receipts, or use an independently
+verified change in materialization semantics. Unknown, oversized, restored or
+untrusted coverage must continue through full capture. This prerequisite was
+not bypassed by assuming that an event names every changed row; F6 remains
+`in_progress`.
+
+Validation for this batch: 2,342 tests pass with 1 skipped; typecheck, CI/public
+contracts, Agent capability checks and the local-only renderer production build
+pass. Lint reports 0 errors and the same 74 existing warnings. The production
+main chunk remains about 5.32 MB before gzip; F7 loading work is still pending.
+The reference read/UI and SIGKILL reports are regenerated against this source,
+separately from the new workspace correctness report. Earlier F6b2 timings above
+remain that batch's historical measurements, not a new workspace speed claim.

@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "kind": "workspace_refresh_correctness_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-12T10:55:05.106Z",
+  "source": {
+    "commit": "73e43e234b4f8324d3d22e730523f1121a2bdb62",
+    "fingerprint": "e998825dccb79c9f548de544838545bacd9655134c7dd0c42bb5be6a66ce5f38",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.19.0",
+    "sqlite": "3.53.3"
+  },
+  "fixture": "Synthetic temporary SQLite files with the complete product schema; actual capture/repositories, refresh queue and Zustand stores. Selected reads are delayed or failed to exercise publication races. Timers are virtual.",
+  "suites": [
+    "src/renderer/services/workspace-projection-refresh.integration.test.ts",
+    "src/renderer/store/data-store.workspace-projection.test.ts",
+    "src/renderer/app/providers/remote-sync-store-refresh.acceptance.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "workspace refresh with product SQLite coalesces a burst and publishes node and membership changes in one snapshot",
+      "status": "passed",
+      "durationMs": 33.36220900000001
+    },
+    {
+      "name": "workspace refresh with product SQLite starts reading at the first-arrival deadline despite repeated sync events",
+      "status": "passed",
+      "durationMs": 22.309458000000006
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local title update, then recaptures",
+      "status": "passed",
+      "durationMs": 19.397666000000015
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local wordCount update, then recaptures",
+      "status": "passed",
+      "durationMs": 18.56379099999998
+    },
+    {
+      "name": "workspace refresh with product SQLite preserves an in-flight local project rename and retries before publishing project metadata",
+      "status": "passed",
+      "durationMs": 17.80574999999999
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a missing result after a local projection change in the same epoch",
+      "status": "passed",
+      "durationMs": 16.101
+    },
+    {
+      "name": "workspace refresh with product SQLite does not overwrite a newer full projection committed during its read",
+      "status": "passed",
+      "durationMs": 17.49395800000002
+    },
+    {
+      "name": "workspace refresh with product SQLite retains a new event after an external full refresh supersedes its pending epoch",
+      "status": "passed",
+      "durationMs": 17.50887499999999
+    },
+    {
+      "name": "workspace refresh with product SQLite backs off repeated local-write conflicts with one pending pass and recovers when writes settle",
+      "status": "passed",
+      "durationMs": 25.98979099999997
+    },
+    {
+      "name": "workspace refresh with product SQLite keeps one pending request behind an in-flight read and never publishes its superseded snapshot",
+      "status": "passed",
+      "durationMs": 17.76974999999993
+    },
+    {
+      "name": "workspace refresh with product SQLite waits for pending author durability before starting the SQLite capture",
+      "status": "passed",
+      "durationMs": 17.620707999999922
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded missing capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 15.708082999999988
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded error capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 15.724958000000015
+    },
+    {
+      "name": "workspace refresh with product SQLite reports a current read error and supports a fresh complete retry",
+      "status": "passed",
+      "durationMs": 15.728833000000009
+    },
+    {
+      "name": "workspace refresh with product SQLite clears a confirmed missing project only after its authoritative capture",
+      "status": "passed",
+      "durationMs": 15.914792000000034
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its project owner changes",
+      "status": "passed",
+      "durationMs": 16.265459000000078
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its dispose owner changes",
+      "status": "passed",
+      "durationMs": 16.183874999999944
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its database owner changes",
+      "status": "passed",
+      "durationMs": 16.229165999999964
+    },
+    {
+      "name": "workspace refresh with product SQLite cancels a scheduled capture on disposal and lets a replacement owner refresh",
+      "status": "passed",
+      "durationMs": 15.797124999999937
+    },
+    {
+      "name": "workspace projection authority rejects a slow project capture after a newer project route owns the epoch",
+      "status": "passed",
+      "durationMs": 1.322917000000004
+    },
+    {
+      "name": "workspace projection authority keeps the last complete project visible until one atomic refresh commit",
+      "status": "passed",
+      "durationMs": 0.43950000000000955
+    },
+    {
+      "name": "workspace projection authority clears only the authoritative missing-project projection",
+      "status": "passed",
+      "durationMs": 0.35787500000000705
+    },
+    {
+      "name": "workspace projection authority shares unchanged records while publishing a changed relation and primary membership atomically",
+      "status": "passed",
+      "durationMs": 1.0522500000000008
+    },
+    {
+      "name": "workspace projection authority sorts markers before sharing and does not reuse a changed record solely by ID or timestamp",
+      "status": "passed",
+      "durationMs": 0.4574580000000026
+    },
+    {
+      "name": "workspace projection authority rejects stale epochs without notifying and clears reverse memberships at project/reset boundaries",
+      "status": "passed",
+      "durationMs": 0.7458749999999981
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary notifies product state only after the durable remote Yjs reconcile barrier",
+      "status": "passed",
+      "durationMs": 0.9639999999999986
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary keeps pure remote prose live while structural changes use one project-scoped projection",
+      "status": "passed",
+      "durationMs": 0.6361250000000069
+    },
+    {
+      "name": "remote SyncEngine UI refresh boundary binds sync progress to top-right notifications and restored-tab cleanup to project identity",
+      "status": "passed",
+      "durationMs": 0.9723749999999995
+    }
+  ],
+  "acceptance": {
+    "workspaceCapture": "full",
+    "partialReads": "not-implemented",
+    "performance": "not-measured",
+    "nativeOrPhysicalDevice": "not-run"
+  },
+  "limitations": [
+    "Queue integration exercises real file-backed SQLite captures and renderer stores. Provider event routing and bootstrap wiring have source assertions; the full React provider/app and native shell are not mounted here.",
+    "Virtual timers verify coalescing, first-arrival scheduling and bounded retry behavior, not wall-clock interaction latency or SQLite performance.",
+    "Structural captures still read the complete workspace. The remote reducer can rematerialize historical winners, so current-mutation IDs alone cannot authorize partial reads.",
+    "This report does not test process termination, cross-device or physical input. Reference-index SIGKILL evidence is generated separately."
+  ]
+}

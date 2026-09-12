@@ -261,6 +261,18 @@ already derive memoized world coordinates and do not need DOM measurement.
 
 ## Workspace snapshot publication
 
+`workspace-projection-refresh.ts` owns one project/database queue with one
+in-flight capture and one pending epoch. Structural events retain the interaction
+barrier and start a fixed 250 ms first-arrival window; subsequent events cannot
+postpone that window indefinitely. It flushes author durability before reading.
+Publication checks database/project/epoch ownership and the immutable data
+references observed before the read, including a separate project metadata
+identity guard. Concurrent local edits or derived metrics trigger a bounded
+backoff and full recapture. Stale missing/error results cannot affect a newer
+request, and dispose revokes scheduled and in-flight work. The project provider
+routes restore/authority changes through complete capture; pure-prose events
+continue directly to background metrics.
+
 `captureWorkspaceProjection` still reads the complete workspace in one SQLite
 transaction. The store accepts only the latest requested project/epoch. After
 that guard, `workspace-projection-sharing.ts` compares the incoming capture

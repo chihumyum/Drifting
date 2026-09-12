@@ -12,7 +12,7 @@ import type { DriftGroup } from '../domain/drift-group';
 import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 import type { EntityRelationType } from '../domain/entity-relation-type';
-import { shareWorkspaceKeyedValues, shareWorkspaceProjection } from './workspace-projection-sharing';
+import { isWorkspaceProjectionBaseCurrent, shareWorkspaceKeyedValues, shareWorkspaceProjection } from './workspace-projection-sharing';
 
 // User-curated cross-entity link. Mirrors the `entity_relation` table row.
 // Inline mentions are NOT mirrored to the store; they're queried on demand
@@ -80,8 +80,9 @@ interface DataState {
     projectId: string,
     epoch: number,
     projection: WorkspaceDataProjection,
+    expectedBase?: WorkspaceDataProjection,
   ) => boolean;
-  clearWorkspaceProjection: (projectId: string, epoch: number) => boolean;
+  clearWorkspaceProjection: (projectId: string, epoch: number, expectedBase?: WorkspaceDataProjection) => boolean;
   failWorkspaceProjection: (projectId: string, epoch: number, error: string) => boolean;
 
   storylines: Storyline[];
@@ -280,12 +281,13 @@ export const useDataStore = create<DataState>((set) => ({
     });
     return epoch;
   },
-  commitWorkspaceProjection: (projectId, epoch, projection) => {
+  commitWorkspaceProjection: (projectId, epoch, projection, expectedBase) => {
     let accepted = false;
     set((state) => {
       if (
         state.workspaceRequestedProjectId !== projectId ||
-        state.workspaceProjectionEpoch !== epoch
+        state.workspaceProjectionEpoch !== epoch ||
+        (expectedBase !== undefined && !isWorkspaceProjectionBaseCurrent(state, expectedBase))
       ) {
         return state;
       }
@@ -306,12 +308,13 @@ export const useDataStore = create<DataState>((set) => ({
     });
     return accepted;
   },
-  clearWorkspaceProjection: (projectId, epoch) => {
+  clearWorkspaceProjection: (projectId, epoch, expectedBase) => {
     let accepted = false;
     set((state) => {
       if (
         state.workspaceRequestedProjectId !== projectId ||
-        state.workspaceProjectionEpoch !== epoch
+        state.workspaceProjectionEpoch !== epoch ||
+        (expectedBase !== undefined && !isWorkspaceProjectionBaseCurrent(state, expectedBase))
       ) {
         return state;
       }

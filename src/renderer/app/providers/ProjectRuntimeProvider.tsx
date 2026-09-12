@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import loglevel from 'loglevel';
-import { initDatabase } from '../../lib/db';
+import { getDb, getDbIfInitialized, initDatabase } from '../../lib/db';
 import { events } from '../../lib/events';
 import { useAgentToolBridge } from '../../lib/agent/useAgentToolBridge';
 import { useDriftingAgentRuntime } from '../../lib/agent/useDriftingAgentRuntime';
@@ -26,7 +26,7 @@ import {
   NodeProseMetricRevisionConflictError,
   reconcileProjectProseMetrics,
 } from '../../services/node-prose-metrics.service';
-import { flushPendingAtomicSyncTransactions } from '../../services/atomic-sync-transaction-tracker';
+import { createWorkspaceProjectionRefresh } from '../../services/workspace-projection-refresh';
 import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 import { releaseEntityLinkNames } from '../../lib/entity-link-names';
@@ -212,12 +212,7 @@ export function ProjectRuntimeProvider({
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
     let disposed = false;
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let metricTimer: ReturnType<typeof setTimeout> | null = null;
-    let refreshRunning = false;
-    let refreshRequested = false;
-    let pendingEpoch: number | null = null;
-    let projectMissing = false;
 
     const scheduleMetricReconciliation = () => {
       if (metricTimer !== null) clearTimeout(metricTimer);
@@ -237,59 +232,17 @@ export function ProjectRuntimeProvider({
       }, 800);
     };
 
-    const captureAndPublish = async (epoch: number) => {
-      try {
-        await flushPendingAtomicSyncTransactions();
-        const capture = await captureWorkspaceProjection({ projectId, userId });
-        if (!capture) {
-          if (!disposed) {
-            projectMissing = true;
-            useDataStore.getState().clearWorkspaceProjection(projectId, epoch);
-            setBootState({ key: bootKey, status: 'missing' });
-          }
-          return 'missing' as const;
-        }
-        if (disposed) return 'stale' as const;
-        const accepted = useDataStore
-          .getState()
-          .commitWorkspaceProjection(projectId, epoch, capture.data);
-        if (!accepted) return 'stale' as const;
+    const refresh = createWorkspaceProjectionRefresh({
+      projectId,
+      userId,
+      onPublished: (capture) => {
         useProjectStore.getState().setCurrentProject(capture.project);
         pruneDeviceTabsToProjection(projectId, capture.data);
-        return 'published' as const;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        useDataStore.getState().failWorkspaceProjection(projectId, epoch, message);
-        throw error;
-      }
-    };
-
-    const runRefresh = async () => {
-      if (refreshRunning || disposed) return;
-      refreshRunning = true;
-      try {
-        while (refreshRequested && !disposed) {
-          refreshRequested = false;
-          const epoch =
-            pendingEpoch ??
-            useDataStore.getState().requestWorkspaceProjection(projectId, 'refreshing');
-          pendingEpoch = null;
-          try {
-            const result = await captureAndPublish(epoch);
-            if (result === 'missing') {
-              refreshRequested = false;
-              pendingEpoch = null;
-              break;
-            }
-          } catch (error) {
-            log.warn('Remote project refresh failed:', error);
-          }
-        }
-      } finally {
-        refreshRunning = false;
-        if (!disposed && !projectMissing) scheduleMetricReconciliation();
-      }
-    };
+        scheduleMetricReconciliation();
+      },
+      onMissing: () => setBootState({ key: bootKey, status: 'missing' }),
+      onError: (error) => log.warn('Remote project refresh failed:', error),
+    });
 
     const scheduleRefresh = (event: {
       projectId: string;
@@ -303,28 +256,22 @@ export function ProjectRuntimeProvider({
         scheduleMetricReconciliation();
         return;
       }
-      refreshRequested = true;
-      if (pendingEpoch === null) {
-        // Show a project-scoped, interaction-blocking state as soon as the
-        // first remote commit lands. The actual capture waits for a short
-        // quiet window so one pull burst becomes one coherent projection.
-        pendingEpoch = useDataStore
-          .getState()
-          .requestWorkspaceProjection(projectId, 'refreshing');
-      }
-      if (refreshTimer !== null) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        void runRefresh();
-      }, 250);
+      refresh.request();
+    };
+    const restore = (event: { projectIds: string[] }) => {
+      if (event.projectIds.includes(projectId)) refresh.request();
     };
 
     events.on('sync:project-changed', scheduleRefresh);
+    events.on('sync:projects-restored', restore);
+    events.on('sync:authority-changed', refresh.request);
     return () => {
       disposed = true;
-      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      refresh.dispose();
       if (metricTimer !== null) clearTimeout(metricTimer);
       events.off('sync:project-changed', scheduleRefresh);
+      events.off('sync:projects-restored', restore);
+      events.off('sync:authority-changed', refresh.request);
     };
   }, [bootKey, bootState, projectId, userId]);
 
@@ -337,17 +284,19 @@ export function ProjectRuntimeProvider({
     setBootState({ key: bootKey, status: 'loading' });
 
     const initialize = async () => {
+      let database: ReturnType<typeof getDb> | null = null;
       try {
         await initDatabase(userId);
+        if (!active) return;
+        database = getDb();
         const capture = await captureWorkspaceProjection({ projectId, userId });
+        if (!active || getDbIfInitialized() !== database) return;
         if (!capture) {
-          if (active) {
-            useDataStore.getState().clearWorkspaceProjection(projectId, epoch);
+          if (useDataStore.getState().clearWorkspaceProjection(projectId, epoch)) {
             setBootState({ key: bootKey, status: 'missing' });
           }
           return;
         }
-        if (!active) return;
         const accepted = useDataStore
           .getState()
           .commitWorkspaceProjection(projectId, epoch, capture.data);
@@ -367,9 +316,9 @@ export function ProjectRuntimeProvider({
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log.error('Project initialization failed:', error);
-        events.emit('db:error', { error: message });
-        if (active) {
-          useDataStore.getState().failWorkspaceProjection(projectId, epoch, message);
+        if (active && (database === null || getDbIfInitialized() === database) &&
+          useDataStore.getState().failWorkspaceProjection(projectId, epoch, message)) {
+          events.emit('db:error', { error: message });
           setBootState({ key: bootKey, status: 'error', error: message });
         }
       }
