@@ -1009,7 +1009,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     presentationNeeded: isVisible || isPreparing, isCommandActive,
   });
 
-  useTypewriterScrolling(editor, typewriterScrolling);
+  useTypewriterScrolling(editor, typewriterScrolling && canonicalReady, { isVisible, isPreparing });
 
   useEffect(() => {
     editorRef.current = editor;

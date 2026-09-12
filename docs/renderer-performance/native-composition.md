@@ -98,7 +98,7 @@ pnpm perf:renderer:native --sessions
 pnpm perf:renderer:native --sessions --check
 ```
 
-The current session-refactor report is
+The session-refactor snapshot is
 [`acceptance/f3-editor-sessions-native.json`](acceptance/f3-editor-sessions-native.json).
 The earlier F8a report remains a historical snapshot with its original source
 fingerprint; its default `--check` is not current evidence for later changes.
@@ -119,3 +119,31 @@ its report is sent; the normal Quit command then ends the process. These
 observations are bounded test instrumentation, not a production telemetry API.
 The authored Yjs mutation is explicitly synthetic and does not stand in for
 remote-sync or pending-review-mask acceptance.
+
+## Typewriter presentation scenario
+
+```bash
+pnpm perf:renderer:native --typewriter
+pnpm perf:renderer:native --typewriter --check
+```
+
+This mode includes all session-refactor scenarios and enables the real typewriter
+setting. It writes `acceptance/f3-typewriter-native.json`; earlier native reports
+remain historical fingerprints and are not overwritten. Temporary transforms
+count each real controller's resume, pause, tail read, caret alignment, scheduled
+frame and final disposal without adding production telemetry.
+
+With 20 retained chapter tabs, exactly one typewriter display binding must be
+active. A hidden chapter's authored Yjs update still reaches native SQLite but
+cannot change its typewriter work counters. The scenario sets a reading scroll
+position, switches tabs, then changes the hidden viewport's CSS height and the
+real position preference. Hidden tail CSS and counters must remain unchanged.
+Returning without focus must preserve scroll and prepare the tail from the
+current viewport height and preference. Focusing the real editor then checks
+caret geometry and removal of the one-frame repaint compensation. Both visible
+split viewports must retain typewriter bindings, including the unfocused side;
+closing all tabs must dispose every controller before project switching.
+
+Viewport sizing, Tiptap selection and settings actions in this test are synthetic.
+These checks establish scoped native geometry and lifecycle behavior, not physical
+IME, perceived caret repaint quality, total layout cost or an input p95 budget.

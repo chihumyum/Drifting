@@ -8,10 +8,12 @@ import { getPlatformRuntime } from '../src/renderer/platform/runtime';
 import * as Y from 'yjs';
 import { createBookContentRepository } from '../src/renderer/sqlite-repo/content-repo';
 import { flushOpenYjsDocument } from '../src/renderer/services/yjs-local-durability.service';
+import { useSettingsStore } from '../src/renderer/store/settings-store';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
   editorSessions: boolean;
+  typewriter: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -25,6 +27,8 @@ const checks: Record<string, boolean> = {};
 const sessionEvents: Array<{ instance: number; projectId: string; sourceKind: string; sourceId: string; event: string }> = [];
 const sessionInstances = new WeakMap<object, number>();
 let nextSessionInstance = 0;
+const typewriterInstances = new WeakMap<object, number>();
+const typewriterObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 let step = 'bootstrap';
 Object.assign(globalThis, {
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
@@ -32,6 +36,17 @@ Object.assign(globalThis, {
     let instance = sessionInstances.get(session);
     if (!instance) { instance = ++nextSessionInstance; sessionInstances.set(session, instance); }
     sessionEvents.push({ instance, ...session.source, event });
+  },
+  __nativeAcceptanceTypewriterEvent(owner: { editor: { view: { dom: HTMLElement } } }, event: string) {
+    let index = typewriterInstances.get(owner);
+    if (index === undefined) {
+      index = typewriterObservations.length;
+      typewriterInstances.set(owner, index);
+      typewriterObservations.push({ surface: '', counts: {} });
+    }
+    const row = typewriterObservations[index];
+    row.surface = owner.editor.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
+    row.counts[event] = (row.counts[event] ?? 0) + 1;
   },
 });
 window.addEventListener('error', e => failures.push(e.message.slice(0, 300)));
@@ -85,6 +100,10 @@ async function run() {
   const [a, b] = config.projects;
   // Only the guide for this synthetic, isolated local account is suppressed.
   localStorage.setItem('drifting.alpha-guide.v4:drifting-library.db', 'seen');
+  if (config.typewriter) {
+    useSettingsStore.getState().setTypewriterMode(true);
+    useSettingsStore.getState().setTypewriterPosition(50);
+  }
   route(a.id, a.nodeIds[0]);
   await progress('opening-native-project');
   await readyProject(a.id, 50);
@@ -117,6 +136,12 @@ async function run() {
     ensure(first.commands.redo() && first.getText() === before + marker, 'Redo history was lost');
     checks.twentyTabsIdentityAndUndo = true;
     ensure(await saveActiveEditor(), 'Native production save callback missing');
+    const listeningTypewriters = () => typewriterObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
+    if (config.typewriter) {
+      await waitFor(() => listeningTypewriters().length === 1, 'only one typewriter display owner among twenty tabs');
+      ensure(typewriterObservations.length >= 20, 'Typewriter observations missed retained editors');
+      checks.typewriterSingleVisibleOwner = true;
+    }
     if (config.editorSessions) {
       await progress('hidden-yjs-session');
       const id = a.nodeIds[1];
@@ -124,6 +149,8 @@ async function run() {
       ensure(hiddenDoc, 'Hidden editor lost its Y.Doc');
       const outlinePublishes = (nodeId: string) => sessionEvents.filter(e => e.sourceId === nodeId && e.event === 'outline').length;
       const hiddenPublishes = outlinePublishes(id);
+      const hiddenTypewriters = () => typewriterObservations.filter(row => row.surface === `node:${id}`);
+      const hiddenTypewriterBefore = JSON.stringify(hiddenTypewriters());
       const headingId = 'synthetic-hidden-heading';
       const headingText = 'Synthetic hidden heading';
       // An explicitly synthetic authored update to the live Y.Doc. This uses
@@ -140,6 +167,10 @@ async function run() {
       await waitFor(async () => (await content.findByNodeId(id))?.outlineJson.includes(headingText), 'hidden outline materialized through native SQLite');
       ensure(outlinePublishes(id) === hiddenPublishes, 'Hidden session published an outline to React');
       checks.hiddenSessionSavedWithoutOutlinePublish = true;
+      if (config.typewriter) {
+        ensure(hiddenTypewriters().length > 0 && JSON.stringify(hiddenTypewriters()) === hiddenTypewriterBefore, 'Hidden Yjs update performed typewriter display work');
+        checks.hiddenYjsWithoutTypewriterWork = true;
+      }
       const shown = await open(a.id, id);
       await waitFor(() => [...document.querySelectorAll(`[data-editor-surface="node:${id}"][data-editor-surface-visible="true"] .editor__toc-tag-text`)].some(el => el.textContent === headingText), 'prepared actual outline rail');
       ensure(getLiveYDoc(`node-content:${id}`) === hiddenDoc, 'Preparing outline recreated document');
@@ -158,6 +189,42 @@ async function run() {
       ensure(shown.getText().length === 5000, 'Hidden-update scenario left additional prose');
       checks.plainProseKeepsOutlineStable = true;
       await open(a.id, a.nodeIds[0]);
+    }
+    if (config.typewriter) {
+      await progress('typewriter-scroll-retention');
+      await frames(); await frames();
+      const viewport = first.view.dom.closest<HTMLElement>('.editor-scroll');
+      ensure(viewport && viewport.scrollHeight > viewport.clientHeight + 300, 'Synthetic chapter lacks scroll range');
+      viewport.scrollTop = 200;
+      await frames();
+      const retainedTop = viewport.scrollTop;
+      const tailBefore = viewport.style.getPropertyValue('--editor-typewriter-tail-space');
+      await open(a.id, a.nodeIds[2]);
+      ensure(viewport.scrollTop === retainedTop && viewport.style.getPropertyValue('--editor-typewriter-tail-space') === tailBefore, 'Hiding removed tail or clamped scroll');
+      const firstRows = () => typewriterObservations.filter(row => row.surface === `node:${a.nodeIds[0]}`);
+      const hiddenBefore = JSON.stringify(firstRows());
+      const oldHeight = viewport.style.height; const oldFlex = viewport.style.flex;
+      viewport.style.height = '420px'; viewport.style.flex = 'none';
+      useSettingsStore.getState().setTypewriterPosition(25);
+      await frames(); await frames();
+      ensure(JSON.stringify(firstRows()) === hiddenBefore, 'Hidden resize/preference change measured typewriter geometry');
+      ensure(viewport.style.getPropertyValue('--editor-typewriter-tail-space') === tailBefore, 'Hidden preference update changed retained tail');
+      useUiStore.getState().openEntityTab(a.id, { entityType: 'node', id: a.nodeIds[0] }, { preview: false });
+      route(a.id, a.nodeIds[0]);
+      await waitFor(() => first.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurfaceVisible === 'true', 'return without focusing retained chapter');
+      ensure(viewport.scrollTop === retainedTop, 'Preparing changed retained scroll before focus');
+      ensure(viewport.style.getPropertyValue('--editor-typewriter-tail-space') === `${Math.ceil(viewport.clientHeight * 0.75 + 24)}px`, 'Incoming tail was not prepared at current size/position');
+      viewport.style.height = oldHeight; viewport.style.flex = oldFlex;
+      useSettingsStore.getState().setTypewriterPosition(50);
+      await editorReady(a.nodeIds[0]);
+      first.commands.setTextSelection(first.state.doc.content.size - 1);
+      await frames(); await frames();
+      const caret = first.view.coordsAtPos(first.state.selection.head);
+      const target = viewport.getBoundingClientRect().top + viewport.clientHeight * 0.5;
+      ensure(Math.abs((caret.top + caret.bottom) / 2 - target) < 3, 'Visible native typewriter caret is not aligned');
+      ensure(!first.view.dom.hasAttribute('data-typewriter-caret-repaint'), 'Caret repaint remained suppressed');
+      ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Typewriter transition replaced Y.Doc');
+      checks.typewriterScrollAndPreparation = true;
     }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
@@ -179,10 +246,20 @@ async function run() {
     await waitFor(() => document.querySelectorAll('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]').length === 2, 'two actual split editors');
     ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Split replaced the shared document');
     checks.splitDocumentIdentity = true;
+    if (config.typewriter) {
+      await waitFor(() => listeningTypewriters().length === 2, 'both visible split typewriter owners');
+      const viewports = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .editor-scroll')];
+      ensure(viewports.length === 2 && viewports.every(el => el.dataset.typewriterScroll === 'on' && parseFloat(el.style.getPropertyValue('--editor-typewriter-tail-space')) > 24), 'Unfocused split viewport lost typewriter tail');
+      checks.typewriterVisibleSplit = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
     checks.closedTabsReleaseLiveDocuments = true;
+    if (config.typewriter) {
+      ensure(listeningTypewriters().length === 0 && typewriterObservations.every(row => row.counts.dispose === 1), 'Closed typewriter owners leaked');
+      checks.typewriterClosedOwnersReleased = true;
+    }
     if (config.editorSessions) {
       const counts = new Map<number, number>();
       for (const e of sessionEvents.filter(e => e.projectId === a.id && e.sourceKind === 'node' && a.nodeIds.slice(0, 20).includes(e.sourceId))) {
@@ -211,7 +288,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

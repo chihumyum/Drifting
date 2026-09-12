@@ -1583,3 +1583,64 @@ contract. The native session evidence checker matches the final product/harness
 fingerprint. A separate normal production renderer build succeeds; all 32 JS
 chunks exclude native acceptance observers, fixture identity and the credential
 namespace.
+
+## F3d — Visibility-owned typewriter scrolling
+
+`useTypewriterScrolling` is now a small React adapter to an editor-owned
+`TypewriterScrollController`. The controller persists across visibility and
+position preference changes. Hidden chapters remove their three display-event
+listeners, disconnect ResizeObserver and cancel pending alignment/caret repaint
+frames. The one destruction listener remains so closing a retained editor still
+cleans up. Hidden Yjs updates and position/viewport changes perform no typewriter
+measurement or frame scheduling.
+
+Tail CSS deliberately stays on a hidden viewport: removing virtual space can
+clamp its saved scroll position. In the incoming surface's layout preparation,
+the controller recomputes that tail from the current viewport and preference.
+Preparation does not focus, select or align a hidden caret. Visible split panes
+both retain their tail and observer, independently of command ownership; only a
+focused, collapsed selection schedules alignment. A burst of editor events
+shares one pending frame. Final destruction or disabling typewriter mode removes
+the tail CSS as well. No document content, Yjs update or selection transaction is
+created by this display controller.
+
+Nine new controller cases, together with the seven existing geometry/repaint
+cases, cover hidden updates and stale observer deliveries, canceled frames,
+retained scroll/tail, deferred size/position preparation, focus changes in split,
+effect replay and final cleanup. For 1, 5 and 20 retained editors, only the visible
+editor owns the three display listeners and an active observer; every hidden
+owner performs zero measured display work during the synthetic event burst.
+The test event/DOM/clock doubles are explicit; they do not represent native layout.
+
+```bash
+pnpm perf:renderer:native --typewriter
+pnpm perf:renderer:native --typewriter --check
+```
+
+`acceptance/f3-typewriter-native.json` runs the actual full desktop App and all
+F3c native scenarios with typewriter mode enabled. Its additional checks pass:
+one display owner for 20 tabs, no typewriter work during a hidden authored Yjs
+update, unchanged hidden tail after a synthetic viewport resize and real position
+preference change, retained reading scroll on return before focus, prepared tail
+geometry, aligned focused caret, and cleared one-frame repaint state. Both split
+panes have active typewriter bindings; closing the tabs disposes every owner.
+
+The composition process records 24 controllers and 23 disposals before its final
+open editor quits normally. Both native processes exit with code zero and report
+no uncaught renderer errors. Independent SQLite/Yjs replay again finds exactly
+one saved chapter, 52 unchanged chapter hashes and passing integrity/foreign-key
+checks. The report includes temporary per-controller counters and a product/harness
+fingerprint; the earlier native reports remain historical snapshots.
+
+This removes the identified hidden typewriter work, not all hidden display
+work. Outline-rail/scrollspy geometry, selection capture, other interaction
+owners, full-App review masks, physical IME/caret appearance and comparative
+input/memory/device budgets remain open. F3 and F8 remain `in_progress`.
+
+Validation passes 2,433 regular tests with 1 existing skip, including the 8
+renderer architecture checks, typecheck, lint (0 errors, 74 existing warnings),
+CI/public contracts, Agent capabilities and the renderer performance contract.
+The native typewriter report checker matches the final source fingerprint.
+The separate normal renderer production build passes, and all 32 JS chunks
+exclude acceptance observers, synthetic fixture identities and the isolated
+credential namespace.

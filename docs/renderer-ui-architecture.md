@@ -207,6 +207,19 @@ construction-time block-ID microtask, so outline anchors use canonical IDs.
 Detach flushes pending work, cancels the owned debounce/selection-init frame,
 invalidates queued preparation and removes the four editor event listeners.
 
+`TypewriterScrollController` separately owns caret alignment, its repaint frame
+and viewport ResizeObserver. `useTypewriterScrolling` passes pixel visibility
+and preparation state, independently of command ownership. Hidden surfaces
+detach focus/selection/update listeners, disconnect the observer and cancel both
+alignment and caret-restoration work. They retain their tail CSS so browser
+scroll clamping does not lose the stored reading position. The destruction
+listener remains until final teardown, which also removes that retained CSS.
+Position preferences and hidden resizes are applied in layout when the surface
+prepares. Preparation never focuses the editor or moves its caret. Both visible
+split viewports receive tail geometry; only a focused, collapsed selection can
+schedule alignment, coalesced into one pending frame. This display controller
+does not mutate selection, ProseMirror content or Yjs.
+
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
@@ -243,8 +256,9 @@ The native control scenario now covers 20 full-App tabs, editor/Y.Doc identity,
 undo/redo, split, hidden authored Yjs updates and SQLite materialization, outline
 preparation, binding cleanup, project switches and process restart. Broader
 scroll/field-draft continuity, native IME and retained-document memory budgets
-remain separate acceptance work in the plan. Other visible interaction owners
-and typewriter/selection work have not all been paused for hidden surfaces.
+remain separate acceptance work in the plan. Outline-rail/scrollspy measurement,
+selection capture and other visible interaction owners still need their own
+visibility audit; pausing typewriter work does not pause those owners.
 
 Automatic linking is also view-owned. Each editor retains its own immutable
 target map and self/parent exclusions; live updates do not recreate its document.
