@@ -478,6 +478,21 @@
   color: hsl(var(--ink-4));
 }
 
+.refs-index-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+}
+
+.refs-index-status .refs-section__action {
+  color: inherit;
+  white-space: nowrap;
+}
+
 /* ============================================================
    Element patches — sidecar annotations to an element. Shares the
    refs-section header and adopts a folded index-card visual.

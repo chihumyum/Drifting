@@ -8,7 +8,6 @@ import {
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
-import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
@@ -68,11 +67,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   // Default expanded so the patch body (the actual content) is the visual
   // anchor. Toggle remains for users who want to collapse long bodies.
   const [collapsed, setCollapsed] = useState(false);
-  const mentionRepoRef = useRef(createInlineMentionRepository());
 
-  // Persist patch content on every editor update. Reference projection is
-  // handled inside useEntityEditor; we just write the doc back to the row
-  // (local sqlite) and enqueue the same payload to the server sync queue.
+  // The project reference queue observes this authored commit after SQLite
+  // succeeds. Persist the body with the sync journal before notifying the UI.
   const handlePersist = useCallback(
     (editor: Editor) => {
       const contentJson = JSON.stringify(editor.getJSON());
@@ -116,8 +113,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const handleDelete = useCallback(async () => {
     try {
       await deleteElementPatchWithSync(projectId, patch.id);
-      // Also clear any inline mentions emitted from this patch.
-      await mentionRepoRef.current.deleteAllForSource('patch', patch.id);
+      // The project queue prunes references after this durable deletion.
       onDelete?.();
     } catch (error) {
       log.error('Failed to delete patch:', error);

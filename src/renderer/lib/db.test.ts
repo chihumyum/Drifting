@@ -9,7 +9,7 @@ import type {
   DatabaseTransaction,
   TransactionBehavior,
 } from '../platform/database';
-import { createDatabaseClient } from './db';
+import { afterDatabaseCommit, createDatabaseClient, type DbTransaction } from './db';
 
 type Call =
   | { type: 'begin'; behavior: TransactionBehavior | undefined; id: string }
@@ -64,6 +64,78 @@ class FakeDatabase implements DatabasePlatformApi {
 }
 
 describe('Drizzle Tauri transaction binding', () => {
+  it('notifies only after the outer commit, including successful savepoints', async () => {
+    const gateway = new FakeDatabase();
+    const database = createDatabaseClient(gateway);
+    const notifications: string[] = [];
+    await database.transaction(async (tx) => {
+      afterDatabaseCommit(tx, () => {
+        expect(gateway.calls[gateway.calls.length - 1]?.type).toBe('commit');
+        notifications.push('outer');
+      });
+      await tx.transaction(async (nested) => {
+        afterDatabaseCommit(nested, () => notifications.push('inner'));
+      });
+      expect(notifications).toEqual([]);
+    });
+    expect(notifications).toEqual(['outer', 'inner']);
+  });
+
+  it('discards notifications registered in a rolled-back savepoint', async () => {
+    const database = createDatabaseClient(new FakeDatabase());
+    const notifications: string[] = [];
+    await database.transaction(async (tx) => {
+      await expect(tx.transaction(async (nested) => {
+        afterDatabaseCommit(nested, () => notifications.push('rolled-back'));
+        throw new Error('savepoint failed');
+      })).rejects.toThrow('savepoint failed');
+      afterDatabaseCommit(tx, () => notifications.push('committed'));
+    });
+    expect(notifications).toEqual(['committed']);
+  });
+
+  it('discards successful-savepoint notifications when the outer transaction rolls back', async () => {
+    const database = createDatabaseClient(new FakeDatabase());
+    let notified = false;
+    await expect(database.transaction(async (tx) => {
+      await tx.transaction(async (nested) => {
+        afterDatabaseCommit(nested, () => { notified = true; });
+      });
+      throw new Error('outer failed');
+    })).rejects.toThrow('outer failed');
+    expect(notified).toBe(false);
+  });
+
+  it('does not notify when the gateway commit fails', async () => {
+    const gateway = new FakeDatabase();
+    gateway.commit = async () => { throw new Error('commit failed'); };
+    const database = createDatabaseClient(gateway);
+    let notified = false;
+    await expect(database.transaction(async (tx) => {
+      afterDatabaseCommit(tx, () => { notified = true; });
+    })).rejects.toThrow('commit failed');
+    expect(notified).toBe(false);
+    expect(gateway.calls[gateway.calls.length - 1]?.type).toBe('rollback');
+  });
+
+  it('does not turn an observer failure into an apparent author write failure', async () => {
+    const database = createDatabaseClient(new FakeDatabase());
+    let notified = false;
+    await expect(database.transaction(async (tx) => {
+      afterDatabaseCommit(tx, () => { throw new Error('observer failed'); });
+      afterDatabaseCommit(tx, () => { notified = true; });
+      return 'committed';
+    })).resolves.toBe('committed');
+    expect(notified).toBe(true);
+  });
+
+  it('rejects notification registration outside a live bound transaction', async () => {
+    const database = createDatabaseClient(new FakeDatabase());
+    expect(() => afterDatabaseCommit(database, () => {})).toThrow('active bound transaction');
+    let closed!: DbTransaction;
+    await database.transaction(async (tx) => { closed = tx; });
+    expect(() => afterDatabaseCommit(closed, () => {})).toThrow('active bound transaction');
+  });
   it('uses the gateway transaction ID and never emits raw top-level transaction SQL', async () => {
     const gateway = new FakeDatabase();
     const database = createDatabaseClient(gateway);

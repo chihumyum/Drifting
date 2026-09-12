@@ -322,7 +322,8 @@
           "id": "F6-01",
           "requirement": "引用仅处理受影响正文来源，删除清除引用，无关外观变化不全库解析",
           "evidence": [
-            "docs/renderer-performance/acceptance/f6-reference-boundary.json"
+            "docs/renderer-performance/acceptance/f6-reference-boundary.json",
+            "docs/renderer-performance/acceptance/f6-reference-queue.json"
           ],
           "status": "partial"
         },
@@ -331,7 +332,8 @@
           "requirement": "局部读取保持结构依赖与事务原子性，正文同步既有通道保留",
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
-            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
+            "docs/renderer-performance/acceptance/f6-reference-queue.json"
           ],
           "status": "partial"
         },
@@ -341,7 +343,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
-            "docs/renderer-performance/acceptance/f6-reference-boundary.json"
+            "docs/renderer-performance/acceptance/f6-reference-boundary.json",
+            "docs/renderer-performance/acceptance/f6-reference-queue.json"
           ],
           "status": "partial"
         },
@@ -355,12 +358,13 @@
           "requirement": "全量修复路径可用，读取、发布与解析成本分别记录；若有新迁移则通过兼容与快照验收",
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
-            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
+            "docs/renderer-performance/acceptance/f6-reference-queue.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "complete_capture_sharing_and_linear_memberships_implemented_reference_transaction_boundary_tested_not_connected"
+      "implementationStatus": "complete_capture_sharing_and_project_reference_queue_implemented_process_recovery_and_partial_reads_pending"
     },
     {
       "id": "F7",

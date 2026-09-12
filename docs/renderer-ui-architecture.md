@@ -283,47 +283,70 @@ reverse memberships. A rejected stale result neither compares data nor emits
 a store notification. Sharing owns no asynchronous task, author state or
 project cache; the existing weak ID index follows the source array lifetime.
 Full capture, the structural refresh barrier and the non-blocking prose-only
-sync path remain intact. Reference rebuild queue ownership, runtime source-version /
-generation validation, durable coverage and partial SQLite reads are pending
-F6 work; record sharing alone does not claim those guarantees.
+sync path remain intact. The reference queue below now owns derived indexing; durable hard-kill recovery
+and partial SQLite reads remain pending F6 work.
 
-### Prepared reference-index transaction boundary
+### Project reference-index queue
 
-`services/reference-index-repository.ts` is a tested foundation for the next
-project-owned queue; it is **not yet connected** to the existing provider or
-editor reference writers. Its factory captures a database client and project,
-and requires an owner-liveness predicate. A scope contains an opaque
-repository owner identity, project incarnation and active sync-generation
-identity. Capture, preparation, replacement and cleanup use that bound client;
-they never reacquire the global database during an asynchronous job.
+The ready `ProjectRuntimeProvider` retains one reference queue per captured
+SQLite client/project. It is independent of child routes and editor tabs;
+explicit boot retry, project/user replacement and last release end the owner.
+`useEntityEditor` now persists prose/outline only. It no longer walks the live
+document into inline-mention rows, including on initial mount. Copilot's live
+document context remains separate and unchanged.
+Patch cards also leave reference cleanup to the queue after the authored patch
+deletion; they cannot reacquire a different database for a late cleanup.
 
-A catalog reads the five active source kinds and durable Yjs metadata in one
-SQLite transaction. Source versions compare creation identity and either the
-Yjs revision/state-presence pair or the exact JSON seed/body. Metadata and
-materialized JSON changes cannot invalidate a Yjs-owned body's version. A
-revision-zero snapshot is already Yjs-owned; a positive revision without its
-state is an error, not permission to read the JSON cache. Prepared drafts come
-from the persisted snapshot plus updates, or JSON only when no Yjs state or
-positive revision exists (patches remain JSON). Temporary Y.Docs are destroyed even
-on decoding failure. Incomplete Yjs dependencies and invalid JSON fail before
-any index mutation; live sessions and prose state are untouched.
+Ordinary authored transactions already emit after commit. Agent-owned outer
+transactions now register the same notification with `afterDatabaseCommit`.
+The database adapter retains callbacks across successful savepoints, discards
+rolled-back callbacks, and invokes them only after the outer gateway commit.
+An observer exception cannot turn a committed author write into an apparent
+failure or prevent other observers from running. This changes renderer event
+wiring, not the Agent/network protocol or journal authority.
 
-Replacement rechecks scope, source existence and version inside the same
-transaction as deletion/insertion. Revocation detected before commit rolls
-back; a commit already handed to the gateway completes against the captured
-database and cannot be redirected to a new user database. Only successful
-commit may acknowledge a source version to the future queue. Cleanup re-reads
-current existence inside its transaction so an older catalog cannot prune a
-newly created/restored source. Trashed structural sources and patches belonging
-to trashed/missing parents are excluded. Targets retain the existing mark and
-dangling-reference semantics; unsupported source formats are preserved.
-Writes include project ownership in their predicates and participate in the
-existing atomic transaction drain without emitting authored journal events.
+`reference-index-queue.ts` coalesces ordinary commits in a 250 ms window fixed
+by the first request, keeps at most one following request during a pass, and
+yields after every 16 attempted sources. Each acknowledged entry contains the
+source version and projected reference count. Metadata and materialized-cache
+updates reuse unchanged versions; known lifecycle deletions of projected rows
+invalidate coverage even if prose did not change. A failed source retains old
+rows while other sources proceed. One retry timer backs off from 1 to 30 seconds;
+a new durable change can advance the retry. Explicit repair, restored projects
+and authority changes revoke the in-flight repository owner and clear coverage.
+New owners always start with a complete pass, never a persisted dirty-set claim.
 
-This boundary has no persistent progress, timers, event subscribers or UI
-notifications. Full catalog reads remain. Queue coalescing, atomic migration
-of the two existing writers, observable retry and startup/hard-kill coverage
-must be completed before claiming runtime incremental-reference acceptance.
+`reference-index-repository.ts` binds every read/write to the captured database
+and checks owner, project incarnation, active sync generation, source existence
+and source version. Catalog rows, Yjs version metadata and inline coverage counts
+are captured consistently. Durable Yjs snapshots plus updates supply prose;
+JSON is used only when no Yjs state or positive revision exists, or for patches.
+Revision-zero snapshots are Yjs-owned. Missing state with a positive revision,
+invalid JSON and unresolved Yjs dependencies fail before replacement. Temporary
+Y.Docs are destroyed, and live documents are never flushed or edited by indexing.
+
+Replacement validates again inside the delete/insert transaction. Revocation
+observed before commit rolls back; a commit already handed to the gateway stays
+bound to that database. Only acknowledged commits enter the queue's cache.
+Cleanup rechecks current existence inside its transaction, so an older catalog
+cannot prune a newly created/restored source. Trashed sources and patches with
+trashed/missing parents are excluded. Target marks/dangling semantics remain
+unchanged, and unknown source formats are preserved. Derived writes participate
+in the lifecycle settlement drain, but their handled rejection stays with the
+reference queue and cannot fail a concurrent author-state refresh barrier.
+
+`ReferenceIndexNotice` observes only the project's error boolean. Healthy
+queue transitions do not cause React commits or add chrome. A failed projection
+shows a retry action in panels that display inline references; observation does
+not retain the worker. `ReferencesPanel` binds each query to its database and
+advances its request generation on every reload, rejecting late older reads.
+
+Full source-catalog reads (including JSON bodies), database-wide Yjs version
+metadata and project inline coverage counts still occur on every pass, including
+pure prose commits. Source parsing/write locality is proven; database read
+latency and app-wide input performance are not. Forced process termination and
+restart coverage must be proven before F6b narrows those reads. Current owner
+restart/rollback tests are in-process and are not substitutes for that gate.
 
 ## Desktop universal create
 

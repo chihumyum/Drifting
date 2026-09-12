@@ -18,6 +18,12 @@ describe('local project bootstrap and lifecycle architecture', () => {
     expect(provider).toContain('<Navigate to="/" replace />');
     expect(provider).not.toContain('useNavigate');
     expect(provider).not.toContain('nodeUsecases.loadNodes()');
+    expect(provider).toContain('return retainProjectReferenceIndex(projectId)');
+    expect(provider).not.toContain('rebuildProjectInlineReferenceIndex');
+    const editor = source('../../hooks/useEntityEditor.ts');
+    expect(editor).not.toContain('createInlineMentionRepository');
+    expect(editor).not.toContain('projectInlineMentionsFromDoc');
+    expect(source('../../components/editor/PatchEditorCard.tsx')).not.toContain('createInlineMentionRepository');
 
     const projection = source('../../services/workspace-projection.service.ts');
     expect(projection).toContain('return getDb().transaction(async (tx) =>');

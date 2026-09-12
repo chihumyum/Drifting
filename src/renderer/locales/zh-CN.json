@@ -2582,6 +2582,7 @@
   },
   "referencesPanel": {
     "loading": "加载中…",
+    "updateFailed": "引用列表暂未更新，正在重试。",
     "relationKind": {
       "placeholder": "关系类型…",
       "editTitle": "点击编辑关系类型",

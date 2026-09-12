@@ -2582,6 +2582,7 @@
   },
   "referencesPanel": {
     "loading": "Loading…",
+    "updateFailed": "References could not be updated. Retrying…",
     "relationKind": {
       "placeholder": "Relation type…",
       "editTitle": "Edit relation type",

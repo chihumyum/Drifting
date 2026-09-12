@@ -15,6 +15,8 @@ import { events } from '../../lib/events';
 import { RelationTypeField } from '../ui/RelationTypeField';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { validateRelationAgainstType } from '../../domain/entity-relation-type';
+import { getDb, getDbIfInitialized } from '../../lib/db';
+import { ReferenceIndexNotice } from './ReferenceIndexNotice';
 
 const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -123,13 +125,16 @@ export function ReferencesPanel({
 
   useEffect(() => {
     reloadGenerationRef.current += 1;
-  }, [entityKind, entityId]);
+  }, [entityKind, entityId, projectId]);
 
   const loadReferences = useCallback(
     async (targetKind: EntityKind, targetId: string, shouldApply: () => boolean = () => true) => {
       if (!targetId) return;
+      let database: ReturnType<typeof getDb> | undefined;
+      const current = () => shouldApply() && database !== undefined && getDbIfInitialized() === database;
       try {
-        const mentionRepo = createInlineMentionRepository();
+        database = getDb();
+        const mentionRepo = createInlineMentionRepository(database);
         // Inline mentions are constrained to structural target kinds, so skip
         // the inline queries when the panel is open on a memo / material (they
         // never appear as inline-mention targets anyway).
@@ -147,26 +152,26 @@ export function ReferencesPanel({
             ? mentionRepo.listMentionsFromSource(targetKind, targetId)
             : Promise.resolve([] as InlineMentionRecord[]),
         ]);
-        if (!shouldApply()) return;
+        if (!current()) return;
         setInlineBacklinks(ibl);
         setInlineOutgoing(iout);
       } catch (error) {
-        log.error('Failed to load references:', error);
+        if (shouldApply()) log.error('Failed to load references:', error);
       } finally {
-        setLoading(false);
+        if (current()) setLoading(false);
       }
     },
     [],
   );
 
   const reload = useCallback(async () => {
-    const generation = reloadGenerationRef.current;
+    const generation = ++reloadGenerationRef.current;
     await loadReferences(entityKind, entityId, () => reloadGenerationRef.current === generation);
   }, [entityKind, entityId, loadReferences]);
 
   useEffect(() => {
     let cancelled = false;
-    const generation = reloadGenerationRef.current;
+    const generation = ++reloadGenerationRef.current;
     const timer = window.setTimeout(() => {
       void loadReferences(
         entityKind,
@@ -178,7 +183,7 @@ export function ReferencesPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [entityKind, entityId, loadReferences]);
+  }, [entityKind, entityId, projectId, loadReferences]);
 
   useEffect(() => {
     const handleReferencesChanged = (event: {
@@ -520,6 +525,7 @@ export function ReferencesPanel({
 
   return (
     <div className="references-panel">
+      {(sections.includes('incoming') || sections.includes('outgoing')) && <ReferenceIndexNotice projectId={projectId} />}
       {/* 关联 — manual whole-entity links */}
       {sections.includes('relations') && (
         <section className="refs-section">

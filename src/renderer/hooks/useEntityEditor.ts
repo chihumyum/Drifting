@@ -37,9 +37,7 @@ import {
   type BlockFormatItem,
   type SlashMenuExtraItem,
 } from '../lib/slash-menu';
-import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
 import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
-import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import type { EditorView } from '@tiptap/pm/view';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
@@ -72,8 +70,8 @@ const DEFAULT_DOC: JSONContent = {
 };
 const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
 
-// Trailing-debounce window for the heavy derive+persist pipeline (projection
-// walk, outline recompute, JSON serialize, caller onPersist). Keeps that O(doc)
+// Trailing-debounce window for the heavy derive+persist pipeline (outline
+// recompute, JSON serialize, caller onPersist). Keeps that O(doc)
 // work off the per-keystroke paint frame — a typing burst persists once, on
 // pause. Flushed immediately on blur / unmount / Cmd+S so nothing is lost. The
 // editor itself (ProseMirror DOM, plus the Y.Doc in collab mode) is the live
@@ -722,42 +720,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     [navigationRef, onEntityClickRef],
   );
 
-  // Projection: walk the doc, derive inline mentions, replace this source's
-  // rows. The doc walk + write run together; this is invoked from the persist
-  // pipeline, which is itself trailing-debounced (schedulePersist), so a typing
-  // burst projects once on pause instead of walking the whole doc every key.
-  // NOTE: copilot reads mentioned elements from the LIVE editor doc, not this
-  // projection — only ReferencesPanel consumes the projected rows — so the
-  // debounce is safe for copilot context assembly.
-  const mentionRepoRef = useRef(createInlineMentionRepository());
+  // Reference indexing follows durable commits in the project runtime. The
+  // editor persists prose/outline only; it never publishes an uncommitted
+  // live-document projection into SQLite.
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const projectReferences = useCallback(
-    (editor: Editor) => {
-      const source = sourceRef.current;
-      if (!source.projectId || !source.sourceId) return;
-      if (editor.isDestroyed) return;
-      const drafts = projectInlineMentionsFromDoc(editor.state.doc);
-      void (async () => {
-        try {
-          await mentionRepoRef.current.replaceMentionsFromSource(
-            source.projectId,
-            source.sourceKind,
-            source.sourceId,
-            drafts,
-          );
-          events.emit('references:changed', {
-            projectId: source.projectId,
-            fromKind: source.sourceKind,
-            fromId: source.sourceId,
-            targetKeys: drafts.map((draft) => `${draft.toKind}:${draft.toId}`),
-          });
-        } catch (error) {
-          log.error('Failed to project inline references:', error);
-        }
-      })();
-    },
-    [sourceRef],
-  );
 
   useEffect(
     () => () => {
@@ -796,7 +762,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     }
   }, []);
 
-  // Persistence wrapper: runs projection + outline refresh + caller's onPersist.
+  // Persistence wrapper: runs outline refresh + caller's onPersist.
   // Everything is computed ONCE here (one getJSON, one PMNode outline walk) and
   // handed to onPersist so callers don't redo the walk. Caller adds entity-
   // specific extras (e.g. wordCount). Heavy/synchronous — invoke via
@@ -804,14 +770,13 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const persistEditorContent = useCallback(
     (editor: Editor) => {
       if (editor.isDestroyed) return;
-      projectReferences(editor);
       const outline = extractOutlineFromDoc(editor.state.doc);
       setOutline(outline);
       const pmJson = JSON.stringify(editor.getJSON());
       const outlineJson = serializeOutline(outline);
       onPersistRef.current(editor, { pmJson, outline, outlineJson });
     },
-    [onPersistRef, projectReferences],
+    [onPersistRef],
   );
 
   // Trailing-debounce wrapper for the typing path: a burst of keystrokes runs
@@ -1238,7 +1203,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => events.off('element:element-created', onElementCreated);
   }, [editor, sourceRef]);
 
-  // Stamp and project a newly-created canonical editor. JSON content was
+  // Stamp a newly-created canonical editor. JSON content was
   // supplied to the TipTap constructor above; Collaboration owns Yjs content.
   // Neither mode performs a post-paint setContent transaction.
   useEffect(() => {
@@ -1260,11 +1225,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         sourceKind: source.sourceKind,
         sourceId: source.sourceId,
       };
-      // Seed the reference table from whatever entityLink marks exist in the
-      // freshly-loaded doc. onUpdate skips persistence during the initial
-      // load; without this kick, references would only populate after the
-      // user's next edit.
-      projectReferences(editor);
       // Seed the live outline so the left TOC reflects existing headings
       // before the user makes any edits, without synchronously setting React
       // state from the effect body.
@@ -1294,7 +1254,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     autoFocus,
     editor,
     projectId,
-    projectReferences,
     recomputeOutline,
     selectionKeyRef,
     sourceId,

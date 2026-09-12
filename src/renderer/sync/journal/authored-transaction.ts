@@ -69,10 +69,19 @@ const defaultDependencies: AuthoredTransactionDependencies = {
     createProjectSyncId: () => globalThis.crypto.randomUUID(),
   },
   observeAuthored: observeLocalAuthoredWithProductionKernel,
-  onCommitted(event) {
-    for (const listener of commitListeners) listener(event);
-  },
+  onCommitted: notifyAuthoredChangeCommitted,
 };
+
+/** Post-commit only; Agent-owned transactions use afterDatabaseCommit. */
+export function notifyAuthoredChangeCommitted(event: AuthoredCommitEvent): void {
+  for (const listener of [...commitListeners]) {
+    try {
+      listener(event);
+    } catch {
+      console.warn('An authored commit observer failed after a successful commit.');
+    }
+  }
+}
 
 function assertCommand(value: string, label: string): void {
   if (!/^[a-z][a-z0-9-]*\.[a-z][a-z0-9.-]*$/u.test(value)) {

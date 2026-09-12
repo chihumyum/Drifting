@@ -21,7 +21,7 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { useEntityRelationTypes } from '../../usecase/useEntityRelationTypes';
 import { useComment } from '../../usecase/useComment';
 import { useProject } from '../../usecase/useProject';
-import { rebuildProjectInlineReferenceIndex } from '../../services/reference-index.service';
+import { retainProjectReferenceIndex } from '../../services/reference-index.service';
 import {
   NodeProseMetricRevisionConflictError,
   reconcileProjectProseMetrics,
@@ -206,6 +206,11 @@ export function ProjectRuntimeProvider({
 
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
+    return retainProjectReferenceIndex(projectId);
+  }, [bootAttempt, bootKey, bootState.key, bootState.status, projectId]);
+
+  useEffect(() => {
+    if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
     let disposed = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let metricTimer: ReturnType<typeof setTimeout> | null = null;
@@ -251,9 +256,6 @@ export function ProjectRuntimeProvider({
         if (!accepted) return 'stale' as const;
         useProjectStore.getState().setCurrentProject(capture.project);
         pruneDeviceTabsToProjection(projectId, capture.data);
-        void rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
-          log.warn('Reference index rebuild failed:', error);
-        });
         return 'published' as const;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -354,9 +356,6 @@ export function ProjectRuntimeProvider({
         pruneDeviceTabsToProjection(projectId, capture.data);
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
-        void rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
-          log.warn('Reference index rebuild failed:', error);
-        });
         // Derived metrics run after the workspace authority is published. A
         // remote Yjs revision conflict never invalidates the captured domain
         // projection and will be retried by the remote quiet-window worker.

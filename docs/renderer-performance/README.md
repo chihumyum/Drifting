@@ -724,3 +724,93 @@ Validation: 2,275 Vitest tests pass (1 skipped); typecheck, lint (0 errors,
 local-only renderer production build pass. The generated 28-case boundary
 report and its final source fingerprint are checked separately. The production
 bundle remains approximately 5.31 MB; this batch makes no startup claim.
+
+## F6a3 project reference queue
+
+The project runtime now retains one queue per SQLite client/project after boot
+is ready. Both previous projection writers have been removed: the provider no
+longer launches unowned full rebuilds, and `useEntityEditor` no longer projects
+its live document on save or mount. Ordinary durable commits, Agent-owned
+commits and remote project events schedule this queue. The existing prose-only
+sync branch, structural refresh barrier, workspace epoch publication and live
+Yjs ownership remain unchanged.
+
+Agent outer transactions previously bypassed the ordinary authored commit
+listener. `afterDatabaseCommit` now bridges them only after the outer gateway
+commit succeeds. Successful savepoints retain callbacks; failed savepoints,
+outer rollback and failed commit discard them. A failed observer neither rejects
+an already-committed write nor prevents the remaining observers from running.
+Reference replacements participate in the lifecycle settlement drain, while
+handled index failures remain in the queue rather than failing a concurrent
+workspace-refresh barrier.
+
+Queue behavior and ownership:
+
+- A 250 ms window starts with the first notification and cannot be prolonged
+  by a continuous notification burst. Work arriving during a pass becomes one
+  following request. The worker yields every 16 attempted sources.
+- Successful source versions and their projected row counts are acknowledged
+  only after commit. Unchanged prose and matching coverage skip preparation and
+  replacement. Coverage counts detect rows removed by lifecycle cleanup even
+  when source prose is unchanged; unsupported source formats are preserved.
+- A source failure leaves its old rows intact while other sources can progress.
+  A single retry timer backs off through 1/2/4/8/16/30 seconds and caps there.
+  New commits can advance a backed-off retry. No unbounded task list is retained.
+- Explicit retry, restore and authority changes revoke in-flight work before
+  replacing the repository owner. Last release cancels timers/yields/listeners.
+  Database identity is checked even if the next database reuses the project ID.
+  Immediate release/reattachment starts fresh coverage.
+- JSON-only patch create/update/delete commands are covered through their real
+  authored transaction path. Patch cards no longer run a separate late SQLite
+  reference deletion after the command returns; the queue owns that cleanup.
+- The reference area shows a retry action only on failure. Its status observer
+  selects the error boolean and does not retain the queue. Reference reads also
+  reject results from older requests or a replaced database.
+
+The generated [queue report](acceptance/f6-reference-queue.json) combines 58
+passing transaction/SQLite integration tests with an isolated Chromium run of
+the actual status component, production styles and translations. The browser
+uses a fixture status seam and React's production profiling renderer. The real
+service/commit wiring is covered separately by SQLite integration tests.
+Reproduce and validate the current evidence with:
+
+```bash
+pnpm reference:index:acceptance
+pnpm reference:index:acceptance --check
+```
+
+The earlier F6a2 report remains a historical snapshot; the runner now writes
+the F6a3 queue report. The generator records the source fingerprint before
+tests, runs SQLite and browser work sequentially, then rejects source changes.
+Only synthetic fixtures, sanitized results and code are committed; local
+screenshots and temporary databases are excluded.
+
+Observed operation counts: a 100-source project prepares/writes all 100 on
+startup, 0 after metadata-only changes, and exactly 1 after a single body change.
+One hundred coalesced notifications produce one subsequent catalog pass. A
+failed source retry reuses the successfully committed sources. In the actual
+status component, 100 healthy notifications produce 0 additional React commits;
+failure/retry/recovery, project switch and unmount checks pass. Chinese/light
+and English/dark layouts fit a 375 px viewport, and Chinese/light fits 1,280 px.
+Screenshots wait for the real theme transition to finish before inspection.
+
+**Read-cost limitation:** every pass still reads the full source catalog,
+including JSON bodies, database-wide Yjs version metadata and project reference
+coverage counts; orphan cleanup also re-reads source existence. Pure prose
+commits now enter this catalog path, whereas the previous local editor writer
+projected just its live document. This batch establishes one durable writer and
+reduces parsing/replacement scope; it is not evidence of lower SQLite cost or
+better end-to-end input latency. F6b must measure and narrow those reads after
+the recovery gate. Test durations are diagnostic, not performance budgets.
+
+Owner restart and fault injection are tested in-process. Process kills at
+commit/queue/index boundaries, full-app/native/physical-device performance and
+partial reads remain unverified. F6 stays `in_progress`, and F6-04 remains without
+recovery evidence. No migration or authoritative prose format changed.
+
+Final validation: 2,301 Vitest tests pass (1 skipped); typecheck, lint (0 errors,
+74 existing warnings), CI/public contracts, capability checks and the configured
+local-only renderer production build pass. The 58-case SQLite/transaction report
+and browser checks are regenerated after those checks, in isolation, and their
+source fingerprint is verified before commit. The renderer main bundle is
+approximately 5.32 MB; native startup performance remains unmeasured.

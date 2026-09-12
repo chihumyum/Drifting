@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 
@@ -42,6 +42,7 @@ export interface ReferenceIndexScope {
 export interface ReferenceIndexCatalog {
   readonly scope: ReferenceIndexScope;
   readonly sources: readonly ReferenceSourceVersion[];
+  readonly indexedCounts: ReadonlyMap<string, number>;
 }
 
 export interface PreparedReferenceSource {
@@ -85,7 +86,7 @@ export function sameReferenceSourceVersion(left: ReferenceSourceVersion, right: 
  * Bound to one captured database and one project owner. The caller must revoke
  * isCurrent on disposal/database replacement. No late getDb(), live-doc flush,
  * authored write, event emission or durable cache is hidden in this boundary.
- * A project queue will own it; the existing UI writers are migrated separately.
+ * The project reference queue owns the versions and the retry lifecycle.
  */
 export function createReferenceIndexRepository(options: {
   database: DbClient;
@@ -107,7 +108,13 @@ export function createReferenceIndexRepository(options: {
       assertCurrent();
       return result;
     });
-    return write ? trackAtomicSyncTransaction(operation) : operation;
+    if (write) {
+      // Lifecycle drains must wait for these writes to settle, but a handled
+      // derived-index failure must not fail a concurrent workspace refresh.
+      // The original rejection still reaches this repository's queue owner.
+      void trackAtomicSyncTransaction(operation.then(() => undefined, () => undefined));
+    }
+    return operation;
   };
 
   async function readScope(tx: DbTransaction): Promise<ReferenceIndexScope | null> {
@@ -150,7 +157,13 @@ export function createReferenceIndexRepository(options: {
         const docId = proseDocId(row.kind, row.id);
         return sourceVersion(row, revisions.get(docId) ?? 0, documents.has(docId));
       });
-      return { scope, sources };
+      const indexed = await tx.select({ kind: InlineMentionTable.fromKind, id: InlineMentionTable.fromId, count: sql<number>`count(*)` })
+        .from(InlineMentionTable).where(eq(InlineMentionTable.projectId, projectId))
+        .groupBy(InlineMentionTable.fromKind, InlineMentionTable.fromId);
+      // Existing lifecycle commands can remove rows for a deleted target.
+      // Such deletions invalidate coverage even if the source prose is unchanged.
+      const indexedCounts = new Map(indexed.map((row) => [referenceSourceKey(row), Number(row.count)]));
+      return { scope, sources, indexedCounts };
     });
   }
 
@@ -213,13 +226,13 @@ export function createReferenceIndexRepository(options: {
       if (!await scopeIsCurrent(tx, scope)) return null;
       // Re-read existence inside this write transaction: an older catalog must
       // never delete references belonging to a newly created/restored source.
-      const current = new Set((await loadSourceRows(tx, projectId)).map(sourceKey));
+      const current = new Set((await loadSourceRows(tx, projectId)).map(referenceSourceKey));
       const indexed = await tx.selectDistinct({ kind: InlineMentionTable.fromKind, id: InlineMentionTable.fromId })
         .from(InlineMentionTable).where(eq(InlineMentionTable.projectId, projectId));
       let removedSources = 0;
       for (const source of indexed) {
         // Unknown/annotative source formats are outside this five-kind index.
-        if (!isStructuralEntityKind(source.kind) || current.has(sourceKey(source))) continue;
+        if (!isStructuralEntityKind(source.kind) || current.has(referenceSourceKey(source))) continue;
         assertCurrent();
         await tx.delete(InlineMentionTable).where(and(
           eq(InlineMentionTable.projectId, projectId), eq(InlineMentionTable.fromKind, source.kind),
@@ -234,7 +247,7 @@ export function createReferenceIndexRepository(options: {
   return { captureCatalog, prepareSource, replaceSource, pruneOrphanSources };
 }
 
-function sourceKey(source: { kind: string; id: string }): string {
+export function referenceSourceKey(source: { kind: string; id: string }): string {
   return JSON.stringify([source.kind, source.id]);
 }
 

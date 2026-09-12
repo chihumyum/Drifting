@@ -75,6 +75,17 @@ export type DbClient = DrizzleDatabase;
 export type DbTransaction = Parameters<Parameters<DbClient['transaction']>[0]>[0];
 export type DbExecutor = DbClient | DbTransaction;
 
+const transactionCommitCallbacks = new WeakMap<object, Array<() => void>>();
+
+/** Schedule a synchronous notification only after the owning outer commit.
+ * Savepoint rollback discards its callbacks. Notifications must enqueue work,
+ * not await another transaction while the current scheduler is still held. */
+export function afterDatabaseCommit(transaction: DbExecutor, callback: () => void): void {
+  const callbacks = transactionCommitCallbacks.get(transaction);
+  if (!callbacks) throw new Error('Commit notification requires an active bound transaction.');
+  callbacks.push(callback);
+}
+
 function createTransactionScheduler(): TransactionScheduler {
   let tail: Promise<void> = Promise.resolve();
 
@@ -161,16 +172,20 @@ function createBoundTransaction(
   database: DatabasePlatformApi,
   transactionId: string,
   savepoints: SavepointSequence,
+  commitCallbacks: Array<() => void>,
 ): DbTransaction {
   const transactionDatabase = drizzle(createProxyCallback(database, transactionId), { schema });
+  transactionCommitCallbacks.set(transactionDatabase, commitCallbacks);
 
   transactionDatabase.transaction = (async (callback) => {
     const savepoint = `drifting_sp_${savepoints.next++}`;
     await database.execute(`SAVEPOINT ${savepoint}`, [], transactionId);
+    const nestedCallbacks: Array<() => void> = [];
+    const nestedTransaction = createBoundTransaction(database, transactionId, savepoints, nestedCallbacks);
     try {
-      const nestedTransaction = createBoundTransaction(database, transactionId, savepoints);
       const result = await callback(nestedTransaction);
       await database.execute(`RELEASE SAVEPOINT ${savepoint}`, [], transactionId);
+      commitCallbacks.push(...nestedCallbacks);
       return result;
     } catch (cause) {
       const cleanupErrors: unknown[] = [];
@@ -191,6 +206,9 @@ function createBoundTransaction(
         );
       }
       throw cause;
+    } finally {
+      transactionCommitCallbacks.delete(nestedTransaction);
+      nestedCallbacks.length = 0;
     }
   }) as DrizzleDatabase['transaction'];
 
@@ -212,19 +230,33 @@ async function runGatewayTransaction<T>(
   behavior?: TransactionBehavior,
 ): Promise<T> {
   const { id } = await database.begin(behavior);
-  const transaction = createBoundTransaction(database, id, { next: 0 });
+  const commitCallbacks: Array<() => void> = [];
+  const transaction = createBoundTransaction(database, id, { next: 0 }, commitCallbacks);
 
   let result: T;
   try {
     result = await callback(transaction);
   } catch (error) {
+    commitCallbacks.length = 0;
     return rollbackAfterFailure(database, id, error);
+  } finally {
+    transactionCommitCallbacks.delete(transaction);
   }
 
   try {
     await database.commit(id);
   } catch (error) {
+    commitCallbacks.length = 0;
     return rollbackAfterFailure(database, id, error);
+  }
+  for (const notify of commitCallbacks.splice(0)) {
+    try {
+      notify();
+    } catch {
+      // The data already committed. A derived observer cannot turn success
+      // into an apparent write failure or prevent other observers from running.
+      log.warn('A database commit observer failed after a successful commit.');
+    }
   }
   return result;
 }

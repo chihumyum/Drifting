@@ -22,6 +22,7 @@ import {
   sameReferenceIndexScope, sameReferenceSourceVersion,
   type PreparedReferenceSource, type ReferenceIndexCatalog,
 } from './reference-index-repository';
+import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tracker';
 
 const NOW = '2026-09-12T00:00:00.000Z';
 const cleanups: Array<() => Promise<void>> = [];
@@ -100,6 +101,15 @@ afterEach(async () => {
 });
 
 describe('reference index durable transaction boundary', () => {
+  it('drains failed derived replacements without failing an unrelated author-state barrier', async () => {
+    const { repo, gateway } = await fixture();
+    const prepared = await prepare(repo);
+    gateway.failNextExecute((sql) => sql.startsWith('insert into "inline_mention"'));
+    const replace = repo.replaceSource(prepared);
+    const drain = flushPendingAtomicSyncTransactions();
+    await expect(replace).rejects.toThrow();
+    await expect(drain).resolves.toBeUndefined();
+  });
   it('captures all five source kinds and projects JSON seeds without writing author state', async () => {
     const { db, repo } = await fixture();
     const catalog = await replaceAll(repo);

@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 1,
+  "kind": "reference_index_queue_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-12T09:45:44.057Z",
+  "source": {
+    "commit": "857c1266a49649b3887fe08c7c86b7929b51cf06",
+    "fingerprint": "6fb4c12209c38f523f7cfa4a244fdd0b2e8d0e28c768fcba8cd55a59b259f406",
+    "dirty": true,
+    "build": "vitest-sqlite-and-isolated-chromium"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.19.0",
+    "sqlite": "3.53.3"
+  },
+  "fixture": {
+    "provenance": "synthetic test-local content",
+    "database": "integration suites: temporary files, WAL, FULL, complete product migrations; db unit suite: fake gateway",
+    "ui": "actual notice/styles/locales with a fixture status seam and production React profiling renderer"
+  },
+  "suites": [
+    "src/renderer/services/reference-index-repository.integration.test.ts",
+    "src/renderer/services/reference-index-queue.integration.test.ts",
+    "src/renderer/lib/db.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "Drizzle Tauri transaction binding notifies only after the outer commit, including successful savepoints",
+      "status": "passed",
+      "durationMs": 4.741416000000015
+    },
+    {
+      "name": "Drizzle Tauri transaction binding discards notifications registered in a rolled-back savepoint",
+      "status": "passed",
+      "durationMs": 1.985541000000012
+    },
+    {
+      "name": "Drizzle Tauri transaction binding discards successful-savepoint notifications when the outer transaction rolls back",
+      "status": "passed",
+      "durationMs": 1.3950829999999996
+    },
+    {
+      "name": "Drizzle Tauri transaction binding does not notify when the gateway commit fails",
+      "status": "passed",
+      "durationMs": 1.039000000000044
+    },
+    {
+      "name": "Drizzle Tauri transaction binding does not turn an observer failure into an apparent author write failure",
+      "status": "passed",
+      "durationMs": 1.1019580000000246
+    },
+    {
+      "name": "Drizzle Tauri transaction binding rejects notification registration outside a live bound transaction",
+      "status": "passed",
+      "durationMs": 0.7238750000000209
+    },
+    {
+      "name": "Drizzle Tauri transaction binding uses the gateway transaction ID and never emits raw top-level transaction SQL",
+      "status": "passed",
+      "durationMs": 1.1890000000000214
+    },
+    {
+      "name": "Drizzle Tauri transaction binding rolls back the owning gateway transaction when the callback fails",
+      "status": "passed",
+      "durationMs": 0.7524169999999799
+    },
+    {
+      "name": "Drizzle Tauri transaction binding serializes concurrent top-level transactions before asking Rust to begin",
+      "status": "passed",
+      "durationMs": 1.2345409999999788
+    },
+    {
+      "name": "Drizzle Tauri transaction binding implements nested Drizzle transactions with transaction-bound savepoints",
+      "status": "passed",
+      "durationMs": 0.9927089999999907
+    },
+    {
+      "name": "project reference queue starts with full coverage and coalesces 100 notifications without postponing the first window",
+      "status": "passed",
+      "durationMs": 34.73458400000004
+    },
+    {
+      "name": "project reference queue for 100 sources, metadata prepares 0 and a single body edit prepares and writes exactly 1",
+      "status": "passed",
+      "durationMs": 151.39270799999997
+    },
+    {
+      "name": "project reference queue retains a request arriving during a pass and rejects its older prepared body",
+      "status": "passed",
+      "durationMs": 22.850082999999927
+    },
+    {
+      "name": "project reference queue acknowledges successful sources while retrying failed sources with bounded backoff",
+      "status": "passed",
+      "durationMs": 24.04554200000007
+    },
+    {
+      "name": "project reference queue moves a backed-off retry forward when a new durable change repairs its source",
+      "status": "passed",
+      "durationMs": 26.072791999999936
+    },
+    {
+      "name": "project reference queue keeps one retry timer and caps repeated failures at 30 seconds",
+      "status": "passed",
+      "durationMs": 15.755792000000042
+    },
+    {
+      "name": "project reference queue force repair revokes an in-flight owner before replacement can commit",
+      "status": "passed",
+      "durationMs": 23.275082999999995
+    },
+    {
+      "name": "project reference queue prunes deletion and processes restored sources even when their body version is unchanged",
+      "status": "passed",
+      "durationMs": 23.609790999999973
+    },
+    {
+      "name": "project reference queue new owners repair missing rows even when the previous owner acknowledged every version",
+      "status": "passed",
+      "durationMs": 24.891124999999988
+    },
+    {
+      "name": "project reference queue rechecks coverage removed by lifecycle cleanup even when source prose is unchanged",
+      "status": "passed",
+      "durationMs": 22.181332999999995
+    },
+    {
+      "name": "project reference queue disposal cancels scheduled work, releases yields, and prevents late publication",
+      "status": "passed",
+      "durationMs": 60.48675000000003
+    },
+    {
+      "name": "reference queue runtime wiring indexes JSON-only patch create and update commits and prunes durable patch deletion",
+      "status": "passed",
+      "durationMs": 47.3907089999999
+    },
+    {
+      "name": "reference queue runtime wiring survives immediate release and reattachment without retaining a cancelled startup",
+      "status": "passed",
+      "durationMs": 17.760792000000038
+    },
+    {
+      "name": "reference queue runtime wiring cancels a previous database queue even when the next database reuses the project ID",
+      "status": "passed",
+      "durationMs": 36.08829100000003
+    },
+    {
+      "name": "reference queue runtime wiring shares one worker across retainers and releases all event listeners and timers",
+      "status": "passed",
+      "durationMs": 17.759874999999965
+    },
+    {
+      "name": "reference queue runtime wiring observes ordinary authored Yjs only after commit and suppresses faulty observers",
+      "status": "passed",
+      "durationMs": 27.49395800000002
+    },
+    {
+      "name": "reference queue runtime wiring observes Agent outer commits but not rolled-back Agent savepoints",
+      "status": "passed",
+      "durationMs": 28.33637499999986
+    },
+    {
+      "name": "reference queue runtime wiring handles remote prose without a workspace refresh, and restores force complete repair",
+      "status": "passed",
+      "durationMs": 26.80345800000009
+    },
+    {
+      "name": "reference queue runtime wiring status observation does not retain a worker and manual retry repairs a failed source",
+      "status": "passed",
+      "durationMs": 23.452374999999847
+    },
+    {
+      "name": "reference index durable transaction boundary drains failed derived replacements without failing an unrelated author-state barrier",
+      "status": "passed",
+      "durationMs": 30.248582999999996
+    },
+    {
+      "name": "reference index durable transaction boundary captures all five source kinds and projects JSON seeds without writing author state",
+      "status": "passed",
+      "durationMs": 24.90479099999999
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable node Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 21.707583999999997
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable element Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 19.22945900000002
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable storyline Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 19.31604199999998
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable category Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 19.47420900000003
+    },
+    {
+      "name": "reference index durable transaction boundary combines snapshots and updates and keeps the same source version through compaction",
+      "status": "passed",
+      "durationMs": 23.578041999999982
+    },
+    {
+      "name": "reference index durable transaction boundary distinguishes a revision-zero snapshot from a JSON seed",
+      "status": "passed",
+      "durationMs": 19.161917000000017
+    },
+    {
+      "name": "reference index durable transaction boundary ignores metadata and materialized-cache changes but detects only the changed prose source",
+      "status": "passed",
+      "durationMs": 19.511167
+    },
+    {
+      "name": "reference index durable transaction boundary detects JSON source changes even when updatedAt is unchanged",
+      "status": "passed",
+      "durationMs": 19.90137500000003
+    },
+    {
+      "name": "reference index durable transaction boundary never falls back to JSON when a durable revision has lost its Yjs state",
+      "status": "passed",
+      "durationMs": 19.874165999999946
+    },
+    {
+      "name": "reference index durable transaction boundary preserves previous references when JSON parsing fails",
+      "status": "passed",
+      "durationMs": 18.894542
+    },
+    {
+      "name": "reference index durable transaction boundary preserves previous references when persisted Yjs bytes are malformed",
+      "status": "passed",
+      "durationMs": 19.45754199999999
+    },
+    {
+      "name": "reference index durable transaction boundary rejects unresolved Yjs dependencies instead of indexing a partial document",
+      "status": "passed",
+      "durationMs": 17.244499999999903
+    },
+    {
+      "name": "reference index durable transaction boundary rejects late preparation and replacement after a newer durable prose revision",
+      "status": "passed",
+      "durationMs": 20.80416600000001
+    },
+    {
+      "name": "reference index durable transaction boundary invalidates both generation creation and generation replacement without mutating generations",
+      "status": "passed",
+      "durationMs": 20.669374999999945
+    },
+    {
+      "name": "reference index durable transaction boundary rejects results belonging to a different database or repository owner",
+      "status": "passed",
+      "durationMs": 32.895624999999995
+    },
+    {
+      "name": "reference index durable transaction boundary rejects revoked work even if it was queued before the transaction began",
+      "status": "passed",
+      "durationMs": 17.30574999999999
+    },
+    {
+      "name": "reference index durable transaction boundary rolls back replacement when its owner is revoked during the delete/insert transaction",
+      "status": "passed",
+      "durationMs": 18.652833999999984
+    },
+    {
+      "name": "reference index durable transaction boundary rolls back the deletion if replacement insertion fails and permits retry",
+      "status": "passed",
+      "durationMs": 22.21683299999995
+    },
+    {
+      "name": "reference index durable transaction boundary does not acknowledge a replacement whose commit fails",
+      "status": "passed",
+      "durationMs": 20.101958999999965
+    },
+    {
+      "name": "reference index durable transaction boundary does not resurrect hard-deleted sources and prunes their old references",
+      "status": "passed",
+      "durationMs": 18.782792000000086
+    },
+    {
+      "name": "reference index durable transaction boundary excludes trashed sources and child patches, then reprojects after restore",
+      "status": "passed",
+      "durationMs": 31.94958299999996
+    },
+    {
+      "name": "reference index durable transaction boundary rechecks current existence so an old catalog cannot prune newly created sources",
+      "status": "passed",
+      "durationMs": 27.572750000000042
+    },
+    {
+      "name": "reference index durable transaction boundary keeps writes within the owning project and preserves unsupported source formats",
+      "status": "passed",
+      "durationMs": 18.185749999999985
+    },
+    {
+      "name": "reference index durable transaction boundary rejects changed source incarnations and sources moved to another project",
+      "status": "passed",
+      "durationMs": 19.40112499999998
+    },
+    {
+      "name": "reference index durable transaction boundary captures source rows and Yjs versions in one consistent SQLite transaction",
+      "status": "passed",
+      "durationMs": 18.564874999999915
+    },
+    {
+      "name": "reference index durable transaction boundary clears an empty committed source without changing its prose",
+      "status": "passed",
+      "durationMs": 19.996249999999918
+    },
+    {
+      "name": "reference index durable transaction boundary rejects deleted and recreated project scopes even if entity IDs are reused",
+      "status": "passed",
+      "durationMs": 18.592499999999973
+    }
+  ],
+  "queueOperations": {
+    "sourceCount": 100,
+    "startup": {
+      "sources": 100,
+      "prepared": 100,
+      "written": 100,
+      "reused": 0,
+      "removedSources": 0,
+      "failedSources": 0,
+      "stale": false
+    },
+    "metadata": {
+      "sources": 100,
+      "prepared": 0,
+      "written": 0,
+      "reused": 100,
+      "removedSources": 0,
+      "failedSources": 0,
+      "stale": false
+    },
+    "oneBodyChange": {
+      "sources": 100,
+      "prepared": 1,
+      "written": 1,
+      "reused": 99,
+      "removedSources": 0,
+      "failedSources": 0,
+      "stale": false
+    }
+  },
+  "ui": {
+    "browser": "Chrome/153.0.8010.36",
+    "mode": "production React profiling renderer; fixture status seam; actual notice/styles/locales",
+    "mountedCommits": 1,
+    "healthyNotifications": 100,
+    "healthyProgressCommits": 0,
+    "checks": [
+      {
+        "id": "failure-visible",
+        "passed": true
+      },
+      {
+        "id": "retry-project-identity",
+        "passed": true
+      },
+      {
+        "id": "recovery-hides-notice",
+        "passed": true
+      },
+      {
+        "id": "project-switch",
+        "passed": true
+      },
+      {
+        "id": "unmount-cleanup",
+        "passed": true
+      }
+    ],
+    "layouts": [
+      {
+        "language": "zh-CN",
+        "dark": false,
+        "viewportWidth": 375,
+        "noticeWidth": 327,
+        "noticeHeight": 38.25,
+        "fits": true
+      },
+      {
+        "language": "en",
+        "dark": true,
+        "viewportWidth": 375,
+        "noticeWidth": 327,
+        "noticeHeight": 38.25,
+        "fits": true
+      },
+      {
+        "language": "zh-CN",
+        "dark": false,
+        "viewportWidth": 1280,
+        "noticeWidth": 400,
+        "noticeHeight": 38.25,
+        "fits": true
+      }
+    ]
+  },
+  "acceptance": {
+    "durableTransactionBoundary": "passed",
+    "runtimeQueueConnected": true,
+    "hardKillRecovery": "not-run",
+    "nativeOrPhysicalDevice": "not-run",
+    "performanceComparison": "operation-counts-only"
+  },
+  "limitations": [
+    "Provider and editor wiring is implemented; SQLite tests exercise the service with ordinary, Agent and remote commit events. Full application/native/device acceptance is not exercised.",
+    "Failure injection, rollback and owner restart are exercised in-process; process termination and restart recovery are not exercised.",
+    "Test durations are diagnostic only. Parser/write/React commit locality is checked; database latency, input latency and total refresh time are not measured.",
+    "Every queue pass still reads a full source catalog, database-wide Yjs version metadata and project reference coverage counts, including after pure prose commits; this is not a database-read optimization.",
+    "UI behavior/layout use an isolated real component with a fixture status seam; they do not prove the complete reference panel or native shell."
+  ]
+}

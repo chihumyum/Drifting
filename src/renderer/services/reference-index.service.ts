@@ -1,129 +1,110 @@
-import { eq } from 'drizzle-orm';
 import loglevel from 'loglevel';
-import { getDb } from '../lib/db';
+import { getDb, getDbIfInitialized, type DbClient } from '../lib/db';
 import { events } from '../lib/events';
-import {
-  BookElementTable,
-  BookNodeTable,
-  ElementCategoryTable,
-  ElementPatchTable,
-  NodeContentTable,
-  StorylineTable,
-} from '../schema/drizzle';
-import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
-import type { StructuralEntityKind } from '../domain/entity-kinds';
-import { projectInlineMentionsFromJson } from './reference-projection.service';
+import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction';
+import { createReferenceIndexRepository } from './reference-index-repository';
+import { createReferenceIndexQueue, type ReferenceIndexQueueSnapshot } from './reference-index-queue';
 
 const log = loglevel.getLogger('ReferenceIndexService');
 log.setLevel(loglevel.levels.WARN);
 
-interface ReferenceSourceDoc {
-  kind: StructuralEntityKind;
-  id: string;
-  contentJson: string | null | undefined;
+type Queue = ReturnType<typeof createReferenceIndexQueue>;
+interface Entry { queue: Queue; retainers: number; stop: () => void }
+const entries = new WeakMap<DbClient, Map<string, Entry>>();
+const listeners = new Map<string, Set<() => void>>();
+const INACTIVE: ReferenceIndexQueueSnapshot = { phase: 'disposed', hasError: false, lastRun: null };
+
+function notify(projectId: string): void {
+  for (const listener of [...(listeners.get(projectId) ?? [])]) {
+    try { listener(); } catch { log.warn('Reference index status observer failed.'); }
+  }
 }
 
-export interface ReferenceIndexRebuildStats {
-  sources: number;
-  references: number;
-  skipped: number;
+function currentEntry(projectId: string): Entry | undefined {
+  const database = getDbIfInitialized();
+  return database ? entries.get(database)?.get(projectId) : undefined;
 }
 
-export async function rebuildProjectInlineReferenceIndex(
-  projectId: string,
-): Promise<ReferenceIndexRebuildStats> {
-  const mentionRepo = createInlineMentionRepository();
-  const sources = await loadReferenceSourceDocs(projectId);
-  let references = 0;
-  let skipped = 0;
+export function getProjectReferenceIndexSnapshot(projectId: string): ReferenceIndexQueueSnapshot {
+  return currentEntry(projectId)?.queue.getSnapshot() ?? INACTIVE;
+}
 
-  for (const source of sources) {
-    const parsed = parseEditorJson(source.contentJson);
-    if (!parsed.ok) {
-      skipped += 1;
-      continue;
-    }
+/** Observing status never creates or retains a project worker. */
+export function subscribeProjectReferenceIndex(projectId: string, listener: () => void): () => void {
+  let subscribers = listeners.get(projectId);
+  if (!subscribers) { subscribers = new Set(); listeners.set(projectId, subscribers); }
+  subscribers.add(listener);
+  return () => {
+    subscribers.delete(listener);
+    if (subscribers.size === 0) listeners.delete(projectId);
+  };
+}
 
-    const drafts = projectInlineMentionsFromJson(parsed.json);
-    references += drafts.length;
-    await mentionRepo.replaceMentionsFromSource(
-      projectId,
-      source.kind,
-      source.id,
-      drafts,
+export function retryProjectReferenceIndex(projectId: string): void {
+  currentEntry(projectId)?.queue.request(true);
+}
+
+/** Owned by the ready user/project runtime, independent of routes and tabs.
+ * Startup always reconciles the complete catalog, including commits that
+ * happened before event subscription or while the renderer was not running. */
+export function retainProjectReferenceIndex(projectId: string): () => void {
+  const database = getDb();
+  let projects = entries.get(database);
+  if (!projects) { projects = new Map(); entries.set(database, projects); }
+  let entry = projects.get(projectId);
+  if (entry?.queue.getSnapshot().phase === 'disposed') {
+    entry.stop();
+    entry = undefined;
+  }
+  if (!entry) {
+    let stopped = false;
+    const disposers: Array<() => void> = [];
+    const queue = createReferenceIndexQueue({
+      isCurrent: () => !stopped && getDbIfInitialized() === database,
+      createRepository: (isCurrent) => createReferenceIndexRepository({ database, projectId, isCurrent }),
+      onSnapshot: () => notify(projectId),
+      onChanged: () => events.emit('references:changed', { projectId }),
+      onError: () => log.warn('Reference index is incomplete; a bounded retry is scheduled.'),
+    });
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      for (const dispose of disposers) dispose();
+      projects.delete(projectId);
+      queue.dispose();
+    };
+    entry = { queue, retainers: 0, stop };
+    projects.set(projectId, entry);
+    const request = (force = false) => {
+      if (getDbIfInitialized() !== database) { stop(); return; }
+      queue.request(force);
+    };
+    disposers.push(onAuthoredChangeCommitted((event) => {
+      if (event.projectId === projectId) request();
+    }));
+    const remote = (event: { projectId: string }) => { if (event.projectId === projectId) request(); };
+    const restored = (event: { projectIds: string[] }) => { if (event.projectIds.includes(projectId)) request(true); };
+    const authority = () => request(true);
+    const databaseReady = () => { if (getDbIfInitialized() !== database) stop(); };
+    events.on('sync:project-changed', remote);
+    events.on('sync:projects-restored', restored);
+    events.on('sync:authority-changed', authority);
+    events.on('db:ready', databaseReady);
+    disposers.push(
+      () => events.off('sync:project-changed', remote),
+      () => events.off('sync:projects-restored', restored),
+      () => events.off('sync:authority-changed', authority),
+      () => events.off('db:ready', databaseReady),
     );
+    queue.request(true);
   }
-
-  events.emit('references:changed', { projectId });
-  return { sources: sources.length, references, skipped };
-}
-
-async function loadReferenceSourceDocs(projectId: string): Promise<ReferenceSourceDoc[]> {
-  const db = getDb();
-  const [nodeRows, elementRows, categoryRows, storylineRows, patchRows] = await Promise.all([
-    db
-      .select({
-        id: BookNodeTable.id,
-        contentJson: NodeContentTable.contentJson,
-      })
-      .from(BookNodeTable)
-      .leftJoin(NodeContentTable, eq(BookNodeTable.id, NodeContentTable.nodeId))
-      .where(eq(BookNodeTable.projectId, projectId)),
-    db
-      .select({
-        id: BookElementTable.id,
-        contentJson: BookElementTable.contentJson,
-      })
-      .from(BookElementTable)
-      .where(eq(BookElementTable.projectId, projectId)),
-    db
-      .select({
-        id: ElementCategoryTable.id,
-        contentJson: ElementCategoryTable.contentJson,
-      })
-      .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.projectId, projectId)),
-    db
-      .select({
-        id: StorylineTable.id,
-        contentJson: StorylineTable.contentJson,
-      })
-      .from(StorylineTable)
-      .where(eq(StorylineTable.projectId, projectId)),
-    db
-      .select({
-        id: ElementPatchTable.id,
-        contentJson: ElementPatchTable.contentJson,
-      })
-      .from(ElementPatchTable)
-      .where(eq(ElementPatchTable.projectId, projectId)),
-  ]);
-
-  return [
-    ...nodeRows.map((row) => sourceDoc('node', row.id, row.contentJson)),
-    ...elementRows.map((row) => sourceDoc('element', row.id, row.contentJson)),
-    ...categoryRows.map((row) => sourceDoc('category', row.id, row.contentJson)),
-    ...storylineRows.map((row) => sourceDoc('storyline', row.id, row.contentJson)),
-    ...patchRows.map((row) => sourceDoc('patch', row.id, row.contentJson)),
-  ];
-}
-
-function sourceDoc(
-  kind: StructuralEntityKind,
-  id: string,
-  contentJson: string | null | undefined,
-): ReferenceSourceDoc {
-  return { kind, id, contentJson };
-}
-
-function parseEditorJson(contentJson: string | null | undefined):
-  | { ok: true; json: unknown }
-  | { ok: false } {
-  if (!contentJson) return { ok: true, json: undefined };
-  try {
-    return { ok: true, json: JSON.parse(contentJson) };
-  } catch (error) {
-    log.warn('[references] skipping invalid editor JSON while rebuilding index:', error);
-    return { ok: false };
-  }
+  const retained = entry;
+  retained.retainers += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    retained.retainers -= 1;
+    if (retained.retainers === 0) retained.stop();
+  };
 }
