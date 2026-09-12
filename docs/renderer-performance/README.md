@@ -2,7 +2,7 @@
 
 The [implementation plan](optimization-plan.md) remains the scope authority.
 F0 is **in progress**: the first input-path baseline is available; app-wide,
-Agent, graph, reference, multi-tab memory and native/device measurements remain
+Agent chat streaming, graph, reference, multi-tab memory and native/device measurements remain
 NOT RUN. This initial input baseline permits the bounded F1 input-path work;
 it does not satisfy unrelated phases' baseline requirements.
 
@@ -180,3 +180,38 @@ Validation: typecheck, full Vitest (2,173 passed, 1 skipped), lint (0 errors,
 checks and production renderer build. The next batch narrows editor Review
 decoration subscriptions. Broader projection record reuse, graph read models,
 native interaction and remaining app-wide phase acceptance remain pending.
+
+## F3a entity-scoped Review decorations
+
+Review selection, decoration application and React lifecycle wiring now have
+separate owners under `features/editor`. A per-editor selector ignores unrelated
+entities and non-prose fields; the shared weak guard index is rebuilt only when
+the guard collection changes. Empty review state no longer creates an empty
+metadata transaction on every keystroke. Hidden, unselected editors defer dirty
+decorations while retaining their editor, Y.Doc and existing persistence path.
+
+The lifecycle's new `isPreparing` flag lets the incoming surface flush deferred
+decorations in a layout effect before reporting ready. Readiness combines the
+existing canonical document check with decoration readiness. Both visible split
+panes receive presentation work even when only one owns commands. Failed
+projection application hides the editor DOM until a successful retry.
+
+Generated [f3-editor-decorations.json](acceptance/f3-editor-decorations.json)
+compares the previous effect with the production controller on 20 real Tiptap
+instances per group. Across 100 unrelated Review updates, decoration metadata
+transactions fall from 2,000 to zero; 100 ordinary insertions with empty Review
+state also produce zero decoration metadata transactions. Browser checks cover
+a hidden editor receiving a real remote Yjs edit, synchronous mask preparation,
+guard-to-durable-review transition, projection failure and retry, unchanged prose
+and selection, undo continuity, and zero remaining controller subscriptions after
+disposal. A mounted React provider/hook scenario verifies preparation before
+reveal and separates split visibility from command ownership.
+
+Validation: selector tests, continuity wiring checks, full Vitest (2,177 passed,
+1 skipped), typecheck, lint (0 errors, 76 existing warnings), public/CI contract,
+Agent capabilities and conversation-sync checks, production renderer build,
+and the guarded browser runner/report checker. Existing input and subscription
+budgets remain passing. These are isolated controller/provider checks, not the
+full App's 1/5/20-tab matrix or native masking/scroll/IME acceptance. Other editor
+responsibilities and retained-document memory still require work; F3 remains
+`in_progress`.

@@ -157,29 +157,42 @@
         "F1",
         "F2"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F3-01",
           "requirement": "不相关实体的 Agent 状态不触发编辑器装饰计算",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+          ],
+          "status": "passed"
         },
         {
           "id": "F3-02",
           "requirement": "隐藏标签延迟安全的显示计算，仍接收权威更新并完成必要持久化",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F3-03",
           "requirement": "标签返回及 split 保留草稿、撤销、选择、滚动和审阅遮罩，无空白或泄露帧",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F3-04",
           "requirement": "多标签达到 F0 预算，关闭后监听器和文档保留数量不持续增长",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f3-editor-decorations.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "entity_scoped_review_decorations_and_preparation_barrier_implemented"
     },
     {
       "id": "F4",

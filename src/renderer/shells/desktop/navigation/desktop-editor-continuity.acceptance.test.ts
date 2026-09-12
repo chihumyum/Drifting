@@ -22,6 +22,9 @@ describe('desktop editor continuity acceptance', () => {
     expect(main).toContain('visibility: isVisible ? \'visible\' : \'hidden\'');
     expect(main).toContain('inert={!isInteractive}');
     expect(main).toContain('surface.revisionKey === desiredRevisionKey');
+    expect(main).toContain('isPreparing={isDesired}');
+    expect(main).toContain('isPreparing={isSurfacePreparing}');
+    expect(lifecycle).toContain('isPreparing: boolean;');
     expect(main).toContain(
       '!next.some((surface) => surface.revisionKey === committedSurface.revisionKey)',
     );
@@ -51,6 +54,7 @@ describe('desktop editor continuity acceptance', () => {
     expect(entityEditor).toContain('content: initialContent');
     expect(entityEditor).not.toContain('loadDocWithoutHistory');
     expect(entityEditor).toContain('collaboration?.options.document === ydoc');
+    expect(entityEditor).toContain('const ready = canonicalReady && decorationsReady;');
     expect(source('src/renderer/hooks/useEntityYjsDoc.ts')).toContain(
       'const enabled = Boolean(userId && projectId && entityId)',
     );

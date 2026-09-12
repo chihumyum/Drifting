@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
@@ -13,18 +13,11 @@ import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
 import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../lib/outline';
-import { DecorationSet } from '@tiptap/pm/view';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
 import {
   AgentDiffDecoration,
-  AgentDiffPluginKey,
-  buildAgentEditorDecorations,
-  planAgentAutoRevealMask,
 } from '../lib/extensions/agent-diff-decoration';
-import { useAgentEditStore } from '../store/agent-edit-store';
-import { entityKey } from '../lib/agent/tool-entity-ref';
-import { isProseEntityType } from '../lib/yjs-doc-id';
 import {
   EntityLink,
   EntityLinkDanglingPluginKey,
@@ -70,6 +63,7 @@ import {
   buildEntityLinkColorSignature,
   resolveEntityLinkTargetColor,
 } from '../lib/entity-link-appearance';
+import { useAgentEditorDecorations } from '../features/editor/useAgentEditorDecorations';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { buildEntityAutoDetectTargets, selectEntityLinkNames } from '../lib/entity-link-names';
 
@@ -641,7 +635,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
-  const { isCommandActive } = useEditorSurfaceLifecycle();
+  const { isCommandActive, isVisible, isPreparing } = useEditorSurfaceLifecycle();
   // Latest editor instance, read inside the (later-firing) contextmenu handler
   // to run「格式」block-transform commands on the live selection. Declared up
   // here because the handler closure lives inside the useEditor config below;
@@ -1210,7 +1204,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const collaboration = editor?.extensionManager.extensions.find(
     (extension) => extension.name === 'collaboration',
   );
-  const ready =
+  const canonicalReady =
     documentMode === 'json'
       ? Boolean(editor)
       : Boolean(editor && ydoc && collaboration?.options.document === ydoc);
@@ -1280,67 +1274,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     editor,
   ]);
 
-  // Agent-edit prose decorations: approve-mode inline diffs plus the auto-mode
-  // reveal mask. Any prose editor (node / element / storyline / category).
-  // Recomputed from the edit store and pushed into the doc via meta, so both
-  // projections render IN PLACE (reflow + scroll with prose, no detached DOM).
-  // The `update` listener re-runs after content load and edits (positions shift);
-  // a meta-only dispatch makes no doc change, so it can't loop.
-  useLayoutEffect(() => {
-    if (!editor || editor.isDestroyed || !isProseEntityType(sourceKind)) return undefined;
-    const entityType = sourceKind;
-    const recompute = () => {
-      if (editor.isDestroyed) return;
-      try {
-        const state = useAgentEditStore.getState();
-        const key = entityKey(entityType, sourceId);
-        const entry = state.pending[key];
-        const addition = state.additions[key];
-        const guardedBlockIds = Object.values(state.autoRevealGuards).flatMap(
-          (guard) =>
-            guard.entityType === entityType && guard.id === sourceId
-              ? guard.blockIds
-              : [],
-        );
-        // Only APPROVE-mode changes render the in-place diff (per-change mode);
-        // auto changes reveal + apply via AgentEditAnimator instead. No global-mode
-        // dependency — switching the toggle never reclassifies existing changes.
-        // Prose blocks only — `field:*` (summary/kv) changes are reviewed by the
-        // in-page field affordances, not these ProseMirror decorations.
-        const approveChanges =
-          entry?.changes.filter((c) => !c.field && (c.mode ?? 'approve') === 'approve') ?? [];
-        // Every auto changed/new block is already durable before the overlay
-        // plays — this applies to edits of existing files as well as Added
-        // first-open prose. Mask the real ProseMirror node until its reveal
-        // finishes, preserving layout and preventing completed text from ever
-        // painting beneath a duplicate typewriter pass. Before an Added file's
-        // ids materialize, mask every textual top-level block.
-        const autoRevealBlockIds = planAgentAutoRevealMask(
-          entry?.changes ?? [],
-          addition?.revealBlockIds === null,
-          guardedBlockIds,
-        );
-        const set =
-          approveChanges.length > 0 || autoRevealBlockIds !== undefined
-            ? buildAgentEditorDecorations(
-                editor.state.doc,
-                approveChanges,
-                autoRevealBlockIds,
-              )
-            : DecorationSet.empty;
-        editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, set));
-      } catch (error) {
-        log.warn('Failed to build agent diff decorations:', error);
-      }
-    };
-    recompute();
-    const unsubEdit = useAgentEditStore.subscribe(recompute);
-    editor.on('update', recompute);
-    return () => {
-      unsubEdit();
-      editor.off('update', recompute);
-    };
-  }, [editor, sourceKind, sourceId]);
+  const decorationsReady = useAgentEditorDecorations(editor, sourceKind, sourceId, isVisible || isPreparing);
+  const ready = canonicalReady && decorationsReady;
 
   // Retroactively link prose that mentioned an element before it was created.
   // Auto-detect only fires on freshly-typed text, so an element created after

@@ -675,6 +675,11 @@
 .agent-auto-reveal-pending {
   opacity: 0 !important;
 }
+
+/* A failed projection must never expose unreviewed canonical text. */
+.ProseMirror[data-agent-projection-blocked="true"] {
+  visibility: hidden !important;
+}
 .agent-reveal {
   display: block;
   z-index: 61;

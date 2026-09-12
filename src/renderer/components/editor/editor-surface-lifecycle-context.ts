@@ -3,6 +3,8 @@ import { createContext, useContext, useLayoutEffect } from 'react';
 export interface EditorSurfaceLifecycleValue {
   /** The surface is the pixels currently presented in the workspace stage. */
   isVisible: boolean;
+  /** Selected incoming surface: finish deferred presentation before ready. */
+  isPreparing: boolean;
   /** Global editor commands and entity actions belong to this surface. */
   isCommandActive: boolean;
   /** The surface has canonical content mounted and can be revealed atomically. */
@@ -11,6 +13,7 @@ export interface EditorSurfaceLifecycleValue {
 
 const DEFAULT_LIFECYCLE: EditorSurfaceLifecycleValue = {
   isVisible: true,
+  isPreparing: true,
   isCommandActive: true,
   reportReady: () => undefined,
 };

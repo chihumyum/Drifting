@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import CDP from 'chrome-remote-interface';
 import { build, preview } from 'vite';
+import react from '@vitejs/plugin-react';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
@@ -42,6 +43,7 @@ let client;
 try {
   await build({
     root, configFile: false, envDir: false, logLevel: 'warn',
+    plugins: [react()],
     resolve: { alias: { '@': path.join(root, 'src') } },
     build: { outDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-performance.html') } },
   });
@@ -87,7 +89,7 @@ try {
       'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
       'Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.',
-      'Agent, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
+      'Agent chat streaming, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
     ],
   };
   if (assertInputBudget) {

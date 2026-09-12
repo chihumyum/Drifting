@@ -89,6 +89,23 @@ Yjs/store updates without consuming user-facing side effects. Tabs whose entity
 projection has not materialized yet keep Yjs session retention disabled, so
 persistence never receives a synthetic empty entity id.
 
+The lifecycle also exposes `isPreparing` for the selected incoming surface,
+including both panes of an incoming split. Review decorations have a separate
+entity-scoped controller: unrelated entities and non-prose fields do not
+rebuild them, and empty review state does not dispatch empty metadata on input.
+Hidden, unselected editors mark affected decorations dirty while continuing to
+receive canonical updates. A visible or preparing editor flushes that projection
+synchronously; prose readiness requires both canonical content and current
+decorations. A failed projection keeps readiness false and hides the editor DOM
+until a successful retry. Disposal releases this controller's listeners without
+destroying the editor, Y.Doc, or persistence session. This boundary does not
+pause other plugins or change document retention.
+
+The isolated browser evidence covers actual editors, remote Yjs updates,
+masking, undo, listener disposal, and the lifecycle provider/hook handshake.
+Full-app tab/split interaction, scroll/draft continuity, native IME and retained
+document memory measurements remain separate acceptance work in the plan.
+
 Yjs-backed prose declares `documentMode: 'yjs'`. Its surface cannot become
 ready merely because a temporary TipTap object exists: readiness requires the
 Collaboration extension on that exact instance to reference the replayed

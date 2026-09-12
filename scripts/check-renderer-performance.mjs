@@ -66,6 +66,17 @@ if (report.semanticSubscriptions) {
   assert.equal(scenario.appearance.names, 0);
   assert.equal(scenario.appearance.colors, scenario.consumers);
 }
+if (report.agentDecorations) {
+  const scenario = report.agentDecorations;
+  assert.equal(scenario.unrelated.legacy, scenario.consumers * scenario.unrelatedUpdates);
+  assert.equal(scenario.unrelated.scoped, 0);
+  assert.equal(scenario.activeSubscriptionsAfterDispose, 0);
+  assert(scenario.checks.length > 0);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  assert.equal(report.decorationReadiness.preparedBeforeReveal, true);
+  assert.equal(report.decorationReadiness.unfocusedVisiblePaneHasPresentation, true);
+  assert.equal(report.decorationReadiness.unfocusedPaneOwnsCommands, false);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

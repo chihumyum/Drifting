@@ -10,18 +10,20 @@ import {
 
 export function EditorSurfaceLifecycleProvider({
   isVisible,
+  isPreparing = false,
   isCommandActive,
   onReadyChange,
   children,
 }: {
   isVisible: boolean;
+  isPreparing?: boolean;
   isCommandActive: boolean;
   onReadyChange(ready: boolean): void;
   children: ReactNode;
 }) {
   const value = useMemo<EditorSurfaceLifecycleValue>(
-    () => ({ isVisible, isCommandActive, reportReady: onReadyChange }),
-    [isCommandActive, isVisible, onReadyChange],
+    () => ({ isVisible, isPreparing, isCommandActive, reportReady: onReadyChange }),
+    [isCommandActive, isVisible, isPreparing, onReadyChange],
   );
   return (
     <EditorSurfaceLifecycleContext.Provider value={value}>

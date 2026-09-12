@@ -281,6 +281,7 @@ function WorkspaceSurface({
     content = (
       <EditorSurfaceLifecycleProvider
         isVisible={isVisible}
+        isPreparing={isDesired}
         isCommandActive={isInteractive}
         onReadyChange={reportReady}
       >
@@ -293,6 +294,7 @@ function WorkspaceSurface({
     content = (
       <EditorSurfaceLifecycleProvider
         isVisible={isVisible}
+        isPreparing={isDesired}
         isCommandActive={isInteractive}
         onReadyChange={reportReady}
       >
@@ -307,6 +309,7 @@ function WorkspaceSurface({
         split={tab}
         projectId={projectId}
         isSurfaceVisible={isVisible}
+        isSurfacePreparing={isDesired}
         isSurfaceInteractive={isInteractive}
         onReadyChange={reportReady}
         onSetFocus={(side) => onSetSplitFocus(tab, side)}
@@ -317,6 +320,7 @@ function WorkspaceSurface({
     content = (
       <EditorSurfaceLifecycleProvider
         isVisible={isVisible}
+        isPreparing={isDesired}
         isCommandActive={isInteractive}
         onReadyChange={reportReady}
       >
@@ -366,6 +370,7 @@ interface SplitViewProps {
   split: SplitTab;
   projectId: string;
   isSurfaceVisible: boolean;
+  isSurfacePreparing: boolean;
   isSurfaceInteractive: boolean;
   onReadyChange(ready: boolean): void;
   onSetFocus: (side: 'left' | 'right') => void;
@@ -376,6 +381,7 @@ function SplitView({
   split,
   projectId,
   isSurfaceVisible,
+  isSurfacePreparing,
   isSurfaceInteractive,
   onReadyChange,
   onSetFocus,
@@ -432,6 +438,7 @@ function SplitView({
       >
         <EditorSurfaceLifecycleProvider
           isVisible={isSurfaceVisible}
+          isPreparing={isSurfacePreparing}
           isCommandActive={isSurfaceInteractive && split.focused === 'left'}
           onReadyChange={setLeftReady}
         >
@@ -446,6 +453,7 @@ function SplitView({
       >
         <EditorSurfaceLifecycleProvider
           isVisible={isSurfaceVisible}
+          isPreparing={isSurfacePreparing}
           isCommandActive={isSurfaceInteractive && split.focused === 'right'}
           onReadyChange={setRightReady}
         >
