@@ -50,6 +50,8 @@ import {
   buildSuperElementCategoryModel,
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
+import { SuperElementDriftEdges } from '../../../features/graph/SuperElementDriftEdges';
+import { projectSuperElementDriftEdges } from '../../../features/graph/super-element-drift-model';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import {
   buildSuperElementWorldEdges,
@@ -1571,7 +1573,10 @@ export function DesktopSuperElementView() {
   // every frame is expensive AND the lines are momentarily wrong anyway
   // because element positions are mid-transform.
   const setPanningVisual = useCallback((panning: boolean) => {
-    const layers = [driftEdgeLayerRef.current, viewportEdgeLayerRef.current];
+    driftPanningRef.current = panning;
+    // The drift layer reveals itself only after its next measured geometry is committed.
+    if (panning) driftEdgeLayerRef.current?.setAttribute('data-panning', '1');
+    const layers = [viewportEdgeLayerRef.current];
     for (const layer of layers) {
       if (!layer) continue;
       if (panning) layer.setAttribute('data-panning', '1');
@@ -1933,27 +1938,15 @@ export function DesktopSuperElementView() {
   // Drift node cards live in the bottom panel (position: fixed, NOT in the
   // world transform), so the SVG that connects drift cards to their linked
   // elements has to be in viewport coordinates. We measure both endpoints
-  // via getBoundingClientRect on each animation frame while the panel is
-  // mounted — same recipe as StoryGraphView.
+  // in a dedicated layer, which owns bounded animation measurement and state.
   const driftCardRefs = useRef(new Map<string, HTMLDivElement>());
   const elementCardRefs = useRef(new Map<string, HTMLDivElement>());
-  type DriftEdgeGeom = {
-    id: string;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    relationTypeId: string;
-    directed: boolean;
-    targetInsetX: number;
-    targetInsetY: number;
-    color: string;
-  };
-  const [driftEdgeGeom, setDriftEdgeGeom] = useState<DriftEdgeGeom[]>([]);
-  // Tracks the panning gesture so the drift-edge SVG can be hidden without
-  // triggering a React re-render of the whole tree. Toggled via direct DOM
-  // class on the SVG element by the pan handlers below.
   const driftEdgeLayerRef = useRef<SVGSVGElement | null>(null);
+  const driftPanningRef = useRef(false);
+  const driftEdges = useMemo(() => projectSuperElementDriftEdges({ entityRelations,
+    hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor }),
+  [entityRelations, hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor]);
+  const driftLayoutRevision = useMemo(() => ({ elementCenters, driftNodes }), [elementCenters, driftNodes]);
 
   // Viewport-space edge layer for the sticky band or viewport focus filter. When the
   // band sticks to a viewport edge, world-space edges (rendered inside the
@@ -1965,82 +1958,6 @@ export function DesktopSuperElementView() {
   // data-panning the same way drift edges are.
   const [viewportEdgeGeom, setViewportEdgeGeom] = useState<SuperElementWorldEdge[]>([]);
   const viewportEdgeLayerRef = useRef<SVGSVGElement | null>(null);
-  useLayoutEffect(() => {
-    if (!driftPanelOpen) {
-      setDriftEdgeGeom([]);
-      return;
-    }
-    let rafId = 0;
-    let stop = false;
-    const recompute = () => {
-      const out: DriftEdgeGeom[] = [];
-      for (const ref of entityRelations) {
-        if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
-        // Want exactly one drift endpoint + one element endpoint.
-        const fromIsDriftNode = ref.fromKind === 'node' && driftIds.has(ref.fromId);
-        const toIsDriftNode = ref.toKind === 'node' && driftIds.has(ref.toId);
-        const fromIsEl = ref.fromKind === 'element';
-        const toIsEl = ref.toKind === 'element';
-        if (!((fromIsDriftNode && toIsEl) || (toIsDriftNode && fromIsEl))) continue;
-        const driftId = fromIsDriftNode ? ref.fromId : ref.toId;
-        const elementId = fromIsEl ? ref.fromId : ref.toId;
-        const driftEl = driftCardRefs.current.get(driftId);
-        const elEl = elementCardRefs.current.get(elementId);
-        if (!driftEl || !elEl) continue;
-        const driftRect = driftEl.getBoundingClientRect();
-        const elementRect = elEl.getBoundingClientRect();
-        const fromRect = fromIsDriftNode ? driftRect : elementRect;
-        const toRect = toIsDriftNode ? driftRect : elementRect;
-        out.push({
-          id: ref.id,
-          x1: fromRect.left + fromRect.width / 2,
-          y1: fromRect.top + fromRect.height / 2,
-          x2: toRect.left + toRect.width / 2,
-          y2: toRect.top + toRect.height / 2,
-          relationTypeId: ref.relationTypeId,
-          directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
-          targetInsetX: toRect.width / 2 + 6,
-          targetInsetY: toRect.height / 2 + 6,
-          color: resolveRelationTypeColor(ref.relationTypeId),
-        });
-      }
-      setDriftEdgeGeom(out);
-    };
-    const tick = () => {
-      if (stop) return;
-      recompute();
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-    // After the slide-in settles, throttle down to scroll / resize events.
-    const stopTimer = window.setTimeout(() => {
-      stop = true;
-      cancelAnimationFrame(rafId);
-    }, 600);
-    const onScrollOrResize = () => recompute();
-    window.addEventListener('resize', onScrollOrResize);
-    window.addEventListener('scroll', onScrollOrResize, true);
-    // Recompute on pan-end too: while panning we hide the SVG via ref
-    // (no React re-render), then this listener catches the pan-stop event
-    // and updates endpoints once.
-    window.addEventListener('super-element:pan-end', onScrollOrResize);
-    return () => {
-      stop = true;
-      cancelAnimationFrame(rafId);
-      window.clearTimeout(stopTimer);
-      window.removeEventListener('resize', onScrollOrResize);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-      window.removeEventListener('super-element:pan-end', onScrollOrResize);
-    };
-  }, [
-    driftPanelOpen,
-    entityRelations,
-    hiddenRelationTypeIds,
-    driftIds,
-    resolveRelationTypeColor,
-    relationTypeById,
-  ]);
-
   // ---- Viewport edge geometry (sticky band or focus filter) ----
   // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
   // at gesture end. During pan we don't bother — the layer is hidden via
@@ -2708,61 +2625,16 @@ export function DesktopSuperElementView() {
       {/* Drift edges layer — viewport-space SVG that connects drift cards
           (in the fixed bottom panel) to their linked element cards (which
           live inside the pan/zoom world). Endpoints are recomputed via
-          getBoundingClientRect on every rAF tick during the slide-in
-          animation, then on scroll/resize/pan-end thereafter. While the
+          one shared read per DOM endpoint during each slide-in frame
+          and on coalesced scroll/resize/pan-end thereafter. While the
           user is mid-pan, data-panning on the SVG hides it via CSS — no
           React re-render involved. Each edge has a halo + animated dash
           line, mirroring StoryGraphView's drift-edge visual language. */}
-      {driftPanelOpen && driftEdgeGeom.length > 0 && (
-        <svg
-          ref={driftEdgeLayerRef}
-          className={`drift-edges${selectedEdgeId ? ' is-selected-host' : ''}`}
-        >
-          {driftEdgeGeom.map((edge) => {
-            const markerId = relationArrowMarkerId('super-drift-arrow', edge.id);
-            const d = relationEdgePath({
-              x1: edge.x1,
-              y1: edge.y1,
-              x2: edge.x2,
-              y2: edge.y2,
-              directed: edge.directed,
-              targetInsetX: edge.targetInsetX,
-              targetInsetY: edge.targetInsetY,
-            });
-            const selected = selectedEdgeId === edge.id;
-            const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
-            return (
-              <g key={edge.id} className={`drift-edge${selected ? ' is-selected' : ''}`}>
-                {edge.directed && (
-                  <defs>
-                    <RelationArrowMarker id={markerId} color={edge.color} />
-                  </defs>
-                )}
-                <path d={d} className="drift-edge__halo" stroke={edge.color} />
-                <path
-                  d={d}
-                  className="drift-edge__line"
-                  stroke={edge.color}
-                  markerEnd={edge.directed ? `url(#${markerId})` : undefined}
-                />
-                <path
-                  d={d}
-                  className="drift-edge__hit"
-                  data-super-edge
-                  stroke="transparent"
-                  strokeWidth={10}
-                  fill="none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    selectEdge(edge.id, e.clientX, e.clientY);
-                  }}
-                >
-                  <title>{typeLabel}</title>
-                </path>
-              </g>
-            );
-          })}
-        </svg>
+      {driftPanelOpen && (
+        <SuperElementDriftEdges edges={driftEdges} driftCardRefs={driftCardRefs} elementCardRefs={elementCardRefs}
+          layerRef={driftEdgeLayerRef} panningRef={driftPanningRef} viewportRef={viewportRef}
+          layoutRevision={driftLayoutRevision} selectedEdgeId={selectedEdgeId}
+          resolveRelationTypeLabel={resolveRelationTypeLabel} selectEdge={selectEdge} />
       )}
 
       {selectedEdgeAnchor && selectedEdgeRelation && selectedEdgeType && (

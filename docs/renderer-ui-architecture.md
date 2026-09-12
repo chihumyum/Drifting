@@ -200,8 +200,23 @@ identity with entity-link appearance and relation labels. New array snapshots
 receive new indexes; weak keys do not keep retired project arrays alive. These
 are rebuildable read models, not persistence or mutable author state. World
 projection is O(entities + relations) on a cold snapshot and O(relations) on a
-warm one. DOM endpoint measurement and geometry state still live in the shell
-at this F5a milestone; their isolation and frame budgets remain pending.
+warm one.
+
+`SuperElementDriftEdges` owns its measured geometry and SVG rendering.
+`super-element-drift-model.ts` classifies relations once per input snapshot;
+`graph-edge-geometry.ts` reads each unique DOM endpoint once per measurement.
+`useMeasuredGraphEdges` owns the frame scheduler, listeners and viewport resize
+observer. Scroll/resize/pan-end events coalesce with the bounded 600 ms entry
+animation. Equal geometry does not call the state setter, and changed geometry
+does not render the parent card tree. Layout/filter revisions invalidate
+measurement even when the relation array is unchanged.
+
+The shell still moves the world via refs and DOM transforms during pan. Drift
+measurement pauses while that ref is active, and the SVG remains hidden at
+pan-end until fresh geometry has committed (or an equal already-committed
+result is verified). Unmount cancels frames and releases listeners/observers.
+Sticky/focus viewport geometry and the Story Graph/Timeline controllers remain
+separate work in F5; their state ownership has not yet been changed.
 
 ## Desktop universal create
 

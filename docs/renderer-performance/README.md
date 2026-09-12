@@ -407,3 +407,60 @@ large parent view, DOM endpoints can still be measured repeatedly, and full
 graph gestures, cards, overlays, mobile/native interaction and clipping
 acceptance remain pending. F5b will address measurement scheduling and render
 ownership separately, without changing the domain relation model.
+
+## F5b geometry budgets (declared before the scheduling change)
+
+The isolated DOM fixture will use 100/1,000/5,000 edges over 20/100/500 unique
+DOM endpoints. A necessary measurement must read each unique endpoint once;
+100 scroll/resize notifications in one synchronous burst must schedule one
+measurement frame. Identical geometry must cause zero React commits, and moved
+geometry must update the line layer without re-rendering sibling cards. The
+600 ms Super Element entry window remains bounded; pan-end must reveal only
+fresh geometry, and teardown must release observers, listeners and frames.
+These are count/behavior budgets; full graph/native gesture latency is separate.
+
+## F5b Super Element Drift geometry ownership
+
+`SuperElementDriftEdges` now owns the SVG and geometry state. The shell supplies
+immutable relation descriptors, endpoint refs, selection callbacks and a
+layout/filter revision. Classification remains based on the full drift ID set;
+card visibility only determines whether both DOM endpoints can be measured.
+Endpoint measurements are shared by DOM identity within each read phase,
+including when different IDs resolve to the same element. Measurements are
+never cached across frames.
+
+One frame job coalesces scroll, resize and pan-end with the finite 600 ms entry
+window. Equal output skips the state setter. The viewport resize observer and
+layout/filter revision also invalidate geometry. The existing pan refs and
+world transform remain in the shell; Drift measurement skips an active pan,
+and pan-end leaves old lines hidden until a fresh result is committed (or the
+already committed equal result is verified). Unmount releases the observer,
+all listeners and pending frames.
+
+The generated [baseline](acceptance/f5-geometry-baseline.json) measured the
+extracted original helper and parent state ownership. The
+[candidate](acceptance/f5-drift-geometry.json) mounts the production line
+component next to synthetic, un-memoized sibling cards:
+
+- 100/1,000/5,000 edges over 20/100/500 endpoints: layout reads drop from
+  200/2,000/10,000 to 20/100/500 for each necessary measurement.
+- A synchronous burst of 100 scroll/resize events over 1,000 edges drops from
+  200,000 reads and 2,000 sibling-card commits to 100 reads and zero card commits.
+- Unchanged output performs no line render. Moving an endpoint performs one
+  line render and no sibling-card commit. Line renders are counted through the
+  existing per-edge label resolver, with DOM path checks; this is not a
+  production React Profiler commit measurement.
+- The browser fixture verifies the entry window stops, panning does no reads,
+  pan-end hides stale paths until replacement, labels/arrows and selection
+  coordinates survive, filtered cards remove only dangling lines, and teardown
+  leaves zero tracked listeners/observers and no later endpoint reads.
+
+Seven new unit tests cover shared/aliased endpoints, movement across frames,
+missing endpoints, equality invalidation, special drift classification and
+scheduler coalescing/deadlines/disposal. Validation also includes full Vitest
+(2,212 passed, 1 skipped), typecheck, lint (0 errors, 75 existing warnings),
+public/CI contracts, capability checks, production renderer build and the
+browser/report checker. The browser fixture is synthetic and does not mount
+the full graph card tree or native shell. F5 remains `in_progress`: sticky/focus
+viewport ownership, Story Graph/Timeline adoption and full desktop/mobile/native
+gesture acceptance remain open.

@@ -132,6 +132,40 @@ if (report.graphProjection) {
     }
   }
 }
+if (report.graphGeometry) {
+  const scenario = report.graphGeometry;
+  assert(['per-edge-parent-state', 'unique-endpoint-overlay-state'].includes(scenario.implementation));
+  assert.deepEqual(scenario.profiles.map((item) => [item.edges, item.uniqueEndpoints]), [[100, 20], [1_000, 100], [5_000, 500]]);
+  const optimized = scenario.implementation === 'unique-endpoint-overlay-state';
+  for (const item of scenario.profiles) {
+    assert.equal(item.projectedEdges, item.edges);
+    assert.equal(item.layoutReads, optimized ? item.uniqueEndpoints : item.edges * 2);
+  }
+  assert.equal(scenario.ownership.cards, 20);
+  assert.equal(scenario.ownership.events, 100);
+  if (optimized) {
+    assert.equal(scenario.ownership.cardCommits, 0);
+    assert.equal(scenario.ownership.geometryLabelReads, 0);
+    assert.equal(scenario.ownership.geometryRenderPasses, 0);
+    assert.equal(scenario.ownership.layoutReads, 100);
+    assert.equal(scenario.moved.cardCommits, 0);
+    assert.equal(scenario.moved.geometryRenderPasses, 1);
+    assert.equal(scenario.moved.geometryLabelReads, 1_000);
+    assert.equal(scenario.moved.layoutReads, 100);
+    for (const id of ['entry-measurement-stops', 'burst-defers-layout-reads',
+      'moved-geometry-only-renders-line-layer', 'pan-end-keeps-stale-lines-hidden',
+      'pan-end-reveals-fresh-committed-lines', 'edge-hit-target-preserves-selection-anchor',
+      'filtered-card-removes-only-dangling-lines', 'unmount-releases-listeners-and-observers',
+      'unmount-cancels-pending-measurements']) {
+      assert(scenario.checks.some((check) => check.id === id && check.passed), `missing F5b check ${id}`);
+    }
+    for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  } else {
+    assert.equal(scenario.ownership.cardCommits, 2_000);
+    assert.equal(scenario.ownership.geometryCommits, 100);
+    assert.equal(scenario.ownership.layoutReads, 200_000);
+  }
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

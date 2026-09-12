@@ -11,6 +11,7 @@ import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenari
 import { runAgentEventScenarios } from './agent-event-scenarios';
 import { runAgentDisplayScenarios } from './agent-display-scenarios';
 import { runGraphProjectionScenarios } from './graph-projection-scenarios';
+import { runGraphGeometryScenarios } from './graph-geometry-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -109,6 +110,7 @@ async function run() {
     agentEventProcessing: await runAgentEventScenarios(),
     agentDisplay: await runAgentDisplayScenarios(),
     graphProjection: await runGraphProjectionScenarios(),
+    graphGeometry: await runGraphGeometryScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };
