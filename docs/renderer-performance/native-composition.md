@@ -90,3 +90,32 @@ process only, exclude WebKit children and do not establish memory reclamation.
 Unavailable JS heap/long-task APIs are recorded as unavailable, not zero. F0
 budgets, comparative repetitions, larger fixtures and the device matrix remain
 open; F8 remains in progress.
+
+## Editor session refactor scenario
+
+```bash
+pnpm perf:renderer:native --sessions
+pnpm perf:renderer:native --sessions --check
+```
+
+The current session-refactor report is
+[`acceptance/f3-editor-sessions-native.json`](acceptance/f3-editor-sessions-native.json).
+The earlier F8a report remains a historical snapshot with its original source
+fingerprint; its default `--check` is not current evidence for later changes.
+
+This mode adds temporary observations of actual editor session attach, detach,
+outline publication and projection-save callbacks. It authors a synthetic
+heading directly into a hidden chapter's live Y.Doc using the product's authored
+queue, then reads the materialized outline through native SQLite. The hidden
+session must save without publishing an outline to React. Opening the chapter
+must preserve its Y.Doc and display that heading in the actual outline rail.
+A plain prose edit must not republish an unchanged outline. The scenario undoes
+that edit, removes its synthetic heading and verifies the original 5,000-character
+body before proceeding with split/cleanup/project switching and restart.
+
+All bindings belonging to the 20 closed chapter tabs must have matching detach
+events. The final currently open editor is deliberately still attached when
+its report is sent; the normal Quit command then ends the process. These
+observations are bounded test instrumentation, not a production telemetry API.
+The authored Yjs mutation is explicitly synthetic and does not stand in for
+remote-sync or pending-review-mask acceptance.

@@ -5,9 +5,13 @@ import { useDataStore } from '../src/renderer/store/data-store';
 import { useUiStore } from '../src/renderer/store/ui-store';
 import { events } from '../src/renderer/lib/events';
 import { getPlatformRuntime } from '../src/renderer/platform/runtime';
+import * as Y from 'yjs';
+import { createBookContentRepository } from '../src/renderer/sqlite-repo/content-repo';
+import { flushOpenYjsDocument } from '../src/renderer/services/yjs-local-durability.service';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
+  editorSessions: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -18,9 +22,17 @@ const lifecycle: Array<{ projectId: string; mounted: boolean }> = [];
 const failures: string[] = [];
 const longTasks: number[] = [];
 const checks: Record<string, boolean> = {};
+const sessionEvents: Array<{ instance: number; projectId: string; sourceKind: string; sourceId: string; event: string }> = [];
+const sessionInstances = new WeakMap<object, number>();
+let nextSessionInstance = 0;
 let step = 'bootstrap';
 Object.assign(globalThis, {
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
+  __nativeAcceptanceSessionEvent(session: { source: { projectId: string; sourceKind: string; sourceId: string } }, event: string) {
+    let instance = sessionInstances.get(session);
+    if (!instance) { instance = ++nextSessionInstance; sessionInstances.set(session, instance); }
+    sessionEvents.push({ instance, ...session.source, event });
+  },
 });
 window.addEventListener('error', e => failures.push(e.message.slice(0, 300)));
 window.addEventListener('unhandledrejection', e => failures.push(String(e.reason).slice(0, 300)));
@@ -37,10 +49,10 @@ const frames = () => Promise.race([
 function ensure(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
-async function waitFor<T>(predicate: () => T, description: string, timeout = 45000): Promise<NonNullable<T>> {
+async function waitFor<T>(predicate: () => T | Promise<T>, description: string, timeout = 45000): Promise<NonNullable<T>> {
   const begin = performance.now();
   while (performance.now() - begin < timeout) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value as NonNullable<T>;
     await delay(50);
   }
@@ -105,6 +117,48 @@ async function run() {
     ensure(first.commands.redo() && first.getText() === before + marker, 'Redo history was lost');
     checks.twentyTabsIdentityAndUndo = true;
     ensure(await saveActiveEditor(), 'Native production save callback missing');
+    if (config.editorSessions) {
+      await progress('hidden-yjs-session');
+      const id = a.nodeIds[1];
+      const hiddenDoc = getLiveYDoc(`node-content:${id}`);
+      ensure(hiddenDoc, 'Hidden editor lost its Y.Doc');
+      const outlinePublishes = (nodeId: string) => sessionEvents.filter(e => e.sourceId === nodeId && e.event === 'outline').length;
+      const hiddenPublishes = outlinePublishes(id);
+      const headingId = 'synthetic-hidden-heading';
+      const headingText = 'Synthetic hidden heading';
+      // An explicitly synthetic authored update to the live Y.Doc. This uses
+      // the product's authored queue; it is not a remote-sync simulation.
+      hiddenDoc.transact(() => {
+        const heading = new Y.XmlElement<{ id: string; level: number }>('heading');
+        heading.setAttribute('id', headingId);
+        heading.setAttribute('level', 1);
+        heading.insert(0, [new Y.XmlText(headingText)]);
+        hiddenDoc.getXmlFragment('default').insert(0, [heading]);
+      }, 'agent');
+      await flushOpenYjsDocument(`node-content:${id}`);
+      const content = createBookContentRepository();
+      await waitFor(async () => (await content.findByNodeId(id))?.outlineJson.includes(headingText), 'hidden outline materialized through native SQLite');
+      ensure(outlinePublishes(id) === hiddenPublishes, 'Hidden session published an outline to React');
+      checks.hiddenSessionSavedWithoutOutlinePublish = true;
+      const shown = await open(a.id, id);
+      await waitFor(() => [...document.querySelectorAll(`[data-editor-surface="node:${id}"][data-editor-surface-visible="true"] .editor__toc-tag-text`)].some(el => el.textContent === headingText), 'prepared actual outline rail');
+      ensure(getLiveYDoc(`node-content:${id}`) === hiddenDoc, 'Preparing outline recreated document');
+      ensure(outlinePublishes(id) > hiddenPublishes, 'Incoming outline was not published');
+      checks.hiddenOutlinePrepared = true;
+      const visiblePublishes = outlinePublishes(id);
+      shown.commands.setTextSelection(shown.state.doc.content.size - 1);
+      shown.commands.insertContent(' transient');
+      ensure(await saveActiveEditor(), 'Visible session save missing');
+      ensure(outlinePublishes(id) === visiblePublishes, 'Plain prose edit republished an unchanged outline');
+      ensure(shown.commands.undo(), 'Background heading destroyed local undo');
+      hiddenDoc.transact(() => { hiddenDoc.getXmlFragment('default').delete(0, 1); }, 'agent');
+      await flushOpenYjsDocument(`node-content:${id}`);
+      ensure(await saveActiveEditor(), 'Cleanup save missing');
+      await waitFor(async () => !(await content.findByNodeId(id))?.contentJson.includes(headingText), 'synthetic heading removed from native cache');
+      ensure(shown.getText().length === 5000, 'Hidden-update scenario left additional prose');
+      checks.plainProseKeepsOutlineStable = true;
+      await open(a.id, a.nodeIds[0]);
+    }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
@@ -129,6 +183,15 @@ async function run() {
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
     checks.closedTabsReleaseLiveDocuments = true;
+    if (config.editorSessions) {
+      const counts = new Map<number, number>();
+      for (const e of sessionEvents.filter(e => e.projectId === a.id && e.sourceKind === 'node' && a.nodeIds.slice(0, 20).includes(e.sourceId))) {
+        if (e.event === 'attach') counts.set(e.instance, (counts.get(e.instance) ?? 0) + 1);
+        if (e.event === 'detach') counts.set(e.instance, (counts.get(e.instance) ?? 0) - 1);
+      }
+      ensure(counts.size >= 20 && [...counts.values()].every(count => count === 0), 'Closed editor session bindings leaked');
+      checks.closedSessionBindingsReleased = true;
+    }
     await progress('project-switch');
     route(b.id, b.nodeIds[0]);
     await readyProject(b.id, 3);
@@ -148,7 +211,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

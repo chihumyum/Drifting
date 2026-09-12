@@ -1518,3 +1518,68 @@ lint (0 errors, 74 existing warnings), CI/public contracts and Agent capability
 checks. The ordinary production renderer build is verified separately from
 the native acceptance build; all 32 emitted JS chunks exclude the acceptance
 entry, synthetic marker/project identity and native credential namespace.
+
+## F3c — Canonical editor sessions and outline presentation
+
+`useEntityEditor` now delegates projection-save scheduling, selection memory and
+outline publication to one `EntityEditorSession` per canonical Tiptap instance
+and project/kind/entity identity. The React adapter attaches the owner in a
+layout effect. Callback refreshes retain pending work, while retiring an owner
+flushes through that owner's callback before a new source attaches. The shared
+Yjs document session still owns authoritative CRDT durability and undo; this
+extraction creates no replacement editor or document.
+
+The existing 400 ms trailing save remains active for hidden sessions, including
+blur, close and explicit-save flushes. Outline derivation required by persistence
+is cached against the immutable ProseMirror document. Its React snapshot only
+publishes while visible/preparing; ordinary edits with unchanged outlines
+retain snapshot identity. Returning to a hidden editor prepares the current outline before
+readiness permits the surface to appear. Initial preparation waits for the
+BlockId plugin's construction-time microtask, avoiding temporary heading anchors.
+Detach cancels owned timers/frames and removes all four editor event listeners.
+
+Ten focused controller cases use real ProseMirror documents with explicit event
+and clock doubles. They cover trailing saves, callback identity, effect replay,
+destruction, canceled selection initialization, stable outlines and canonical
+initial heading IDs. With 1, 5 or 20 sessions, all persist while only the visible
+session publishes an outline change. Preparing a pending hidden outline does
+not force an extra save. These counts measure the scoped notification behavior,
+not whole-React commit counts or an input-latency budget.
+
+```bash
+pnpm perf:renderer:native --sessions
+pnpm perf:renderer:native --sessions --check
+```
+
+The [native session scenario](native-composition.md#editor-session-refactor-scenario)
+extends the full-App control fixture with temporary session observations. It
+checks an authored synthetic Yjs heading update in a hidden chapter, native
+SQLite materialization without an outline notification, and the actual outline
+rail after returning to the same live document. A plain paragraph edit must
+leave the outline notification count unchanged. All bindings for the 20 closed
+chapter tabs must detach before project switching and process restart.
+
+`acceptance/f3-editor-sessions-native.json` passes those checks against the final
+source fingerprint in a fresh isolated native build. The composition process
+records 24 attaches, 23 detaches, 28 outline publications and 7 save callbacks;
+the final open editor is still attached when that report is sent. Both processes
+then pass the actual native Quit/shutdown path and exit with code zero, with no
+uncaught renderer errors. Independent SQLite/Yjs inspection confirms one saved
+chapter, 52 unchanged chapters and passing integrity/foreign-key checks.
+One earlier attempt failed because the occluded WebKit window stalled animation
+frames; the passing rerun kept the window foreground. Its timings are attended
+control observations, not cold-start or input p95 measurements.
+
+Other visible interaction owners, broader scroll/selection/field-draft
+continuity, pending-review masks in the full App, real remote sync, physical
+IME/touch and comparative device/memory/input budgets remain open. The scoped
+notification reduction does not establish lower total CPU or retained heap.
+F3 and F8 remain `in_progress`; earlier acceptance reports remain historical.
+
+This batch passes 2,424 regular tests with 1 existing skip, including the 8
+renderer architecture tests, plus typecheck, lint (0 errors, 74 existing
+warnings), CI/public contracts, Agent capabilities and the renderer performance
+contract. The native session evidence checker matches the final product/harness
+fingerprint. A separate normal production renderer build succeeds; all 32 JS
+chunks exclude native acceptance observers, fixture identity and the credential
+namespace.

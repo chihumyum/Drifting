@@ -190,6 +190,23 @@ owns the lifetime of desktop editor views: inactive surfaces stay mounted with
 TipTap instances, Yjs sessions, scroll positions, selections, and field drafts
 therefore survive ordinary tab switches.
 
+Within each canonical Tiptap instance, `EntityEditorSession` owns the immutable
+project/kind/entity binding, 400 ms trailing projection-save task, selection
+initialization and outline snapshot. `useEntityEditorSession` attaches it in a
+layout effect and updates that owner's callback without restarting its pending
+task. A retiring owner flushes with its own last callback before the next source
+is attached. The shared `YjsDocumentSession` continues to own CRDT durability;
+this editor binding does not create another Y.Doc or undo manager.
+
+Persistence stays active for hidden editors. Outline derivation needed by a
+save is cached against the immutable ProseMirror document. For ordinary edits,
+its React snapshot publishes only for visible/preparing surfaces and only when
+the outline actually changes. Incoming surfaces synchronously prepare the latest
+outline before reporting ready. Initial readiness also waits for Tiptap's
+construction-time block-ID microtask, so outline anchors use canonical IDs.
+Detach flushes pending work, cancels the owned debounce/selection-init frame,
+invalidates queued preparation and removes the four editor event listeners.
+
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
@@ -214,16 +231,20 @@ entity-scoped controller: unrelated entities and non-prose fields do not
 rebuild them, and empty review state does not dispatch empty metadata on input.
 Hidden, unselected editors mark affected decorations dirty while continuing to
 receive canonical updates. A visible or preparing editor flushes that projection
-synchronously; prose readiness requires both canonical content and current
-decorations. A failed projection keeps readiness false and hides the editor DOM
+synchronously; prose readiness requires canonical content, prepared outline and
+current decorations. A failed projection keeps readiness false and hides the editor DOM
 until a successful retry. Disposal releases this controller's listeners without
 destroying the editor, Y.Doc, or persistence session. This boundary does not
 pause other plugins or change document retention.
 
 The isolated browser evidence covers actual editors, remote Yjs updates,
 masking, undo, listener disposal, and the lifecycle provider/hook handshake.
-Full-app tab/split interaction, scroll/draft continuity, native IME and retained
-document memory measurements remain separate acceptance work in the plan.
+The native control scenario now covers 20 full-App tabs, editor/Y.Doc identity,
+undo/redo, split, hidden authored Yjs updates and SQLite materialization, outline
+preparation, binding cleanup, project switches and process restart. Broader
+scroll/field-draft continuity, native IME and retained-document memory budgets
+remain separate acceptance work in the plan. Other visible interaction owners
+and typewriter/selection work have not all been paused for hidden surfaces.
 
 Automatic linking is also view-owned. Each editor retains its own immutable
 target map and self/parent exclusions; live updates do not recreate its document.

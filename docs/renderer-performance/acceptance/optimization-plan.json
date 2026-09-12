@@ -179,7 +179,8 @@
           "requirement": "隐藏标签延迟安全的显示计算，仍接收权威更新并完成必要持久化",
           "evidence": [
             "docs/renderer-performance/acceptance/f3-editor-decorations.json",
-            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json"
+            "docs/renderer-performance/acceptance/f3-editor-link-ownership.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         },
@@ -189,7 +190,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f3-editor-decorations.json",
             "docs/renderer-performance/acceptance/f3-editor-link-ownership.json",
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         },
@@ -199,12 +201,13 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f3-editor-decorations.json",
             "docs/renderer-performance/acceptance/f3-editor-link-ownership.json",
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "scoped_review_decorations_preparation_and_editor_link_ownership_implemented"
+      "implementationStatus": "canonical_editor_session_and_outline_presentation_review_link_boundaries_implemented_visible_interactions_and_device_budgets_pending"
     },
     {
       "id": "F4",
@@ -469,7 +472,8 @@
           "id": "F8-01",
           "requirement": "同一合成组合场景达到固定预算与正确性门槛，报告退化和内存生命周期",
           "evidence": [
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         },
@@ -482,7 +486,8 @@
           "id": "F8-03",
           "requirement": "仓库规定检查通过，实际契约和生成证据与精确 SHA 对齐",
           "evidence": [
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         },
@@ -490,7 +495,8 @@
           "id": "F8-04",
           "requirement": "桌面、模拟器、实机与真实账号验收分列，缺失项为 NOT RUN，不替代既有发布门槛",
           "evidence": [
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-editor-sessions-native.json"
           ],
           "status": "partial"
         }

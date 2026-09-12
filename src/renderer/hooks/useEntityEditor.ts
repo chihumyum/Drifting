@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
@@ -12,7 +12,10 @@ import Collaboration from '@tiptap/extension-collaboration';
 import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
-import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../lib/outline';
+import type { OutlineItem } from '../lib/outline';
+import { useEntityEditorSession } from '../features/editor/useEntityEditorSession';
+import type { EditorPersistDerived } from '../features/editor/entity-editor-session';
+export type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
 import {
@@ -45,15 +48,7 @@ import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-i
 import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
-import { useRegisterActiveEditor } from './useRegisterActiveEditor';
 import { events } from '../lib/events';
-import {
-  getEditorSelectionSnapshot,
-  hasEditorSelectionSnapshot,
-  moveEditorSelectionToStart,
-  restoreEditorSelectionSnapshot,
-  saveEditorSelectionSnapshot,
-} from '../lib/editor-selection-memory';
 import type { CommentTargetKind } from '../domain/comment';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
 import { useEntityLinkConfiguration } from '../features/editor/useEntityLinkConfiguration';
@@ -69,14 +64,6 @@ const DEFAULT_DOC: JSONContent = {
   content: [{ type: 'paragraph' }],
 };
 const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
-
-// Trailing-debounce window for the heavy derive+persist pipeline (outline
-// recompute, JSON serialize, caller onPersist). Keeps that O(doc)
-// work off the per-keystroke paint frame — a typing burst persists once, on
-// pause. Flushed immediately on blur / unmount / Cmd+S so nothing is lost. The
-// editor itself (ProseMirror DOM, plus the Y.Doc in collab mode) is the live
-// source of truth; the derived store/outline mirrors are stale-OK for this long.
-const PERSIST_DEBOUNCE_MS = 400;
 
 export interface EditorCommentRequest {
   projectId: string;
@@ -484,17 +471,6 @@ function buildInlineCopilotCtx(
   };
 }
 
-/**
- * Pre-computed data passed to onPersist alongside the editor instance. The
- * heavy work (JSON serialize, outline parse) is done once inside the hook so
- * each callsite doesn't redundantly re-walk the doc.
- */
-export interface EditorPersistDerived {
-  pmJson: string;
-  outline: OutlineItem[];
-  outlineJson: string;
-}
-
 export interface UseEntityEditorConfig {
   // What this editor is editing — drives projection direction and self-exclusion.
   sourceKind: EntityKind;
@@ -591,7 +567,7 @@ export interface UseEntityEditorResult {
 //     + BlockId + EntityLink + EntityMentionSuggestion + SlashMenu
 //     + optional Placeholder),
 //   • constructor-time JSON loading plus a canonical-document readiness signal,
-//   • the persist pipeline (onUpdate dispatches projection + onPersist),
+//   • a canonical editor session owning persistence, selection and outline presentation,
 //   • the entity-link config sync (auto-detect map + enabled flag),
 //   • the @-picker (mentionable entities and "+ create element" affordance),
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
@@ -622,10 +598,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const documentMode = requestedDocumentMode ?? (ydoc ? 'yjs' : 'json');
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
-  const onPersistRef = useLatestRef(onPersist);
   const slashExtraItemsRef = useLatestRef(slashExtraItems);
   const onEntityClickRef = useLatestRef(onEntityClick);
-  const selectionKeyRef = useLatestRef(selectionKey ?? null);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
@@ -718,110 +692,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       // patch: no default destination yet.
     },
     [navigationRef, onEntityClickRef],
-  );
-
-  // Reference indexing follows durable commits in the project runtime. The
-  // editor persists prose/outline only; it never publishes an uncommitted
-  // live-document projection into SQLite.
-  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-    },
-    [],
-  );
-
-  // (editor instance, sourceId) sentinel — see ChapterEditor history for the
-  // bug this guards against (useEditor rebuilds yielding a fresh empty
-  // editor that would otherwise pass the "already loaded" check and save
-  // its empty doc on the next keystroke).
-  const loadedTokenRef = useRef<{
-    editor: Editor | null;
-    projectId: string | null;
-    sourceKind: EntityKind | null;
-    sourceId: string | null;
-  }>({
-    editor: null,
-    projectId: null,
-    sourceKind: null,
-    sourceId: null,
-  });
-  const suppressSelectionSaveRef = useRef(false);
-
-  // Live outline derived from the editor doc. Recomputed on persist (debounced)
-  // and once on load. Walks the live PMNode directly — no getJSON/stringify/
-  // parse round trip (the comment that used to flag this as a TODO is now done).
-  const [outline, setOutline] = useState<OutlineItem[]>([]);
-  const recomputeOutline = useCallback((editor: Editor) => {
-    if (editor.isDestroyed) return;
-    try {
-      setOutline(extractOutlineFromDoc(editor.state.doc));
-    } catch (error) {
-      log.warn('Failed to recompute outline:', error);
-    }
-  }, []);
-
-  // Persistence wrapper: runs outline refresh + caller's onPersist.
-  // Everything is computed ONCE here (one getJSON, one PMNode outline walk) and
-  // handed to onPersist so callers don't redo the walk. Caller adds entity-
-  // specific extras (e.g. wordCount). Heavy/synchronous — invoke via
-  // schedulePersist (debounced) on the typing path; call directly only to flush.
-  const persistEditorContent = useCallback(
-    (editor: Editor) => {
-      if (editor.isDestroyed) return;
-      const outline = extractOutlineFromDoc(editor.state.doc);
-      setOutline(outline);
-      const pmJson = JSON.stringify(editor.getJSON());
-      const outlineJson = serializeOutline(outline);
-      onPersistRef.current(editor, { pmJson, outline, outlineJson });
-    },
-    [onPersistRef],
-  );
-
-  // Trailing-debounce wrapper for the typing path: a burst of keystrokes runs
-  // the heavy persist once, on pause, instead of synchronously every keystroke.
-  const schedulePersist = useCallback(
-    (editor: Editor) => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = setTimeout(() => {
-        persistTimerRef.current = null;
-        persistEditorContent(editor);
-      }, PERSIST_DEBOUNCE_MS);
-    },
-    [persistEditorContent],
-  );
-
-  // Run any pending debounced persist immediately, then clear the timer. Used
-  // at flush points (blur, unmount, Cmd+S) so a pause-time write is never lost.
-  const flushPersist = useCallback(
-    (editor: Editor) => {
-      if (!persistTimerRef.current) return;
-      clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = null;
-      persistEditorContent(editor);
-    },
-    [persistEditorContent],
-  );
-
-  const saveSelection = useCallback(
-    (ed: Editor, options?: { force?: boolean }) => {
-      const key = selectionKeyRef.current;
-      if (!key || ed.isDestroyed) return;
-      if (suppressSelectionSaveRef.current) return;
-      const source = sourceRef.current;
-      if (
-        loadedTokenRef.current.editor !== ed ||
-        loadedTokenRef.current.projectId !== source.projectId ||
-        loadedTokenRef.current.sourceKind !== source.sourceKind ||
-        loadedTokenRef.current.sourceId !== source.sourceId
-      ) {
-        return;
-      }
-      if (!options?.force && !ed.isFocused && !hasEditorSelectionSnapshot(key)) return;
-      saveEditorSelectionSnapshot(key, ed, true);
-    },
-    [selectionKeyRef, sourceRef],
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {
@@ -1110,34 +980,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           },
         },
       },
-      onUpdate: ({ editor: ed }) => {
-        const source = sourceRef.current;
-        if (!source.sourceId) return;
-        // Persist only after this exact editor instance has loaded the
-        // current sourceId. Token mismatch happens on freshly-rebuilt editors
-        // before the load effect has run — saving then would clobber the row.
-        if (
-          loadedTokenRef.current.editor !== ed ||
-          loadedTokenRef.current.projectId !== source.projectId ||
-          loadedTokenRef.current.sourceKind !== source.sourceKind ||
-          loadedTokenRef.current.sourceId !== source.sourceId
-        ) {
-          return;
-        }
-        // Debounced: a typing burst runs the heavy derive+persist once on pause,
-        // not synchronously every keystroke. saveSelection is cheap, keep it live.
-        schedulePersist(ed);
-        saveSelection(ed);
-      },
-      onSelectionUpdate: ({ editor: ed }) => {
-        saveSelection(ed);
-      },
-      onBlur: ({ editor: ed }) => {
-        // Losing focus / navigating away: flush any pending debounced persist so
-        // the derived store/outline/projection don't lag behind the live doc.
-        flushPersist(ed);
-        saveSelection(ed, { force: true });
-      },
     },
     [
       editorUndoDepth,
@@ -1146,7 +988,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       editorClass,
       minHeight,
       t,
-      saveSelection,
       documentMode,
       jsonDocumentKey,
       // Yjs surfaces remain hidden until the rebuilt instance below carries
@@ -1163,6 +1004,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       ? Boolean(editor)
       : Boolean(editor && ydoc && collaboration?.options.document === ydoc);
 
+  const { outline, ready: sessionReady } = useEntityEditorSession(editor, {
+    projectId, sourceKind, sourceId, canonicalReady, onPersist, selectionKey, autoFocus,
+    presentationNeeded: isVisible || isPreparing, isCommandActive,
+  });
+
   useTypewriterScrolling(editor, typewriterScrolling);
 
   useEffect(() => {
@@ -1172,7 +1018,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled });
 
   const decorationsReady = useAgentEditorDecorations(editor, sourceKind, sourceId, isVisible || isPreparing);
-  const ready = canonicalReady && decorationsReady;
+  const ready = canonicalReady && sessionReady && decorationsReady;
 
   // Retroactively link prose that mentioned an element before it was created.
   // Auto-detect only fires on freshly-typed text, so an element created after
@@ -1203,103 +1049,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => events.off('element:element-created', onElementCreated);
   }, [editor, sourceRef]);
 
-  // Stamp a newly-created canonical editor. JSON content was
-  // supplied to the TipTap constructor above; Collaboration owns Yjs content.
-  // Neither mode performs a post-paint setContent transaction.
-  useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
-    let outlineFrame = 0;
-    const source = sourceRef.current;
-    if (
-      loadedTokenRef.current.editor === editor &&
-      loadedTokenRef.current.projectId === source.projectId &&
-      loadedTokenRef.current.sourceKind === source.sourceKind &&
-      loadedTokenRef.current.sourceId === source.sourceId
-    ) {
-      return;
-    }
-    try {
-      loadedTokenRef.current = {
-        editor,
-        projectId: source.projectId,
-        sourceKind: source.sourceKind,
-        sourceId: source.sourceId,
-      };
-      // Seed the live outline so the left TOC reflects existing headings
-      // before the user makes any edits, without synchronously setting React
-      // state from the effect body.
-      outlineFrame = requestAnimationFrame(() => {
-        if (!editor.isDestroyed) {
-          recomputeOutline(editor);
-        }
-      });
-      const selectionSnapshot = getEditorSelectionSnapshot(selectionKeyRef.current);
-      if (selectionSnapshot) {
-        restoreEditorSelectionSnapshot(selectionKeyRef.current, editor);
-      } else if (!autoFocus) {
-        suppressSelectionSaveRef.current = true;
-        moveEditorSelectionToStart(editor);
-        editor.commands.blur();
-        requestAnimationFrame(() => {
-          suppressSelectionSaveRef.current = false;
-        });
-      }
-    } catch (error) {
-      log.warn('Failed to load entity editor content:', error);
-    }
-    return () => {
-      if (outlineFrame) cancelAnimationFrame(outlineFrame);
-    };
-  }, [
-    autoFocus,
-    editor,
-    projectId,
-    recomputeOutline,
-    selectionKeyRef,
-    sourceId,
-    sourceKind,
-    sourceRef,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      removeCommentContextMenu();
-      if (!editor || editor.isDestroyed) return;
-      flushPersist(editor);
-      saveSelection(editor);
-    };
-  }, [editor, projectId, sourceKind, sourceId, saveSelection, flushPersist]);
-
-  // Register with the global active-editor registry: Cmd+F finds this
-  // instance, Cmd+S runs the same persistence path as onUpdate.
-  useRegisterActiveEditor(
-    editor,
-    () => {
-      if (!editor || editor.isDestroyed) return;
-      const source = sourceRef.current;
-      if (!source.sourceId) return;
-      if (
-        loadedTokenRef.current.editor !== editor ||
-        loadedTokenRef.current.projectId !== source.projectId ||
-        loadedTokenRef.current.sourceKind !== source.sourceKind ||
-        loadedTokenRef.current.sourceId !== source.sourceId
-      ) {
-        return;
-      }
-      // Cmd+S: persist immediately and cancel any pending debounced run.
-      if (persistTimerRef.current) {
-        clearTimeout(persistTimerRef.current);
-        persistTimerRef.current = null;
-      }
-      persistEditorContent(editor);
-    },
-    {
-      isSurfaceActive: isCommandActive,
-      // Nested patch cards become active on focus, not merely because their
-      // parent element surface was revealed.
-      activateOnMount: sourceKind !== 'patch',
-    },
-  );
+  useEffect(() => () => removeCommentContextMenu(), [editor, projectId, sourceKind, sourceId]);
 
   return { editor, outline, ready };
 }
