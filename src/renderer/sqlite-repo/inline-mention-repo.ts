@@ -110,6 +110,7 @@ export function createInlineMentionRepository(dbOverride?: DbExecutor): InlineMe
         .delete(InlineMentionTable)
         .where(
           and(
+            eq(InlineMentionTable.projectId, projectId),
             eq(InlineMentionTable.fromKind, fromKind),
             eq(InlineMentionTable.fromId, fromId),
           ),

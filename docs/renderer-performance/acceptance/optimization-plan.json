@@ -321,7 +321,10 @@
         {
           "id": "F6-01",
           "requirement": "引用仅处理受影响正文来源，删除清除引用，无关外观变化不全库解析",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f6-reference-boundary.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F6-02",
@@ -337,7 +340,8 @@
           "requirement": "乱序结果、项目切换、generation 更换不发布陈旧索引或快照",
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
-            "docs/renderer-performance/acceptance/f6-workspace-sharing.json"
+            "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
+            "docs/renderer-performance/acceptance/f6-reference-boundary.json"
           ],
           "status": "partial"
         },
@@ -356,7 +360,7 @@
           "status": "partial"
         }
       ],
-      "implementationStatus": "complete_capture_sharing_and_linear_memberships_implemented"
+      "implementationStatus": "complete_capture_sharing_and_linear_memberships_implemented_reference_transaction_boundary_tested_not_connected"
     },
     {
       "id": "F7",

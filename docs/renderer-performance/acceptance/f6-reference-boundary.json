@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "kind": "reference_index_boundary_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-12T09:04:12.435Z",
+  "source": {
+    "commit": "41754ad7bb6931e0e76fa2a55b3066d7e71fbc33",
+    "fingerprint": "1cda5177b127578be362efef15ce3c391484cf1ec76299724c2b85481bf7b655",
+    "dirty": true,
+    "build": "vitest-node-product-sqlite-gateway"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.19.0",
+    "sqlite": "3.53.3"
+  },
+  "fixture": {
+    "provenance": "synthetic test-local content",
+    "database": "temporary file; WAL; FULL; complete product migration journal"
+  },
+  "suite": "src/renderer/services/reference-index-repository.integration.test.ts",
+  "tests": [
+    {
+      "name": "reference index durable transaction boundary captures all five source kinds and projects JSON seeds without writing author state",
+      "status": "passed",
+      "durationMs": 31.973208999999997
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable node Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 21.265708000000018
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable element Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 18.268416000000002
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable storyline Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 17.39545800000002
+    },
+    {
+      "name": "reference index durable transaction boundary reads durable category Yjs instead of a stale or invalid JSON cache",
+      "status": "passed",
+      "durationMs": 17.09808400000003
+    },
+    {
+      "name": "reference index durable transaction boundary combines snapshots and updates and keeps the same source version through compaction",
+      "status": "passed",
+      "durationMs": 20.942916999999966
+    },
+    {
+      "name": "reference index durable transaction boundary distinguishes a revision-zero snapshot from a JSON seed",
+      "status": "passed",
+      "durationMs": 17.92416700000001
+    },
+    {
+      "name": "reference index durable transaction boundary ignores metadata and materialized-cache changes but detects only the changed prose source",
+      "status": "passed",
+      "durationMs": 18.043958999999973
+    },
+    {
+      "name": "reference index durable transaction boundary detects JSON source changes even when updatedAt is unchanged",
+      "status": "passed",
+      "durationMs": 18.26495799999998
+    },
+    {
+      "name": "reference index durable transaction boundary never falls back to JSON when a durable revision has lost its Yjs state",
+      "status": "passed",
+      "durationMs": 18.237292000000025
+    },
+    {
+      "name": "reference index durable transaction boundary preserves previous references when JSON parsing fails",
+      "status": "passed",
+      "durationMs": 17.744542000000024
+    },
+    {
+      "name": "reference index durable transaction boundary preserves previous references when persisted Yjs bytes are malformed",
+      "status": "passed",
+      "durationMs": 18.296625000000063
+    },
+    {
+      "name": "reference index durable transaction boundary rejects unresolved Yjs dependencies instead of indexing a partial document",
+      "status": "passed",
+      "durationMs": 16.59054100000003
+    },
+    {
+      "name": "reference index durable transaction boundary rejects late preparation and replacement after a newer durable prose revision",
+      "status": "passed",
+      "durationMs": 19.766917000000035
+    },
+    {
+      "name": "reference index durable transaction boundary invalidates both generation creation and generation replacement without mutating generations",
+      "status": "passed",
+      "durationMs": 19.299959000000058
+    },
+    {
+      "name": "reference index durable transaction boundary rejects results belonging to a different database or repository owner",
+      "status": "passed",
+      "durationMs": 32.268291999999974
+    },
+    {
+      "name": "reference index durable transaction boundary rejects revoked work even if it was queued before the transaction began",
+      "status": "passed",
+      "durationMs": 16.467249999999922
+    },
+    {
+      "name": "reference index durable transaction boundary rolls back replacement when its owner is revoked during the delete/insert transaction",
+      "status": "passed",
+      "durationMs": 18.36016600000005
+    },
+    {
+      "name": "reference index durable transaction boundary rolls back the deletion if replacement insertion fails and permits retry",
+      "status": "passed",
+      "durationMs": 21.261916999999926
+    },
+    {
+      "name": "reference index durable transaction boundary does not acknowledge a replacement whose commit fails",
+      "status": "passed",
+      "durationMs": 19.45379200000002
+    },
+    {
+      "name": "reference index durable transaction boundary does not resurrect hard-deleted sources and prunes their old references",
+      "status": "passed",
+      "durationMs": 19.92445799999996
+    },
+    {
+      "name": "reference index durable transaction boundary excludes trashed sources and child patches, then reprojects after restore",
+      "status": "passed",
+      "durationMs": 30.43795900000009
+    },
+    {
+      "name": "reference index durable transaction boundary rechecks current existence so an old catalog cannot prune newly created sources",
+      "status": "passed",
+      "durationMs": 29.67954199999997
+    },
+    {
+      "name": "reference index durable transaction boundary keeps writes within the owning project and preserves unsupported source formats",
+      "status": "passed",
+      "durationMs": 18.047667000000047
+    },
+    {
+      "name": "reference index durable transaction boundary rejects changed source incarnations and sources moved to another project",
+      "status": "passed",
+      "durationMs": 18.996708000000012
+    },
+    {
+      "name": "reference index durable transaction boundary captures source rows and Yjs versions in one consistent SQLite transaction",
+      "status": "passed",
+      "durationMs": 19.97470899999996
+    },
+    {
+      "name": "reference index durable transaction boundary clears an empty committed source without changing its prose",
+      "status": "passed",
+      "durationMs": 19.40766700000006
+    },
+    {
+      "name": "reference index durable transaction boundary rejects deleted and recreated project scopes even if entity IDs are reused",
+      "status": "passed",
+      "durationMs": 20.73441600000001
+    }
+  ],
+  "acceptance": {
+    "durableTransactionBoundary": "passed",
+    "runtimeQueueConnected": false,
+    "hardKillRecovery": "not-run",
+    "nativeOrPhysicalDevice": "not-run",
+    "performanceComparison": "not-run"
+  },
+  "limitations": [
+    "This preparatory repository is not yet connected to ProjectRuntimeProvider or editor reference writes.",
+    "Failure injection and SQLite rollback are exercised in-process; process termination and restart recovery are not exercised.",
+    "Test durations are diagnostic only, not a renderer performance comparison, database latency budget, or app-wide acceptance.",
+    "Catalog reads remain full; source versions and existence are revalidated before every derived replacement."
+  ]
+}

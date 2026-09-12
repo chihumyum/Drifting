@@ -669,3 +669,58 @@ local-only renderer build pass. The new comparator's final array correction
 was followed by the full suite, typecheck, focused lint and production build.
 The browser report is regenerated from the final renderer source; its source
 fingerprint and both report contracts are checked before the batch is committed.
+
+## F6a2 reference transaction boundary
+
+This batch prepares `services/reference-index-repository.ts` for a project-owned
+reference queue. The existing `ProjectRuntimeProvider` rebuild and editor
+reference writes still use their original paths. Their migration will happen
+together in the next batch; this evidence does not claim a runtime speedup or
+that the original race is already removed from the app.
+
+The new boundary binds all work to one database/project owner. It captures
+active source rows and Yjs version metadata in a consistent SQLite transaction,
+then prepares only requested sources from persisted Yjs snapshots/updates.
+JSON is used only as a seed when no durable Yjs state exists, or as the body
+of a JSON-only patch. Metadata, metrics and materialized-cache changes do not
+change a Yjs source version. Revision-zero snapshots, missing state with a
+positive revision, incomplete Yjs dependencies and invalid JSON have explicit
+tests. It neither flushes live documents nor writes prose, revisions or
+generations.
+
+Before replacement, the transaction rechecks owner, project incarnation,
+generation, source existence and source version. Old preparation/results are
+rejected. Revocation while queued or during SQL, failed insertion and failed
+commit cannot leave a half-replaced index. Cleanup rechecks live source
+existence in its write transaction, respects trash and patch-parent lifecycle,
+and preserves other projects and unsupported source formats. The existing
+inline-mention repository also now scopes replacement deletion by project.
+
+The generated [boundary report](acceptance/f6-reference-boundary.json) contains
+28 passing test cases against temporary files using the complete product
+migration journal, WAL, FULL synchronization and the existing renderer database
+gateway adapter. Cases cover all five source kinds, out-of-order results,
+database/generation switches, seed-to-Yjs promotion, compaction, consistency,
+rollback/retry, deletion, restore and cross-project predicates. Reproduce it:
+
+```bash
+pnpm reference:index:acceptance
+pnpm reference:index:acceptance --check
+```
+
+The generator runs the real tests, sanitizes the result to test names/statuses
+and durations, and fingerprints renderer source, migrations and runner inputs.
+It refuses source changes during a run. Test duration is diagnostic, not a
+performance budget. Neither raw databases nor raw test output are committed.
+
+This is **in-process transaction-boundary acceptance**. A project queue is not
+connected, and no process has been killed at commit/queue/index boundaries.
+Durable recovery, runtime parsing counters, full-app/native/physical-device
+acceptance and partial reads remain open. F6 stays `in_progress`; its recovery
+criterion remains without evidence. No schema or published migration changed.
+
+Validation: 2,275 Vitest tests pass (1 skipped); typecheck, lint (0 errors,
+74 existing warnings), CI/public contracts, capability checks and the CI-configured
+local-only renderer production build pass. The generated 28-case boundary
+report and its final source fingerprint are checked separately. The production
+bundle remains approximately 5.31 MB; this batch makes no startup claim.

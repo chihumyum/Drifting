@@ -283,9 +283,47 @@ reverse memberships. A rejected stale result neither compares data nor emits
 a store notification. Sharing owns no asynchronous task, author state or
 project cache; the existing weak ID index follows the source array lifetime.
 Full capture, the structural refresh barrier and the non-blocking prose-only
-sync path remain intact. Reference rebuild queue ownership, source-version /
+sync path remain intact. Reference rebuild queue ownership, runtime source-version /
 generation validation, durable coverage and partial SQLite reads are pending
 F6 work; record sharing alone does not claim those guarantees.
+
+### Prepared reference-index transaction boundary
+
+`services/reference-index-repository.ts` is a tested foundation for the next
+project-owned queue; it is **not yet connected** to the existing provider or
+editor reference writers. Its factory captures a database client and project,
+and requires an owner-liveness predicate. A scope contains an opaque
+repository owner identity, project incarnation and active sync-generation
+identity. Capture, preparation, replacement and cleanup use that bound client;
+they never reacquire the global database during an asynchronous job.
+
+A catalog reads the five active source kinds and durable Yjs metadata in one
+SQLite transaction. Source versions compare creation identity and either the
+Yjs revision/state-presence pair or the exact JSON seed/body. Metadata and
+materialized JSON changes cannot invalidate a Yjs-owned body's version. A
+revision-zero snapshot is already Yjs-owned; a positive revision without its
+state is an error, not permission to read the JSON cache. Prepared drafts come
+from the persisted snapshot plus updates, or JSON only when no Yjs state or
+positive revision exists (patches remain JSON). Temporary Y.Docs are destroyed even
+on decoding failure. Incomplete Yjs dependencies and invalid JSON fail before
+any index mutation; live sessions and prose state are untouched.
+
+Replacement rechecks scope, source existence and version inside the same
+transaction as deletion/insertion. Revocation detected before commit rolls
+back; a commit already handed to the gateway completes against the captured
+database and cannot be redirected to a new user database. Only successful
+commit may acknowledge a source version to the future queue. Cleanup re-reads
+current existence inside its transaction so an older catalog cannot prune a
+newly created/restored source. Trashed structural sources and patches belonging
+to trashed/missing parents are excluded. Targets retain the existing mark and
+dangling-reference semantics; unsupported source formats are preserved.
+Writes include project ownership in their predicates and participate in the
+existing atomic transaction drain without emitting authored journal events.
+
+This boundary has no persistent progress, timers, event subscribers or UI
+notifications. Full catalog reads remain. Queue coalescing, atomic migration
+of the two existing writers, observable retry and startup/hard-kill coverage
+must be completed before claiming runtime incremental-reference acceptance.
 
 ## Desktop universal create
 
