@@ -49,6 +49,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
+    "perf:renderer": "node scripts/run-renderer-performance.mjs",
+    "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
     "test:agent-runtime": "vitest run src/renderer/lib/agent/runtime --reporter=dot",
     "agent:debug:server": "node scripts/agent-headless-debug-server.mjs",
     "agent:debug:turn": "node scripts/agent-headless-debug-turn.mjs",

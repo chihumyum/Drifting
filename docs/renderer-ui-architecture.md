@@ -6,6 +6,12 @@ The renderer uses two sibling shells over one shared application and project
 runtime. Mobile is not a responsive variation of the desktop shell, and shared
 features do not choose a shell with scattered `isMobile` branches.
 
+The [frontend architecture and performance plan](renderer-performance/optimization-plan.md)
+records proposed work on subscriptions, editor effects, Agent projections,
+graphs, workspace indexing, and loading. The [execution record](renderer-performance/README.md)
+separates measured synthetic work from pending app/device acceptance. The
+contracts below continue to describe current behavior.
+
 ```text
 App.tsx
 ├── app/effects

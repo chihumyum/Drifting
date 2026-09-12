@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "kind": "implementation_plan",
+  "maintainedBy": "human",
+  "updatedAt": "2026-09-12",
+  "document": "docs/renderer-performance/optimization-plan.md",
+  "reviewBaselineCommit": "8106f90b5ab898f51d296f6c2fb838e13dd74c2c",
+  "planStatus": "recorded",
+  "optimizationImplementationStatus": "in_progress",
+  "evidenceMeaning": "Empty evidence means planned acceptance only, not a passed check, a measured performance result, or a shipped capability.",
+  "recommendedOrder": [
+    "F0",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "phases": [
+    {
+      "id": "F0",
+      "title": "可复现基线与验收入口",
+      "dependsOn": [],
+      "status": "in_progress",
+      "acceptance": [
+        {
+          "id": "F0-01",
+          "requirement": "合成 fixture 可按 seed/hash 重建，操作轨迹不含个人数据",
+          "evidence": [
+            "docs/renderer-performance/acceptance/baseline-editor.json"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "F0-02",
+          "requirement": "结果记录构建 SHA、设备、WebView、重复次数与测量边界",
+          "evidence": [
+            "docs/renderer-performance/acceptance/baseline-editor.json"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "F0-03",
+          "requirement": "计数可区分输入、订阅、事件、几何、引用的全量与局部工作，预算在优化前固定",
+          "evidence": [
+            "docs/renderer-performance/acceptance/baseline-editor.json"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "F0-04",
+          "requirement": "计划与报告有可复现校验入口，采集不增加生产默认热路径成本",
+          "evidence": [
+            "docs/renderer-performance/acceptance/baseline-editor.json"
+          ],
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "F1",
+      "title": "输入热路径与链接着色",
+      "dependsOn": [
+        "F0"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F1-01",
+          "requirement": "链接外普通输入不逐键全量查询链接，selection-only 不触发着色扫描",
+          "evidence": []
+        },
+        {
+          "id": "F1-02",
+          "requirement": "颜色未改变时无冗余 style 写入，目标查找不逐链接遍历实体数组",
+          "evidence": []
+        },
+        {
+          "id": "F1-03",
+          "requirement": "新链接、归属与颜色变化、粘贴、撤销、远程更新和中文 IME 正确",
+          "evidence": []
+        },
+        {
+          "id": "F1-04",
+          "requirement": "同环境长文输入达到 F0 预算，保留持久化与自动链接契约",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F2",
+      "title": "精确订阅与项目派生索引",
+      "dependsOn": [
+        "F0"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F2-01",
+          "requirement": "不相关 comment 更新不通知仅消费章节名称或颜色的订阅者",
+          "evidence": []
+        },
+        {
+          "id": "F2-02",
+          "requirement": "指标更新不使名称与外观缓存失效，相关语义变化及时失效",
+          "evidence": []
+        },
+        {
+          "id": "F2-03",
+          "requirement": "派生缓存归属项目和 generation，切换恢复无残留或混合快照",
+          "evidence": []
+        },
+        {
+          "id": "F2-04",
+          "requirement": "稳定引用和精确订阅通过通知计数与 React commit 验证，原子发布保留",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F3",
+      "title": "编辑器会话与显示生命周期",
+      "dependsOn": [
+        "F1",
+        "F2"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F3-01",
+          "requirement": "不相关实体的 Agent 状态不触发编辑器装饰计算",
+          "evidence": []
+        },
+        {
+          "id": "F3-02",
+          "requirement": "隐藏标签延迟安全的显示计算，仍接收权威更新并完成必要持久化",
+          "evidence": []
+        },
+        {
+          "id": "F3-03",
+          "requirement": "标签返回及 split 保留草稿、撤销、选择、滚动和审阅遮罩，无空白或泄露帧",
+          "evidence": []
+        },
+        {
+          "id": "F3-04",
+          "requirement": "多标签达到 F0 预算，关闭后监听器和文档保留数量不持续增长",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F4",
+      "title": "Agent 事件与界面投影",
+      "dependsOn": [
+        "F0"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F4-01",
+          "requirement": "事件轨迹与参考投影等价，重复、重放、重绑不丢失或重复终态",
+          "evidence": []
+        },
+        {
+          "id": "F4-02",
+          "requirement": "去重累计工作近似线性，不逐事件复制历史键，缓存有明确清理与恢复边界",
+          "evidence": []
+        },
+        {
+          "id": "F4-03",
+          "requirement": "展示通知合并不丢真实事件，取消、权限、终态和后台 flush 及时有序",
+          "evidence": []
+        },
+        {
+          "id": "F4-04",
+          "requirement": "长流与会话恢复达到 F0 预算，桌面移动滚动和历史消息行为正确",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F5",
+      "title": "图谱读模型与几何交互",
+      "dependsOn": [
+        "F2"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F5-01",
+          "requirement": "关系投影使用 ID 索引，几何刷新不重复渲染未变化卡片",
+          "evidence": []
+        },
+        {
+          "id": "F5-02",
+          "requirement": "每帧同端点至多测量一次，几何无变化不提交，保留平移优化",
+          "evidence": []
+        },
+        {
+          "id": "F5-03",
+          "requirement": "桌面移动手势、导航、特殊 drift 边和关系创建正确",
+          "evidence": []
+        },
+        {
+          "id": "F5-04",
+          "requirement": "大图达到 F0 预算；若实现裁剪，边、选区、焦点与浮层仍完整",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F6",
+      "title": "工作区投影与引用索引增量化",
+      "dependsOn": [
+        "F2"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F6-01",
+          "requirement": "引用仅处理受影响正文来源，删除清除引用，无关外观变化不全库解析",
+          "evidence": []
+        },
+        {
+          "id": "F6-02",
+          "requirement": "局部读取保持结构依赖与事务原子性，正文同步既有通道保留",
+          "evidence": []
+        },
+        {
+          "id": "F6-03",
+          "requirement": "乱序结果、项目切换、generation 更换不发布陈旧索引或快照",
+          "evidence": []
+        },
+        {
+          "id": "F6-04",
+          "requirement": "提交、排队和索引写入边界终止后可恢复，与权威内容完整重建一致",
+          "evidence": []
+        },
+        {
+          "id": "F6-05",
+          "requirement": "全量修复路径可用，读取、发布与解析成本分别记录；若有新迁移则通过兼容与快照验收",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F7",
+      "title": "功能加载与启动",
+      "dependsOn": [
+        "F0",
+        "F3",
+        "F5"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F7-01",
+          "requirement": "未访问重型功能不加载执行其代码，静态导入没有串回首屏",
+          "evidence": []
+        },
+        {
+          "id": "F7-02",
+          "requirement": "首开与再次访问稳定，编辑器 ready 屏障保留，项目运行时不重复创建",
+          "evidence": []
+        },
+        {
+          "id": "F7-03",
+          "requirement": "本地资源、离线和 chunk 失败可恢复，不丢草稿或必要原生事件",
+          "evidence": []
+        },
+        {
+          "id": "F7-04",
+          "requirement": "首屏与首次功能访问达到 F0 预算，报告实际加载执行而非仅 gzip",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "F8",
+      "title": "组合验收与 CI 防回退",
+      "dependsOn": [
+        "F0",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "status": "planned",
+      "acceptance": [
+        {
+          "id": "F8-01",
+          "requirement": "同一合成组合场景达到固定预算与正确性门槛，报告退化和内存生命周期",
+          "evidence": []
+        },
+        {
+          "id": "F8-02",
+          "requirement": "确定性性能约束纳入 CI，设备性能结果有固定环境、容差和复跑规则",
+          "evidence": []
+        },
+        {
+          "id": "F8-03",
+          "requirement": "仓库规定检查通过，实际契约和生成证据与精确 SHA 对齐",
+          "evidence": []
+        },
+        {
+          "id": "F8-04",
+          "requirement": "桌面、模拟器、实机与真实账号验收分列，缺失项为 NOT RUN，不替代既有发布门槛",
+          "evidence": []
+        }
+      ]
+    }
+  ]
+}
