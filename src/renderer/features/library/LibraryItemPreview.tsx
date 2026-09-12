@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
+import { startPdfPreviewDocument } from './pdf-preview-document';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
 import { Button } from '../../components/ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
-import { platform } from '../../platform';
 import {
   clampLibraryItemPreviewScale,
   useStoredLibraryItemVariant,
 } from './library-item-media';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export function TextSnippetPopover({
   material,
@@ -350,7 +346,7 @@ export function LibraryItemFullscreenPreview({
     if (material.kind === 'pdf') {
       const pdfPath = assetPdfSource.filePath;
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
-      return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
+      return <PdfCanvasPreview key={pdfPath} filePath={pdfPath} viewport={viewport} />;
     }
 
     return (
@@ -438,7 +434,7 @@ function PdfCanvasPreview({
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<'openPdfFailed' | 'renderPdfFailed' | null>(null);
   const [surfaceSize, setSurfaceSize] = useState(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -456,40 +452,19 @@ function PdfCanvasPreview({
   // `fetch('file://…')` from non-file origins (the Vite dev server) regardless
   // of `webSecurity`, so pdf.js's internal fetch silently fails.
   useEffect(() => {
-    let cancelled = false;
-    let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
-
-    void platform.material
-      .readBytes(filePath)
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          console.error('[pdf preview] readBytes failed:', res.error);
-          setError(t('memoMaterial.preview.openPdfFailed'));
-          return;
-        }
-        // pdf.js takes ownership of the buffer, so hand it a fresh view.
-        loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(res.bytes) });
-        return loadingTask.promise.then((nextDocument) => {
-          if (cancelled) {
-            return;
-          }
-          setPdfDocument(nextDocument);
-          setPageCount(nextDocument.numPages);
-          setPageNumber(1);
-        });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('[pdf preview] getDocument failed:', err);
-        setError(t('memoMaterial.preview.openPdfFailed'));
-      });
-
-    return () => {
-      cancelled = true;
-      void loadingTask?.destroy();
-    };
-  }, [filePath, t]);
+    const session = startPdfPreviewDocument(filePath, {
+      onReady(nextDocument) {
+        setPdfDocument(nextDocument);
+        setPageCount(nextDocument.numPages);
+        setPageNumber(1);
+      },
+      onError(error) {
+        console.error('[pdf preview] document load failed:', error);
+        setError('openPdfFailed');
+      },
+    });
+    return session.dispose;
+  }, [filePath]);
 
   useEffect(() => {
     if (!pdfDocument || !canvasRef.current) return;
@@ -528,14 +503,14 @@ function PdfCanvasPreview({
       .catch((nextError: unknown) => {
         if (cancelled || isPdfRenderCancel(nextError)) return;
         console.error('[pdf preview] render failed:', nextError);
-        setError(t('memoMaterial.preview.renderPdfFailed'));
+        setError('renderPdfFailed');
       });
 
     return () => {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width, t]);
+  }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width]);
 
   const goToPreviousPage = useCallback(() => {
     setPageNumber((page) => Math.max(1, page - 1));
@@ -574,7 +549,7 @@ function PdfCanvasPreview({
       }}
     >
       {error ? (
-        <FullscreenEmpty message={error} />
+        <FullscreenEmpty message={t(`memoMaterial.preview.${error}`)} />
       ) : !pdfDocument ? (
         <FullscreenEmpty message={t('memoMaterial.preview.loadingPdf')} />
       ) : (

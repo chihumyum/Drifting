@@ -22,6 +22,16 @@ function syntheticPdf() {
 
 const fixture = syntheticPdf();
 const api = {
+  async fixture() {
+    const hash = await crypto.subtle.digest('SHA-256', fixture);
+    return { pdfSha256: [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join(''), pdfBytes: fixture.byteLength, provenance: 'synthetic red rectangle; no external content' };
+  },
+  async invalidPdf() {
+    try {
+      await renderPdfThumbnail(new TextEncoder().encode('%PDF-1.4\nSynthetic invalid document').buffer, 120, 80);
+      return { rejected: false };
+    } catch (error) { return { rejected: true, name: error instanceof Error ? error.name : String(error) }; }
+  },
   async pdf() {
     const start = performance.now();
     const result = await renderPdfThumbnail(fixture, 120, 80);

@@ -397,14 +397,18 @@
           "id": "F7-01",
           "requirement": "未访问重型功能不加载执行其代码，静态导入没有串回首屏",
           "evidence": [
-            "docs/renderer-performance/acceptance/f7-libraries-baseline.json"
+            "docs/renderer-performance/acceptance/f7-libraries-baseline.json",
+            "docs/renderer-performance/acceptance/f7-libraries-deferred.json"
           ],
           "status": "partial"
         },
         {
           "id": "F7-02",
           "requirement": "首开与再次访问稳定，编辑器 ready 屏障保留，项目运行时不重复创建",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f7-libraries-deferred.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F7-03",
@@ -417,7 +421,7 @@
           "evidence": []
         }
       ],
-      "implementationStatus": "pdf_zip_production_entry_baseline_recorded_deferred_loading_pending"
+      "implementationStatus": "pdf_and_zip_deferred_with_document_lifetimes_other_features_and_native_startup_pending"
     },
     {
       "id": "F8",

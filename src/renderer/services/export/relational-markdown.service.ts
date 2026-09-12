@@ -1,5 +1,3 @@
-import JSZip from 'jszip';
-
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
@@ -267,6 +265,7 @@ export async function buildRelationalMarkdownArchive(
   source: LocalRelationalMarkdownSource,
   now = new Date(),
 ): Promise<RelationalMarkdownArchive> {
+  const { default: JSZip } = await import('jszip');
   const books: ExportBook[] = source.books
     .map((book) => ({
       ...book,

@@ -61,6 +61,32 @@ A tab switch may update route selection and entity-dependent panels, but it
 must not restart `ProjectRuntimeProvider`, invalidate the surrounding shell, or
 destroy the editor session owned by another still-open desktop tab.
 
+### On-demand PDF and archive libraries
+
+The platform adapter and library image/text previews remain available at app
+startup. They import only the small PDF signature/loader entry. The loader
+dynamically imports `lib/pdf-runtime.ts`, which loads the legacy PDF engine and
+configures the Vite-managed local worker URL when a PDF operation starts. Native
+thumbnail success and non-PDF fallback checks do not require the PDF engine.
+The browser module cache shares successful/concurrent engine imports; the app
+does not retain a second promise cache or a global PDF document.
+
+`features/library/pdf-preview-document.ts` owns the preview's native read,
+deferred engine load and document task. Disposal during a read/import prevents
+document creation; disposal or a document error destroys an existing task once.
+The preview leaf is keyed by file path, and locale changes translate its error
+key without recreating the document. Page-render cancellation and the enclosing
+preview's close/gesture behavior remain in the view. Thumbnail tasks also clean
+up after parse/render/encode failures and reset their temporary canvas.
+
+Relational Markdown export loads JSZip only when building an archive. The
+existing open-Yjs flush, transactionally consistent source capture, authored
+prose interpretation and native save/cancel flow remain the authority. Neither
+library owns the project runtime, editor sessions or native lifecycle listeners.
+Failed module-fetch retry, offline native paths, other heavy features and app
+startup budgets remain F7 acceptance work; document-error recovery alone does
+not satisfy those gates.
+
 ### Desktop editor-session continuity
 
 `EditorMainArea` is the desktop editor-session stage. It mounts Project Home

@@ -1,15 +1,4 @@
-// The legacy pdf.js bundle still supports WebViews that do not implement the
-// newest Promise.withResolvers API used by the modern bundle.
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
-
-// Vite resolves `?url` to a string in every renderer build. Node/headless
-// domain tooling may import the platform graph without ever rendering a PDF;
-// its loader does not own that Vite transform, so leave pdf.js unconfigured
-// until a real renderer supplies the URL.
-if (typeof pdfWorkerUrl === 'string') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-}
+import { loadPdfRuntime } from './pdf-runtime-loader';
 
 export interface PdfThumbnail {
   bytes: ArrayBuffer;
@@ -39,15 +28,17 @@ export async function renderPdfThumbnail(
   maxLongEdge: number,
   quality: number,
 ): Promise<PdfThumbnail> {
+  const pdfjsLib = await loadPdfRuntime();
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(source.slice(0)) });
-  const document = await loadingTask.promise;
+  let canvas: HTMLCanvasElement | null = null;
   try {
+    const document = await loadingTask.promise;
     const page = await document.getPage(1);
     const baseViewport = page.getViewport({ scale: 1 });
     const boundedEdge = Math.max(1, Math.min(2048, Math.round(maxLongEdge)));
     const scale = boundedEdge / Math.max(baseViewport.width, baseViewport.height);
     const viewport = page.getViewport({ scale });
-    const canvas = window.document.createElement('canvas');
+    canvas = window.document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(viewport.width));
     canvas.height = Math.max(1, Math.round(viewport.height));
 
@@ -58,8 +49,6 @@ export async function renderPdfThumbnail(
       Promise.resolve(canvas.toDataURL('image/jpeg', normalizedQuality)),
     ]);
     const bytes = await blob.arrayBuffer();
-    canvas.width = 1;
-    canvas.height = 1;
     return {
       bytes,
       dataUrl,
@@ -69,6 +58,7 @@ export async function renderPdfThumbnail(
       height: Math.max(1, Math.round(viewport.height)),
     };
   } finally {
+    if (canvas) { canvas.width = 1; canvas.height = 1; }
     await loadingTask.destroy();
   }
 }

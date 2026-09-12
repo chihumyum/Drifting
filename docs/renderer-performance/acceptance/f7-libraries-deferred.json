@@ -1,0 +1,577 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_deferred_libraries",
+  "status": "passed",
+  "mode": "deferred",
+  "generatedAt": "2026-09-12T12:19:49.432Z",
+  "source": {
+    "commit": "83afe2812be4276790a8cc9cb153d3962b0123ef",
+    "fingerprint": "105a1e1b4b7cb8dcc2e0d8a54a7f4fd5ef0e7344da3a99945f3ac903b4cd6711",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.19.0",
+    "browser": "Chrome/153.0.8010.36"
+  },
+  "chunks": [
+    {
+      "file": "assets/react-vendor-DcT2tIgw.js",
+      "entry": false,
+      "bytes": 50500,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/tiptap-BJhbDq7p.js",
+      "entry": false,
+      "bytes": 399867,
+      "imports": [
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-CEGTEMhG.js",
+      "entry": true,
+      "bytes": 4738488,
+      "imports": [
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/jszip.min-eIqlAFhc.js",
+      "entry": false,
+      "bytes": 508,
+      "imports": [
+        "assets/react-vendor-DcT2tIgw.js",
+        "assets/jszip.min-CrTowLPB.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/pdf-runtime-D1bKUd09.js",
+      "entry": false,
+      "bytes": 489751,
+      "imports": [],
+      "targets": [
+        "pdf"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/index-iZyPOBOC.js",
+      "entry": false,
+      "bytes": 3601,
+      "imports": [
+        "assets/index-CEGTEMhG.js",
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/y-prosemirror-gd5VnEPK.js",
+      "entry": false,
+      "bytes": 5046,
+      "imports": [
+        "assets/index-CEGTEMhG.js",
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D35Zzh6R.js",
+      "entry": false,
+      "bytes": 312532,
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/imported-history-BZ4OuozU.js",
+      "entry": false,
+      "bytes": 1328,
+      "imports": [
+        "assets/index-CEGTEMhG.js",
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/seed-V3tMKADp.js",
+      "entry": false,
+      "bytes": 3162,
+      "imports": [
+        "assets/index-CEGTEMhG.js",
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/markdown-DW5s2wjQ.js",
+      "entry": false,
+      "bytes": 1275,
+      "imports": [
+        "assets/tiptap-BJhbDq7p.js",
+        "assets/index-CEGTEMhG.js",
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-C8tJ-RL6.js",
+      "entry": false,
+      "bytes": 404586,
+      "imports": [
+        "assets/react-vendor-DcT2tIgw.js",
+        "assets/index-CEGTEMhG.js",
+        "assets/jszip.min-CrTowLPB.js",
+        "assets/tiptap-BJhbDq7p.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-CrTowLPB.js",
+      "entry": false,
+      "bytes": 96793,
+      "imports": [
+        "assets/react-vendor-DcT2tIgw.js"
+      ],
+      "targets": [
+        "zip"
+      ],
+      "initial": false
+    }
+  ],
+  "initial": {
+    "evaluated": [],
+    "parsed": [
+      "assets/index-CEGTEMhG.js",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-CEGTEMhG.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js",
+      "favicon.ico"
+    ],
+    "workerCount": 0
+  },
+  "afterPdf": {
+    "evaluated": [
+      "pdf"
+    ],
+    "parsed": [
+      "assets/index-CEGTEMhG.js",
+      "assets/pdf-runtime-D1bKUd09.js",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-CEGTEMhG.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/pdf-runtime-D1bKUd09.js",
+      "assets/pdf.worker-Dg_VPFYK.mjs",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js",
+      "favicon.ico"
+    ],
+    "workerCount": 3
+  },
+  "afterArchive": {
+    "evaluated": [
+      "pdf",
+      "zip"
+    ],
+    "parsed": [
+      "assets/index-CEGTEMhG.js",
+      "assets/jszip.min-CrTowLPB.js",
+      "assets/jszip.min-eIqlAFhc.js",
+      "assets/pdf-runtime-D1bKUd09.js",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js"
+    ],
+    "requested": [
+      "",
+      "assets/index-Bj5AToqZ.css",
+      "assets/index-CEGTEMhG.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/jszip.min-CrTowLPB.js",
+      "assets/jszip.min-eIqlAFhc.js",
+      "assets/pdf-runtime-D1bKUd09.js",
+      "assets/pdf.worker-Dg_VPFYK.mjs",
+      "assets/react-vendor-DcT2tIgw.js",
+      "assets/tiptap-BJhbDq7p.js",
+      "favicon.ico"
+    ],
+    "workerCount": 5
+  },
+  "pdf": [
+    {
+      "elapsedMs": 90.80000007152557,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    },
+    {
+      "elapsedMs": 33.10000002384186,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    },
+    {
+      "elapsedMs": 33.10000002384186,
+      "width": 120,
+      "height": 60,
+      "mime": "image/jpeg",
+      "sizeBytes": 810,
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ],
+      "sourceBytes": 457,
+      "sourceIntact": true
+    }
+  ],
+  "fixture": {
+    "pdfSha256": "30685a952f3ed55588188f28673bf42f451e3efc782b15d09df704d8ffefee0a",
+    "pdfBytes": 457,
+    "provenance": "synthetic red rectangle; no external content"
+  },
+  "invalidPdf": {
+    "rejected": true,
+    "name": "InvalidPDFException"
+  },
+  "recoveredPdf": {
+    "elapsedMs": 39.199999928474426,
+    "width": 120,
+    "height": 60,
+    "mime": "image/jpeg",
+    "sizeBytes": 810,
+    "pixel": [
+      254,
+      0,
+      0,
+      255
+    ],
+    "sourceBytes": 457,
+    "sourceIntact": true
+  },
+  "workerAssets": [
+    {
+      "file": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "bytes": 2383409
+    }
+  ],
+  "workerUrls": [
+    "assets/pdf.worker-Dg_VPFYK.mjs"
+  ],
+  "workerStarts": 5,
+  "workersRemaining": 0,
+  "workerLifecycle": [
+    {
+      "url": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "terminated": true
+    },
+    {
+      "url": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "terminated": true
+    },
+    {
+      "url": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "terminated": true
+    },
+    {
+      "url": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "terminated": true
+    },
+    {
+      "url": "assets/pdf.worker-Dg_VPFYK.mjs",
+      "terminated": true
+    }
+  ],
+  "cdpWorkerTargets": 0,
+  "tests": [
+    {
+      "name": "tauri native OpenAI and Keychain status transport checks Keychain existence without invoking the secret read command",
+      "status": "passed",
+      "durationMs": 1.9984579999999994
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport keeps SyncEngine asset capture and restore behind opaque native refs",
+      "status": "passed",
+      "durationMs": 0.9320829999999773
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport uses only opaque refs for native SyncEngine object staging",
+      "status": "passed",
+      "durationMs": 0.6935420000000079
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport passes generated archive bytes to the native save contract",
+      "status": "passed",
+      "durationMs": 0.18625000000000114
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport routes durable asset bytes through the local asset store contract",
+      "status": "passed",
+      "durationMs": 0.19974999999999454
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport reconstructs an ordered Responses stream from native channel bytes",
+      "status": "passed",
+      "durationMs": 9.89895900000002
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport sends ChatGPT subscription requests through the same native stream with their own credential source",
+      "status": "passed",
+      "durationMs": 0.24620899999999324
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport drives ChatGPT sign-in through native OAuth commands that never return tokens",
+      "status": "passed",
+      "durationMs": 0.22991700000000037
+    },
+    {
+      "name": "tauri native OpenAI and Keychain status transport forwards AbortSignal cancellation to the active native request",
+      "status": "passed",
+      "durationMs": 0.7302090000000021
+    },
+    {
+      "name": "tauri General Agent capability advertises the renderer-local runtime on macos",
+      "status": "passed",
+      "durationMs": 0.24908299999998462
+    },
+    {
+      "name": "tauri General Agent capability advertises the renderer-local runtime on ios",
+      "status": "passed",
+      "durationMs": 0.0810419999999965
+    },
+    {
+      "name": "tauri General Agent capability advertises the renderer-local runtime on windows",
+      "status": "passed",
+      "durationMs": 0.06866700000000492
+    },
+    {
+      "name": "tauri General Agent capability advertises the renderer-local runtime on linux",
+      "status": "passed",
+      "durationMs": 0.05829199999999446
+    },
+    {
+      "name": "tauri General Agent capability advertises the renderer-local runtime on android",
+      "status": "passed",
+      "durationMs": 0.056958000000008724
+    },
+    {
+      "name": "tauri General Agent capability treats missing security and Drive OAuth advertisements as unsupported",
+      "status": "passed",
+      "durationMs": 0.08116699999999355
+    },
+    {
+      "name": "tauri OAuth callback delivery opens OAuth with a persisted state and S256 PKCE verifier",
+      "status": "passed",
+      "durationMs": 1.6405839999999898
+    },
+    {
+      "name": "tauri OAuth callback delivery drains a queued code and exchanges it over HTTPS before releasing a token",
+      "status": "passed",
+      "durationMs": 51.48112499999999
+    },
+    {
+      "name": "tauri OAuth callback delivery consumes a live URL from the native queue so it cannot replay on remount",
+      "status": "passed",
+      "durationMs": 52.410458000000006
+    },
+    {
+      "name": "tauri OAuth callback delivery rejects missing and mismatched state without consuming the valid pending state",
+      "status": "passed",
+      "durationMs": 102.96179199999997
+    },
+    {
+      "name": "tauri OAuth callback delivery rejects an expired pending state",
+      "status": "passed",
+      "durationMs": 0.7912499999999909
+    },
+    {
+      "name": "tauri OAuth callback delivery surfaces a failed HTTPS exchange without exposing the handoff code as a token",
+      "status": "passed",
+      "durationMs": 52.764125000000035
+    },
+    {
+      "name": "tauri lifecycle flush protocol keeps suspend unconfirmed and completes shutdown only with its explicit request id",
+      "status": "passed",
+      "durationMs": 0.42770799999999554
+    },
+    {
+      "name": "tauri lifecycle flush protocol exposes native ready and resume wake-ups without treating flushes as resumes",
+      "status": "passed",
+      "durationMs": 0.11925000000002228
+    },
+    {
+      "name": "tauri material import contract preserves the native-owned material size limit in a stable failure result",
+      "status": "passed",
+      "durationMs": 0.13312500000000682
+    },
+    {
+      "name": "tauri material import contract routes app-owned import cleanup through the confined native command",
+      "status": "passed",
+      "durationMs": 0.10499999999996135
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership checks signatures without loading the engine",
+      "status": "passed",
+      "durationMs": 0.9939159999999987
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership preserves the caller buffer, image bounds and quality while releasing resources",
+      "status": "passed",
+      "durationMs": 1.7496660000000048
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership propagates a module load error without creating a document",
+      "status": "passed",
+      "durationMs": 0.4694999999999965
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership destroys the document task even when parsing rejects before any page is available",
+      "status": "passed",
+      "durationMs": 0.1927909999999997
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership releases the document and canvas when page rendering fails",
+      "status": "passed",
+      "durationMs": 0.1980000000000075
+    },
+    {
+      "name": "deferred PDF thumbnail resource ownership releases resources when the image encoder fails",
+      "status": "passed",
+      "durationMs": 0.46612500000000523
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading does not load the engine after a preview closes during the native read",
+      "status": "passed",
+      "durationMs": 1.1320839999999919
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading does not allocate a PDF worker/task after closing during the module load",
+      "status": "passed",
+      "durationMs": 52.960916999999995
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading destroys once and ignores a document that resolves after close",
+      "status": "passed",
+      "durationMs": 51.405125
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading retains a ready document until its preview owner closes",
+      "status": "passed",
+      "durationMs": 0.7349170000000242
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading releases a failed loading task before reporting the document error",
+      "status": "passed",
+      "durationMs": 52.431250000000034
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading reports a native read error without loading the PDF engine",
+      "status": "passed",
+      "durationMs": 0.21375000000000455
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading lets a fresh preview request load again after its loader rejected",
+      "status": "passed",
+      "durationMs": 0.20462500000002137
+    },
+    {
+      "name": "PDF preview document ownership across deferred engine loading keeps replacement previews isolated when an older read fails late",
+      "status": "passed",
+      "durationMs": 0.22133300000001555
+    },
+    {
+      "name": "local relational Markdown export acceptance uses persisted Yjs state before seed fallback and preserves safe relational links",
+      "status": "passed",
+      "durationMs": 19.052166
+    },
+    {
+      "name": "local relational Markdown export acceptance flushes live local Yjs before reading SQLite and reports picker cancellation without retrying",
+      "status": "passed",
+      "durationMs": 4.557999999999993
+    },
+    {
+      "name": "local relational Markdown export acceptance keeps the export path free of hosted graph, mutation flush, and remote Yjs calls",
+      "status": "passed",
+      "durationMs": 0.38554199999998673
+    },
+    {
+      "name": "local relational Markdown export acceptance keeps local export reachable without mounting a retired cloud activity surface",
+      "status": "passed",
+      "durationMs": 0.20358299999998053
+    }
+  ],
+  "archive": {
+    "filename": "drifting-all-books-markdown-2026-09-12.zip",
+    "sizeBytes": 497,
+    "elapsedMs": 8.899999976158142,
+    "files": [
+      "README.md",
+      "index.md"
+    ],
+    "valid": true
+  },
+  "acceptance": {
+    "moduleLoading": "passed",
+    "syntheticPdfRendering": "passed",
+    "archiveRoundTrip": "passed",
+    "fullAppPerformance": "not-run",
+    "nativeOrDevice": "not-run"
+  },
+  "limitations": [
+    "This builds the actual production renderer entry/config with two library evaluation counters and a synthetic invocation API added only by the acceptance build. Module ownership, static closure, browser requests and parsed scripts are recorded separately.",
+    "The plain browser has no native bridge, author database or account. Full app readiness/errors and native startup latency are not acceptance claims. Native event/bootstrap order is not replaced by the fixture.",
+    "PDF calls exercise the actual engine/worker and JPEG canvas output; ZIP bytes are validated independently by Python zipfile. An acceptance-only native Worker subclass records real construction/terminate calls. Zero remaining means all observed workers received terminate, not an OS process-memory measurement. Page-level CDP target observations are supplementary. No private files are read or exported.",
+    "Document lifetime tests use controlled native reads and module-load promises, while rendering/worker checks use the real browser engine. Retry after document failure is verified; this is not a failed module-fetch retry claim.",
+    "One first call and two concurrent repeated PDF calls are diagnostics, not p95 budgets. This does not test failed chunk retrieval, offline native resource paths, physical devices or input continuity."
+  ]
+}
