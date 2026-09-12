@@ -24,7 +24,6 @@ import type { PlotGridMutation } from '../domain/plot-grid';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
-import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
 import { unbindActsForDrift } from '../usecase/useBookAct';
@@ -171,10 +170,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     },
     [setMarginNotes],
   );
-  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
-    scrollEl,
-    outline.map((heading) => heading.id),
-  );
+  const outlineIds = outline.map((heading) => heading.id);
   // Nest the flat H1/H2/H3 outline into the scene/beat/note tree so this
   // single-chapter TOC reads identically to the same chapter inside 通览全书.
   const outlineTree = useMemo(() => nestHeadings(outline), [outline]);
@@ -791,9 +787,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             <EditorOutlineRail
               title={t('nodeEditor.outline.title')}
               items={isActiveNodeReady ? outlineTree : []}
-              activeId={activeOutlineId}
+              scrollspyIds={outlineIds}
               onItemClick={(id) => {
-                pinOutline(id);
                 scrollToOutlineAnchor(id, scrollEl);
               }}
             />

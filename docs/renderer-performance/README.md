@@ -1644,3 +1644,71 @@ The native typewriter report checker matches the final source fingerprint.
 The separate normal renderer production build passes, and all 32 JS chunks
 exclude acceptance observers, synthetic fixture identities and the isolated
 credential namespace.
+
+## F3e — Shared outline geometry and reading location
+
+The semantic rail now owns one `OutlineViewportController`. The four
+single-entity views pass their existing flat reading order and canonical jump
+handler to that rail; their separate `useOutlineScrollspy` has been removed.
+Whole-book view retains its controlled primary chapter. Rail density, viewport
+range styling and single-entity reading location share one scoped geometry
+snapshot. The original 80 px threshold, 24 px look-ahead, heading pin intersection
+rule and five-level semantics remain in place.
+
+Scroll, mutation and resize requests share one pending frame. Ordinary scroll
+uses content-relative anchor bounds without querying or measuring headings
+again. Content/size invalidation performs a full pass, measuring each resolved
+DOM anchor once even when multiple entries refer to it. Unchanged snapshots do
+not notify React. Resize observation releases direct content children when they
+are removed, instead of retaining every child ever seen by the viewport.
+
+Hidden rails disconnect their resize/mutation observers and scroll/window
+listeners, cancel pending frames and retain scalar geometry/pin state. Layout
+preparation refreshes the current geometry when a surface returns. This does
+not move the native scrollbar or recreate the document. A hidden rail discards
+its omission reveal and closing timer, and its mobile portal content follows
+surface visibility, so a body portal cannot escape the hidden surface.
+
+Ten new controller tests cover frame coalescing, unchanged publication, aliases
+and framework selectors, heading pinning/removal, hidden mutation/resize,
+synchronous return preparation, child observation replacement and effect replay.
+With 1, 5 and 20 retained viewports, only one observes display changes; hidden
+viewports perform zero anchor reads during the synthetic burst and all owned
+listeners/targets/frames release on disposal. These are explicit DOM/event/clock
+doubles; the existing semantic/model tests remain separate.
+
+```bash
+pnpm perf:renderer:native --outline
+pnpm perf:renderer:native --outline --check
+```
+
+`acceptance/f3-outline-native.json` includes all native session/typewriter
+scenarios. It passes the one-active-viewport check for 20 actual chapter tabs and
+native SQLite persistence of a hidden Yjs heading without any outline work.
+Sixty temporary headings exercise the real windowed-density rail, body-portal
+omissions, canonical scroll jumps, visible-heading pinning and portal dismissal
+on hide. A hidden resize, authored heading edit and dispatched scroll/resize
+events leave the controller counters unchanged. Returning prepares geometry and
+the actual rail shows the updated label; the stale portal stays closed.
+
+Both visible split rails retain their bindings. Closing all tabs disposes every
+outline viewport; the composition run records 24 owners, with its final open
+editor still alive when the report is sent. Both processes then exit through the
+real native Quit path with code zero and no uncaught renderer errors. Independent
+SQLite/Yjs inspection confirms the heading fixture was removed: only the expected
+saved chapter changed, 52 chapter hashes are unchanged, and integrity/foreign-key
+checks pass. Previous native snapshots keep their original fingerprints.
+
+The native scenario validates chapter rails. Other full-App entity/whole-book
+sequences, mobile portal interactions, physical input, selection capture,
+review-marker geometry and comparative layout/input/memory/device budgets remain
+separate acceptance work. These scoped counters do not establish total CPU or
+input p95 improvement. F3 and F8 remain `in_progress`.
+
+Validation passes 2,443 regular tests with 1 existing skip, including the 8
+renderer architecture checks, typecheck, CI/public contracts, Agent capabilities
+and the renderer performance contract. Lint reports 0 errors and 73 existing
+warnings, one fewer after removing the standalone scrollspy. The native outline
+checker matches the final source fingerprint. A separate normal renderer
+production build passes; all 32 JS chunks exclude acceptance observers, fixture
+identities and the isolated credential namespace.

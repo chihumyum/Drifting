@@ -6,11 +6,14 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settings-store';
 import { useEditorRailPresentation } from './editor-rail-presentation';
+import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
+import { EMPTY_OUTLINE_VIEWPORT, OutlineViewportController } from './outline-viewport';
 
 import {
   flattenOutlineEntries,
@@ -27,17 +30,10 @@ interface Props {
   title: string;
   items: OutlineEntry[];
   activeId?: string | null;
+  scrollspyIds?: readonly string[];
   onItemClick?: (id: string) => void;
   emptyHint?: string;
   secondaryItems?: OutlineEntry[];
-}
-
-interface RailGeometry {
-  offsets: Record<string, number>;
-  fractions: Record<string, number>;
-  contentHeight: number;
-  clientHeight: number;
-  scrollTop: number;
 }
 
 interface OmissionReveal {
@@ -45,40 +41,11 @@ interface OmissionReveal {
   rect: DOMRect;
 }
 
-const EMPTY_GEOMETRY: RailGeometry = {
-  offsets: {},
-  fractions: {},
-  contentHeight: 1,
-  clientHeight: 1,
-  scrollTop: 0,
-};
+const subscribeEmpty = () => () => undefined;
+const emptyViewport = () => EMPTY_OUTLINE_VIEWPORT;
 
 const OMISSION_REVEAL_LIMIT = 10;
 const OMISSION_REVEAL_WIDTH = 190;
-
-function selectorEscape(value: string): string {
-  return typeof CSS !== 'undefined' && 'escape' in CSS
-    ? CSS.escape(value)
-    : value.replace(/["\\]/g, '\\$&');
-}
-
-function resolveAnchor(scrollEl: HTMLElement, entry: FlatOutlineEntry): HTMLElement | null {
-  const escaped = selectorEscape(entry.id);
-  if (entry.item.kind === 'act') {
-    const rawId = entry.id.startsWith('act:') ? entry.id.slice(4) : entry.id;
-    return scrollEl.querySelector<HTMLElement>(`[data-act-id="${selectorEscape(rawId)}"]`);
-  }
-  if (entry.item.kind === 'chapter') {
-    return scrollEl.querySelector<HTMLElement>(`[data-chapter-id="${escaped}"]`);
-  }
-  if (entry.item.kind === 'section') {
-    return scrollEl.querySelector<HTMLElement>(`#${escaped}`);
-  }
-  return (
-    scrollEl.querySelector<HTMLElement>(`[data-block-id="${escaped}"]`) ??
-    scrollEl.querySelector<HTMLElement>(`#${escaped}`)
-  );
-}
 
 function entryTier(entry: FlatOutlineEntry): 'l1' | 'l2' | 'l3' | 'l4' | 'l5' {
   if (entry.item.kind === 'act') return 'l1';
@@ -86,24 +53,6 @@ function entryTier(entry: FlatOutlineEntry): 'l1' | 'l2' | 'l3' | 'l4' | 'l5' {
   if (entry.item.level === 1) return 'l3';
   if (entry.item.level === 2) return 'l4';
   return 'l5';
-}
-
-function sameGeometry(a: RailGeometry, b: RailGeometry): boolean {
-  if (
-    Math.abs(a.contentHeight - b.contentHeight) > 0.5 ||
-    Math.abs(a.clientHeight - b.clientHeight) > 0.5 ||
-    Math.abs(a.scrollTop - b.scrollTop) > 0.5
-  ) {
-    return false;
-  }
-  const aKeys = Object.keys(a.offsets);
-  const bKeys = Object.keys(b.offsets);
-  if (aKeys.length !== bKeys.length) return false;
-  return aKeys.every(
-    (key) =>
-      Math.abs(a.offsets[key] - b.offsets[key]) <= 0.5 &&
-      Math.abs(a.fractions[key] - b.fractions[key]) <= 0.0005,
-  );
 }
 
 function nearestPrimaryId(
@@ -147,6 +96,7 @@ function VisibleEditorOutlineRail({
   title,
   items,
   activeId,
+  scrollspyIds,
   onItemClick,
   emptyHint,
   secondaryItems,
@@ -154,156 +104,51 @@ function VisibleEditorOutlineRail({
   portalTargetId,
 }: Props & { labelPitch?: number; portalTargetId?: string }) {
   const { t } = useTranslation();
-  const railRef = useRef<HTMLElement | null>(null);
-  const bodyElRef = useRef<HTMLElement | null>(null);
+  const { isVisible, isPreparing } = useEditorSurfaceLifecycle();
   const scrollElRef = useRef<HTMLElement | null>(null);
   const closeRevealTimerRef = useRef<number | null>(null);
-  const scrollFrameRef = useRef<number | null>(null);
-  const measureFrameRef = useRef<number | null>(null);
-  const [bodyEl, setBodyEl] = useState<HTMLElement | null>(null);
-  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
-  const [railHeight, setRailHeight] = useState(0);
-  const [geometry, setGeometry] = useState<RailGeometry>(EMPTY_GEOMETRY);
   const [omissionReveal, setOmissionReveal] = useState<OmissionReveal | null>(null);
+  const [revealVisible, setRevealVisible] = useState(isVisible);
+  // A body portal outlives the hidden DOM ancestry. Discard its transient state
+  // in this render transition, so neither hiding nor returning reopens it.
+  if (revealVisible !== isVisible) {
+    setRevealVisible(isVisible);
+    if (!isVisible) setOmissionReveal(null);
+  }
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [viewport, setViewport] = useState<OutlineViewportController | null>(null);
 
   useLayoutEffect(() => {
     setPortalTarget(portalTargetId ? document.getElementById(portalTargetId) : null);
   }, [portalTargetId]);
-
   const flat = useMemo(
     () => flattenOutlineEntries([...items, ...(secondaryItems ?? [])]),
     [items, secondaryItems],
   );
-  const flatKey = flat.map((entry) => entry.id).join('|');
 
-  const attachRail = useCallback((element: HTMLElement | null) => {
-    railRef.current = element;
-    const body = (element?.closest('.editor-body') as HTMLElement | null) ?? null;
-    bodyElRef.current = body;
-    setBodyEl((previous) => (previous === body ? previous : body));
-  }, []);
-
-  useLayoutEffect(() => {
-    const body = bodyElRef.current;
-    if (!body) return;
-    const next = Array.from(body.children).find((child) =>
-      child.classList.contains('editor-scroll'),
-    );
-    const resolved = next instanceof HTMLElement ? next : null;
+  const attachRail = useCallback((rail: HTMLElement | null) => {
+    const body = rail?.closest<HTMLElement>('.editor-body');
+    const root = body && Array.from(body.children).find(child => child.classList.contains('editor-scroll'));
+    const resolved = root instanceof HTMLElement ? root : null;
     scrollElRef.current = resolved;
-    const frame = window.requestAnimationFrame(() => setScrollEl(resolved));
-    return () => window.cancelAnimationFrame(frame);
-  }, [bodyEl]);
-
+    setViewport(resolved && body && rail ? new OutlineViewportController(resolved, rail, body) : null);
+  }, []);
+  useLayoutEffect(() => viewport?.attach(), [viewport]);
   useLayoutEffect(() => {
-    const rail = railRef.current;
-    const body = bodyElRef.current;
-    if (!rail || !body) return undefined;
-    const update = () => {
-      setRailHeight(rail.clientHeight);
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(rail);
-    observer.observe(body);
-    update();
-    return () => {
-      observer.disconnect();
-    };
-  }, [bodyEl]);
-
-  const measure = useCallback(() => {
-    if (!scrollEl) {
-      setGeometry(EMPTY_GEOMETRY);
-      return;
-    }
-    const rootRect = scrollEl.getBoundingClientRect();
-    const scrollTop = scrollEl.scrollTop;
-    const scrollHeight = Math.max(1, scrollEl.scrollHeight);
-    const clientHeight = Math.max(1, scrollEl.clientHeight);
-    const offsets: Record<string, number> = {};
-    const fractions: Record<string, number> = {};
-
-    for (const entry of flat) {
-      const anchor = resolveAnchor(scrollEl, entry);
-      if (!anchor) continue;
-      const top = anchor.getBoundingClientRect().top - rootRect.top + scrollTop;
-      offsets[entry.id] = top;
-      fractions[entry.id] = Math.min(1, Math.max(0, top / scrollHeight));
-    }
-
-    const next: RailGeometry = {
-      offsets,
-      fractions,
-      contentHeight: scrollHeight,
-      clientHeight,
-      scrollTop,
-    };
-    setGeometry((previous) => (sameGeometry(previous, next) ? previous : next));
-  }, [flat, scrollEl]);
-
-  const scheduleMeasure = useCallback(() => {
-    if (measureFrameRef.current != null) return;
-    measureFrameRef.current = window.requestAnimationFrame(() => {
-      measureFrameRef.current = null;
-      measure();
-    });
-  }, [measure]);
-
-  useEffect(() => {
-    if (!scrollEl) return undefined;
-    scheduleMeasure();
-    const onScroll = () => {
-      if (scrollFrameRef.current != null) return;
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        setGeometry((previous) => {
-          const next = {
-            ...previous,
-            scrollTop: scrollEl.scrollTop,
-            clientHeight: Math.max(1, scrollEl.clientHeight),
-            contentHeight: Math.max(1, scrollEl.scrollHeight),
-          };
-          return sameGeometry(previous, next) ? previous : next;
-        });
-      });
-    };
-    const resizeObserver = new ResizeObserver(scheduleMeasure);
-    resizeObserver.observe(scrollEl);
-    const observeContentChildren = () => {
-      Array.from(scrollEl.children).forEach((child) => resizeObserver.observe(child));
-    };
-    observeContentChildren();
-    const mutationObserver = new MutationObserver(() => {
-      observeContentChildren();
-      scheduleMeasure();
-    });
-    mutationObserver.observe(scrollEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['id', 'data-block-id', 'data-chapter-id', 'data-act-id'],
-    });
-    scrollEl.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', scheduleMeasure);
-    return () => {
-      scrollEl.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', scheduleMeasure);
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      if (scrollFrameRef.current != null) window.cancelAnimationFrame(scrollFrameRef.current);
-      if (measureFrameRef.current != null) window.cancelAnimationFrame(measureFrameRef.current);
-      scrollFrameRef.current = null;
-      measureFrameRef.current = null;
-    };
-  }, [flatKey, measure, scheduleMeasure, scrollEl]);
+    viewport?.configure(flat, scrollspyIds);
+    viewport?.setPresentationNeeded(isVisible || isPreparing);
+  }, [viewport, flat, scrollspyIds, isVisible, isPreparing]);
+  const { geometry, railHeight, primaryId: readingId } = useSyncExternalStore(
+    viewport?.subscribe ?? subscribeEmpty,
+    viewport?.getSnapshot ?? emptyViewport,
+    emptyViewport,
+  );
 
   const primaryId = useMemo(
     () =>
-      activeId ??
-      nearestPrimaryId(flat, geometry.offsets, geometry.scrollTop + geometry.clientHeight * 0.28),
-    [activeId, flat, geometry.clientHeight, geometry.offsets, geometry.scrollTop],
+      activeId ?? (scrollspyIds ? readingId :
+      nearestPrimaryId(flat, geometry.offsets, geometry.scrollTop + geometry.clientHeight * 0.28)),
+    [activeId, flat, geometry.clientHeight, geometry.offsets, geometry.scrollTop, readingId, scrollspyIds],
   );
   const visibleIds = useMemo(
     () =>
@@ -353,16 +198,22 @@ function VisibleEditorOutlineRail({
     [clearRevealClose],
   );
 
+  useLayoutEffect(() => {
+    if (isVisible) return;
+    clearRevealClose();
+  }, [isVisible, clearRevealClose]);
+
   const openOmissionReveal = (label: OutlineRailOmissionLabel, target: HTMLElement) => {
     clearRevealClose();
     setOmissionReveal({ label, rect: target.getBoundingClientRect() });
   };
 
   const jumpToEntry = (id: string) => {
+    viewport?.pin(id);
     onItemClick?.(id);
   };
 
-  const mobileList = portalTarget
+  const mobileList = portalTarget && isVisible
     ? createPortal(
         <nav className="m-outline-sheet-list" aria-label={`${title} · ${t('editorOutline.aria')}`}>
           {flat.length === 0 && emptyHint ? (
@@ -462,7 +313,7 @@ function VisibleEditorOutlineRail({
         })}
       </div>
 
-      {omissionReveal && typeof document !== 'undefined'
+      {omissionReveal && isVisible && typeof document !== 'undefined'
         ? createPortal(
             <div
               className="editor__toc-omission-reveal editor__toc-omission-reveal--edge"

@@ -14,6 +14,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
   editorSessions: boolean;
   typewriter: boolean;
+  outline: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -29,6 +30,8 @@ const sessionInstances = new WeakMap<object, number>();
 let nextSessionInstance = 0;
 const typewriterInstances = new WeakMap<object, number>();
 const typewriterObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
+const outlineInstances = new WeakMap<object, number>();
+const outlineObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 let step = 'bootstrap';
 Object.assign(globalThis, {
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
@@ -46,6 +49,16 @@ Object.assign(globalThis, {
     }
     const row = typewriterObservations[index];
     row.surface = owner.editor.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
+    row.counts[event] = (row.counts[event] ?? 0) + 1;
+  },
+  __nativeAcceptanceOutlineEvent(owner: { root: HTMLElement }, event: string) {
+    let index = outlineInstances.get(owner);
+    if (index === undefined) {
+      index = outlineObservations.length; outlineInstances.set(owner, index);
+      outlineObservations.push({ surface: '', counts: {} });
+    }
+    const row = outlineObservations[index];
+    row.surface = owner.root.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
     row.counts[event] = (row.counts[event] ?? 0) + 1;
   },
 });
@@ -104,6 +117,7 @@ async function run() {
     useSettingsStore.getState().setTypewriterMode(true);
     useSettingsStore.getState().setTypewriterPosition(50);
   }
+  if (config.outline) useSettingsStore.getState().setOutlineRailMode('visible');
   route(a.id, a.nodeIds[0]);
   await progress('opening-native-project');
   await readyProject(a.id, 50);
@@ -137,10 +151,16 @@ async function run() {
     checks.twentyTabsIdentityAndUndo = true;
     ensure(await saveActiveEditor(), 'Native production save callback missing');
     const listeningTypewriters = () => typewriterObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
+    const listeningOutlines = () => outlineObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
     if (config.typewriter) {
       await waitFor(() => listeningTypewriters().length === 1, 'only one typewriter display owner among twenty tabs');
       ensure(typewriterObservations.length >= 20, 'Typewriter observations missed retained editors');
       checks.typewriterSingleVisibleOwner = true;
+    }
+    if (config.outline) {
+      await waitFor(() => listeningOutlines().length === 1, 'one outline viewport among twenty tabs');
+      ensure(outlineObservations.length >= 20, 'Outline observations missed retained editors');
+      checks.outlineSingleVisibleOwner = true;
     }
     if (config.editorSessions) {
       await progress('hidden-yjs-session');
@@ -151,6 +171,8 @@ async function run() {
       const hiddenPublishes = outlinePublishes(id);
       const hiddenTypewriters = () => typewriterObservations.filter(row => row.surface === `node:${id}`);
       const hiddenTypewriterBefore = JSON.stringify(hiddenTypewriters());
+      const hiddenOutlines = () => outlineObservations.filter(row => row.surface === `node:${id}`);
+      const hiddenOutlineBefore = JSON.stringify(hiddenOutlines());
       const headingId = 'synthetic-hidden-heading';
       const headingText = 'Synthetic hidden heading';
       // An explicitly synthetic authored update to the live Y.Doc. This uses
@@ -170,6 +192,10 @@ async function run() {
       if (config.typewriter) {
         ensure(hiddenTypewriters().length > 0 && JSON.stringify(hiddenTypewriters()) === hiddenTypewriterBefore, 'Hidden Yjs update performed typewriter display work');
         checks.hiddenYjsWithoutTypewriterWork = true;
+      }
+      if (config.outline) {
+        ensure(hiddenOutlines().length > 0 && JSON.stringify(hiddenOutlines()) === hiddenOutlineBefore, 'Hidden Yjs update measured outline geometry');
+        checks.hiddenYjsWithoutOutlineMeasurement = true;
       }
       const shown = await open(a.id, id);
       await waitFor(() => [...document.querySelectorAll(`[data-editor-surface="node:${id}"][data-editor-surface-visible="true"] .editor__toc-tag-text`)].some(el => el.textContent === headingText), 'prepared actual outline rail');
@@ -226,6 +252,68 @@ async function run() {
       ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Typewriter transition replaced Y.Doc');
       checks.typewriterScrollAndPreparation = true;
     }
+    if (config.outline) {
+      await progress('outline-navigation-and-preparation');
+      const headings = Array.from({ length: 60 }, (_, index) => {
+        const heading = new Y.XmlElement<{ id: string; level: number }>('heading');
+        heading.setAttribute('id', `synthetic-outline-${index}`); heading.setAttribute('level', 1);
+        heading.insert(0, [new Y.XmlText(`Synthetic outline ${index}`)]); return heading;
+      });
+      doc.transact(() => doc.getXmlFragment('default').insert(0, headings), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      const viewport = first.view.dom.closest<HTMLElement>('.editor-scroll');
+      const surface = first.view.dom.closest<HTMLElement>('[data-editor-surface]');
+      ensure(viewport && surface, 'Outline viewport missing');
+      const rail = await waitFor(() => surface.querySelector<HTMLElement>('.editor__toc-rail[data-density="windowed"]'), 'actual dense outline rail');
+      const omission = await waitFor(() => rail.querySelector<HTMLButtonElement>('.editor__toc-omission'), 'actual omission handle');
+      omission.focus();
+      const reveal = await waitFor(() => document.querySelector<HTMLButtonElement>('body > .editor__toc-omission-reveal button'), 'portaled omission entries');
+      const index = Number(reveal.textContent?.replace('Synthetic outline ', ''));
+      ensure(Number.isInteger(index), 'Unexpected omission entry'); reveal.click();
+      const target = first.view.dom.querySelector<HTMLElement>(`[data-block-id="synthetic-outline-${index}"]`);
+      ensure(target, 'Canonical target missing');
+      await waitFor(() => Math.abs(target.getBoundingClientRect().top - viewport.getBoundingClientRect().top) < 4, 'canonical omission jump');
+      const visibleLabel = await waitFor(() => [...rail.querySelectorAll<HTMLButtonElement>('.editor__toc-tag')].find(button => {
+        const id = Number(button.title.replace('Synthetic outline ', ''));
+        const anchor = first.view.dom.querySelector<HTMLElement>(`[data-block-id="synthetic-outline-${id}"]`);
+        if (!anchor) return false;
+        const rect = anchor.getBoundingClientRect(); const rootRect = viewport.getBoundingClientRect();
+        return rect.top >= rootRect.top && rect.bottom < rootRect.bottom;
+      }), 'visible outline label');
+      const pinnedTitle = visibleLabel.title; visibleLabel.focus(); visibleLabel.click();
+      await frames();
+      ensure(rail.querySelector<HTMLButtonElement>('[aria-current="location"]')?.title === pinnedTitle, 'Visible clicked heading did not retain primary location');
+      const nextOmission = await waitFor(() => rail.querySelector<HTMLButtonElement>('.editor__toc-omission'), 'omission after jump');
+      nextOmission.focus(); await waitFor(() => document.querySelector('.editor__toc-omission-reveal'), 'second omission reveal');
+      await open(a.id, a.nodeIds[2]);
+      ensure(!document.querySelector('.editor__toc-omission-reveal'), 'Hidden rail left a body portal visible');
+      const ownRows = () => outlineObservations.filter(row => row.surface === `node:${a.nodeIds[0]}`);
+      const hidden = JSON.stringify(ownRows());
+      const previousHeight = viewport.style.height; const previousFlex = viewport.style.flex;
+      viewport.style.height = '420px'; viewport.style.flex = 'none';
+      doc.transact(() => {
+        const text = headings[0].get(0) as Y.XmlText;
+        text.insert(text.length, ' updated');
+      }, 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      viewport.dispatchEvent(new Event('scroll')); window.dispatchEvent(new Event('resize'));
+      await frames(); await frames();
+      ensure(JSON.stringify(ownRows()) === hidden, 'Hidden outline performed geometry or scheduled frames');
+      await open(a.id, a.nodeIds[0]);
+      ensure(!document.querySelector('.editor__toc-omission-reveal'), 'Returning reopened a stale omission reveal');
+      await waitFor(() => (first.view.dom.querySelector('[data-block-id="synthetic-outline-0"]')?.textContent ?? '').endsWith(' updated'), 'returned authoritative heading');
+      ensure(JSON.stringify(ownRows()) !== hidden, 'Returning did not prepare outline geometry');
+      await frames(); await frames();
+      viewport.scrollTop = 0;
+      await waitFor(() => rail.querySelector('[title="Synthetic outline 0 updated"]'), 'updated actual outline label after return');
+      viewport.style.height = previousHeight; viewport.style.flex = previousFlex;
+      doc.transact(() => doc.getXmlFragment('default').delete(0, 60), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      ensure(await saveActiveEditor(), 'Outline fixture cleanup save missing');
+      await waitFor(() => !rail.querySelector('.editor__toc-tag'), 'outline fixture removed');
+      ensure(first.getText() === before + marker, 'Outline fixture changed original prose');
+      checks.outlineNavigationAndHiddenPreparation = true;
+    }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
@@ -252,6 +340,10 @@ async function run() {
       ensure(viewports.length === 2 && viewports.every(el => el.dataset.typewriterScroll === 'on' && parseFloat(el.style.getPropertyValue('--editor-typewriter-tail-space')) > 24), 'Unfocused split viewport lost typewriter tail');
       checks.typewriterVisibleSplit = true;
     }
+    if (config.outline) {
+      await waitFor(() => listeningOutlines().length === 2, 'both visible split outline owners');
+      checks.outlineVisibleSplit = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
@@ -259,6 +351,10 @@ async function run() {
     if (config.typewriter) {
       ensure(listeningTypewriters().length === 0 && typewriterObservations.every(row => row.counts.dispose === 1), 'Closed typewriter owners leaked');
       checks.typewriterClosedOwnersReleased = true;
+    }
+    if (config.outline) {
+      ensure(listeningOutlines().length === 0 && outlineObservations.every(row => row.counts.dispose === 1), 'Closed outline owners leaked');
+      checks.outlineClosedOwnersReleased = true;
     }
     if (config.editorSessions) {
       const counts = new Map<number, number>();
@@ -288,7 +384,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

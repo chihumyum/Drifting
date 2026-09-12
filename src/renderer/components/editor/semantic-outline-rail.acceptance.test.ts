@@ -39,8 +39,8 @@ describe('semantic outline rail acceptance wiring', () => {
     const model = source('src/renderer/components/editor/outline-rail-model.ts');
     expect(model).not.toContain("'entity'");
 
-    const scrollspy = source('src/renderer/components/editor/use-outline-scrollspy.ts');
-    expect(scrollspy).toContain('scrollRoot.querySelector');
+    const scrollspy = source('src/renderer/components/editor/outline-viewport.ts');
+    expect(scrollspy).toContain('scrollEl.querySelector');
     expect(scrollspy).not.toContain('document.querySelector');
     expect(scrollspy).not.toContain('document.getElementById');
   });

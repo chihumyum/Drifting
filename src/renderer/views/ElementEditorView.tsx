@@ -24,7 +24,6 @@ import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
-import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
@@ -282,7 +281,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
   const outlineIds = [...frameworkItems.map((item) => item.id), ...outline.map((heading) => heading.id)];
-  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(scrollEl, outlineIds);
 
   const commitName = async () => {
     if (!elementId) return;
@@ -715,9 +713,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         <EditorOutlineRail
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
           items={frameworkItems}
-          activeId={activeOutlineId}
+          scrollspyIds={outlineIds}
           onItemClick={(id) => {
-            pinOutline(id);
             scrollToOutlineAnchor(id, scrollEl);
           }}
         />

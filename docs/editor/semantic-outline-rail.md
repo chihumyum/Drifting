@@ -34,6 +34,23 @@ chip, background wash, or decorative left spine.
 The five structural levels remain act / chapter / scene / beat / note. `h1`
 maps to scene, `h2` to beat, and `h3` to note in every editor.
 
+The rail's `OutlineViewportController` now supplies both geometry and the
+single-entity scrollspy reading location. The views pass their existing reading
+order and canonical jump handlers; whole-book view retains its controlled active
+chapter. A clicked single-entity heading stays primary while its own bounds
+intersect the viewport, before the normal 80 px threshold / 24 px look-ahead
+scan resumes. Pinning and viewport-range styling share the same scoped anchor
+snapshot, including in split panes with duplicate block IDs.
+
+Ordinary scroll events share one pending frame and reuse content-relative
+anchor bounds. Content mutations and resize invalidate those bounds; full passes
+measure each resolved DOM anchor once. Hidden retained tabs detach observers and
+listeners, cancel pending measurement and keep scalar geometry/pin state. An
+incoming visible/preparing rail refreshes geometry in layout. Removed content
+children are unobserved. Hiding also discards any body-portal omission reveal and
+its close timer, so returning cannot reopen a stale reveal. These changes do not
+alter document content, scroll position or the native scrollbar.
+
 Single-entity editors do not synthesize the entity name as a TOC root. Their
 rails contain only real outline entries inside the editor: prose headings for a
 chapter/drift, and framework sections plus prose headings for element,

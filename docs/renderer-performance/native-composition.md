@@ -147,3 +147,30 @@ closing all tabs must dispose every controller before project switching.
 Viewport sizing, Tiptap selection and settings actions in this test are synthetic.
 These checks establish scoped native geometry and lifecycle behavior, not physical
 IME, perceived caret repaint quality, total layout cost or an input p95 budget.
+
+## Outline viewport scenario
+
+```bash
+pnpm perf:renderer:native --outline
+pnpm perf:renderer:native --outline --check
+```
+
+This mode includes the session and typewriter scenarios and writes
+`acceptance/f3-outline-native.json`. Temporary observations count each actual
+outline viewport's resume, pause, measurement, anchor read, scheduled frame and
+disposal. Twenty retained chapter tabs must leave exactly one display binding;
+a hidden authored Yjs update must reach SQLite without any outline measurement.
+
+Sixty synthetic headings exercise the actual dense rail and its body-portal
+omission entries. Clicking an omission uses the canonical scroll target; clicking
+an already visible heading retains its primary location. Switching away closes
+the portal. A hidden viewport resize, heading edit and dispatched scroll/resize
+events must not change that controller's counters. Returning prepares geometry,
+shows the updated real TOC label and leaves the old portal closed. The heading
+fixture is removed before both visible split owners and final disposal are
+checked. The original chapter hashes and restart checks remain enforced.
+
+These are synthetic native control operations, not physical wheel/touch or IME
+acceptance. Whole-book active-chapter behavior and mobile portal rendering retain
+their own acceptance requirements; this chapter scenario does not substitute for
+them or for comparative layout/input/memory budgets.

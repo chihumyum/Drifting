@@ -220,6 +220,27 @@ split viewports receive tail geometry; only a focused, collapsed selection can
 schedule alignment, coalesced into one pending frame. This display controller
 does not mutate selection, ProseMirror content or Yjs.
 
+The semantic outline rail owns one `OutlineViewportController` for its native
+scroll viewport. The four single-entity views supply their existing flat reading
+order and canonical jump handlers instead of mounting a second scrollspy. One
+geometry snapshot supplies offsets, viewport ranges, rail density and primary
+reading location. Whole-book view keeps its controlled primary chapter and
+existing jump handler. A clicked single-entity heading remains pinned while its
+own bounds intersect the viewport; otherwise the existing 80 px reading threshold
+and 24 px look-ahead rule choose the primary entry.
+
+The controller coalesces scroll, mutation and resize work into one pending frame.
+Ordinary scrolling reuses content-relative anchor bounds; content/size changes
+invalidate them. Each resolved anchor DOM node is measured once in a full pass,
+including aliases, and unchanged snapshots do not notify React. Only visible or
+preparing rails attach observers/listeners. Hiding disconnects them and cancels
+the frame while retaining scalar geometry/pin state; returning synchronously
+prepares current geometry in layout. Removed direct content children are
+unobserved, and disposal releases all observed targets. Body-portal omission
+reveals and their closing timer are discarded on hide; mobile portal content
+also follows actual surface visibility. The native scrollbar and document
+session remain independent from this display owner.
+
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
@@ -256,9 +277,9 @@ The native control scenario now covers 20 full-App tabs, editor/Y.Doc identity,
 undo/redo, split, hidden authored Yjs updates and SQLite materialization, outline
 preparation, binding cleanup, project switches and process restart. Broader
 scroll/field-draft continuity, native IME and retained-document memory budgets
-remain separate acceptance work in the plan. Outline-rail/scrollspy measurement,
-selection capture and other visible interaction owners still need their own
-visibility audit; pausing typewriter work does not pause those owners.
+remain separate acceptance work in the plan. Selection capture, review-marker
+geometry and other interaction owners still need their own visibility audit;
+pausing typewriter/outline work does not pause those owners.
 
 Automatic linking is also view-owned. Each editor retains its own immutable
 target map and self/parent exclusions; live updates do not recreate its document.

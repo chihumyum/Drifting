@@ -25,7 +25,6 @@ import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
-import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { canonicalWordCount, hasCanonicalWordCount, isChapter } from '../domain/book-node';
 import {
@@ -264,11 +263,7 @@ export function StorylineEditorView({
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this storyline's body (ticks + reveal/approve).
   useAgentChangeMarks(scrollEl, 'storyline', storylineId, isVisible);
-  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
-    scrollEl,
-    // Flat id list (framework anchors + every body heading).
-    [...frameworkItems.map((item) => item.id), ...outline.map((heading) => heading.id)],
-  );
+  const outlineIds = [...frameworkItems.map((item) => item.id), ...outline.map((heading) => heading.id)];
 
   const handleContextAction = useCallback(
     async (action: string) => {
@@ -367,9 +362,8 @@ export function StorylineEditorView({
         <EditorOutlineRail
           title={t('storylineEditor.outlineTitle', { name: currentStoryline.name || 'STORYLINE' })}
           items={frameworkItems}
-          activeId={activeOutlineId}
+          scrollspyIds={outlineIds}
           onItemClick={(id) => {
-            pinOutline(id);
             scrollToOutlineAnchor(id, scrollEl);
           }}
         />
