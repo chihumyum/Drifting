@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
@@ -13,6 +13,7 @@ import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
 import type { OutlineItem } from '../lib/outline';
+import { EditorContextMenu } from '../features/editor/editor-context-menu';
 import { useEntityEditorSession } from '../features/editor/useEntityEditorSession';
 import type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 export type { EditorPersistDerived } from '../features/editor/entity-editor-session';
@@ -35,9 +36,6 @@ import {
 } from '../lib/extensions/entity-mention-suggestion';
 import {
   createDefaultSlashMenu,
-  getBlockFormatItems,
-  getInlineFormatItems,
-  type BlockFormatItem,
   type SlashMenuExtraItem,
 } from '../lib/slash-menu';
 import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
@@ -63,7 +61,6 @@ const DEFAULT_DOC: JSONContent = {
   type: 'doc',
   content: [{ type: 'paragraph' }],
 };
-const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
 
 export interface EditorCommentRequest {
   projectId: string;
@@ -113,176 +110,6 @@ function isCommentTargetKind(kind: EntityKind): kind is CommentTargetKind {
     kind === 'category' ||
     kind === 'patch'
   );
-}
-
-function removeCommentContextMenu(): void {
-  document.querySelectorAll(`.${COMMENT_CONTEXT_MENU_CLASS}`).forEach((node) => node.remove());
-}
-
-interface EditorContextMenuOptions {
-  // The live editor — drives the「格式」flyout. The block-type commands apply
-  // across the whole current selection (multi-block included). Null suppresses
-  // the format entry.
-  editor: Editor | null;
-  clientX: number;
-  clientY: number;
-  // Comment-family entries. Each is omitted when its handler isn't wired, so a
-  // non-commentable-but-editable editor (e.g. a patch body) still gets「格式」.
-  onAddComment?: () => void;
-  onAddPatch?: () => void;
-  onCopilot?: () => void;
-  labels: {
-    format: string;
-    addComment: string;
-    addPatch: string;
-    copilot: string;
-  };
-}
-
-// Position a flyout to the right of its parent menu, aligned to the triggering
-// row. Flips to the left edge when it would overflow the viewport on the right,
-// and clamps vertically so the tail of a long list stays on-screen. Mirrors the
-// slash menu's positioner, just simpler (no flip-up animation needed here).
-function positionContextFlyout(
-  menu: HTMLDivElement,
-  row: HTMLElement,
-  flyout: HTMLDivElement,
-): void {
-  const MARGIN = 6;
-  const menuRect = menu.getBoundingClientRect();
-  const rowRect = row.getBoundingClientRect();
-  const fw = flyout.offsetWidth || 140;
-  const fh = flyout.offsetHeight || 160;
-
-  let left = menuRect.right + 2;
-  if (left + fw > window.innerWidth - MARGIN) {
-    left = menuRect.left - fw - 2; // not enough room on the right → flip left
-  }
-  let top = rowRect.top - MARGIN; // roughly align the first item with the row
-  if (top + fh > window.innerHeight - MARGIN) {
-    top = Math.max(MARGIN, window.innerHeight - MARGIN - fh);
-  }
-  flyout.style.left = `${Math.max(MARGIN, left)}px`;
-  flyout.style.top = `${top}px`;
-}
-
-// The「格式」row + its hover flyout. The flyout is a CHILD of `menu` (despite
-// being positioned outside its box via position:fixed) so it tears down with
-// the menu in removeCommentContextMenu() AND counts as "inside" for the
-// outside-mousedown close handler. Items reuse the shared format lists, so they
-// batch-format every block / the whole selection — and crucially DON'T delete
-// the selection the way typing "/" over it would. Two groups: block-type
-// transforms (also in the slash menu) and inline marks (flyout-only).
-function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: string): void {
-  const row = document.createElement('button');
-  row.type = 'button';
-  row.className = 'menu-surface__item has-flyout';
-  row.setAttribute('role', 'menuitem');
-  const label = document.createElement('span');
-  label.textContent = labelText;
-  const chevron = document.createElement('span');
-  chevron.className = 'editor-comment-menu__chevron';
-  chevron.textContent = '›';
-  row.append(label, chevron);
-  row.addEventListener('mousedown', (event) => event.preventDefault());
-
-  const flyout = document.createElement('div');
-  // Reuse the menu class so it inherits the menu chrome + teardown selector.
-  flyout.className = `${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact editor-comment-menu__flyout`;
-  flyout.setAttribute('role', 'menu');
-  flyout.style.display = 'none';
-  const addItems = (items: BlockFormatItem[]): void => {
-    for (const item of items) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'menu-surface__item';
-      button.setAttribute('role', 'menuitem');
-      button.textContent = item.title;
-      // Snapshot active state at open time (the menu closes on click, so it
-      // never goes stale): bold/heading/etc. already on the selection.
-      if (item.isActive?.(editor)) button.classList.add('is-active');
-      button.addEventListener('mousedown', (event) => event.preventDefault());
-      button.addEventListener('click', () => {
-        removeCommentContextMenu();
-        item.run(editor);
-      });
-      flyout.appendChild(button);
-    }
-  };
-  addItems(getBlockFormatItems());
-  const separator = document.createElement('div');
-  separator.className = 'menu-surface__separator editor-comment-menu__sep';
-  separator.setAttribute('role', 'separator');
-  flyout.appendChild(separator);
-  addItems(getInlineFormatItems());
-
-  let hideTimer: number | undefined;
-  const cancelHide = (): void => {
-    if (hideTimer !== undefined) {
-      window.clearTimeout(hideTimer);
-      hideTimer = undefined;
-    }
-  };
-  const show = (): void => {
-    cancelHide();
-    flyout.style.display = 'flex';
-    positionContextFlyout(menu, row, flyout);
-  };
-  const scheduleHide = (): void => {
-    cancelHide();
-    hideTimer = window.setTimeout(() => {
-      flyout.style.display = 'none';
-    }, 140);
-  };
-  row.addEventListener('mouseenter', show);
-  row.addEventListener('mouseleave', scheduleHide);
-  flyout.addEventListener('mouseenter', cancelHide);
-  flyout.addEventListener('mouseleave', scheduleHide);
-
-  menu.append(row, flyout);
-}
-
-function openEditorContextMenu(opts: EditorContextMenuOptions): void {
-  removeCommentContextMenu();
-  const menu = document.createElement('div');
-  menu.className = `${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact`;
-  menu.setAttribute('role', 'menu');
-  menu.style.left = `${opts.clientX}px`;
-  menu.style.top = `${opts.clientY}px`;
-
-  const addButton = (label: string, onClick: () => void): void => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'menu-surface__item';
-    button.setAttribute('role', 'menuitem');
-    button.textContent = label;
-    button.addEventListener('mousedown', (event) => event.preventDefault());
-    button.addEventListener('click', () => {
-      removeCommentContextMenu();
-      onClick();
-    });
-    menu.appendChild(button);
-  };
-
-  // 格式 first — it's the always-available, selection-scoped action. The
-  // comment-family entries below are conditional on their handlers.
-  if (opts.editor) appendFormatFlyout(menu, opts.editor, opts.labels.format);
-  if (opts.onAddComment) addButton(opts.labels.addComment, opts.onAddComment);
-  // Anchor a new element patch to the selection (chapter editors). Opens a
-  // modal to pick the element + author title/body.
-  if (opts.onAddPatch) addButton(opts.labels.addPatch, opts.onAddPatch);
-  // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
-  if (opts.onCopilot) addButton(opts.labels.copilot, opts.onCopilot);
-
-  document.body.appendChild(menu);
-
-  const close = (event: MouseEvent) => {
-    if (!menu.contains(event.target as Node)) {
-      removeCommentContextMenu();
-      document.removeEventListener('mousedown', close, true);
-    }
-  };
-  setTimeout(() => document.addEventListener('mousedown', close, true), 0);
 }
 
 /** How many blocks before/after the invocation region to pull in as context when
@@ -607,11 +434,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
   const { isCommandActive, isVisible, isPreparing } = useEditorSurfaceLifecycle();
-  // Latest editor instance, read inside the (later-firing) contextmenu handler
-  // to run「格式」block-transform commands on the live selection. Declared up
-  // here because the handler closure lives inside the useEditor config below;
-  // assigned once the editor exists (see effect after useEditor).
-  const editorRef = useRef<Editor | null>(null);
+  // The later DOM handler delegates to the current canonical editor's owner.
+  const contextMenuRef = useRef<EditorContextMenu | null>(null);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -820,7 +644,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
             // comment / patch / Copilot entries layer on top when their handlers
             // and a commentable source are present (resolved below). Read-only
             // editors fall through to the native browser menu (copy etc.).
-            if (!view.editable) return false;
+            const menuOwner = contextMenuRef.current;
+            if (!view.editable || !menuOwner?.isEnabled() || menuOwner.editor.view !== view) return false;
             const { selection } = view.state;
             if (selection.empty) return false;
             const selectedText = view.state.doc
@@ -958,15 +783,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               }
             }
 
-            // Nothing to show (no editor for「格式」AND not commentable) → let
-            // the native menu through.
-            if (!editorRef.current && !onAddComment && !onAddPatch && !onCopilot) {
-              return false;
-            }
             event.preventDefault();
             event.stopPropagation();
-            openEditorContextMenu({
-              editor: editorRef.current,
+            menuOwner.open({
               clientX: event.clientX,
               clientY: event.clientY,
               onAddComment,
@@ -1013,9 +832,18 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
 
   useTypewriterScrolling(editor, typewriterScrolling && canonicalReady, { isVisible, isPreparing });
 
-  useEffect(() => {
-    editorRef.current = editor;
-  }, [editor]);
+  useLayoutEffect(() => {
+    if (!editor || !canonicalReady) return;
+    const owner = new EditorContextMenu(editor);
+    contextMenuRef.current = owner;
+    return () => {
+      if (contextMenuRef.current === owner) contextMenuRef.current = null;
+      owner.dispose();
+    };
+  }, [editor, canonicalReady, projectId, sourceKind, sourceId]);
+  useLayoutEffect(() => {
+    contextMenuRef.current?.setEnabled(canonicalReady && editable && isVisible && isCommandActive);
+  }, [editor, canonicalReady, editable, projectId, sourceKind, sourceId, isVisible, isCommandActive]);
 
   useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled });
 
@@ -1050,8 +878,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     events.on('element:element-created', onElementCreated);
     return () => events.off('element:element-created', onElementCreated);
   }, [editor, sourceRef]);
-
-  useEffect(() => () => removeCommentContextMenu(), [editor, projectId, sourceKind, sourceId]);
 
   return { editor, outline, ready };
 }

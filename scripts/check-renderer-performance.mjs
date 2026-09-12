@@ -83,6 +83,18 @@ if (report.entityLinkOwnership) {
   assert(report.entityLinkOwnership.checks.length > 0);
   for (const check of report.entityLinkOwnership.checks) assert.equal(check.passed, true, check.id);
 }
+if (report.editorContextMenus) {
+  assert.equal(report.editorContextMenus.collaborativeFormats.checks.length, 7);
+  assert.equal(report.editorContextMenus.initialSessionFocus.checks.length, 2);
+  assert.deepEqual(report.editorContextMenus.groups.map(group => group.editors), [1, 5, 20]);
+  for (const group of report.editorContextMenus.groups) {
+    assert.equal(group.actionCycles, 100); assert.equal(group.comments, 100);
+    assert.equal(group.maxDocumentListeners, 2);
+    assert.equal(group.additions, group.removals);
+    assert.equal(group.remainingDocumentListeners, 0); assert.equal(group.remainingHideTimers, 0);
+    assert(group.checks.length >= 12);
+  }
+}
 if (report.agentEventProcessing) {
   const scenario = report.agentEventProcessing;
   assert(['record-copy', 'private-membership-index'].includes(scenario.implementation));

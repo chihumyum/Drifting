@@ -82,7 +82,7 @@ describe('shared menu surface style', () => {
 
     const actRail = source('src/renderer/components/BottomTimeline/ActRail.tsx');
     const material = source('src/renderer/features/library/LibraryItemCard.tsx');
-    const editor = source('src/renderer/hooks/useEntityEditor.ts');
+    const editor = source('src/renderer/features/editor/editor-context-menu.ts');
     expect(
       actRail.match(/className="menu-surface menu-surface--compact actrail__menu"/g),
     ).toHaveLength(2);
@@ -92,12 +92,12 @@ describe('shared menu surface style', () => {
     );
     expect(material).toContain("' menu-surface__item--danger is-danger'");
     expect(editor).toContain(
-      '`${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact`',
+      '`${MENU_CLASS} menu-surface menu-surface--compact`',
     );
     expect(editor).toContain(
-      '`${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact editor-comment-menu__flyout`',
+      '`${MENU_CLASS} menu-surface menu-surface--compact editor-comment-menu__flyout`',
     );
-    expect(editor).toContain("button.className = 'menu-surface__item';");
+    expect(editor).toContain(".className = 'menu-surface__item';");
   });
 
   it('aligns button dropdowns and keeps rich popovers on the same shell tokens', () => {
@@ -131,7 +131,7 @@ describe('shared menu surface style', () => {
       'src/renderer/components/graph/TimelineRailMenu.tsx',
       'src/renderer/components/leftBars/SortMenu.tsx',
       'src/renderer/components/topBars/TopTimeline/TabContextMenu.tsx',
-      'src/renderer/hooks/useEntityEditor.ts',
+      'src/renderer/features/editor/editor-context-menu.ts',
     ];
     for (const path of compact) {
       expect(source(path), path).toContain('menu-surface--compact');

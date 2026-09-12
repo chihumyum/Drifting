@@ -33,7 +33,7 @@ const META_FLAG = 'blockId';
 // Walk the document and assign ids to any block that is missing one or that
 // shares an id with an earlier block (the duplicate case appears immediately
 // after a split: ProseMirror keeps the original attrs on both halves).
-function ensureBlockIds(state: EditorState): Transaction | null {
+function ensureBlockIds(state: EditorState, addToHistory = false): Transaction | null {
   let tr = state.tr;
   let modified = false;
   const seen = new Set<string>();
@@ -53,7 +53,7 @@ function ensureBlockIds(state: EditorState): Transaction | null {
 
   if (!modified) return null;
   tr.setMeta(META_FLAG, true);
-  tr.setMeta('addToHistory', false);
+  tr.setMeta('addToHistory', addToHistory);
   return tr;
 }
 
@@ -85,7 +85,13 @@ export function createBlockIdPlugin(): Plugin {
         if (isHistoryTransaction(t)) return null;
         if (t.getMeta('y-undo$') || t.getMeta('y-sync$')) return null;
       }
-      return ensureBlockIds(newState);
+      // The Yjs binding publishes the final appended state as one change and
+      // reads its history flag. ID repair must inherit the original edit's
+      // policy, or assigning a trailing/split block ID excludes the user's
+      // entire edit from undo. The mount-only repair remains excluded.
+      const trigger = transactions.find((transaction) => transaction.docChanged)!;
+      const origin: Transaction = trigger.getMeta('appendedTransaction') ?? trigger;
+      return ensureBlockIds(newState, origin.getMeta('addToHistory') !== false);
     },
   });
 }

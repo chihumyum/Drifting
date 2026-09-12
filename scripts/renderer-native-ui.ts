@@ -15,6 +15,7 @@ import { withAtomicSyncTransaction } from '../src/renderer/usecase/sync-helpers'
 import { createCommentRepository } from '../src/renderer/sqlite-repo/comment-repo';
 import { addCommentToStickyNoteRail, removeCommentFromAllStickyNoteRails } from '../src/renderer/hooks/useEntityStickyNoteRail';
 import type { Comment } from '../src/renderer/domain/comment';
+import { yUndoPluginKey } from '@tiptap/y-tiptap';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
@@ -24,6 +25,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   outline: boolean;
   markers: boolean;
   selectionMemory: boolean;
+  contextMenus: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -44,8 +46,20 @@ const outlineObservations: Array<{ surface: string; counts: Record<string, numbe
 const markerInstances = new WeakMap<object, number>();
 const markerObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 const selectionObservations: Record<string, number> = {};
+const contextMenuInstances = new WeakMap<object, number>();
+const contextMenuObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 let step = 'bootstrap';
 Object.assign(globalThis, {
+  __nativeAcceptanceContextMenuEvent(owner: { editor: { isDestroyed: boolean; view: { dom: HTMLElement } } }, event: string) {
+    let index = contextMenuInstances.get(owner);
+    if (index === undefined) {
+      index = contextMenuObservations.length; contextMenuInstances.set(owner, index);
+      contextMenuObservations.push({ surface: '', counts: {} });
+    }
+    const row = contextMenuObservations[index];
+    if (!owner.editor.isDestroyed) row.surface = owner.editor.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
+    row.counts[event] = (row.counts[event] ?? 0) + 1;
+  },
   __nativeAcceptanceSelectionEvent(event: string) { selectionObservations[event] = (selectionObservations[event] ?? 0) + 1; },
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
   __nativeAcceptanceSessionEvent(session: { source: { projectId: string; sourceKind: string; sourceId: string } }, event: string) {
@@ -118,7 +132,8 @@ function route(projectId: string, nodeId: string) { location.hash = `/project/${
 async function editorReady(nodeId?: string) {
   const surface = nodeId ? `[data-editor-surface="node:${CSS.escape(nodeId)}"]` : '[data-editor-surface]';
   const dom = await waitFor(() => [...document.querySelectorAll<HTMLElement>(`${surface}[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]`)].find(el => el.getBoundingClientRect().height > 0 && !el.closest('[inert]')), 'visible target chapter editor');
-  dom.focus();
+  // Wait for canonical initialization to paint before synthetic user focus.
+  await frames(); dom.focus();
   return waitFor(() => { const editor = getActiveEditor(); return editor?.view.dom === dom && editor; }, 'active chapter editor');
 }
 async function open(projectId: string, nodeId: string) {
@@ -478,6 +493,71 @@ async function run() {
       checks.markerLocalePreservesEditorAndHistory = true;
       checks.markersHiddenPreparation = true;
     }
+    if (config.contextMenus) {
+      await progress('context-menu-lifetime');
+      const rootMenu = () => document.body.querySelector<HTMLElement>(':scope > .editor-comment-menu');
+      const openMenu = async (editor = first) => {
+        editor.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+        return waitFor(rootMenu, 'actual owned editor context menu');
+      };
+      const bound = () => contextMenuObservations.filter(row => (row.counts.bind ?? 0) > (row.counts.unbind ?? 0));
+      first.commands.setTextSelection({ from: 2, to: 5 });
+      for (let index = 0; index < 100; index++) {
+        await openMenu(); ensure(bound().length === 1, 'Multiple menus own document listeners');
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        ensure(!rootMenu() && bound().length === 0, 'Closed context menu retained its listener owner');
+      }
+      checks.menusRepeatedCloseReleases = true;
+      const hiddenMenu = await openMenu();
+      const staleHeading = [...hiddenMenu.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '一级标题');
+      ensure(staleHeading, 'Native heading format action missing');
+      const flyoutRow = hiddenMenu.querySelector<HTMLElement>('.has-flyout')!;
+      flyoutRow.dispatchEvent(new MouseEvent('mouseenter')); flyoutRow.dispatchEvent(new MouseEvent('mouseleave'));
+      const beforeHidden = JSON.stringify(first.getJSON());
+      const second = await open(a.id, a.nodeIds[2]);
+      ensure(!rootMenu() && bound().length === 0, 'Hidden editor kept its menu');
+      staleHeading.click();
+      ensure(JSON.stringify(first.getJSON()) === beforeHidden, 'Detached menu action edited the hidden chapter');
+      second.commands.setTextSelection({ from: 2, to: 5 }); await openMenu(second);
+      await open(a.id, a.nodeIds[0]);
+      ensure(!rootMenu() && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Context menu navigation broke editor continuity');
+      checks.menusHiddenAndStaleActions = true;
+      // Let navigation's DOM focus/selection settle before opening a new menu.
+      await frames(); first.commands.setTextSelection({ from: 2, to: 5 });
+      const menuEvents: Array<{ kind: string; selection: unknown }> = [];
+      const recordUpdate = () => menuEvents.push({ kind: 'update', selection: first.state.selection.toJSON() });
+      const recordSelection = () => menuEvents.push({ kind: 'selection', selection: first.state.selection.toJSON() });
+      first.on('update', recordUpdate); first.on('selectionUpdate', recordSelection);
+      const retainedMenu = await openMenu();
+      const retainedSelection = first.state.selection.toJSON();
+      useUiStore.getState().closeTab(a.id, { entityType: 'node', id: a.nodeIds[8] });
+      await waitFor(() => !getLiveYDoc(`node-content:${a.nodeIds[8]}`), 'unrelated menu owner retired');
+      first.off('update', recordUpdate); first.off('selectionUpdate', recordSelection);
+      ensure(rootMenu() === retainedMenu && bound().length === 1, `Unrelated editor cleanup removed the current menu; diagnostic=${JSON.stringify({ retainedSelection, menuEvents, destroyed: first.isDestroyed, active: getActiveEditor() === first, menuOwners: contextMenuObservations.filter(row => row.surface === `node:${a.nodeIds[0]}`) })}`);
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await open(a.id, a.nodeIds[8]); await open(a.id, a.nodeIds[0]);
+      checks.menusUnrelatedOwnerCleanup = true;
+      const locale = i18next.language;
+      await i18next.changeLanguage(locale === 'en' ? 'zh-CN' : 'en'); await frames();
+      const beforeFormat = JSON.stringify(first.getJSON()); const prose = first.state.doc.textContent;
+      yUndoPluginKey.getState(first.state)?.undoManager.stopCapturing();
+      first.commands.setTextSelection({ from: 2, to: 5 });
+      const translated = await openMenu();
+      ensure(translated.textContent?.includes(i18next.t('entityEditor.contextMenu.format')), 'Owned context menu label is stale');
+      [...translated.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '一级标题')!.click();
+      ensure(!rootMenu() && first.isActive('heading', { level: 1 }) && first.state.doc.textContent === prose, 'Owned format action changed prose or missed selection');
+      const formatUndoManager = yUndoPluginKey.getState(first.state)?.undoManager;
+      const formatStructure = () => Array.from({ length: first.state.doc.childCount }, (_, index) => {
+        const child = first.state.doc.child(index); return { type: child.type.name, attrs: child.attrs, size: child.content.size };
+      });
+      const formatted = formatStructure(); const depthBeforeUndo = formatUndoManager?.undoStack.length;
+      const formatUndone = first.commands.undo();
+      ensure(formatUndone && JSON.stringify(first.getJSON()) === beforeFormat, `Menu formatting lost undo continuity; diagnostic=${JSON.stringify({ formatUndone, depthBeforeUndo, depthAfterUndo: formatUndoManager?.undoStack.length, formatted, afterUndo: formatStructure(), sameText: first.state.doc.textContent === prose, beforeFormat: JSON.parse(beforeFormat).content.map((child: { type: string; attrs: unknown; content?: unknown[] }) => ({ type: child.type, attrs: child.attrs, contentCount: child.content?.length ?? 0 })) })}`);
+      await i18next.changeLanguage(locale); await frames();
+      ensure(!first.isDestroyed && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Menu locale change recreated canonical editor');
+      ensure(await saveActiveEditor(), 'Menu format cleanup save missing');
+      checks.menusFormatAndLocale = true;
+    }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
@@ -524,10 +604,32 @@ async function run() {
       ensure(document.activeElement === splitEditors[1], 'Unfocused split stole restoration focus');
       checks.selectionVisibleSplitFocus = true;
     }
+    if (config.contextMenus) {
+      const splitEditors = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]')];
+      const menu = () => document.body.querySelector<HTMLElement>(':scope > .editor-comment-menu');
+      const context = (dom: HTMLElement) => dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+      context(splitEditors[0]); ensure(!menu(), 'Unfocused split opened a custom menu');
+      const right = getActiveEditor(); ensure(right?.view.dom === splitEditors[1], 'Wrong active split before menu test');
+      right.commands.setTextSelection({ from: 2, to: 5 }); context(splitEditors[1]);
+      await waitFor(menu, 'right split menu');
+      splitEditors[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 300, clientY: 300 }));
+      await frames(); splitEditors[0].focus();
+      const left = await waitFor(() => { const active = getActiveEditor(); return active?.view.dom === splitEditors[0] && active; }, 'left split command ownership');
+      ensure(!menu(), 'Losing split command ownership retained its menu');
+      left.commands.setTextSelection({ from: 2, to: 5 }); context(splitEditors[0]); await waitFor(menu, 'left split menu');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      ensure(!menu(), 'Split Escape retained its menu'); checks.menusSplitCommandOwnership = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
     checks.closedTabsReleaseLiveDocuments = true;
+    if (config.contextMenus) {
+      ensure(contextMenuObservations.length >= 20 && contextMenuObservations.every(row =>
+        row.counts.dispose === 1 && (row.counts.open ?? 0) === (row.counts.close ?? 0) && (row.counts.bind ?? 0) === (row.counts.unbind ?? 0)), 'Closed context menu owners leaked');
+      ensure(!document.querySelector('.editor-comment-menu'), 'Closed menu DOM survived');
+      checks.menusClosedOwnersReleased = true;
+    }
     if (config.typewriter) {
       ensure(listeningTypewriters().length === 0 && typewriterObservations.every(row => row.counts.dispose === 1), 'Closed typewriter owners leaked');
       checks.typewriterClosedOwnersReleased = true;
@@ -561,6 +663,8 @@ async function run() {
       const reopened = await open(a.id, a.nodeIds[0]);
       reopened.commands.setTextSelection({ from: 35, to: 12 });
       ensure(await saveActiveEditor(), 'Selection restoration setup save missing');
+      const saved = getEditorSelectionSnapshot(editorTabSelectionKey(a.id, { entityType: 'node', id: a.nodeIds[0] }));
+      ensure(saved?.anchor === 35 && saved.head === 12 && saved.focusOnRestore, 'Project switch setup must capture the focused backward selection');
     }
     await progress('project-switch');
     route(b.id, b.nodeIds[0]);
@@ -592,7 +696,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

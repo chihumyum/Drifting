@@ -206,3 +206,33 @@ prose, not cross-process caret persistence. Selection burst counters do not
 measure physical input latency or total editor work. The separate
 `perf:renderer:selection` microbenchmark measures capture-only document/text work
 on 5k/20k/50k fixtures.
+
+
+## Context menu ownership scenario
+
+```bash
+pnpm perf:renderer:native --context-menus
+pnpm perf:renderer:native --context-menus --check
+```
+
+This mode includes the selection/marker/outline/typewriter scenarios and writes
+`acceptance/f3-context-menus-native.json`. The temporary build transform observes
+each actual `EditorContextMenu` owner's open/close, listener bind/unbind and dispose
+counts. No such instrumentation is imported by the ordinary product renderer.
+
+The scenario waits for canonical initialization to paint before applying
+synthetic user focus, then dispatches actual editor `contextmenu` events and
+clicks menu DOM buttons. It checks 100 outside-click cycles, hidden-owner closure with a pending
+flyout timer, rejected detached format actions, and retention of an open menu
+when an unrelated chapter closes. It opens a translated menu, applies heading
+formatting to a selected range and checks prose, undo and canonical editor/Yjs
+identity. Split checks address the two real editor DOM nodes in their shared
+surface: the inactive pane rejects a custom menu, and switching command focus
+closes the previous pane's menu before the new pane opens its own. Escape closes
+that menu. Closing all tabs must balance every observed open/close and bind/unbind
+pair and dispose each owner exactly once. The existing project transition,
+native Quit/restart and read-only SQLite/Yjs persistence checks still apply.
+
+These events are synthetic native UI actions. The checks cover menu ownership
+and continuity; physical mouse/keyboard/IME/touch, full Agent/Copilot interactions,
+whole-App retained memory and comparative latency budgets require separate runs.

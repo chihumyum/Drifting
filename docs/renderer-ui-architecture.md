@@ -270,9 +270,30 @@ styles invalidate content-relative positions. This owner never changes prose,
 review decisions, seen state or masking. `EditorReviewLayer` keeps those canonical
 owners mounted independently.
 
-The shared entity-editor context menu reads current translations through a
-latest-value ref when invoked. A locale revision is not a Tiptap reconstruction
-input: changing menu/marker labels must preserve the editor and undo history.
+`EditorContextMenu` owns a transient body-portal menu for one canonical editor.
+`useEntityEditor` creates/disposes that owner in layout effects and enables it
+only while canonical-ready, editable, visible and command-active. The global slot
+only coordinates exclusivity; retiring a different editor cannot remove the
+current menu. Every close path removes the owner's document/editor listeners,
+cancels its hover timer and removes its DOM. Hidden/inactive owners have no menu
+subscriptions. Outside click, Escape, document/selection updates and destruction
+invalidate the open menu; detached buttons cannot invoke old actions. Split
+visibility remains independent of command ownership.
+
+The menu reads current translations through a latest-value ref when invoked.
+A locale revision is not a Tiptap reconstruction input: changing menu/marker
+labels must preserve the editor and undo history. Format commands and
+comment/patch/Copilot request construction remain the shared product operations.
+
+`BlockId`'s appended repairs inherit the originating edit's history policy,
+including when an intervening plugin appends a trailing block. The Yjs binding
+publishes the final ProseMirror state as one change, so an unconditional
+`addToHistory: false` on ID repair would exclude the user's format/split edit.
+Mount repair and explicitly excluded root edits remain outside undo history;
+user edits and their new block identities undo/redo together.
+Initial no-autofocus session setup blurs only its own DOM synchronously; it never
+queues Tiptap's global-selection-clearing blur command after user interaction.
+The initialization save-suppression frame stays owned and cancellable.
 
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming

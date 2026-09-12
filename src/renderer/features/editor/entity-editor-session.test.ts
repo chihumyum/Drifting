@@ -97,9 +97,11 @@ describe('canonical editor session ownership', () => {
     vi.stubGlobal('requestAnimationFrame', requestFrame);
     vi.stubGlobal('cancelAnimationFrame', cancelFrame);
     const f = fixture();
-    Object.assign(f.emitter, { commands: { blur: vi.fn() }, view: { dispatch: vi.fn() } });
+    const blur = vi.fn();
+    Object.assign(f.emitter, { view: { dispatch: vi.fn(), dom: { blur } } });
     f.session.updateOptions({ onPersist: f.persist, selectionKey: null, autoFocus: false, isCommandActive: true });
     f.session.attach(); f.session.detach();
+    expect(blur).toHaveBeenCalledOnce();
     expect(requestFrame).toHaveBeenCalledOnce();
     expect(cancelFrame).toHaveBeenCalledWith(17);
     expect(f.listenerCount()).toBe(0);

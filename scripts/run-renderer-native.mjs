@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const selectionMemory = process.argv.includes('--selection');
+const contextMenus = process.argv.includes('--context-menus');
+const selectionMemory = contextMenus || process.argv.includes('--selection');
 const markers = selectionMemory || process.argv.includes('--markers');
 const outline = markers || process.argv.includes('--outline');
 const typewriter = outline || process.argv.includes('--typewriter');
@@ -20,7 +21,7 @@ const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -48,6 +49,10 @@ function validate(report) {
     for (const name of ['selectionCaptureBounded', 'selectionRetainedAcrossTabs', 'hiddenSelectionTracksYjs', 'selectionVisibleSplitFocus', 'selectionClosedMemoryPruned', 'selectionProjectRestore', 'selectionProjectRestoreFocus']) assert.equal(report.runs[0].checks[name], true, name);
     assert(report.runs[0].selectionObservations.capture >= 200);
     assert(report.runs[0].selectionObservations.prune >= 20);
+  }
+  if (contextMenus) {
+    for (const name of ['menusRepeatedCloseReleases', 'menusHiddenAndStaleActions', 'menusUnrelatedOwnerCleanup', 'menusFormatAndLocale', 'menusSplitCommandOwnership', 'menusClosedOwnersReleased']) assert.equal(report.runs[0].checks[name], true, name);
+    assert(report.runs[0].contextMenuObservations.length >= 20);
   }
   assert.deepEqual(report.runs[0].lifecycle, [
     { projectId: 'native-control-a', mounted: true }, { projectId: 'native-control-a', mounted: false },
@@ -154,7 +159,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${editorSessions} && id.endsWith('/features/editor/entity-editor-session.ts')) {
@@ -223,6 +228,19 @@ export default (env) => mergeConfig(base(env), {
       }
       return code;
     }
+    if (${contextMenus} && id.endsWith('/features/editor/editor-context-menu.ts')) {
+      for (const [anchor, event] of [
+        ['this.menu = menu; activeMenuSlot.owner = this;', 'open'],
+        ['this.menu.remove(); this.menu = null;', 'close'],
+        ["this.editor.on('destroy', this.close);", 'bind'],
+        ["this.editor.off('destroy', this.close);", 'unbind'],
+        ['this.disposed = true; this.enabled = false; this.close();', 'dispose'],
+      ]) {
+        if (code.split(anchor).length !== 2) throw new Error('Context menu observation anchor drifted: ' + event);
+        code = code.replace(anchor, anchor + '\\nglobalThis.__nativeAcceptanceContextMenuEvent(this, ' + JSON.stringify(event) + ');');
+      }
+      return code;
+    }
     if (id.endsWith('/app/providers/ProjectRuntimeProvider.tsx')) {
       const anchor = 'const bootKey = \u0060\u0024{userId}:\u0024{projectId}\u0060;';
       if (code.split(anchor).length !== 2) throw new Error('Project runtime instrumentation anchor drifted');
@@ -246,6 +264,7 @@ export default (env) => mergeConfig(base(env), {
   if (outline) artifact.instrumentation.push('outline viewport resume/pause/measure/anchor/frame/dispose counts');
   if (markers) artifact.instrumentation.push('scroll marker attach/resume/pause/measure/anchor/frame/dispose counts');
   if (selectionMemory) artifact.instrumentation.push('selection capture/write/prune counts');
+  if (contextMenus) artifact.instrumentation.push('context-menu open/close and owner subscription lifecycle counts');
   console.log(`Verified fresh artifact: ${binary} (${artifact.sha256})`);
   console.log('Keep the acceptance window visible and foreground in each process; occluded WebKit animation frames may be suspended.');
   for (const phase of ['composition', 'restart']) {

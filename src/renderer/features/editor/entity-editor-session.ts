@@ -186,7 +186,10 @@ export class EntityEditorSession {
       } else if (!this.options.autoFocus) {
         this.suppressSelectionSave = true;
         moveEditorSelectionToStart(this.editor);
-        this.editor.commands.blur();
+        // Tiptap's blur command queues an unowned frame and clears the global
+        // DOM selection. Initialization must not later blur a user's focus or
+        // erase the selection in another visible split editor.
+        this.editor.view.dom.blur();
         this.selectionFrame = requestAnimationFrame(() => {
           this.selectionFrame = 0;
           this.suppressSelectionSave = false;

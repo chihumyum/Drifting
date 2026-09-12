@@ -1884,3 +1884,87 @@ changes also pass targeted lint and their generated-evidence checks.
 
 F3/F8 remain `in_progress`; full Agent review/masking, other interaction owners,
 physical IME/touch and comparative device/input/memory budgets remain open.
+
+## F3h — Editor-owned context menus
+
+`useEntityEditor` previously removed every `.editor-comment-menu` DOM node when
+any editor retired. Menu removal did not release its delayed document-mousedown
+registration or the flyout's pending hide timer. An action close or replacement
+could therefore retain detached menu/editor closures until a later outside click;
+a retained hidden editor could also leave its body-portal menu active.
+
+`EditorContextMenu` now owns one canonical editor's transient menu. The hook
+creates/disposes it in layout effects and enables it only for an editable,
+visible, command-active surface. Incoming replacement closes the previous owner;
+retiring another owner cannot remove the current menu. All close paths remove the
+exact document and editor listeners, cancel the hover timer and remove only the
+owned DOM. The outside listener is registered synchronously: opening is a
+`contextmenu` event, so no deferred mousedown-registration task is necessary.
+Escape, document/selection changes and editor destruction also invalidate the
+menu. Stale buttons from detached/replaced menus cannot invoke their callbacks.
+The format actions, comment/patch anchor construction and manual Copilot request
+remain the existing product operations; no new durable prose or review state is
+introduced. Root/flyout positioning remains fixed with the menu portaled to body.
+
+The isolated Chromium report `acceptance/f3-context-menus.json` exercises real
+Tiptap editors and DOM with 1/5/20 retained owners. Each group runs 100 action
+open/close cycles and tries each detached action again. Inactive owners add no
+menu listeners; at most two tracked document listeners exist while a menu is
+open (outside-mousedown and Escape), and zero remain after closing. The 1-editor
+group records 214 adds/removes; 5/20 record 218 each. Pending hover timers return
+to zero. Outside click, Escape, hiding, selection/document invalidation,
+read-only rejection, editor destruction, replacement-owner isolation, fresh
+labels and format/undo continuity pass. These are scoped lifecycle counters,
+not whole-App retained-memory or input-latency measurements. Existing isolated
+renderer scenarios also run in that report.
+
+```bash
+pnpm perf:renderer --output=docs/renderer-performance/acceptance/f3-context-menus.json
+pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f3-context-menus.json
+```
+
+Native menu acceptance exposed a pre-existing Yjs undo defect: setting a final
+paragraph to a heading causes StarterKit to append a trailing paragraph, and
+`BlockId` assigns that new block an ID. Its appended transaction unconditionally
+set `addToHistory: false`; the Yjs binding reads the final transaction's flag for
+the complete view update, so the heading change never entered the undo stack.
+`BlockId` now inherits the originating edit's history policy; mount repair stays
+excluded, and explicitly excluded edits stay excluded even when another plugin
+appends a block. The browser regression first failed on the old implementation
+and now passes using real Collaboration/Yjs, StarterKit and BlockId to cover heading/trailing-node and split-block undo/redo with exact block identity,
+as well as explicitly excluded writes. This is a correctness gate discovered
+by the ownership refactor, not a measured performance improvement.
+
+The extended native scenario also required an explicit painted-initialization
+precondition before synthetic user focus/selection. A real-browser regression
+then reproduced the separate unowned initialization blur: Tiptap's blur command
+queued a frame that could remove a subsequently focused editor's caret, including
+another visible split's DOM selection. Session initialization now blurs only its
+own DOM synchronously. Both immediate subsequent user focus and other-editor
+selection survive later frames. The initialization save-suppression frame remains
+owned and cancellable; no new cross-session focus manager is introduced.
+
+The final freshly packaged macOS Debug app with the production renderer passes
+39 composition checks and the restart check in
+`acceptance/f3-context-menus-native.json`. It observes 25 menu-owner lifetimes;
+the closed-tab checkpoint balances all open/close and bind/unbind pairs and
+retires those owners once. The actual 20-tab shell passes repeated menu cycles,
+hiding/stale actions, unrelated-owner cleanup, locale/format undo, both split
+command owners, project A→B→A and automatic selection/focus restoration. Both
+native Quit operations exit successfully. Read-only SQLite/Yjs inspection finds
+exactly one intentionally changed chapter, 52 unchanged chapters, zero remaining
+synthetic marker comments and passing integrity/foreign-key checks.
+
+All 2,480 regular tests pass (1 existing skip), as do typecheck, lint (0 errors,
+73 existing warnings), CI/public contracts and Agent capabilities. The normal
+production build passes; its 32 JS chunks exclude native acceptance instrumentation
+and fixture identities. The generated browser and native evidence checks pass.
+
+```bash
+pnpm perf:renderer:native --context-menus
+pnpm perf:renderer:native --context-menus --check
+```
+
+F3/F8 remain `in_progress`; slash/mention/inline-Copilot interactions, full Agent review masks,
+physical input and the comparative device/latency/memory budgets retain their
+separate acceptance requirements.
