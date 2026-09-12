@@ -147,14 +147,14 @@ export function resolveEntityLinkTargetColor(
  * A presentation-only signature that changes only when link colors can change.
  * It avoids repainting every open editor after ordinary content/summary writes.
  */
-export function buildEntityLinkColorSignature(
+function computeEntityLinkColorSignature(
   state: EntityLinkColorState,
   mode: EntityLinkColorMode,
   colors: EntityLinkKindColors,
 ): string {
   if (mode === 'prose') return mode;
   if (mode === 'kind') {
-    return `${mode}:${ENTITY_LINK_COLOR_KINDS.map((kind) => colors[kind]).join(',')}`;
+    return JSON.stringify([mode, colors, state.bookNodes.map((node) => [node.id, node.kind])]);
   }
   return [
     mode,
@@ -173,4 +173,36 @@ export function buildEntityLinkColorSignature(
       )
       .join(','),
   ].join('\n');
+}
+
+interface ColorSignatureCache {
+  input: EntityLinkColorState;
+  mode: EntityLinkColorMode;
+  colors: EntityLinkKindColors;
+  signature: string;
+}
+const colorSignatures = new WeakMap<EntityLinkColorState['bookNodes'], ColorSignatureCache>();
+
+/** Compute once per collection snapshot, shared by every retained editor. */
+export function buildEntityLinkColorSignature(
+  state: EntityLinkColorState,
+  mode: EntityLinkColorMode,
+  colors: EntityLinkKindColors,
+): string {
+  if (mode === 'prose') return mode;
+  const cached = colorSignatures.get(state.bookNodes);
+  if (cached?.mode === mode && cached.colors === colors
+    && cached.input.bookElements === state.bookElements
+    && cached.input.bookElementCategories === state.bookElementCategories
+    && cached.input.storylines === state.storylines
+    && cached.input.primaryStorylineByNode === state.primaryStorylineByNode
+    && cached.input.driftGroups === state.driftGroups) return cached.signature;
+  const signature = computeEntityLinkColorSignature(state, mode, colors);
+  // Copy only collection references; never retain the entire Zustand state.
+  const { bookNodes, bookElements, bookElementCategories, storylines, primaryStorylineByNode, driftGroups } = state;
+  colorSignatures.set(bookNodes, {
+    input: { bookNodes, bookElements, bookElementCategories, storylines, primaryStorylineByNode, driftGroups },
+    mode, colors, signature,
+  });
+  return signature;
 }

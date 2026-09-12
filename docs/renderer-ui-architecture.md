@@ -124,10 +124,12 @@ lint rules enforce these directions.
 Workspace consumers subscribe to explicit fields through `useDataStoreFields`
 or a narrower `useDataStore(selector)`. The field helper selects from one
 snapshot and preserves its result identity with shallow comparison; unrelated
-collection updates do not notify React consumers. It owns no data or project
+collection updates do not trigger React commits in those consumers. It owns no data or project
 lifecycle. The architecture check rejects unqualified whole-workspace hook
 subscriptions in product views. Per-field arrays can still change after a
-relevant update; semantic indexes and entity-level selectors are separate work.
+relevant update. Editor name and appearance selectors now return stable semantic
+results across metrics-only updates; broader entity read models and workspace
+record reference reuse remain tracked in the performance plan.
 
 
 Desktop-only surfaces include `DesktopWorkspace`, `DesktopOverlayHost`, desktop

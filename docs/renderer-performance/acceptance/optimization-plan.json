@@ -115,30 +115,40 @@
           "id": "F2-01",
           "requirement": "不相关 comment 更新不通知仅消费章节名称或颜色的订阅者",
           "evidence": [
-            "docs/renderer-performance/acceptance/f2-subscriptions.json"
+            "docs/renderer-performance/acceptance/f2-subscriptions.json",
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
           ],
-          "status": "partial"
+          "status": "passed"
         },
         {
           "id": "F2-02",
           "requirement": "指标更新不使名称与外观缓存失效，相关语义变化及时失效",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f2-subscriptions.json",
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
+          ],
+          "status": "passed"
         },
         {
           "id": "F2-03",
           "requirement": "派生缓存归属项目和 generation，切换恢复无残留或混合快照",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f2-subscriptions.json",
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F2-04",
           "requirement": "稳定引用和精确订阅通过通知计数与 React commit 验证，原子发布保留",
           "evidence": [
-            "docs/renderer-performance/acceptance/f2-subscriptions.json"
+            "docs/renderer-performance/acceptance/f2-subscriptions.json",
+            "docs/renderer-performance/acceptance/f2-semantic-indexes.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "field_subscriptions_implemented"
+      "implementationStatus": "field_subscriptions_and_editor_semantic_indexes_implemented"
     },
     {
       "id": "F3",

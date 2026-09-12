@@ -29,6 +29,7 @@ import {
 import { flushPendingAtomicSyncTransactions } from '../../services/atomic-sync-transaction-tracker';
 import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
 import { FullScreenStatus } from '../components/FullScreenStatus';
+import { releaseEntityLinkNames } from '../../lib/entity-link-names';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -191,8 +192,12 @@ export function ProjectRuntimeProvider({
       }
     };
     tick();
-    const unsubscribeData = useDataStore.subscribe(tick);
-    const unsubscribeStatus = useProseMetricsStatusStore.subscribe(tick);
+    const unsubscribeData = useDataStore.subscribe((next, previous) => {
+      if (next.bookNodes !== previous.bookNodes || next.workspaceProjectId !== previous.workspaceProjectId) tick();
+    });
+    const unsubscribeStatus = useProseMetricsStatusStore.subscribe((next, previous) => {
+      if (next.byProject[projectId] !== previous.byProject[projectId]) tick();
+    });
     return () => {
       unsubscribeData();
       unsubscribeStatus();
@@ -374,6 +379,7 @@ export function ProjectRuntimeProvider({
     void initialize();
     return () => {
       active = false;
+      releaseEntityLinkNames(projectId);
     };
   }, [bootAttempt, bootKey, projectId, userId]);
 

@@ -22,6 +22,24 @@ function state(overrides: Record<string, unknown> = {}): EntityLinkColorState {
 }
 
 describe('entity link appearance', () => {
+  it('shares a color signature across consumers and invalidates changed node kinds', () => {
+    let colorReads = 0;
+    const data = state({
+      bookElements: [{ id: 'element-1', categoryId: 'category-1' }],
+      bookElementCategories: [{ id: 'category-1', get color() { colorReads++; return '#112233'; } }],
+      bookNodes: [{ id: 'node-1', kind: 'chapter', driftGroupId: null }],
+    });
+    const signature = buildEntityLinkColorSignature(data, 'contextual', DEFAULT_ENTITY_LINK_KIND_COLORS);
+    const coldReads = colorReads;
+    for (let consumer = 0; consumer < 20; consumer++) {
+      expect(buildEntityLinkColorSignature({ ...data }, 'contextual', DEFAULT_ENTITY_LINK_KIND_COLORS)).toBe(signature);
+    }
+    expect(colorReads).toBe(coldReads);
+    const beforeKind = buildEntityLinkColorSignature(data, 'kind', DEFAULT_ENTITY_LINK_KIND_COLORS);
+    const changed = state({ ...data, bookNodes: [{ id: 'node-1', kind: 'drift', driftGroupId: null }] });
+    expect(buildEntityLinkColorSignature(changed, 'kind', DEFAULT_ENTITY_LINK_KIND_COLORS)).not.toBe(beforeKind);
+  });
+
   it('shares immutable collection lookups without scanning IDs for each rendered link', () => {
     let idReads = 0;
     const data = state({

@@ -34,6 +34,15 @@ These are presentation caches: color values never become persisted mark attrs
 or a second source of prose truth. The static all-chapters renderer continues
 to use the same resolver and explicit restyling helper.
 
+Retained editors subscribe to a shared name projection and a memoized
+appearance signature. A metric/summary/body update with unchanged names and
+ownership preserves those subscription results. Name projections include project
+identity and generation; the project runtime releases its last name projection
+on disposal. Per-editor auto-detection still excludes self/parent before applying
+alias collisions and chapter-last priority. Weak collection caches avoid keeping
+retired prose-bearing records alive. Type-color signatures include node kind so
+chapter/drift changes refresh existing marks as well.
+
 ## Shared hover card
 
 `EntityHoverCard` is the single preview surface used by:

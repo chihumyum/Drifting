@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core';
+import type { WorkspaceDataProjection } from '../store/data-store';
 
 export interface RendererFixtureOptions {
   seed: number;
@@ -53,3 +54,28 @@ export const RENDERER_FIXTURE_PROFILES: RendererFixtureOptions[] = [
   { seed: 20260912, characters: 20_000, links: 100, entities: 1_000 },
   { seed: 20260912, characters: 50_000, links: 500, entities: 5_000 },
 ];
+
+/** Domain-shaped projections for isolated store tests; never writes SQLite. */
+export function createSyntheticWorkspaceProjection(projectId: string, nodeCount = 100, elementCount = 1_000): WorkspaceDataProjection {
+  const at = '2026-09-12T00:00:00.000Z';
+  return {
+    bookNodes: Array.from({ length: nodeCount }, (_, index) => ({
+      id: `synthetic-node-${index}`, projectId, kind: 'chapter', title: `合成章节${index}`,
+      summary: '', bookOrder: index, narrativeOrder: index, driftGroupId: null,
+      position: { x: 0, y: 0 }, wordCount: 0, writingStatus: 'draft', createdAt: at, updatedAt: at,
+    })),
+    bookElements: Array.from({ length: elementCount }, (_, index) => ({
+      id: `synthetic-element-${index}`, projectId, categoryId: 'synthetic-category', name: `合成人物${index}`,
+      aliases: [`合成别名${index}`], summary: '', contentJson: '{}', kvJson: '[]', groupName: null,
+      portraitAssetId: null, createdAt: at, updatedAt: at,
+    })),
+    bookElementCategories: [{
+      id: 'synthetic-category', projectId, name: '合成类目', contentJson: '{}', elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]', color: '#112233', layoutMode: 'auto', gridX: null, gridY: null,
+      createdAt: at, updatedAt: at,
+    }],
+    storylines: [], storylineNodeMapping: {}, primaryStorylineByNode: {}, trashedEntityIds: new Set(),
+    projectAssets: [], libraryItems: [], comments: [], commentActions: [], entityRelations: [],
+    entityRelationTypes: [], blockSections: [], bookActs: [], driftGroups: [], timelineMarkers: [],
+  };
+}

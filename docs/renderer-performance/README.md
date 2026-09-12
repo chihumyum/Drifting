@@ -145,3 +145,38 @@ Validation: typecheck, six architecture tests, full Vitest (2,168 passed,
 conversation-sync checks and a production renderer build. Shared name/color
 invalidation, record reference reuse and app-wide measurements are still pending;
 this completes the F2a batch, not all F2 acceptance.
+
+## F2b shared editor name and appearance projections
+
+`useEntityEditor` now subscribes to shared semantic results instead of six
+complete entity/ownership collections. Name collection snapshots are cached
+with weak keys; metric/body changes preserve the projected name object. Project
+identity and generation invalidate it, and the project runtime releases its
+last projection on disposal. Self/parent exclusion and chapter-last name
+collision handling remain per-editor. Color signatures are computed once per
+collection snapshot, and type-color signatures include chapter/drift kind.
+
+The runtime's writing total subscription now filters unrelated collections and
+other projects' readiness changes before scanning chapter counts. It retains
+the existing canonical count readiness and no-op persistence behavior.
+
+Generated [f2-semantic-indexes.json](acceptance/f2-semantic-indexes.json) mounts
+20 consumers of each subscription kind with 100 synthetic chapters and 1,000
+elements:
+
+| Change | Collection consumer commits | Name consumer commits | Color consumer commits |
+| --- | ---: | ---: | ---: |
+| 100 metric updates | 2,000 | 0 | 0 |
+| One chapter rename | 20 | 20 | 0 |
+| One category color change | 0 | 0 | 20 |
+
+Unit checks cover name/alias/deletion/generation invalidation, self and parent
+exclusion before name collisions, stable semantic identity, weak collection
+reuse, explicit release, and type-color invalidation. The browser input budgets,
+link behavior checks and F2a subscription checks remain passing.
+
+Validation: typecheck, full Vitest (2,173 passed, 1 skipped), lint (0 errors,
+76 existing warnings), public/CI contract, capabilities, conversation-sync
+checks and production renderer build. The next batch narrows editor Review
+decoration subscriptions. Broader projection record reuse, graph read models,
+native interaction and remaining app-wide phase acceptance remain pending.

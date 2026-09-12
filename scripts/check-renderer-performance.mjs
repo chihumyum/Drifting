@@ -56,6 +56,16 @@ for (const scenario of report.reactSubscriptions ?? []) {
   assert.equal(scenario.atomicSnapshot, true);
   assert.equal(scenario.dynamicFieldKeys, true);
 }
+if (report.semanticSubscriptions) {
+  const scenario = report.semanticSubscriptions;
+  assert.equal(scenario.metrics.collection, scenario.consumers * scenario.metricUpdates);
+  assert.equal(scenario.metrics.names, 0);
+  assert.equal(scenario.metrics.colors, 0);
+  assert.equal(scenario.rename.names, scenario.consumers);
+  assert.equal(scenario.rename.colors, 0);
+  assert.equal(scenario.appearance.names, 0);
+  assert.equal(scenario.appearance.colors, scenario.consumers);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

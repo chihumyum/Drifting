@@ -5,7 +5,7 @@ import { DEFAULT_ENTITY_LINK_KIND_COLORS, resolveEntityLinkTargetColor, type Ent
 import { useDataStore } from '../store/data-store';
 import { createRendererFixture, RENDERER_FIXTURE_PROFILES } from './fixture';
 import { runEntityLinkScenarios } from './entity-link-scenarios';
-import { runSubscriptionScenarios } from './subscription-scenarios';
+import { runSemanticSubscriptionScenario, runSubscriptionScenarios } from './subscription-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -98,6 +98,7 @@ async function run() {
     scenarios,
     behaviorChecks: runEntityLinkScenarios(),
     reactSubscriptions: runSubscriptionScenarios(),
+    semanticSubscriptions: runSemanticSubscriptionScenario(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

@@ -30,7 +30,6 @@ import {
   EntityLinkDanglingPluginKey,
   entityLinkConfig,
   linkEntityInDoc,
-  type AutoDetectTarget,
   type EntityKind,
   type EntityLinkRef,
 } from '../lib/extensions/entity-link';
@@ -72,6 +71,7 @@ import {
   resolveEntityLinkTargetColor,
 } from '../lib/entity-link-appearance';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
+import { buildEntityAutoDetectTargets, selectEntityLinkNames } from '../lib/entity-link-names';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
@@ -655,101 +655,16 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const entityLinkColorMode = useSettingsStore((state) => state.entityLinkColorMode);
   const entityLinkKindColors = useSettingsStore((state) => state.entityLinkKindColors);
 
-  const bookElements = useDataStore((state) => state.bookElements);
-  const bookNodes = useDataStore((state) => state.bookNodes);
-  const bookElementCategories = useDataStore((state) => state.bookElementCategories);
-  const storylines = useDataStore((state) => state.storylines);
-  const primaryStorylineByNode = useDataStore((state) => state.primaryStorylineByNode);
-  const driftGroups = useDataStore((state) => state.driftGroups);
-  // Subscribed so the dangling-link plugin re-walks when an entity is trashed or
-  // restored while this doc is open (mention dims / un-dims immediately).
+  // Name/appearance projections are shared across retained editors. Metric or
+  // body updates can change domain arrays without invalidating these selectors.
+  const entityNames = useDataStore(selectEntityLinkNames);
   const trashedEntityIds = useDataStore((state) => state.trashedEntityIds);
-
-  // Auto-detect: every element name + alias, and every chapter title, minus
-  // self. Built fresh whenever the entity lists change so plugin config
-  // sync below picks up the new map. Aliases register as additional keys
-  // pointing at the SAME element id — so "Lady Mira" and "Mira" both
-  // auto-link to Mira.
-  //
-  // Map key conflicts (alias colliding with another entity's name): last
-  // write wins. App-layer uniqueness enforcement in useBookElement
-  // (ElementNameConflictError) prevents this for elements, so a real
-  // conflict here can only arise between an element name/alias and a
-  // chapter title — accepted for now (chapter wins because chapters are
-  // registered after elements below).
-  // Signature of just the fields auto-detect keys off (id + name + aliases +
-  // node title), excluding self. autoDetectTargets is memoized on THIS rather
-  // than on bookElements/bookNodes IDENTITY — so a contentJson write (which
-  // mints a fresh bookElements array on every persist but changes no names)
-  // does NOT rebuild the Map, nor fire the dangling-refresh effect keyed off it.
-  const autoDetectSignature = useMemo(() => {
-    const parts: string[] = [];
-    bookElements.forEach((el) => {
-      if (sourceKind === 'element' && el.id === sourceId) return;
-      if (parentElementId && el.id === parentElementId) return;
-      parts.push(`${el.id}=${el.name ?? ''}|${el.aliases.join(',')}`);
-    });
-    bookNodes.forEach((n) => {
-      if (sourceKind === 'node' && n.id === sourceId) return;
-      if (n.title) parts.push(`${n.id}#${n.title}`);
-    });
-    return parts.join('\n');
-  }, [bookElements, bookNodes, sourceKind, sourceId, parentElementId]);
-
-  const autoDetectTargets = useMemo(() => {
-    const map = new Map<string, AutoDetectTarget>();
-    bookElements.forEach((el) => {
-      // Skip the element being edited (direct self), and also skip the
-      // element this content lives under (a patch on Mira shouldn't
-      // auto-link "Mira" back to Mira). Excluding the whole iteration
-      // drops both `name` and every alias for that element in one shot.
-      if (sourceKind === 'element' && el.id === sourceId) return;
-      if (parentElementId && el.id === parentElementId) return;
-      const target = { kind: 'element' as const, id: el.id };
-      if (el.name) map.set(el.name, target);
-      for (const alias of el.aliases) {
-        if (alias) map.set(alias, target);
-      }
-    });
-    bookNodes.forEach((n) => {
-      if (sourceKind === 'node' && n.id === sourceId) return;
-      if (!n.title) return;
-      map.set(n.title, { kind: 'node', id: n.id });
-    });
-    return map;
-    // Keyed on the names/aliases/titles signature, NOT bookElements/bookNodes
-    // identity — content-only store writes won't rebuild this. Reading the live
-    // arrays here is safe: the signature changes whenever any keyed field does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoDetectSignature]);
-
-  // Visual-only signature for all mention colors. Ordinary body/summary writes
-  // mint fresh store arrays but leave this signature stable, so open editors do
-  // not repaint unless ownership, an owner color, or the preference changes.
-  const entityLinkColorSignature = useMemo(
-    () =>
-      buildEntityLinkColorSignature(
-        {
-          bookElements,
-          bookElementCategories,
-          bookNodes,
-          storylines,
-          primaryStorylineByNode,
-          driftGroups,
-        },
-        entityLinkColorMode,
-        entityLinkKindColors,
-      ),
-    [
-      bookElements,
-      bookElementCategories,
-      bookNodes,
-      storylines,
-      primaryStorylineByNode,
-      driftGroups,
-      entityLinkColorMode,
-      entityLinkKindColors,
-    ],
+  const autoDetectTargets = useMemo(
+    () => buildEntityAutoDetectTargets(entityNames, sourceKind, sourceId, parentElementId),
+    [entityNames, sourceKind, sourceId, parentElementId],
+  );
+  const entityLinkColorSignature = useDataStore((state) =>
+    buildEntityLinkColorSignature(state, entityLinkColorMode, entityLinkKindColors),
   );
 
   // @-picker source: pulled live from the store so the popover stays in sync.
