@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const outline = process.argv.includes('--outline');
+const markers = process.argv.includes('--markers');
+const outline = markers || process.argv.includes('--outline');
 const typewriter = outline || process.argv.includes('--typewriter');
 const editorSessions = typewriter || process.argv.includes('--sessions');
 const harnessFiles = ['scripts/run-renderer-native.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts', 'scripts/renderer-native-ui.ts'];
@@ -18,7 +19,7 @@ const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -36,6 +37,11 @@ function validate(report) {
   if (outline) {
     for (const name of ['outlineSingleVisibleOwner', 'hiddenYjsWithoutOutlineMeasurement', 'outlineNavigationAndHiddenPreparation', 'outlineVisibleSplit', 'outlineClosedOwnersReleased']) assert.equal(report.runs[0].checks[name], true, name);
     assert(report.runs[0].outlineObservations.length >= 20);
+  }
+  if (markers) {
+    for (const name of ['markersEmptyOwnersIdle', 'markersSingleVisibleOwner', 'markersRangeAndLocale', 'markerLocalePreservesEditorAndHistory', 'markersHiddenPreparation', 'markersVisibleSplit', 'markersClosedOwnersReleased']) assert.equal(report.runs[0].checks[name], true, name);
+    assert(report.runs[0].markerObservations.length >= 20);
+    assert.equal(report.persistence.markerFixtureCommentsRemaining, 0);
   }
   assert.deepEqual(report.runs[0].lifecycle, [
     { projectId: 'native-control-a', mounted: true }, { projectId: 'native-control-a', mounted: false },
@@ -142,7 +148,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${editorSessions} && id.endsWith('/features/editor/entity-editor-session.ts')) {
@@ -185,6 +191,21 @@ export default (env) => mergeConfig(base(env), {
       }
       return code;
     }
+    if (${markers} && id.endsWith('/components/editor/scroll-marker-viewport.ts')) {
+      for (const [anchor, event] of [
+        ['this.attached = true;', 'attach'],
+        ['this.listening = true;', 'resume'],
+        ['this.listening = false;', 'pause'],
+        ['const rootTop = this.root.getBoundingClientRect().top;', 'measure'],
+        ['const top = first.getBoundingClientRect().top;', 'anchor'],
+        ['this.frame = requestAnimationFrame(() => { this.frame = 0; this.measure(); });', 'frame'],
+        ['this.attached = false;', 'dispose'],
+      ]) {
+        if (code.split(anchor).length !== 2) throw new Error('Marker observation anchor drifted: ' + event);
+        code = code.replace(anchor, anchor + '\\nglobalThis.__nativeAcceptanceMarkerEvent(this, ' + JSON.stringify(event) + ');');
+      }
+      return code;
+    }
     if (id.endsWith('/app/providers/ProjectRuntimeProvider.tsx')) {
       const anchor = 'const bootKey = \u0060\u0024{userId}:\u0024{projectId}\u0060;';
       if (code.split(anchor).length !== 2) throw new Error('Project runtime instrumentation anchor drifted');
@@ -206,6 +227,7 @@ export default (env) => mergeConfig(base(env), {
   if (editorSessions) artifact.instrumentation.push('editor session attach/detach/persist/outline observations');
   if (typewriter) artifact.instrumentation.push('typewriter resume/pause/measure/frame/dispose counts');
   if (outline) artifact.instrumentation.push('outline viewport resume/pause/measure/anchor/frame/dispose counts');
+  if (markers) artifact.instrumentation.push('scroll marker attach/resume/pause/measure/anchor/frame/dispose counts');
   console.log(`Verified fresh artifact: ${binary} (${artifact.sha256})`);
   console.log('Keep the acceptance window visible and foreground in each process; occluded WebKit animation frames may be suspended.');
   for (const phase of ['composition', 'restart']) {
@@ -238,13 +260,14 @@ export default (env) => mergeConfig(base(env), {
   const changed = after.chapters.filter((chapter, index) => chapter.sha256 !== before.chapters[index].sha256);
   assert.equal(changed.length, 1); assert.equal(changed[0].id, fixture.projects[0].nodeIds[0]);
   assert.equal(changed[0].hasSavedMarker, true); assert.equal(changed[0].characters, 5000 + ' NATIVE_ACCEPTANCE_SAVED'.length);
+  if (markers) { assert.equal(before.comments, 0); assert.equal(after.comments, 0); }
   assert.equal(after.elements, before.elements); assert.equal(after.relations, before.relations);
   assert.equal(fingerprint(), sourceFingerprint, 'Source changed while native acceptance was running');
   const report = { kind: 'renderer_native_composition', status: 'passed', generatedAt: new Date().toISOString(),
     source: { commit, fingerprint: sourceFingerprint, trackedProductChanges: patch.length > 0 }, artifact,
     environment: { platform: os.platform(), architecture: os.arch(), osRelease: os.release(), cpu: os.cpus()[0].model, totalMemoryBytes: os.totalmem() },
     fixture: { specification: fixture.specification, semanticSha256: fixture.semanticSha256, reproducible: true },
-    runs: reports, observations, persistence: { savedChapters: changed.length, unchangedChapters: after.chapters.length - changed.length, integrityCheck: 'ok', foreignKeyCheck: 'ok' },
+    runs: reports, observations, persistence: { ...(markers ? { markerFixtureCommentsRemaining: after.comments } : {}), savedChapters: changed.length, unchangedChapters: after.chapters.length - changed.length, integrityCheck: 'ok', foreignKeyCheck: 'ok' },
     acceptance: { fullAppComposition: 'passed', sqliteYjsRestart: 'passed', input: 'synthetic Tiptap commands; product navigation actions and DOM clicks', physicalIme: 'not-run', physicalGestures: 'not-run', performanceBudget: 'not-evaluated', reactCommits: 'not-measured', jsHeap: 'unavailable', memoryReclamation: 'not-measured', deviceMatrix: 'not-run' },
   };
   validate(report); writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); completed = true;

@@ -31,6 +31,8 @@ describe('native renderer acceptance data boundary', () => {
     const doc = new Y.Doc();
     try {
       db.exec(`
+        CREATE TABLE comment (id TEXT);
+        INSERT INTO comment VALUES ('synthetic-unremoved-comment');
         CREATE TABLE book_node (id TEXT, project_id TEXT, title TEXT, deleted_at TEXT, content_json TEXT);
         CREATE TABLE element (id TEXT, project_id TEXT, name TEXT, deleted_at TEXT);
         CREATE TABLE entity_relation (project_id TEXT, from_kind TEXT, from_id TEXT, to_kind TEXT, to_id TEXT, relation_type_id TEXT);
@@ -49,6 +51,7 @@ describe('native renderer acceptance data boundary', () => {
       const bytes = readFileSync(file);
       const observed = inspectNativeFixture(file);
       expect(observed.chapters).toHaveLength(1);
+      expect(observed.comments).toBe(1);
       expect(observed.chapters[0]).toMatchObject({ characters: 'Synthetic authoritative prose'.length + nativeEditMarker.length, hasSavedMarker: true });
       expect(readFileSync(file)).toEqual(bytes);
       expect(inspectNativeFixture(file)).toEqual(observed);

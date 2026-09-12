@@ -573,6 +573,9 @@ export interface UseEntityEditorResult {
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
 export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorResult {
   const { t } = useTranslation();
+  // Menu labels are read when invoked; locale changes must not recreate the
+  // canonical editor and its undo history.
+  const translateRef = useLatestRef(t);
   const {
     sourceKind,
     sourceId,
@@ -970,10 +973,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               onAddPatch,
               onCopilot,
               labels: {
-                format: t('entityEditor.contextMenu.format'),
-                addComment: t('entityEditor.contextMenu.addComment'),
-                addPatch: t('entityEditor.contextMenu.addPatch'),
-                copilot: t('entityEditor.contextMenu.copilot'),
+                format: translateRef.current('entityEditor.contextMenu.format'),
+                addComment: translateRef.current('entityEditor.contextMenu.addComment'),
+                addPatch: translateRef.current('entityEditor.contextMenu.addPatch'),
+                copilot: translateRef.current('entityEditor.contextMenu.copilot'),
               },
             });
             return true;
@@ -987,7 +990,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       autoFocus,
       editorClass,
       minHeight,
-      t,
       documentMode,
       jsonDocumentKey,
       // Yjs surfaces remain hidden until the rebuilt instance below carries

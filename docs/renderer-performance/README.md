@@ -1712,3 +1712,85 @@ warnings, one fewer after removing the standalone scrollspy. The native outline
 checker matches the final source fingerprint. A separate normal renderer
 production build passes; all 32 JS chunks exclude acceptance observers, fixture
 identities and the isolated credential namespace.
+
+## F3f — Scoped review markers and visible geometry
+
+`EditorScrollMarkers` now composes a semantic marker projection and one
+`ScrollMarkerViewportController`. Comment projections require explicit sticky
+rail membership and the current project/entity. They share a weakly keyed lookup
+for each immutable comments collection, preserve collection ordering and ignore
+body/priority/timestamp updates that do not change a tick. Agent projections read
+only the current entity's changes and ignore text, mode and provenance changes
+that leave marker semantics unchanged. Field changes never receive prose ticks.
+
+Marker equality includes the complete click range, lane and translation key.
+Previously, a range edit that retained its first anchor could leave the old
+click targets in React state; translated titles could also remain stale. Titles
+now translate at render time. Existing comment families, resolved styling,
+three Agent operation lanes, deletion-predecessor/top anchoring and native
+scrollbar placement remain intact.
+
+A visible or preparing, nonempty viewport owns its resize/mutation/load/window
+listeners and one pending frame. Hidden and empty viewports release those
+resources. Incoming geometry is prepared in layout without recreating the editor
+or Y.Doc. Each pass stops at the first present comment anchor and shares queries
+and rectangle reads across markers. It releases removed observed nodes. Ordinary
+scroll requires no measurement; root style/typewriter-tail changes do invalidate
+content-relative fractions. Descendant animation styles do not schedule work.
+
+The locale scenario also exposed a canonical-session lifetime bug:
+`useEntityEditor` included the translation function in Tiptap reconstruction
+inputs, even though it was only used by the context menu. The menu now reads a
+latest-value translation ref when invoked. Locale changes update presentation
+without destroying the prose editor or its undo manager. Other constructor
+inputs retain their existing behavior.
+
+Six projection tests and ten viewport tests cover semantic notifications, scope,
+field exclusion, anchor aliases, stale click ranges, coalescing, unchanged
+snapshots, virtual tails, orphan restoration and effect replay. With 1, 5 and 20
+retained DOM/event doubles, only the visible marker viewport observes layout;
+hidden viewports perform zero reads and all resources release on disposal.
+
+```bash
+pnpm perf:renderer:native --markers
+pnpm perf:renderer:native --markers --check
+```
+
+`acceptance/f3-markers-native.json` contains the earlier native session,
+typewriter and outline scenarios plus twenty real authored comments. With twenty
+retained chapter tabs, empty marker owners perform no geometry work; after
+explicit membership is populated, only the visible marker viewport listens.
+Actual DOM clicks verify the full updated range, translated title and TODO
+family. Hidden comment-range and authored Yjs edits, root size/load/resize
+changes leave that viewport's counters unchanged. Returning prepares the new
+anchor and its smooth jump centers the target. The check uses the paragraph's
+center rather than requiring the whole paragraph to fit. Buttons receive focus
+before programmatic clicks, matching the
+focus transfer needed for this interaction.
+
+The native locale check retains the exact editor/Y.Doc, opens a context menu in
+the new language, restores the original locale and later undoes/redoes the
+original saved prose edit. Both visible split marker owners remain active;
+closing all tabs disposes their controllers. The composition report records 24
+owners, 23 disposed before reporting (the final reopened editor is still alive),
+with 5 resumes/pauses, 25 geometry passes and 19 anchor rectangle reads. These
+scoped observations do not establish total CPU or input-latency improvement.
+
+Both native processes exit through the real Quit path with code zero and no
+uncaught renderer errors. Independent read-only SQLite/Yjs inspection finds
+zero remaining synthetic comments, exactly one saved chapter and 52 unchanged
+chapter hashes, with passing integrity/foreign-key checks. Generated evidence
+matches the final product/harness fingerprint; earlier reports keep their
+historical fingerprints.
+
+Validation passes 2,459 regular tests with 1 existing skip, including the 8
+renderer architecture checks, typecheck, lint (0 errors, 73 existing warnings),
+CI/public contracts, Agent capabilities and the renderer performance contract.
+The normal production build passes; all 32 JS chunks exclude acceptance imports,
+fixture identities and the isolated credential namespace. The final harness
+click adjustment also passes targeted lint and the complete native rerun.
+
+F3 and F8 remain `in_progress`. Marker presentation does not own durable review
+decisions, reveal masks or activity seen state. Full Agent review/masking,
+other entity/mobile flows, physical input and comparative device/input/memory
+budgets remain separate acceptance work.

@@ -8,6 +8,12 @@ import { getPlatformRuntime } from '../src/renderer/platform/runtime';
 import * as Y from 'yjs';
 import { createBookContentRepository } from '../src/renderer/sqlite-repo/content-repo';
 import { flushOpenYjsDocument } from '../src/renderer/services/yjs-local-durability.service';
+import { i18next } from '../src/renderer/lib/i18n';
+import { createCommentWithSync, deleteCommentWithSync } from '../src/renderer/usecase/synced-entity-commands';
+import { withAtomicSyncTransaction } from '../src/renderer/usecase/sync-helpers';
+import { createCommentRepository } from '../src/renderer/sqlite-repo/comment-repo';
+import { addCommentToStickyNoteRail, removeCommentFromAllStickyNoteRails } from '../src/renderer/hooks/useEntityStickyNoteRail';
+import type { Comment } from '../src/renderer/domain/comment';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
@@ -15,6 +21,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   editorSessions: boolean;
   typewriter: boolean;
   outline: boolean;
+  markers: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -32,6 +39,8 @@ const typewriterInstances = new WeakMap<object, number>();
 const typewriterObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 const outlineInstances = new WeakMap<object, number>();
 const outlineObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
+const markerInstances = new WeakMap<object, number>();
+const markerObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 let step = 'bootstrap';
 Object.assign(globalThis, {
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
@@ -49,6 +58,16 @@ Object.assign(globalThis, {
     }
     const row = typewriterObservations[index];
     row.surface = owner.editor.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
+    row.counts[event] = (row.counts[event] ?? 0) + 1;
+  },
+  __nativeAcceptanceMarkerEvent(owner: { root: HTMLElement }, event: string) {
+    let index = markerInstances.get(owner);
+    if (index === undefined) {
+      index = markerObservations.length; markerInstances.set(owner, index);
+      markerObservations.push({ surface: '', counts: {} });
+    }
+    const row = markerObservations[index];
+    row.surface = owner.root.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
     row.counts[event] = (row.counts[event] ?? 0) + 1;
   },
   __nativeAcceptanceOutlineEvent(owner: { root: HTMLElement }, event: string) {
@@ -152,6 +171,12 @@ async function run() {
     ensure(await saveActiveEditor(), 'Native production save callback missing');
     const listeningTypewriters = () => typewriterObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
     const listeningOutlines = () => outlineObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
+    const listeningMarkers = () => markerObservations.filter(row => (row.counts.resume ?? 0) > (row.counts.pause ?? 0));
+    const markerCommentIds: string[] = [];
+    if (config.markers) {
+      ensure(markerObservations.length >= 20 && listeningMarkers().length === 0 && markerObservations.every(row => !row.counts.measure), 'Empty marker owners performed layout work');
+      checks.markersEmptyOwnersIdle = true;
+    }
     if (config.typewriter) {
       await waitFor(() => listeningTypewriters().length === 1, 'only one typewriter display owner among twenty tabs');
       ensure(typewriterObservations.length >= 20, 'Typewriter observations missed retained editors');
@@ -314,6 +339,104 @@ async function run() {
       ensure(first.getText() === before + marker, 'Outline fixture changed original prose');
       checks.outlineNavigationAndHiddenPreparation = true;
     }
+    if (config.markers) {
+      await progress('scroll-markers-membership-and-range');
+      const paragraphs = Array.from({ length: 3 }, (_, index) => {
+        const paragraph = new Y.XmlElement<{ id: string }>('paragraph');
+        paragraph.setAttribute('id', `synthetic-scroll-marker-${index}`);
+        paragraph.insert(0, [new Y.XmlText(`Synthetic marker paragraph ${index}. `.repeat(12))]);
+        return paragraph;
+      });
+      doc.transact(() => doc.getXmlFragment('default').insert(0, paragraphs), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      const viewport = first.view.dom.closest<HTMLElement>('.editor-scroll');
+      const surface = first.view.dom.closest<HTMLElement>('[data-editor-surface]');
+      ensure(viewport && surface, 'Marker viewport missing');
+      const block = (index: number) => first.view.dom.querySelector<HTMLElement>(`[data-block-id="synthetic-scroll-marker-${index}"]`)!;
+      await waitFor(() => block(2), 'stable marker fixture anchors');
+      for (const [index, nodeId] of a.nodeIds.slice(0, 20).entries()) {
+        const anchor = document.querySelector<HTMLElement>(`[data-editor-surface="node:${nodeId}"] .ProseMirror [data-block-id]`);
+        ensure(anchor?.dataset.blockId, 'Retained marker anchor absent');
+        const now = new Date().toISOString();
+        const comment: Comment = { id: `native-marker-comment-${index}`, projectId: a.id, kind: 'note', targetKind: 'node', targetId: nodeId,
+          targetBlockId: anchor.dataset.blockId, targetBlockIdsJson: '[]', anchorJson: '{}', authorKind: 'user', authorId: null, authorName: null,
+          bodyJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Synthetic marker acceptance note' }] }] }),
+          status: 'open', priority: null, source: 'manual', metadataJson: null, resolvedAt: null, createdAt: now, updatedAt: now };
+        await createCommentWithSync(comment);
+        if (!useDataStore.getState().comments.some(c => c.id === comment.id)) useDataStore.getState().addComment(comment);
+        markerCommentIds.push(comment.id);
+        addCommentToStickyNoteRail('node', nodeId, comment.id);
+      }
+      await waitFor(() => listeningMarkers().length === 1 && surface.querySelector('.editor__scrollmap-tick'), 'one nonempty marker viewport among twenty tabs');
+      checks.markersSingleVisibleOwner = true;
+      async function patchComment(id: string, patch: Partial<Comment>) {
+        const persisted = await withAtomicSyncTransaction(a.id, async (tx, sync) => {
+          const record = await createCommentRepository(a.id, tx).update(id, { ...patch, updatedAt: new Date().toISOString() });
+          ensure(record, 'Synthetic comment update missing');
+          const payload = Object.fromEntries(Object.entries(record).filter(([key]) => !['projectId', 'createdAt', 'updatedAt'].includes(key)));
+          await sync('comment', 'update', id, a.id, payload);
+          return record;
+        });
+        useDataStore.getState().updateComment(id, persisted);
+      }
+      const tick = () => surface.querySelector<HTMLButtonElement>('.editor__scrollmap-tick')!;
+      await patchComment(markerCommentIds[0], { targetBlockIdsJson: JSON.stringify(['synthetic-scroll-marker-0', 'synthetic-scroll-marker-1']) });
+      await frames();
+      tick().focus(); tick().click();
+      ensure(block(0).getAnimations().length > 0 && block(1).getAnimations().length > 0 && block(2).getAnimations().length === 0, 'Unchanged first anchor retained the old click range');
+      await progress('marker-locale-editor-continuity');
+      const locale = i18next.language;
+      await i18next.changeLanguage(locale === 'en' ? 'zh-CN' : 'en');
+      await waitFor(() => tick().title === i18next.t('editorScrollMarkers.jumpToComment'), 'translated marker title');
+      ensure(!first.isDestroyed && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Locale update recreated canonical editor');
+      first.commands.setTextSelection({ from: 1, to: 5 });
+      first.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+      await waitFor(() => document.querySelector('.editor-comment-menu')?.textContent?.includes(i18next.t('entityEditor.contextMenu.format')), 'latest translated context menu');
+      await delay(20); document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await waitFor(() => !document.querySelector('.editor-comment-menu'), 'context menu dismissed');
+      first.commands.setTextSelection(first.state.doc.content.size - 1);
+      await i18next.changeLanguage(locale);
+      ensure(!first.isDestroyed, 'Restoring locale recreated canonical editor');
+      await patchComment(markerCommentIds[0], { kind: 'todo' });
+      await waitFor(() => tick().classList.contains('editor__scrollmap-tick--c-todo') && tick().title === i18next.t('editorScrollMarkers.jumpToTodo'), 'updated marker family and title');
+      checks.markersRangeAndLocale = true;
+      await open(a.id, a.nodeIds[2]);
+      await frames(); await frames();
+      const ownRows = () => markerObservations.filter(row => row.surface === `node:${a.nodeIds[0]}`);
+      const hidden = JSON.stringify(ownRows());
+      const oldHeight = viewport.style.height; const oldFlex = viewport.style.flex;
+      viewport.style.height = '420px'; viewport.style.flex = 'none';
+      await patchComment(markerCommentIds[0], { targetBlockId: 'synthetic-scroll-marker-2', targetBlockIdsJson: '["synthetic-scroll-marker-2"]' });
+      doc.transact(() => (paragraphs[0].get(0) as Y.XmlText).insert(0, 'Synthetic hidden authored update. '), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      viewport.dispatchEvent(new Event('load')); window.dispatchEvent(new Event('resize'));
+      await frames(); await frames();
+      ensure(JSON.stringify(ownRows()) === hidden, 'Hidden marker update scheduled or measured layout');
+      await open(a.id, a.nodeIds[0]);
+      await waitFor(() => tick() && parseFloat(tick().style.top) > 0, 'prepared moved marker on return');
+      ensure(JSON.stringify(ownRows()) !== hidden, 'Returning marker geometry was not prepared');
+      tick().focus(); tick().click(); ensure(block(2).getAnimations().length > 0, 'Returned marker did not use the current anchor');
+      await waitFor(() => {
+        const rect = block(2).getBoundingClientRect(); const rootRect = viewport.getBoundingClientRect();
+        // A long block may be taller than the viewport. Centering must
+        // reveal its middle, rather than requiring the whole block to fit.
+        return Math.abs((rect.top + rect.bottom) / 2 - (rootRect.top + rootRect.bottom) / 2) < 4;
+      }, 'native smooth marker jump centers target block');
+      ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Marker transition recreated prose truth');
+      viewport.style.height = oldHeight; viewport.style.flex = oldFlex;
+      doc.transact(() => doc.getXmlFragment('default').delete(0, 3), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      const originalAnchor = first.view.dom.querySelector<HTMLElement>('[data-block-id]')?.dataset.blockId;
+      ensure(originalAnchor, 'Original block lost after marker cleanup');
+      await patchComment(markerCommentIds[0], { targetBlockId: originalAnchor, targetBlockIdsJson: '[]' });
+      ensure(await saveActiveEditor(), 'Marker fixture cleanup save missing');
+      ensure(first.getText() === before + marker, 'Marker fixture changed original prose');
+      ensure(first.commands.undo() && first.getText() === before, 'Locale change lost undo history');
+      ensure(first.commands.redo() && first.getText() === before + marker, 'Locale change lost redo history');
+      ensure(await saveActiveEditor(), 'Post-locale history save missing');
+      checks.markerLocalePreservesEditorAndHistory = true;
+      checks.markersHiddenPreparation = true;
+    }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
@@ -344,6 +467,11 @@ async function run() {
       await waitFor(() => listeningOutlines().length === 2, 'both visible split outline owners');
       checks.outlineVisibleSplit = true;
     }
+    if (config.markers) {
+      await waitFor(() => listeningMarkers().length === 2, 'both visible split marker owners');
+      ensure([...document.querySelectorAll('[data-editor-surface-visible="true"]')].every(surface => surface.querySelector('.editor__scrollmap-tick')), 'Visible split lost comment ticks');
+      checks.markersVisibleSplit = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
@@ -355,6 +483,16 @@ async function run() {
     if (config.outline) {
       ensure(listeningOutlines().length === 0 && outlineObservations.every(row => row.counts.dispose === 1), 'Closed outline owners leaked');
       checks.outlineClosedOwnersReleased = true;
+    }
+    if (config.markers) {
+      ensure(listeningMarkers().length === 0 && markerObservations.every(row => row.counts.dispose === 1), 'Closed marker owners leaked');
+      checks.markersClosedOwnersReleased = true;
+      for (const id of markerCommentIds) {
+        removeCommentFromAllStickyNoteRails(id);
+        await deleteCommentWithSync(a.id, id);
+        useDataStore.getState().removeComment(id);
+      }
+      ensure((await createCommentRepository(a.id).findAll()).length === 0, 'Synthetic comments survived cleanup');
     }
     if (config.editorSessions) {
       const counts = new Map<number, number>();
@@ -384,11 +522,11 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });
 }
 void run().catch(async error => {
-  await post({ kind: 'result', status: 'failed', error: String(error), lifecycle, failures }).catch(() => undefined);
+  await post({ kind: 'result', status: 'failed', error: String(error), lifecycle, checks, failures }).catch(() => undefined);
 });

@@ -165,7 +165,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(commentsReviewCss).toMatch(
       /\.editor__scrollmap-tick\s*\{[\s\S]*?pointer-events:\s*auto;/,
     );
-    expect(scrollMarkers).toContain('onClick={() => jump(t.blockIds)}');
+    expect(scrollMarkers).toContain('onClick={() => jump(tick.blockIds)}');
     expect(scrollMarkers).toContain("scrollIntoView({ behavior: 'smooth', block: 'center' })");
     expect(scrollMarkers).toContain('blocks.forEach(flashBlock)');
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');

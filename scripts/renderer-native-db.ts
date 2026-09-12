@@ -35,6 +35,7 @@ export function inspectNativeFixture(file: string) {
     const elements = db.prepare('SELECT id, project_id, name FROM element WHERE deleted_at IS NULL ORDER BY project_id, name').all();
     const relations = db.prepare('SELECT project_id, from_kind, from_id, to_kind, to_id, relation_type_id FROM entity_relation ORDER BY project_id, from_id, to_id, relation_type_id').all();
     const semanticSha256 = createHash('sha256').update(JSON.stringify({ chapters, elements, relations })).digest('hex');
-    return { chapters, elements: elements.length, relations: relations.length, semanticSha256 };
+    return { chapters, elements: elements.length, relations: relations.length, semanticSha256,
+      comments: Number(db.prepare('SELECT count(*) AS count FROM comment').get()?.count) };
   } finally { db.close(); }
 }

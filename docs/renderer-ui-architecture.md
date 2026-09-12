@@ -241,6 +241,26 @@ reveals and their closing timer are discarded on hide; mobile portal content
 also follows actual surface visibility. The native scrollbar and document
 session remain independent from this display owner.
 
+Scrollbar review ticks have a separate presentation owner:
+`ScrollMarkerViewportController`. Comment input is scoped to the current
+project/entity and explicit rail membership, using a shared weak lookup of the
+immutable comments collection. Agent input selects one entity's pending changes.
+Only marker semantics notify the consumer; text/provenance updates do not.
+The model retains complete anchor ranges, operation lanes and translation keys.
+Translations resolve during render, so locale changes do not rely on geometry.
+
+Only visible/preparing, nonempty marker viewports attach layout observers. Hidden
+or empty surfaces disconnect and cancel their pending frame. A layout pass
+prepares incoming markers, shares anchor queries/rectangles and releases replaced
+observed nodes. Ordinary scroll is free of marker measurements; root virtual-tail
+styles invalidate content-relative positions. This owner never changes prose,
+review decisions, seen state or masking. `EditorReviewLayer` keeps those canonical
+owners mounted independently.
+
+The shared entity-editor context menu reads current translations through a
+latest-value ref when invoked. A locale revision is not a Tiptap reconstruction
+input: changing menu/marker labels must preserve the editor and undo history.
+
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
@@ -277,9 +297,11 @@ The native control scenario now covers 20 full-App tabs, editor/Y.Doc identity,
 undo/redo, split, hidden authored Yjs updates and SQLite materialization, outline
 preparation, binding cleanup, project switches and process restart. Broader
 scroll/field-draft continuity, native IME and retained-document memory budgets
-remain separate acceptance work in the plan. Selection capture, review-marker
-geometry and other interaction owners still need their own visibility audit;
-pausing typewriter/outline work does not pause those owners.
+remain separate acceptance work in the plan. The marker control scenario adds
+real comment membership/range changes, hidden geometry suspension, native jumps,
+locale/undo continuity and split disposal. Full Agent review/masking, selection
+capture and other interaction owners still need separate acceptance; pausing
+typewriter/outline/marker work does not pause those owners.
 
 Automatic linking is also view-owned. Each editor retains its own immutable
 target map and self/parent exclusions; live updates do not recreate its document.

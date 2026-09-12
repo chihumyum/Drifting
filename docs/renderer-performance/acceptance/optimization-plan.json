@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "implementation_plan",
   "maintainedBy": "human",
-  "updatedAt": "2026-09-12",
+  "updatedAt": "2026-09-13",
   "document": "docs/renderer-performance/optimization-plan.md",
   "reviewBaselineCommit": "8106f90b5ab898f51d296f6c2fb838e13dd74c2c",
   "planStatus": "recorded",
@@ -182,7 +182,8 @@
             "docs/renderer-performance/acceptance/f3-editor-link-ownership.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         },
@@ -195,7 +196,8 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         },
@@ -208,12 +210,13 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "canonical_sessions_review_links_typewriter_and_shared_outline_viewport_implemented_other_display_owners_and_device_budgets_pending"
+      "implementationStatus": "canonical_sessions_review_links_typewriter_outline_and_marker_viewports_implemented_selection_other_interactions_and_device_budgets_pending"
     },
     {
       "id": "F4",
@@ -481,7 +484,8 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         },
@@ -497,7 +501,8 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         },
@@ -508,7 +513,8 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
-            "docs/renderer-performance/acceptance/f3-outline-native.json"
+            "docs/renderer-performance/acceptance/f3-outline-native.json",
+            "docs/renderer-performance/acceptance/f3-markers-native.json"
           ],
           "status": "partial"
         }
