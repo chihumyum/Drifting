@@ -1,7 +1,7 @@
 import { useCallback, type RefObject } from 'react';
 import { RelationArrowMarker } from '../../components/graph/RelationArrowMarker';
 import { relationArrowMarkerId, relationEdgePath } from '../../components/graph/relation-edge-visual';
-import { measureGraphEdges, type GraphDomEdge } from './graph-edge-geometry';
+import { measureGraphEdges, sameGraphEdgeGeometry, type GraphDomEdge } from './graph-edge-geometry';
 import { useMeasuredGraphEdges } from './useMeasuredGraphEdges';
 
 export interface SuperElementDriftEdgesProps {
@@ -22,7 +22,7 @@ export function SuperElementDriftEdges({ edges, driftCardRefs, elementCardRefs, 
 }: SuperElementDriftEdgesProps) {
   const measure = useCallback(() => measureGraphEdges(edges, (kind, id) => kind === 'node'
     ? driftCardRefs.current.get(id) : elementCardRefs.current.get(id)), [edges, driftCardRefs, elementCardRefs]);
-  const geometry = useMeasuredGraphEdges({ measure, revision: layoutRevision, animationWindowMs: 600,
+  const geometry = useMeasuredGraphEdges({ measure, equals: sameGraphEdgeGeometry, revision: layoutRevision, animationWindowMs: 600,
     layerRef, panningRef, viewportRef, panEndEvent: 'super-element:pan-end' });
   return (
     <svg

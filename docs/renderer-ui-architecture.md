@@ -215,8 +215,26 @@ The shell still moves the world via refs and DOM transforms during pan. Drift
 measurement pauses while that ref is active, and the SVG remains hidden at
 pan-end until fresh geometry has committed (or an equal already-committed
 result is verified). Unmount cancels frames and releases listeners/observers.
-Sticky/focus viewport geometry and the Story Graph/Timeline controllers remain
-separate work in F5; their state ownership has not yet been changed.
+`SuperElementViewportEdges` also owns its geometry. It reads the live pan/zoom
+refs at the scheduled frame and compares labels/endpoint metadata as well as
+coordinates, so a rename cannot leave a stale tooltip. Both line layers remain
+hidden after a pan until their fresh output is committed. `useSuperElementTransform`
+owns imperative world/band transforms and a viewport resize observer; it shares
+the pure band-top function with edge projection and performs dimension reads
+before transform writes. Container resize updates alignment without setting
+parent React state.
+
+`StoryGraphDriftEdges` uses the same geometry scheduler with its existing 500 ms
+entry window and native scroll behavior. Its pure relation model preserves
+either-endpoint drift classification, direction and the type override → source
+storyline → target storyline → accent color precedence. Visible-card filtering,
+layout changes and drag insertion changes invalidate measurement. Measurement
+resolves drift-card refs before storyline tile refs, as before.
+
+The shared measurement hook binds its viewport observer on the first frame,
+after child and parent refs have attached. A child layout effect alone cannot
+assume its parent DOM ref already exists. Timeline adoption and full graph/native
+interaction acceptance remain open in F5.
 
 ## Desktop universal create
 

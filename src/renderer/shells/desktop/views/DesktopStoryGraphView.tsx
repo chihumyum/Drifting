@@ -1,4 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { StoryGraphDriftEdges } from '../../../features/graph/StoryGraphDriftEdges';
+import { projectStoryGraphDriftEdges } from '../../../features/graph/story-graph-drift-model';
 import { useTranslation } from 'react-i18next';
 import type { Storyline } from '../../../domain/storyline';
 import type { BookNode } from '../../../domain/book-node';
@@ -860,7 +862,7 @@ export function DesktopStoryGraphView() {
     setDraggedDrift(null);
     setDriftDropIndex(null);
     closeDriftPanelBase();
-  }, [closeDriftPanelBase]);
+  }, [closeDriftPanelBase, setDraggedDrift, setDriftDropIndex]);
 
   useSuperViewEscapeStack(
     [
@@ -918,111 +920,15 @@ export function DesktopStoryGraphView() {
     close,
   );
 
-  // Drift edges that touch at least one drift endpoint. Other edges are
-  // already handled by `visibleEdges` (which skips them because drift nodes
-  // aren't in `positionedById`).
-  type DriftEdgeGeom = {
-    id: string;
-    relationTypeId: string;
-    directed: boolean;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    targetInsetX: number;
-    targetInsetY: number;
-    color: string;
-  };
-  const [driftEdgeGeom, setDriftEdgeGeom] = useState<DriftEdgeGeom[]>([]);
-
-  // Recompute viewport-space endpoints for every drift edge while the drift
-  // panel is mounted: an rAF loop captures the open/close slide animation and
-  // any tile movement; scroll + resize listeners cover everything afterward.
-  // Cheap — each tick reads a handful of bounding rects.
-  useLayoutEffect(() => {
-    if (!driftPanelMounted) return;
-    let raf = 0;
-    let stopRaf = false;
-    const recompute = () => {
-      const out: DriftEdgeGeom[] = [];
-      for (const edge of nodeEdges) {
-        const srcIsDrift = driftIds.has(edge.sourceNodeId);
-        const tgtIsDrift = driftIds.has(edge.targetNodeId);
-        if (!srcIsDrift && !tgtIsDrift) continue;
-        // Respect type-toggle visibility: when the user hides a relation type,
-        // its drift edges drop out of the SVG
-        // too. Storyline edges are filtered in `visibleEdges` the same
-        // way; this keeps the two paths consistent.
-        if (hiddenRelationTypeIds.has(edge.relationTypeId)) continue;
-        const srcEl =
-          driftCardRefs.current.get(edge.sourceNodeId) ?? tileRefs.current.get(edge.sourceNodeId);
-        const tgtEl =
-          driftCardRefs.current.get(edge.targetNodeId) ?? tileRefs.current.get(edge.targetNodeId);
-        if (!srcEl || !tgtEl) continue;
-        const r1 = srcEl.getBoundingClientRect();
-        const r2 = tgtEl.getBoundingClientRect();
-        // Color precedence:
-        //   1. Per-type override (from the edge-management menu) — when
-        //      the user assigns a type color, drift edges of that type
-        //      should match.
-        //   2. Storyline-side endpoint's color — the default look ties
-        //      drift edges visually to whichever track they land on.
-        //   3. --accent fallback for drift↔drift links.
-        const srcPos = positionedById.get(edge.sourceNodeId);
-        const tgtPos = positionedById.get(edge.targetNodeId);
-        const override = edgeKindMeta.meta[edge.relationTypeId]?.color;
-        const storylineColor =
-          override || srcPos?.storyline?.color || tgtPos?.storyline?.color || 'hsl(var(--accent))';
-        out.push({
-          id: edge.id,
-          relationTypeId: edge.relationTypeId,
-          directed: relationTypeById.get(edge.relationTypeId)?.orientation === 'directed',
-          x1: r1.left + r1.width / 2,
-          y1: r1.top + r1.height / 2,
-          x2: r2.left + r2.width / 2,
-          y2: r2.top + r2.height / 2,
-          targetInsetX: r2.width / 2 + 6,
-          targetInsetY: r2.height / 2 + 6,
-          color: storylineColor,
-        });
-      }
-      setDriftEdgeGeom(out);
-    };
-    const tick = () => {
-      if (stopRaf) return;
-      recompute();
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    // Stop the rAF loop after the slide animation settles; rely on
-    // scroll/resize listeners thereafter to keep the geometry fresh.
-    const stopTimer = window.setTimeout(() => {
-      stopRaf = true;
-      cancelAnimationFrame(raf);
-    }, 500);
-    const onScrollOrResize = () => recompute();
-    window.addEventListener('resize', onScrollOrResize);
-    const canvas = canvasRef.current;
-    canvas?.addEventListener('scroll', onScrollOrResize);
-    const driftHand = driftHandRef.current;
-    driftHand?.addEventListener('scroll', onScrollOrResize);
-    return () => {
-      stopRaf = true;
-      cancelAnimationFrame(raf);
-      window.clearTimeout(stopTimer);
-      window.removeEventListener('resize', onScrollOrResize);
-      canvas?.removeEventListener('scroll', onScrollOrResize);
-      driftHand?.removeEventListener('scroll', onScrollOrResize);
-    };
-  }, [
-    driftPanelMounted,
-    nodeEdges,
-    driftIds,
-    positionedById,
-    hiddenRelationTypeIds,
-    edgeKindMeta.meta,
-    relationTypeById,
-  ]);
+  const driftEdges = useMemo(() => projectStoryGraphDriftEdges({ edges: nodeEdges, driftIds,
+    hiddenRelationTypeIds, relationTypeById, positionedById, typeMeta: edgeKindMeta.meta }),
+  [nodeEdges, driftIds, hiddenRelationTypeIds, relationTypeById, positionedById, edgeKindMeta.meta]);
+  const driftLayoutRevision = useMemo(() => ({ positionedById, visibleDriftNodes, draggedDrift, driftDropIndex }),
+    [positionedById, visibleDriftNodes, draggedDrift, driftDropIndex]);
+  const resolveDriftRelationTypeLabel = useCallback((id: string) => {
+    const type = relationTypeById.get(id);
+    return type ? presentRelationType(type).name : t('relationTypes.missing');
+  }, [relationTypeById, presentRelationType, t]);
 
   const startGraphChapterPointerDrag = (
     event: React.PointerEvent<HTMLElement>,
@@ -1112,7 +1018,7 @@ export function DesktopStoryGraphView() {
   const commitDriftReorder = useCallback(async () => {
     setDraggedDrift(null);
     setDriftDropIndex(null);
-  }, []);
+  }, [setDraggedDrift, setDriftDropIndex]);
 
   const totalsLabel = t('storyGraph.meta', {
     storylines: storylines.length,
@@ -2003,67 +1909,13 @@ export function DesktopStoryGraphView() {
       </DriftPanel>
 
       {/* Fixed-position SVG overlay for drift edges. Endpoints are in
-          viewport coordinates (computed in the rAF loop above), so this SVG
+          viewport coordinates (owned by the isolated line layer), so this SVG
           fills the viewport and ignores scroll. pointer-events: none on
           the SVG; the path itself opts in so users can click to delete. */}
-      {driftPanelOpen && driftEdgeGeom.length > 0 && (
-        <svg className="graph-drift-edges" aria-hidden>
-          <defs>
-            <filter id="drift-edge-glow" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="2.2" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          {driftEdgeGeom.map((g) => {
-            const markerId = relationArrowMarkerId('story-drift-arrow', g.id);
-            const d = relationEdgePath({
-              x1: g.x1,
-              y1: g.y1,
-              x2: g.x2,
-              y2: g.y2,
-              directed: g.directed,
-              targetInsetX: g.targetInsetX,
-              targetInsetY: g.targetInsetY,
-            });
-            const selected = isEdgeSelected(g.id);
-            return (
-              <g key={g.id} className={`graph-drift-edge${selected ? ' is-selected' : ''}`}>
-                {g.directed && (
-                  <defs>
-                    <RelationArrowMarker id={markerId} color={g.color} />
-                  </defs>
-                )}
-                <path
-                  className="graph-drift-edge__hit"
-                  d={d}
-                  stroke="transparent"
-                  strokeWidth={12}
-                  fill="none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    selectEdge(g.id, e.clientX, e.clientY);
-                  }}
-                >
-                  <title>
-                    {relationTypeById.has(g.relationTypeId)
-                      ? presentRelationType(relationTypeById.get(g.relationTypeId)!).name
-                      : t('relationTypes.missing')}
-                  </title>
-                </path>
-                <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
-                <path
-                  className="graph-drift-edge__line"
-                  d={d}
-                  stroke={g.color}
-                  markerEnd={g.directed ? `url(#${markerId})` : undefined}
-                />
-              </g>
-            );
-          })}
-        </svg>
+      {driftPanelOpen && (
+        <StoryGraphDriftEdges edges={driftEdges} driftCardRefs={driftCardRefs} tileRefs={tileRefs}
+          viewportRef={canvasRef} revision={driftLayoutRevision} selectedEdgeId={selectedEdgeId}
+          selectEdge={selectEdge} resolveRelationTypeLabel={resolveDriftRelationTypeLabel} />
       )}
 
       {selectedEdgeAnchor && selectedEdgeRelation && selectedEdgeType && (

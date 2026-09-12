@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { sameGraphEdgeGeometry, type GraphEdgeGeometry } from './graph-edge-geometry';
+import type { GraphEdgeGeometry } from './graph-edge-geometry';
 import { createGraphGeometryScheduler } from './graph-geometry-scheduler';
 
-interface MeasuredGraphOptions {
-  measure(): GraphEdgeGeometry[];
+interface MeasuredGraphOptions<T extends GraphEdgeGeometry> {
+  measure(): T[];
+  equals(a: readonly T[], b: readonly T[]): boolean;
   /** Layout/filter changes may move or unmount endpoints without changing edges. */
   revision: unknown;
   animationWindowMs: number;
@@ -14,23 +15,32 @@ interface MeasuredGraphOptions {
 }
 
 /** Own geometry and subscriptions inside the line layer, never the card tree. */
-export function useMeasuredGraphEdges({ measure, revision, animationWindowMs, layerRef, panningRef,
-  viewportRef, panEndEvent }: MeasuredGraphOptions) {
-  const [geometry, setGeometry] = useState<GraphEdgeGeometry[]>([]);
+export function useMeasuredGraphEdges<T extends GraphEdgeGeometry>({ measure, equals, revision, animationWindowMs, layerRef, panningRef,
+  viewportRef, panEndEvent }: MeasuredGraphOptions<T>) {
+  const [geometry, setGeometry] = useState<T[]>([]);
   const committed = useRef(geometry);
   const active = useRef<symbol | null>(null);
-  const published = useRef<{ value: GraphEdgeGeometry[]; generation: symbol } | null>(null);
+  const published = useRef<{ value: T[]; generation: symbol } | null>(null);
 
   useLayoutEffect(() => {
     const generation = Symbol('graph-geometry');
     active.current = generation;
     // Keep the old lines hidden until a fresh measurement has reached the DOM.
     layerRef.current?.setAttribute('data-panning', '1');
+    let observedViewport: HTMLElement | null = null;
+    const observer = new ResizeObserver(() => scheduler.invalidate());
     const scheduler = createGraphGeometryScheduler(() => {
+      // A child layout effect can run before its parent DOM ref attaches.
+      // Bind at the first frame, once all refs from the commit are available.
+      if (observedViewport !== viewportRef.current) {
+        if (observedViewport) observer.disconnect();
+        observedViewport = viewportRef.current;
+        if (observedViewport) observer.observe(observedViewport);
+      }
       if (panningRef.current) return;
       const next = measure();
       const previous = published.current?.value ?? committed.current;
-      if (sameGraphEdgeGeometry(previous, next)) {
+      if (equals(previous, next)) {
         published.current = { value: previous, generation };
         if (committed.current === previous) layerRef.current?.removeAttribute('data-panning');
       } else {
@@ -41,8 +51,6 @@ export function useMeasuredGraphEdges({ measure, revision, animationWindowMs, la
     window.addEventListener('scroll', scheduler.invalidate, true);
     window.addEventListener('resize', scheduler.invalidate);
     if (panEndEvent) window.addEventListener(panEndEvent, scheduler.invalidate);
-    const observer = new ResizeObserver(scheduler.invalidate);
-    if (viewportRef.current) observer.observe(viewportRef.current);
     return () => {
       active.current = null;
       scheduler.dispose(); observer.disconnect();
@@ -50,7 +58,7 @@ export function useMeasuredGraphEdges({ measure, revision, animationWindowMs, la
       window.removeEventListener('resize', scheduler.invalidate);
       if (panEndEvent) window.removeEventListener(panEndEvent, scheduler.invalidate);
     };
-  }, [measure, revision, animationWindowMs, layerRef, panningRef, viewportRef, panEndEvent]);
+  }, [measure, equals, revision, animationWindowMs, layerRef, panningRef, viewportRef, panEndEvent]);
 
   useLayoutEffect(() => {
     committed.current = geometry;

@@ -166,6 +166,22 @@ if (report.graphGeometry) {
     assert.equal(scenario.ownership.layoutReads, 200_000);
   }
 }
+if (report.graphOverlays) {
+  const { viewport, story } = report.graphOverlays;
+  assert.deepEqual(viewport.unchanged, { cardCommits: 0, lineRenders: 0 });
+  assert.deepEqual(viewport.resized, { cardCommits: 0, lineRenders: 1 });
+  assert.deepEqual(story.unchanged, { cardCommits: 0, lineRenders: 0, layoutReads: 100 });
+  assert.deepEqual(story.moved, { cardCommits: 0, lineRenders: 1, layoutReads: 100 });
+  for (const [scenario, required] of [[viewport, ['sticky-node-matches-real-band-dom',
+    'container-resize-keeps-band-and-svg-aligned', 'viewport-pan-end-keeps-old-lines-hidden',
+    'viewport-pan-end-reveals-aligned-lines', 'label-only-change-reaches-tooltip', 'viewport-unmount-removes-layer']],
+  [story, ['story-animation-window-stops', 'story-svg-preserves-edge-count-style-and-arrows',
+    'story-layer-is-visible-after-measurement', 'story-scroll-burst-one-read-per-endpoint-no-render',
+    'story-hit-target-preserves-anchor', 'story-bound-filter-removes-dangling-lines', 'story-unmount-cancels-reads']]]) {
+    for (const id of required) assert(scenario.checks.some((check) => check.id === id && check.passed), `missing F5c check ${id}`);
+    for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  }
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

@@ -1,4 +1,5 @@
 import { indexById } from '../../lib/immutable-id-index';
+import { sameGraphEdgeGeometry } from './graph-edge-geometry';
 import type { BookElement } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
 import type { EntityRelationType } from '../../domain/entity-relation-type';
@@ -109,6 +110,20 @@ export interface SuperElementViewportInput {
   cellHeight: number;
 }
 
+/** Shared by the real band transform and its viewport edge projection. */
+export function superElementBandTop(naturalTop: number, height: number, viewportHeight: number, sticky: boolean): number {
+  if (!sticky) return naturalTop;
+  if (naturalTop < 0) return 0;
+  if (naturalTop + height > viewportHeight) return viewportHeight - height;
+  return naturalTop;
+}
+
+export function sameSuperElementEdges(a: readonly SuperElementWorldEdge[], b: readonly SuperElementWorldEdge[]): boolean {
+  return sameGraphEdgeGeometry(a, b) && a.every((edge, index) => edge.fromName === b[index].fromName
+    && edge.toName === b[index].toName && edge.fromKind === b[index].fromKind && edge.toKind === b[index].toKind
+    && edge.refId === b[index].refId);
+}
+
 /** Reuse world filtering, labels and styling; only geometry depends on pan/zoom. */
 export function projectSuperElementViewportEdges(
   edges: readonly SuperElementWorldEdge[],
@@ -119,12 +134,7 @@ export function projectSuperElementViewportEdges(
   if (!bandSticky && !edgesViewportOnly) return [];
   const bandHeight = bandHeightCells * cellHeight * zoom;
   const naturalBandY = pan.y + zoom * bandTopWorldY;
-  let bandY = naturalBandY;
-  if (bandSticky) {
-    // Match the actual band's transform, including a band taller than the viewport.
-    if (naturalBandY < 0) bandY = 0;
-    else if (naturalBandY + bandHeight > viewportHeight) bandY = viewportHeight - bandHeight;
-  }
+  const bandY = superElementBandTop(naturalBandY, bandHeight, viewportHeight, bandSticky);
   const elementVisible = (x: number, y: number) => {
     if (!edgesViewportOnly) return true;
     const halfWidth = cellWidth * zoom / 2;

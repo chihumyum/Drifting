@@ -464,3 +464,57 @@ browser/report checker. The browser fixture is synthetic and does not mount
 the full graph card tree or native shell. F5 remains `in_progress`: sticky/focus
 viewport ownership, Story Graph/Timeline adoption and full desktop/mobile/native
 gesture acceptance remain open.
+
+## F5c viewport and Story Graph line ownership
+
+The Super Element sticky/focus SVG now owns its geometry in
+`SuperElementViewportEdges`. It reads current pan/zoom refs at the scheduled
+frame and compares names and endpoint metadata alongside geometry. Pure band
+top calculation is shared with `useSuperElementTransform`; that controller
+updates world/band DOM transforms directly and observes container resize
+without setting parent state. Dimension reads precede transform writes. Both
+Super Element viewport line layers stay hidden at pan-end until fresh geometry
+reaches the DOM.
+
+Story Graph now builds immutable drift relation descriptors and renders them
+through `StoryGraphDriftEdges`, using the shared unique-endpoint measurement
+and frame scheduler with its original 500 ms entry window. The model preserves
+direction, either-endpoint drift classification, hidden types and the existing
+type override / source storyline / target storyline / accent color precedence.
+Visible drift filtering, positioned-node changes and drag insertion changes
+invalidate geometry. Native scroll remains active; desktop pointer and mobile
+gesture controllers retain their existing ownership.
+
+The first browser run caught a real observer registration gap: a child layout
+effect can run before the parent viewport ref attaches. The line layer then
+missed container-only resize while the band moved. The shared hook now attaches
+the observer in its first scheduled frame, after all commit refs are available.
+The container-resize regression subsequently passed. Generation checks continue
+to prevent an older geometry commit from revealing stale lines.
+
+Generated [f5-graph-overlays.json](acceptance/f5-graph-overlays.json) exercises
+the production line components and transform hook with synthetic sibling cards:
+
+- 100 unchanged viewport refresh events cause zero card commits and zero line
+  renders. A container-height change, without a window event or React update,
+  realigns the actual band DOM and SVG with one line render and zero card commits.
+- Pan-ref updates preserve imperative transforms; the SVG remains hidden until
+  the refreshed path is aligned. The test loads production visibility CSS and
+  checks computed visibility, focus width, tooltip rename and edge selection.
+- Story Graph's 1,000-edge / 100-endpoint fixture coalesces a 100-scroll-event
+  burst into 100 reads and no renders. Moving a tile produces one line render
+  and zero sibling-card commits. The fixture also checks direction markers,
+  selected styling, click anchor coordinates, bound-card removal and teardown.
+
+The earlier F5b browser scenarios rerun against the generalized hook. Three
+additional unit tests cover metadata equality and Story Graph classification/
+color precedence. Full Vitest passes 2,215 tests (1 skipped); typecheck, lint
+(0 errors, 74 existing warnings), public/CI contracts, capability checks,
+production renderer build and browser/report checks pass. The runner now also
+fingerprints `src/styles` so production visibility CSS is covered by source
+identity; earlier reports retain their original fingerprint scope.
+
+These are component/DOM and synthetic-card measurements, not complete graph
+shell or native gesture acceptance. Timeline review/adoption, end-to-end
+relationship creation/navigation, large-graph card layout and desktop/mobile
+device checks remain open; F5 stays `in_progress`.

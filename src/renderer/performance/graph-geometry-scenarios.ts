@@ -71,7 +71,7 @@ export async function runGraphGeometryScenarios() {
     listeners.get(type)?.delete(listener); originalRemove.call(window, type, listener, options);
   }) as typeof window.removeEventListener;
   window.ResizeObserver = class extends OriginalObserver {
-    constructor(callback: ResizeObserverCallback) { super(callback); observers.add(this); }
+    observe(target: Element, options?: ResizeObserverOptions) { super.observe(target, options); observers.add(this); }
     disconnect() { super.disconnect(); observers.delete(this); }
   };
   function Card() { useLayoutEffect(() => { counts.cards++; }); return createElement('div', {}, '合成卡片'); }

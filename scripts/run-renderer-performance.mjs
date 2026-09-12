@@ -32,6 +32,7 @@ function visit(directory) {
   }
 }
 visit(path.join(root, 'src/renderer'));
+visit(path.join(root, 'src/styles'));
 sourceFiles.push('scripts/run-renderer-performance.mjs', 'scripts/renderer-performance.html', 'pnpm-lock.yaml');
 sourceFiles.sort();
 const fingerprint = () => hash(sourceFiles.map((file) => `${file}\0${hash(readFileSync(file))}`).join('\n'));

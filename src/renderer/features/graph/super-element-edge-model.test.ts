@@ -3,7 +3,7 @@ import { createSyntheticWorkspaceProjection } from '../../performance/fixture';
 import type { EntityRelationLink } from '../../store/data-store';
 import type { EntityRelationType } from '../../domain/entity-relation-type';
 import {
-  buildSuperElementWorldEdges, projectSuperElementViewportEdges,
+  buildSuperElementWorldEdges, projectSuperElementViewportEdges, sameSuperElementEdges,
   type SuperElementEdgeInput, type SuperElementViewportInput, type SuperElementWorldEdge,
 } from './super-element-edge-model';
 
@@ -85,6 +85,14 @@ function worldEdge(overrides: Partial<SuperElementWorldEdge> = {}): SuperElement
 }
 
 describe('Super Element viewport edge projection', () => {
+  it('invalidates labels and endpoint metadata even if all positions are unchanged', () => {
+    const edge = worldEdge();
+    expect(sameSuperElementEdges([edge], [{ ...edge }])).toBe(true);
+    for (const changed of [{ fromName: 'renamed' }, { toName: 'renamed' }, { refId: 'other' },
+      { fromKind: 'node' as const }, { toKind: 'element' as const }, { color: '#abcdef' }]) {
+      expect(sameSuperElementEdges([edge], [{ ...edge, ...changed }])).toBe(false);
+    }
+  });
   it('aligns top-sticky nodes without double-counting the band world offset', () => {
     const edge = worldEdge();
     const [projected] = projectSuperElementViewportEdges([edge], viewport);

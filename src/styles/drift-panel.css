@@ -320,4 +320,5 @@
 /* Pan-time hide: parent SVG gets data-panning=1 while user drags
    the canvas. Edges keep their endpoints frozen anyway, so we
    hide them rather than recompute every frame. */
-.drift-edges[data-panning='1'] { visibility: hidden; }
+.drift-edges[data-panning='1'],
+.graph-drift-edges[data-panning='1'] { visibility: hidden; }

@@ -50,13 +50,13 @@ import {
   buildSuperElementCategoryModel,
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
+import { SuperElementViewportEdges } from '../../../features/graph/SuperElementViewportEdges';
+import { useSuperElementTransform } from '../../../features/graph/useSuperElementTransform';
 import { SuperElementDriftEdges } from '../../../features/graph/SuperElementDriftEdges';
 import { projectSuperElementDriftEdges } from '../../../features/graph/super-element-drift-model';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import {
   buildSuperElementWorldEdges,
-  projectSuperElementViewportEdges,
-  type SuperElementWorldEdge,
 } from '../../../features/graph/super-element-edge-model';
 import {
   beginSuperViewPinch,
@@ -1514,30 +1514,8 @@ export function DesktopSuperElementView() {
     return (vh - layoutH) / 2 - minLayoutY;
   }, []);
 
-  const applyTransform = useCallback(() => {
-    const world = worldRef.current;
-    if (!world) return;
-    const pX = panRef.current.x;
-    const pY = panRef.current.y;
-    const z = zoomRef.current;
-    world.style.transform = `translate(${pX}px, ${pY}px) scale(${z})`;
-    // When sticky, the band rides its own transform: same x as world (so it
-    // tracks the chapters horizontally), but y is clamped to viewport edges
-    // when the world would scroll the band off-screen. naturalY is the
-    // band's screen y under pure world transform — band's world top is
-    // bandTopWorldY (outer pad), not 0.
-    if (bandStickyRef.current && bandRef.current && viewportRef.current) {
-      const viewportH = viewportRef.current.clientHeight;
-      const bandPxH = bandHeightCellsRef.current * CELL_H * z;
-      const naturalY = pY + z * bandTopWorldYRef.current;
-      let bandY: number;
-      if (naturalY < 0) bandY = 0;
-      else if (naturalY + bandPxH > viewportH) bandY = viewportH - bandPxH;
-      else bandY = naturalY;
-      const bandX = pX + z * bandWorldLeftRef.current;
-      bandRef.current.style.transform = `translate(${bandX}px, ${bandY}px) scale(${z})`;
-    }
-  }, []);
+  const applyTransform = useSuperElementTransform({ worldRef, bandRef, viewportRef, panRef, zoomRef,
+    bandStickyRef, bandHeightCellsRef, bandTopWorldYRef, bandWorldLeftRef, cellHeight: CELL_H });
 
   // Mirror committed state → DOM. Runs for non-gesture updates (restore,
   // reset, initial center, sticky toggle). Gesture-time updates bypass this
@@ -1573,14 +1551,12 @@ export function DesktopSuperElementView() {
   // every frame is expensive AND the lines are momentarily wrong anyway
   // because element positions are mid-transform.
   const setPanningVisual = useCallback((panning: boolean) => {
-    driftPanningRef.current = panning;
-    // The drift layer reveals itself only after its next measured geometry is committed.
-    if (panning) driftEdgeLayerRef.current?.setAttribute('data-panning', '1');
-    const layers = [viewportEdgeLayerRef.current];
+    edgePanningRef.current = panning;
+    // Each layer reveals itself only after fresh geometry reaches the DOM.
+    const layers = [driftEdgeLayerRef.current, viewportEdgeLayerRef.current];
     for (const layer of layers) {
       if (!layer) continue;
       if (panning) layer.setAttribute('data-panning', '1');
-      else layer.removeAttribute('data-panning');
     }
   }, []);
 
@@ -1942,45 +1918,16 @@ export function DesktopSuperElementView() {
   const driftCardRefs = useRef(new Map<string, HTMLDivElement>());
   const elementCardRefs = useRef(new Map<string, HTMLDivElement>());
   const driftEdgeLayerRef = useRef<SVGSVGElement | null>(null);
-  const driftPanningRef = useRef(false);
+  const edgePanningRef = useRef(false);
   const driftEdges = useMemo(() => projectSuperElementDriftEdges({ entityRelations,
     hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor }),
   [entityRelations, hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor]);
   const driftLayoutRevision = useMemo(() => ({ elementCenters, driftNodes }), [elementCenters, driftNodes]);
 
-  // Viewport-space edge layer for the sticky band or viewport focus filter. When the
-  // band sticks to a viewport edge, world-space edges (rendered inside the
-  // world transform) point to the band's NATURAL position, not its clamped
-  // sticky position, so element↔node edges visually float in space. To
-  // keep them honest we recompute edge endpoints in viewport coords from
-  // the committed pan/zoom + sticky-clamped bandY, and render in a
-  // separate fixed-position SVG. During pan, this SVG is hidden via
-  // data-panning the same way drift edges are.
-  const [viewportEdgeGeom, setViewportEdgeGeom] = useState<SuperElementWorldEdge[]>([]);
   const viewportEdgeLayerRef = useRef<SVGSVGElement | null>(null);
-  // ---- Viewport edge geometry (sticky band or focus filter) ----
-  // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
-  // at gesture end. During pan we don't bother — the layer is hidden via
-  // data-panning until the gesture ends. This effect is also retriggered
-  // when sticky toggles on/off so the layer fills/empties immediately.
-  useLayoutEffect(() => {
-    // Viewport-space rendering runs when EITHER toggle is on:
-    //   · bandSticky → endpoints need sticky-clamped band y
-    //   · edgesViewportOnly → endpoints stay in world coords but we still
-    //     filter by visibility, so we use the viewport SVG path anyway
-    // When both off, the world-space SVG handles everything for free.
-    if (!bandSticky && !edgesViewportOnly) {
-      setViewportEdgeGeom([]);
-      return;
-    }
-    if (!viewportRef.current) return;
-    setViewportEdgeGeom(projectSuperElementViewportEdges(worldEdges, {
-      pan, zoom, bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
-      viewportWidth: viewportRef.current.clientWidth,
-      viewportHeight: viewportRef.current.clientHeight,
-      cellWidth: CELL_W, cellHeight: CELL_H,
-    }));
-  }, [bandSticky, edgesViewportOnly, pan, zoom, bandHeightCells, bandTopWorldY, worldEdges]);
+  const viewportConfig = useMemo(() => ({ bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
+    cellWidth: CELL_W, cellHeight: CELL_H }), [bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY]);
+  const viewportRevision = useMemo(() => ({ pan, zoom }), [pan, zoom]);
 
   return (
     <SuperViewShell className="super-element-overlay">
@@ -2259,74 +2206,12 @@ export function DesktopSuperElementView() {
               · 聚焦 on   → edges whose element endpoint isn't in viewport
                 are dropped before rendering
             Layer is hidden via data-panning during the pan gesture; the
-            state-driven useLayoutEffect above recomputes endpoints at
-            gesture end. */}
+            line layer measures committed geometry before revealing itself. */}
         {(bandSticky || edgesViewportOnly) && (
-          <svg
-            ref={viewportEdgeLayerRef}
-            className="super-viewport-edges"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              // ABOVE the sticky band (zIndex 5) so connection lines stay
-              // visible even where they cross the band — matches the
-              // non-sticky behaviour where the in-world edge SVG is
-              // rendered after the band in DOM order and so sits on top.
-              // Element cards (in the world transform, default stacking
-              // context) still get hidden behind the band; edges don't.
-              zIndex: 10,
-            }}
-          >
-            {viewportEdgeGeom.map((edge) => {
-              // Same click-focus boost as the world-space layer above.
-              const selected = selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
-              const markerId = relationArrowMarkerId('super-viewport-arrow', edge.id);
-              const d = relationEdgePath({
-                x1: edge.x1,
-                y1: edge.y1,
-                x2: edge.x2,
-                y2: edge.y2,
-                directed: edge.directed,
-                targetInsetX: edge.targetInsetX,
-                targetInsetY: edge.targetInsetY,
-              });
-              const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
-              return (
-                <g key={edge.id} data-super-edge>
-                  {edge.directed && (
-                    <defs>
-                      <RelationArrowMarker id={markerId} color={edge.color} />
-                    </defs>
-                  )}
-                  <path
-                    d={d}
-                    stroke="transparent"
-                    strokeWidth={EDGE_HIT_WIDTH}
-                    fill="none"
-                    style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selectEdge(edge.id, e.clientX, e.clientY);
-                    }}
-                  >
-                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${typeLabel}`}</title>
-                  </path>
-                  <path
-                    d={d}
-                    stroke={edge.color}
-                    strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
-                    fill="none"
-                    opacity={selected ? 1 : 0.78}
-                    markerEnd={edge.directed ? `url(#${markerId})` : undefined}
-                    style={{ pointerEvents: 'none' }}
-                  />
-                </g>
-              );
-            })}
-          </svg>
+          <SuperElementViewportEdges edges={worldEdges} config={viewportConfig} panRef={panRef} zoomRef={zoomRef}
+            viewportRef={viewportRef} layerRef={viewportEdgeLayerRef} panningRef={edgePanningRef}
+            revision={viewportRevision} selectedEdgeId={selectedEdgeId} focusedEdgeIds={focusConnected?.edgeIds}
+            selectEdge={selectEdge} resolveRelationTypeLabel={resolveRelationTypeLabel} />
         )}
 
         {/* Sticky chapter band — rendered as a SIBLING of the world transform
@@ -2632,7 +2517,7 @@ export function DesktopSuperElementView() {
           line, mirroring StoryGraphView's drift-edge visual language. */}
       {driftPanelOpen && (
         <SuperElementDriftEdges edges={driftEdges} driftCardRefs={driftCardRefs} elementCardRefs={elementCardRefs}
-          layerRef={driftEdgeLayerRef} panningRef={driftPanningRef} viewportRef={viewportRef}
+          layerRef={driftEdgeLayerRef} panningRef={edgePanningRef} viewportRef={viewportRef}
           layoutRevision={driftLayoutRevision} selectedEdgeId={selectedEdgeId}
           resolveRelationTypeLabel={resolveRelationTypeLabel} selectEdge={selectEdge} />
       )}
