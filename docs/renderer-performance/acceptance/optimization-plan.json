@@ -204,17 +204,25 @@
       "dependsOn": [
         "F0"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F4-01",
           "requirement": "事件轨迹与参考投影等价，重复、重放、重绑不丢失或重复终态",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f4-events-baseline.json",
+            "docs/renderer-performance/acceptance/f4-event-dedup.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F4-02",
           "requirement": "去重累计工作近似线性，不逐事件复制历史键，缓存有明确清理与恢复边界",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f4-events-baseline.json",
+            "docs/renderer-performance/acceptance/f4-event-dedup.json"
+          ],
+          "status": "passed"
         },
         {
           "id": "F4-03",
@@ -224,9 +232,14 @@
         {
           "id": "F4-04",
           "requirement": "长流与会话恢复达到 F0 预算，桌面移动滚动和历史消息行为正确",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f4-events-baseline.json",
+            "docs/renderer-performance/acceptance/f4-event-dedup.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "private_journal_membership_implemented"
     },
     {
       "id": "F5",

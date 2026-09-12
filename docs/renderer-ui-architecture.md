@@ -146,6 +146,15 @@ lint rules enforce these directions.
 
 ## Shell ownership
 
+Agent journal ingestion remains synchronous and lossless in `agent-chat-store`.
+Each live conversation owns an opaque deduplication scope whose private weakly
+held Set is reused across continuations and transport changes. Recovery creates
+a fresh scope seeded from canonical event IDs; forks start empty. React receives
+immutable message/run snapshots and cannot observe or mutate the membership
+collection. Removing the last run/snapshot reference permits its index to be
+collected. Retained conversations still have O(events) membership storage;
+display notification batching remains separate work.
+
 Workspace consumers subscribe to explicit fields through `useDataStoreFields`
 or a narrower `useDataStore(selector)`. The field helper selects from one
 snapshot and preserves its result identity with shallow comparison; unrelated

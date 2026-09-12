@@ -566,19 +566,17 @@ mod desktop {
     mod tests {
         use super::*;
         use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
 
-        fn fixture_script(source: &str) -> String {
-            let nonce = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("clock")
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "drifting-mcp-stdio-{}-{nonce}.mjs",
-                std::process::id()
-            ));
+        fn fixture_script(source: &str) -> (tempfile::TempDir, String) {
+            // Parallel tests can observe the same clock tick. A unique directory
+            // keeps one subprocess fixture from overwriting another's script.
+            let directory = tempfile::Builder::new()
+                .prefix("drifting-mcp-stdio-")
+                .tempdir()
+                .expect("fixture directory");
+            let path = directory.path().join("fixture.mjs");
             fs::write(&path, source).expect("write fixture");
-            path.to_string_lossy().into_owned()
+            (directory, path.to_string_lossy().into_owned())
         }
 
         fn start_input(process_id: &str, script: String) -> McpStdioStartInput {
@@ -605,7 +603,7 @@ mod desktop {
 
         #[test]
         fn real_process_round_trip_status_notification_and_stop() {
-            let script = fixture_script(
+            let (_directory, script) = fixture_script(
                 r#"
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin });
@@ -652,12 +650,11 @@ lines.on('line', (line) => {
                     .expect("stopped status")
                     .running
             );
-            let _ = fs::remove_file(script);
         }
 
         #[test]
         fn malformed_stdout_fails_pending_and_marks_process_fatal() {
-            let script = fixture_script(
+            let (_directory, script) = fixture_script(
                 r#"
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin });
@@ -675,7 +672,6 @@ lines.once('line', () => process.stdout.write('not-json\n'));
             let status = status(&state, "fixture:malformed".into()).expect("status");
             assert!(status.fatal_error.unwrap_or_default().contains("non-JSON"));
             stop(&state, "fixture:malformed".into()).expect("stop");
-            let _ = fs::remove_file(script);
         }
     }
 }

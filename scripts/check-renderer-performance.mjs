@@ -83,6 +83,22 @@ if (report.entityLinkOwnership) {
   assert(report.entityLinkOwnership.checks.length > 0);
   for (const check of report.entityLinkOwnership.checks) assert.equal(check.passed, true, check.id);
 }
+if (report.agentEventProcessing) {
+  const scenario = report.agentEventProcessing;
+  assert(['record-copy', 'private-membership-index'].includes(scenario.implementation));
+  assert.equal(scenario.repetitions, 3);
+  assert.deepEqual(scenario.scenarios.map((item) => item.eventCount), [1_000, 3_000, 6_000]);
+  for (const item of scenario.scenarios) {
+    assert.match(item.fixtureHash, /^[0-9a-f]{64}$/);
+    assert.equal(item.samplesMs.length, scenario.repetitions);
+    assert(item.samplesMs.every((value) => Number.isFinite(value) && value >= 0));
+    assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[1]);
+    assert.equal(item.notifications, item.eventCount);
+    assert.equal(item.duplicateNotifications, 0);
+    assert.equal(item.finalCharacters, item.eventCount);
+    if (scenario.implementation === 'private-membership-index') assert(item.medianMs <= item.eventCount * 0.02, 'F4a ingestion budget exceeded');
+  }
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

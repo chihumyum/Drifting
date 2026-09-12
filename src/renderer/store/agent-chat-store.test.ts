@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import type { AgentChatMessage } from '../domain/agent-conversation';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
@@ -456,7 +457,7 @@ describe('agent chat canonical journal projection', () => {
           messages: [],
           runtimeSessionId: 'session-1',
           longTaskPlanState: continuationPlanState('none'),
-          seenJournalEventIds: {},
+          journalScope: createAgentChatJournalScope(),
           controlStatus: null,
           pendingControl: null,
           lastTerminal: {
@@ -510,7 +511,7 @@ describe('agent chat canonical journal projection', () => {
           messages: [],
           runtimeSessionId: 'session-1',
           longTaskPlanState: continuationPlanState('active'),
-          seenJournalEventIds: {},
+          journalScope: createAgentChatJournalScope(),
           controlStatus: null,
           pendingControl: null,
           lastTerminal: {
@@ -594,7 +595,7 @@ describe('agent chat canonical journal projection', () => {
               projectId: 'project-intent',
               messages: [],
               runtimeSessionId: 'session-origin',
-              seenJournalEventIds: {},
+              journalScope: createAgentChatJournalScope(),
               controlStatus: null,
               pendingControl: null,
               lastTerminal: null,

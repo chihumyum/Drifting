@@ -70,6 +70,7 @@ import {
   type AgentAutomaticContinuationState,
   type AgentLongTaskPlanContinuationState,
 } from '../lib/agent/runtime/long-task-auto-continuation';
+import { createAgentChatJournalScope, hasAgentChatJournalEvent, rememberAgentChatJournalEvent, type AgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 import { agentTurnContextPrompt, normalizeAgentTurnContext } from '../lib/agent/turn-context';
@@ -205,8 +206,8 @@ interface RunState {
   messages: ChatMsg[];
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
-  /** Live/replayed journal entries already folded into this projection. */
-  seenJournalEventIds: Record<string, true>;
+  /** Opaque owner for private live/replay deduplication; never persisted. */
+  journalScope: AgentChatJournalScope;
   controlStatus: AgentControlStatus | null;
   pendingControl: AgentPendingControl | null;
   lastTerminal: RunTerminalState | null;
@@ -558,7 +559,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       if (!isCurrentStart()) return;
       if (convId !== previousId) {
         const previous = get().runs[previousId];
-        if (previous) set((state) => ({ runs: { ...state.runs, [convId!]: { ...previous, runtimeSessionId: null, seenJournalEventIds: {}, controlStatus: null, pendingControl: null, longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } }));
+        if (previous) set((state) => ({ runs: { ...state.runs, [convId!]: { ...previous, runtimeSessionId: null, journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null, longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } }));
       }
       const cid = convId;
 
@@ -583,7 +584,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           ? [...(prevRun?.messages ?? [])]
           : [...(prevRun?.messages ?? []), userMessage],
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
-        seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
+        journalScope: prevRun?.journalScope ?? createAgentChatJournalScope(),
         controlStatus: null,
         pendingControl: null,
         // Keep the previous terminal until the canonical turn_started entry is
@@ -855,7 +856,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         return;
       }
       let messages = conv.messages;
-      let seenJournalEventIds: Record<string, true> = {};
+      let journalScope = createAgentChatJournalScope();
       let lastTerminal: RunTerminalState | null = null;
       let runtimeSessionId = conv.runtimeSessionId;
       let longTaskPlanState: RunLongTaskPlanState | null = null;
@@ -877,9 +878,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           );
           if (projection) {
             messages = projection.messages;
-            seenJournalEventIds = Object.fromEntries(
-              projection.eventIds.map((eventId) => [eventId, true as const]),
-            );
+            journalScope = createAgentChatJournalScope(projection.eventIds);
             lastTerminal = projection.lastTerminal;
             contextUsage = projection.latestContextUsage;
           }
@@ -930,7 +929,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             messages,
             runtimeSessionId,
-            seenJournalEventIds,
+            journalScope,
             controlStatus: null,
             pendingControl: null,
             lastTerminal,
@@ -1285,7 +1284,7 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
   if (!convId) return;
 
   const before = useAgentChatStore.getState().runs[convId];
-  if (!before || before.seenJournalEventIds[entry.eventId]) return;
+  if (!before || hasAgentChatJournalEvent(before.journalScope, entry.eventId)) return;
   const sessionBindingChanged = before.runtimeSessionId !== entry.sessionId;
 
   // Fold the canonical event and control state into the OWNING conversation
@@ -1293,7 +1292,7 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
   // idempotent instead of duplicating deltas, tool cards, usage, or errors.
   useAgentChatStore.setState((s) => {
     const run = s.runs[convId];
-    if (!run || run.seenJournalEventIds[entry.eventId]) return s;
+    if (!run || hasAgentChatJournalEvent(run.journalScope, entry.eventId)) return s;
     let controlStatus = run.controlStatus;
     let pendingControl = run.pendingControl;
     let lastTerminal = run.lastTerminal;
@@ -1360,17 +1359,15 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
         costUsd: ev.usage.costUsd,
       });
     }
+    const messages = applyEvent(run.messages, entry);
+    rememberAgentChatJournalEvent(run.journalScope, entry.eventId);
     return {
       runs: {
         ...s.runs,
         [convId]: {
           ...run,
-          messages: applyEvent(run.messages, entry),
+          messages,
           runtimeSessionId: entry.sessionId,
-          seenJournalEventIds: {
-            ...run.seenJournalEventIds,
-            [entry.eventId]: true,
-          },
           controlStatus,
           pendingControl,
           lastTerminal,
