@@ -74,7 +74,14 @@ iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命
 
 ### iOS
 
-- 安装并启动过 Xcode，在 Xcode 中登录 Apple ID；签名团队应在本机 Xcode 配置，不提交到仓库。
+- 安装并启动过 Xcode，在 Xcode 中登录 Apple ID。
+- 真机签名团队通过被 Git 忽略的根目录 `.env.local` 中的
+  `DRIFTING_APPLE_DEVELOPMENT_TEAM` 配置，值为 10 位大写字母或数字的 Team ID；显式 shell
+  环境变量优先。`mobile:ios:dev` 和 `mobile:ios:device:debug` 会把它写入被忽略的
+  `GoogleOAuth.local.xcconfig`，由 Debug、Release 共用的 `GoogleOAuth.xcconfig` 引入。
+  模拟器不要求配置团队；真机签名需要有效配置。不要把 Xcode 自动写回的
+  `DEVELOPMENT_TEAM` 提交到 `project.pbxproj`，也不要在受版本控制的 xcconfig 或 Tauri
+  配置中填写团队。提交前运行 `pnpm public:check` 验证这一边界。
 - 模拟器：先在 Xcode 的 Devices and Simulators 中安装所需 runtime。
 - 真机：USB 连接 iPhone，信任这台 Mac，开启 Developer Mode；首次运行时允许 Drifting 访问本地网络。
 - Mac 与 iPhone 应位于可以互访的同一网络。公司/访客 Wi-Fi 若隔离设备，可改用个人热点或 Xcode 的设备网络地址。
