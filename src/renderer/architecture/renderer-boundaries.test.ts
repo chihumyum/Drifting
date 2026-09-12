@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
 const rendererRoot = path.resolve(process.cwd(), 'src/renderer');
 
@@ -23,6 +24,21 @@ function sourceFiles(relativeDirectory: string): string[] {
 }
 
 describe('renderer ownership boundaries', () => {
+  it('requires explicit workspace fields or selectors in product consumers', () => {
+    for (const directory of ['app', 'components', 'features', 'hooks', 'shells', 'views']) {
+      for (const file of sourceFiles(directory)) {
+        const ast = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+        const visit = (node: ts.Node) => {
+          if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useDataStore') {
+            expect(node.arguments.length, `${path.relative(rendererRoot, file)} subscribes to the entire workspace`).toBeGreaterThan(0);
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(ast);
+      }
+    }
+  });
+
   it('keeps shared features independent from the desktop shell and desktop navigation store', () => {
     for (const file of sourceFiles('features')) {
       const contents = fs.readFileSync(file, 'utf8');

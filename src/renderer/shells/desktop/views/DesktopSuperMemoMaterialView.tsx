@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { isChapter } from '../../../domain/book-node';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
@@ -503,7 +504,7 @@ function EntityFilterButton({
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStore();
+  const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStoreFields('bookNodes', 'bookElements', 'storylines', 'bookElementCategories');
 
   const label = useMemo(() => {
     if (!entityFilter.kind || !entityFilter.id) return t('memoMaterial.super.all');

@@ -13,7 +13,7 @@ import {
 } from '../../features/entities/hover/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
@@ -68,7 +68,7 @@ export function ChapterPanel({
   onPreviewTarget,
 }: ChapterPanelProps = {}) {
   const { t } = useTranslation();
-  const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStore();
+  const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'storylineNodeMapping', 'primaryStorylineByNode');
   const { nodeUi } = useUiStore();
   const persistedViewMode = useUiStore((s) => s.chapterPanelViewMode);
   const globalSortMode = useUiStore((s) => s.chapterGlobalSortMode);

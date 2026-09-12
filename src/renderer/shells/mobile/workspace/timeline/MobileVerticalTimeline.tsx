@@ -39,7 +39,7 @@ import { useProjectNavigation } from '../../../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../../../hooks/useTimelineMarkers';
 import { events } from '../../../../lib/events';
 import { useAuthStore } from '../../../../store/auth';
-import { useDataStore } from '../../../../store/data-store';
+import { useDataStoreFields } from '../../../../store/use-data-store-fields';
 import { useBookAct } from '../../../../usecase/useBookAct';
 import { useBookNode } from '../../../../usecase/useBookNode';
 import { useStoryline } from '../../../../usecase/useStoryline';
@@ -138,7 +138,13 @@ export function MobileVerticalTimeline({
   const { t } = useTranslation();
   const userId = useAuthStore((state) => state.user?.id) ?? '';
   const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode, bookActs } =
-    useDataStore();
+    useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'nodeStorylineMapping',
+    'primaryStorylineByNode',
+    'bookActs',
+  );
   // Device-local like the desktop ui-store flag; the mobile shell never
   // reaches into the desktop navigation store.
   const [unaffiliatedVisible, setUnaffiliatedVisible] = useState(() =>

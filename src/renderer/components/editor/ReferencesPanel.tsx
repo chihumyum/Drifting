@@ -7,7 +7,7 @@ import {
   type InlineMentionRecord,
 } from '../../sqlite-repo/inline-mention-repo';
 import type { EntityKind, StructuralEntityKind } from '../../domain/entity-kinds';
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useAuthStore } from '../../store/auth';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -87,7 +87,14 @@ export function ReferencesPanel({
     storylines,
     entityRelations,
     entityRelationTypes,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookElements',
+    'bookNodes',
+    'bookElementCategories',
+    'storylines',
+    'entityRelations',
+    'entityRelationTypes',
+  );
   const userId = useAuthStore((s) => s.user?.id);
   // Mutations route through the usecase so store, optimistic state, and the
   // active sync provider observe the same first-class relation write.

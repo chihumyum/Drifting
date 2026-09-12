@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isChapter } from '../../domain/book-node';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { StructuralEntityKind } from '../../domain/entity-kinds';
@@ -51,7 +51,13 @@ export function EntityRelationPicker({
 }: Props) {
   const { t } = useTranslation();
   const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
-    useDataStore();
+    useDataStoreFields(
+    'bookNodes',
+    'bookElements',
+    'storylines',
+    'bookElementCategories',
+    'primaryStorylineByNode',
+  );
   const { navigateToNode, navigateToElement, navigateToStoryline, navigateToCategory } =
     useProjectNavigation();
   const [query, setQuery] = useState('');

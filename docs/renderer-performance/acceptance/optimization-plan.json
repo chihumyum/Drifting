@@ -109,12 +109,15 @@
       "dependsOn": [
         "F0"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "acceptance": [
         {
           "id": "F2-01",
           "requirement": "不相关 comment 更新不通知仅消费章节名称或颜色的订阅者",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f2-subscriptions.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F2-02",
@@ -129,9 +132,13 @@
         {
           "id": "F2-04",
           "requirement": "稳定引用和精确订阅通过通知计数与 React commit 验证，原子发布保留",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f2-subscriptions.json"
+          ],
+          "status": "partial"
         }
-      ]
+      ],
+      "implementationStatus": "field_subscriptions_implemented"
     },
     {
       "id": "F3",

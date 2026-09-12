@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -29,7 +29,15 @@ export function DesktopRightSidebar() {
     bookElementCategories,
     storylineNodeMapping,
     primaryStorylineByNode,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookNodes',
+    'bookActs',
+    'bookElements',
+    'storylines',
+    'bookElementCategories',
+    'storylineNodeMapping',
+    'primaryStorylineByNode',
+  );
 
   // Decode the active tab into a resolved target so the right panel can show
   // entity-specific context. Falls back to "no target" on the project home.

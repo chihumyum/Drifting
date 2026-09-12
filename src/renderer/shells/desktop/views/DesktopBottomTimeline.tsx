@@ -10,6 +10,7 @@ import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useAuthStore } from '../../../store/auth';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
 import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useTimelineExpandedScale } from '../../../components/BottomTimeline/useTimelineExpandedScale';
 import { useBottomTimelineContextMenuActions } from '../../../components/BottomTimeline/useBottomTimelineContextMenuActions';
@@ -137,7 +138,7 @@ export function DesktopBottomTimeline({
   const nodeId = editorMatch?.params.nodeId;
   const storylineId = storylineMatch?.params.storylineId;
   const user = useAuthStore((state) => state.user);
-  const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'nodeStorylineMapping', 'primaryStorylineByNode');
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, openEntity } = useProjectNavigation();

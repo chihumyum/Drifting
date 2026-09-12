@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { canonicalWordCount, isChapter, isDrift } from '../../../domain/book-node';
 import type { StructuralEntityKind } from '../../../domain/entity-kinds';
-import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 
 interface PreviewField {
@@ -52,7 +52,16 @@ export function MobileEntityPreviewSheet({
 }) {
   const { t } = useTranslation();
   const presentation = useMobilePaperPresentation(target);
-  const data = useDataStore();
+  const data = useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'primaryStorylineByNode',
+    'driftGroups',
+    'bookElements',
+    'bookElementCategories',
+    'storylineNodeMapping',
+    'entityRelations',
+  );
 
   const details = useMemo(() => {
     const fields: PreviewField[] = [];

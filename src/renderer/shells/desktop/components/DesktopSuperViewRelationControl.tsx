@@ -8,7 +8,7 @@ import {
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useRelationTypePresentation } from '../../../hooks/useRelationTypePresentation';
-import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
@@ -19,7 +19,7 @@ export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewR
   const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const presentRelationType = useRelationTypePresentation();
-  const { bookNodes, entityRelations, entityRelationTypes } = useDataStore();
+  const { bookNodes, entityRelations, entityRelationTypes } = useDataStoreFields('bookNodes', 'entityRelations', 'entityRelationTypes');
   const {
     hiddenRelationTypeIds,
     driftPanelOpen,

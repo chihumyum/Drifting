@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { useUiStore, type TabEntityType } from '../store/ui-store';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookElement } from '../usecase/useBookElement';
@@ -42,7 +43,7 @@ export function useEntityCellAction() {
   const { t } = useTranslation();
   const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
-  const { bookNodes, bookElements, bookElementCategories } = useDataStore();
+  const { bookNodes, bookElements, bookElementCategories } = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories');
   const setChapterStorylineEditorNodeId = useUiStore((s) => s.setChapterStorylineEditorNodeId);
   const enqueueEntityAction = useUiStore((s) => s.enqueueEntityAction);
 

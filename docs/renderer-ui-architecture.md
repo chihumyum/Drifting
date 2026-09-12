@@ -121,6 +121,15 @@ lint rules enforce these directions.
 
 ## Shell ownership
 
+Workspace consumers subscribe to explicit fields through `useDataStoreFields`
+or a narrower `useDataStore(selector)`. The field helper selects from one
+snapshot and preserves its result identity with shallow comparison; unrelated
+collection updates do not notify React consumers. It owns no data or project
+lifecycle. The architecture check rejects unqualified whole-workspace hook
+subscriptions in product views. Per-field arrays can still change after a
+relevant update; semantic indexes and entity-level selectors are separate work.
+
+
 Desktop-only surfaces include `DesktopWorkspace`, `DesktopOverlayHost`, desktop
 global shortcuts, desktop settings/Agent/comment hosts, `DesktopBottomTimeline`,
 and the pointer-heavy desktop Graph and Super View controllers.

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { isDrift } from '../../../domain/book-node';
 import { NodeEditorView } from '../../../views/NodeEditorView';
 import { StorylineEditorView } from '../../../views/StorylineEditorView';
@@ -18,7 +18,7 @@ export interface MobilePaperPresentation {
 
 export function useMobilePaperPresentation(target: WorkspaceTarget): MobilePaperPresentation {
   const { t } = useTranslation();
-  const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStore();
+  const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStoreFields('bookNodes', 'storylines', 'bookElements', 'bookElementCategories');
   return useMemo(() => {
     switch (target.entityType) {
       case 'node': {

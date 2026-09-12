@@ -3,12 +3,13 @@ import { EntityStatsContent } from '../../../features/stats/EntityStatsContent';
 import type { EntityStatsTarget } from '../../../features/stats/entity-stats-types';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useMobilePaperPresentation } from './MobilePaperContent';
 
 function statsTarget(
   target: WorkspaceTarget,
   presentation: ReturnType<typeof useMobilePaperPresentation>,
-  data: ReturnType<typeof useDataStore.getState>,
+  data: Pick<ReturnType<typeof useDataStore.getState>, 'bookNodes'>,
 ): EntityStatsTarget {
   if (target.entityType === 'all-chapters') {
     return {
@@ -38,7 +39,15 @@ function statsTarget(
 }
 
 export function MobilePaperStats({ target }: { target: WorkspaceTarget }) {
-  const data = useDataStore();
+  const data = useDataStoreFields(
+    'bookNodes',
+    'bookActs',
+    'bookElements',
+    'storylines',
+    'bookElementCategories',
+    'storylineNodeMapping',
+    'primaryStorylineByNode',
+  );
   const presentation = useMobilePaperPresentation(target);
   return <div className="m-paper-stats"><EntityStatsContent target={statsTarget(target, presentation, data)} bookNodes={data.bookNodes} bookActs={data.bookActs} bookElements={data.bookElements} storylines={data.storylines} categories={data.bookElementCategories} storylineNodeMapping={data.storylineNodeMapping} primaryStorylineByNode={data.primaryStorylineByNode} /></div>;
 }

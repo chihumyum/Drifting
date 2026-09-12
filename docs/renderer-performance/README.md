@@ -36,7 +36,8 @@ expected synthetic text length.
 `transactionMs` measures synchronous ProseMirror dispatch, not native input.
 `transactionToAnimationFrameMs` ends at a requestAnimationFrame callback, not a
 compositor paint. Neither metric proves the desktop RC input-to-paint target.
-Store notification counts are direct subscriptions, not React commit counts.
+The `subscriptions` field counts direct store subscriptions; the later
+`reactSubscriptions` scenarios count actual committed React consumer renders.
 
 Output defaults to ignored `.local-data/renderer-performance/latest.json`.
 For a reviewed milestone, use `--output=docs/renderer-performance/acceptance/<name>.json`
@@ -114,3 +115,33 @@ Reproduce the guarded candidate run with:
 pnpm perf:renderer --assert-input-budget
 pnpm perf:renderer:check --report=.local-data/renderer-performance/latest.json
 ```
+
+## F2a explicit field subscriptions
+
+All 25 audited whole-workspace hook call sites now request only their existing
+fields with `useDataStoreFields`. This covers editor views, sidebars, desktop
+graphs/timelines, mobile papers/previews/stats and shared hover content. The
+helper reads one snapshot and uses Zustand's shallow equality; it does not add
+another store, copy domain records, or alter project publication. Model types
+used by hover/stats are narrowed to the fields they actually consume.
+
+Generated [f2-subscriptions.json](acceptance/f2-subscriptions.json) compares the
+old whole-store hook and the production field helper in mounted React consumers:
+
+| Mounted consumers per group | Whole-store commits / 100 unrelated updates | Field-selected commits | Commits for one relevant update |
+| --- | ---: | ---: | ---: |
+| 1 | 100 | 0 | 1 |
+| 5 | 500 | 0 | 5 |
+| 20 | 2,000 | 0 | 20 |
+
+These are isolated consumer measurements, not full-app editor or tab counts.
+Changing the requested field keys and reading an atomic multi-field update
+also pass. The existing input counters/budgets and 13 link behavior checks
+remain passing. A new architecture test prevents whole-workspace hook calls
+from returning in product components, features, views, hooks or shells.
+
+Validation: typecheck, six architecture tests, full Vitest (2,168 passed,
+1 skipped), lint (no errors; existing warnings), public/CI contract, capabilities,
+conversation-sync checks and a production renderer build. Shared name/color
+invalidation, record reference reuse and app-wide measurements are still pending;
+this completes the F2a batch, not all F2 acceptance.

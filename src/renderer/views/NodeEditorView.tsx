@@ -43,6 +43,7 @@ import { ROOT_GROUP_KEY, buildDriftGroupChildren } from '../domain/drift-group';
 import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
@@ -123,7 +124,14 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     storylineNodeMapping,
     bookElementCategories,
     primaryStorylineByNode,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'nodeStorylineMapping',
+    'storylineNodeMapping',
+    'bookElementCategories',
+    'primaryStorylineByNode',
+  );
   const driftGroups = useDataStore((s) => s.driftGroups);
   // Keep the loaded seed keyed to its owner. During A -> B navigation the
   // previous row must never be passed to B while its SQLite/Yjs seed is still

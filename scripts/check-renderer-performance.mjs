@@ -49,6 +49,13 @@ assert(report.scenarios.length > 0);
 for (const check of [...(report.behaviorChecks ?? []), ...(report.budgetChecks ?? [])]) {
   assert.equal(check.passed, true, `failed check ${check.id}`);
 }
+for (const scenario of report.reactSubscriptions ?? []) {
+  assert.equal(scenario.unrelated.fields, 0);
+  assert.equal(scenario.unrelated.wholeStore, scenario.consumers * scenario.operations);
+  assert.equal(scenario.related.fields, scenario.consumers);
+  assert.equal(scenario.atomicSnapshot, true);
+  assert.equal(scenario.dynamicFieldKeys, true);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));

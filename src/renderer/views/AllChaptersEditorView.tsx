@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookContent } from '../usecase/useBookContent';
@@ -118,7 +119,14 @@ export function AllChaptersEditorView() {
     bookElements,
     bookElementCategories,
     driftGroups,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'primaryStorylineByNode',
+    'bookElements',
+    'bookElementCategories',
+    'driftGroups',
+  );
   const bookActs = useDataStore((s) => s.bookActs);
   const entityLinkColorMode = useSettingsStore((s) => s.entityLinkColorMode);
   const entityLinkKindColors = useSettingsStore((s) => s.entityLinkKindColors);

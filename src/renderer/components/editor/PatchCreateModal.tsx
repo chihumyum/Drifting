@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useAuthStore } from '../../store/auth';
 import { createElementPatchWithSync } from '../../usecase/synced-entity-commands';
@@ -28,7 +29,7 @@ interface PatchCreateModalProps {
 // light + dark automatically.
 export function PatchCreateModal({ projectId, request, onClose, onCreated }: PatchCreateModalProps) {
   const { t } = useTranslation();
-  const { bookElements } = useDataStore();
+  const { bookElements } = useDataStoreFields('bookElements');
   const userId = useAuthStore((state) => state.user?.id);
   // userId can briefly be undefined during initial auth load; useBookElement
   // requires a non-empty string, so guard the hook with a stable fallback.

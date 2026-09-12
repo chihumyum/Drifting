@@ -5,6 +5,7 @@ import type { BookNode } from '../../../domain/book-node';
 import { canonicalWordCount, isChapter, isDrift } from '../../../domain/book-node';
 import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
@@ -140,7 +141,14 @@ export function DesktopStoryGraphView() {
     entityRelations,
     entityRelationTypes,
     primaryStorylineByNode,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'nodeStorylineMapping',
+    'entityRelations',
+    'entityRelationTypes',
+    'primaryStorylineByNode',
+  );
   const bookActs = useDataStore((s) => s.bookActs);
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);

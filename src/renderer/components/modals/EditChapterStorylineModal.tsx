@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -32,7 +32,7 @@ interface Props {
 // explicit.
 export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
   const { t } = useTranslation();
-  const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'nodeStorylineMapping', 'primaryStorylineByNode');
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
 

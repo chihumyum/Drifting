@@ -31,7 +31,10 @@ export interface EntityHoverCardContent {
   meta: EntityHoverMetaItem[];
 }
 
-type DataStoreSnapshot = ReturnType<typeof useDataStore.getState>;
+type DataStoreSnapshot = Pick<ReturnType<typeof useDataStore.getState>,
+  'bookNodes' | 'bookElements' | 'bookElementCategories' | 'storylines' |
+  'nodeStorylineMapping' | 'primaryStorylineByNode' | 'storylineNodeMapping' | 'driftGroups'
+>;
 
 const STATUS_KEYS = {
   draft: 'editorTopBar.status.draft',

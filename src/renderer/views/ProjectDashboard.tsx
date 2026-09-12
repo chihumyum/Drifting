@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
-import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { useStoryline } from '../usecase/useStoryline';
 import { useProject } from '../usecase/useProject';
 import { useElementCategory } from '../usecase/useElementCategory';
@@ -131,7 +131,14 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
     bookNodes,
     storylineNodeMapping,
     primaryStorylineByNode,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'storylines',
+    'bookElements',
+    'bookElementCategories',
+    'bookNodes',
+    'storylineNodeMapping',
+    'primaryStorylineByNode',
+  );
   const recentItems = useRecentEntitiesStore((s) => s.items);
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const appVersion = getPlatformRuntime().appInfo?.version ?? '0.1.0';

@@ -13,6 +13,7 @@ import {
   type DriftGroup,
 } from '../../domain/drift-group';
 import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
@@ -78,7 +79,7 @@ export function DriftPanel({
   onPreviewTarget,
 }: DriftPanelProps = {}) {
   const { t } = useTranslation();
-  const { bookNodes } = useDataStore();
+  const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
   const { nodeUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);

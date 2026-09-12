@@ -3,7 +3,7 @@ import { ArrowRight, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
-import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useProjectStore } from '../../../store/project-store';
 import { useRecentEntitiesStore } from '../../../store/recent-entities-store';
 import { useWritingStatsStore } from '../../../store/writing-stats-store';
@@ -111,7 +111,13 @@ export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProj
   const { projectId, openEntity } = useProjectNavigation();
   const currentProject = useProjectStore((s) => s.currentProject);
   const { bookNodes, storylines, bookElements, bookElementCategories, storylineNodeMapping } =
-    useDataStore();
+    useDataStoreFields(
+    'bookNodes',
+    'storylines',
+    'bookElements',
+    'bookElementCategories',
+    'storylineNodeMapping',
+  );
   const recentItems = useRecentEntitiesStore((s) => s.items);
   const writingPlans = useWritingStatsStore((s) => s.plans);
 

@@ -6,7 +6,7 @@ import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
-import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
@@ -67,7 +67,7 @@ export function CategoryEditorView({
   if (!projectId) throw new Error('Project ID is required');
   if (!userId) throw new Error('User must be authenticated');
 
-  const { bookElementCategories, bookElements } = useDataStore();
+  const { bookElementCategories, bookElements } = useDataStoreFields('bookElementCategories', 'bookElements');
   useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
   const { leaveDeletedEntity, navigateToElement, navigateToCategory } = useProjectNavigation();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { buildEntityHoverCardContent, type EntityHoverTarget } from './entity-hover-card-model';
 import {
   computeEntityHoverCardPosition,
@@ -20,7 +20,16 @@ export function EntityHoverCard({
   placement?: EntityHoverCardPlacement;
 }) {
   const { t } = useTranslation();
-  const state = useDataStore();
+  const state = useDataStoreFields(
+    'bookNodes',
+    'bookElements',
+    'bookElementCategories',
+    'storylines',
+    'nodeStorylineMapping',
+    'primaryStorylineByNode',
+    'storylineNodeMapping',
+    'driftGroups',
+  );
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<EntityHoverCardPosition | null>(null);

@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
-import { useDataStore } from '../../store/data-store';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
@@ -64,7 +64,7 @@ export function ElementPanel({
   onPreviewTarget,
 }: ElementPanelProps = {}) {
   const { t } = useTranslation();
-  const { bookElements, bookElementCategories } = useDataStore();
+  const { bookElements, bookElementCategories } = useDataStoreFields('bookElements', 'bookElementCategories');
   const { elementUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const showDate = presentation === 'desktop' && sidebarWidth >= DATE_HIDE_WIDTH;

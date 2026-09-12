@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
+import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
@@ -833,7 +834,16 @@ export function DesktopSuperElementView() {
     entityRelations,
     entityRelationTypes,
     primaryStorylineByNode,
-  } = useDataStore();
+  } = useDataStoreFields(
+    'bookElements',
+    'bookElementCategories',
+    'bookNodes',
+    'storylines',
+    'nodeStorylineMapping',
+    'entityRelations',
+    'entityRelationTypes',
+    'primaryStorylineByNode',
+  );
   const relationTypeById = useMemo(
     () => new Map(entityRelationTypes.map((type) => [type.id, type])),
     [entityRelationTypes],

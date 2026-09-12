@@ -7,7 +7,7 @@ import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
-import { useDataStore } from '../store/data-store';
+import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
@@ -68,7 +68,7 @@ export function StorylineEditorView({
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
-  const { storylines, bookNodes, storylineNodeMapping } = useDataStore();
+  const { storylines, bookNodes, storylineNodeMapping } = useDataStoreFields('storylines', 'bookNodes', 'storylineNodeMapping');
   const { navigateToStoryline, leaveDeletedEntity, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
