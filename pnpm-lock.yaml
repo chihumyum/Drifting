@@ -10,6 +10,11 @@ overrides:
   tmp@<=0.2.3: '>=0.2.4'
   prosemirror-model: 1.25.7
 
+patchedDependencies:
+  '@tiptap/y-tiptap@3.0.8':
+    hash: 84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2
+    path: patches/@tiptap__y-tiptap@3.0.8.patch
+
 importers:
 
   .:
@@ -37,7 +42,7 @@ importers:
         version: 3.30.1(@tiptap/pm@3.30.1)
       '@tiptap/extension-collaboration':
         specifier: ^3.19.0
-        version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)(@tiptap/y-tiptap@3.0.8(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32))(yjs@13.6.32)
+        version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)(@tiptap/y-tiptap@3.0.8(patch_hash=84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2)(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32))(yjs@13.6.32)
       '@tiptap/extension-link':
         specifier: ^3.17.0
         version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)
@@ -64,7 +69,7 @@ importers:
         version: 3.30.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)
       '@tiptap/y-tiptap':
         specifier: ^3.0.7
-        version: 3.0.8(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+        version: 3.0.8(patch_hash=84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2)(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       axios:
         specifier: ^1.13.2
         version: 1.19.0
@@ -4118,11 +4123,11 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.30.1(@tiptap/pm@3.30.1)
 
-  '@tiptap/extension-collaboration@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)(@tiptap/y-tiptap@3.0.8(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32))(yjs@13.6.32)':
+  '@tiptap/extension-collaboration@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)(@tiptap/y-tiptap@3.0.8(patch_hash=84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2)(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32))(yjs@13.6.32)':
     dependencies:
       '@tiptap/core': 3.30.1(@tiptap/pm@3.30.1)
       '@tiptap/pm': 3.30.1
-      '@tiptap/y-tiptap': 3.0.8(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      '@tiptap/y-tiptap': 3.0.8(patch_hash=84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2)(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       yjs: 13.6.32
 
   '@tiptap/extension-document@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))':
@@ -4275,7 +4280,7 @@ snapshots:
       '@tiptap/core': 3.30.1(@tiptap/pm@3.30.1)
       '@tiptap/pm': 3.30.1
 
-  '@tiptap/y-tiptap@3.0.8(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)':
+  '@tiptap/y-tiptap@3.0.8(patch_hash=84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2)(prosemirror-model@1.25.7)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)':
     dependencies:
       lib0: 0.2.117
       prosemirror-model: 1.25.7

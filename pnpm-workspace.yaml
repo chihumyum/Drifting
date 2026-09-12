@@ -9,3 +9,6 @@ overrides:
   esbuild: ^0.25.0
   tmp@<=0.2.3: '>=0.2.4'
   prosemirror-model: 1.25.7
+
+patchedDependencies:
+  '@tiptap/y-tiptap@3.0.8': patches/@tiptap__y-tiptap@3.0.8.patch

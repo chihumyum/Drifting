@@ -41,6 +41,8 @@ the shutdown path with `app.exit(0)`, which would skip the product's
   Untracked product files are rejected. Dependencies and Cargo's compilation
   cache are reused; the app binary must have a new modification time. Bundle
   identifier, version and binary SHA-256 are checked before launch.
+  The source snapshot/fingerprint includes `pnpm-workspace.yaml` and dependency
+  patches as well as the lockfile.
 - `DRIFTING_DB_DIR` points to the new fixture. A unique app identifier isolates
   application/WebKit storage. The native Keychain service is also replaced in
   the temporary source, since the product's service name is otherwise shared
@@ -174,3 +176,33 @@ These are synthetic native control operations, not physical wheel/touch or IME
 acceptance. Whole-book active-chapter behavior and mobile portal rendering retain
 their own acceptance requirements; this chapter scenario does not substitute for
 them or for comparative layout/input/memory budgets.
+
+## Selection memory scenario
+
+```bash
+pnpm perf:renderer:native --selection
+pnpm perf:renderer:native --selection --check
+```
+
+This mode includes all marker, outline and typewriter scenarios and writes
+`acceptance/f3-selection-native.json`. Temporary observations count selection
+captures, changed snapshot writes and closed-tab pruning. A burst of 200 backward
+selection moves must capture and write exactly once per move, and the resulting
+snapshot must contain only anchor/head/focus preference. Navigation retains the
+canonical editor and range direction. A hidden authored Yjs prefix insertion
+must move both live PM and stored endpoints by the prefix length; deleting it
+must restore the original range and prose. Failure diagnostics contain positions,
+lengths and identity booleans, not document text.
+
+The scenario observes automatic selection-restoration focus in the command-active
+split editor and checks that the other visible pane does not take focus in later
+frames. Both panes share a split surface key, so the check addresses their actual
+editor DOM nodes without using the single-node surface selector or supplying
+explicit focus. It also checks removal of
+all closed selection keys, and backward selection restoration after switching
+projects. On project return, the new session must restore focus before the
+harness supplies any explicit focus. Position memory is process-local; the restart sequence checks durable
+prose, not cross-process caret persistence. Selection burst counters do not
+measure physical input latency or total editor work. The separate
+`perf:renderer:selection` microbenchmark measures capture-only document/text work
+on 5k/20k/50k fixtures.

@@ -23,6 +23,7 @@ interface SessionOptions {
   onPersist(editor: Editor, derived: EditorPersistDerived): void;
   selectionKey: string | null;
   autoFocus: boolean;
+  isCommandActive: boolean;
 }
 
 export const EMPTY_EDITOR_SESSION_SNAPSHOT = { outline: [] as OutlineItem[], ready: false };
@@ -44,6 +45,8 @@ export class EntityEditorSession {
   private pendingPersist = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private selectionFrame = 0;
+  private restoreFocusFrame = 0;
+  private restoreFocusPending = false;
   private suppressSelectionSave = false;
   private outlineDoc: ProseMirrorNode | null = null;
   private derivedOutline: OutlineItem[] = [];
@@ -56,7 +59,10 @@ export class EntityEditorSession {
 
   // A retiring owner keeps its own last callback. A new source cannot retarget
   // an old timeout or cleanup by overwriting a shared latest-callback ref.
-  updateOptions(options: SessionOptions): void { this.options = options; }
+  updateOptions(options: SessionOptions): void {
+    this.options = options;
+    this.scheduleRestoreFocus();
+  }
   getSnapshot = () => this.snapshot;
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -86,6 +92,29 @@ export class EntityEditorSession {
     // Called in a layout effect. Prepare the latest outline before the incoming
     // surface can report ready; a hidden session publishes no outline changes.
     if (needed) this.publishOutline(true);
+    this.scheduleRestoreFocus();
+  }
+
+  private scheduleRestoreFocus(): void {
+    if (!this.attached || !this.presentationNeeded || !this.options?.isCommandActive || !this.restoreFocusPending || this.editor.isDestroyed) {
+      if (this.restoreFocusFrame) cancelAnimationFrame(this.restoreFocusFrame);
+      this.restoreFocusFrame = 0;
+      return;
+    }
+    if (this.restoreFocusFrame) return;
+    const epoch = this.attachmentEpoch;
+    this.restoreFocusFrame = requestAnimationFrame(() => {
+      if (!this.attached || this.attachmentEpoch !== epoch) return;
+      this.restoreFocusFrame = 0;
+      if (!this.presentationNeeded || !this.options?.isCommandActive || this.editor.isDestroyed) return;
+      this.restoreFocusPending = false;
+      // An editor already focused by the user needs no restoration focus.
+      if (this.editor.isFocused) return;
+      this.editor.view.dispatch(this.editor.state.tr.scrollIntoView().setMeta('addToHistory', false));
+      // The raw view focus is synchronous; Tiptap's focus command schedules a
+      // second frame which would escape this session's cancellation boundary.
+      this.editor.view.focus();
+    });
   }
 
   private cancelTimer(): void {
@@ -151,8 +180,9 @@ export class EntityEditorSession {
     if (!this.initialized) {
       this.initialized = true;
       const key = this.options.selectionKey;
-      if (getEditorSelectionSnapshot(key)) {
-        restoreEditorSelectionSnapshot(key, this.editor);
+      const selection = getEditorSelectionSnapshot(key);
+      if (selection) {
+        this.restoreFocusPending = restoreEditorSelectionSnapshot(key, this.editor) && selection.focusOnRestore;
       } else if (!this.options.autoFocus) {
         this.suppressSelectionSave = true;
         moveEditorSelectionToStart(this.editor);
@@ -163,6 +193,7 @@ export class EntityEditorSession {
         });
       }
     }
+    this.scheduleRestoreFocus();
     // Tiptap's BlockId view queues initial ID normalization during editor
     // construction. Prepare afterwards, still before revealing the surface,
     // so JSON headings never publish fallback anchors for one frame.
@@ -185,6 +216,8 @@ export class EntityEditorSession {
       this.cancelTimer();
       if (this.selectionFrame) cancelAnimationFrame(this.selectionFrame);
       this.selectionFrame = 0;
+      if (this.restoreFocusFrame) cancelAnimationFrame(this.restoreFocusFrame);
+      this.restoreFocusFrame = 0;
       this.suppressSelectionSave = false;
       this.editor.off('update', this.onUpdate);
       this.editor.off('selectionUpdate', this.onSelectionUpdate);

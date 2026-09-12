@@ -1794,3 +1794,93 @@ F3 and F8 remain `in_progress`. Marker presentation does not own durable review
 decisions, reveal masks or activity seen state. Full Agent review/masking,
 other entity/mobile flows, physical input and comparative device/input/memory
 budgets remain separate acceptance work.
+
+## F3g — Position-only selection memory and owned restoration
+
+A repository-wide caller audit found that selection memory only serves position
+restoration. Its selected text, block ordinals/text, nearby context and revision
+subscription API had no production consumers. `captureEditorSelectionSnapshot`
+now records only `anchor`, `head` and `focusOnRestore`, without traversing the
+ProseMirror document or copying prose. The memory remains session-only and keyed
+by the existing project/entity tab identity. Repeated saves with identical
+positions/direction/preference reuse the stored object. Hidden live updates still
+save the positions already mapped by ProseMirror; this capture is not suspended.
+
+Keeping anchor/head preserves backward text selections on restoration. Stale
+positions are clamped into the current document. The restoration helper only
+dispatches a selection transaction excluded from undo history; it does not scroll,
+focus or schedule a frame. `EntityEditorSession` owns the one pending restoration
+focus frame. It waits for presentation and command ownership, cancels when either
+is lost or the session detaches, and fences stale callbacks across effect replay.
+A user-focused editor receives no extra focus/scroll. The owned callback uses
+ProseMirror's synchronous view focus, avoiding Tiptap's nested delayed-focus frame.
+This is initial restoration, not a caret repaint workaround or repeated tab-focus
+policy. Existing first-open and active-editor registration behavior is retained.
+
+Closing the committed tab also exposed a handoff cleanup race: its outgoing
+surface can remain mounted after `openTabs` changes, then save on its later
+detach after the first prune. `EditorMainArea` now prunes on committed-surface
+changes as well as tab changes, so the replacement's completed handoff removes
+those late closed-tab snapshots without changing the ready barrier or save order.
+
+Nine memory tests and fourteen session tests cover scalar-only capture, no
+prose reads at 5k/20k/50k, stable duplicates, backward/clamped restoration,
+project/split pruning, hidden mapped positions and restoration frame ownership.
+They use real immutable ProseMirror documents with explicit event/clock/view
+doubles; native interaction remains a separate check.
+
+The native scenario exposed a separate dependency defect in locked
+`@tiptap/y-tiptap@3.0.8`: a hidden insertion of 35 characters updated prose but
+left both live PM and memory endpoints at 300/210 instead of 335/245. Its
+content-based structural recovery overwrote valid Yjs relative positions with
+old paragraph offsets. A version-specific pnpm patch now bypasses that recovery
+when every observed event targets an existing `Y.XmlText`; non-text events retain
+the original structural recovery. Both ESM and CommonJS builds are patched,
+and the lockfile records the patch hash without upgrading dependencies.
+Seven additional tests exercise the real sync plugin with a view double:
+forward/backward/collapsed ranges, authored and peer insert/delete updates,
+mark-only changes, range deletion, block insertion/moves and deleted blocks.
+Native provenance now includes workspace dependency configuration and patches.
+
+```bash
+pnpm perf:renderer:selection
+pnpm perf:renderer:selection --check
+```
+
+The generated `acceptance/f3-selection-capture.json` compares the exact capture
+function from `e0c7a8c` with current source on the same 5k/20k/50k synthetic
+ProseMirror documents. At 200 mixed caret/range captures, the baseline performs
+200 document walks and 10,000 / 40,000 / 100,000 block text reads. The current
+capture performs zero walks, visited-node reads, block-text reads or range-text
+reads at each size. Both implementations preserve the same ordered endpoints;
+the new snapshot also retains direction. Seven warmed batch timings exclude
+the counter wrappers, consume every result through equal endpoint checksums,
+and are raw Node microbenchmark samples, not native input
+or input-to-paint measurements. The report records source/baseline hashes,
+fixture hashes, runtime, CPU/memory and explicit measurement limitations.
+
+The native `--selection` composition and restart pass on the final source and
+harness fingerprint. The 200-move burst captures/writes exactly once per move;
+backward ranges survive tab navigation and hidden authored prefix insert/delete.
+The new split's command-active editor automatically receives focus without a
+late takeover by the other pane. Closing all 20 tabs removes their selection
+records, live documents and bindings. Project A → B → A restores both backward
+positions and session-owned focus before the harness supplies explicit focus.
+The whole composition records 297 captures, 242 changed writes and 21 prunes;
+these are scoped counters, not total editor work or performance budgets.
+
+Both native Quit paths exit with code zero and no uncaught renderer errors.
+Independent SQLite/Yjs replay confirms one saved chapter, 52 unchanged chapter
+hashes, zero remaining synthetic comments and passing integrity/foreign-key
+checks. Position memory is intentionally process-local; restart validates prose.
+The report is `acceptance/f3-selection-native.json`; earlier native reports keep
+their historical fingerprints.
+
+Validation passes 2,478 regular tests with 1 existing skip, typecheck, lint
+(0 errors, 73 existing warnings), CI/public contracts and Agent capabilities.
+The normal production renderer build passes and its 32 JS chunks exclude native
+acceptance instrumentation and fixture identities. Final harness/benchmark
+changes also pass targeted lint and their generated-evidence checks.
+
+F3/F8 remain `in_progress`; full Agent review/masking, other interaction owners,
+physical IME/touch and comparative device/input/memory budgets remain open.

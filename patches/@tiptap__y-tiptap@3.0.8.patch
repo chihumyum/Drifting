@@ -1,0 +1,36 @@
+diff --git a/dist/y-tiptap.cjs b/dist/y-tiptap.cjs
+index 653ffe79d5edb4a040555bb222f472af1e45edc8..a76f66ca07352dbd977e5fa6c2620f2b10fd58a3 100644
+--- a/dist/y-tiptap.cjs
++++ b/dist/y-tiptap.cjs
+@@ -828,7 +828,12 @@ class ProsemirrorBinding {
+         this.prosemirrorView.state.doc.content.size,
+         new PModel__namespace.Slice(PModel__namespace.Fragment.from(fragmentContent), 0, 0)
+       );
+-      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, oldDoc);
++      // Pure text/mark changes keep the existing Yjs text types. Their relative
++      // endpoints already follow insertions/deletions; content-based recovery
++      // would overwrite them with stale offsets in the same changed paragraph.
++      // Retain structural recovery when any non-text type was affected.
++      const structuralDoc = events.some(event => !(event.target instanceof Y__namespace.XmlText)) ? oldDoc : undefined;
++      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
+       tr = tr.setMeta(ySyncPluginKey, { isChangeOrigin: true, isUndoRedoOperation: transaction.origin instanceof Y__namespace.UndoManager });
+       if (
+         this.beforeTransactionSelection !== null && this._isLocalCursorInView()
+diff --git a/dist/y-tiptap.js b/dist/y-tiptap.js
+index 28c55820dff13cf3d5c303970f530c17eb38f757..5a85d67e420334a012ea388ca46d60abb8045ef1 100644
+--- a/dist/y-tiptap.js
++++ b/dist/y-tiptap.js
+@@ -794,7 +794,12 @@ class ProsemirrorBinding {
+         this.prosemirrorView.state.doc.content.size,
+         new PModel.Slice(PModel.Fragment.from(fragmentContent), 0, 0)
+       );
+-      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, oldDoc);
++      // Pure text/mark changes keep the existing Yjs text types. Their relative
++      // endpoints already follow insertions/deletions; content-based recovery
++      // would overwrite them with stale offsets in the same changed paragraph.
++      // Retain structural recovery when any non-text type was affected.
++      const structuralDoc = events.some(event => !(event.target instanceof Y.XmlText)) ? oldDoc : undefined;
++      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
+       tr = tr.setMeta(ySyncPluginKey, { isChangeOrigin: true, isUndoRedoOperation: transaction.origin instanceof Y.UndoManager });
+       if (
+         this.beforeTransactionSelection !== null && this._isLocalCursorInView()

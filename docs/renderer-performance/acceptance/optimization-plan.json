@@ -40,7 +40,8 @@
           "requirement": "结果记录构建 SHA、设备、WebView、重复次数与测量边界",
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f3-selection-capture.json"
           ],
           "status": "partial"
         },
@@ -48,7 +49,8 @@
           "id": "F0-03",
           "requirement": "计数可区分输入、订阅、事件、几何、引用的全量与局部工作，预算在优化前固定",
           "evidence": [
-            "docs/renderer-performance/acceptance/baseline-editor.json"
+            "docs/renderer-performance/acceptance/baseline-editor.json",
+            "docs/renderer-performance/acceptance/f3-selection-capture.json"
           ],
           "status": "partial"
         },
@@ -183,7 +185,8 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-native.json"
           ],
           "status": "partial"
         },
@@ -197,7 +200,8 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-native.json"
           ],
           "status": "partial"
         },
@@ -211,12 +215,14 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-capture.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "canonical_sessions_review_links_typewriter_outline_and_marker_viewports_implemented_selection_other_interactions_and_device_budgets_pending"
+      "implementationStatus": "canonical_sessions_review_links_typewriter_outline_marker_viewports_and_selection_memory_implemented_other_interactions_and_device_budgets_pending"
     },
     {
       "id": "F4",
@@ -485,7 +491,8 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-native.json"
           ],
           "status": "partial"
         },
@@ -502,7 +509,8 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-selection-native.json"
           ],
           "status": "partial"
         },

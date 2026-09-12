@@ -207,6 +207,19 @@ construction-time block-ID microtask, so outline anchors use canonical IDs.
 Detach flushes pending work, cancels the owned debounce/selection-init frame,
 invalidates queued preparation and removes the four editor event listeners.
 
+Selection memory stores only numeric anchor/head positions and the restoration
+focus preference. No production caller uses the old prose/context projection or
+revision subscription API, so those no longer run on document/selection updates.
+Duplicate positions preserve the snapshot reference. Hidden transactions still
+capture the live, already-mapped positions; text direction survives restoration.
+The position helper clamps and dispatches outside history without owning any
+focus/scroll/frame work. The session owns a single cancellable initial-focus
+frame, enabled only with presentation and command ownership, with an attachment
+epoch guard and no refocus of an already focused editor. Closed-tab pruning keeps
+both live split leaves and other projects' retained tabs. It runs again when the
+committed surface changes, after a retained outgoing editor's late detach/save.
+Nothing is persisted or synchronized as authored document data.
+
 `TypewriterScrollController` separately owns caret alignment, its repaint frame
 and viewport ResizeObserver. `useTypewriterScrolling` passes pixel visibility
 and preparation state, independently of command ownership. Hidden surfaces
@@ -299,9 +312,10 @@ preparation, binding cleanup, project switches and process restart. Broader
 scroll/field-draft continuity, native IME and retained-document memory budgets
 remain separate acceptance work in the plan. The marker control scenario adds
 real comment membership/range changes, hidden geometry suspension, native jumps,
-locale/undo continuity and split disposal. Full Agent review/masking, selection
-capture and other interaction owners still need separate acceptance; pausing
-typewriter/outline/marker work does not pause those owners.
+locale/undo continuity and split disposal. Selection capture now retains scalar
+positions only; its initial focus restoration belongs to the canonical session.
+Full Agent review/masking and other interaction owners still need separate
+acceptance; pausing typewriter/outline/marker work does not pause those owners.
 
 Automatic linking is also view-owned. Each editor retains its own immutable
 target map and self/parent exclusions; live updates do not recreate its document.

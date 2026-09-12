@@ -107,8 +107,11 @@ export function EditorMainArea() {
 
   useEffect(() => {
     if (!projectId) return;
+    // A removed committed surface stays mounted until its replacement is ready.
+    // Its later detach can save selection after the openTabs prune already ran;
+    // prune again once the visible-surface handoff retires that last owner.
     pruneEditorSelectionMemory(projectId, openTabs);
-  }, [projectId, openTabs]);
+  }, [projectId, openTabs, committedRevisionKey]);
 
   // Drag-to-split overlay state. `dropSide` is null when no tab drag is in
   // progress over the surface, otherwise indicates which half is hot.

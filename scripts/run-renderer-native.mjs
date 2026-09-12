@@ -9,17 +9,18 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const markers = process.argv.includes('--markers');
+const selectionMemory = process.argv.includes('--selection');
+const markers = selectionMemory || process.argv.includes('--markers');
 const outline = markers || process.argv.includes('--outline');
 const typewriter = outline || process.argv.includes('--typewriter');
 const editorSessions = typewriter || process.argv.includes('--sessions');
 const harnessFiles = ['scripts/run-renderer-native.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts', 'scripts/renderer-native-ui.ts'];
-const sourcePaths = ['src', 'src-tauri', 'drizzle', 'packages', 'vite-plugins', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml', 'index.html', 'tailwind.config.js', 'postcss.config.js'];
+const sourcePaths = ['src', 'src-tauri', 'drizzle', 'packages', 'patches', 'vite-plugins', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'index.html', 'tailwind.config.js', 'postcss.config.js'];
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -42,6 +43,11 @@ function validate(report) {
     for (const name of ['markersEmptyOwnersIdle', 'markersSingleVisibleOwner', 'markersRangeAndLocale', 'markerLocalePreservesEditorAndHistory', 'markersHiddenPreparation', 'markersVisibleSplit', 'markersClosedOwnersReleased']) assert.equal(report.runs[0].checks[name], true, name);
     assert(report.runs[0].markerObservations.length >= 20);
     assert.equal(report.persistence.markerFixtureCommentsRemaining, 0);
+  }
+  if (selectionMemory) {
+    for (const name of ['selectionCaptureBounded', 'selectionRetainedAcrossTabs', 'hiddenSelectionTracksYjs', 'selectionVisibleSplitFocus', 'selectionClosedMemoryPruned', 'selectionProjectRestore', 'selectionProjectRestoreFocus']) assert.equal(report.runs[0].checks[name], true, name);
+    assert(report.runs[0].selectionObservations.capture >= 200);
+    assert(report.runs[0].selectionObservations.prune >= 20);
   }
   assert.deepEqual(report.runs[0].lifecycle, [
     { projectId: 'native-control-a', mounted: true }, { projectId: 'native-control-a', mounted: false },
@@ -148,7 +154,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${editorSessions} && id.endsWith('/features/editor/entity-editor-session.ts')) {
@@ -206,6 +212,17 @@ export default (env) => mergeConfig(base(env), {
       }
       return code;
     }
+    if (${selectionMemory} && id.endsWith('/lib/editor-selection-memory.ts')) {
+      for (const [anchor, event] of [
+        ['const { anchor, head } = editor.state.selection;', 'capture'],
+        ['selections.set(key, next);', 'write'],
+        ['selections.delete(key);', 'prune'],
+      ]) {
+        if (code.split(anchor).length !== 2) throw new Error('Selection observation anchor drifted: ' + event);
+        code = code.replace(anchor, anchor + '\\nglobalThis.__nativeAcceptanceSelectionEvent(' + JSON.stringify(event) + ');');
+      }
+      return code;
+    }
     if (id.endsWith('/app/providers/ProjectRuntimeProvider.tsx')) {
       const anchor = 'const bootKey = \u0060\u0024{userId}:\u0024{projectId}\u0060;';
       if (code.split(anchor).length !== 2) throw new Error('Project runtime instrumentation anchor drifted');
@@ -228,6 +245,7 @@ export default (env) => mergeConfig(base(env), {
   if (typewriter) artifact.instrumentation.push('typewriter resume/pause/measure/frame/dispose counts');
   if (outline) artifact.instrumentation.push('outline viewport resume/pause/measure/anchor/frame/dispose counts');
   if (markers) artifact.instrumentation.push('scroll marker attach/resume/pause/measure/anchor/frame/dispose counts');
+  if (selectionMemory) artifact.instrumentation.push('selection capture/write/prune counts');
   console.log(`Verified fresh artifact: ${binary} (${artifact.sha256})`);
   console.log('Keep the acceptance window visible and foreground in each process; occluded WebKit animation frames may be suspended.');
   for (const phase of ['composition', 'restart']) {

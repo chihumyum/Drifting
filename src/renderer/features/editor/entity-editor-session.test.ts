@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core';
 import { Schema, type Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, TextSelection, type Transaction } from '@tiptap/pm/state';
+import { getEditorSelectionSnapshot, pruneEditorSelectionMemory, saveEditorSelectionSnapshot } from '../../lib/editor-selection-memory';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EntityEditorSession, type EditorPersistDerived } from './entity-editor-session';
 
@@ -26,7 +27,7 @@ function fixture(id = 'chapter') {
   const editor = emitter as unknown as Editor;
   const persist = vi.fn<(editor: Editor, derived: EditorPersistDerived) => void>();
   const session = new EntityEditorSession(editor, { projectId: 'synthetic-project', sourceKind: 'node', sourceId: id });
-  session.updateOptions({ onPersist: persist, selectionKey: null, autoFocus: true });
+  session.updateOptions({ onPersist: persist, selectionKey: null, autoFocus: true, isCommandActive: true });
   const emit = (event: string) => { for (const callback of [...callbacks.get(event) ?? []]) callback(); };
   return { session, editor, emitter, persist, emit,
     listenerCount: () => [...callbacks.values()].reduce((sum, listeners) => sum + listeners.size, 0),
@@ -75,7 +76,7 @@ describe('canonical editor session ownership', () => {
     vi.useFakeTimers();
     const f = fixture(); f.session.attach(); f.update(document('Pending'));
     const refreshed = vi.fn();
-    f.session.updateOptions({ onPersist: refreshed, selectionKey: null, autoFocus: true });
+    f.session.updateOptions({ onPersist: refreshed, selectionKey: null, autoFocus: true, isCommandActive: true });
     vi.advanceTimersByTime(400);
     expect(f.persist).not.toHaveBeenCalled(); expect(refreshed).toHaveBeenCalledOnce();
     expect(f.listenerCount()).toBe(4); f.session.detach();
@@ -97,7 +98,7 @@ describe('canonical editor session ownership', () => {
     vi.stubGlobal('cancelAnimationFrame', cancelFrame);
     const f = fixture();
     Object.assign(f.emitter, { commands: { blur: vi.fn() }, view: { dispatch: vi.fn() } });
-    f.session.updateOptions({ onPersist: f.persist, selectionKey: null, autoFocus: false });
+    f.session.updateOptions({ onPersist: f.persist, selectionKey: null, autoFocus: false, isCommandActive: true });
     f.session.attach(); f.session.detach();
     expect(requestFrame).toHaveBeenCalledOnce();
     expect(cancelFrame).toHaveBeenCalledWith(17);
@@ -158,5 +159,63 @@ describe('canonical editor session ownership', () => {
     expect(publishedIds).toEqual(['canonical-block']);
     f.session.detach();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('session-owned selection restoration', () => {
+  function restoringFixture() {
+    const f = fixture();
+    const key = 'selection-restore:node:chapter';
+    const frames = new Map<number, FrameRequestCallback>(); let sequence = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++sequence, callback); return sequence; });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.setSelection(TextSelection.create(f.emitter.state.doc, 10, 3)));
+    saveEditorSelectionSnapshot(key, f.editor);
+    f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.setSelection(TextSelection.create(f.emitter.state.doc, 1)));
+    const focus = vi.fn(); const transactions: Transaction[] = [];
+    Object.assign(f.emitter, { view: { focus, dispatch(tr: Transaction) { transactions.push(tr); f.emitter.state = f.emitter.state.apply(tr); } } });
+    const options = { onPersist: f.persist, selectionKey: key, autoFocus: false, isCommandActive: false };
+    f.session.updateOptions(options);
+    return { ...f, key, frames, focus, transactions, options,
+      paint() { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback(0)); } };
+  }
+  afterEach(() => pruneEditorSelectionMemory('selection-restore', []));
+
+  it('restores positions while hidden and waits for visible command ownership before focusing once', () => {
+    const f = restoringFixture(); f.session.attach();
+    expect(f.editor.state.selection.toJSON()).toEqual({ type: 'text', anchor: 10, head: 3 });
+    expect(f.frames.size).toBe(0); expect(f.transactions[0].scrolledIntoView).toBe(false);
+    f.session.setPresentationNeeded(true); expect(f.frames.size).toBe(0);
+    f.session.updateOptions({ ...f.options, isCommandActive: true }); expect(f.frames.size).toBe(1);
+    f.session.updateOptions(f.options); expect(f.frames.size).toBe(0); f.paint(); expect(f.focus).not.toHaveBeenCalled();
+    f.session.updateOptions({ ...f.options, isCommandActive: true }); f.paint();
+    expect(f.focus).toHaveBeenCalledOnce(); expect(f.transactions[f.transactions.length - 1]?.scrolledIntoView).toBe(true);
+    f.session.setPresentationNeeded(false); f.session.setPresentationNeeded(true); f.paint(); expect(f.focus).toHaveBeenCalledOnce();
+    f.session.detach(); expect(f.frames.size).toBe(0);
+  });
+
+  it('cancels retired frames and fences a late callback from an earlier attachment', () => {
+    const f = restoringFixture(); f.session.setPresentationNeeded(true);
+    f.session.updateOptions({ ...f.options, isCommandActive: true }); f.session.attach();
+    const stale = [...f.frames.values()][0]; f.session.detach(); expect(f.frames.size).toBe(0);
+    f.session.attach(); expect(f.frames.size).toBe(1); stale(0); expect(f.focus).not.toHaveBeenCalled();
+    f.paint(); expect(f.focus).toHaveBeenCalledOnce(); f.session.detach();
+  });
+
+  it('does not refocus or scroll an editor the user already focused', () => {
+    const f = restoringFixture(); f.session.setPresentationNeeded(true);
+    f.session.updateOptions({ ...f.options, isCommandActive: true }); f.session.attach();
+    f.emitter.isFocused = true; f.paint(); expect(f.focus).not.toHaveBeenCalled();
+    expect(f.transactions).toHaveLength(1); f.session.detach();
+  });
+
+  it('keeps mapped positions current for hidden authoritative changes without copying prose', () => {
+    vi.useFakeTimers(); const f = restoringFixture(); f.session.attach();
+    f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.insertText('Synthetic ', 1));
+    f.emit('update');
+    expect(getEditorSelectionSnapshot(f.key)).toEqual({ anchor: 20, head: 13, focusOnRestore: true });
+    const snapshot = getEditorSelectionSnapshot(f.key); f.emit('selectionUpdate');
+    expect(getEditorSelectionSnapshot(f.key)).toBe(snapshot);
+    f.session.detach(); expect(f.persist).toHaveBeenCalledOnce(); expect(f.frames.size).toBe(0);
   });
 });

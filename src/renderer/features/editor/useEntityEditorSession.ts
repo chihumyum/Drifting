@@ -25,8 +25,8 @@ export function useEntityEditorSession(editor: Editor | null, config: SessionCon
   // Layout cleanup retires the old identity before a new owner receives its
   // callbacks. Ordinary callback refreshes do not detach listeners or timers.
   useLayoutEffect(() => {
-    session?.updateOptions({ onPersist, selectionKey, autoFocus });
-  }, [session, onPersist, selectionKey, autoFocus]);
+    session?.updateOptions({ onPersist, selectionKey, autoFocus, isCommandActive });
+  }, [session, onPersist, selectionKey, autoFocus, isCommandActive]);
   useLayoutEffect(() => { session?.setPresentationNeeded(presentationNeeded); }, [session, presentationNeeded]);
   useLayoutEffect(() => session?.attach(), [session]);
 

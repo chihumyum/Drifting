@@ -8,6 +8,7 @@ import { getPlatformRuntime } from '../src/renderer/platform/runtime';
 import * as Y from 'yjs';
 import { createBookContentRepository } from '../src/renderer/sqlite-repo/content-repo';
 import { flushOpenYjsDocument } from '../src/renderer/services/yjs-local-durability.service';
+import { editorTabSelectionKey, getEditorSelectionSnapshot, hasEditorSelectionSnapshot } from '../src/renderer/lib/editor-selection-memory';
 import { i18next } from '../src/renderer/lib/i18n';
 import { createCommentWithSync, deleteCommentWithSync } from '../src/renderer/usecase/synced-entity-commands';
 import { withAtomicSyncTransaction } from '../src/renderer/usecase/sync-helpers';
@@ -22,6 +23,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   typewriter: boolean;
   outline: boolean;
   markers: boolean;
+  selectionMemory: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -41,8 +43,10 @@ const outlineInstances = new WeakMap<object, number>();
 const outlineObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
 const markerInstances = new WeakMap<object, number>();
 const markerObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
+const selectionObservations: Record<string, number> = {};
 let step = 'bootstrap';
 Object.assign(globalThis, {
+  __nativeAcceptanceSelectionEvent(event: string) { selectionObservations[event] = (selectionObservations[event] ?? 0) + 1; },
   __nativeAcceptanceRuntime(projectId: string, mounted: boolean) { lifecycle.push({ projectId, mounted }); },
   __nativeAcceptanceSessionEvent(session: { source: { projectId: string; sourceKind: string; sourceId: string } }, event: string) {
     let instance = sessionInstances.get(session);
@@ -186,6 +190,43 @@ async function run() {
       await waitFor(() => listeningOutlines().length === 1, 'one outline viewport among twenty tabs');
       ensure(outlineObservations.length >= 20, 'Outline observations missed retained editors');
       checks.outlineSingleVisibleOwner = true;
+    }
+    if (config.selectionMemory) {
+      await progress('selection-memory-and-hidden-mapping');
+      const key = editorTabSelectionKey(a.id, { entityType: 'node', id: a.nodeIds[0] });
+      const captures = selectionObservations.capture ?? 0;
+      const writes = selectionObservations.write ?? 0;
+      for (let index = 0; index < 200; index++) first.commands.setTextSelection({ from: index + 101, to: index + 11 });
+      const snapshot = getEditorSelectionSnapshot(key);
+      ensure(snapshot && snapshot.anchor === 300 && snapshot.head === 210 && Object.keys(snapshot).sort().join(',') === 'anchor,focusOnRestore,head', 'Selection memory retained wrong positions or prose fields');
+      ensure(selectionObservations.capture - captures === 200 && selectionObservations.write - writes === 200, 'Selection burst was not captured exactly once per move');
+      checks.selectionCaptureBounded = true;
+      await open(a.id, a.nodeIds[2]);
+      ensure(await open(a.id, a.nodeIds[0]) === first, 'Selection navigation recreated editor');
+      ensure(first.state.selection.anchor === 300 && first.state.selection.head === 210, 'Tab navigation lost backward selection');
+      checks.selectionRetainedAcrossTabs = true;
+      await open(a.id, a.nodeIds[2]);
+      const fragment = doc.getXmlFragment('default');
+      const text = (fragment.get(0) as Y.XmlElement).get(0) as Y.XmlText;
+      const prefix = 'Synthetic hidden selection prefix. ';
+      doc.transact(() => text.insert(0, prefix), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      try {
+        await waitFor(() => getEditorSelectionSnapshot(key)?.anchor === 300 + prefix.length && getEditorSelectionSnapshot(key)?.head === 210 + prefix.length, 'mapped hidden selection memory');
+      } catch (error) {
+        throw new Error(`${String(error)}; selectionDiagnostic=${JSON.stringify({
+          snapshot: getEditorSelectionSnapshot(key), selection: first.state.selection.toJSON(),
+          textLength: first.getText().length, prefixPresent: first.getText().startsWith(prefix),
+          sameDoc: getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, destroyed: first.isDestroyed,
+        })}`);
+      }
+      ensure(first.state.selection.anchor === 300 + prefix.length && first.state.selection.head === 210 + prefix.length, 'Hidden snapshot diverged from live selection');
+      doc.transact(() => text.delete(0, prefix.length), 'agent');
+      await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
+      await open(a.id, a.nodeIds[0]);
+      ensure(first.state.selection.anchor === 300 && first.state.selection.head === 210 && first.getText() === before + marker, 'Hidden selection cleanup changed source positions/prose');
+      ensure(await saveActiveEditor(), 'Selection fixture cleanup save missing');
+      checks.hiddenSelectionTracksYjs = true;
     }
     if (config.editorSessions) {
       await progress('hidden-yjs-session');
@@ -472,6 +513,17 @@ async function run() {
       ensure([...document.querySelectorAll('[data-editor-surface-visible="true"]')].every(surface => surface.querySelector('.editor__scrollmap-tick')), 'Visible split lost comment ticks');
       checks.markersVisibleSplit = true;
     }
+    if (config.selectionMemory) {
+      // A split has one shared surface key, not each leaf's node surface key.
+      // SplitView renders left then right; inspect the actual second editor
+      // without editorReady, which supplies an explicit focus of its own.
+      const splitEditors = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]')];
+      ensure(splitEditors.length === 2, 'Expected both split editor views');
+      await waitFor(() => document.activeElement === splitEditors[1] && getActiveEditor()?.view.dom === splitEditors[1], 'command-active split restoration focus');
+      await frames(); await frames();
+      ensure(document.activeElement === splitEditors[1], 'Unfocused split stole restoration focus');
+      checks.selectionVisibleSplitFocus = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
@@ -503,6 +555,13 @@ async function run() {
       ensure(counts.size >= 20 && [...counts.values()].every(count => count === 0), 'Closed editor session bindings leaked');
       checks.closedSessionBindingsReleased = true;
     }
+    if (config.selectionMemory) {
+      await waitFor(() => a.nodeIds.slice(0, 20).every(id => !hasEditorSelectionSnapshot(editorTabSelectionKey(a.id, { entityType: 'node', id }))), 'closed selection memory pruned');
+      checks.selectionClosedMemoryPruned = true;
+      const reopened = await open(a.id, a.nodeIds[0]);
+      reopened.commands.setTextSelection({ from: 35, to: 12 });
+      ensure(await saveActiveEditor(), 'Selection restoration setup save missing');
+    }
     await progress('project-switch');
     route(b.id, b.nodeIds[0]);
     await readyProject(b.id, 3);
@@ -512,8 +571,19 @@ async function run() {
     ensure(a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'Old project live docs remained');
     route(a.id, a.nodeIds[0]);
     await readyProject(a.id, 50);
+    if (config.selectionMemory) {
+      // This project return creates a new canonical editor with saved position
+      // memory. Observe the session's automatic focus before open/editorReady
+      // can supply an explicit DOM focus of their own.
+      await waitFor(() => document.activeElement?.closest<HTMLElement>('[data-editor-surface][data-editor-surface-visible="true"]')?.dataset.editorSurface === `node:${a.nodeIds[0]}`, 'project-return session restoration focus');
+      checks.selectionProjectRestoreFocus = true;
+    }
     const restored = await open(a.id, a.nodeIds[0]);
     ensure(restored.getText() === before + marker, 'Native reload did not restore committed prose');
+    if (config.selectionMemory) {
+      ensure(restored.state.selection.anchor === 35 && restored.state.selection.head === 12, 'Project return lost selection direction or offsets');
+      checks.selectionProjectRestore = true;
+    }
     ensure(useDataStore.getState().bookElements.length === 100 && useDataStore.getState().entityRelations.length === 500, 'Restored project projection incorrect');
     ensure(!getLiveYDoc(`node-content:${b.nodeIds[0]}`), 'Second project doc leaked');
     checks.projectSwitchAndSqliteRestore = true;
@@ -522,7 +592,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

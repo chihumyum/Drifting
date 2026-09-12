@@ -1,0 +1,206 @@
+{
+  "kind": "selection_capture_comparison",
+  "status": "measured",
+  "generatedAt": "2026-09-12T16:55:04.340Z",
+  "source": {
+    "commit": "e0c7a8c4b53c049d7c81433ef4ae3cefadd1e3c6",
+    "fingerprint": "130fda25d703cecd22f7a3037d05be0456b6b09e1d096ade096f1339e1642ec2",
+    "baselineCommit": "e0c7a8c4b53c049d7c81433ef4ae3cefadd1e3c6",
+    "baselineSourceHash": "c7ad602632553b7f9ae755de56173e0f47cc1ecc1a0473baeaa88434476ea325"
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "scenarios": [
+    {
+      "characters": 5000,
+      "blocks": 50,
+      "capturesPerBatch": 200,
+      "fixtureHash": "530cc26350d5db85311a71b1fad8ca18adbea4a358f055f98e121d0142d1936d",
+      "baseline": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 200,
+          "nodesVisited": 20000,
+          "blockTextReads": 10000,
+          "rangeTextReads": 100
+        },
+        "batchMs": [
+          1.963417000000021,
+          1.3825420000000008,
+          0.9541670000000124,
+          1.3720419999999933,
+          1.084875000000011,
+          0.9432500000000061,
+          1.0512499999999818
+        ],
+        "batchChecksums": [
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200
+        ]
+      },
+      "current": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 0,
+          "nodesVisited": 0,
+          "blockTextReads": 0,
+          "rangeTextReads": 0
+        },
+        "batchMs": [
+          0.023249999999990223,
+          0.01954200000000128,
+          0.018791999999990594,
+          0.017958000000021457,
+          0.017957999999993035,
+          0.02129199999998832,
+          0.016124999999988177
+        ],
+        "batchChecksums": [
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200,
+          1014200
+        ]
+      }
+    },
+    {
+      "characters": 20000,
+      "blocks": 200,
+      "capturesPerBatch": 200,
+      "fixtureHash": "82479c61418dea8ad186b41b6169af176743c9543777ecf8876e11ea9fad75c9",
+      "baseline": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 200,
+          "nodesVisited": 80000,
+          "blockTextReads": 40000,
+          "rangeTextReads": 100
+        },
+        "batchMs": [
+          4.413082999999972,
+          3.7879159999999956,
+          3.6785840000000007,
+          3.681041999999991,
+          3.6948750000000246,
+          4.078833999999972,
+          3.4657080000000065
+        ],
+        "batchChecksums": [
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200
+        ]
+      },
+      "current": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 0,
+          "nodesVisited": 0,
+          "blockTextReads": 0,
+          "rangeTextReads": 0
+        },
+        "batchMs": [
+          0.004124999999987722,
+          0.003916000000003805,
+          0.003958000000011452,
+          0.003917000000001281,
+          0.003792000000032658,
+          0.0037909999999783395,
+          0.0036670000000071923
+        ],
+        "batchChecksums": [
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200
+        ]
+      }
+    },
+    {
+      "characters": 50000,
+      "blocks": 500,
+      "capturesPerBatch": 200,
+      "fixtureHash": "daf4558ab23eb9f3e27c98128429ba1ba72f4494297bd4044ea7a1620a0d06b0",
+      "baseline": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 200,
+          "nodesVisited": 200000,
+          "blockTextReads": 100000,
+          "rangeTextReads": 100
+        },
+        "batchMs": [
+          8.847082999999998,
+          8.981790999999987,
+          9.403415999999993,
+          8.792584000000033,
+          8.91758299999998,
+          8.909125000000017,
+          9.12379199999998
+        ],
+        "batchChecksums": [
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200
+        ]
+      },
+      "current": {
+        "counters": {
+          "captures": 200,
+          "documentWalks": 0,
+          "nodesVisited": 0,
+          "blockTextReads": 0,
+          "rangeTextReads": 0
+        },
+        "batchMs": [
+          0.004250000000013188,
+          0.0037909999999783395,
+          0.003959000000008928,
+          0.0038749999999936335,
+          0.0038749999999936335,
+          0.0037919999999758147,
+          0.004707999999993717
+        ],
+        "batchChecksums": [
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200,
+          4074200
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Node microbenchmark with real immutable ProseMirror documents and synthetic editor-state holders.",
+    "Counters are collected separately from seven warmed batch timings.",
+    "Baseline is the exact pre-change capture function, including now-unused prose/context derivation.",
+    "No React, WebView, physical IME, input-to-paint or device performance budget is measured."
+  ]
+}
