@@ -71,6 +71,7 @@ import {
   type AgentLongTaskPlanContinuationState,
 } from '../lib/agent/runtime/long-task-auto-continuation';
 import { createAgentChatJournalScope, hasAgentChatJournalEvent, rememberAgentChatJournalEvent, type AgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
+import { markAgentChatMessagePublication } from '../lib/agent/runtime/chat-message-publication';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 import { agentTurnContextPrompt, normalizeAgentTurnContext } from '../lib/agent/turn-context';
@@ -1360,6 +1361,7 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       });
     }
     const messages = applyEvent(run.messages, entry);
+    markAgentChatMessagePublication(messages, ev.type);
     rememberAgentChatJournalEvent(run.journalScope, entry.eventId);
     return {
       runs: {

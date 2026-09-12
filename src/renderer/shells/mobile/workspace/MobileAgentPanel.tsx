@@ -1,3 +1,4 @@
+import { useAgentChatMessages } from '../../../features/agent/useAgentChatMessages';
 import { useInputPreservingActions } from '../../../hooks/useInputPreservingActions';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -34,7 +35,6 @@ import { generalAgentTransport } from '../../../lib/agent/transport';
 import {
   selectContextUsage,
   selectControlStatus,
-  selectMessages,
   selectPendingControl,
   selectRunning,
   useAgentChatStore,
@@ -158,7 +158,7 @@ export function MobileAgentPanel({
   const userId = useAuthStore((state) => state.user?.id) ?? '';
   const projectName = useProjectStore((state) => state.currentProject?.name) ?? t('agentPanel.mobile.currentProject');
   const agentAuth = useSettingsStore((state) => state.agentAuth);
-  const messages = useAgentChatStore(selectMessages);
+  const messages = useAgentChatMessages();
   const prompt = useAgentChatStore((state) => state.prompt);
   const running = useAgentChatStore(selectRunning);
   const starting = useAgentChatStore((state) => state.starting);

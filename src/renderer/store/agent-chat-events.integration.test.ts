@@ -5,6 +5,7 @@ import { installGeneralAgentTransport, unsupportedGeneralAgentTransport } from '
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { createInactiveAgentAutomaticContinuation } from '../lib/agent/runtime/long-task-auto-continuation';
 import { AGENT_RUNTIME_SCHEMA_VERSION, type AgentRuntimeEvent, type AgentRuntimeJournalEntry } from '../lib/agent/runtime/types';
+import { createAgentChatDisplayProjection } from '../features/agent/chat-display-projection';
 
 const persistence = vi.hoisted(() => ({
   update: vi.fn(async () => undefined), get: vi.fn(), projection: vi.fn(),
@@ -59,6 +60,28 @@ afterEach(async () => {
 });
 
 describe('chat journal ingress and private deduplication', () => {
+  it('flushes the actual terminal tail before its finalized transcript is persisted', async () => {
+    const frames = new Map<number, () => void>();
+    const display = createAgentChatDisplayProjection(useAgentChatStore, {
+      requestFrame: (callback) => { frames.set(1, callback); return 1; },
+      cancelFrame: (id) => { frames.delete(id); },
+      setTimer: (callback, ms) => setTimeout(callback, ms), clearTimer: clearTimeout,
+      isHidden: () => false, subscribeVisibility: () => () => undefined,
+    });
+    const release = display.subscribe(() => undefined);
+    try {
+      emit(entry({ type: 'text_delta', iteration: 1, text: '末尾输出' }, 'pending-tail'));
+      expect(display.getSnapshot()).toEqual([]);
+      emit(entry({ type: 'turn_finished', outcome: 'completed', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 }, modelIterations: 1, durationMs: 100 }, 'terminal-tail'));
+      const messages = useAgentChatStore.getState().runs[conversationId].messages;
+      expect(display.getSnapshot()).toBe(messages);
+      expect(messages[0]).toEqual({ kind: 'assistant', text: '末尾输出', streaming: false });
+      expect(frames.size).toBe(0);
+      expect(persistence.update).toHaveBeenCalledWith(conversationId, expect.objectContaining({ messages }));
+      await settle();
+    } finally { release(); }
+  });
+
   it('matches the reference projection with transient thinking, tools and a duplicated terminal', async () => {
     const trace: AgentRuntimeJournalEntry[] = [
       { ...entry({ type: 'thinking_delta', iteration: 1, text: '思' }, 'transient:1'), transient: true },

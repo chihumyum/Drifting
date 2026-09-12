@@ -89,7 +89,7 @@ try {
       'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
       'Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.',
-      'Agent chat UI and durable event persistence, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
+      'Full Agent panels and durable event persistence, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
     ],
   };
   if (assertInputBudget) {

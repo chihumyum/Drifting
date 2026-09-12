@@ -17,28 +17,32 @@
     "sourceSha256": {
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
-      "scripts/generate-agent-conversation-sync.ts": "d723d25a1f8beff8281ab28c10d9389177ea9190a57e0a652e3175537cd9e71f",
+      "scripts/generate-agent-conversation-sync.ts": "437dc49597db754b0aba5d56a4624c8703778e1be1dfe1bc45218b60f7f30655",
       "src-tauri/src/database.rs": "0ea35c92ffd8af943dbcd2f71554a6c840fca74dfeb004d2c86036bffa71149f",
       "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
       "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
       "src-tauri/src/mcp_stdio.rs": "48c385cbd4571c60a89e29d1013029c9cb26ffec924543d18d0eba2c5be74ce2",
-      "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "7ff82042550b516ac46b2b047bbe58fb06895dd871d784f6ba7dc1d49b489029",
+      "src/renderer/features/agent/chat-display-projection.test.ts": "4c69dd38c20e2989c2ddf8840953af8def05a6e7155672f4e42b17e578495d28",
+      "src/renderer/features/agent/chat-display-projection.ts": "4fe23d4a7a06fa377da2a896436a84091013380f93f506e2a194a8291926d203",
+      "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "10ea1aa01856e3920fdac6c36f3d60355866bb8bfca1592b3ee4b326e83eb5e1",
+      "src/renderer/features/agent/useAgentChatMessages.ts": "9c4c959b89b0a18112715604711d6464db14e01e509c39919ca3a8834183547b",
       "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "819b986847d962fd39d4e4107c20bc2bfdbf4810304de90945c7e407b67f5e55",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts": "51d399cf3dffefd538e86f3b173d4b3bffb10e092d088be4adb92bfbdfb7fd6c",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.ts": "152db7e49f552b39e1dd5bba8d61d23a73dc000d28ed229137e87b5f4777e24f",
+      "src/renderer/lib/agent/runtime/chat-message-publication.ts": "c8b8db32246f4a3cf6b39112c86a8424040f4c36cce68602fe93be5c439c90a5",
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "14ecc81282cb318199d49f37ee27f5e3148d86554c7e822ced2fb2d16ab310e0",
       "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "ddf6e45584275945c215414aa37549c83d8d30f47d4b684f3c643e2adb830e12",
       "src/renderer/lib/events.ts": "19099180a4fdcabd403f1e437f8504fd45148202a0824f197d08b1393f1fe039",
       "src/renderer/platform/contracts.ts": "d7abe5e13130fce84ae3832ff48a56bbf17bf8dd0441cd5a654bddcc3041ceb0",
       "src/renderer/platform/types.ts": "48a1b88e2af5c1676be225722e235dc54faadb55ec61164c7e21db09d4ef77aa",
       "src/renderer/schema/drizzle.ts": "213132eacae7fb530c21537e42a19f8e43c523b3c2ecc87cb3957611f0b55764",
-      "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "6c36b52976dd09a7481676f945e1821b24ce14429178b2db468612103992f4c5",
+      "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "e2975896ad0f75bd06badeab9ecc6ac621f4c5a229bf55191c04264571b67e65",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "50d712fb9ed8f69207848603830fa465c76afd3818a58ee36623b8b47661e963",
       "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts": "68153df981c09a602bbc1835bdb3e03290b6a5c06f220c5afeafea4d4c4c35e8",
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316",
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f",
-      "src/renderer/store/agent-chat-events.integration.test.ts": "78d38bb1559a3f9009e6511b9b30041d32aa2aecdfa50afd28cbdf5bc2d3be66",
-      "src/renderer/store/agent-chat-store.ts": "7f9c1cf96f962356eb68ce7694c061430e6ee5ee3902be3976513b1a838038f3",
+      "src/renderer/store/agent-chat-events.integration.test.ts": "1761cbae7aa79be0af470989ecf60cc28bd5ad08902704d81a880493cc6d798d",
+      "src/renderer/store/agent-chat-store.ts": "f2f7b6c42461189ed6a23e6ab9658640947355fa33e3defafacf4df293f246a9",
       "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217",
       "src/renderer/sync/agent-chat/imported-history.ts": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af",
       "src/renderer/sync/agent-chat/payload.ts": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c",
@@ -56,10 +60,34 @@
   "automated": {
     "status": "passed",
     "renderer": {
-      "passed": 36,
+      "passed": 50,
       "failed": 0,
       "skipped": 0,
       "cases": [
+        {
+          "name": "Agent chat display notification projection coalesces a burst for shared consumers while canonical snapshots remain current",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat display notification projection disposes timers/listeners and remounts from the latest canonical array",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat display notification projection does not flush or notify for sibling run updates",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat display notification projection flushes after 50 ms without a frame and flushes immediately when hidden",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat display notification projection flushes pending text on permission, cancellation, terminal and author changes",
+          "status": "passed"
+        },
+        {
+          "name": "Agent chat display notification projection switches conversations atomically without losing an outgoing tail",
+          "status": "passed"
+        },
         {
           "name": "Agent chat extension: two independent product databases converges concurrent deletion timestamps independently of receive order",
           "status": "passed"
@@ -137,6 +165,30 @@
           "status": "passed"
         },
         {
+          "name": "chat journal ingress and private deduplication does not remember an event when its projection fails",
+          "status": "passed"
+        },
+        {
+          "name": "chat journal ingress and private deduplication flushes the actual terminal tail before its finalized transcript is persisted",
+          "status": "passed"
+        },
+        {
+          "name": "chat journal ingress and private deduplication matches the reference projection with transient thinking, tools and a duplicated terminal",
+          "status": "passed"
+        },
+        {
+          "name": "chat journal ingress and private deduplication preserves membership across transport rebinding and isolates sibling conversations",
+          "status": "passed"
+        },
+        {
+          "name": "chat journal ingress and private deduplication publishes permission and cancellation immediately without accepting duplicate controls",
+          "status": "passed"
+        },
+        {
+          "name": "chat journal ingress and private deduplication seeds a fresh recovery generation and drops deleted conversation routing",
+          "status": "passed"
+        },
+        {
           "name": "durable Agent result artifact repository deduplicates blobs and refuses quota overflow without invalidating existing refs",
           "status": "passed"
         },
@@ -150,6 +202,14 @@
         },
         {
           "name": "durable Agent result artifact repository pages exact Unicode content after closing and reopening the repository",
+          "status": "passed"
+        },
+        {
+          "name": "private chat journal membership does not truncate unacknowledged IDs or share membership across generations",
+          "status": "passed"
+        },
+        {
+          "name": "private chat journal membership seeds recovery IDs and retains durable and transient identity independently",
           "status": "passed"
         },
         {

@@ -51,6 +51,10 @@ const sourceFiles = [
   'src/renderer/store/agent-chat-events.integration.test.ts',
   'src/renderer/lib/agent/runtime/chat-journal-dedup.ts',
   'src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts',
+  'src/renderer/lib/agent/runtime/chat-message-publication.ts',
+  'src/renderer/features/agent/chat-display-projection.ts',
+  'src/renderer/features/agent/chat-display-projection.test.ts',
+  'src/renderer/features/agent/useAgentChatMessages.ts',
   'src/renderer/lib/agent/runtime/repository-transport-persistence.ts',
   'src/renderer/lib/agent/runtime/recovered-transcript.ts',
   'src/renderer/features/agent/desktop/DesktopAgentPanel.tsx',
@@ -88,6 +92,9 @@ if (process.argv.includes('--check')) {
       'src/renderer/sync/production-runtime.test.ts',
       'src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts',
       'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts',
+      'src/renderer/store/agent-chat-events.integration.test.ts',
+      'src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts',
+      'src/renderer/features/agent/chat-display-projection.test.ts',
     ];
     const tests = spawnSync(
       'pnpm',

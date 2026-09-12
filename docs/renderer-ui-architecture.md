@@ -152,8 +152,17 @@ held Set is reused across continuations and transport changes. Recovery creates
 a fresh scope seeded from canonical event IDs; forks start empty. React receives
 immutable message/run snapshots and cannot observe or mutate the membership
 collection. Removing the last run/snapshot reference permits its index to be
-collected. Retained conversations still have O(events) membership storage;
-display notification batching remains separate work.
+collected. Retained conversations still have O(events) membership storage.
+
+Desktop/mobile chat panels read a shared `useAgentChatMessages` display
+projection. It coalesces text/thinking/tool-argument notifications by frame,
+with a 50 ms timer fallback and immediate delivery while hidden. Control,
+terminal, author-state and navigation boundaries flush the canonical message
+array immediately. The projection owns only scheduling and a cached array
+reference; ingestion, persistence and voice logic continue reading canonical
+state. Last-view disposal releases timers, listeners and retained run/message
+references. History message identities and `MessageView` memoization remain
+unchanged.
 
 Workspace consumers subscribe to explicit fields through `useDataStoreFields`
 or a narrower `useDataStore(selector)`. The field helper selects from one

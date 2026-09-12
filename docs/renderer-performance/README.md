@@ -2,7 +2,7 @@
 
 The [implementation plan](optimization-plan.md) remains the scope authority.
 F0 is **in progress**: the first input-path baseline is available; app-wide,
-Agent chat UI, graph, reference, multi-tab memory and native/device measurements remain
+Full Agent panels, graph, reference, multi-tab memory and native/device measurements remain
 NOT RUN. This initial input baseline permits the bounded F1 input-path work;
 it does not satisfy unrelated phases' baseline requirements.
 
@@ -308,3 +308,45 @@ module, integration checks and native fixture helper.
 F4 stays in progress: this batch removes cumulative membership copying.
 Per-event UI notifications are unchanged; frame batching, chat UI performance,
 scroll continuity and remaining recovery/device measurements are next.
+
+## F4b shared chat display scheduling
+
+Desktop and mobile chat panels now consume `useAgentChatMessages`. The hook
+shares one ref-counted display projection over the existing canonical store.
+Text/thinking/tool-argument deltas are tagged by immutable message-array identity
+and can coalesce until the next animation frame. A 50 ms timer provides a
+fallback when no frame arrives; visibility changes flush pending content, and
+events received while hidden flush synchronously. Timer timing still depends on
+the JavaScript scheduler; this is not a native latency promise.
+
+Permission, cancellation, terminal, author-state and conversation/project
+boundaries flush the latest canonical array immediately. Ingestion, journal
+handling, control state and terminal persistence remain synchronous as before;
+only the visual subscriber notifications are delayed. Existing message objects
+and `MessageView` memoization are preserved. The voice workflow continues to
+read the canonical selector. Last-subscriber removal cancels both callbacks,
+releases source/visibility listeners and drops cached run/transcript references;
+remounting reads current canonical data.
+
+Generated [f4-chat-display.json](acceptance/f4-chat-display.json) mounts 20
+immediate consumers and 20 production-hook consumers, all rendering real
+`MessageView` components. One synchronous 100-event burst produces 2,000
+immediate commits, zero batched commits during ingestion, and 20 batched commits
+at the next frame. The canonical text is already complete before that frame,
+and rendered Markdown contains the full output afterwards. Permission,
+cancellation and non-stream boundaries synchronously render their pending tail.
+This is a controlled burst fixture, not a claim about provider event cadence.
+
+Six scheduler tests cover coalescing, the 50 ms fallback, hidden delivery,
+controls, switching, sibling isolation and teardown/remount. A real
+transport/store/display integration test additionally proves that `turn_finished`
+flushes the final assistant text before the persistence port receives that same
+finalized transcript. The conversation generator now executes these ingress,
+dedup and display suites along with its existing recovery checks.
+
+Validation: full Vitest (2,194 passed, 1 skipped), the subsequent added terminal
+integration case, typecheck, lint, public/CI contract, capabilities, production
+renderer build, browser/report checks, and regenerated conversation evidence
+(50 renderer tests, 108 native tests). Full desktop/mobile panel scrolling,
+selection, long-history layout, actual restart and native interaction remain
+pending. F4 stays `in_progress` until its remaining acceptance is proved.

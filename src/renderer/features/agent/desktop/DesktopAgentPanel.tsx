@@ -14,6 +14,7 @@
  * managed once in Settings → 模型与 API; a missing selected-provider key links
  * there instead of creating another credential form in the chat surface.
  */
+import { useAgentChatMessages } from '../useAgentChatMessages';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -25,7 +26,6 @@ import {
   selectAgentTaskContinuationReason,
   selectContextUsage,
   selectControlStatus,
-  selectMessages,
   selectPendingControl,
   selectRunning,
 } from '../../../store/agent-chat-store';
@@ -67,7 +67,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
-  const messages = useAgentChatStore(selectMessages);
+  const messages = useAgentChatMessages();
   const prompt = useAgentChatStore((s) => s.prompt);
   // Every conversation owns at most one turn; sibling conversations may run in
   // parallel and remain visible through history-row indicators.

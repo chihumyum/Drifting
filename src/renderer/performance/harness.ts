@@ -9,6 +9,7 @@ import { runSemanticSubscriptionScenario, runSubscriptionScenarios } from './sub
 import { runAgentDecorationScenarios, runDecorationReadinessScenario } from './agent-decoration-scenarios';
 import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenarios';
 import { runAgentEventScenarios } from './agent-event-scenarios';
+import { runAgentDisplayScenarios } from './agent-display-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -105,6 +106,7 @@ async function run() {
     decorationReadiness: runDecorationReadinessScenario(),
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     agentEventProcessing: await runAgentEventScenarios(),
+    agentDisplay: await runAgentDisplayScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

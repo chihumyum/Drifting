@@ -99,6 +99,14 @@ if (report.agentEventProcessing) {
     if (scenario.implementation === 'private-membership-index') assert(item.medianMs <= item.eventCount * 0.02, 'F4a ingestion budget exceeded');
   }
 }
+if (report.agentDisplay) {
+  const scenario = report.agentDisplay;
+  assert.equal(scenario.burst.immediate, scenario.consumers * scenario.streamEvents);
+  assert.equal(scenario.burst.batched, 0);
+  assert.equal(scenario.displayCommitsAfterFrame, scenario.consumers);
+  assert(scenario.checks.length > 0);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+}
 const scenarioIds = new Set();
 for (const scenario of report.scenarios) {
   assert(!scenarioIds.has(scenario.id));
