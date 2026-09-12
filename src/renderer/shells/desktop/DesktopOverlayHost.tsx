@@ -5,8 +5,7 @@ import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapsh
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { EditChapterStorylineModal } from '../../components/modals/EditChapterStorylineModal';
 import { GlobalSearchModal } from '../../components/search/GlobalSearchModal';
-import { DesktopStoryGraphView } from './views/DesktopStoryGraphView';
-import { DesktopSuperElementView } from './views/DesktopSuperElementView';
+import { DeferredStoryGraphView as DesktopStoryGraphView, DeferredElementGraphView as DesktopSuperElementView } from './views/DeferredSuperViews';
 import { DesktopSuperMemoMaterialView } from './views/DesktopSuperMemoMaterialView';
 
 type DesktopSuperView = 'none' | 'element' | 'graph' | 'memo-material';

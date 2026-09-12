@@ -1,1 +1,1 @@
-export { DesktopStoryGraphView as StoryGraphView } from '../shells/desktop/views/DesktopStoryGraphView';
+export { DeferredStoryGraphView as StoryGraphView } from '../shells/desktop/views/DeferredSuperViews';

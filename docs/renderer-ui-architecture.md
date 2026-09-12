@@ -101,7 +101,8 @@ modal selection/query lifetime and prevents late content from mounting.
 The shared deferred module owner caches code and coalesces requests; it owns no
 project, editor, credentials or document. Failure stays local until explicit
 retry. Browser experiments showed that retrying an identical failed import URL
-stayed rejected. `vite-plugins/deferred-settings.ts` emits the typed settings
+stayed rejected. `vite-plugins/deferred-settings.ts` uses the shared
+`deferred-entry.ts` plugin to emit the typed settings
 entry and appends a fresh `settings-attempt` query on each load attempt, retaining
 the build's hashed file and local URL. Successful loads remain shared without
 further requests. The production graph check requires this entry's static JS
@@ -114,6 +115,36 @@ upgrade asset consistency and module evaluation failures still need acceptance.
 The complete project settings panels and their editor/runtime surroundings are
 not covered by standalone browser preference tests. No automatic app reload or
 new Suspense boundary surrounds the workspace.
+
+### Deferred graph views
+
+Desktop's overlay host and the mobile compatibility entries mount
+`DeferredSuperViews`. The wrapper immediately exposes the existing navigation,
+Back/Escape handling and local loading/error state. It loads a shared graph UI
+entry first, then the independently emitted story or element graph body. The
+shared entry owns popovers, edge rendering and geometry helpers; it imports no
+desktop shell. Both bodies receive the same successful module namespace. The
+element transform hook receives stable geometry helpers, preserving its existing
+imperative writes, observer and animation-frame scheduler.
+
+Each of these three module requests uses the same build's hashed asset with a
+fresh `graph-attempt` query on retry. Shared-load failure prevents the body
+request; a later body failure does not discard successfully loaded shared code.
+The production acceptance guard requires every emitted entry's static JS
+dependencies and CSS to be present in the HTML startup closure. This is necessary
+because retrying an entry URL alone cannot recover a cached failed cold child.
+Graph styles and the small drift-panel animation hook remain in the immediate
+shell. Animation state belongs to each wrapper mount; graph, project and editor
+instances are never cached with code.
+
+Closing or switching views unsubscribes that view without aborting a shared code
+request. A late result only fills the code cache and cannot reopen the old view.
+When focus was in a removed loading control, ready content restores it to Back;
+focus moved to another control is respected. The wrapper does not suspend or
+recreate the surrounding workspace. Mounted browser fixtures check continuity
+with an actual synthetic Tiptap/Yjs editor, but do not mount ChapterEditor or
+ProjectRuntimeProvider. Native resource loading, mobile platform gesture paths,
+full project continuity and first-use latency budgets remain separate gates.
 
 ### Desktop editor-session continuity
 

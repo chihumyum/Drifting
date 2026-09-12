@@ -24,6 +24,29 @@ function sourceFiles(relativeDirectory: string): string[] {
 }
 
 describe('renderer ownership boundaries', () => {
+  it('keeps graph bodies and shared graph UI behind their owned deferred entries', () => {
+    const deferred = [
+      'shells/desktop/views/DesktopStoryGraphView',
+      'shells/desktop/views/DesktopSuperElementView',
+      'features/graph/graph-ui-components',
+    ].map((relative) => path.join(rendererRoot, relative));
+    for (const file of sourceFiles('')) {
+      const ast = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+      for (const statement of ast.statements) {
+        if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+        if (ts.isImportDeclaration(statement) && statement.importClause?.isTypeOnly) continue;
+        if (ts.isExportDeclaration(statement) && statement.isTypeOnly) continue;
+        const specifier = statement.moduleSpecifier;
+        if (!specifier || !ts.isStringLiteral(specifier)) continue;
+        const imported = specifier.text.startsWith('@/')
+          ? path.resolve(rendererRoot, '..', specifier.text.slice(2))
+          : path.resolve(path.dirname(file), specifier.text);
+        expect(deferred, `${path.relative(rendererRoot, file)} bypasses a graph loader`)
+          .not.toContain(imported.replace(/\.(ts|tsx)$/, ''));
+      }
+    }
+  });
+
   it('keeps settings code behind its deferred entry while Trash stays independently reachable', () => {
     const settingsRoot = path.join(rendererRoot, 'features/settings');
     const facade = path.join(settingsRoot, 'settings-panels');

@@ -1,3 +1,6 @@
+import { superElementBandTop } from '../features/graph/super-element-edge-model';
+import { createGraphGeometryScheduler } from '../features/graph/graph-geometry-scheduler';
+const transformGeometry = { superElementBandTop, createGraphGeometryScheduler };
 import { createElement, useLayoutEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -43,7 +46,7 @@ async function viewportScenario() {
   const focusedEdgeIds = new Set(['edge']);
   function Card() { useLayoutEffect(() => { cardCommits++; }); return createElement('div', {}, '合成卡片'); }
   function Parent({ source }: { source: SuperElementWorldEdge[] }) {
-    const apply = useSuperElementTransform({ worldRef, bandRef, viewportRef, panRef, zoomRef,
+    const apply = useSuperElementTransform({ geometry: transformGeometry, worldRef, bandRef, viewportRef, panRef, zoomRef,
       bandStickyRef, bandHeightCellsRef, bandTopWorldYRef, bandWorldLeftRef, cellHeight: 56 });
     useLayoutEffect(() => { transform = apply; apply(); }, [apply]);
     return createElement('div', { ref: viewportRef, style: { position: 'fixed', left: 0, top: 0, width: 640, height: 400 } },

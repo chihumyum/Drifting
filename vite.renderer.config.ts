@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { deferredSettingsPlugin } from './vite-plugins/deferred-settings';
+import { deferredSuperViewsPlugins } from './vite-plugins/deferred-super-views';
 
 const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 
@@ -34,7 +35,7 @@ export default defineConfig(({ command }) => {
     // Release builds accept only explicit process variables. This prevents ignored
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,
-    plugins: [react(), deferredSettingsPlugin()],
+    plugins: [react(), deferredSettingsPlugin(), ...deferredSuperViewsPlugins()],
     resolve: {
       dedupe: ['react', 'react-dom'],
       alias: {

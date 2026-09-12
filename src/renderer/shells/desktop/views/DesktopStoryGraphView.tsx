@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { StoryGraphDriftEdges } from '../../../features/graph/StoryGraphDriftEdges';
 import { projectStoryGraphDriftEdges } from '../../../features/graph/story-graph-drift-model';
 import { useTranslation } from 'react-i18next';
 import type { Storyline } from '../../../domain/storyline';
@@ -27,21 +26,13 @@ import { createTimelineDragPreview } from '../../../features/graph/timeline-drag
 import { useBookAct } from '../../../usecase/useBookAct';
 import { actBoundDriftIds } from '../../../domain/book-act';
 import { events } from '../../../lib/events';
-import { NodeCardPopover, type AnchorRect } from '../../../components/graph/NodeCardPopover';
+import type { AnchorRect } from '../../../components/graph/NodeCardPopover';
 import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelinePin } from '../../../components/timeline/TimelinePin';
 import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
-import {
-  RelationEdgePopover,
-  type RelationEdgePopoverAnchor,
-} from '../../../components/graph/RelationEdgePopover';
-import { RelationArrowMarker } from '../../../components/graph/RelationArrowMarker';
-import {
-  relationArrowMarkerId,
-  relationEdgePath,
-} from '../../../components/graph/relation-edge-visual';
-import { DriftPanel, useDriftPanelAnim } from '../../../components/DriftPanel';
+import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
+import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
@@ -138,7 +129,8 @@ type PositionedNode = BookNode & {
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
 
-export function DesktopStoryGraphView() {
+export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
+  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, StoryGraphDriftEdges } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
   const {
@@ -238,7 +230,7 @@ export function DesktopStoryGraphView() {
     closing: driftPanelClosing,
     openPanel: openDriftPanel,
     closePanel: closeDriftPanelBase,
-  } = useDriftPanelAnim();
+  } = driftPanel;
   useEffect(() => {
     setSharedDriftPanelOpen(driftPanelOpen);
     return () => setSharedDriftPanelOpen(false);

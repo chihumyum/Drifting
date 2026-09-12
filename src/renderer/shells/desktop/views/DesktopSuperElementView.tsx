@@ -21,20 +21,11 @@ import {
   type LayoutInput,
   type LayoutPlacement,
 } from '../../../lib/super-element-layout';
-import { ElementCardPopover, type AnchorRect } from './ElementCardPopover';
-import {
-  RelationEdgePopover,
-  type RelationEdgePopoverAnchor,
-} from '../../../components/graph/RelationEdgePopover';
-import { RelationArrowMarker } from '../../../components/graph/RelationArrowMarker';
-import {
-  relationArrowMarkerId,
-  relationEdgePath,
-} from '../../../components/graph/relation-edge-visual';
+import type { AnchorRect } from './ElementCardPopover';
+import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
 import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
-import { DriftPanel, useDriftPanelAnim } from '../../../components/DriftPanel';
-import { NodeCardPopover } from '../../../components/graph/NodeCardPopover';
+import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { Button } from '../../../components/ui/Button';
@@ -50,14 +41,9 @@ import {
   buildSuperElementCategoryModel,
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
-import { SuperElementViewportEdges } from '../../../features/graph/SuperElementViewportEdges';
 import { useSuperElementTransform } from '../../../features/graph/useSuperElementTransform';
-import { SuperElementDriftEdges } from '../../../features/graph/SuperElementDriftEdges';
 import { projectSuperElementDriftEdges } from '../../../features/graph/super-element-drift-model';
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
-import {
-  buildSuperElementWorldEdges,
-} from '../../../features/graph/super-element-edge-model';
 import {
   beginSuperViewPinch,
   updateSuperViewPinch,
@@ -819,7 +805,8 @@ function CategoryBox({
   );
 }
 
-export function DesktopSuperElementView() {
+export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {
+  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, ElementCardPopover, SuperElementDriftEdges, SuperElementViewportEdges, buildSuperElementWorldEdges } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
@@ -1004,7 +991,7 @@ export function DesktopSuperElementView() {
     closing: driftPanelClosing,
     openPanel: openDriftPanel,
     closePanel: closeDriftPanel,
-  } = useDriftPanelAnim();
+  } = driftPanel;
   useEffect(() => {
     setSharedDriftPanelOpen(driftPanelOpen);
     return () => setSharedDriftPanelOpen(false);
@@ -1514,7 +1501,7 @@ export function DesktopSuperElementView() {
     return (vh - layoutH) / 2 - minLayoutY;
   }, []);
 
-  const applyTransform = useSuperElementTransform({ worldRef, bandRef, viewportRef, panRef, zoomRef,
+  const applyTransform = useSuperElementTransform({ geometry: graphUi, worldRef, bandRef, viewportRef, panRef, zoomRef,
     bandStickyRef, bandHeightCellsRef, bandTopWorldYRef, bandWorldLeftRef, cellHeight: CELL_H });
 
   // Mirror committed state → DOM. Runs for non-gesture updates (restore,

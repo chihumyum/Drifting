@@ -14,13 +14,16 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
 const baseline = process.argv.includes('--baseline');
 const baselineCommit = '4a6734d';
-const output = path.join(root, `docs/renderer-performance/acceptance/f7-settings-${baseline ? 'baseline' : 'deferred'}.json`);
+const reportArg = process.argv.find((arg) => arg.startsWith('--report='))?.slice('--report='.length);
+const output = path.resolve(root, reportArg ?? `docs/renderer-performance/acceptance/f7-settings-${baseline ? 'baseline' : 'deferred'}.json`);
 const fingerprint = (source) => createHash('sha256').update(referenceEvidenceFingerprint(source))
   .update(readFileSync(path.join(source, 'vite.renderer.config.ts')))
   .update(readFileSync(fileURLToPath(import.meta.url)))
   .update(readFileSync(new URL('./renderer-settings-ui.tsx', import.meta.url)))
   .update(readFileSync(new URL('./renderer-settings-ui.html', import.meta.url)))
-  .update(readFileSync(path.join(root, 'vite-plugins/deferred-settings.ts'))).digest('hex');
+  .update(readFileSync(path.join(root, 'vite-plugins/deferred-settings.ts')))
+  .update(readFileSync(path.join(root, 'vite-plugins/deferred-entry.ts')))
+  .update(readFileSync(path.join(root, 'vite-plugins/deferred-super-views.ts'))).digest('hex');
 const panelNames = ['AccountSettingsPanel', 'SubscriptionSettingsPanel', 'PreferenceSettingsPanels', 'IntelligenceSettingsPanels', 'AgentSettingsPanel', 'ControlSettingsPanels'];
 const target = (id) => panelNames.find((name) => id.endsWith(`/features/settings/panels/${name}.tsx`));
 function sourceFacade(source, id) {

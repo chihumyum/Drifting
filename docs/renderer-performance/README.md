@@ -1298,3 +1298,81 @@ Earlier phase artifacts are historical; only
 the settings reports are regenerated here. F7 remains `in_progress`: full project
 settings, graphs/other overlays, native loading/upgrade paths, first-use budgets
 and complete editor/runtime continuity still need acceptance.
+
+
+## F7c — Independent graph entries and recoverable shared UI
+
+Desktop overlays and mobile compatibility entries now defer the story and
+element graph bodies separately. The immediate wrapper retains navigation,
+Back/Escape and a local loading/error state. It first requests the shared graph
+UI (popovers, edges and geometry helpers), then the selected body. Each entry
+has an independent fresh-query retry, while successful shared code is reused.
+The wrapper owns only its drift-panel animation and loading focus. Project,
+editor and graph instances are not retained in the code cache.
+
+An initial split exposed cold shared dependencies: retrying the failed root URL
+would leave a failed canonical child import cached. Shared graph UI therefore
+has its own explicit loading owner. The production guard verifies that all
+remaining static JS and CSS dependencies are already in the HTML startup
+closure. Moving ElementCardPopover to the shared feature changes its import
+paths only. The element transform hook receives stable geometry helpers, so
+its observer and frame scheduler retain their existing lifecycle.
+
+```bash
+pnpm perf:renderer:graphs --baseline
+pnpm perf:renderer:graphs
+pnpm perf:renderer:graphs --baseline --check
+pnpm perf:renderer:graphs --check
+pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json
+pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json --check
+pnpm perf:renderer --output=docs/renderer-performance/acceptance/f7-graphs-regression.json
+pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f7-graphs-regression.json
+```
+
+The graph baseline builds clean detached `d7e8c9a`; both production measurements
+use the actual main entry/config with the same three module-evaluation counters.
+A separate build mounts the synthetic interaction fixture. Historical F7a/F7b
+reports remain unchanged; the explicit settings report above records the current
+shared-plugin regression instead of overwriting F7b evidence.
+
+| Production entry observation | Before graph deferral | After |
+| --- | ---: | ---: |
+| Initial static JS dependency bytes | 5,013,055 | 4,923,305 |
+| Story, element and shared UI evaluated before use | 3 | 0 |
+| Those modules in parsed startup scripts | 3 | 0 |
+
+Initial JS dependencies fall by 89,750 bytes (about 1.8%). The separately emitted
+shared UI/story/element entries are 23,747 / 29,414 / 37,565 bytes. These are
+minified JS bytes before compression, not startup-time or first-use budget
+results. Styles remain immediately available. The main startup closure is still
+large; this batch does not claim that startup performance is solved.
+
+The report contains 56 focused tests and real desktop/mobile-host browser
+sequences. All three entry requests are individually failed and retried. Story
+loading is held while the author edits a real synthetic Tiptap/Yjs draft and
+switches to element view. The same draft document and mount survive the view
+transitions. After switching to a new synthetic project/document, releasing old
+story code cannot reopen it or show the old project. Actual graph tiles, mode
+changes, typed Back events and reopening from cache are checked. Opening the
+drift panel and pressing Back closes it after its animation while keeping the
+graph active, exercising the extracted animation owner. Focus transfer
+first asserts that the active browser has actually focused Retry; ready content
+then focuses Back. A background tab had initially made that precondition false.
+Screenshots of the synthetic loading/error and graph surfaces were inspected.
+
+The settings regression separately passes 77 focused tests, real preference
+changes, fetch retry and development loading. The general renderer regression
+reruns the production graph geometry/transform fixtures, including container
+resize, frame coalescing and teardown; it is not a complete App run.
+
+The mobile fixture uses a 390×844 browser viewport and MobileSuperViewHost without
+native platform metadata. The real draft is not ChapterEditor and the fixture
+does not mount ProjectRuntimeProvider. Native local protocols, upgrades/offline
+resources, physical IME/gestures, SQLite graph edits and complete project
+continuity remain untested here. Intent preloading, other heavy entries and
+F0 first-use/startup budgets remain F7 work. F7 stays `in_progress`.
+
+Repository validation passes 2,402 tests with 1 existing skip, 8 architecture
+tests, typecheck, lint (0 errors, 74 existing warnings), CI/public contracts,
+Agent capabilities and the configured production renderer build. The normal
+production JS excludes graph/settings fixture APIs and evaluation observers.

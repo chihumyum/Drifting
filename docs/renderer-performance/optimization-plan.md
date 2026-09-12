@@ -372,6 +372,16 @@ F7b 已保留三个设置入口的导航外壳，将六组设置内容统一放�
 加载期间栏目选择、返回及桌面弹窗 Escape 保持可用；重复访问复用成功的代码缓存。
 这批没有验证完整项目设置、编辑器/ProjectRuntime 组合连续性、原生资源协议或 F0 延迟预算。
 
+F7c 将故事/元素图谱分别迁入延迟入口，先加载可独立重试的共享图形组件，再加载选中的视图主体。
+桌面 host 与移动兼容入口共用局部 loading/error 外壳，导航和返回保持可用。共享代码成功后复用，
+不缓存项目、编辑器或图谱实例。生产图检查覆盖静态 JS/CSS 依赖，防止冷共享依赖绕过重试所有者。
+`acceptance/f7-graphs-baseline.json` 从干净的 `d7e8c9a` 检出构建；对照
+`acceptance/f7-graphs-deferred.json`，初始静态 JS 依赖从 5,013,055 降至 4,923,305 字节。
+两个视图及共享图形模块在未访问时均未执行、未解析。真实浏览器逐一阻断三个请求并重试，
+验证加载中切换视图、Tiptap/Yjs 合成草稿连续性、切换合成项目后的迟到结果隔离、焦点转移和缓存再开。
+设置加载回归另存 `acceptance/f7-settings-after-graphs.json`，历史 F7b 报告保持不变。
+这批不等同于完整 ChapterEditor/ProjectRuntime、原生平台交互或 F0 延迟预算验收；预加载仍待继续。
+
 **范围：** `AppRoutes.tsx`、desktop/mobile shell 入口、`DesktopOverlayHost`、图谱和低频模态框、Vite 构建分析。
 
 1. 记录首屏真正加载、解析、执行的模块，而不只观察打包后的 chunk 总数。

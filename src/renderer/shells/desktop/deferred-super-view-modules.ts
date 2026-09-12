@@ -1,0 +1,16 @@
+import { loadStoryGraph } from 'virtual:story-graph';
+import { loadElementGraph } from 'virtual:element-graph';
+import { loadGraphUi } from 'virtual:graph-ui';
+import { createDeferredModule } from '../../lib/deferred-module';
+
+const graphUiModule = createDeferredModule(loadGraphUi);
+async function graphUi() {
+  await graphUiModule.load();
+  const snapshot = graphUiModule.getSnapshot();
+  if (snapshot.status === 'ready') return snapshot.value;
+  throw snapshot.status === 'error' ? snapshot.error : new Error('Graph UI loading did not settle');
+}
+export const superViewModules = {
+  graph: createDeferredModule(async () => ({ graphUi: await graphUi(), View: (await loadStoryGraph()).DesktopStoryGraphView })),
+  element: createDeferredModule(async () => ({ graphUi: await graphUi(), View: (await loadElementGraph()).DesktopSuperElementView })),
+};

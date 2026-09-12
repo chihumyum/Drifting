@@ -400,7 +400,10 @@
             "docs/renderer-performance/acceptance/f7-libraries-baseline.json",
             "docs/renderer-performance/acceptance/f7-libraries-deferred.json",
             "docs/renderer-performance/acceptance/f7-settings-baseline.json",
-            "docs/renderer-performance/acceptance/f7-settings-deferred.json"
+            "docs/renderer-performance/acceptance/f7-settings-deferred.json",
+            "docs/renderer-performance/acceptance/f7-graphs-baseline.json",
+            "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
           ],
           "status": "partial"
         },
@@ -409,7 +412,9 @@
           "requirement": "首开与再次访问稳定，编辑器 ready 屏障保留，项目运行时不重复创建",
           "evidence": [
             "docs/renderer-performance/acceptance/f7-libraries-deferred.json",
-            "docs/renderer-performance/acceptance/f7-settings-deferred.json"
+            "docs/renderer-performance/acceptance/f7-settings-deferred.json",
+            "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
           ],
           "status": "partial"
         },
@@ -417,7 +422,9 @@
           "id": "F7-03",
           "requirement": "本地资源、离线和 chunk 失败可恢复，不丢草稿或必要原生事件",
           "evidence": [
-            "docs/renderer-performance/acceptance/f7-settings-deferred.json"
+            "docs/renderer-performance/acceptance/f7-settings-deferred.json",
+            "docs/renderer-performance/acceptance/f7-graphs-deferred.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-graphs.json"
           ],
           "status": "partial"
         },
@@ -427,7 +434,7 @@
           "evidence": []
         }
       ],
-      "implementationStatus": "pdf_zip_and_shared_settings_panels_deferred_browser_fetch_retry_verified_graphs_native_and_app_budgets_pending"
+      "implementationStatus": "pdf_zip_settings_and_graphs_deferred_browser_fetch_retry_verified_preloading_native_and_full_app_budgets_pending"
     },
     {
       "id": "F8",

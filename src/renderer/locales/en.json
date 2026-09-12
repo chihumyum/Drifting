@@ -1,5 +1,6 @@
 {
   "appShell": {
+    "viewLoadFailed": "This view could not be loaded. Try again.",
     "checkingAuthentication": "Checking authentication…",
     "loadingProject": "Opening project…",
     "syncingProject": "Updating project structure…",

@@ -1,8 +1,8 @@
 import { useCallback, useLayoutEffect, type RefObject } from 'react';
-import { superElementBandTop, type GraphPoint } from './super-element-edge-model';
-import { createGraphGeometryScheduler } from './graph-geometry-scheduler';
+import type { GraphPoint } from './super-element-edge-model';
 
 interface SuperElementTransformRefs {
+  geometry: Pick<typeof import('./graph-ui-components'), 'superElementBandTop' | 'createGraphGeometryScheduler'>;
   worldRef: RefObject<HTMLDivElement | null>;
   bandRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -16,7 +16,7 @@ interface SuperElementTransformRefs {
 }
 
 /** Keep gesture transforms imperative; container resize never sets React state. */
-export function useSuperElementTransform({ worldRef, bandRef, viewportRef, panRef, zoomRef,
+export function useSuperElementTransform({ geometry, worldRef, bandRef, viewportRef, panRef, zoomRef,
   bandStickyRef, bandHeightCellsRef, bandTopWorldYRef, bandWorldLeftRef, cellHeight,
 }: SuperElementTransformRefs) {
   const applyTransform = useCallback(() => {
@@ -26,20 +26,20 @@ export function useSuperElementTransform({ worldRef, bandRef, viewportRef, panRe
     // Finish dimension reads before writing either transform.
     const band = bandRef.current;
     const viewport = viewportRef.current;
-    const bandTop = bandStickyRef.current && band && viewport ? superElementBandTop(y + zoom * bandTopWorldYRef.current,
+    const bandTop = bandStickyRef.current && band && viewport ? geometry.superElementBandTop(y + zoom * bandTopWorldYRef.current,
       bandHeightCellsRef.current * cellHeight * zoom, viewport.clientHeight, true) : null;
     world.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
     if (band && bandTop !== null) {
       band.style.transform = `translate(${x + zoom * bandWorldLeftRef.current}px, ${bandTop}px) scale(${zoom})`;
     }
-  }, [worldRef, bandRef, viewportRef, panRef, zoomRef, bandStickyRef, bandHeightCellsRef,
+  }, [geometry, worldRef, bandRef, viewportRef, panRef, zoomRef, bandStickyRef, bandHeightCellsRef,
     bandTopWorldYRef, bandWorldLeftRef, cellHeight]);
 
   useLayoutEffect(() => {
-    const scheduler = createGraphGeometryScheduler(applyTransform, 0);
+    const scheduler = geometry.createGraphGeometryScheduler(applyTransform, 0);
     const observer = new ResizeObserver(scheduler.invalidate);
     if (viewportRef.current) observer.observe(viewportRef.current);
     return () => { observer.disconnect(); scheduler.dispose(); };
-  }, [applyTransform, viewportRef]);
+  }, [geometry, applyTransform, viewportRef]);
   return applyTransform;
 }

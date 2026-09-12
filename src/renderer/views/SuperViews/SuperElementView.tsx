@@ -1,1 +1,1 @@
-export { DesktopSuperElementView as SuperElementView } from '../../shells/desktop/views/DesktopSuperElementView';
+export { DeferredElementGraphView as SuperElementView } from '../../shells/desktop/views/DeferredSuperViews';
