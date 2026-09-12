@@ -66,9 +66,13 @@ export type AppEvents = {
   /** A remote change-set committed locally after exact live-Yjs reconciliation. */
   'sync:project-changed': {
     projectId: string;
+    /** Optional renderer-only scope; absence requires complete reference capture. */
+    proseDocIds?: readonly string[];
     /** Pure prose is already live in Yjs; every other impact refreshes the workspace projection. */
     projectionImpact: 'prose-only' | 'workspace';
   };
+  /** A recreated sync runtime cannot retain failed post-commit notifications. */
+  'sync:reference-coverage-invalidated': { projectId: string };
   /** Fresh-device restore completed; tabs are device-local and must start clean. */
   'sync:projects-restored': { projectIds: string[] };
 

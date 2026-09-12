@@ -323,7 +323,8 @@
           "requirement": "引用仅处理受影响正文来源，删除清除引用，无关外观变化不全库解析",
           "evidence": [
             "docs/renderer-performance/acceptance/f6-reference-boundary.json",
-            "docs/renderer-performance/acceptance/f6-reference-queue.json"
+            "docs/renderer-performance/acceptance/f6-reference-queue.json",
+            "docs/renderer-performance/acceptance/f6-reference-reads.json"
           ],
           "status": "partial"
         },
@@ -333,7 +334,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
-            "docs/renderer-performance/acceptance/f6-reference-queue.json"
+            "docs/renderer-performance/acceptance/f6-reference-queue.json",
+            "docs/renderer-performance/acceptance/f6-reference-reads.json"
           ],
           "status": "partial"
         },
@@ -344,7 +346,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-boundary.json",
-            "docs/renderer-performance/acceptance/f6-reference-queue.json"
+            "docs/renderer-performance/acceptance/f6-reference-queue.json",
+            "docs/renderer-performance/acceptance/f6-reference-reads.json"
           ],
           "status": "partial"
         },
@@ -363,12 +366,13 @@
             "docs/renderer-performance/acceptance/f6-workspace-baseline.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f6-reference-queue.json",
-            "docs/renderer-performance/acceptance/f6-reference-recovery.json"
+            "docs/renderer-performance/acceptance/f6-reference-recovery.json",
+            "docs/renderer-performance/acceptance/f6-reference-reads.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "complete_capture_sharing_project_reference_queue_and_renderer_process_recovery_implemented_native_recovery_and_partial_reads_pending"
+      "implementationStatus": "complete_capture_sharing_project_queue_scoped_yjs_reads_and_renderer_recovery_implemented_structural_partial_reads_native_recovery_and_app_performance_pending"
     },
     {
       "id": "F7",

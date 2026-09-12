@@ -101,6 +101,31 @@ afterEach(async () => {
 });
 
 describe('reference index durable transaction boundary', () => {
+  it('captures only requested source metadata and coverage without loading snapshot blobs or another project', async () => {
+    const { db, gateway, repo } = await fixture();
+    await seedProject(db, 'project-b'); await seedSources(db, 'project-b', '-foreign');
+    await createYjsRepository(db).upsertSnapshot('node-content:node', Y.encodeStateAsUpdate(ydoc().doc), { advanceRevision: false });
+    await createYjsRepository(db).appendUpdate('node-content:node-foreign', Y.encodeStateAsUpdate(ydoc('foreign').doc));
+    await replaceAll(repo);
+    const columns: string[][] = [];
+    const query = gateway.query.bind(gateway);
+    vi.spyOn(gateway, 'query').mockImplementation(async (...args) => {
+      const result = await query(...args); columns.push([...result.columns]); return result;
+    });
+    const catalog = (await repo.captureCatalog([{ kind: 'node', id: 'node' }, { kind: 'patch', id: 'patch' }]))!;
+    expect(catalog.sources.map((source) => source.id)).toEqual(['node', 'patch']);
+    expect(catalog.sources[0]!.basis).toEqual({ kind: 'yjs', revision: 0, hasState: true });
+    expect(catalog.indexedCounts.size).toBe(2);
+    expect(columns.flat()).not.toContain('state_blob');
+    expect(await createYjsRepository(db).hasDocState('node-content:node')).toBe(true);
+    expect(columns.flat()).not.toContain('state_blob');
+    const foreign = (await repo.captureCatalog([{ kind: 'node', id: 'node-foreign' }]))!;
+    expect(foreign.sources).toEqual([]);
+    expect(foreign.indexedCounts.size).toBe(0);
+    expect(await createYjsRepository(db).listDocIds([])).toEqual([]);
+    expect(await createYjsRepository(db).listRevisions([])).toEqual([]);
+    await expect(repo.captureCatalog([])).rejects.toThrow('at least one');
+  });
   it('drains failed derived replacements without failing an unrelated author-state barrier', async () => {
     const { repo, gateway } = await fixture();
     const prepared = await prepare(repo);

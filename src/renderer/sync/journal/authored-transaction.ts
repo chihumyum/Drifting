@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { committedProseDocIds } from '../prose-change-scope';
 
 import { getDb, type DbClient, type DbTransaction } from '../../lib/db';
 import { ProjectTable } from '../../schema/drizzle';
@@ -35,6 +36,7 @@ export interface AuthoredCommitEvent {
   readonly projectId: string;
   readonly syncGenerationId: string;
   readonly changeSetId: string;
+  readonly proseDocIds?: readonly string[];
 }
 
 export interface AuthoredTransactionDependencies {
@@ -155,6 +157,7 @@ export function createAuthoredTransactionRunner(
         projectId,
         syncGenerationId: generation.syncGenerationId,
         changeSetId: recorded.changeSet.changeSetId,
+        proseDocIds: committedProseDocIds(recorded.changeSet.mutations),
       };
       return result;
     });

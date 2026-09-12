@@ -12,7 +12,7 @@ import { createElementPatchWithSync, updateElementPatchWithSync, deleteElementPa
 import { createReferenceIndexRepository } from '../reference-index-repository';
 import { getProjectReferenceIndexSnapshot, retainProjectReferenceIndex, subscribeProjectReferenceIndex } from '../reference-index.service';
 
-type Scenario = 'yjs-edit' | 'json-patch' | 'delete-patch';
+type Scenario = 'yjs-edit' | 'yjs-scoped' | 'json-patch' | 'delete-patch';
 const NOW = '2026-09-12T00:00:00.000Z';
 const PROJECT = 'synthetic-project';
 const kinds = ['node', 'element', 'category', 'storyline', 'patch'] as const;
@@ -50,12 +50,15 @@ async function emit(value: unknown): Promise<void> {
   await new Promise<void>((resolve, reject) => process.send!(value, (error) => error ? reject(error) : resolve()));
 }
 
-/** The interval deliberately keeps the process alive until the parent confirms
- * readiness and delivers SIGKILL. No finally/close/checkpoint is run on this path. */
+/** Freeze JS at the exact boundary after writing the small IPC marker. Merely
+ * awaiting a never-settled promise lets the queue's timers race the parent's
+ * SIGKILL, especially the zero-delay startup timer. The parent enforces a
+ * timeout and kills this owned process; no finally/close/checkpoint can run. */
 async function hold(value: unknown): Promise<never> {
-  setInterval(() => {}, 1_000);
-  await emit(value);
-  return new Promise<never>(() => {});
+  assert(process.send);
+  process.send(value);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
+  throw new Error('Crash boundary unexpectedly resumed.');
 }
 
 function authorHash(gateway: Gateway): string {
@@ -75,7 +78,7 @@ async function semanticRows(db: Db, projectId = PROJECT) {
 
 // Independent fixture oracle: compare full span positions/text as well as targets.
 function expectedRows(scenario: Scenario, seed: number, authored: boolean) {
-  const changedKind = scenario === 'yjs-edit' ? 'node' : 'patch';
+  const changedKind = scenario.startsWith('yjs-') ? 'node' : 'patch';
   return kinds.flatMap((kind) => {
     if (authored && scenario === 'delete-patch' && kind === changedKind) return [];
     const target = authored && kind === changedKind ? 'changed' : 'old';
@@ -140,7 +143,7 @@ async function startRuntime(): Promise<() => void> {
 export async function runReferenceCrashWorker(args: string[]): Promise<void> {
   const [mode, databasePath, boundary, scenarioText, seedText, restart] = args;
   assert(databasePath && boundary && ['write', 'recover'].includes(mode ?? ''));
-  assert(['yjs-edit', 'json-patch', 'delete-patch'].includes(scenarioText ?? ''));
+  assert(['yjs-edit', 'yjs-scoped', 'json-patch', 'delete-patch'].includes(scenarioText ?? ''));
   const scenario = scenarioText as Scenario;
   const seed = Number(seedText);
   assert(Number.isSafeInteger(seed) && seed > 0);
@@ -150,14 +153,25 @@ export async function runReferenceCrashWorker(args: string[]): Promise<void> {
   try {
     if (mode === 'write') {
       const doc = await seedDatabase(db, seed);
+      if (scenario === 'yjs-scoped') await startRuntime();
       const baselineAuthorHash = authorHash(gateway);
       let stage: 'authored' | 'index' = 'authored';
       let indexedTransaction: string | undefined;
-      const ready = () => ({ ready: true, boundary, scenario, seed, baselineAuthorHash, authorHash: authorHash(gateway) });
+      let observedScopedCatalog = false;
+      const ready = () => ({ ready: true, boundary, scenario, seed, baselineAuthorHash, authorHash: authorHash(gateway), observedScopedCatalog });
+      const query = gateway.query.bind(gateway);
+      gateway.query = async (sql, parameters, transactionId) => {
+        const result = await query(sql, parameters, transactionId);
+        if (stage === 'index' && sql.includes('count(*)') && sql.includes('"inline_mention"')) {
+          observedScopedCatalog = parameters?.includes('node') ?? false;
+          if (boundary === 'catalog-captured') await hold(ready());
+        }
+        return result;
+      };
       const execute = gateway.execute.bind(gateway);
       gateway.execute = async (sql, parameters, transactionId) => {
         const result = await execute(sql, parameters, transactionId);
-        const sourceId = scenario === 'yjs-edit' ? 'node' : 'elementPatch';
+        const sourceId = scenario.startsWith('yjs-') ? 'node' : 'elementPatch';
         if (stage === 'index' && /^(delete from|insert into) "inline_mention"/.test(sql) && parameters?.includes(sourceId)) {
           indexedTransaction = transactionId;
           if (boundary === 'index-after-delete' && sql.startsWith('delete')) await hold(ready());
@@ -172,7 +186,7 @@ export async function runReferenceCrashWorker(args: string[]): Promise<void> {
         if (stage === 'authored' && boundary === 'authored-after-commit') await hold(ready());
         if (stage === 'index' && indexedTransaction === transactionId && boundary === 'index-after-commit') await hold(ready());
       };
-      if (scenario === 'yjs-edit') {
+      if (scenario.startsWith('yjs-')) {
         const vector = Y.encodeStateVector(doc);
         doc.getXmlFragment('default').toArray().forEach((block, index) => {
           const text = (block as Y.XmlElement).get(0) as Y.XmlText;
@@ -187,18 +201,9 @@ export async function runReferenceCrashWorker(args: string[]): Promise<void> {
       doc.destroy();
       stage = 'index';
       if (boundary === 'queue-waiting') {
-        retainProjectReferenceIndex(PROJECT);
+        if (scenario !== 'yjs-scoped') retainProjectReferenceIndex(PROJECT);
         assert.equal(getProjectReferenceIndexSnapshot(PROJECT).phase, 'waiting');
         await hold(ready());
-      }
-      // Pause on the real SQL prepare read, before any replacement executes.
-      if (boundary === 'catalog-captured') {
-        const query = gateway.query.bind(gateway);
-        gateway.query = async (sql, parameters, transactionId) => {
-          const result = await query(sql, parameters, transactionId);
-          if (sql.includes('count(*)') && sql.includes('"inline_mention"')) await hold(ready());
-          return result;
-        };
       }
       const release = await startRuntime();
       if (boundary === 'queue-acknowledged') await hold(ready());
@@ -228,7 +233,7 @@ export async function runReferenceCrashWorker(args: string[]): Promise<void> {
     assert.deepEqual(gateway.database.prepare('PRAGMA integrity_check').all().map((row) => row.integrity_check), ['ok']);
     assert.deepEqual(gateway.database.prepare('PRAGMA foreign_key_check').all(), []);
     const nodeRevision = await createYjsRepository(db).getRevision('node-content:node');
-    assert.equal(nodeRevision, scenario === 'yjs-edit' && authored ? 2 : 1);
+    assert.equal(nodeRevision, scenario.startsWith('yjs-') && authored ? 2 : 1);
     await emit({ recovered: true, boundary, scenario, seed, authorHash: beforeAuthorHash,
       projectionHash: digest(recovered), referenceRows: recovered.length, nodeRevision,
       checks: ['fixture-span-oracle', 'uncached-full-rebuild', 'author-state-unchanged', 'project-isolation', 'integrity', 'foreign-keys', 'revision'],

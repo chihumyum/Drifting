@@ -354,6 +354,7 @@ async function createDevice(input: {
   domainKernel?: SyncDomainMaterializationKernel;
   reconcileOpenYjsDocuments?: SqliteSyncGenerationRuntimeOptions['reconcileOpenYjsDocuments'];
   onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
+  onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   connectMarker?: RemoteObject;
 }): Promise<Device> {
   const { db, gateway } = await createDatabase(input.id, input.connectMarker);
@@ -379,6 +380,7 @@ async function createDevice(input: {
     clock: new TestClock(input.clockMs),
     reconcileOpenYjsDocuments: input.reconcileOpenYjsDocuments,
     onRemoteChangeCommitted: input.onRemoteChangeCommitted,
+    onReferenceCoverageInvalidated: input.onReferenceCoverageInvalidated,
   });
   return { id: input.id, db, gateway, identity, binding, runtime };
 }
@@ -811,15 +813,19 @@ describe('SQLite durable SyncEngine runtime', () => {
       domainKernel: productionSyncDomainMaterializationKernel,
     });
     const impacts: Array<'prose-only' | 'workspace'> = [];
+    const proseScopes: Array<readonly string[] | undefined> = [];
+    const coverageResets: string[] = [];
     const reader = await createDevice({
       id: 'projection-impact-reader',
       provider,
       localObjects,
       clockMs: 2_060,
       domainKernel: productionSyncDomainMaterializationKernel,
-      onRemoteChangeCommitted({ projectionImpact }) {
+      onRemoteChangeCommitted({ projectionImpact, proseDocIds }) {
         impacts.push(projectionImpact);
+        proseScopes.push(proseDocIds);
       },
+      onReferenceCoverageInvalidated: ({ projectId }) => { coverageResets.push(projectId); },
     });
 
     await authorProse(publisher, 'remote prose without a workspace barrier', 2_050);
@@ -831,6 +837,8 @@ describe('SQLite durable SyncEngine runtime', () => {
     await cycle(publisher);
     await cycle(reader, 'start');
     expect(impacts).toEqual(['prose-only', 'workspace']);
+    expect(proseScopes).toEqual([[`node-content:${NODE_ID}`], undefined]);
+    expect(coverageResets).toEqual([PROJECT_ID]);
   });
 
   it('retries open Yjs tail reconciliation on the next cycle after a post-commit callback failure', async () => {
@@ -884,13 +892,41 @@ describe('SQLite durable SyncEngine runtime', () => {
     await expect(cycle(reader, 'start')).resolves.toBeDefined();
     expect(calls[2]).toEqual({ projectId: PROJECT_ID });
     expect(await reader.db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
+    expect(deliveryOrder.filter((entry) => entry.startsWith('project-event:'))).toHaveLength(1);
+    const recoveredEventIndex = deliveryOrder.findIndex((entry) => entry.startsWith('project-event:'));
+    expect(deliveryOrder[recoveredEventIndex - 1]).toBe('cycle-tail');
 
     await authorProse(publisher, 'second remote callback prose', 2_101);
     await expect(cycle(publisher)).resolves.toMatchObject({ publishedSegments: 1 });
     await expect(cycle(reader, 'start')).resolves.toBeDefined();
-    const eventIndex = deliveryOrder.findIndex((entry) => entry.startsWith('project-event:'));
+    const eventIndex = deliveryOrder.map((entry, index) => entry.startsWith('project-event:') ? index : -1).filter((index) => index >= 0)[1]!;
     expect(eventIndex).toBeGreaterThan(0);
     expect(deliveryOrder[eventIndex - 1]).toBe('exact-yjs');
+  });
+
+  it('retries a failed post-commit notification without reapplying or losing its prose scope', async () => {
+    const localObjects = new MemoryProviderLocalObjectStore();
+    const provider = new MemoryObjectLogProvider(localObjects);
+    const publisher = await createDevice({ id: 'notify-retry-publisher', provider, localObjects, clockMs: 2_300, domainKernel: productionSyncDomainMaterializationKernel });
+    const deliveries: Array<{ changeSetId: string; proseDocIds?: readonly string[] }> = [];
+    let fail = true;
+    const reader = await createDevice({
+      id: 'notify-retry-reader', provider, localObjects, clockMs: 2_310, domainKernel: productionSyncDomainMaterializationKernel,
+      onRemoteChangeCommitted(event) {
+        deliveries.push({ changeSetId: event.changeSetId, proseDocIds: event.proseDocIds });
+        if (fail) { fail = false; throw new Error('notification unavailable'); }
+      },
+    });
+    await authorProse(publisher, 'Synthetic notification retry', 2_300);
+    await cycle(publisher);
+    await expect(cycle(reader, 'start')).rejects.toThrow('notification unavailable');
+    await expect(cycle(reader, 'start')).resolves.toBeDefined();
+    expect(deliveries).toHaveLength(2);
+    expect(deliveries[1]).toEqual(deliveries[0]);
+    expect(deliveries[1]!.proseDocIds).toEqual([`node-content:${NODE_ID}`]);
+    expect(await reader.db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
+    await cycle(reader, 'start');
+    expect(deliveries).toHaveLength(2);
   });
 
   it('keeps a later writer segment dependency-pending until its contiguous predecessor arrives', async () => {

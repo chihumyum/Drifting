@@ -9,7 +9,7 @@ import { referenceEvidenceFingerprint } from './reference-index-evidence.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const worker = fileURLToPath(new URL('./reference-index-crash-worker.mjs', import.meta.url));
 const boundaries = ['authored-before-commit', 'authored-after-commit', 'queue-waiting', 'catalog-captured', 'index-after-delete', 'index-after-insert', 'index-after-commit', 'queue-acknowledged'];
-const scenarios = ['yjs-edit', 'json-patch', 'delete-patch'];
+const scenarios = ['yjs-edit', 'yjs-scoped', 'json-patch', 'delete-patch'];
 const checks = ['fixture-span-oracle', 'uncached-full-rebuild', 'author-state-unchanged', 'project-isolation', 'integrity', 'foreign-keys', 'revision'];
 const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9) ?? 'docs/renderer-performance/acceptance/f6-reference-recovery.json';
 const seeds = 2;
@@ -84,6 +84,9 @@ function validate(report) {
     assert.equal(entry.kill.exit.code, null);
     assert.equal(entry.kill.exit.signal, 'SIGKILL');
     assert.equal(entry.kill.ready, true);
+    if (entry.scenario === 'yjs-scoped' && ['catalog-captured', 'index-after-delete', 'index-after-insert', 'index-after-commit', 'queue-acknowledged'].includes(entry.boundary)) {
+      assert.equal(entry.kill.observedScopedCatalog, true);
+    }
     assert.equal(entry.restarts.length, 2);
     for (const restart of entry.restarts) {
       assert.equal(restart.recovered, true);
@@ -99,7 +102,7 @@ if (process.argv.includes('--check')) {
   const report = JSON.parse(await readFile(output, 'utf8'));
   validate(report);
   assert.equal(report.source.fingerprint, referenceEvidenceFingerprint(root), 'Reference recovery evidence is stale; regenerate it.');
-  console.log('Reference process recovery: 46 SIGKILL cases and 92 independent restarts match source. Native gateway and power-loss acceptance remain pending.');
+  console.log('Reference process recovery: 62 SIGKILL cases and 124 independent restarts match source. Native gateway and power-loss acceptance remain pending.');
 } else {
   assert.notEqual(process.platform, 'win32', 'This acceptance requires POSIX SIGKILL.');
   const directory = await mkdtemp(path.join(tmpdir(), 'drifting-reference-recovery-'));
@@ -125,10 +128,10 @@ if (process.argv.includes('--check')) {
         schemaVersion: 1, kind: 'reference_index_process_recovery', status: 'passed', generatedAt: new Date().toISOString(),
         source: { commit: sourceCommit, fingerprint, dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()) },
         environment: { platform: process.platform, node: process.version, sqlite: process.versions.sqlite },
-        fixture: { provenance: 'synthetic content only', sources: 'five source kinds, two spans each; stale node JSON cache; isolated second project', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'native installation identity substituted; authored commands, journal, queue, service and repositories unchanged' },
+        fixture: { provenance: 'synthetic content only', sources: 'five source kinds, two spans each; stale node JSON cache; isolated second project; warm runtime scoped Yjs and cold runtime full capture', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'native installation identity substituted; authored commands, journal, queue, service and repositories unchanged' },
         cases,
         acceptance: { processRecovery: 'passed', nativeGateway: 'not-run', powerLoss: 'not-run', performance: 'not-measured' },
-        limitations: ['This exercises renderer persistence through the real adapter and a Node SQLite gateway, not the native Rust process or a device.', 'SIGKILL proves process termination recovery; it does not simulate OS crash, disk failure or power loss.', 'Queue restart rebuilds all authoritative sources. Partial reads and database/input latency remain pending.', 'Rebuilds can allocate new derived row IDs/timestamps; idempotency compares semantic references, while author state and unrelated project rows remain byte-for-byte unchanged.'],
+        limitations: ['This exercises renderer persistence through the real adapter and a Node SQLite gateway, not the native Rust process or a device.', 'SIGKILL proves process termination recovery; it does not simulate OS crash, disk failure or power loss.', 'Warm-runtime scoped Yjs capture is interrupted as well as full capture. Every recovery still rebuilds all authoritative sources; database/input latency is not measured here.', 'Rebuilds can allocate new derived row IDs/timestamps; idempotency compares semantic references, while author state and unrelated project rows remain byte-for-byte unchanged.'],
       };
       validate(report);
       await mkdir(path.dirname(output), { recursive: true });

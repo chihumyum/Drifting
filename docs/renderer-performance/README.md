@@ -874,3 +874,85 @@ The regular suite passes 2,301 tests with 1 skipped. Typecheck, lint (0 errors,
 local-only renderer production build pass. The reference queue/UI report is
 regenerated separately against the shared source fingerprint after the process
 matrix finishes. No browser performance measurement runs alongside the matrix.
+
+## F6b2 — Scoped reads for durable Yjs commits
+
+Ordinary authors, Agent outer transactions and remote materialized prose commits
+now provide renderer-only `proseDocIds` hints. Only non-empty, entirely Yjs prose
+scopes are eligible. Unknown document formats, mixed/structural mutations and
+more than 128 unique IDs use full capture; the wire protocol and persisted
+journal format are unchanged. Agent scopes are captured before commit and only
+delivered after the owning outer transaction succeeds.
+
+After an initial complete pass, the project queue merges up to 128 pending source
+identities. A full invalidation wins over narrow hints. Hints arriving during a
+pass remain pending. Missing sources, generation changes, stale versions and
+failed replacements require complete capture again; failures retain bounded
+backoff. Narrow passes preserve unrelated acknowledgements and do not prune
+against incomplete catalogs. Startup, repair, restore, JSON patch/structural
+changes and unknown impact keep the full path.
+
+The repository batches source-ID predicates, Yjs revision/existence metadata
+and reference coverage counts inside one capture transaction. It uses the same
+source-version checks and atomic replacements as full capture. Existence checks
+read IDs rather than snapshot blobs. An empty metadata filter returns no rows;
+an empty source capture is rejected rather than silently selecting everything.
+
+The remote runtime now retries a post-commit project notification if live Yjs
+reconciliation or notification delivery failed: a durable receipt cannot replay
+that change-set to regenerate its event. A recreated sync runtime separately
+invalidates reference coverage once on its first apply. This covers discarded
+in-memory notifications while preserving pure-prose continuity and the existing
+structural workspace barrier. It does not add reference work to the prose write
+transaction or change provider contracts.
+
+The current generator writes `f6-reference-reads.json`; the F6a3 queue report is
+retained as historical evidence. It runs behavioral tests first, then the SQLite
+read matrix in its own process, then isolated Chromium. The 97 cases cover scope
+classification, SQL filtering, source coalescing/overflow, stale results, project
+and generation isolation, retry, remote notification repair and existing index
+transaction guarantees. In the read matrix, a source has 8,200 synthetic text
+characters; 64- and 1,024-source projects alternate the current full fallback and
+selected capture after changing one durable Yjs body. Each mode warms once and
+then supplies five samples. Both modes must parse/replace exactly one source and
+publish one reference change. Returned rows/bytes, query counts, query time and
+observed pass time are recorded separately.
+
+Measured medians of five samples (full capture → selected capture):
+
+| Sources | Queries | Returned rows | Serialized bytes | Gateway query time |
+| --- | --- | --- | --- | --- |
+| 64 | 33 → 21 | 276 → 22 | 1,205,443 → 127,463 | 0.64 → 0.25 ms |
+| 1,024 | 33 → 21 | 4,116 → 22 | 17,533,075 → 127,463 | 5.34 → 0.28 ms |
+
+The selected path stays at 22 returned rows in both project sizes. Observed pass
+medians are 3.81 → 2.11 ms and 20.21 → 2.37 ms respectively, including the
+measurement overhead described below; these are not native interaction budgets.
+
+This compares two paths in the current checkout, not historical renderer builds.
+Returned bytes count serialized query results, not disk pages. SQL time measures
+the Node SQLite gateway; observed pass time also includes result serialization
+for the counters. These timings do not establish native IPC or input latency.
+The browser report separately preserves zero additional status-component React
+commits for 100 healthy notifications; no complete app render-cost claim is made.
+
+The recovery matrix now includes a warmed runtime processing a scoped Yjs hint,
+expanding to 62 SIGKILL cases and 124 independent restart processes. Boundary
+markers freeze the child JS thread synchronously with `Atomics.wait` so a queued
+zero-delay timer cannot run between readiness and the parent's SIGKILL. Scoped
+catalog SQL is observed at the relevant boundaries. Recovery always uses the
+complete startup path and compares it to the independent span oracle and full
+rebuild. Native Rust/device and power-loss recovery remain unverified.
+
+```bash
+pnpm reference:index:acceptance
+pnpm reference:index:acceptance --check
+pnpm reference:index:recovery
+pnpm reference:index:recovery --check
+```
+
+Regular validation passes 2,323 tests with 1 skipped, typecheck, lint (0 errors,
+74 existing warnings), CI/public contracts, Agent capability checks and the
+configured local-only renderer production build. No schema migration, author
+data format or visible UI changed. Structural workspace partial reads, native
+acceptance and full-app performance remain open; F6 stays `in_progress`.

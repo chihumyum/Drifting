@@ -10,14 +10,15 @@ describe('remote SyncEngine UI refresh boundary', () => {
   it('notifies product state only after the durable remote Yjs reconcile barrier', () => {
     const runtime = source('../../sync/engine/durable-runtime.ts');
     const reconcile = runtime.indexOf('await this.reconcileOpenYjsDocuments?.({', runtime.indexOf('const applied ='));
-    const notify = runtime.indexOf('this.onRemoteChangeCommitted?.({', reconcile);
+    const notify = runtime.indexOf('this.onRemoteChangeCommitted?.(this.pendingProjectNotification)', reconcile);
     expect(reconcile).toBeGreaterThan(0);
     expect(notify).toBeGreaterThan(reconcile);
 
     const composition = source('../../sync/production-runtime.ts');
     expect(composition).toContain(
-      "events.emit('sync:project-changed', { projectId, projectionImpact })",
+      "events.emit('sync:project-changed', { projectId, projectionImpact, proseDocIds })",
     );
+    expect(composition).toContain("events.emit('sync:reference-coverage-invalidated', { projectId })");
   });
 
   it('keeps pure remote prose live while structural changes use one project-scoped projection', () => {

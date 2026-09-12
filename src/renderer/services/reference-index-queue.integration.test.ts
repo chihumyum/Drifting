@@ -9,7 +9,8 @@ import { installHeadlessDatabaseClient } from '../lib/db';
 import { events } from '../lib/events';
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { createTestAgentAuthoredJournal } from '../lib/agent/runtime/agent-authored-journal.test-support';
-import { BookElementTable, BookNodeTable, InlineMentionTable, NodeContentTable, ProjectTable } from '../schema/drizzle';
+import { BookElementTable, BookNodeTable, InlineMentionTable, NodeContentTable, ProjectTable, SyncGenerationTable } from '../schema/drizzle';
+import { ensureActiveSyncGenerationInTransaction } from '../sync/journal/sync-generation-repository';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
 import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction';
 import { appendAuthoredYjsUpdate, appendYjsUpdateMutation } from '../sync/journal/yjs-update';
@@ -57,6 +58,7 @@ async function fixture(count = 3) {
   const db = gateway.client();
   cleanups.push(async () => { await gateway.close(); await rm(directory, { recursive: true, force: true }); });
   await db.insert(ProjectTable).values({ id: 'project-a', name: 'Synthetic', userId: 'synthetic-user', createdAt: NOW, updatedAt: NOW });
+  await db.transaction((tx) => ensureActiveSyncGenerationInTransaction(tx, { projectId: 'project-a', nowIso: NOW }));
   for (let index = 0; index < count; index += 1) {
     await db.insert(BookNodeTable).values({ id: `node-${index}`, projectId: 'project-a', title: `Synthetic ${index}`, positionX: 0, positionY: 0, createdAt: NOW, updatedAt: NOW });
     await db.insert(NodeContentTable).values({ nodeId: `node-${index}`, contentJson: json(), outlineJson: '[]', plotGridJson: '{}', createdAt: NOW, updatedAt: NOW });
@@ -104,6 +106,136 @@ afterEach(async () => {
 });
 
 describe('project reference queue', () => {
+  it('starts with complete coverage, merges narrow hints and preserves unrelated acknowledgements', async () => {
+    const { db, edit, read } = await fixture();
+    const { queue } = worker(db);
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', written: 3 });
+    await edit('first', 0); await edit('second', 1);
+    const input = [{ kind: 'node' as const, id: 'node-0' }];
+    queue.request(false, input);
+    input[0]!.id = 'node-2';
+    queue.request(false, [{ kind: 'node', id: 'node-1' }, { kind: 'node', id: 'node-1' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', sources: 2, written: 2 });
+    expect((await read()).map((row) => row.toId).sort()).toEqual(['first', 'second', 'seed-target']);
+    queue.request(); await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', reused: 3, prepared: 0 });
+  });
+
+  it('bounds accumulated source hints and lets a complete invalidation supersede them', async () => {
+    const { db } = await fixture();
+    const { queue } = worker(db);
+    await queue.flush();
+    for (let index = 0; index < 129; index += 1) queue.request(false, [{ kind: 'node', id: `node-${index}` }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', sources: 3, reused: 3 });
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
+    queue.request();
+    queue.request(false, [{ kind: 'node', id: 'node-1' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun?.capture).toBe('full');
+  });
+
+  it('retains a second source arriving while a narrow pass is running', async () => {
+    const { db, edit, read } = await fixture();
+    let intervene = false;
+    let request = () => {};
+    const { queue } = worker(db, (repository) => ({ ...repository, prepareSource: async (...args) => {
+      const result = await repository.prepareSource(...args);
+      if (intervene) { intervene = false; await edit('second-arrival', 1); request(); }
+      return result;
+    } }));
+    await queue.flush();
+    request = () => queue.request(false, [{ kind: 'node', id: 'node-1' }]);
+    intervene = true;
+    await edit('first-arrival');
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', written: 1 });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', sources: 1, written: 1 });
+    expect((await read()).map((row) => row.toId).sort()).toEqual(['first-arrival', 'second-arrival', 'seed-target']);
+  });
+
+  it('recaptures the whole project after a generation change discovered by a narrow read', async () => {
+    const { db, edit, read } = await fixture();
+    const { queue } = worker(db);
+    await queue.flush();
+    await db.transaction(async (tx) => {
+      const [generation] = await tx.select().from(SyncGenerationTable);
+      await tx.update(SyncGenerationTable).set({ status: 'retired', retiredAt: NOW });
+      await tx.insert(SyncGenerationTable).values({ ...generation!, syncGenerationId: 'replacement-generation', generationNumber: 2 });
+    });
+    await edit('generation-body', 2);
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', stale: true, written: 0 });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', written: 3 });
+    expect((await read()).find((row) => row.fromId === 'node-2')!.toId).toBe('generation-body');
+  });
+
+  it('falls back to atomic full cleanup when a hinted source disappeared', async () => {
+    const { db, read } = await fixture();
+    const { queue } = worker(db);
+    await queue.flush();
+    await db.update(BookNodeTable).set({ deletedAt: NOW }).where(eq(BookNodeTable.id, 'node-0'));
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
+    await queue.flush();
+    expect(queue.getSnapshot().lastRun?.stale).toBe(true);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', removedSources: 1 });
+    expect((await read()).map((row) => row.fromId).sort()).toEqual(['node-1', 'node-2']);
+  });
+
+  it('rechecks full coverage on a failed narrow replacement and keeps the retry bounded', async () => {
+    const { db, gateway, edit, read } = await fixture();
+    const { queue } = worker(db);
+    await queue.flush();
+    await edit('retry-narrow');
+    gateway.failNextExecute((sql) => sql.startsWith('insert into "inline_mention"'));
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]); await queue.flush();
+    expect(queue.getSnapshot()).toMatchObject({ hasError: true, lastRun: { capture: 'sources', failedSources: 1 } });
+    expect((await read()).find((row) => row.fromId === 'node-0')!.toId).toBe('seed-target');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', prepared: 1, reused: 2 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('rejects an older narrow body and recaptures concurrent changes to other sources', async () => {
+    const { db, edit, read } = await fixture();
+    let intervene = false;
+    const { queue } = worker(db, (repository) => ({ ...repository, prepareSource: async (...args) => {
+      const prepared = await repository.prepareSource(...args);
+      if (intervene) { intervene = false; await edit('newest-body'); await edit('concurrent-other', 1); }
+      return prepared;
+    } }));
+    await queue.flush();
+    await edit('older-body'); intervene = true;
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]); await queue.flush();
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', stale: true, written: 0 });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', written: 2, reused: 1 });
+    expect((await read()).map((row) => row.toId).sort()).toEqual(['concurrent-other', 'newest-body', 'seed-target']);
+  });
+
+  it('revokes a prepared narrow pass on forced repair before committing its rows', async () => {
+    const { db, edit } = await fixture();
+    let intervene = false;
+    let force = () => {};
+    const { queue } = worker(db, (repository) => ({ ...repository, replaceSource: async (prepared) => {
+      if (intervene) { intervene = false; force(); }
+      return repository.replaceSource(prepared);
+    } }));
+    await queue.flush();
+    force = () => queue.request(true);
+    await edit('repair-body'); intervene = true;
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]); await queue.flush();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'full', written: 3, stale: false });
+  });
   it('starts with full coverage and coalesces 100 notifications without postponing the first window', async () => {
     const { db } = await fixture();
     const { queue, repositories, changed } = worker(db);
@@ -135,9 +267,9 @@ describe('project reference queue', () => {
     expect(queue.getSnapshot().lastRun).toMatchObject({ prepared: 0, written: 0, reused: 100 });
     const metadata = queue.getSnapshot().lastRun;
     await edit('changed-only');
-    queue.request();
+    queue.request(false, [{ kind: 'node', id: 'node-0' }]);
     await vi.advanceTimersByTimeAsync(REFERENCE_INDEX_QUIET_MS);
-    expect(queue.getSnapshot().lastRun).toMatchObject({ prepared: 1, written: 1, reused: 99 });
+    expect(queue.getSnapshot().lastRun).toMatchObject({ capture: 'sources', sources: 1, prepared: 1, written: 1, reused: 0 });
     if (process.env.DRIFTING_REFERENCE_QUEUE_COUNTERS) {
       await writeFile(process.env.DRIFTING_REFERENCE_QUEUE_COUNTERS, JSON.stringify({
         sourceCount: 100, startup, metadata, oneBodyChange: queue.getSnapshot().lastRun,
@@ -283,6 +415,31 @@ describe('project reference queue', () => {
 });
 
 describe('reference queue runtime wiring', () => {
+  it('repairs coverage after a recreated sync runtime even when source notifications were lost', async () => {
+    const { db, edit, read } = await fixture();
+    await mountService(db);
+    await edit('missed-notification');
+    events.emit('sync:reference-coverage-invalidated', { projectId: 'other-project' });
+    expect(getProjectReferenceIndexSnapshot('project-a').phase).toBe('idle');
+    events.emit('sync:reference-coverage-invalidated', { projectId: 'project-a' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ capture: 'full', written: 3 });
+    expect((await read()).find((row) => row.fromId === 'node-0')!.toId).toBe('missed-notification');
+  });
+
+  it('uses complete capture for unknown prose scopes and workspace changes carrying prose hints', async () => {
+    const { db } = await fixture();
+    await mountService(db);
+    for (const event of [
+      { projectionImpact: 'prose-only' as const },
+      { projectionImpact: 'prose-only' as const, proseDocIds: ['unknown:node-0'] },
+      { projectionImpact: 'workspace' as const, proseDocIds: ['node-content:node-0'] },
+    ]) {
+      events.emit('sync:project-changed', { projectId: 'project-a', ...event });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ capture: 'full', sources: 3 });
+    }
+  });
   it('indexes JSON-only patch create and update commits and prunes durable patch deletion', async () => {
     const { db, read } = await fixture();
     await db.insert(BookElementTable).values({ id: 'patch-parent', projectId: 'project-a', name: 'Synthetic parent', createdAt: NOW, updatedAt: NOW });
@@ -358,9 +515,11 @@ describe('reference queue runtime wiring', () => {
     cleanups.push(onAuthoredChangeCommitted(notified));
     await appendAuthoredYjsUpdate('project-a', 'node-content:node-0', update('ordinary-durable'));
     expect(notified).toHaveBeenCalledTimes(1);
+    expect(notified.mock.calls[0]![0].proseDocIds).toEqual(['node-content:node-0']);
     expect(getProjectReferenceIndexSnapshot('project-a').phase).toBe('waiting');
     await vi.advanceTimersByTimeAsync(250);
     expect((await read()).find((row) => row.fromId === 'node-0')!.toId).toBe('ordinary-durable');
+    expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ capture: 'sources', sources: 1, written: 1 });
   });
 
   it('observes Agent outer commits but not rolled-back Agent savepoints', async () => {
@@ -384,9 +543,10 @@ describe('reference queue runtime wiring', () => {
     expect(recorded).not.toHaveBeenCalled();
     await commitAgent(false);
     expect(recorded).toHaveBeenCalledTimes(1);
-    expect(recorded.mock.calls[0]![0]).toMatchObject({ command: 'agent.write', projectId: 'project-a' });
+    expect(recorded.mock.calls[0]![0]).toMatchObject({ command: 'agent.write', projectId: 'project-a', proseDocIds: ['node-content:node-0'] });
     await vi.advanceTimersByTimeAsync(250);
     expect((await read()).find((row) => row.fromId === 'node-0')!.toId).toBe('committed-agent');
+    expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ capture: 'sources', sources: 1 });
   });
 
   it('handles remote prose without a workspace refresh, and restores force complete repair', async () => {
@@ -395,9 +555,9 @@ describe('reference queue runtime wiring', () => {
     await createYjsRepository(db).appendUpdate('node-content:node-0', update('remote-durable'), { kind: 'remote' });
     events.emit('sync:project-changed', { projectId: 'another-project', projectionImpact: 'workspace' });
     expect(getProjectReferenceIndexSnapshot('project-a').phase).toBe('idle');
-    events.emit('sync:project-changed', { projectId: 'project-a', projectionImpact: 'prose-only' });
+    events.emit('sync:project-changed', { projectId: 'project-a', projectionImpact: 'prose-only', proseDocIds: ['node-content:node-0'] });
     await vi.advanceTimersByTimeAsync(250);
-    expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ prepared: 1, written: 1, reused: 2 });
+    expect(getProjectReferenceIndexSnapshot('project-a').lastRun).toMatchObject({ capture: 'sources', sources: 1, prepared: 1, written: 1, reused: 0 });
     await db.delete(InlineMentionTable);
     events.emit('sync:projects-restored', { projectIds: ['project-a'] });
     await vi.advanceTimersByTimeAsync(0);

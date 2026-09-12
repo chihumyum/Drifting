@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import {
   YjsDocumentRevisionProvenanceTable,
@@ -63,7 +63,7 @@ export class YjsDocumentRevisionConflictError extends Error {
 
 export interface YjsRepository {
   listUpdates(docId: string, sinceId?: number): Promise<YjsUpdateRow[]>;
-  listDocIds(): Promise<string[]>;
+  listDocIds(only?: readonly string[]): Promise<string[]>;
   /**
    * Low-level append used inside an already-authoritative persistence path.
    * Ordinary authored edits must call `appendAuthoredYjsUpdate`, which wraps
@@ -99,7 +99,7 @@ export interface YjsRepository {
    * Every doc's durable revision in one query. Cache validity checks over a
    * whole project (e.g. prose search) read this instead of N getRevision calls.
    */
-  listRevisions(): Promise<Array<{ docId: string; revision: number }>>;
+  listRevisions(only?: readonly string[]): Promise<Array<{ docId: string; revision: number }>>;
   /** Durable authors for revisions strictly newer than `afterRevision`. */
   listRevisionProvenance(
     docId: string,
@@ -363,13 +363,14 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     });
   };
 
-  const listDocIds = async (): Promise<string[]> => {
+  const listDocIds = async (only?: readonly string[]): Promise<string[]> => {
+    if (only?.length === 0) return [];
     const updateRows = await dbProvider()
       .selectDistinct({ docId: yjsUpdates.docId })
-      .from(yjsUpdates);
+      .from(yjsUpdates).where(only ? inArray(yjsUpdates.docId, [...only]) : undefined);
     const snapshotRows = await dbProvider()
       .selectDistinct({ docId: yjsSnapshots.docId })
-      .from(yjsSnapshots);
+      .from(yjsSnapshots).where(only ? inArray(yjsSnapshots.docId, [...only]) : undefined);
     return [
       ...new Set([
         ...updateRows.map((row) => row.docId),
@@ -440,7 +441,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
 
   const hasDocState = async (docId: string): Promise<boolean> => {
     const [snap, latestUpdate] = await Promise.all([
-      getSnapshot(docId),
+      dbProvider().select({ docId: yjsSnapshots.docId }).from(yjsSnapshots).where(eq(yjsSnapshots.docId, docId)).limit(1),
       dbProvider()
         .select({ id: yjsUpdates.id })
         .from(yjsUpdates)
@@ -448,19 +449,19 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
         .limit(1),
     ]);
 
-    return Boolean(snap || latestUpdate[0]);
+    return Boolean(snap[0] || latestUpdate[0]);
   };
 
   const getRevision = async (docId: string): Promise<number> =>
     getRevisionFrom(dbProvider(), docId);
 
-  const listRevisions = async (): Promise<Array<{ docId: string; revision: number }>> =>
-    dbProvider()
+  const listRevisions = async (only?: readonly string[]): Promise<Array<{ docId: string; revision: number }>> =>
+    only?.length === 0 ? [] : dbProvider()
       .select({
         docId: YjsDocumentRevisionTable.docId,
         revision: YjsDocumentRevisionTable.revision,
       })
-      .from(YjsDocumentRevisionTable);
+      .from(YjsDocumentRevisionTable).where(only ? inArray(YjsDocumentRevisionTable.docId, [...only]) : undefined);
 
   const listRevisionProvenance = async (
     docId: string,

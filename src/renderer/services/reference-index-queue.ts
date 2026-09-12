@@ -1,11 +1,12 @@
 import {
-  type createReferenceIndexRepository, type ReferenceIndexScope, type ReferenceSourceVersion,
+  type createReferenceIndexRepository, type ReferenceIndexScope, type ReferenceSourceVersion, type ReferenceSourceId,
   referenceSourceKey, sameReferenceIndexScope, sameReferenceSourceVersion,
 } from './reference-index-repository';
 
 type Repository = ReturnType<typeof createReferenceIndexRepository>;
 
 export interface ReferenceIndexRunStats {
+  capture: 'full' | 'sources';
   sources: number;
   prepared: number;
   written: number;
@@ -22,6 +23,7 @@ export interface ReferenceIndexQueueSnapshot {
 }
 
 export const REFERENCE_INDEX_QUIET_MS = 250;
+export const MAX_REFERENCE_PENDING_SOURCES = 128;
 const RETRY_BASE_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
 const SOURCES_PER_YIELD = 16;
@@ -39,6 +41,9 @@ export function createReferenceIndexQueue(options: {
   let active = true;
   let epoch = 0;
   let pending = false;
+  let needsFullCapture = true;
+  let completeCoverage = false;
+  const pendingSources = new Map<string, ReferenceSourceId>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let timerDue = 0;
   let yieldTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,18 +106,31 @@ export function createReferenceIndexQueue(options: {
     if (!snapshot.hasError) publish({ ...snapshot, phase: 'waiting' });
   }
 
-  function request(force = false): void {
+  function requireFullCapture(): void {
+    needsFullCapture = true;
+    pendingSources.clear();
+  }
+
+  function request(force = false, sourceIds?: readonly ReferenceSourceId[]): void {
     if (!current()) { dispose(); return; }
     if (force) {
       // Revocation reaches the repository's pre-commit guard, including SQL
       // already in flight when a checkpoint/authority replacement arrives.
       epoch += 1;
       scope = null;
+      completeCoverage = false;
       acknowledged.clear();
       repository = makeRepository();
       failures = 0;
       retryDelay = null;
       finishYield();
+    }
+    if (force || !sourceIds?.length || !completeCoverage) requireFullCapture();
+    else if (!needsFullCapture) {
+      for (const source of sourceIds) {
+        pendingSources.set(referenceSourceKey(source), { kind: source.kind, id: source.id });
+        if (pendingSources.size > MAX_REFERENCE_PENDING_SOURCES) { requireFullCapture(); break; }
+      }
     }
     pending = true;
     if (!running) schedule(force ? 0 : REFERENCE_INDEX_QUIET_MS);
@@ -121,36 +139,48 @@ export function createReferenceIndexQueue(options: {
   async function runPass(): Promise<void> {
     if (!current()) { dispose(); return; }
     pending = false;
+    const sourceIds = completeCoverage && !needsFullCapture && pendingSources.size > 0 ? [...pendingSources.values()] : undefined;
+    needsFullCapture = false;
+    pendingSources.clear();
     retryDelay = null;
     const passEpoch = epoch;
     const passRepository = repository;
     const ownsPass = () => current() && epoch === passEpoch;
     const stats: ReferenceIndexRunStats = {
+      capture: sourceIds ? 'sources' : 'full',
       sources: 0, prepared: 0, written: 0, reused: 0, removedSources: 0, failedSources: 0, stale: false,
     };
     let failed = false;
     publish({ ...snapshot, phase: 'running' });
     try {
-      const catalog = await passRepository.captureCatalog();
+      const catalog = await passRepository.captureCatalog(sourceIds);
       if (!ownsPass()) return;
       if (!catalog) {
         acknowledged.clear();
         scope = null;
+        completeCoverage = false;
       } else {
         stats.sources = catalog.sources.length;
         if (!scope || !sameReferenceIndexScope(scope, catalog.scope)) {
           acknowledged.clear();
           scope = catalog.scope;
+          completeCoverage = false;
+          if (sourceIds) { stats.stale = true; pending = true; return; }
         }
-        const removed = await passRepository.pruneOrphanSources(catalog.scope);
+        // Missing sources imply lifecycle changes, not an empty prose update.
+        // Re-enter complete repair so orphan cleanup and coverage stay atomic.
+        if (sourceIds && catalog.sources.length !== sourceIds.length) { stats.stale = true; pending = true; return; }
+        const removed = sourceIds ? 0 : await passRepository.pruneOrphanSources(catalog.scope);
         if (!ownsPass()) return;
         if (removed === null) {
           stats.stale = true;
           pending = true;
         } else {
           stats.removedSources = removed;
-          const keys = new Set(catalog.sources.map(referenceSourceKey));
-          for (const key of acknowledged.keys()) if (!keys.has(key)) acknowledged.delete(key);
+          if (!sourceIds) {
+            const keys = new Set(catalog.sources.map(referenceSourceKey));
+            for (const key of acknowledged.keys()) if (!keys.has(key)) acknowledged.delete(key);
+          }
           let attemptedSinceYield = 0;
           for (const source of catalog.sources) {
             if (!ownsPass()) return;
@@ -191,13 +221,18 @@ export function createReferenceIndexQueue(options: {
     } finally {
       if (ownsPass()) {
         if (failed) {
+          completeCoverage = false;
+          requireFullCapture();
           failures += 1;
           retryDelay = Math.min(RETRY_BASE_MS * 2 ** Math.min(failures - 1, 5), RETRY_MAX_MS);
           publish({ phase: 'failed', hasError: true, lastRun: stats });
           notify(options.onError);
         } else if (stats.stale) {
+          completeCoverage = false;
+          requireFullCapture();
           publish({ ...snapshot, phase: 'waiting', lastRun: stats });
         } else {
+          if (!sourceIds && scope) completeCoverage = true;
           failures = 0;
           publish({ phase: 'idle', hasError: false, lastRun: stats });
         }
@@ -230,6 +265,8 @@ export function createReferenceIndexQueue(options: {
     epoch += 1;
     pending = false;
     scope = null;
+    completeCoverage = false;
+    requireFullCapture();
     acknowledged.clear();
     clearTimer();
     finishYield();

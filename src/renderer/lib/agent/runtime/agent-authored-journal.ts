@@ -1,6 +1,7 @@
 import { afterDatabaseCommit, type DbExecutor, type DbTransaction } from '../../../lib/db';
 import { observeLocalAuthoredReducerInTransaction } from '../../../sync/reducer/sqlite-materializer';
 import { productionSyncDomainMaterializationKernel } from '../../../sync/reducer/production-domain-kernel';
+import { committedProseDocIds } from '../../../sync/prose-change-scope';
 import {
   appendAuthoredDomainMutation,
   defaultSyncGenerationIdSource,
@@ -90,12 +91,14 @@ export function createAgentAuthoredJournal(
         clock,
         validator: productionSyncDomainMaterializationKernel,
       });
-      afterDatabaseCommit(transaction, () => notifyAuthoredChangeCommitted({
-        command: 'agent.write',
+      const committedEvent = {
+        command: 'agent.write' as const,
         projectId: input.projectId,
         syncGenerationId: generation.syncGenerationId,
         changeSetId: recorded.changeSet.changeSetId,
-      }));
+        proseDocIds: committedProseDocIds(recorded.changeSet.mutations),
+      };
+      afterDatabaseCommit(transaction, () => notifyAuthoredChangeCommitted(committedEvent));
       return recorded;
     },
   };

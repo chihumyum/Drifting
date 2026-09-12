@@ -1,6 +1,7 @@
 import { and, asc, count, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 import type { DbClient, DbTransaction } from '../../lib/db';
+import { boundedProseDocIds } from '../prose-change-scope';
 import {
   SyncBlobStateTable,
   SyncChangeSetTable,
@@ -148,7 +149,10 @@ export interface SqliteSyncGenerationRuntimeOptions {
     readonly projectId: string;
     readonly changeSetId: string;
     readonly projectionImpact: RemoteProjectChangeProjectionImpact;
+    readonly proseDocIds?: readonly string[];
   }) => void;
+  /** One complete derived-reference check when a sync runtime first applies. */
+  readonly onReferenceCoverageInvalidated?: (input: { readonly projectId: string }) => void;
   readonly onStatus?: (runtime: SqliteSyncGenerationRuntime) => void;
 }
 
@@ -351,6 +355,9 @@ export class SqliteSyncGenerationRuntime {
   private readonly checkpoint?: SyncEngineCheckpointHook;
   private readonly reconcileOpenYjsDocuments?: SqliteSyncGenerationRuntimeOptions['reconcileOpenYjsDocuments'];
   private readonly onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
+  private pendingProjectNotification: Parameters<NonNullable<SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted']>>[0] | null = null;
+  private referenceCoverageNotified = false;
+  private readonly onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   private readonly onStatus?: (runtime: SqliteSyncGenerationRuntime) => void;
   private readonly statusListeners = new Set<(runtime: SqliteSyncGenerationRuntime) => void>();
   private readonly stateRepository: SqliteSyncEngineStateRepository;
@@ -377,6 +384,7 @@ export class SqliteSyncGenerationRuntime {
     this.checkpoint = options.checkpoint;
     this.reconcileOpenYjsDocuments = options.reconcileOpenYjsDocuments;
     this.onRemoteChangeCommitted = options.onRemoteChangeCommitted;
+    this.onReferenceCoverageInvalidated = options.onReferenceCoverageInvalidated;
     this.onStatus = options.onStatus;
     this.stateRepository = new SqliteSyncEngineStateRepository(this.db);
     this.lane = new SyncGenerationCycleLane({
@@ -2012,6 +2020,16 @@ export class SqliteSyncGenerationRuntime {
     // the next cycle skip it. Reconcile every open session from its own SQLite
     // coverage cursor before inspecting segment frontiers.
     await this.reconcileOpenYjsDocuments?.({ projectId: identity.projectId });
+    if (!this.referenceCoverageNotified) {
+      this.onReferenceCoverageInvalidated?.({ projectId: identity.projectId });
+      this.referenceCoverageNotified = true;
+    }
+    // A committed receipt skips reducer replay. Retry its display/index event
+    // only after the open sessions recover; a failing callback stays pending.
+    if (this.pendingProjectNotification) {
+      this.onRemoteChangeCommitted?.(this.pendingProjectNotification);
+      this.pendingProjectNotification = null;
+    }
     const segments = await this.db
       .select({
         segmentId: SyncSegmentTable.segmentId,
@@ -2081,6 +2099,13 @@ export class SqliteSyncGenerationRuntime {
               effect.source.changeSetId === changeSet.changeSetId,
             )
             .map((effect) => effect.target.id);
+          const projectionImpact = remoteProjectChangeProjectionImpact(applied.effects);
+          this.pendingProjectNotification = {
+            projectId: changeSet.projectId,
+            changeSetId: changeSet.changeSetId,
+            projectionImpact,
+            proseDocIds: projectionImpact === 'prose-only' ? boundedProseDocIds(docIds) : undefined,
+          };
           if (docIds.length > 0) {
             // This await is intentionally outside the SQLite transaction and
             // before the apply phase can publish its next UI-visible status.
@@ -2089,11 +2114,8 @@ export class SqliteSyncGenerationRuntime {
               docIds,
             });
           }
-          this.onRemoteChangeCommitted?.({
-            projectId: changeSet.projectId,
-            changeSetId: changeSet.changeSetId,
-            projectionImpact: remoteProjectChangeProjectionImpact(applied.effects),
-          });
+          this.onRemoteChangeCommitted?.(this.pendingProjectNotification);
+          this.pendingProjectNotification = null;
         } catch (error) {
           if (error instanceof SyncReducerRejectedError) {
             await this.quarantineDownloaded(

@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 
@@ -142,23 +142,27 @@ export function createReferenceIndexRepository(options: {
     return sourceVersion(row, revision, hasState);
   }
 
-  async function captureCatalog(): Promise<ReferenceIndexCatalog | null> {
+  async function captureCatalog(only?: readonly ReferenceSourceId[]): Promise<ReferenceIndexCatalog | null> {
+    if (only?.length === 0) throw new Error('A scoped reference capture requires at least one source.');
     return transaction(async (tx) => {
       const scope = await readScope(tx);
       if (!scope) return null;
-      const rows = await loadSourceRows(tx, projectId);
-      // F6a retains full catalog reads. Read durable metadata in bulk, without
-      // loading/decoding every Yjs document just to discover its version.
+      const rows = await loadSourceRows(tx, projectId, only);
+      // Startup/repair reads complete metadata; selected capture batches only
+      // the actual source IDs, with no per-source query loop or snapshot blobs.
+      const docIds = only ? rows.flatMap((row) => isProseEntityType(row.kind) ? [proseDocId(row.kind, row.id)] : []) : undefined;
       const repo = createYjsRepository(tx);
-      const revisions = new Map((await repo.listRevisions()).map((row) => [row.docId, row.revision]));
-      const documents = new Set(await repo.listDocIds());
+      const revisions = new Map((await repo.listRevisions(docIds)).map((row) => [row.docId, row.revision]));
+      const documents = new Set(await repo.listDocIds(docIds));
       const sources = rows.map((row) => {
         if (!isProseEntityType(row.kind)) return sourceVersion(row);
         const docId = proseDocId(row.kind, row.id);
         return sourceVersion(row, revisions.get(docId) ?? 0, documents.has(docId));
       });
       const indexed = await tx.select({ kind: InlineMentionTable.fromKind, id: InlineMentionTable.fromId, count: sql<number>`count(*)` })
-        .from(InlineMentionTable).where(eq(InlineMentionTable.projectId, projectId))
+        .from(InlineMentionTable).where(and(eq(InlineMentionTable.projectId, projectId), only
+          ? or(...only.map((id) => and(eq(InlineMentionTable.fromKind, id.kind), eq(InlineMentionTable.fromId, id.id))))
+          : undefined))
         .groupBy(InlineMentionTable.fromKind, InlineMentionTable.fromId);
       // Existing lifecycle commands can remove rows for a deleted target.
       // Such deletions invalidate coverage even if the source prose is unchanged.
@@ -260,34 +264,41 @@ function sourceVersion(row: SourceRow, revision = 0, hasState = false): Referenc
   };
 }
 
-async function loadSourceRows(tx: DbTransaction, projectId: string, only?: ReferenceSourceId): Promise<SourceRow[]> {
+async function loadSourceRows(tx: DbTransaction, projectId: string, only?: ReferenceSourceId | readonly ReferenceSourceId[]): Promise<SourceRow[]> {
   const rows: SourceRow[] = [];
-  if (!only || only.kind === 'node') {
+  const selected: readonly ReferenceSourceId[] | undefined = only ? ('kind' in only ? [only] : only) : undefined;
+  const forKind = (kind: StructuralEntityKind) => selected?.filter((id) => id.kind === kind).map((id) => id.id);
+  const nodeIds = forKind('node');
+  if (!nodeIds || nodeIds.length > 0) {
     const found = await tx.select({ id: BookNodeTable.id, createdAt: BookNodeTable.createdAt, contentJson: NodeContentTable.contentJson })
       .from(BookNodeTable).leftJoin(NodeContentTable, eq(BookNodeTable.id, NodeContentTable.nodeId))
-      .where(and(eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt), only ? eq(BookNodeTable.id, only.id) : undefined));
+      .where(and(eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt), nodeIds ? inArray(BookNodeTable.id, nodeIds) : undefined));
     rows.push(...found.map((row) => ({ ...row, kind: 'node' as const })));
   }
-  if (!only || only.kind === 'element') {
+  const elementIds = forKind('element');
+  if (!elementIds || elementIds.length > 0) {
     const found = await tx.select({ id: BookElementTable.id, createdAt: BookElementTable.createdAt, contentJson: BookElementTable.contentJson })
-      .from(BookElementTable).where(and(eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt), only ? eq(BookElementTable.id, only.id) : undefined));
+      .from(BookElementTable).where(and(eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt), elementIds ? inArray(BookElementTable.id, elementIds) : undefined));
     rows.push(...found.map((row) => ({ ...row, kind: 'element' as const })));
   }
-  if (!only || only.kind === 'category') {
+  const categoryIds = forKind('category');
+  if (!categoryIds || categoryIds.length > 0) {
     const found = await tx.select({ id: ElementCategoryTable.id, createdAt: ElementCategoryTable.createdAt, contentJson: ElementCategoryTable.contentJson })
-      .from(ElementCategoryTable).where(and(eq(ElementCategoryTable.projectId, projectId), isNull(ElementCategoryTable.deletedAt), only ? eq(ElementCategoryTable.id, only.id) : undefined));
+      .from(ElementCategoryTable).where(and(eq(ElementCategoryTable.projectId, projectId), isNull(ElementCategoryTable.deletedAt), categoryIds ? inArray(ElementCategoryTable.id, categoryIds) : undefined));
     rows.push(...found.map((row) => ({ ...row, kind: 'category' as const })));
   }
-  if (!only || only.kind === 'storyline') {
+  const storylineIds = forKind('storyline');
+  if (!storylineIds || storylineIds.length > 0) {
     const found = await tx.select({ id: StorylineTable.id, createdAt: StorylineTable.createdAt, contentJson: StorylineTable.contentJson })
-      .from(StorylineTable).where(and(eq(StorylineTable.projectId, projectId), isNull(StorylineTable.deletedAt), only ? eq(StorylineTable.id, only.id) : undefined));
+      .from(StorylineTable).where(and(eq(StorylineTable.projectId, projectId), isNull(StorylineTable.deletedAt), storylineIds ? inArray(StorylineTable.id, storylineIds) : undefined));
     rows.push(...found.map((row) => ({ ...row, kind: 'storyline' as const })));
   }
-  if (!only || only.kind === 'patch') {
+  const patchIds = forKind('patch');
+  if (!patchIds || patchIds.length > 0) {
     // Patches have no trash marker; their parent element owns their visibility.
     const found = await tx.select({ id: ElementPatchTable.id, createdAt: ElementPatchTable.createdAt, contentJson: ElementPatchTable.contentJson })
       .from(ElementPatchTable).innerJoin(BookElementTable, and(eq(ElementPatchTable.elementId, BookElementTable.id), eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt)))
-      .where(and(eq(ElementPatchTable.projectId, projectId), only ? eq(ElementPatchTable.id, only.id) : undefined));
+      .where(and(eq(ElementPatchTable.projectId, projectId), patchIds ? inArray(ElementPatchTable.id, patchIds) : undefined));
     rows.push(...found.map((row) => ({ ...row, kind: 'patch' as const })));
   }
   return rows;

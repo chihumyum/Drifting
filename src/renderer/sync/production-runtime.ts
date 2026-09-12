@@ -152,8 +152,11 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       flushLocalDurability: flushLocalApplicationPersistence,
       reconcileOpenYjsDocuments: ({ projectId, docIds }) =>
         reconcileOpenYjsDocumentSessions(projectId, docIds),
-      onRemoteChangeCommitted: ({ projectId, projectionImpact }) => {
-        events.emit('sync:project-changed', { projectId, projectionImpact });
+      onRemoteChangeCommitted: ({ projectId, projectionImpact, proseDocIds }) => {
+        events.emit('sync:project-changed', { projectId, projectionImpact, proseDocIds });
+      },
+      onReferenceCoverageInvalidated: ({ projectId }) => {
+        events.emit('sync:reference-coverage-invalidated', { projectId });
       },
       checkpoint,
     });

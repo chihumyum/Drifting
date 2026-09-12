@@ -285,7 +285,8 @@ project cache; the existing weak ID index follows the source array lifetime.
 Full capture, the structural refresh barrier and the non-blocking prose-only
 sync path remain intact. The reference queue below owns derived indexing.
 Renderer process recovery is checked through the file-backed SQLite adapter;
-native gateway acceptance and partial SQLite reads remain pending F6 work.
+native gateway acceptance and structural workspace partial reads remain pending
+F6 work. Pure Yjs commits now scope reference reads as described below.
 
 ### Project reference-index queue
 
@@ -305,6 +306,13 @@ rolled-back callbacks, and invokes them only after the outer gateway commit.
 An observer exception cannot turn a committed author write into an apparent
 failure or prevent other observers from running. This changes renderer event
 wiring, not the Agent/network protocol or journal authority.
+Pure Yjs mutation batches additionally carry a bounded, immutable `proseDocIds`
+hint. Remote hints come from materialized effects after durable commit and live
+Yjs reconciliation. Empty/unknown/mixed scopes use full capture. A failed remote
+merge or notification remains pending for the next cycle after session recovery;
+each recreated sync runtime also invalidates reference coverage once on first
+apply, compensating for lost in-memory notifications without replaying receipts.
+That invalidation is reference-only and does not add a workspace barrier.
 
 `reference-index-queue.ts` coalesces ordinary commits in a 250 ms window fixed
 by the first request, keeps at most one following request during a pass, and
@@ -316,6 +324,12 @@ rows while other sources proceed. One retry timer backs off from 1 to 30 seconds
 a new durable change can advance the retry. Explicit repair, restored projects
 and authority changes revoke the in-flight repository owner and clear coverage.
 New owners always start with a complete pass, never a persisted dirty-set claim.
+After complete coverage, the queue merges up to 128 source identities for the
+next pass. Overflow or a full invalidation clears the narrow scope. A source
+request arriving during a pass stays pending; full invalidation always wins.
+Missing sources, generation changes, stale results and failures return to full
+capture. A narrow pass preserves other sources' acknowledged versions and never
+prunes them using an incomplete catalog.
 
 `reference-index-repository.ts` binds every read/write to the captured database
 and checks owner, project incarnation, active sync generation, source existence
@@ -342,10 +356,13 @@ shows a retry action in panels that display inline references; observation does
 not retain the worker. `ReferencesPanel` binds each query to its database and
 advances its request generation on every reload, rejecting late older reads.
 
-Full source-catalog reads (including JSON bodies), database-wide Yjs version
-metadata and project inline coverage counts still occur on every pass, including
-pure prose commits. Source parsing/write locality is proven; database read
-latency and app-wide input performance are not. F6b1 adds actual SIGKILL and
+Pure Yjs scopes now use source-ID-filtered SQL, batched Yjs metadata and filtered
+reference coverage in one capture transaction. Existence probes do not load
+snapshot blobs. Startup, repair, structural/JSON patch changes and unknown
+impact retain the complete path; workspace projection captures remain complete.
+The read matrix records query counts, returned rows/bytes, gateway timings,
+parser/replacement counts and reference publications independently. Node SQLite
+timings do not establish native IPC or app-wide input performance. F6b1 adds SIGKILL and
 independent-process restart checks through the file-backed product-schema
 SQLite adapter. An uncached startup pass restores references after a committed
 write loses its notification, or after an interrupted replacement rolls back.
@@ -353,8 +370,9 @@ The fixture checks Yjs changes, JSON patch edits and patch deletion, including
 two restarts, a separate full rebuild, authoritative-table hashes and project
 isolation. Only native installation identity is substituted. This proves the
 renderer recovery path without a new durable progress table; it does not prove
-native Rust gateway, physical-device or power-loss recovery. F6b can now narrow
-the headless-tested path while preserving full startup/repair reconstruction.
+native Rust gateway, physical-device or power-loss recovery. F6b2 extends the
+matrix to interrupt the warmed runtime's scoped capture as well; every restart
+still uses complete startup reconstruction.
 
 ## Desktop universal create
 
