@@ -34,6 +34,8 @@ import { useDataStore } from './data-store';
 import { useAgentEditStore } from './agent-edit-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { AgentConversationLoadGuard, createAgentConversationListController } from '../lib/agent/runtime/chat-conversation-navigation';
+import { createAgentConversationRemovalOwner } from '../lib/agent/runtime/chat-conversation-removal';
+import type { AgentConversationRemovalReceipt } from '../sqlite-repo/agent-conversation-repo';
 import { hydrateAgentConversationRun } from '../lib/agent/runtime/chat-conversation-hydration';
 import { createAgentChatStartOwner } from '../lib/agent/runtime/chat-start-owner';
 import { buildAgentChatRevertNote, prepareAgentChatMemories } from '../lib/agent/runtime/chat-send-preparation';
@@ -179,9 +181,9 @@ interface AgentChatState {
   abort: () => void;
   newConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
-  deleteConversation: (id: string) => Promise<void>;
-  /** Soft-delete every conversation in the bound project, resetting to a fresh chat. */
-  clearConversations: () => Promise<void>;
+  deleteConversation: (id: string) => Promise<AgentConversationRemovalReceipt[] | null>;
+  /** Delete the explicit or bound project; publish only the committed receipt. */
+  clearConversations: (projectId?: string) => Promise<AgentConversationRemovalReceipt[] | null>;
   renameConversation: (id: string, title: string) => Promise<void>;
 }
 
@@ -275,6 +277,7 @@ function withoutRunningTurn(
 export { AgentConversationLoadGuard, type AgentConversationLoadToken } from '../lib/agent/runtime/chat-conversation-navigation';
 
 const conversationLoadGuard = new AgentConversationLoadGuard();
+const conversationRemovals = createAgentConversationRemovalOwner();
 const conversationStartOwner = createAgentChatStartOwner(value => {
   useAgentChatStore.setState(state => state.starting === value ? state : { starting: value });
 });
@@ -401,8 +404,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Preserve an explicit cancellable startup boundary even when no product
       // preflight read is needed. New Chat / Load Conversation can invalidate
       // this intent before the stale prompt is appended to either transcript.
-      await Promise.resolve();
-      if (!isCurrentStart()) return;
+      if (!(await conversationRemovals.wait(s.boundProjectId, s.activeConvId)) || !isCurrentStart()) return;
       const now = userMessage.at;
       const settings = useSettingsStore.getState();
       const auth = settings.agentAuth;
@@ -713,77 +715,35 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   deleteConversation: async (id) => {
-    conversationLists.cancelRestore();
-    cancelAutomaticContinuationTimer(id);
-    conversationLoadGuard.invalidate();
-    conversationStartOwner.cancelConversation(id);
-    // Abort only this conversation's turn; sibling conversations keep running.
-    const deletingTurnId = get().runningTurns[id];
-    if (deletingTurnId) {
-      const deletingSessionId = get().runs[id]?.runtimeSessionId;
-      void generalAgentTransport.abort({ turnId: deletingTurnId });
-      journalConsumer.releaseTurn(deletingTurnId);
-      if (deletingSessionId) {
-        useAgentActivityStore
-          .getState()
-          .onTurnEnd({ sessionId: deletingSessionId, turnId: deletingTurnId });
-      }
-      set((state) => withoutRunningTurn(state, id, deletingTurnId) ?? state);
-    }
+    const finish = conversationRemovals.begin({ conversationId: id });
+    if (!finish) return null;
     try {
-      await repo.softDelete(id, new Date().toISOString());
+      stopConversationForRemoval(id);
+      const receipt = await repo.softDelete(id, new Date().toISOString());
+      // A successful missing-row delete also evicts this explicitly targeted
+      // cache; an unsuccessful database write must retain it for recovery.
+      removeCommittedConversations([id]);
+      return receipt;
     } catch {
-      /* ignore */
-    }
-    set((st) => {
-      if (!(id in st.runs)) return st;
-      const runs = { ...st.runs };
-      delete runs[id];
-      return { runs };
-    });
-    if (get().activeConvId === id) {
-      const pid = get().boundProjectId;
-      if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
-      set({ activeConvId: null });
-    }
-    get().refreshList();
+      return null;
+    } finally { finish(); get().refreshList(); }
   },
 
-  clearConversations: async () => {
-    conversationLists.cancelRestore();
-    conversationLoadGuard.invalidate();
-    const pid = get().boundProjectId;
-    if (!pid) return;
-    conversationStartOwner.cancelProject(pid);
-    for (const [convId, run] of Object.entries(get().runs)) {
-      if (run.projectId === pid) cancelAutomaticContinuationTimer(convId);
-    }
-    // Abort every turn owned by this project, leaving other project caches alone.
-    const clearingTurns = Object.entries(get().runningTurns).filter(
-      ([convId]) => get().runs[convId]?.projectId === pid,
-    );
-    for (const [convId, turnId] of clearingTurns) {
-      const sessionId = get().runs[convId]?.runtimeSessionId;
-      void generalAgentTransport.abort({ turnId });
-      journalConsumer.releaseTurn(turnId);
-      if (sessionId) {
-        useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
-      }
-      set((state) => withoutRunningTurn(state, convId, turnId) ?? state);
-    }
+  clearConversations: async (projectId) => {
+    const pid = projectId ?? get().boundProjectId;
+    if (!pid) return null;
+    const finish = conversationRemovals.begin({ projectId: pid });
+    if (!finish) return null;
     try {
-      await repo.softDeleteAllByProject(pid, new Date().toISOString());
+      if (get().boundProjectId === pid) conversationLists.cancelRestore();
+      conversationStartOwner.cancelProject(pid);
+      for (const [id, run] of Object.entries(get().runs)) if (run.projectId === pid) stopConversationForRemoval(id);
+      const receipt = await repo.softDeleteAllByProject(pid, new Date().toISOString());
+      removeCommittedConversations(receipt.map(row => row.id));
+      return receipt;
     } catch {
-      /* ignore */
-    }
-    // Drop this project's in-memory transcripts (other projects' caches stay)
-    // and reset the view to a fresh chat.
-    useSettingsStore.getState().clearLastAgentConv(pid);
-    set((st) => ({
-      runs: Object.fromEntries(Object.entries(st.runs).filter(([, r]) => r.projectId !== pid)),
-      activeConvId: null,
-    }));
-    get().refreshList();
+      return null;
+    } finally { finish(); get().refreshList(); }
   },
 
   renameConversation: async (id, title) => {
@@ -800,6 +760,38 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 }));
 
+/** Runtime cleanup is keyed by the removed conversation, never the visible view. */
+function stopConversationForRemoval(id: string): void {
+  pauseAutomaticContinuationForConversation(id, 'author_stopped');
+  conversationStartOwner.cancelConversation(id);
+  const state = useAgentChatStore.getState(); const turnId = state.runningTurns[id];
+  if (!turnId) return;
+  const sessionId = state.runs[id]?.runtimeSessionId;
+  try { void generalAgentTransport.abort({ turnId }).catch(() => undefined); } catch { /* Removal still uses the durable receipt if transport cancellation is unavailable. */ }
+  journalConsumer.releaseTurn(turnId);
+  if (sessionId) useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
+  useAgentChatStore.setState(current => withoutRunningTurn(current, id, turnId) ?? current);
+}
+
+function removeCommittedConversations(ids: readonly string[]): void {
+  const removed = new Set(ids);
+  if (removed.size === 0) return;
+  for (const id of removed) stopConversationForRemoval(id);
+  const settings = useSettingsStore.getState();
+  for (const [pid, id] of Object.entries(settings.lastAgentConvByProject)) if (removed.has(id)) settings.clearLastAgentConv(pid);
+  useAgentChatStore.setState(state => {
+    const hasRun = ids.some(id => id in state.runs);
+    const hasActive = state.activeConvId !== null && removed.has(state.activeConvId);
+    const hasList = state.convList.some(row => removed.has(row.id));
+    if (!hasRun && !hasActive && !hasList) return state;
+    return {
+      runs: hasRun ? Object.fromEntries(Object.entries(state.runs).filter(([id]) => !removed.has(id))) : state.runs,
+      activeConvId: hasActive ? null : state.activeConvId,
+      convList: hasList ? state.convList.filter(row => !removed.has(row.id)) : state.convList,
+    };
+  });
+}
+
 async function openAgentConversation(id: string, isCurrentRestore: () => boolean = () => true): Promise<void> {
   if (!isCurrentRestore()) return;
   const get = useAgentChatStore.getState; const set = useAgentChatStore.setState;
@@ -814,45 +806,56 @@ async function openAgentConversation(id: string, isCurrentRestore: () => boolean
   const loadToken = conversationLoadGuard.begin(boundProjectId);
   const isCurrentLoad = (): boolean =>
     conversationLoadGuard.isCurrent(loadToken, get().boundProjectId) && (visible || isCurrentRestore());
-  // Don't clobber a conversation that's live in memory (it may be running in
-  // the background) with a stale DB snapshot — only hydrate if not loaded.
-  const loadedRun = get().runs[id];
-  if (loadedRun && loadedRun.projectId !== boundProjectId) return;
-  if (!loadedRun) {
-    const run = await hydrateAgentConversationRun(id, boundProjectId, isCurrentLoad);
-    if (!run || !isCurrentLoad()) return;
-    set((state) => ({ runs: { ...state.runs, [id]: run } }));
-  }
+  if (conversationRemovals.hasPending(boundProjectId, id) && !(await conversationRemovals.wait(boundProjectId, id))) return;
   if (!isCurrentLoad()) return;
-  visible = true;
-  set({ activeConvId: id });
-  if (!isCurrentLoad()) return;
-  const runtimeSessionId = get().runs[id]?.runtimeSessionId;
-  if (runtimeSessionId) {
-    const pending = await generalAgentTransport.listPendingControls({
-      sessionId: runtimeSessionId,
-    });
-    if (!isCurrentLoad()) return;
-    if (pending.ok) {
-      const recovered = pending.value[0] ?? null;
-      set((state) => {
-        const run = state.runs[id];
-        if (!run || run.runtimeSessionId !== runtimeSessionId) return state;
-        return {
-          runs: {
-            ...state.runs,
-            [id]: {
-              ...run,
-              controlStatus: recovered?.status ?? null,
-              pendingControl: recovered,
-            },
-          },
-        };
-      });
+  const removalRead = conversationRemovals.read(boundProjectId, id);
+  const isCurrentRead = () => isCurrentLoad() && removalRead.isCurrent();
+  try {
+    // Don't clobber a conversation that's live in memory (it may be running in
+    // the background) with a stale DB snapshot — only hydrate if not loaded.
+    const loadedRun = get().runs[id];
+    if (loadedRun && loadedRun.projectId !== boundProjectId) return;
+    if (!loadedRun) {
+      const run = await hydrateAgentConversationRun(id, boundProjectId, isCurrentRead);
+      if (!isCurrentRead()) return;
+      if (!run) {
+        if (get().activeConvId === id) set({ activeConvId: null });
+        if (useSettingsStore.getState().lastAgentConvByProject[boundProjectId] === id) useSettingsStore.getState().clearLastAgentConv(boundProjectId);
+        return;
+      }
+      set((state) => ({ runs: { ...state.runs, [id]: run } }));
     }
-  }
-  if (!isCurrentLoad()) return;
-  useSettingsStore.getState().setLastAgentConv(boundProjectId, id);
+    if (!isCurrentRead()) return;
+    visible = true;
+    set({ activeConvId: id });
+    if (!isCurrentRead()) return;
+    const runtimeSessionId = get().runs[id]?.runtimeSessionId;
+    if (runtimeSessionId) {
+      const pending = await generalAgentTransport.listPendingControls({
+        sessionId: runtimeSessionId,
+      });
+      if (!isCurrentRead()) return;
+      if (pending.ok) {
+        const recovered = pending.value[0] ?? null;
+        set((state) => {
+          const run = state.runs[id];
+          if (!run || run.runtimeSessionId !== runtimeSessionId) return state;
+          return {
+            runs: {
+              ...state.runs,
+              [id]: {
+                ...run,
+                controlStatus: recovered?.status ?? null,
+                pendingControl: recovered,
+              },
+            },
+          };
+        });
+      }
+    }
+    if (!isCurrentRead()) return;
+    useSettingsStore.getState().setLastAgentConv(boundProjectId, id);
+  } finally { removalRead.finish(); }
 }
 
 // ---- persistence + single global event subscription ------------------------
@@ -1123,6 +1126,6 @@ function ensureSubscription(): void { journalConsumer.ensureConnected(); }
 
 if (import.meta.hot) import.meta.hot.dispose(() => {
   journalConsumer.dispose();
-  conversationLists.dispose(); conversationLoadGuard.invalidate(); conversationStartOwner.dispose();
+  conversationRemovals.dispose(); conversationLists.dispose(); conversationLoadGuard.invalidate(); conversationStartOwner.dispose();
   for (const conversationId of automaticContinuationTimers.keys()) cancelAutomaticContinuationTimer(conversationId);
 });

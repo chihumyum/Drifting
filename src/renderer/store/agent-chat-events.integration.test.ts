@@ -10,7 +10,7 @@ import { createAgentChatDisplayProjection } from '../features/agent/chat-display
 
 const persistence = vi.hoisted(() => ({
   update: vi.fn(async () => undefined), get: vi.fn(), projection: vi.fn(),
-  softDelete: vi.fn(async () => undefined), softDeleteAllByProject: vi.fn(async () => undefined),
+  softDelete: vi.fn(async (id: string) => [{ id, projectId: 'synthetic-project', deletedAt: '2026-09-13' }]), softDeleteAllByProject: vi.fn(async (projectId: string) => [{ id: 'synthetic-conversation', projectId, deletedAt: '2026-09-13' }]),
 }));
 vi.mock('../sqlite-repo/agent-conversation-repo', () => ({ createAgentConversationRepository: () => persistence }));
 vi.mock('../sqlite-repo/agent-runtime-long-task-repo', () => ({ createAgentRuntimeLongTaskRepository: () => ({ getLatestPlan: async () => null }) }));

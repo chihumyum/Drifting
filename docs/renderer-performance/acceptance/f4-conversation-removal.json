@@ -1,0 +1,573 @@
+{
+  "kind": "agent_conversation_removal_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-13T12:00:12.960Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "fixture": "Eleven identical store probes use disposable WAL/FULL files with all product migrations and real conversation repositories. Gateway holds bracket the actual deletion statement; SQLite integrity and foreign keys are checked after every probe. Provider/memory ports are synthetic. Other regression suites and the browser UI use synthetic ports.",
+  "source": {
+    "commit": "2dc2e5dea0170b9f74b350a3dc626bf03096e173",
+    "fingerprint": "b85fbe6ec751e2603ba0bde48aa75a6dd63a51d414e3ae986e1800bd84798247",
+    "build": "vitest-real-SQLite-and-isolated-React-UI"
+  },
+  "suites": [
+    "src/renderer/store/agent-chat-removal.integration.test.ts",
+    "src/renderer/lib/agent/runtime/chat-conversation-removal.test.ts",
+    "src/renderer/features/settings/agent-usage-history.test.ts",
+    "src/renderer/store/agent-chat-navigation.integration.test.ts",
+    "src/renderer/store/agent-chat-preparation.integration.test.ts",
+    "src/renderer/store/agent-chat-store.test.ts",
+    "src/renderer/store/agent-chat-events.integration.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "chat journal ingress and private deduplication rejects a foreign project route before changing the conversation or persistence",
+      "title": "rejects a foreign project route before changing the conversation or persistence",
+      "status": "passed",
+      "durationMs": 1.9474579999999833
+    },
+    {
+      "name": "chat journal ingress and private deduplication flushes the actual terminal tail before its finalized transcript is persisted",
+      "title": "flushes the actual terminal tail before its finalized transcript is persisted",
+      "status": "passed",
+      "durationMs": 2.3980000000000246
+    },
+    {
+      "name": "chat journal ingress and private deduplication matches the reference projection with transient thinking, tools and a duplicated terminal",
+      "title": "matches the reference projection with transient thinking, tools and a duplicated terminal",
+      "status": "passed",
+      "durationMs": 0.8591659999999592
+    },
+    {
+      "name": "chat journal ingress and private deduplication publishes permission and cancellation immediately without accepting duplicate controls",
+      "title": "publishes permission and cancellation immediately without accepting duplicate controls",
+      "status": "passed",
+      "durationMs": 0.19012499999996635
+    },
+    {
+      "name": "chat journal ingress and private deduplication preserves membership across transport rebinding and isolates sibling conversations",
+      "title": "preserves membership across transport rebinding and isolates sibling conversations",
+      "status": "passed",
+      "durationMs": 0.21249999999997726
+    },
+    {
+      "name": "chat journal ingress and private deduplication seeds a fresh recovery generation and drops deleted conversation routing",
+      "title": "seeds a fresh recovery generation and drops deleted conversation routing",
+      "status": "passed",
+      "durationMs": 1.0834999999999582
+    },
+    {
+      "name": "chat journal ingress and private deduplication does not remember an event when its projection fails",
+      "title": "does not remember an event when its projection fails",
+      "status": "passed",
+      "durationMs": 0.4486249999999927
+    },
+    {
+      "name": "conversation navigation and history ownership ignores an older same-project list success",
+      "title": "ignores an older same-project list success",
+      "status": "passed",
+      "durationMs": 1.4322080000000597
+    },
+    {
+      "name": "conversation navigation and history ownership ignores an older same-project list failure",
+      "title": "ignores an older same-project list failure",
+      "status": "passed",
+      "durationMs": 0.21024999999997362
+    },
+    {
+      "name": "conversation navigation and history ownership clears the previous project list synchronously while the next list loads",
+      "title": "clears the previous project list synchronously while the next list loads",
+      "status": "passed",
+      "durationMs": 0.33454200000005585
+    },
+    {
+      "name": "conversation navigation and history ownership rejects the first binding after navigating A to B to A",
+      "title": "rejects the first binding after navigating A to B to A",
+      "status": "passed",
+      "durationMs": 0.16641599999991286
+    },
+    {
+      "name": "conversation navigation and history ownership restores the saved existing conversation only once from the latest list",
+      "title": "restores the saved existing conversation only once from the latest list",
+      "status": "passed",
+      "durationMs": 0.8075840000000198
+    },
+    {
+      "name": "conversation navigation and history ownership does not let automatic restore invalidate an explicit pending conversation load",
+      "title": "does not let automatic restore invalidate an explicit pending conversation load",
+      "status": "passed",
+      "durationMs": 0.37362499999994725
+    },
+    {
+      "name": "conversation navigation and history ownership does not restore an old conversation after the author starts drafting a new prompt",
+      "title": "does not restore an old conversation after the author starts drafting a new prompt",
+      "status": "passed",
+      "durationMs": 0.38066700000001674
+    },
+    {
+      "name": "conversation navigation and history ownership preserves restore opt-out across a same-project remount",
+      "title": "preserves restore opt-out across a same-project remount",
+      "status": "passed",
+      "durationMs": 0.1498749999999518
+    },
+    {
+      "name": "conversation navigation and history ownership keeps a newer project isolated from a late successful list",
+      "title": "keeps a newer project isolated from a late successful list",
+      "status": "passed",
+      "durationMs": 0.12987499999997
+    },
+    {
+      "name": "conversation navigation and history ownership retains the existing empty-list fallback for the latest failed read",
+      "title": "retains the existing empty-list fallback for the latest failed read",
+      "status": "passed",
+      "durationMs": 0.14579200000002857
+    },
+    {
+      "name": "conversation navigation and history ownership stops a superseded hydration after canonical route lookup",
+      "title": "stops a superseded hydration after canonical route lookup",
+      "status": "passed",
+      "durationMs": 0.28570799999999963
+    },
+    {
+      "name": "conversation navigation and history ownership restores canonical messages and keeps the display cache on projection failure",
+      "title": "restores canonical messages and keeps the display cache on projection failure",
+      "status": "passed",
+      "durationMs": 0.41516699999999673
+    },
+    {
+      "name": "conversation navigation and history ownership abandons automatic hydration if a new draft starts before the transcript is visible",
+      "title": "abandons automatic hydration if a new draft starts before the transcript is visible",
+      "status": "passed",
+      "durationMs": 0.2139999999999418
+    },
+    {
+      "name": "conversation navigation and history ownership keeps recovering pending controls when the author types after the restored transcript is visible",
+      "title": "keeps recovering pending controls when the author types after the restored transcript is visible",
+      "status": "passed",
+      "durationMs": 0.23450000000002547
+    },
+    {
+      "name": "conversation navigation and history ownership does not load a manifest after navigation supersedes the pending plan read",
+      "title": "does not load a manifest after navigation supersedes the pending plan read",
+      "status": "passed",
+      "durationMs": 0.12887499999999363
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after new during memories",
+      "title": "does not consume review context or start after new during memories",
+      "status": "passed",
+      "durationMs": 53.99295900000004
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after load during memories",
+      "title": "does not consume review context or start after load during memories",
+      "status": "passed",
+      "durationMs": 50.59649999999999
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after project during memories",
+      "title": "does not consume review context or start after project during memories",
+      "status": "passed",
+      "durationMs": 52.849334
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after delete during memories",
+      "title": "does not consume review context or start after delete during memories",
+      "status": "passed",
+      "durationMs": 51.143375000000106
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after abort during memories",
+      "title": "does not consume review context or start after abort during memories",
+      "status": "passed",
+      "durationMs": 51.38362499999994
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after new during working",
+      "title": "does not consume review context or start after new during working",
+      "status": "passed",
+      "durationMs": 51.00162499999999
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after load during working",
+      "title": "does not consume review context or start after load during working",
+      "status": "passed",
+      "durationMs": 51.58279100000004
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after project during working",
+      "title": "does not consume review context or start after project during working",
+      "status": "passed",
+      "durationMs": 50.960916999999995
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after delete during working",
+      "title": "does not consume review context or start after delete during working",
+      "status": "passed",
+      "durationMs": 51.69087499999989
+    },
+    {
+      "name": "chat send preparation ownership does not consume review context or start after abort during working",
+      "title": "does not consume review context or start after abort during working",
+      "status": "passed",
+      "durationMs": 49.78429200000005
+    },
+    {
+      "name": "chat send preparation ownership releases invalidated preparation immediately and prevents its finally from releasing a newer send",
+      "title": "releases invalidated preparation immediately and prevents its finally from releasing a newer send",
+      "status": "passed",
+      "durationMs": 104.17404099999999
+    },
+    {
+      "name": "chat send preparation ownership keeps accepted context in the runtime prompt and the author text in the displayed transcript",
+      "title": "keeps accepted context in the runtime prompt and the author text in the displayed transcript",
+      "status": "passed",
+      "durationMs": 3.3583750000000236
+    },
+    {
+      "name": "chat send preparation ownership preserves an already-submitted turn after new while its start acknowledgement is pending",
+      "title": "preserves an already-submitted turn after new while its start acknowledgement is pending",
+      "status": "passed",
+      "durationMs": 53.322791999999936
+    },
+    {
+      "name": "chat send preparation ownership preserves an already-submitted turn after load while its start acknowledgement is pending",
+      "title": "preserves an already-submitted turn after load while its start acknowledgement is pending",
+      "status": "passed",
+      "durationMs": 51.769416999999976
+    },
+    {
+      "name": "chat send preparation ownership preserves an already-submitted turn after stopAfterTool while its start acknowledgement is pending",
+      "title": "preserves an already-submitted turn after stopAfterTool while its start acknowledgement is pending",
+      "status": "passed",
+      "durationMs": 52.2829999999999
+    },
+    {
+      "name": "chat send preparation ownership reissues cancellation after a late successful start acknowledgement following abort",
+      "title": "reissues cancellation after a late successful start acknowledgement following abort",
+      "status": "passed",
+      "durationMs": 49.73920799999996
+    },
+    {
+      "name": "chat send preparation ownership reissues cancellation after a late successful start acknowledgement following project",
+      "title": "reissues cancellation after a late successful start acknowledgement following project",
+      "status": "passed",
+      "durationMs": 51.497749999999996
+    },
+    {
+      "name": "chat send preparation ownership reissues cancellation after a late successful start acknowledgement following delete",
+      "title": "reissues cancellation after a late successful start acknowledgement following delete",
+      "status": "passed",
+      "durationMs": 49.59941700000013
+    },
+    {
+      "name": "chat send preparation ownership reissues cancellation after a late successful start acknowledgement following clear",
+      "title": "reissues cancellation after a late successful start acknowledgement following clear",
+      "status": "passed",
+      "durationMs": 51.58366699999988
+    },
+    {
+      "name": "chat send preparation ownership keeps a late startup failure on its owning conversation without unlocking a newer preparation",
+      "title": "keeps a late startup failure on its owning conversation without unlocking a newer preparation",
+      "status": "passed",
+      "durationMs": 101.50949999999989
+    },
+    {
+      "name": "chat send preparation ownership cleans up a synchronous transport startup exception",
+      "title": "cleans up a synchronous transport startup exception",
+      "status": "passed",
+      "durationMs": 0.27212500000018736
+    },
+    {
+      "name": "chat send preparation ownership discards a late conversation-fork error after preparation has been invalidated",
+      "title": "discards a late conversation-fork error after preparation has been invalidated",
+      "status": "passed",
+      "durationMs": 51.51079200000004
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation preserves the active conversation and saved pointer of a newly bound project",
+      "title": "preserves the active conversation and saved pointer of a newly bound project",
+      "status": "passed",
+      "durationMs": 39.73254199999997
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation queues a new send until clear completes before the SQLite update",
+      "title": "queues a new send until clear completes before the SQLite update",
+      "status": "passed",
+      "durationMs": 30.940500000000043
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation queues a new send until clear completes after the SQLite update",
+      "title": "queues a new send until clear completes after the SQLite update",
+      "status": "passed",
+      "durationMs": 32.022749999999974
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation cleans only the returned IDs and retains a conversation created after the committed clear",
+      "title": "cleans only the returned IDs and retains a conversation created after the committed clear",
+      "status": "passed",
+      "durationMs": 38.287207999999964
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed delete write",
+      "title": "retains the transcript and pointer after a failed delete write",
+      "status": "passed",
+      "durationMs": 27.86654199999998
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed clear write",
+      "title": "retains the transcript and pointer after a failed clear write",
+      "status": "passed",
+      "durationMs": 25.353291000000013
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation honors an explicit project when settings clear an unbound project",
+      "title": "honors an explicit project when settings clear an unbound project",
+      "status": "passed",
+      "durationMs": 26.154957999999965
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation does not hydrate deleted rows while usage still includes their historical spend",
+      "title": "does not hydrate deleted rows while usage still includes their historical spend",
+      "status": "passed",
+      "durationMs": 24.791500000000042
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading old",
+      "title": "invalidates only a hydration affected by deleting old while loading old",
+      "status": "passed",
+      "durationMs": 22.305624999999964
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading sibling",
+      "title": "invalidates only a hydration affected by deleting old while loading sibling",
+      "status": "passed",
+      "durationMs": 22.191374999999994
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation finishes durable deletion and releases waiters when the cancellation transport throws",
+      "title": "finishes durable deletion and releases waiters when the cancellation transport throws",
+      "status": "passed",
+      "durationMs": 21.780124999999998
+    },
+    {
+      "name": "agent chat canonical journal projection renders text deltas immediately and finalizes only from canonical lifecycle events",
+      "title": "renders text deltas immediately and finalizes only from canonical lifecycle events",
+      "status": "passed",
+      "durationMs": 1.210540999999921
+    },
+    {
+      "name": "agent chat canonical journal projection shows fragmented tool arguments before ready/execution/result",
+      "title": "shows fragmented tool arguments before ready/execution/result",
+      "status": "passed",
+      "durationMs": 0.552791999999954
+    },
+    {
+      "name": "agent chat canonical journal projection settles the newest tool card when a later turn reuses a provider call id",
+      "title": "settles the newest tool card when a later turn reuses a provider call id",
+      "status": "passed",
+      "durationMs": 0.10304200000007313
+    },
+    {
+      "name": "agent chat canonical journal projection surfaces a certified write review from the canonical tool result",
+      "title": "surfaces a certified write review from the canonical tool result",
+      "status": "passed",
+      "durationMs": 0.11012500000003911
+    },
+    {
+      "name": "agent chat canonical journal projection adds accepted steering and user input once from canonical events",
+      "title": "adds accepted steering and user input once from canonical events",
+      "status": "passed",
+      "durationMs": 0.6944999999999482
+    },
+    {
+      "name": "agent chat canonical journal projection keeps permission state out of transcript and derives usage/error from turn_finished",
+      "title": "keeps permission state out of transcript and derives usage/error from turn_finished",
+      "status": "passed",
+      "durationMs": 0.1592920000000504
+    },
+    {
+      "name": "agent chat canonical journal projection records work duration for a terminal turn even when token usage is zero",
+      "title": "records work duration for a terminal turn even when token usage is zero",
+      "status": "passed",
+      "durationMs": 0.07441700000003948
+    },
+    {
+      "name": "agent chat canonical journal projection selects the displayed turn independently from sibling conversations",
+      "title": "selects the displayed turn independently from sibling conversations",
+      "status": "passed",
+      "durationMs": 0.13400000000001455
+    },
+    {
+      "name": "agent chat canonical journal projection offers an explicit one-shot continuation only after an idle budget terminal",
+      "title": "offers an explicit one-shot continuation only after an idle budget terminal",
+      "status": "passed",
+      "durationMs": 0.3253750000000082
+    },
+    {
+      "name": "agent chat canonical journal projection offers manual continuation after any terminal turn with an authoritative same-session open plan",
+      "title": "offers manual continuation after any terminal turn with an authoritative same-session open plan",
+      "status": "passed",
+      "durationMs": 0.2091249999999718
+    },
+    {
+      "name": "agent chat canonical journal projection keeps only the latest same-project conversation load intent current",
+      "title": "keeps only the latest same-project conversation load intent current",
+      "status": "passed",
+      "durationMs": 0.09424999999998818
+    },
+    {
+      "name": "agent chat canonical journal projection does not let an awaited send preflight override New Chat or Load Conversation intent",
+      "title": "does not let an awaited send preflight override New Chat or Load Conversation intent",
+      "status": "passed",
+      "durationMs": 1.2317919999999276
+    },
+    {
+      "name": "settings usage history mutation ownership does not mark spend rows deleted optimistically or on failure",
+      "title": "does not mark spend rows deleted optimistically or on failure",
+      "status": "passed",
+      "durationMs": 1.510417000000004
+    },
+    {
+      "name": "settings usage history mutation ownership reloads committed usage without losing historical spend and ignores an older query",
+      "title": "reloads committed usage without losing historical spend and ignores an older query",
+      "status": "passed",
+      "durationMs": 0.2612919999999974
+    },
+    {
+      "name": "settings usage history mutation ownership cancels a confirmation after project change and after an A to B to A rebinding",
+      "title": "cancels a confirmation after project change and after an A to B to A rebinding",
+      "status": "passed",
+      "durationMs": 0.28183400000000347
+    },
+    {
+      "name": "settings usage history mutation ownership passes the viewed project explicitly and does not reload a new view after old deletion completes",
+      "title": "passes the viewed project explicitly and does not reload a new view after old deletion completes",
+      "status": "passed",
+      "durationMs": 0.3892089999999939
+    },
+    {
+      "name": "settings usage history mutation ownership does not execute or publish pending work after closing or disposal",
+      "title": "does not execute or publish pending work after closing or disposal",
+      "status": "passed",
+      "durationMs": 0.17091599999997698
+    },
+    {
+      "name": "conversation removal lifetimes waits for all overlapping operations while unrelated projects and conversations proceed",
+      "title": "waits for all overlapping operations while unrelated projects and conversations proceed",
+      "status": "passed",
+      "durationMs": 0.9763340000000085
+    },
+    {
+      "name": "conversation removal lifetimes invalidates only affected reads permanently and rejects reads begun during deletion",
+      "title": "invalidates only affected reads permanently and rejects reads begun during deletion",
+      "status": "passed",
+      "durationMs": 0.17141700000000526
+    },
+    {
+      "name": "conversation removal lifetimes disposes waiting commands without waiting for storage and refuses new operations",
+      "title": "disposes waiting commands without waiting for storage and refuses new operations",
+      "status": "passed",
+      "durationMs": 0.13720800000001532
+    }
+  ],
+  "browserUi": {
+    "build": "development-React-StrictMode-isolated-Chromium",
+    "ports": "synthetic-conversation-repository",
+    "checks": {
+      "strictEffectReplay": true,
+      "pendingAndFailedDeletePreservesRows": true,
+      "committedUsageRetained": true,
+      "confirmationProjectOwnership": true,
+      "pendingProjectRowsIsolated": true,
+      "explicitClearProject": true,
+      "lateClearPreservesNewView": true,
+      "closeAndReopen": true
+    },
+    "uncaughtErrors": []
+  },
+  "baseline": {
+    "commit": "2dc2e5dea0170b9f74b350a3dc626bf03096e173",
+    "testSha256": "3b3c705c69cb81efcad3728f937fdd0a44878f133de8f0222c78f070a215a1ec",
+    "tests": [
+      {
+        "name": "committed conversation removal and concurrent navigation preserves the active conversation and saved pointer of a newly bound project",
+        "title": "preserves the active conversation and saved pointer of a newly bound project",
+        "status": "failed",
+        "durationMs": 32.69266599999992
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation queues a new send until clear completes before the SQLite update",
+        "title": "queues a new send until clear completes before the SQLite update",
+        "status": "failed",
+        "durationMs": 24.51016699999991
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation queues a new send until clear completes after the SQLite update",
+        "title": "queues a new send until clear completes after the SQLite update",
+        "status": "failed",
+        "durationMs": 22.90833299999997
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation cleans only the returned IDs and retains a conversation created after the committed clear",
+        "title": "cleans only the returned IDs and retains a conversation created after the committed clear",
+        "status": "failed",
+        "durationMs": 22.045374999999922
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed delete write",
+        "title": "retains the transcript and pointer after a failed delete write",
+        "status": "failed",
+        "durationMs": 22.82370800000001
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed clear write",
+        "title": "retains the transcript and pointer after a failed clear write",
+        "status": "failed",
+        "durationMs": 22.168458999999984
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation honors an explicit project when settings clear an unbound project",
+        "title": "honors an explicit project when settings clear an unbound project",
+        "status": "failed",
+        "durationMs": 22.807250000000067
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation does not hydrate deleted rows while usage still includes their historical spend",
+        "title": "does not hydrate deleted rows while usage still includes their historical spend",
+        "status": "failed",
+        "durationMs": 21.749708000000055
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading old",
+        "title": "invalidates only a hydration affected by deleting old while loading old",
+        "status": "passed",
+        "durationMs": 21.898707999999942
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading sibling",
+        "title": "invalidates only a hydration affected by deleting old while loading sibling",
+        "status": "failed",
+        "durationMs": 21.739915999999994
+      },
+      {
+        "name": "committed conversation removal and concurrent navigation finishes durable deletion and releases waiters when the cancellation transport throws",
+        "title": "finishes durable deletion and releases waiters when the cancellation transport throws",
+        "status": "failed",
+        "durationMs": 22.389999999999986
+      }
+    ]
+  },
+  "acceptance": {
+    "productionStore": true,
+    "repositories": "real-SQLite-removal-probes-and-synthetic-regression-ports",
+    "provider": "synthetic-controls-port",
+    "native": "not-run",
+    "performanceBudget": "not-evaluated",
+    "storageCancellation": "not-proven"
+  }
+}

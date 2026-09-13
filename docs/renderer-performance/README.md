@@ -2998,3 +2998,73 @@ passes the candidate-source fingerprint and deterministic browser contracts.
 The normal local-only production build retains 32 JS chunks and excludes the
 acceptance drivers/counters. No speedup or native/device budget is inferred from
 this lifecycle refactor.
+
+## F4m — Committed conversation removal and settings history ownership
+
+Deletion now has an app-owned operation/read lifetime in
+`chat-conversation-removal.ts`. New sends wait for overlapping cleanup before
+creating their conversation or consuming the prompt. Reads already in flight
+are invalidated only for the affected project/conversation. Ordinary cached
+navigation remains synchronous when no removal blocks it; unrelated projects
+and conversations continue. Overlapping operations all finish before waiters
+resume, and disposal releases waiters without retaining permanent deleted-ID
+caches or adding timers.
+
+The SQLite repository returns the IDs/project IDs of the actual UPDATE through
+`RETURNING`. Clear completion removes only those cached runs/list entries and
+matching saved pointers; it cannot reset a newer conversation or another
+project's active view. An explicit single-ID delete also evicts its missing-row
+cache after a successful database call. Failed database writes retain the
+transcript and pointer. Automatic continuation is paused when removal begins;
+transport cancellation exceptions do not prevent durable deletion or leave
+waiters stuck. Cancellation remains a request, not proof that a provider stopped.
+
+Live conversation lookup excludes tombstoned rows; a stale active/saved pointer
+to a missing conversation is cleared under the existing navigation guard.
+Usage queries still include deleted conversations' historical spend. The existing
+conversation sync triggers and all published migrations remain unchanged.
+
+The settings usage section now uses `agent-usage-history.ts` for query and
+confirmation ownership. Its displayed snapshot belongs to the viewed project
+and reporting scope, so old rows cease being actionable while the next query
+is pending. Clear passes the viewed project explicitly, regardless of the chat
+store's binding. Successful removal refreshes authoritative usage; a pending or
+failed write does not optimistically hide rows. Project/scope/close lifetimes
+invalidate old confirmations and query results. A fresh controller per React
+effect setup supports Strict Mode cleanup/replay and real reopening.
+
+```bash
+pnpm agent:removal:acceptance
+pnpm agent:removal:acceptance --check
+```
+
+`acceptance/f4-conversation-removal.json` records 75 current checks. It copies
+identical 11 store probes into a detached baseline worktree at `2dc2e5de`, where
+10 fail. Those probes use real repositories and complete product migrations on
+disposable WAL/FULL SQLite files. Gateway holds bracket the actual update before
+or after execution; every fixture checks integrity and foreign keys. They cover
+project navigation, both send boundaries, receipt-scoped cleanup, failed writes,
+explicit project targeting, retained usage, targeted hydration invalidation and
+synchronous cancellation failure. Memory/provider ports remain synthetic.
+
+The same generated report includes eight actual-component browser checks on the
+settings section, shared chat store and real confirmation dialog. The isolated
+Chromium harness deliberately uses development React to exercise Strict Mode
+replay; only its conversation repository port is replaced with synthetic data.
+It checks pending/failing delete, retained spend, old confirmations, held project
+queries, explicit project routing, late completion and close/reopen. Product
+component exports and normal build configuration are unchanged; the harness's
+export/port substitutions exist only in its isolated build.
+
+These results do not prove native Rust/Tauri recovery, physical input, provider
+termination, cancellation of already-started storage transactions, power-loss
+recovery or a device latency budget. The full F4 runtime recovery/compaction and
+performance requirements remain incomplete.
+
+The isolated full suite passes 2,621 tests with one existing skip. Typecheck,
+CI/public contracts and all 19 Agent capability checks pass; lint reports zero
+errors and 33 existing warnings. The final optional-parameter type correction
+in the SQL test interceptor was followed by the 75-check acceptance rerun.
+`acceptance/f4-conversation-removal-browser.json` passes the candidate-source
+fingerprint and deterministic browser contracts. The normal local-only production
+build retains 32 JS chunks and excludes the isolated acceptance drivers.

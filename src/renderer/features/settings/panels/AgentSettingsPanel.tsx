@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStore } from '../../../store/project-store';
 import { useAgentChatStore } from '../../../store/agent-chat-store';
+import { createAgentUsageHistoryController } from '../agent-usage-history';
 import { requestConfirmation } from '../../../store/confirmation-store';
 import { createAgentConversationRepository, type AgentConversationUsage } from '../../../sqlite-repo/agent-conversation-repo';
 import { approvePendingMemory, createMemory, listLiveMemories, softDeleteMemory } from '../../../usecase/useAgentMemory';
@@ -280,31 +281,28 @@ function monthStartISO(): string {
 function AgentUsageSection({ open }: { open: boolean }) {
   const { t } = useTranslation();
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
-  const [rows, setRows] = useState<AgentConversationUsage[]>([]);
+  const [snapshot, setSnapshot] = useState<{ projectId: string | null; scope: 'month' | 'all'; rows: AgentConversationUsage[] }>({ projectId: null, scope: 'all', rows: [] });
   // Two reporting windows: this-month vs all-time.
   // Defaults to all-time: usage entries written before per-turn timestamps existed
   // are undated, so they only surface under 累计 — landing there shows real numbers
   // instead of a misleading 本月 = 0 until fresh, dated turns accrue.
   const [scope, setScope] = useState<'month' | 'all'>('all');
+  const rows = snapshot.projectId === projectId && snapshot.scope === scope ? snapshot.rows : [];
 
-  // Reload on open / project / scope change (the modal stays mounted while
-  // closed). All setState happens in the async callbacks, never synchronously.
+  const history = useRef<ReturnType<typeof createAgentUsageHistoryController> | null>(null);
   useEffect(() => {
-    if (!open || !projectId) return;
-    let cancelled = false;
-    const since = scope === 'month' ? monthStartISO() : undefined;
-    void createAgentConversationRepository()
-      .usageByProject(projectId, { since })
-      .then((u) => {
-        if (!cancelled) setRows(u);
-      })
-      .catch(() => {
-        if (!cancelled) setRows([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId, scope]);
+    const owner = createAgentUsageHistoryController({
+      currentProjectId: () => useProjectStore.getState().currentProject?.id ?? null,
+      list: (pid, since) => createAgentConversationRepository().usageByProject(pid, { since }),
+      publish: rows => setSnapshot({ projectId, scope, rows }),
+      remove: id => useAgentChatStore.getState().deleteConversation(id),
+      clear: pid => useAgentChatStore.getState().clearConversations(pid),
+      requestConfirmation: count => requestConfirmation(t('settings.agentUsage.clearConfirm', { count })),
+    });
+    history.current = owner;
+    owner.bind({ open, projectId, since: scope === 'month' ? monthStartISO() : undefined });
+    return () => { owner.dispose(); if (history.current === owner) history.current = null; };
+  }, [open, projectId, scope, t]);
 
   // Totals sum EVERY conversation in-window, deleted or not — the spend was real,
   // so deleting a chat must not shrink the usage figures.
@@ -324,28 +322,8 @@ function AgentUsageSection({ open }: { open: boolean }) {
   const scopeLabel =
     scope === 'month' ? t('settings.agentUsage.month') : t('settings.agentUsage.all');
 
-  // Soft-delete through the chat store so the right-rail Companion (if bound to
-  // this project) drops the conversation too — abort an in-flight turn, clear the
-  // active pointer, refresh its list. Persistence (repo.softDelete) runs even when
-  // the store isn't bound, so deletion is safe either way. We only MARK the row
-  // deleted locally (not remove it) so its usage stays in the totals above.
-  const handleDelete = (id: string) => {
-    void useAgentChatStore.getState().deleteConversation(id);
-    const now = new Date().toISOString();
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, deletedAt: now } : r)));
-  };
-
-  // Bulk soft-delete behind a confirm — clearing all is easy to fire by accident.
-  const handleClearAll = async () => {
-    if (live.length === 0) return;
-    const confirmed = await requestConfirmation(
-      t('settings.agentUsage.clearConfirm', { count: live.length }),
-    );
-    if (!confirmed) return;
-    void useAgentChatStore.getState().clearConversations();
-    const now = new Date().toISOString();
-    setRows((rs) => rs.map((r) => (r.deletedAt ? r : { ...r, deletedAt: now })));
-  };
+  const handleDelete = (id: string) => { void history.current?.remove(id); };
+  const handleClearAll = () => history.current?.clear(live.length);
 
   const card = (label: string, value: string, sub?: string) => (
     <div

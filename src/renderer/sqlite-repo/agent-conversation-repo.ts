@@ -79,14 +79,16 @@ export interface AgentConversationUsage {
   turns: number;
 }
 
+export interface AgentConversationRemovalReceipt { id: string; projectId: string; deletedAt: string }
+
 export interface AgentConversationRepository {
   listByProject(projectId: string): Promise<AgentConversationSummary[]>;
   get(id: string): Promise<AgentConversation | null>;
   create(input: CreateAgentConversationInput): Promise<void>;
   update(id: string, patch: UpdateAgentConversationInput): Promise<void>;
-  softDelete(id: string, deletedAt: string): Promise<void>;
+  softDelete(id: string, deletedAt: string): Promise<AgentConversationRemovalReceipt[]>;
   /** Soft-delete every live conversation in a project (one UPDATE). */
-  softDeleteAllByProject(projectId: string, deletedAt: string): Promise<void>;
+  softDeleteAllByProject(projectId: string, deletedAt: string): Promise<AgentConversationRemovalReceipt[]>;
   /**
    * Per-conversation token/cost usage for a project (most-recent first).
    * `opts.since` (ISO) scopes the sum to usage entries stamped at/after it — e.g.
@@ -187,7 +189,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
       const rows = await getDb()
         .select()
         .from(AgentConversationTable)
-        .where(eq(AgentConversationTable.id, id))
+        .where(and(eq(AgentConversationTable.id, id), isNull(AgentConversationTable.deletedAt)))
         .limit(1);
       return rows[0] ? recordToDomain(rows[0]) : null;
     },
@@ -225,15 +227,17 @@ export function createAgentConversationRepository(): AgentConversationRepository
     },
 
     async softDelete(id, deletedAt) {
-      await getDb()
+      const rows = await getDb()
         .update(AgentConversationTable)
         .set({ deletedAt, updatedAt: deletedAt })
-        .where(eq(AgentConversationTable.id, id));
+        .where(eq(AgentConversationTable.id, id))
+        .returning({ id: AgentConversationTable.id, projectId: AgentConversationTable.projectId });
       void wakeConversationSync(id).catch(() => {});
+      return rows.map(row => ({ ...row, deletedAt }));
     },
 
     async softDeleteAllByProject(projectId, deletedAt) {
-      await getDb()
+      const rows = await getDb()
         .update(AgentConversationTable)
         .set({ deletedAt, updatedAt: deletedAt })
         .where(
@@ -241,8 +245,10 @@ export function createAgentConversationRepository(): AgentConversationRepository
             eq(AgentConversationTable.projectId, projectId),
             isNull(AgentConversationTable.deletedAt),
           ),
-        );
+        )
+        .returning({ id: AgentConversationTable.id, projectId: AgentConversationTable.projectId });
       events.emit('agent:conversation-committed', { projectId });
+      return rows.map(row => ({ ...row, deletedAt }));
     },
   };
 }

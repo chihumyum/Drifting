@@ -9,7 +9,7 @@ import { installGeneralAgentTransport, unsupportedGeneralAgentTransport, type Ge
 
 const ports = vi.hoisted(() => ({
   create: vi.fn(async () => undefined), update: vi.fn(async () => undefined),
-  listByProject: vi.fn(async () => []), softDelete: vi.fn(async () => undefined), softDeleteAllByProject: vi.fn(async () => undefined),
+  listByProject: vi.fn(async () => []), softDelete: vi.fn(async (id: string) => [{ id, projectId: 'synthetic-preparation-project', deletedAt: '2026-09-13' }]), softDeleteAllByProject: vi.fn(async (projectId: string) => [{ id: 'synthetic-preparation-conversation', projectId, deletedAt: '2026-09-13' }]),
   fork: vi.fn(async (id: string) => id),
   memories: vi.fn(async (): Promise<Array<{ kind: string; body: string }>> => []),
   working: vi.fn(async (): Promise<{ contentMd: string; revision: number; approxTokens: number } | null> => null),
