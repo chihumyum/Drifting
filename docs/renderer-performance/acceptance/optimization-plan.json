@@ -54,7 +54,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
-            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json",
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
           ],
           "status": "partial"
         },
@@ -497,7 +498,8 @@
             "docs/renderer-performance/acceptance/f6-reference-reads.json",
             "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
-            "docs/renderer-performance/acceptance/f6-element-reads.json"
+            "docs/renderer-performance/acceptance/f6-element-reads.json",
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
           ],
           "status": "partial"
         },
@@ -538,7 +540,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
-            "docs/renderer-performance/acceptance/f6-element-reads.json"
+            "docs/renderer-performance/acceptance/f6-element-reads.json",
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
           ],
           "status": "partial"
         }

@@ -1,11 +1,10 @@
 import { useCallback, useMemo } from 'react';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
-
-import { isProseMetricBasisHash } from '@drifting/prose-metrics';
 
 import type { Project } from '../domain/project';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
-import { getDb, initDatabase } from '../lib/db';
+import { initDatabase } from '../lib/db';
+import { readProjectStats } from '../sqlite-repo/project-stats-repo';
+import type { ProjectSummary } from '../domain/project-summary';
 import { runAuthoredTransaction } from '../sync/journal';
 import { v7 as uuidv7 } from 'uuid';
 import { withAtomicSyncTransaction } from './sync-helpers';
@@ -14,15 +13,6 @@ import { replaceEntityKvEntriesInTransaction } from './normalized-kv-alias-autho
 import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
-import {
-  BookElementTable,
-  BookNodeTable,
-  ElementCategoryTable,
-  EntityRelationTable,
-  InlineMentionTable,
-  NodeStorylineLinkTable,
-  StorylineTable,
-} from '../schema/drizzle';
 import LogLevel from 'loglevel';
 import { deleteProjectDataInTransaction } from '../sqlite-repo/project-deletion-repo';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
@@ -36,7 +26,10 @@ import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.ser
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
 
+export type { ProjectStats, ProjectSummary } from '../domain/project-summary';
+
 const MAX_SHELF_METRIC_RECONCILE_CONCURRENCY = 2;
+const MAX_SHELF_STATS_CONCURRENCY = 4;
 
 export interface CreateProjectInput {
   projectName?: string | null;
@@ -53,114 +46,27 @@ export interface UseProjectContext {
   userId: string;
 }
 
-export interface ProjectStats {
-  nodes: number;
-  words: number;
-  wordsReady: boolean;
-  storylines: number;
-  storylineLinks: number;
-  elements: number;
-  categories: number;
-  entityRelations: number;
-  inlineMentions: number;
-}
-
-export type ProjectSummary = Project & {
-  stats: ProjectStats;
-  source: 'local';
-};
-
 function sortProjectSummaries(a: ProjectSummary, b: ProjectSummary): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> {
-  const db = getDb();
-  const [
-    nodes,
-    storylines,
-    elements,
-    elementCategories,
-  ] = await Promise.all([
-    db
-      .select({
-        id: BookNodeTable.id,
-        kind: BookNodeTable.kind,
-        wordCount: BookNodeTable.wordCount,
-        wordCountBasisKind: BookNodeTable.wordCountBasisKind,
-        wordCountBasisHash: BookNodeTable.wordCountBasisHash,
-        wordCountBasisRevision: BookNodeTable.wordCountBasisRevision,
-        wordCountBasisServerSeq: BookNodeTable.wordCountBasisServerSeq,
-      })
-      .from(BookNodeTable)
-      .where(and(eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt))),
-    db
-      .select({ id: StorylineTable.id })
-      .from(StorylineTable)
-      .where(eq(StorylineTable.projectId, projectId)),
-    db
-      .select({ id: BookElementTable.id })
-      .from(BookElementTable)
-      .where(eq(BookElementTable.projectId, projectId)),
-    db
-      .select({ id: ElementCategoryTable.id })
-      .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.projectId, projectId)),
-  ]);
-
-  const nodeIds = nodes.map((node) => node.id);
-
-  const [nodeStorylineLinks, entityRelations, inlineMentions] = await Promise.all([
-    nodeIds.length
-      ? db
-          .select({
-            nodeId: NodeStorylineLinkTable.nodeId,
-            storylineId: NodeStorylineLinkTable.storylineId,
-          })
-          .from(NodeStorylineLinkTable)
-          .where(inArray(NodeStorylineLinkTable.nodeId, nodeIds))
-      : [],
-    // Polymorphic; filtered by project_id directly (no FK to nodes).
-    db
-      .select({ id: EntityRelationTable.id })
-      .from(EntityRelationTable)
-      .where(eq(EntityRelationTable.projectId, projectId)),
-    db
-      .select({ id: InlineMentionTable.id })
-      .from(InlineMentionTable)
-      .where(eq(InlineMentionTable.projectId, projectId)),
-  ]);
-
-  const chapters = nodes.filter((node) => node.kind === 'chapter');
-  const hasCanonicalWords = (node: (typeof chapters)[number]) =>
-    Boolean(node.wordCountBasisKind && isProseMetricBasisHash(node.wordCountBasisHash)) &&
-    (node.wordCountBasisKind === 'seed' ||
-      node.wordCountBasisRevision != null ||
-      node.wordCountBasisServerSeq != null);
-
-  return {
-    nodes: nodes.length,
-    words: chapters.reduce(
-      (total, node) => total + (hasCanonicalWords(node) ? (node.wordCount ?? 0) : 0),
-      0,
-    ),
-    wordsReady: chapters.every(hasCanonicalWords),
-    storylines: storylines.length,
-    storylineLinks: nodeStorylineLinks.length,
-    elements: elements.length,
-    categories: elementCategories.length,
-    entityRelations: entityRelations.length,
-    inlineMentions: inlineMentions.length,
-  };
-}
-
 async function buildLocalProjectSummaries(projects: Project[]): Promise<ProjectSummary[]> {
-  const summaries = await Promise.all(
-    projects.map(async (project) => ({
-      ...project,
-      stats: await buildLocalProjectStats(project.id),
-      source: 'local' as const,
-    })),
+  // Bound gateway work when a library contains many projects. Each project
+  // returns one aggregate row, never its node/entity inventory.
+  const summaries: ProjectSummary[] = new Array(projects.length);
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(MAX_SHELF_STATS_CONCURRENCY, projects.length) }, async () => {
+      while (cursor < projects.length) {
+        const index = cursor++;
+        const project = projects[index];
+        summaries[index] = {
+          ...project,
+          stats: await readProjectStats(project.id),
+          source: 'local',
+        };
+      }
+    }),
   );
   return summaries.sort(sortProjectSummaries);
 }

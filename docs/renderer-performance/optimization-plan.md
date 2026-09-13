@@ -664,3 +664,12 @@ F0 应补充一个独立计划/报告校验入口，校验阶段依赖无环、�
   `src/renderer/services/reference-index.service.ts`。
 - 加载与边界：`src/renderer/app/AppRoutes.tsx`、`src/renderer/shells/desktop/DesktopOverlayHost.tsx`、
   `vite.renderer.config.ts`、`src/renderer/architecture/renderer-boundaries.test.ts`。
+
+## 补充：书架统计读取
+
+[F2 书架读模型](shelf-stats.md)将统计从 `useProject` 提取到 SQLite repository，
+每项目返回一行聚合结果，单次书架加载最多四个统计任务。有效章节、已删除节点、
+故事线归属及正文统计修复的等待语义保持不变。真实 SQLite 的 100 / 1,000 /
+5,000 节点历史对照、40,000 节点读取边界及多项目加载已验收；返回行和参数数量
+有固定约束。SQL 聚合本身仍随项目大小增长，局部耗时不能代表原生启动收益。
+原生 Release 复测因未获得前台焦点而未通过，未生成通过报告；F0/F2/F6 总体预算和设备门槛仍待继续。

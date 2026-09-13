@@ -1,0 +1,668 @@
+{
+  "kind": "shelf_stats_acceptance",
+  "schemaVersion": 1,
+  "status": "passed",
+  "generatedAt": "2026-09-13T16:05:14.581Z",
+  "source": {
+    "commit": "880d8963a769fd381b1a44e6a0f0e2668e6fa4d1",
+    "fingerprint": "2b536d277add83bb0b49bb685283476ecac293ba8db87ca7df413716d8825896"
+  },
+  "baseline": {
+    "commit": "880d8963a769fd381b1a44e6a0f0e2668e6fa4d1",
+    "functionSha256": "dfe31726991f0e80df04dd1e3d0011c0e5ea67372559f8fa6251911bb138cb40"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "fixture": {
+    "synthetic": true,
+    "database": "temporary-file-WAL-FULL-product-migrations",
+    "integrity": "ok",
+    "foreignKeys": "ok"
+  },
+  "profiles": [
+    {
+      "nodes": 100,
+      "baseline": [
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.8548749999999927,
+          "queries": 7,
+          "returnedRows": 106,
+          "decodedRowJsonBytes": 12064,
+          "maxParameters": 100
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.639458999999988,
+          "queries": 7,
+          "returnedRows": 106,
+          "decodedRowJsonBytes": 12064,
+          "maxParameters": 100
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.6354159999999638,
+          "queries": 7,
+          "returnedRows": 106,
+          "decodedRowJsonBytes": 12064,
+          "maxParameters": 100
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.6117920000000368,
+          "queries": 7,
+          "returnedRows": 106,
+          "decodedRowJsonBytes": 12064,
+          "maxParameters": 100
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.7046249999999645,
+          "queries": 7,
+          "returnedRows": 106,
+          "decodedRowJsonBytes": 12064,
+          "maxParameters": 100
+        }
+      ],
+      "current": [
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.5331659999999374,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 25,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.5090840000000298,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 25,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.45879199999990306,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 25,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.4291249999999991,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 25,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 100,
+            "words": 294,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 0.5559170000000222,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 25,
+          "maxParameters": 7
+        }
+      ]
+    },
+    {
+      "nodes": 1000,
+      "baseline": [
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.597500000000082,
+          "queries": 7,
+          "returnedRows": 1006,
+          "decodedRowJsonBytes": 120964,
+          "maxParameters": 1000
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.4975839999999607,
+          "queries": 7,
+          "returnedRows": 1006,
+          "decodedRowJsonBytes": 120964,
+          "maxParameters": 1000
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.609542000000033,
+          "queries": 7,
+          "returnedRows": 1006,
+          "decodedRowJsonBytes": 120964,
+          "maxParameters": 1000
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.6060830000000124,
+          "queries": 7,
+          "returnedRows": 1006,
+          "decodedRowJsonBytes": 120964,
+          "maxParameters": 1000
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.666708999999969,
+          "queries": 7,
+          "returnedRows": 1006,
+          "decodedRowJsonBytes": 120964,
+          "maxParameters": 1000
+        }
+      ],
+      "current": [
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.903083000000038,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 27,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.818292000000042,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 27,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.8177080000000387,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 27,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.6735419999999976,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 27,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 1000,
+            "words": 2994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 2.9707500000000664,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 27,
+          "maxParameters": 7
+        }
+      ]
+    },
+    {
+      "nodes": 5000,
+      "baseline": [
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 12.919333999999935,
+          "queries": 7,
+          "returnedRows": 5006,
+          "decodedRowJsonBytes": 608964,
+          "maxParameters": 5000
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 12.538416000000097,
+          "queries": 7,
+          "returnedRows": 5006,
+          "decodedRowJsonBytes": 608964,
+          "maxParameters": 5000
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 11.010500000000093,
+          "queries": 7,
+          "returnedRows": 5006,
+          "decodedRowJsonBytes": 608964,
+          "maxParameters": 5000
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 11.062374999999975,
+          "queries": 7,
+          "returnedRows": 5006,
+          "decodedRowJsonBytes": 608964,
+          "maxParameters": 5000
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 11.113417000000027,
+          "queries": 7,
+          "returnedRows": 5006,
+          "decodedRowJsonBytes": 608964,
+          "maxParameters": 5000
+        }
+      ],
+      "current": [
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 14.015916000000061,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 28,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 13.897917000000007,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 28,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 13.249957999999879,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 28,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 12.962041,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 28,
+          "maxParameters": 7
+        },
+        {
+          "stats": {
+            "nodes": 5000,
+            "words": 14994,
+            "wordsReady": true,
+            "storylines": 2,
+            "storylineLinks": 1,
+            "elements": 1,
+            "categories": 1,
+            "entityRelations": 1,
+            "inlineMentions": 0
+          },
+          "elapsedMs": 13.030124999999998,
+          "queries": 1,
+          "returnedRows": 1,
+          "decodedRowJsonBytes": 28,
+          "maxParameters": 7
+        }
+      ]
+    },
+    {
+      "nodes": 40000,
+      "baselineFailure": "too many SQL variables",
+      "current": {
+        "stats": {
+          "nodes": 40000,
+          "words": 119994,
+          "wordsReady": true,
+          "storylines": 2,
+          "storylineLinks": 1,
+          "elements": 1,
+          "categories": 1,
+          "entityRelations": 1,
+          "inlineMentions": 0
+        },
+        "elapsedMs": 107.55845800000043,
+        "queries": 1,
+        "returnedRows": 1,
+        "decodedRowJsonBytes": 30,
+        "maxParameters": 7
+      },
+      "queryPlan": [
+        "SEARCH book_node USING INDEX idx_book_node_project_narrative_order (project_id=?)",
+        "SCALAR SUBQUERY 1",
+        "SCAN storylines",
+        "SCALAR SUBQUERY 2",
+        "SEARCH shelf_linked_node USING INDEX idx_book_node_project_narrative_order (project_id=?)",
+        "SEARCH node_storyline_link USING COVERING INDEX idx_node_storyline_node (node_id=?)",
+        "SCALAR SUBQUERY 3",
+        "SCAN element",
+        "SCALAR SUBQUERY 4",
+        "SEARCH element_category USING COVERING INDEX idx_element_category_project (project_id=?)",
+        "SCALAR SUBQUERY 5",
+        "SEARCH entity_relation USING COVERING INDEX idx_relation_project (project_id=?)",
+        "SCALAR SUBQUERY 6",
+        "SEARCH inline_mention USING COVERING INDEX idx_mention_project (project_id=?)"
+      ]
+    }
+  ],
+  "suites": [
+    "src/renderer/sqlite-repo/project-stats-repo.integration.test.ts",
+    "src/renderer/usecase/useProject-summary.test.ts",
+    "src/renderer/usecase/useProject-shelf.integration.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "project shelf aggregate counts every collection in one snapshot, excluding deleted nodes and their memberships",
+      "status": "passed"
+    },
+    {
+      "name": "project shelf aggregate matches the portable hash predicate and existing seed/revision/sequence semantics",
+      "status": "passed"
+    },
+    {
+      "name": "project shelf aggregate keeps partial words while any live chapter is pending, and ignores nonchapter metrics",
+      "status": "passed"
+    },
+    {
+      "name": "project shelf aggregate does not publish invented zero counts when the gateway fails",
+      "status": "passed"
+    },
+    {
+      "name": "loads the owned shelf with bounded aggregate work and preserves updated-date order",
+      "status": "passed"
+    },
+    {
+      "name": "project shelf prose metrics reconciles local projects with nodes whose canonical words are pending",
+      "status": "passed"
+    }
+  ],
+  "acceptance": {
+    "native": "not-run",
+    "startupImprovement": "not-evaluated",
+    "deviceBudget": "not-evaluated"
+  },
+  "limitations": [
+    "Paired warmup and five alternating runs use Node SQLite and the production Drizzle gateway; elapsed time is descriptive, not native IPC or UI startup timing.",
+    "Decoded row JSON bytes exclude column metadata and native wire tagging. SQLite still visits project rows to aggregate; constant result size does not imply constant CPU.",
+    "The 40000-node baseline failure is from this Node SQLite parameter limit. No corresponding native limit is claimed."
+  ]
+}

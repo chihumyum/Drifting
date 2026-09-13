@@ -3645,3 +3645,46 @@ errors and 30 existing warnings. The normal production build contains 42 JS
 assets and no startup probe markers/configuration. The existing ordinary renderer
 report still passes its deterministic contract; it was not rerun or relabelled as
 new timing evidence for this collector-only batch.
+
+## F2 — Shelf statistics repository and bounded loading
+
+[The shelf read model](shelf-stats.md) extracts statistics from `useProject`
+(435 → 341 lines) into `sqlite-repo/project-stats-repo.ts`. One project now
+returns one aggregate row from one SQLite statement. The node-sized membership
+`IN` list is replaced with a join to live nodes. A single shelf load runs at
+most four statistics queries concurrently. Existing account bootstrap,
+updated-date ordering, pending word-count semantics and awaited prose-metric
+reconciliation are preserved; there is no new cache, migration or prose owner.
+
+`acceptance/f2-shelf-stats.json` executes the exact historical function from
+`880d8963` and the current repository against the same synthetic product SQLite
+fixture. At 5,000 nodes, seven queries / 5,006 rows / 608,964 decoded row-JSON
+bytes become one query / one row / 28 bytes. Five paired measurements per size
+show that local SQLite execution can be slower despite the smaller result;
+this is not evidence of a startup speedup. The 40,000-node control still returns
+one row with seven parameters, where the historical Node SQLite path exceeds
+its SQL variable limit. Full query plans and timing boundaries are retained.
+
+Six integration/helper checks cover every counted collection, deletion,
+partial/empty words, 84 portable hash/basis combinations, query failure, owned
+project loading and its concurrency/order/store publication. Twelve report
+contract checks reject missing profiles, mismatched counts, unbounded transfers,
+invalid timing, failed integrity and unmeasured native/startup claims.
+
+The unsigned Release startup rerun did not pass its native foreground-focus
+condition. A diagnostic 30-second wait also failed, and that collector change
+was reverted. The original collector and accepted F0 baseline remain intact.
+No incomplete sequence or failed timing is presented as passing native evidence;
+see the artifact hashes and limits in the read-model document. F0/F2/F6 device
+budgets and full native startup acceptance remain open.
+
+```bash
+node --conditions=import --import=tsx scripts/measure-shelf-stats.ts
+node --conditions=import --import=tsx scripts/measure-shelf-stats.ts --check
+```
+
+All six required repository checks passed on the final source, together with
+`test:renderer-architecture`. The full suite passed 2,779 tests with one existing
+skip across 419 files; lint has zero errors and 30 existing warnings. The normal
+production build contains 42 JS assets and no startup probe markers. The
+ordinary browser report remains historical and was not relabelled as new timing.
