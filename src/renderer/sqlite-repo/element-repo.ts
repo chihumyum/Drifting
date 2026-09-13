@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookElementTable } from '../schema/drizzle';
-import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, isNotNull, inArray, asc, sql } from 'drizzle-orm';
 import { decodeAliases, encodeAliases, type BookElement } from '../domain/book-element';
 
 export type ElementCreateData = BookElement;
@@ -10,7 +10,8 @@ export type ElementUpdateData = Partial<Omit<BookElement, 'id' | 'createdAt'>> &
 
 export interface ElementRepository {
   findById(id: string): Promise<BookElement | null>;
-  findAll(): Promise<BookElement[]>;
+  findAll(ids?: readonly string[]): Promise<BookElement[]>;
+  findLiveIds(): Promise<string[]>;
   findTrashed(): Promise<Array<BookElement & { deletedAt: string }>>;
   findAllByCategory(categoryId: string): Promise<BookElement[]>;
   create(input: ElementCreateData): Promise<BookElement>;
@@ -55,14 +56,25 @@ export function createBookElementSqliteRepository(
     return rows[0] ? toDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<BookElement[]> => {
+  const findAll = async (ids?: readonly string[]): Promise<BookElement[]> => {
+    if (ids?.length === 0) return [];
     const rows = await dbProvider()
       .select()
       .from(BookElementTable)
-      .where(and(eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt)))
-      .orderBy(desc(BookElementTable.updatedAt));
+      .where(and(eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt),
+        ids ? inArray(BookElementTable.id, [...ids]) : undefined))
+      .orderBy(desc(BookElementTable.updatedAt), asc(sql`${BookElementTable}.rowid`));
 
     return rows.map(toDomain);
+  };
+
+  // Match findAll's SQLite ordering without transferring unchanged prose.
+  const findLiveIds = async (): Promise<string[]> => {
+    const rows = await dbProvider().select({ id: BookElementTable.id })
+      .from(BookElementTable)
+      .where(and(eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt)))
+      .orderBy(desc(BookElementTable.updatedAt), asc(sql`${BookElementTable}.rowid`));
+    return rows.map(({ id }) => id);
   };
 
   const findTrashed = async (): Promise<Array<BookElement & { deletedAt: string }>> => {
@@ -84,7 +96,7 @@ export function createBookElementSqliteRepository(
           isNull(BookElementTable.deletedAt),
         ),
       )
-      .orderBy(desc(BookElementTable.updatedAt));
+      .orderBy(desc(BookElementTable.updatedAt), asc(sql`${BookElementTable}.rowid`));
 
     return rows.map(toDomain);
   };
@@ -141,6 +153,7 @@ export function createBookElementSqliteRepository(
   return {
     findById,
     findAll,
+    findLiveIds,
     findTrashed,
     findAllByCategory,
     create,

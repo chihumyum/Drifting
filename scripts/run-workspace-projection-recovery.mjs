@@ -87,6 +87,7 @@ function validate(report) {
     if (['capture-before-publish', 'published'].includes(entry.boundary)) {
       assert.equal(entry.kill.captureMode, 'changes');
       assert.equal(entry.kill.nodeRead, entry.scenario === 'node-metadata' ? 'changed' : 'reuse');
+      assert.equal(entry.kill.elementRead, entry.scenario === 'collection-change' ? 'changed' : 'reuse');
     }
     assert.equal(entry.restarts.length, 2);
     for (const restart of entry.restarts) {

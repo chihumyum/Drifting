@@ -1,0 +1,497 @@
+{
+  "kind": "workspace_element_reads_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-13T11:10:03.803Z",
+  "source": {
+    "commit": "329bb2152a89700deaf1cb82730f072d2b207a92",
+    "fingerprint": "3ecc1af29fe2ebf8887de2bc7ab57ebc07801cfb05d66f5270ee8df333240127"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "suites": [
+    "src/renderer/services/workspace-projection-elements.integration.test.ts",
+    "src/renderer/services/workspace-projection-coverage.integration.test.ts",
+    "src/renderer/services/workspace-projection-element-reads.acceptance.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual project row change",
+      "status": "passed",
+      "durationMs": 37.57991700000002
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual nodes row change",
+      "status": "passed",
+      "durationMs": 27.67937500000005
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual storylines row change",
+      "status": "passed",
+      "durationMs": 26.47358399999996
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual elements row change",
+      "status": "passed",
+      "durationMs": 26.127250000000004
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual categories row change",
+      "status": "passed",
+      "durationMs": 25.964292
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual assets row change",
+      "status": "passed",
+      "durationMs": 26.218875000000025
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual library row change",
+      "status": "passed",
+      "durationMs": 27.814166999999998
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual comments row change",
+      "status": "passed",
+      "durationMs": 26.56062499999996
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual comment-actions row change",
+      "status": "passed",
+      "durationMs": 26.61175000000003
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual relations row change",
+      "status": "passed",
+      "durationMs": 26.561207999999965
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual relation-types row change",
+      "status": "passed",
+      "durationMs": 26.648750000000064
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual sections row change",
+      "status": "passed",
+      "durationMs": 26.625832999999943
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual acts row change",
+      "status": "passed",
+      "durationMs": 24.645791999999915
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual drift-groups row change",
+      "status": "passed",
+      "durationMs": 24.087625000000003
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual markers row change",
+      "status": "passed",
+      "durationMs": 25.01129100000003
+    },
+    {
+      "name": "workspace projection invalidation coverage matches a full snapshot after an actual memberships row change",
+      "status": "passed",
+      "durationMs": 23.605291999999963
+    },
+    {
+      "name": "workspace projection invalidation coverage promotes node ordering and same-ID replacement to a complete node collection",
+      "status": "passed",
+      "durationMs": 27.144499999999994
+    },
+    {
+      "name": "workspace projection invalidation coverage refuses coverage from a copied capture or a replaced database client",
+      "status": "passed",
+      "durationMs": 44.661249999999995
+    },
+    {
+      "name": "workspace projection invalidation coverage invalidates both project scopes when an unlinked node changes ownership and identity",
+      "status": "passed",
+      "durationMs": 28.300749999999994
+    },
+    {
+      "name": "workspace projection invalidation coverage rejects a delayed row-scoped capture after a local edit and recovers through full capture",
+      "status": "passed",
+      "durationMs": 27.21154200000001
+    },
+    {
+      "name": "workspace projection invalidation coverage records every queried table and column, including child dependencies",
+      "status": "passed",
+      "durationMs": 21.163291999999956
+    },
+    {
+      "name": "workspace projection invalidation coverage does not invalidate on a no-op write, and tracks changed fields without timestamp changes",
+      "status": "passed",
+      "durationMs": 24.537959
+    },
+    {
+      "name": "workspace projection invalidation coverage rolls invalidation back with an aborted author transaction",
+      "status": "passed",
+      "durationMs": 23.91616699999986
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting chapter",
+      "status": "passed",
+      "durationMs": 28.96891699999992
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting drift",
+      "status": "passed",
+      "durationMs": 23.59533300000021
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting category",
+      "status": "passed",
+      "durationMs": 23.492791000000125
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting comment",
+      "status": "passed",
+      "durationMs": 23.270250000000033
+    },
+    {
+      "name": "workspace projection invalidation coverage captures the actual cascade closure when deleting main",
+      "status": "passed",
+      "durationMs": 23.456875000000082
+    },
+    {
+      "name": "workspace projection invalidation coverage preserves full trash iteration order across changes to different kinds",
+      "status": "passed",
+      "durationMs": 23.819417000000158
+    },
+    {
+      "name": "workspace projection invalidation coverage includes an earlier unnotified collection when a later refresh occurs",
+      "status": "passed",
+      "durationMs": 23.171291999999994
+    },
+    {
+      "name": "workspace projection invalidation coverage coalesces repeated identities and falls back after bounded coverage expires",
+      "status": "passed",
+      "durationMs": 371.44454199999996
+    },
+    {
+      "name": "workspace projection invalidation coverage bounds distinct changed identities while retaining the newest covered delta",
+      "status": "passed",
+      "durationMs": 300.22454100000004
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after generation coverage invalidation",
+      "status": "passed",
+      "durationMs": 24.088874999999916
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after reset coverage invalidation",
+      "status": "passed",
+      "durationMs": 23.75841700000001
+    },
+    {
+      "name": "workspace projection invalidation coverage uses full capture after unknown coverage invalidation",
+      "status": "passed",
+      "durationMs": 23.825207999999975
+    },
+    {
+      "name": "workspace projection invalidation coverage isolates projects and invalidates a same-ID project recreation",
+      "status": "passed",
+      "durationMs": 24.624041999999918
+    },
+    {
+      "name": "workspace projection invalidation coverage observes historical materialization outside the current remote mutation targets",
+      "status": "passed",
+      "durationMs": 34.36899999999969
+    },
+    {
+      "name": "workspace projection invalidation coverage connects covered reads to the project queue while explicit repair wins over narrow requests",
+      "status": "passed",
+      "durationMs": 26.884250000000065
+    },
+    {
+      "name": "covered element projection reads only the edited body, preserves unchanged objects and follows SQLite ordering including ties",
+      "status": "passed",
+      "durationMs": 45.24145800000002
+    },
+    {
+      "name": "covered element projection falls back on insert without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 38.980042000000026
+    },
+    {
+      "name": "covered element projection falls back on delete without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 33.303875000000005
+    },
+    {
+      "name": "covered element projection falls back on soft-delete without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 27.371334000000047
+    },
+    {
+      "name": "covered element projection falls back on restore without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 26.349874999999997
+    },
+    {
+      "name": "covered element projection falls back on replace without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 26.480042000000026
+    },
+    {
+      "name": "covered element projection falls back on project-move without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 26.191625000000045
+    },
+    {
+      "name": "covered element projection falls back on id-change without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 25.856500000000096
+    },
+    {
+      "name": "covered element projection falls back on reset without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 27.075500000000034
+    },
+    {
+      "name": "covered element projection falls back on large-batch without losing identity, order or trash",
+      "status": "passed",
+      "durationMs": 39.698334000000045
+    },
+    {
+      "name": "covered element projection keeps a 128-row covered batch scoped and replays the same cursor safely",
+      "status": "passed",
+      "durationMs": 41.867500000000064
+    },
+    {
+      "name": "covered element projection reads the complete trash slice for an edit to an already trashed element",
+      "status": "passed",
+      "durationMs": 26.638124999999945
+    },
+    {
+      "name": "covered element projection captures category detachment with its dependent elements in the same projection",
+      "status": "passed",
+      "durationMs": 26.62033299999996
+    },
+    {
+      "name": "covered element projection reuses the accepted elements after an aborted write or another project edit",
+      "status": "passed",
+      "durationMs": 27.323125000000005
+    },
+    {
+      "name": "covered element projection rejects a captured element update after a newer optimistic publication",
+      "status": "passed",
+      "durationMs": 26.336624999999913
+    },
+    {
+      "name": "element edit read volume measures covered refresh of one body among 64 elements against a full oracle",
+      "status": "passed",
+      "durationMs": 80.08520800000002
+    },
+    {
+      "name": "element edit read volume measures covered refresh of one body among 1024 elements against a full oracle",
+      "status": "passed",
+      "durationMs": 498.89816600000006
+    }
+  ],
+  "reads": [
+    {
+      "entities": 64,
+      "bodyCharacters": 8200,
+      "samples": [
+        {
+          "queries": 5,
+          "rows": 69,
+          "serializedBytes": 9410,
+          "elementBodyRows": 1,
+          "captureMs": 0.7323749999999905
+        },
+        {
+          "queries": 5,
+          "rows": 69,
+          "serializedBytes": 9410,
+          "elementBodyRows": 1,
+          "captureMs": 0.7604999999999791
+        },
+        {
+          "queries": 5,
+          "rows": 69,
+          "serializedBytes": 9410,
+          "elementBodyRows": 1,
+          "captureMs": 0.6029159999999933
+        },
+        {
+          "queries": 5,
+          "rows": 69,
+          "serializedBytes": 9410,
+          "elementBodyRows": 1,
+          "captureMs": 0.6664169999999672
+        },
+        {
+          "queries": 5,
+          "rows": 69,
+          "serializedBytes": 9410,
+          "elementBodyRows": 1,
+          "captureMs": 0.630457999999976
+        }
+      ]
+    },
+    {
+      "entities": 1024,
+      "bodyCharacters": 8200,
+      "samples": [
+        {
+          "queries": 5,
+          "rows": 1029,
+          "serializedBytes": 21880,
+          "elementBodyRows": 1,
+          "captureMs": 2.5625
+        },
+        {
+          "queries": 5,
+          "rows": 1029,
+          "serializedBytes": 21880,
+          "elementBodyRows": 1,
+          "captureMs": 2.5089169999999967
+        },
+        {
+          "queries": 5,
+          "rows": 1029,
+          "serializedBytes": 21880,
+          "elementBodyRows": 1,
+          "captureMs": 2.363375000000019
+        },
+        {
+          "queries": 5,
+          "rows": 1029,
+          "serializedBytes": 21880,
+          "elementBodyRows": 1,
+          "captureMs": 2.42670899999996
+        },
+        {
+          "queries": 5,
+          "rows": 1029,
+          "serializedBytes": 21880,
+          "elementBodyRows": 1,
+          "captureMs": 2.455500000000029
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "commit": "329bb2152a89700deaf1cb82730f072d2b207a92",
+    "testSha256": "12463c17f1354ee706d2ef45dff118784269d8c6a44d41e49f4e08a0a4918cfd",
+    "tests": [
+      {
+        "name": "element edit read volume measures covered refresh of one body among 64 elements against a full oracle",
+        "status": "passed",
+        "durationMs": 83.11500000000001
+      },
+      {
+        "name": "element edit read volume measures covered refresh of one body among 1024 elements against a full oracle",
+        "status": "passed",
+        "durationMs": 606.802167
+      }
+    ],
+    "reads": [
+      {
+        "entities": 64,
+        "bodyCharacters": 8200,
+        "samples": [
+          {
+            "queries": 5,
+            "rows": 68,
+            "serializedBytes": 540675,
+            "elementBodyRows": 65,
+            "captureMs": 1.4617079999999874
+          },
+          {
+            "queries": 5,
+            "rows": 68,
+            "serializedBytes": 540675,
+            "elementBodyRows": 65,
+            "captureMs": 1.3841669999999908
+          },
+          {
+            "queries": 5,
+            "rows": 68,
+            "serializedBytes": 540675,
+            "elementBodyRows": 65,
+            "captureMs": 1.3069169999999986
+          },
+          {
+            "queries": 5,
+            "rows": 68,
+            "serializedBytes": 540675,
+            "elementBodyRows": 65,
+            "captureMs": 1.2676659999999629
+          },
+          {
+            "queries": 5,
+            "rows": 68,
+            "serializedBytes": 540675,
+            "elementBodyRows": 65,
+            "captureMs": 1.2714169999999854
+          }
+        ]
+      },
+      {
+        "entities": 1024,
+        "bodyCharacters": 8200,
+        "samples": [
+          {
+            "queries": 5,
+            "rows": 1028,
+            "serializedBytes": 8644985,
+            "elementBodyRows": 1025,
+            "captureMs": 22.806832999999983
+          },
+          {
+            "queries": 5,
+            "rows": 1028,
+            "serializedBytes": 8644985,
+            "elementBodyRows": 1025,
+            "captureMs": 22.51908400000002
+          },
+          {
+            "queries": 5,
+            "rows": 1028,
+            "serializedBytes": 8644985,
+            "elementBodyRows": 1025,
+            "captureMs": 22.11283400000002
+          },
+          {
+            "queries": 5,
+            "rows": 1028,
+            "serializedBytes": 8644985,
+            "elementBodyRows": 1025,
+            "captureMs": 22.101167000000032
+          },
+          {
+            "queries": 5,
+            "rows": 1028,
+            "serializedBytes": 8644985,
+            "elementBodyRows": 1025,
+            "captureMs": 22.290540999999962
+          }
+        ]
+      }
+    ]
+  },
+  "acceptance": {
+    "productionCapture": true,
+    "sqlite": "temporary-WAL-FULL",
+    "fullProjectionOracle": true,
+    "unchangedElementObjects": true,
+    "fullFallback": true,
+    "nativeRenderer": "not-run",
+    "fullAppPerformance": "not-measured"
+  },
+  "limitations": [
+    "Synthetic disposable product-schema databases, one warm capture then five samples per size and revision. Each covered result is compared with a fresh authoritative full projection. No author database is opened.",
+    "Returned bytes are JSON-serialized gateway rows, not physical pages or native IPC traffic. Capture timing includes counter serialization and is a Node diagnostic, not an app latency budget.",
+    "Up to 128 covered live element identities read bodies individually; SQLite still scans/sorts all live element IDs and the renderer merges an O(N) ID array. Queries remain five and row count increases by one.",
+    "Identity replacement, lifecycle changes, oversized batches or unavailable coverage use the complete collection or workspace. Initial and restored projections are full. Published migrations are unchanged.",
+    "Element order is updatedAt descending with SQLite rowid ascending for equal timestamps, shared by full, category and skinny reads. Category dependency changes are captured in the same read transaction."
+  ]
+}

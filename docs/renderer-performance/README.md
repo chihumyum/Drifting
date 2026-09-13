@@ -2887,3 +2887,65 @@ chunk，未混入验收夹具或计数器。`acceptance/f4-send-preparation-brow
 模型已经停止。已经进入仓库的工作记忆读取/压缩可继续完成，本批不承诺取消其存储
 事务。原生组合、真实 provider、物理输入、设备预算与完整恢复仍未据此标为通过；
 F4 保持 in_progress。
+
+## F6b5 — Scoped element bodies with SQLite-owned ordering
+
+An ordinary element edit previously reloaded every live and trashed element,
+including unchanged `contentJson`, KV and summary fields. The projection now
+passes covered element IDs to `workspace-projection-elements.ts`. For at most
+128 existing live identities it fetches those complete rows, reads only the
+ordered live IDs, and merges replacements while retaining unchanged objects.
+The full, category and skinny queries share `updatedAt` descending and explicit
+SQLite `rowid` ascending for ties. The ID query remains inside the same read
+transaction as the other projection collections, which retain parallel reads.
+
+Insert/delete, visibility changes, same-ID replacement and large batches use
+the complete element collection; missing or untrusted coverage still captures
+the whole workspace. Deleted categories' dependent element changes are observed
+by the existing journal. Trash ordering and atomic publication are retained,
+and a delayed capture still cannot overwrite a newer optimistic store edit.
+All published migrations remain unchanged. This is projection reading only;
+Yjs prose truth and the authored write path are unchanged.
+
+```bash
+pnpm workspace:elements:acceptance
+pnpm workspace:elements:acceptance --check
+pnpm workspace:projection:recovery
+pnpm workspace:projection:recovery --check
+```
+
+`acceptance/f6-element-reads.json` runs the identical measurement file against
+baseline `329bb215` in a disposable detached worktree and the candidate source.
+Each run uses the real repositories/capture on synthetic WAL/FULL SQLite files,
+one warm capture and five measured captures at each size. Every captured
+projection is compared with a fresh complete projection. Its 55 current checks
+include the 128-ID boundary, repeated coverage, timestamp ties, replacement,
+trash edits, project isolation, rollback, category cascade and publication races.
+
+The refreshed `acceptance/f6-workspace-recovery.json` requires a changed-element
+read at the element capture/publish boundaries before SIGKILL. It retains the
+20 termination / 40 independent restart matrix with authored transactions,
+actual refresh queue, full recovery oracle and unchanged persistent-state hashes.
+The original F6b4 read report above remains a historical node-edit measurement;
+this report is a separate before/after element-edit measurement.
+
+| Added elements | Complete element rows, before → after | Queries | Returned bytes, before → after |
+| --- | --- | --- | --- |
+| 64 | 65 → 1 | 5 → 5 | 540,675 → 9,410 |
+| 1,024 | 1,025 → 1 | 5 → 5 | 8,644,985 → 21,880 |
+
+The base fixture contributes one additional element. Returned row counts actually
+increase by one (68 → 69 and 1,028 → 1,029): the new path still transfers every
+live ID, sorts in SQLite and merges an O(N) array. Bytes represent serialized
+query results, not disk pages or measured native IPC traffic. Raw capture times
+are retained as Node diagnostics and include counter serialization; they do not
+establish React publication cost or an end-to-end interaction budget.
+
+The completed isolated batch passes 2,584 tests with one existing skip, typecheck,
+CI/public contracts and 19 Agent capability checks; lint has zero errors and
+33 existing warnings. Its normal local-only production build has 32 JS chunks
+and excludes the acceptance drivers/counters. The browser regression report
+`acceptance/f6-element-reads-browser.json` passes current-source fingerprint and
+deterministic checks. These headless/browser/Node recovery results do not prove
+native renderer restart, physical input, power-loss recovery or device latency.
+F6 remains `in_progress`.

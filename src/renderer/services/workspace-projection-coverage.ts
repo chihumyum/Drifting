@@ -13,6 +13,7 @@ export interface WorkspaceProjectionChanges {
   readonly collections: ReadonlySet<WorkspaceProjectionCollection>;
   /** Null promotes this collection to a complete read. */
   readonly nodeIds: readonly string[] | null;
+  readonly elementIds: readonly string[] | null;
 }
 
 /** Capture the cursor in the same SQLite snapshot as the projected rows. */
@@ -34,7 +35,7 @@ export async function readWorkspaceProjectionChanges(
 ): Promise<WorkspaceProjectionChanges | null> {
   if (!current || current.epoch !== previous.epoch ||
     previous.revision < current.retainedAfter || previous.revision > current.revision) return null;
-  if (previous.revision === current.revision) return { collections: new Set(), nodeIds: null };
+  if (previous.revision === current.revision) return { collections: new Set(), nodeIds: null, elementIds: null };
   const rows = await tx.select({
     collection: WorkspaceProjectionChangeTable.collection,
     entityId: WorkspaceProjectionChangeTable.entityId,
@@ -46,11 +47,15 @@ export async function readWorkspaceProjectionChanges(
   if (rows.length === 0 || rows.length > WORKSPACE_PROJECTION_MAX_CHANGES) return null;
   const known = new Set<string>(WORKSPACE_PROJECTION_COLLECTIONS);
   if (rows.some(({ collection }) => !known.has(collection))) return null;
-  const nodes = rows.filter(({ collection }) => collection === 'nodes');
+  const selectedIds = (collection: WorkspaceProjectionCollection) => {
+    const selected = rows.filter((row) => row.collection === collection);
+    return selected.length > 0 && selected.length <= 128 &&
+      selected.every((row) => row.replacementRevision <= previous.revision)
+      ? selected.map(({ entityId }) => entityId) : null;
+  };
   return {
     collections: new Set(rows.map(({ collection }) => collection as WorkspaceProjectionCollection)),
-    nodeIds: nodes.length > 0 && nodes.length <= 128 &&
-      nodes.every((row) => row.replacementRevision <= previous.revision)
-      ? nodes.map(({ entityId }) => entityId) : null,
+    nodeIds: selectedIds('nodes'),
+    elementIds: selectedIds('elements'),
   };
 }

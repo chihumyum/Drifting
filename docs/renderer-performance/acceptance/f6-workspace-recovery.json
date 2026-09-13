@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "kind": "workspace_projection_process_recovery",
   "status": "passed",
-  "generatedAt": "2026-09-12T11:46:16.259Z",
+  "generatedAt": "2026-09-13T11:09:57.999Z",
   "source": {
-    "commit": "62d5cc687999406959b6620f86f2039f7d98b312",
-    "fingerprint": "dd1513d8f28fdaa0f4d3e304db80b6cc698ea6fbc3680bbfd3e6e248dda6d515",
+    "commit": "329bb2152a89700deaf1cb82730f072d2b207a92",
+    "fingerprint": "3ecc1af29fe2ebf8887de2bc7ab57ebc07801cfb05d66f5270ee8df333240127",
     "dirty": true
   },
   "environment": {
     "platform": "darwin",
-    "node": "v24.19.0",
-    "sqlite": "3.53.3"
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
   },
   "fixture": {
     "provenance": "synthetic content only",
@@ -29,8 +29,8 @@
         "boundary": "authored-before-commit",
         "scenario": "node-metadata",
         "seed": 1,
-        "baselineHash": "a0cfb39bac2bd7e096997096441a70acf1948644a81913fdf0c76ed708d1f1ee",
-        "databaseHash": "aa880db86b79ab9e98424b2825721d018d13dd374d9ca5cd104da640c5cda369",
+        "baselineHash": "e634ad5465fcf1793def5bf1238d8e41cb22c708fb527106add2550a0fedc944",
+        "databaseHash": "e6c583ce9d3f9b53c93be5c11454d0e6908eb489fc029dd3143be1f5e82c0fc7",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -42,7 +42,7 @@
           "boundary": "authored-before-commit",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "a0cfb39bac2bd7e096997096441a70acf1948644a81913fdf0c76ed708d1f1ee",
+          "databaseHash": "e634ad5465fcf1793def5bf1238d8e41cb22c708fb527106add2550a0fedc944",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -63,7 +63,7 @@
           "boundary": "authored-before-commit",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "a0cfb39bac2bd7e096997096441a70acf1948644a81913fdf0c76ed708d1f1ee",
+          "databaseHash": "e634ad5465fcf1793def5bf1238d8e41cb22c708fb527106add2550a0fedc944",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -90,8 +90,8 @@
         "boundary": "authored-before-commit",
         "scenario": "node-metadata",
         "seed": 2,
-        "baselineHash": "fde693c1584d6ba7f5c3c58f5bc37abf66c94bd3181733c4cc302f7b0c4c9d94",
-        "databaseHash": "14e507f27ad6c8b80be556477f6120a909ae632a21363d291969eb729adeaed1",
+        "baselineHash": "7bf8fc00fccfea941235c36d58ee282b1057885893b183b172a3ae71e0a889a9",
+        "databaseHash": "baf7c6943e14498de015bf06bbf50734f9532ea28f3f8d0d5a69c59fd21f5941",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -103,7 +103,7 @@
           "boundary": "authored-before-commit",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "fde693c1584d6ba7f5c3c58f5bc37abf66c94bd3181733c4cc302f7b0c4c9d94",
+          "databaseHash": "7bf8fc00fccfea941235c36d58ee282b1057885893b183b172a3ae71e0a889a9",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -124,7 +124,7 @@
           "boundary": "authored-before-commit",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "fde693c1584d6ba7f5c3c58f5bc37abf66c94bd3181733c4cc302f7b0c4c9d94",
+          "databaseHash": "7bf8fc00fccfea941235c36d58ee282b1057885893b183b172a3ae71e0a889a9",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -151,8 +151,8 @@
         "boundary": "authored-after-commit",
         "scenario": "node-metadata",
         "seed": 1,
-        "baselineHash": "5612c0611a6cab06c43a76cbcfe235c640eb088e8a04ad72a887d3ce9d38419c",
-        "databaseHash": "d93cbd1a2db54722dcac1599c211d6666b8c4fb03ed97515d65c8f84eb2e0d91",
+        "baselineHash": "c2acb39da5a73d4749fd427a465a286a03e9052bd9e0e8ce416a35a5d5dbb70a",
+        "databaseHash": "8e2d1897614ed4508a665d57246b082ea47a21908e996725f1399bcbd87a5022",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -164,7 +164,7 @@
           "boundary": "authored-after-commit",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "d93cbd1a2db54722dcac1599c211d6666b8c4fb03ed97515d65c8f84eb2e0d91",
+          "databaseHash": "8e2d1897614ed4508a665d57246b082ea47a21908e996725f1399bcbd87a5022",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -185,7 +185,7 @@
           "boundary": "authored-after-commit",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "d93cbd1a2db54722dcac1599c211d6666b8c4fb03ed97515d65c8f84eb2e0d91",
+          "databaseHash": "8e2d1897614ed4508a665d57246b082ea47a21908e996725f1399bcbd87a5022",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -212,8 +212,8 @@
         "boundary": "authored-after-commit",
         "scenario": "node-metadata",
         "seed": 2,
-        "baselineHash": "ae25f8bc0fd6fef7c648f1b7eb12e8eae3844360a0d9d393fb4cef906c455c58",
-        "databaseHash": "639fc2a938010164f04b92c83bed53bb897e5f968c12110c2000c13d644cbf49",
+        "baselineHash": "a93af8afc4fe0748b4066c441b5faf052cc2e878579dbe6d5174b72f54127859",
+        "databaseHash": "b7ccce85f46d5267052f9935f3751ae26f35ad0f7d6433826909df62cb7a6cfb",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -225,7 +225,7 @@
           "boundary": "authored-after-commit",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "639fc2a938010164f04b92c83bed53bb897e5f968c12110c2000c13d644cbf49",
+          "databaseHash": "b7ccce85f46d5267052f9935f3751ae26f35ad0f7d6433826909df62cb7a6cfb",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -246,7 +246,7 @@
           "boundary": "authored-after-commit",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "639fc2a938010164f04b92c83bed53bb897e5f968c12110c2000c13d644cbf49",
+          "databaseHash": "b7ccce85f46d5267052f9935f3751ae26f35ad0f7d6433826909df62cb7a6cfb",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -273,8 +273,8 @@
         "boundary": "queue-waiting",
         "scenario": "node-metadata",
         "seed": 1,
-        "baselineHash": "c965748c2fe8148590338aced89b26225a9ef1ea52fcef84ec7db48f505ffbc5",
-        "databaseHash": "ad839edeaf64b43a803042c18f7b9ec5d6e69f0263ddd0e63c21eee73ad85114",
+        "baselineHash": "437653a1c1670824a6451edf863be5a85be7458487d8106596db448f771057d1",
+        "databaseHash": "b49a2fd14c3b62722f904691d825526c107cce7bbc7eec88567e6fce07aeba88",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -286,7 +286,7 @@
           "boundary": "queue-waiting",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "ad839edeaf64b43a803042c18f7b9ec5d6e69f0263ddd0e63c21eee73ad85114",
+          "databaseHash": "b49a2fd14c3b62722f904691d825526c107cce7bbc7eec88567e6fce07aeba88",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -307,7 +307,7 @@
           "boundary": "queue-waiting",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "ad839edeaf64b43a803042c18f7b9ec5d6e69f0263ddd0e63c21eee73ad85114",
+          "databaseHash": "b49a2fd14c3b62722f904691d825526c107cce7bbc7eec88567e6fce07aeba88",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -334,8 +334,8 @@
         "boundary": "queue-waiting",
         "scenario": "node-metadata",
         "seed": 2,
-        "baselineHash": "565cc6fbcb8247f4d6fb13f04d9de8ca3aa7732802f550d27b2a7d2ed35023a8",
-        "databaseHash": "33c5ec6d747f7a01f0d4eb5a794425cd5d58b91cf61a40bf789065fbf7079dba",
+        "baselineHash": "01a0c70c40d0744c0ac587c2a441e43adb265021c4972af08936b7376071ce6d",
+        "databaseHash": "e4ae116dce3e753e53d11f41c878a884ef0fcd7fed09869acc8cbead23b6a42b",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -347,7 +347,7 @@
           "boundary": "queue-waiting",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "33c5ec6d747f7a01f0d4eb5a794425cd5d58b91cf61a40bf789065fbf7079dba",
+          "databaseHash": "e4ae116dce3e753e53d11f41c878a884ef0fcd7fed09869acc8cbead23b6a42b",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -368,7 +368,7 @@
           "boundary": "queue-waiting",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "33c5ec6d747f7a01f0d4eb5a794425cd5d58b91cf61a40bf789065fbf7079dba",
+          "databaseHash": "e4ae116dce3e753e53d11f41c878a884ef0fcd7fed09869acc8cbead23b6a42b",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -395,10 +395,11 @@
         "boundary": "capture-before-publish",
         "scenario": "node-metadata",
         "seed": 1,
-        "baselineHash": "b4a55ca25dddb35afecae690a75beebf11756b18f1821c4e9c885c6417ed0537",
-        "databaseHash": "bbab7db4093ee940b336290883654c572618651922d5cff5b27394b8aeefc15e",
+        "baselineHash": "436ddedf94e20e97c31cceb3bf91d6efa75a0bc1c0f7d4b98b7fbd65a1af70d0",
+        "databaseHash": "fcd71e9e9b2fe04d6ed315900e6af0750c8e1577fb17dd394662cbbcb5b4f85c",
         "captureMode": "changes",
         "nodeRead": "changed",
+        "elementRead": "reuse",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -410,7 +411,7 @@
           "boundary": "capture-before-publish",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "bbab7db4093ee940b336290883654c572618651922d5cff5b27394b8aeefc15e",
+          "databaseHash": "fcd71e9e9b2fe04d6ed315900e6af0750c8e1577fb17dd394662cbbcb5b4f85c",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -431,7 +432,7 @@
           "boundary": "capture-before-publish",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "bbab7db4093ee940b336290883654c572618651922d5cff5b27394b8aeefc15e",
+          "databaseHash": "fcd71e9e9b2fe04d6ed315900e6af0750c8e1577fb17dd394662cbbcb5b4f85c",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -458,10 +459,11 @@
         "boundary": "capture-before-publish",
         "scenario": "node-metadata",
         "seed": 2,
-        "baselineHash": "ca2de3d2d5486b3048899ee83743ab2ff2dbae76b677daf60cbc96360981563d",
-        "databaseHash": "5ef9df24c6cfea916a19f74f33389e8f1d8935f1723c55ee9b5d4411df25677c",
+        "baselineHash": "bd132f12075ffce82d14df143d6c840899dd0b77bd63fd17256bd83465228766",
+        "databaseHash": "ebab7c9bd966a932864d6144660b2e28dc2fe3c211b522edd81785f504b50410",
         "captureMode": "changes",
         "nodeRead": "changed",
+        "elementRead": "reuse",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -473,7 +475,7 @@
           "boundary": "capture-before-publish",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "5ef9df24c6cfea916a19f74f33389e8f1d8935f1723c55ee9b5d4411df25677c",
+          "databaseHash": "ebab7c9bd966a932864d6144660b2e28dc2fe3c211b522edd81785f504b50410",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -494,7 +496,7 @@
           "boundary": "capture-before-publish",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "5ef9df24c6cfea916a19f74f33389e8f1d8935f1723c55ee9b5d4411df25677c",
+          "databaseHash": "ebab7c9bd966a932864d6144660b2e28dc2fe3c211b522edd81785f504b50410",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -521,10 +523,11 @@
         "boundary": "published",
         "scenario": "node-metadata",
         "seed": 1,
-        "baselineHash": "a44269a3af0e243a411541727ce2002069a939fbf91f2ad4ddfc091763932e5e",
-        "databaseHash": "8ac48e5ba3db8ce0b8924ef6a31c6ab37dc324089a47bbd58bc991a9c697be96",
+        "baselineHash": "60bd080cc360e4dc38b64051f6e29b19445fa003f2a571e59ac9f69ea7d03717",
+        "databaseHash": "d9f5aa43370eaaccbeab6b0d03c5c337313a7df0b48f96dd219b8afdeb8692c2",
         "captureMode": "changes",
         "nodeRead": "changed",
+        "elementRead": "reuse",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -536,7 +539,7 @@
           "boundary": "published",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "8ac48e5ba3db8ce0b8924ef6a31c6ab37dc324089a47bbd58bc991a9c697be96",
+          "databaseHash": "d9f5aa43370eaaccbeab6b0d03c5c337313a7df0b48f96dd219b8afdeb8692c2",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -557,7 +560,7 @@
           "boundary": "published",
           "scenario": "node-metadata",
           "seed": 1,
-          "databaseHash": "8ac48e5ba3db8ce0b8924ef6a31c6ab37dc324089a47bbd58bc991a9c697be96",
+          "databaseHash": "d9f5aa43370eaaccbeab6b0d03c5c337313a7df0b48f96dd219b8afdeb8692c2",
           "projectionHash": "07fdea986772407c45e97140e1f637235633c99b30c1c9f1352a45ff470a2454",
           "captureMode": "full",
           "checks": [
@@ -584,10 +587,11 @@
         "boundary": "published",
         "scenario": "node-metadata",
         "seed": 2,
-        "baselineHash": "4e86a28bf1c1e454b5e86ad7a89a644b245afc70a242fd9574988877a47c3229",
-        "databaseHash": "91fb7bf1b362c2fdf5b8dd09cb9d481c3ecdedb6e32e6af74e69c39d2f9317a0",
+        "baselineHash": "d5d4516777993ac047977c76354db669b17d50d07750ed958b47ab66ee955a54",
+        "databaseHash": "ca70780c62b4c8fff35a02d5d0d9edd3047a660bf1defe772581f7800e97a765",
         "captureMode": "changes",
         "nodeRead": "changed",
+        "elementRead": "reuse",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -599,7 +603,7 @@
           "boundary": "published",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "91fb7bf1b362c2fdf5b8dd09cb9d481c3ecdedb6e32e6af74e69c39d2f9317a0",
+          "databaseHash": "ca70780c62b4c8fff35a02d5d0d9edd3047a660bf1defe772581f7800e97a765",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -620,7 +624,7 @@
           "boundary": "published",
           "scenario": "node-metadata",
           "seed": 2,
-          "databaseHash": "91fb7bf1b362c2fdf5b8dd09cb9d481c3ecdedb6e32e6af74e69c39d2f9317a0",
+          "databaseHash": "ca70780c62b4c8fff35a02d5d0d9edd3047a660bf1defe772581f7800e97a765",
           "projectionHash": "5b5f14d94806164804b58a420dbb27eabc0c81dc76dd7bb7bdfacecbb5c194c2",
           "captureMode": "full",
           "checks": [
@@ -647,8 +651,8 @@
         "boundary": "authored-before-commit",
         "scenario": "collection-change",
         "seed": 1,
-        "baselineHash": "c8f32b0258f6ab22516762a44bb1e3e71e58a49b59a99b3a38362c143f5d23ad",
-        "databaseHash": "4e812b4b118fb94a870c0ed6758730cd9e5716f74f4b4bfa9a9c0c5b0dfcadf2",
+        "baselineHash": "9fd47c2e1511a80eb23e998e8d269babcb54a42664b05a31124b420ddd65b32c",
+        "databaseHash": "ac681aa11bb1eca0fe9d85dd9dbd0331c3dd51694f72960544047ff1c914156a",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -660,7 +664,7 @@
           "boundary": "authored-before-commit",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "c8f32b0258f6ab22516762a44bb1e3e71e58a49b59a99b3a38362c143f5d23ad",
+          "databaseHash": "9fd47c2e1511a80eb23e998e8d269babcb54a42664b05a31124b420ddd65b32c",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -681,7 +685,7 @@
           "boundary": "authored-before-commit",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "c8f32b0258f6ab22516762a44bb1e3e71e58a49b59a99b3a38362c143f5d23ad",
+          "databaseHash": "9fd47c2e1511a80eb23e998e8d269babcb54a42664b05a31124b420ddd65b32c",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -708,8 +712,8 @@
         "boundary": "authored-before-commit",
         "scenario": "collection-change",
         "seed": 2,
-        "baselineHash": "90d92c3aaea529b95f60623447de7c668535b4b913bbdd4decfb629fab6bba35",
-        "databaseHash": "9a39ae0785ee8d164c06eb3765ef60c84d9a85c21d75bfa4cd0b961a07e91ccb",
+        "baselineHash": "db9f2fb0adf821ac4fbeab3b47e88379842ffd17bb7f0da28cffd238ac233b04",
+        "databaseHash": "5428546ba77115fad0eb073df394a22602fd76bfff6316937e3de1516b161d42",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -721,7 +725,7 @@
           "boundary": "authored-before-commit",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "90d92c3aaea529b95f60623447de7c668535b4b913bbdd4decfb629fab6bba35",
+          "databaseHash": "db9f2fb0adf821ac4fbeab3b47e88379842ffd17bb7f0da28cffd238ac233b04",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -742,7 +746,7 @@
           "boundary": "authored-before-commit",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "90d92c3aaea529b95f60623447de7c668535b4b913bbdd4decfb629fab6bba35",
+          "databaseHash": "db9f2fb0adf821ac4fbeab3b47e88379842ffd17bb7f0da28cffd238ac233b04",
           "projectionHash": "182cb706d865082e152a9d53677d46e8704bbc3a4144a1afae14452d62728ee2",
           "captureMode": "full",
           "checks": [
@@ -769,8 +773,8 @@
         "boundary": "authored-after-commit",
         "scenario": "collection-change",
         "seed": 1,
-        "baselineHash": "5125fd0eef2d2576c1070f0269a2b606e86545e1a557084903b8a07e16c8d311",
-        "databaseHash": "9abce6bde97c0e4c262d9aac785e5bf24ead73ae61d64776b0ba10932bb1a4b9",
+        "baselineHash": "53117812d3ccf531313e8c29cdb0fa731a6606adf4946fa267e7ab0a54efabed",
+        "databaseHash": "6b1b84c4c938660d9b19d6becca1ddb4530bba329a85a9523f5df43513f38c83",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -782,7 +786,7 @@
           "boundary": "authored-after-commit",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "9abce6bde97c0e4c262d9aac785e5bf24ead73ae61d64776b0ba10932bb1a4b9",
+          "databaseHash": "6b1b84c4c938660d9b19d6becca1ddb4530bba329a85a9523f5df43513f38c83",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -803,7 +807,7 @@
           "boundary": "authored-after-commit",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "9abce6bde97c0e4c262d9aac785e5bf24ead73ae61d64776b0ba10932bb1a4b9",
+          "databaseHash": "6b1b84c4c938660d9b19d6becca1ddb4530bba329a85a9523f5df43513f38c83",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -830,8 +834,8 @@
         "boundary": "authored-after-commit",
         "scenario": "collection-change",
         "seed": 2,
-        "baselineHash": "7aa44ec8d3f7fe4b0babc6fd7c82028e572d4318004c2c09d4a574945a8cfb07",
-        "databaseHash": "6a13d0a67842c30a01c698ed3c20c799061ced5b545708ce3c49db26bf050cff",
+        "baselineHash": "b0eba73686733c95ff6feb00e2dbbb178ed2ec75a8e2976bc106b3024509a2bf",
+        "databaseHash": "f32a1ea099f5126df65743bca914248831f37a7e54ab4333502083039d087315",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -843,7 +847,7 @@
           "boundary": "authored-after-commit",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "6a13d0a67842c30a01c698ed3c20c799061ced5b545708ce3c49db26bf050cff",
+          "databaseHash": "f32a1ea099f5126df65743bca914248831f37a7e54ab4333502083039d087315",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -864,7 +868,7 @@
           "boundary": "authored-after-commit",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "6a13d0a67842c30a01c698ed3c20c799061ced5b545708ce3c49db26bf050cff",
+          "databaseHash": "f32a1ea099f5126df65743bca914248831f37a7e54ab4333502083039d087315",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -891,8 +895,8 @@
         "boundary": "queue-waiting",
         "scenario": "collection-change",
         "seed": 1,
-        "baselineHash": "880b4523e3f4fb420aacccdd4bf93fd133e7f19e60768490643e91d929606be0",
-        "databaseHash": "fb4ca6f046839e606fcd4cff4b671387204dae1bb4a0c56e8020404f365269e1",
+        "baselineHash": "16b9a8e39c514664ebf95efb004521188d3ac8e71e4b5159bc4b4dd0974c42d6",
+        "databaseHash": "e801bc8b252dab5cff0166bcb2caf84ef749e155ad016bbc39a571100d1c007a",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -904,7 +908,7 @@
           "boundary": "queue-waiting",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "fb4ca6f046839e606fcd4cff4b671387204dae1bb4a0c56e8020404f365269e1",
+          "databaseHash": "e801bc8b252dab5cff0166bcb2caf84ef749e155ad016bbc39a571100d1c007a",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -925,7 +929,7 @@
           "boundary": "queue-waiting",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "fb4ca6f046839e606fcd4cff4b671387204dae1bb4a0c56e8020404f365269e1",
+          "databaseHash": "e801bc8b252dab5cff0166bcb2caf84ef749e155ad016bbc39a571100d1c007a",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -952,8 +956,8 @@
         "boundary": "queue-waiting",
         "scenario": "collection-change",
         "seed": 2,
-        "baselineHash": "0f7571036fbfa795bb3928cb8f7a9c6b64b6cd1d3831cdda98d3aeb59e2ddb4c",
-        "databaseHash": "e05a52e51dd4cb611827bac81e6dc7938cfdd83c848715d762c77dd0fa4879aa",
+        "baselineHash": "28cc027800c71034108cb88b8c7b96c400850ab94d2d9fc41767c9314e6b6f71",
+        "databaseHash": "e30fb588416441b77fefda64253cb0f6e7ec712e620dcc683190297e07edb83e",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -965,7 +969,7 @@
           "boundary": "queue-waiting",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "e05a52e51dd4cb611827bac81e6dc7938cfdd83c848715d762c77dd0fa4879aa",
+          "databaseHash": "e30fb588416441b77fefda64253cb0f6e7ec712e620dcc683190297e07edb83e",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -986,7 +990,7 @@
           "boundary": "queue-waiting",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "e05a52e51dd4cb611827bac81e6dc7938cfdd83c848715d762c77dd0fa4879aa",
+          "databaseHash": "e30fb588416441b77fefda64253cb0f6e7ec712e620dcc683190297e07edb83e",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -1013,10 +1017,11 @@
         "boundary": "capture-before-publish",
         "scenario": "collection-change",
         "seed": 1,
-        "baselineHash": "536011cb7cf9f4763a3da7d1789e9cdeb9aa4066a06e5328a0042f9ae52db671",
-        "databaseHash": "5d42f67b529e20d2750227dd7ea11060abde757d8fbddf1a0b8c80671e9a1567",
+        "baselineHash": "68a470e6577856e7f2e831f625eb6923322e917b3fc64133e99fed0f2a6a3bf8",
+        "databaseHash": "f5631aafb6dfea80004d464655b5150347229c168bb6b38bb12e75184d344acd",
         "captureMode": "changes",
         "nodeRead": "reuse",
+        "elementRead": "changed",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -1028,7 +1033,7 @@
           "boundary": "capture-before-publish",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "5d42f67b529e20d2750227dd7ea11060abde757d8fbddf1a0b8c80671e9a1567",
+          "databaseHash": "f5631aafb6dfea80004d464655b5150347229c168bb6b38bb12e75184d344acd",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -1049,7 +1054,7 @@
           "boundary": "capture-before-publish",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "5d42f67b529e20d2750227dd7ea11060abde757d8fbddf1a0b8c80671e9a1567",
+          "databaseHash": "f5631aafb6dfea80004d464655b5150347229c168bb6b38bb12e75184d344acd",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -1076,10 +1081,11 @@
         "boundary": "capture-before-publish",
         "scenario": "collection-change",
         "seed": 2,
-        "baselineHash": "090ffd3b5c534fdf5c54f0e0e39215d766f9382f6b10209f238d5d7046e42881",
-        "databaseHash": "6bd6fafefd34b30d3a58c789df407d237d35125a96028366b374736675a7186e",
+        "baselineHash": "14e4af293ddd84401ff148e5290ccd0103938303cd5824740a90cbe50da6a426",
+        "databaseHash": "108123eb6b731492218e02a43f6b5147c2db61fd99c5d9a83df543b8c40686a4",
         "captureMode": "changes",
         "nodeRead": "reuse",
+        "elementRead": "changed",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -1091,7 +1097,7 @@
           "boundary": "capture-before-publish",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "6bd6fafefd34b30d3a58c789df407d237d35125a96028366b374736675a7186e",
+          "databaseHash": "108123eb6b731492218e02a43f6b5147c2db61fd99c5d9a83df543b8c40686a4",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -1112,7 +1118,7 @@
           "boundary": "capture-before-publish",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "6bd6fafefd34b30d3a58c789df407d237d35125a96028366b374736675a7186e",
+          "databaseHash": "108123eb6b731492218e02a43f6b5147c2db61fd99c5d9a83df543b8c40686a4",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -1139,10 +1145,11 @@
         "boundary": "published",
         "scenario": "collection-change",
         "seed": 1,
-        "baselineHash": "fb5abc0110ea24c67f7dcbc42f93abdbef11e2f3ccfa00c563e8bcff88ffeb9b",
-        "databaseHash": "23535f5af5069de91fdea668e4529abd2186d9f63e079759de339561a82abd07",
+        "baselineHash": "98f978a84af7627b82cbbd7d8836aba4cdc5e127ca6a76d3cd6e3693888d9e88",
+        "databaseHash": "f45ce121ffc8c7564bd1297b39ccb0de411ee62f4a4d0167632e6a9b74dc8b60",
         "captureMode": "changes",
         "nodeRead": "reuse",
+        "elementRead": "changed",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -1154,7 +1161,7 @@
           "boundary": "published",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "23535f5af5069de91fdea668e4529abd2186d9f63e079759de339561a82abd07",
+          "databaseHash": "f45ce121ffc8c7564bd1297b39ccb0de411ee62f4a4d0167632e6a9b74dc8b60",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -1175,7 +1182,7 @@
           "boundary": "published",
           "scenario": "collection-change",
           "seed": 1,
-          "databaseHash": "23535f5af5069de91fdea668e4529abd2186d9f63e079759de339561a82abd07",
+          "databaseHash": "f45ce121ffc8c7564bd1297b39ccb0de411ee62f4a4d0167632e6a9b74dc8b60",
           "projectionHash": "536e49398fee256327a58148faeb8698c367dff6774f9047b8d8113bf98fa518",
           "captureMode": "full",
           "checks": [
@@ -1202,10 +1209,11 @@
         "boundary": "published",
         "scenario": "collection-change",
         "seed": 2,
-        "baselineHash": "34fe3cbe0351f0659f41b437f26b2386a0b3558b37bbb72afb7a19e619a02b00",
-        "databaseHash": "567e26e9e27f9d06dc70f75f592830857e6856ae2fbd612ba6005c1f3f890d58",
+        "baselineHash": "5b385552b9d2d26199e613e45bb0db0ba29c848ae035b9c0ed3b3056e8d0737f",
+        "databaseHash": "98044c206a31d4371f52dd8e60bd4955f58348cdfa52932d31bff3e15c0bada7",
         "captureMode": "changes",
         "nodeRead": "reuse",
+        "elementRead": "changed",
         "exit": {
           "code": null,
           "signal": "SIGKILL"
@@ -1217,7 +1225,7 @@
           "boundary": "published",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "567e26e9e27f9d06dc70f75f592830857e6856ae2fbd612ba6005c1f3f890d58",
+          "databaseHash": "98044c206a31d4371f52dd8e60bd4955f58348cdfa52932d31bff3e15c0bada7",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [
@@ -1238,7 +1246,7 @@
           "boundary": "published",
           "scenario": "collection-change",
           "seed": 2,
-          "databaseHash": "567e26e9e27f9d06dc70f75f592830857e6856ae2fbd612ba6005c1f3f890d58",
+          "databaseHash": "98044c206a31d4371f52dd8e60bd4955f58348cdfa52932d31bff3e15c0bada7",
           "projectionHash": "fb5117bb6d3e4433cc3ddcb11b7ec0d68063cf0e73e58ee0c0a47621289db34a",
           "captureMode": "full",
           "checks": [

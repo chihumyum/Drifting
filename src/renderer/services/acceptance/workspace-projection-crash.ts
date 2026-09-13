@@ -67,7 +67,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     let published: WorkspaceProjectionCapture | undefined;
     let observedCapture: WorkspaceProjectionCapture | undefined;
     const baselineHash = databaseHash(gateway);
-    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead });
+    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead, elementRead: observedCapture?.elementRead });
     queue = createWorkspaceProjectionRefresh({
       ...INPUT,
       onPublished: (value) => { published = value; useProjectStore.getState().setCurrentProject(value.project); },
@@ -78,6 +78,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
         if (stage === 'refresh' && mode === 'write') {
           assert(value); assert.equal(value.mode, 'changes');
           assert.equal(value.nodeRead, scenario === 'node-metadata' ? 'changed' : 'reuse');
+          assert.equal(value.elementRead, scenario === 'collection-change' ? 'changed' : 'reuse');
           observedCapture = value;
           if (boundary === 'capture-before-publish') await hold(ready());
         }

@@ -27,6 +27,7 @@ import {
 } from '../store/data-store';
 
 import { readWorkspaceProjectionChanges, readWorkspaceProjectionCoverage, type WorkspaceProjectionCoverage } from './workspace-projection-coverage';
+import { readWorkspaceElements } from './workspace-projection-elements';
 import { WORKSPACE_PROJECTION_COLLECTIONS, type WorkspaceProjectionCollection } from './workspace-projection-sources';
 
 const captureDatabases = new WeakMap<WorkspaceProjectionCapture, DbClient>();
@@ -38,6 +39,7 @@ export interface WorkspaceProjectionCapture {
   mode: 'full' | 'changes';
   readCollections: readonly WorkspaceProjectionCollection[];
   nodeRead: 'all' | 'changed' | 'reuse';
+  elementRead: 'all' | 'changed' | 'reuse';
 }
 
 /**
@@ -97,16 +99,13 @@ export async function captureWorkspaceProjection(input: {
     // Full live-node/storyline changes require the complete ordered membership
     // dependency; a metadata-only node read keeps it unless links also changed.
     if (nodeRead === 'all' || needs('storylines')) reads.add('memberships');
-    const needsTrash = (collection: WorkspaceProjectionCollection) =>
-      needs(collection) && !(collection === 'nodes' && nodeRead === 'changed');
 
     const [
+      { bookElements, trashedElements, elementRead },
       bookNodes,
       trashedNodes,
       storylines,
       trashedStorylines,
-      bookElements,
-      trashedElements,
       bookElementCategories,
       trashedCategories,
       projectAssets,
@@ -120,12 +119,13 @@ export async function captureWorkspaceProjection(input: {
       timelineMarkers,
       relationRows,
     ] = await Promise.all([
+      needs('elements')
+        ? readWorkspaceElements(elementRepo, base?.bookElements, changes?.elementIds)
+        : Promise.resolve({ bookElements: base!.bookElements, trashedElements: [], elementRead: 'reuse' as const }),
       changedNodes ? Promise.resolve(changedNodes) : select('nodes', () => nodeRepo.findAll(), base?.bookNodes),
       nodeRead === 'changed' ? Promise.resolve([]) : select('nodes', () => nodeRepo.findTrashed(), []),
       select('storylines', () => storylineRepo.getStorylinesByProject(), base?.storylines),
       select('storylines', () => storylineRepo.getTrashedStorylines(), []),
-      select('elements', () => elementRepo.findAll(), base?.bookElements),
-      select('elements', () => elementRepo.findTrashed(), []),
       select('categories', () => categoryRepo.findAll(), base?.bookElementCategories),
       select('categories', () => categoryRepo.findTrashed(), []),
       select('assets', () => createProjectAssetSqliteRepository(input.projectId, tx).findAll(), base?.projectAssets),
@@ -152,6 +152,9 @@ export async function captureWorkspaceProjection(input: {
       ? deriveNodeStorylineState(links)
       : { storylineNodeMapping: base!.storylineNodeMapping, primaryStorylineByNode: base!.primaryStorylineByNode };
 
+    const needsTrash = (collection: WorkspaceProjectionCollection) =>
+      needs(collection) && !(collection === 'nodes' && nodeRead === 'changed') &&
+      !(collection === 'elements' && elementRead === 'changed');
     const trashGroups = [
       ['nodes', 'node', trashedNodes], ['storylines', 'storyline', trashedStorylines],
       ['elements', 'element', trashedElements], ['categories', 'category', trashedCategories],
@@ -184,6 +187,7 @@ export async function captureWorkspaceProjection(input: {
       mode: changes === null ? 'full' : 'changes',
       readCollections: [...reads],
       nodeRead,
+      elementRead,
       data: {
         storylines,
         storylineNodeMapping,
