@@ -313,6 +313,15 @@ Canceling insertion never deletes an element already created by the authored
 command. The guard adds no second prose state, global focus manager or durable
 queue.
 
+The capability runner's `CopilotInvocationOwner` belongs to one mounted
+layout-effect lifetime. It owns preparation and detection slots before the first
+await, and a separate summary slot after detection completes. Project/settings
+replacement, readonly and destruction invalidate the owner; a late finalizer can
+release only its original slot. Already-started durable writes may complete,
+while later result rows require current ownership. Announced manual tasks have
+unique IDs and one terminal event, including cancellation. These transient
+lifetimes do not replace the durable suggestion or renderer Agent protocols.
+
 Inline Copilot mounts only on a ready, editable, visible command surface and
 selects its exact project/node invocation. `useInlineCopilotInvocation` owns its
 transient request and context lifecycle: replacement, hiding, readonly and

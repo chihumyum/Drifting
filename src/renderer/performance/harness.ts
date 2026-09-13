@@ -1,6 +1,7 @@
 import { runEditorSuggestionScenarios } from './editor-suggestion-scenarios';
 import { runInlineCopilotScenarios } from './copilot-inline-scenarios';
 import { runInlineEditApplyScenarios } from './inline-edit-apply-scenarios';
+import { runCopilotRunScenarios } from './copilot-run-scenarios';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { EntityLink, entityLinkConfig } from '../lib/extensions/entity-link';
@@ -125,6 +126,7 @@ async function run() {
     editorSuggestions: await runEditorSuggestionScenarios(),
     inlineCopilot: await runInlineCopilotScenarios(),
     inlineEditApply: await runInlineEditApplyScenarios(),
+    copilotRuns: await runCopilotRunScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };

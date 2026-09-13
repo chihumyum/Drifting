@@ -20,9 +20,11 @@
  * coverage-map model so capability state stays single-tier (a fingerprint
  * string per cap, vs. the old per-cap dirty Set).
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect } from 'react';
+import { CopilotInvocationOwner } from '../lib/copilot/invocation-owner';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
+import { v7 as uuidv7 } from 'uuid';
 
 const log = loglevel.getLogger('copilot:run');
 log.setLevel(loglevel.levels.INFO);
@@ -43,7 +45,7 @@ import { locateTextInBlock } from '../domain/comment';
 import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { useCopilotInlineStore } from '../store/copilot-inline-store';
-import { events } from '../lib/events';
+import { events, type AiTaskEvent } from '../lib/events';
 import { useDataStore } from '../store/data-store';
 
 export interface UseCopilotInput {
@@ -71,15 +73,18 @@ export function useCopilot({
   // gotchas.
   const taskConfigsKey = JSON.stringify(taskConfigs);
 
-  // Per-capability fingerprint of the coverage state last seen.
-  const lastFingerprintRef = useRef<Record<string, string>>({});
-  // Per-capability in-flight controller. Lets us abort one cap without
-  // blasting the others.
-  const inFlightByCapRef = useRef<Record<string, AbortController | null>>({});
-  // Per-chapter lock: at most one summary call in flight at a time.
-  const summaryInFlightRef = useRef(false);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const owner = new CopilotInvocationOwner(() => !editor.isDestroyed && editor.isEditable);
+    const lastFingerprint: Record<string, string> = {};
+    const summaryKey = Symbol('chapter-summary');
+    const startSummary = (blockIds: string[]) => {
+      if (owner.has(summaryKey)) return;
+      const invocation = owner.begin(summaryKey);
+      if (!invocation) return;
+      void produceBlockSectionSummary({ projectId, chapterId: nodeId, blockIds, editor, signal: invocation.signal })
+        .catch(error => { if (invocation.isCurrent()) log.warn('[copilot] section summary failed', error); })
+        .finally(invocation.finish);
+    };
     const allCaps = capabilitiesForTrigger('editor-block-debounced');
     const enabledCaps = allCaps.filter((c) => taskConfigs[c.id as CopilotTaskId]?.enabled);
     // Auto debounce is gated by the auto-trigger switch. The manual path
@@ -114,56 +119,66 @@ export function useCopilot({
         return;
       }
 
-      // Selection-scoped run (Task 6): the capability sees exactly the
-      // selected blocks + their segments. Otherwise the rolling coverage view.
-      const baseContext = isSelectionRun
-        ? buildSelectionBlockContext(editor, nodeId, selectionBlockIds)
-        : await buildBaseBlockContext({ editor, chapterId: nodeId });
-      if (!baseContext) {
-        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (empty context)`);
-        return;
-      }
-
-      const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
-      // Manual fires (Cmd+Shift+I / copilot menu) skip the dedup gate: the user is
-      // explicitly re-running, often precisely because the debounced fire on
-      // this same content wasn't satisfactory.
-      if (!forced && lastFingerprintRef.current[cap.id] === fingerprint) {
-        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (fingerprint unchanged)`);
-        return;
-      }
-
-      // Abort any previous in-flight call for THIS cap only.
-      inFlightByCapRef.current[cap.id]?.abort();
-      const controller = new AbortController();
-      inFlightByCapRef.current[cap.id] = controller;
-
-      log.info(
-        `[useCopilot] cap=${cap.id} fire #${localFireId}${forced ? ' (manual)' : ''} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
-      );
-
-      // Global notification feed. Background fires are silent until they produce
-      // something (else the center floods on every debounce); a manual run
-      // announces its whole arc (started → completed/failed).
-      const taskId = `copilot:${cap.id}:${nodeId}:${localFireId}`;
-      const chapterTitle =
-        useDataStore.getState().bookNodes.find((n) => n.id === nodeId)?.title || 'This chapter';
-      const taskTitle = `Copilot · ${cap.displayName}`;
-      if (forced) {
-        events.emit('ai-task', {
-          id: taskId,
-          source: 'copilot',
-          state: 'started',
-          title: taskTitle,
-          detail: chapterTitle,
-          chapterId: nodeId,
-          at: Date.now(),
-        });
-      }
-
+      const invocation = owner.begin(cap.id);
+      if (!invocation?.isCurrent()) return;
+      let closeTask = () => {};
       try {
+        // Selection-scoped run (Task 6): the capability sees exactly the
+        // selected blocks + their segments. Otherwise the rolling coverage view.
+        const baseContext = isSelectionRun
+          ? buildSelectionBlockContext(editor, nodeId, selectionBlockIds)
+          : await buildBaseBlockContext({ editor, chapterId: nodeId });
+        if (!invocation.isCurrent()) return;
+        if (!baseContext) {
+          log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (empty context)`);
+          return;
+        }
+
+        const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
+        // Manual fires (Cmd+Shift+I / copilot menu) skip the dedup gate: the user is
+        // explicitly re-running, often precisely because the debounced fire on
+        // this same content wasn't satisfactory.
+        if (!forced && lastFingerprint[cap.id] === fingerprint) {
+          log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (fingerprint unchanged)`);
+          return;
+        }
+
+        log.info(
+          `[useCopilot] cap=${cap.id} fire #${localFireId}${forced ? ' (manual)' : ''} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
+        );
+
+        // Global notification feed. Background fires are silent until they produce
+        // something (else the center floods on every debounce); a manual run
+        // announces its whole arc (started → completed/failed).
+        const taskId = `copilot:${cap.id}:${nodeId}:${uuidv7()}`;
+        const chapterTitle =
+          useDataStore.getState().bookNodes.find((n) => n.id === nodeId)?.title || 'This chapter';
+        const taskTitle = `Copilot · ${cap.displayName}`;
+        let ended = false;
+        const finishTask = (state: 'completed' | 'failed' | 'stopped', extra: Partial<AiTaskEvent> = {}) => {
+          if (ended) return;
+          ended = true;
+          events.emit('ai-task', { id: taskId, source: 'copilot', state, title: taskTitle,
+            detail: chapterTitle, chapterId: nodeId, at: Date.now(), ...extra });
+        };
+        const stopped = () => { if (forced) finishTask('stopped'); };
+        invocation.signal.addEventListener('abort', stopped, { once: true });
+        closeTask = () => { invocation.signal.removeEventListener('abort', stopped); stopped(); };
+        if (forced) {
+          events.emit('ai-task', {
+            id: taskId,
+            source: 'copilot',
+            state: 'started',
+            title: taskTitle,
+            detail: chapterTitle,
+            chapterId: nodeId,
+            at: Date.now(),
+          });
+        }
+
         let results: Awaited<ReturnType<typeof cap.detect>> = [];
         try {
+          if (!invocation.isCurrent()) return;
           results = await cap.detect({
             runtime: copilotRuntime,
             editor,
@@ -172,33 +187,29 @@ export function useCopilot({
             targetId: nodeId,
             baseContext,
             userInstruction: opts?.instruction,
-            signal: controller.signal,
+            signal: invocation.signal,
           });
-          lastFingerprintRef.current[cap.id] = fingerprint;
+          if (!invocation.isCurrent()) return;
+          lastFingerprint[cap.id] = fingerprint;
         } catch (err) {
+          if (!invocation.isCurrent()) return;
           if (err instanceof AIError && err.kind === 'aborted') return;
           if (err instanceof AIError && err.kind === 'auth') return;
           log.warn(`[copilot] capability "${cap.id}" detect failed`, err);
           if (forced) {
-            events.emit('ai-task', {
-              id: taskId,
-              source: 'copilot',
-              state: 'failed',
-              title: taskTitle,
-              detail: chapterTitle,
-              chapterId: nodeId,
+            finishTask('failed', {
               error: err instanceof Error ? err.message : String(err),
-              at: Date.now(),
             });
           }
           return;
         }
 
-        if (controller.signal.aborted) return;
+        if (!invocation.isCurrent()) return;
 
         const defaultAnchorBlockId = baseContext.uncoveredBlocks[0]!.blockId;
-        let persistedAny = false;
+        let persistedCount = 0;
         for (const result of results) {
+          if (!invocation.isCurrent()) break;
           try {
             // Enrich the bare evidence anchor into the unified shape (snapshot +
             // precise text anchor) so a copilot comment hover-highlights its
@@ -245,13 +256,13 @@ export function useCopilot({
               anchorJson: enrichedAnchor,
               metadata: result.metadata,
             });
-            persistedAny = true;
+            persistedCount++;
           } catch (err) {
             log.warn(`[copilot] persist "${cap.id}" suggestion failed`, err);
           }
         }
 
-        if (persistedAny) {
+        if (persistedCount > 0) {
           events.emit('copilot:suggestion-persisted', {
             targetKind: 'node',
             targetId: nodeId,
@@ -260,71 +271,30 @@ export function useCopilot({
 
         // Notify when a manual run finishes, or a background run actually
         // produced suggestions. Silent empty background fires stay silent.
-        if (forced || persistedAny) {
-          events.emit('ai-task', {
-            id: taskId,
-            source: 'copilot',
-            state: 'completed',
-            title: taskTitle,
-            detail: persistedAny
-              ? `${results.length} suggestions · ${chapterTitle}`
+        if (forced || persistedCount > 0) {
+          finishTask(invocation.isCurrent() ? 'completed' : 'stopped', {
+            detail: persistedCount > 0
+              ? `${persistedCount} suggestions · ${chapterTitle}`
               : `No new suggestions · ${chapterTitle}`,
-            chapterId: nodeId,
-            count: results.length,
-            at: Date.now(),
+            count: persistedCount,
           });
         }
 
+        if (!invocation.isCurrent()) return;
         if (isSelectionRun) {
-          // Task 6 regen decision: refresh a segment summary only when the
-          // selection spans multiple segments (or none) — never when it's
-          // already contained in one segment.
-          if (
-            summariesEnabled &&
-            selectionBlockIds.length >= 2 &&
-            !summaryInFlightRef.current &&
-            selectionWarrantsSummaryRegen(nodeId, selectionBlockIds)
-          ) {
-            summaryInFlightRef.current = true;
-            void produceBlockSectionSummary({
-              projectId,
-              chapterId: nodeId,
-              blockIds: selectionBlockIds,
-              editor,
-              signal: controller.signal,
-            }).finally(() => {
-              summaryInFlightRef.current = false;
-            });
+          if (summariesEnabled && selectionBlockIds.length >= 2 && selectionWarrantsSummaryRegen(nodeId, selectionBlockIds)) {
+            startSummary(selectionBlockIds);
           }
-        } else if (
-          // Threshold-triggered summary, decoupled from any specific cap.
-          // First fire to see uncovered ≥ threshold wins the lock; others
-          // skip until completion. The summary call's signal is the cap's
-          // controller — chapter teardown aborts in-flight summaries too.
-          summariesEnabled &&
-          baseContext.uncoveredBlocks.length >= summarySectionSize &&
-          !summaryInFlightRef.current
-        ) {
-          summaryInFlightRef.current = true;
-          const blockIds = baseContext.uncoveredBlocks.map((b) => b.blockId);
-          void produceBlockSectionSummary({
-            projectId,
-            chapterId: nodeId,
-            blockIds,
-            editor,
-            signal: controller.signal,
-          }).finally(() => {
-            summaryInFlightRef.current = false;
-          });
+        } else if (summariesEnabled && baseContext.uncoveredBlocks.length >= summarySectionSize) {
+          startSummary(baseContext.uncoveredBlocks.map(block => block.blockId));
         }
-      } finally {
-        if (inFlightByCapRef.current[cap.id] === controller) {
-          inFlightByCapRef.current[cap.id] = null;
-        }
-      }
+      } catch (error) {
+        if (invocation.isCurrent()) log.warn('[copilot] invocation failed', error);
+      } finally { closeTask(); invocation.finish(); }
     };
 
     const onEditorUpdate = (): void => {
+      if (!owner.canStart()) return;
       updateCount += 1;
       // Reset every enabled cap's timer. Each fires independently after
       // its own debounce — element-candidate at 3s, element-patch at 12s,
@@ -334,6 +304,7 @@ export function useCopilot({
         if (existing) clearTimeout(existing);
         const debounceMs = effectiveDebounceMs(cap, taskConfigs);
         timers[cap.id] = setTimeout(() => {
+          timers[cap.id] = null;
           void runFor(cap);
         }, debounceMs);
       }
@@ -375,21 +346,24 @@ export function useCopilot({
     };
     events.on('copilot:manual-run', onManualRun);
 
+    const stopOwner = () => {
+      for (const [id, timer] of Object.entries(timers)) {
+        if (timer) clearTimeout(timer);
+        timers[id] = null;
+      }
+      owner.dispose();
+    };
+    const stopIfReadonly = () => { if (!editor.isEditable) stopOwner(); };
+    editor.on('update', stopIfReadonly); editor.on('destroy', stopOwner);
+
     return () => {
       log.info(
         `[useCopilot] cleanup nodeId=${nodeId} totalUpdates=${updateCount} totalFires=${fireCount}`,
       );
       editor.off('update', onEditorUpdate);
       events.off('copilot:manual-run', onManualRun);
-      for (const t of Object.values(timers)) {
-        if (t) clearTimeout(t);
-      }
-      for (const c of Object.values(inFlightByCapRef.current)) {
-        c?.abort();
-      }
-      inFlightByCapRef.current = {};
-      lastFingerprintRef.current = {};
-      summaryInFlightRef.current = false;
+      editor.off('update', stopIfReadonly); editor.off('destroy', stopOwner);
+      stopOwner();
     };
   }, [
     editor,
