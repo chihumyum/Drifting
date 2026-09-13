@@ -12,13 +12,43 @@ const DRIFT_SLOT_WIDTH = 168 + 10;
 export function createStoryGraphDriftDrag() {
   let snapshot = EMPTY;
   const listeners = new Set<() => void>();
+  // Visible cards occupy dense slots. A hover only changes the interval between
+  // the old/new insertion boundaries; it must not walk all mounted cards.
+  const cardListeners: Array<Set<() => void> | undefined> = [];
   const publish = (next: StoryGraphDriftDragSnapshot) => {
     if (next === snapshot) return;
+    const previous = snapshot;
     snapshot = next;
+    const boundaries = new Set([0, cardListeners.length]);
+    for (const state of [previous, next]) {
+      if (!state.dragged) continue;
+      for (const index of [state.dragged.index, state.dragged.index + 1, state.dropIndex ?? state.dragged.index]) {
+        boundaries.add(Math.min(index, cardListeners.length));
+      }
+    }
+    const ordered = [...boundaries].sort((a, b) => a - b);
+    for (let boundary = 0; boundary < ordered.length - 1; boundary++) {
+      const start = ordered[boundary]; const end = ordered[boundary + 1];
+      if (cardSnapshot(previous, start) === cardSnapshot(next, start)) continue;
+      for (let index = start; index < end; index++) {
+        for (const listener of [...(cardListeners[index] ?? [])]) listener();
+      }
+    }
     for (const listener of [...listeners]) listener();
   };
   return {
     getSnapshot: () => snapshot,
+    getCardSnapshot: (index: number) => cardSnapshot(snapshot, index),
+    subscribeCard(index: number, listener: () => void) {
+      const slot = cardListeners[index] ??= new Set();
+      slot.add(listener);
+      return () => {
+        slot.delete(listener);
+        if (slot.size || cardListeners[index] !== slot) return;
+        cardListeners[index] = undefined;
+        while (cardListeners.length && !cardListeners[cardListeners.length - 1]) cardListeners.pop();
+      };
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
@@ -37,6 +67,10 @@ export function createStoryGraphDriftDrag() {
 }
 
 export type StoryGraphDriftDrag = ReturnType<typeof createStoryGraphDriftDrag>;
+
+function cardSnapshot(snapshot: StoryGraphDriftDragSnapshot, index: number): string {
+  return snapshot.dragged?.index === index ? 'dragged' : storyGraphDriftShift(snapshot, index);
+}
 
 export function storyGraphDriftShift(snapshot: StoryGraphDriftDragSnapshot, index: number): string {
   if (!snapshot.dragged || snapshot.dropIndex === null || index === snapshot.dragged.index) return '';

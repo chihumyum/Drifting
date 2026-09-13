@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useSyncExternalStore, type DragEvent, type MouseEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { canonicalWordCount, type BookNode } from '../../domain/book-node';
-import { storyGraphDriftShift, type StoryGraphDriftDrag } from './story-graph-drift-drag';
+import type { StoryGraphDriftDrag } from './story-graph-drift-drag';
 
 export interface StoryGraphDriftCardsProps {
   nodes: readonly BookNode[];
@@ -18,19 +18,23 @@ export interface StoryGraphDriftCardsProps {
 interface DriftCardProps extends Pick<StoryGraphDriftCardsProps, 'cardRefs' | 'onClick' | 'onContextMenu' | 'onDoubleClick'> {
   node: BookNode;
   index: number;
+  drag: StoryGraphDriftDrag;
   isLinkSource: boolean;
-  isDragged: boolean;
   isEdgeSelected: boolean;
-  shift: string;
   onDragStart(event: DragEvent<HTMLDivElement>, id: string, index: number): void;
   onDragOver(event: DragEvent<HTMLDivElement>, index: number): void;
   onDrop(event: DragEvent<HTMLDivElement>): void;
   onDragEnd(): void;
 }
 
-function DriftCard({ node, index, cardRefs, isLinkSource, isDragged, isEdgeSelected, shift,
+function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
   onClick, onContextMenu, onDoubleClick, onDragStart, onDragOver, onDrop, onDragEnd,
 }: DriftCardProps) {
+  const subscribe = useCallback((listener: () => void) => drag.subscribeCard(index, listener), [drag, index]);
+  const getSnapshot = useCallback(() => drag.getCardSnapshot(index), [drag, index]);
+  const presentation = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const isDragged = presentation === 'dragged';
+  const shift = isDragged ? '' : presentation;
   const { t } = useTranslation();
   const isResting = node.writingStatus === 'resting';
   return (
@@ -87,7 +91,6 @@ function DriftCards({ nodes, totalDrifts, drag, cardRefs, linkSourceId, isNodeEd
   onClick, onContextMenu, onDoubleClick,
 }: StoryGraphDriftCardsProps) {
   const { t } = useTranslation();
-  const snapshot = useSyncExternalStore(drag.subscribe, drag.getSnapshot, drag.getSnapshot);
   useEffect(() => () => drag.cancel(), [drag]);
   useLayoutEffect(() => {
     const active = drag.getSnapshot().dragged;
@@ -116,9 +119,8 @@ function DriftCards({ nodes, totalDrifts, drag, cardRefs, linkSourceId, isNodeEd
   if (nodes.length === 0) return <div className="drift-card__empty">{totalDrifts > 0
     ? t('storyGraph.drift.allAnchored') : t('storyGraph.drift.empty')}</div>;
   return <>{nodes.map((node, index) => {
-    return <MemoDriftCard key={node.id} node={node} index={index} cardRefs={cardRefs}
-      isLinkSource={linkSourceId === node.id} isDragged={snapshot.dragged?.id === node.id}
-      isEdgeSelected={isNodeEdgeSelected(node.id)} shift={storyGraphDriftShift(snapshot, index)}
+    return <MemoDriftCard key={node.id} node={node} index={index} drag={drag} cardRefs={cardRefs}
+      isLinkSource={linkSourceId === node.id} isEdgeSelected={isNodeEdgeSelected(node.id)}
       onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick}
       onDragStart={start} onDragOver={over} onDrop={drop} onDragEnd={drag.cancel} />;
   })}</>;

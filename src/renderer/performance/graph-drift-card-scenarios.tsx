@@ -80,7 +80,9 @@ export async function runGraphDriftCardScenarios() {
           const popoverWork = { ...graphDriftWork };
           const checks = { allCardsRetained: cards.every(card => card.isConnected), popoverCycles: popoversOpened === 10,
             restingStyle: second.classList.contains('is-resting'), specialEdges: initialEdges === expectedEdges,
-            dragShiftAndCancel: null as boolean | null, visualDropSettles: null as boolean | null, latestPair: false, currentContextMenu: false, renamedCard: false, closeAndReopen: false };
+            dragShiftAndCancel: null as boolean | null, visualDropSettles: null as boolean | null,
+            reverseAndCrossSource: null as boolean | null, sourceSlotInvalidation: null as boolean | null,
+            latestPair: false, currentContextMenu: false, renamedCard: false, closeAndReopen: false };
           let hoverWork: typeof graphDriftWork | null = null;
           let dragObservation: unknown = null;
           if (view === 'graph') {
@@ -112,7 +114,24 @@ export async function runGraphDriftCardScenarios() {
             await frames();
             checks.visualDropSettles = cards.every(card => !card.classList.contains('is-dragged') && !card.style.transform)
               && useDataStore.getState().bookNodes === originalNodes;
-
+            const source = cards[20];
+            flushSync(() => source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer })));
+            const hoverAt = async (target: HTMLElement) => {
+              const rect = target.getBoundingClientRect();
+              flushSync(() => target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + 1 })));
+              await frames();
+            };
+            await hoverAt(cards[1]);
+            checks.reverseAndCrossSource = source.classList.contains('is-dragged')
+              && cards.slice(1, 20).every(card => card.style.transform === 'translateX(178px)')
+              && !cards[0].style.transform && !cards[21].style.transform;
+            await hoverAt(cards[25]);
+            checks.reverseAndCrossSource &&= cards.slice(0, 20).every(card => !card.style.transform)
+              && cards.slice(21, 25).every(card => card.style.transform === 'translateX(-178px)')
+              && !cards[25].style.transform;
+            flushSync(() => source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer })));
+            await frames();
+            checks.reverseAndCrossSource &&= cards.every(card => card.isConnected && !card.style.transform && !card.classList.contains('is-dragged'));
           }
           flushSync(() => second.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
           flushSync(() => first.click());
@@ -131,12 +150,29 @@ export async function runGraphDriftCardScenarios() {
             && !host.querySelector('.drift-card.is-dragged')
             && [...host.querySelectorAll<HTMLElement>('.drift-card')].every(card => !card.style.transform)
             && useDataStore.getState().entityRelations === fixture.entityRelations;
+          if (view === 'graph') {
+            const mounted = [...host.querySelectorAll<HTMLElement>('.drift-card')];
+            const source = mounted[20]; const target = mounted[25]; const transfer = new DataTransfer();
+            flushSync(() => source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer })));
+            const rect = target.getBoundingClientRect();
+            flushSync(() => target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + 1 })));
+            await frames();
+            const nodes = useDataStore.getState().bookNodes;
+            flushSync(() => useDataStore.setState({ bookNodes: nodes.filter(node => node.id !== 'synthetic-drift-0') }));
+            await frames();
+            checks.sourceSlotInvalidation = !mounted[0].isConnected && source.isConnected
+              && host.querySelectorAll('.drift-card').length === drifts - 1
+              && [...host.querySelectorAll<HTMLElement>('.drift-card')].every(card => !card.style.transform && !card.classList.contains('is-dragged'));
+            flushSync(() => useDataStore.setState({ bookNodes: nodes })); await frames();
+            checks.sourceSlotInvalidation &&= source.isConnected && host.querySelectorAll('.drift-card').length === drifts
+              && host.querySelectorAll(edgeSelector).length === expectedEdges;
+          }
           if (Object.values(checks).some(value => value === false)) throw new Error(`Drift card behavior failed: ${view}: ${JSON.stringify({ checks, dragObservation })}`);
           measurements.push({ view, drifts, fixtureHash, closedToggles: 20, popoverCycles: 10, hoverEvents: view === 'graph' ? 20 : 0,
             closedWork, mountWork, popoverWork, hoverWork, checks });
         } finally { flushSync(() => root.unmount()); host.remove(); }
       }
     }
-    return { measurements, boundary: 'Actual graph shells, card trees and drift edges; synthetic DOM events/navigation/data. Counts distinguish leaf content from wrapper mapping. No marker or relation persistence and no physical drag acceptance.' };
+    return { implementation: 'slot-subscriptions', measurements, boundary: 'Actual graph shells, card trees and drift edges; synthetic DOM events/navigation/data. Counts distinguish leaf content from wrapper mapping. No marker or relation persistence and no physical drag acceptance.' };
   } finally { useDataStore.setState(before, true); if (stored === null) localStorage.removeItem('graph-view-mode'); else localStorage.setItem('graph-view-mode', stored); }
 }

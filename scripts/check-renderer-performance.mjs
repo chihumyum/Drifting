@@ -244,6 +244,8 @@ if (report.storyGraphUnplaced) {
   }
 }
 if (report.graphDriftCards) {
+  const slotSubscriptions = report.graphDriftCards.implementation === 'slot-subscriptions';
+  if (deterministic) assert(slotSubscriptions, 'Current Drift cards must use slot subscriptions.');
   const baseline = read(path.join(directory, 'f5-drift-cards-baseline.json')).graphDriftCards;
   const measurements = report.graphDriftCards.measurements;
   assert.deepEqual(measurements.map(item => [item.view, item.drifts]), ['graph', 'element'].flatMap(view => [100, 1000, 5000].map(count => [view, count])));
@@ -255,10 +257,11 @@ if (report.graphDriftCards) {
     assert((story ? item.mountWork.storyCards : item.mountWork.elementCards) >= item.drifts, 'Drift card mount instrumentation missing.');
     assert.deepEqual(item.closedWork, { ...emptyWork, [story ? 'storyShell' : 'elementShell']: 20 }, 'Closed drift panel evaluated its card tree.');
     assert.deepEqual(item.popoverWork, { ...emptyWork, [story ? 'storyShell' : 'elementShell']: 20 }, 'Popover rebuilt unchanged drift cards.');
-    if (story) assert.deepEqual(item.hoverWork, { ...emptyWork, storyCards: 19, storyWrappers: item.drifts * 20 }, 'Drift hover rebuilt the shell or unchanged card content. Wrapper traversal is still linear.');
+    if (story) assert.deepEqual(item.hoverWork, { ...emptyWork, storyCards: 19, storyWrappers: slotSubscriptions ? 0 : item.drifts * 20 }, 'Drift hover rebuilt the shell, unchanged card content or the wrapper list.');
     else assert.equal(item.hoverWork, null);
     assert.deepEqual(item.checks, { allCardsRetained: true, popoverCycles: true, restingStyle: true, specialEdges: true,
       dragShiftAndCancel: story ? true : null, visualDropSettles: story ? true : null, latestPair: true, currentContextMenu: true,
+      ...(slotSubscriptions ? { reverseAndCrossSource: story ? true : null, sourceSlotInvalidation: story ? true : null } : {}),
       renamedCard: true, closeAndReopen: true });
   }
 }

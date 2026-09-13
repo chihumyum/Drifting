@@ -365,7 +365,8 @@
             "docs/renderer-performance/acceptance/f5-drift-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-cards.json",
             "docs/renderer-performance/acceptance/f5-unplaced-baseline.json",
-            "docs/renderer-performance/acceptance/f5-unplaced.json"
+            "docs/renderer-performance/acceptance/f5-unplaced.json",
+            "docs/renderer-performance/acceptance/f5-drift-slots.json"
           ],
           "status": "partial"
         },
@@ -399,7 +400,8 @@
             "docs/renderer-performance/acceptance/f5-drift-cards-native.json",
             "docs/renderer-performance/acceptance/f5-unplaced-baseline.json",
             "docs/renderer-performance/acceptance/f5-unplaced.json",
-            "docs/renderer-performance/acceptance/f5-unplaced-native.json"
+            "docs/renderer-performance/acceptance/f5-unplaced-native.json",
+            "docs/renderer-performance/acceptance/f5-drift-slots.json"
           ],
           "status": "partial"
         },
@@ -421,12 +423,13 @@
             "docs/renderer-performance/acceptance/f5-drift-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-drift-cards.json",
             "docs/renderer-performance/acceptance/f5-unplaced-baseline.json",
-            "docs/renderer-performance/acceptance/f5-unplaced.json"
+            "docs/renderer-performance/acceptance/f5-unplaced.json",
+            "docs/renderer-performance/acceptance/f5-drift-slots.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "super_element_story_graph_lane_drift_and_unplaced_cards_stable_remaining_interaction_commands_persisted_gestures_initial_mount_and_device_budgets_pending"
+      "implementationStatus": "stable_graph_card_trees_and_drift_slot_subscriptions_remaining_commands_persisted_gestures_initial_mount_and_device_budgets_pending"
     },
     {
       "id": "F6",

@@ -30,4 +30,50 @@ describe('Story Graph drift presentation lifetime', () => {
     expect(drag.getSnapshot().dragged?.id).toBe('synthetic-drift-b');
     drag.cancel(); expect(drag.getSnapshot()).toBe(empty);
   });
+
+  it('notifies exactly the changed slots across forward, reverse, source replacement and cancellation', () => {
+    const drag = createStoryGraphDriftDrag();
+    const notices = Array<number>(8).fill(0);
+    const stops = notices.map((_, index) => drag.subscribeCard(index, () => { notices[index]++; }));
+    const expected = () => notices.map((_, index) => {
+      const { dragged, dropIndex } = drag.getSnapshot();
+      if (!dragged || dropIndex === null) return '';
+      if (index === dragged.index) return 'dragged';
+      if (dragged.index < index && index < dropIndex) return 'translateX(-178px)';
+      if (dropIndex <= index && index < dragged.index) return 'translateX(178px)';
+      return '';
+    });
+    function change(action: () => void) {
+      const before = expected(); notices.fill(0); action(); const after = expected();
+      expect(notices).toEqual(after.map((value, index) => Number(value !== before[index])));
+      expect(after.map((_, index) => drag.getCardSnapshot(index))).toEqual(after);
+    }
+    for (let source = 0; source < 8; source++) {
+      change(() => drag.start(`synthetic-${source}`, source));
+      for (let previous = 0; previous <= 8; previous++) {
+        change(() => drag.hover(previous));
+        for (let next = 8; next >= 0; next--) change(() => drag.hover(next));
+      }
+      change(() => drag.start(`replacement-${source}`, source));
+    }
+    change(() => drag.cancel()); stops.forEach(stop => stop());
+    notices.fill(0); drag.start('disposed', 2); drag.hover(0); drag.cancel();
+    expect(notices).toEqual(Array(8).fill(0));
+  });
+
+  it('keeps adjacent hover notifications local in 5000 cards and bounds far targets to subscribed slots', () => {
+    const drag = createStoryGraphDriftDrag(); const notices = Array<number>(5000).fill(0);
+    const stops = notices.map((_, index) => drag.subscribeCard(index, () => { notices[index]++; }));
+    drag.start('synthetic-first', 0); expect(notices[0]).toBe(1); notices.fill(0);
+    for (let target = 1; target <= 20; target++) drag.hover(target);
+    expect(notices.reduce((sum, count) => sum + count, 0)).toBe(19);
+    expect(notices.slice(1, 20)).toEqual(Array(19).fill(1));
+    notices.fill(0); drag.hover(Number.MAX_SAFE_INTEGER);
+    expect(notices.reduce((sum, count) => sum + count, 0)).toBe(4980);
+    notices.fill(0); drag.cancel(); expect(notices).toEqual(Array(5000).fill(1));
+    stops.forEach(stop => { stop(); stop(); });
+    let current = 0; const stop = drag.subscribeCard(0, () => { current++; });
+    drag.start('new-lifetime', 0); expect(current).toBe(1);
+    expect(notices).toEqual(Array(5000).fill(1)); stop();
+  });
 });
