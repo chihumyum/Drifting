@@ -8,3 +8,5 @@ export function resetAgentPanelRenders() {
 
 export const agentTranscriptWork = { copiedTreeNodes: 0, copiedTreeSlots: 0, copiedArraySlots: 0, flatMaterializations: 0, flattenedMessages: 0 };
 export function resetAgentTranscriptWork() { for (const key of Object.keys(agentTranscriptWork) as Array<keyof typeof agentTranscriptWork>) agentTranscriptWork[key] = 0; }
+
+export const agentRecoveryWork = { groupedMessageVisits: 0, promptMessageVisits: 0, recoveredTurnVisits: 0, visibleUserCandidates: 0 };

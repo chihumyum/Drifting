@@ -267,7 +267,10 @@
             "docs/renderer-performance/acceptance/f4-event-dedup.json",
             "docs/renderer-performance/acceptance/f4-chat-display.json",
             "docs/renderer-performance/acceptance/f4-transcript.json",
-            "docs/renderer-performance/acceptance/f4-transcript-native.json"
+            "docs/renderer-performance/acceptance/f4-transcript-native.json",
+            "docs/renderer-performance/acceptance/f4-recovery-baseline.json",
+            "docs/renderer-performance/acceptance/f4-recovery.json",
+            "docs/renderer-performance/acceptance/f4-recovery-native.json"
           ],
           "status": "partial"
         },
@@ -312,12 +315,15 @@
             "docs/renderer-performance/acceptance/f4-history.json",
             "docs/renderer-performance/acceptance/f4-history-native.json",
             "docs/renderer-performance/acceptance/f4-transcript.json",
-            "docs/renderer-performance/acceptance/f4-transcript-native.json"
+            "docs/renderer-performance/acceptance/f4-transcript-native.json",
+            "docs/renderer-performance/acceptance/f4-recovery-baseline.json",
+            "docs/renderer-performance/acceptance/f4-recovery.json",
+            "docs/renderer-performance/acceptance/f4-recovery-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "immutable_live_transcript_path_updates_browser_work_counts_and_native_sqlite_text_terminal_restart_verified_mixed_replay_recovery_and_device_budgets_pending"
+      "implementationStatus": "live_and_recovered_transcript_tree_projection_local_recovery_indexes_browser_work_and_native_sqlite_restart_verified_checkpoint_mixed_crash_and_device_budgets_pending"
     },
     {
       "id": "F5",

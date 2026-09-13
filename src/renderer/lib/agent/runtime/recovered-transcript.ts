@@ -1,10 +1,11 @@
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
+import { AgentChatTranscript } from '../../../domain/agent-chat-transcript';
 import type { AgentRuntimeRecoverySnapshot } from '../../../domain/agent-runtime-persistence';
 import {
   createAgentRuntimePersistenceRepository,
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
-import { applyAgentChatJournalEntry, finalizeAgentChatStreaming } from './chat-journal-projection';
+import { applyAgentChatTranscriptEntry, finalizeAgentChatTranscript } from './chat-journal-projection';
 import { recoverAgentRuntimeSnapshot } from './recovery';
 import {
   AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE,
@@ -100,14 +101,13 @@ export async function loadCanonicalAgentChatProjection(
   const imported = await repository.loadPortableDisplay?.(sessionId);
   const visibleUsers = cachedVisibleUserBundles(visibleCache ?? []);
   let visibleUserIndex = 0;
-  let messages: AgentChatMessage[] = [];
+  let messages = AgentChatTranscript.from([]);
   let latestContextUsage: AgentContextUsageSnapshot | null = null;
   const appendVisibleUser = (bundle: CachedVisibleUserBundle): void => {
-    messages = [
-      ...finalizeAgentChatStreaming(messages),
+    messages = finalizeAgentChatTranscript(messages).append(
       { kind: 'user', text: bundle.text, ...(bundle.at ? { at: bundle.at } : {}) },
       ...bundle.notices,
-    ];
+    );
   };
   const takeVisibleUser = (
     canonicalText: string,
@@ -121,13 +121,20 @@ export async function loadCanonicalAgentChatProjection(
     // A same-text prompt carrying an adjacent preflight error is evidence of a
     // failed attempt, not the later canonical retry. Prefer the next clean
     // occurrence so the failed attempt and its error remain visible.
-    const cleanMatchIndex = visibleUsers.findIndex(
-      (visible, index) => visible.notices.length === 0 && matchesCanonical(visible, index),
-    );
+    const findVisibleUser = (cleanOnly: boolean): number => {
+      // Consumed prompts can never match again. Preserve the preference for a
+      // later clean retry while avoiding a scan of the consumed history.
+      for (let index = visibleUserIndex; index < visibleUsers.length; index++) {
+        const visible = visibleUsers[index]!;
+        if ((!cleanOnly || visible.notices.length === 0) && matchesCanonical(visible, index)) return index;
+      }
+      return -1;
+    };
+    const cleanMatchIndex = findVisibleUser(true);
     const matchIndex =
       cleanMatchIndex >= 0
         ? cleanMatchIndex
-        : visibleUsers.findIndex((visible, index) => matchesCanonical(visible, index));
+        : findVisibleUser(false);
     if (matchIndex === -1) {
       return { text: canonicalText, ...(fallbackAt ? { at: fallbackAt } : {}) };
     }
@@ -152,15 +159,16 @@ export async function loadCanonicalAgentChatProjection(
     rows.sort((left, right) => left.seq - right.seq || left.eventId.localeCompare(right.eventId));
   }
   const messageById = new Map(snapshot.messages.map((message) => [message.id, message]));
+  const recoveredTurnById = new Map(recovered.turns.map(turn => [turn.turnId, turn]));
 
   for (const turn of [...snapshot.turns].sort((left, right) => left.ordinal - right.ordinal)) {
     if (imported?.turnId === turn.id) {
-      messages.push(...imported.messages);
+      messages = messages.append(...imported.messages);
       for (const message of imported.messages) if (message.kind === 'user') takeVisibleUser(message.text, false, message.at);
       continue;
     }
     const turnMessageStart = messages.length;
-    const recoveredTurn = recovered.turns.find((candidate) => candidate.turnId === turn.id);
+    const recoveredTurn = recoveredTurnById.get(turn.id);
     const rows = eventsByTurn.get(turn.id) ?? [];
     const promptRow = turn.promptMessageId ? messageById.get(turn.promptMessageId) : undefined;
     const prompt = promptRow?.content ?? null;
@@ -183,7 +191,7 @@ export async function loadCanonicalAgentChatProjection(
           true,
           promptRow?.createdAt ?? new Date(entry.wallTimeMs).toISOString(),
         );
-        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', ...visiblePrompt }];
+        messages = finalizeAgentChatTranscript(messages).append({ kind: 'user', ...visiblePrompt });
         insertedPrompt = true;
         continue;
       }
@@ -192,7 +200,7 @@ export async function loadCanonicalAgentChatProjection(
       } else if (entry.event.type === 'user_input_received') {
         takeVisibleUser(entry.event.response.text, false);
       }
-      messages = applyAgentChatJournalEntry(
+      messages = applyAgentChatTranscriptEntry(
         messages,
         failClosedInterruptedTerminal(entry, recoveredTurn?.recoveredStatus),
       );
@@ -201,20 +209,20 @@ export async function loadCanonicalAgentChatProjection(
       const visiblePrompt =
         typeof prompt === 'string' ? takeVisibleUser(prompt, true, promptRow?.createdAt) : null;
       if (visiblePrompt) {
-        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', ...visiblePrompt }];
+        messages = finalizeAgentChatTranscript(messages).append({ kind: 'user', ...visiblePrompt });
       }
     }
     // A recovered renderer has no live provider iterator even if the final
     // durable entry was a delta. Preserve the partial text, but do not render a
     // false live caret after restart.
-    messages = finalizeAgentChatStreaming(messages);
+    messages = finalizeAgentChatTranscript(messages);
     if (recoveredTurn?.recoveredStatus === 'interrupted' && !hasTerminal) {
       messages = failClosedInterruptedMessages(messages, turnMessageStart);
     }
   }
 
   if (snapshot.events.length === 0 && recovered.transcript.length > 0) {
-    messages = recovered.transcript;
+    messages = AgentChatTranscript.from(recovered.transcript);
     if (recovered.turns.some((turn) => turn.recoveredStatus === 'interrupted')) {
       messages = failClosedInterruptedMessages(messages, 0);
     }
@@ -225,7 +233,7 @@ export async function loadCanonicalAgentChatProjection(
   const latestTerminalTurn = recovered.turns[recovered.turns.length - 1];
   const latestTerminal = latestTerminalTurn?.journalState?.terminal;
   return {
-    messages,
+    messages: messages.toArray(),
     eventIds: snapshot.events.map((event) => event.eventId),
     latestContextUsage,
     lastTerminal:
@@ -248,32 +256,26 @@ export async function loadCanonicalAgentChatProjection(
 }
 
 function failClosedInterruptedMessages(
-  messages: AgentChatMessage[],
+  messages: AgentChatTranscript,
   fromIndex: number,
-): AgentChatMessage[] {
-  const settled = messages.map((message, index) =>
-    index >= fromIndex && message.kind === 'tool' && message.status === 'running'
-      ? {
+): AgentChatTranscript {
+  let settled = messages;
+  let hasNotice = false;
+  for (let index = fromIndex; index < messages.length; index++) {
+    const message = messages.at(index)!;
+    if (message.kind === 'tool' && message.status === 'running') {
+      settled = settled.replace(index, {
           ...message,
           status: 'error' as const,
           result: AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE,
-        }
-      : message,
-  );
-  if (
-    settled
-      .slice(fromIndex)
-      .some(
-        (message) =>
-          message.kind === 'error' && message.text === AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE,
-      )
-  ) {
-    return settled;
+      });
+    }
+    if (message.kind === 'error' && message.text === AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE) hasNotice = true;
   }
-  return [
-    ...finalizeAgentChatStreaming(settled),
+  if (hasNotice) return settled;
+  return finalizeAgentChatTranscript(settled).append(
     { kind: 'error', text: AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE },
-  ];
+  );
 }
 
 function failClosedInterruptedTerminal(

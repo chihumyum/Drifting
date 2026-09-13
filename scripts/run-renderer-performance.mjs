@@ -37,6 +37,20 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/runtime/recovery.ts') || id.endsWith('/runtime/recovered-transcript.ts')) {
+          const replacements = id.endsWith('/runtime/recovery.ts') ? [
+            ['const turnRows = messagesByTurn.get(row.turnId) ?? [];', 'agentRecoveryWork.groupedMessageVisits++; const turnRows = messagesByTurn.get(row.turnId) ?? [];'],
+            ['messageById.get(turn.promptMessageId)', '(agentRecoveryWork.promptMessageVisits++, messageById.get(turn.promptMessageId))'],
+          ] : [
+            ['recoveredTurnById.get(turn.id)', '(agentRecoveryWork.recoveredTurnVisits++, recoveredTurnById.get(turn.id))'],
+            ['const visible = visibleUsers[index]!;', 'agentRecoveryWork.visibleUserCandidates++; const visible = visibleUsers[index]!;'],
+          ];
+          for (const [anchor, replacement] of replacements) {
+            if (code.split(anchor).length !== 2) throw new Error(`Recovery instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, replacement);
+          }
+          return { code: `import { agentRecoveryWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/domain/agent-chat-transcript.ts') || id.endsWith('/runtime/chat-journal-projection.ts')) {
           const tree = id.endsWith('/domain/agent-chat-transcript.ts');
           const anchor = tree ? '  const copy = tree.slice();' : 'const copy = list.slice();';

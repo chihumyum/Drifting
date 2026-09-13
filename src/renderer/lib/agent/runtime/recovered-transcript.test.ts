@@ -12,6 +12,7 @@ import {
   AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE,
 } from './types';
 import { contextUsageSnapshot } from './context-usage.test-fixture';
+import { createAgentRecoveryFixture } from '../../../performance/agent-recovery-fixture';
 
 const route: AgentRuntimeRoute = {
   kind: 'chat',
@@ -198,6 +199,50 @@ function repository(value: AgentRuntimeRecoverySnapshot): AgentRuntimePersistenc
 }
 
 describe('canonical Agent chat recovery projection', () => {
+  it('recovers shuffled long history without mutating its rows or trusting stale cached answers', async () => {
+    const fixture = createAgentRecoveryFixture(100);
+    fixture.snapshot.turns.reverse(); fixture.snapshot.messages.reverse(); fixture.snapshot.events.reverse();
+    const before = JSON.stringify(fixture);
+    const projection = await loadCanonicalAgentChatProjection(fixture.snapshot.session.id, repository(fixture.snapshot), fixture.visibleCache);
+    expect(projection?.messages).toEqual(fixture.expected);
+    expect(projection?.eventIds).toEqual(fixture.snapshot.events.map(row => row.eventId));
+    expect(projection?.lastTerminal).toEqual({ turnId: 'synthetic-recovery-turn-99', outcome: 'completed' });
+    expect(JSON.stringify(fixture)).toBe(before);
+  });
+
+  it('keeps an imported display in order while consuming its cached visible user', async () => {
+    const fixture = createAgentRecoveryFixture(2);
+    const imported = [{ kind: 'user' as const, text: 'Synthetic prompt 0', at: '2026-01-01T00:00:00.000Z' }, { kind: 'assistant' as const, text: 'Portable display' }];
+    const repo = repository(fixture.snapshot);
+    repo.loadPortableDisplay = async () => ({ turnId: fixture.snapshot.turns[0].id, messages: imported });
+    // The existing import contract consumes user-cache rows after the imported
+    // bundle; preceding preflight failures retain that established position.
+    const projection = await loadCanonicalAgentChatProjection(fixture.snapshot.session.id, repo, fixture.visibleCache);
+    expect(projection?.messages).toEqual([...imported, ...fixture.expected.slice(0, 2), ...fixture.expected.slice(6)]);
+    expect(imported[1]).toEqual({ kind: 'assistant', text: 'Portable display' });
+  });
+
+  it('settles an interrupted tool only in the current turn after completed history', async () => {
+    const fixture = createAgentRecoveryFixture(2); const turn = fixture.snapshot.turns[1];
+    fixture.snapshot.session.status = 'running'; turn.status = 'running'; turn.endedAt = null;
+    fixture.snapshot.messages = fixture.snapshot.messages.filter(row => row.turnId !== turn.id || row.role === 'user');
+    const priorEvents = fixture.snapshot.events.filter(row => row.turnId !== turn.id);
+    const currentEvents = fixture.snapshot.events.filter(row => row.turnId === turn.id).slice(0, 3);
+    const row = currentEvents[2];
+    currentEvents.push({ ...row, eventId: `${turn.id}:00000004`, seq: 4, eventType: 'tool_call_started', payload: {
+      route: { kind: 'chat', projectId: fixture.snapshot.session.projectId, conversationId: fixture.snapshot.session.conversationId },
+      event: { type: 'tool_call_started', iteration: 1, callId: 'interrupted-tool', name: 'read_node' },
+    } });
+    fixture.snapshot.events = [...priorEvents, ...currentEvents];
+    const projection = await loadCanonicalAgentChatProjection(fixture.snapshot.session.id, repository(fixture.snapshot), fixture.visibleCache);
+    expect(projection?.messages.slice(0, 8)).toEqual(fixture.expected.slice(0, 8));
+    expect(projection?.messages.slice(8)).toEqual([
+      { kind: 'tool', id: 'interrupted-tool', name: 'read_node', inputText: '', phase: 'arguments', status: 'error', result: AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE },
+      { kind: 'error', text: AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE },
+    ]);
+    expect(projection?.lastTerminal?.outcome).toBe('failed');
+  });
+
   it('finds a canonical session by the conversation route when the display cache missed its id', async () => {
     const findSessionForRoute = async () => snapshot().session;
     const found = await findCanonicalAgentChatSessionId('project-1', 'conversation-1', {

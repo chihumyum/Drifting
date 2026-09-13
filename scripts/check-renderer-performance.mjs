@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentRecovery', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -207,6 +207,26 @@ if (report.agentTranscript) {
     assert.equal(item.beforeFrame, 0); assert.equal(item.afterFrame, 1);
     assert.deepEqual(item.frameWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeFrame: true, originalSnapshotUnchanged: true, completeDisplay: true, duplicatesPreserveSnapshot: true });
+  }
+}
+if (report.agentRecovery) {
+  assert.deepEqual(report.agentRecovery.measurements.map(item => item.turns), [100, 500, 1500]);
+  for (const item of report.agentRecovery.measurements) {
+    assert.match(item.fixtureHash, /^[0-9a-f]{64}$/);
+    assert.equal(item.events, item.turns * 27); assert.equal(item.messages, item.turns * 4 + item.turns / 50 * 2);
+    assert.equal(item.samplesMs.length, 3); assert(item.samplesMs.every(value => Number.isFinite(value) && value >= 0));
+    assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[1]); assert.equal(item.work.length, 3);
+    for (const work of item.work) {
+      assert.equal(work.copiedArraySlots, 0, 'recovery copied the historical message array');
+      assert.equal(work.flatMaterializations, 1); assert.equal(work.flattenedMessages, item.messages);
+      assert(work.copiedTreeNodes > 0 && work.copiedTreeNodes <= item.events * 3);
+      assert(work.copiedTreeSlots > 0 && work.copiedTreeSlots <= item.events * 96);
+      assert.equal(work.groupedMessageVisits, item.turns * 2, 'recovery rescanned message groups');
+      assert.equal(work.promptMessageVisits, item.turns, 'recovery rescanned prompt messages');
+      assert.equal(work.recoveredTurnVisits, item.turns, 'display rescanned recovered turns');
+      assert.equal(work.visibleUserCandidates, item.turns + item.turns / 50, 'display rescanned consumed visible users');
+    }
+    assert.deepEqual(item.checks, { independentDisplay: true, representedEvents: true, terminalAndContext: true, immutableInput: true, singleSnapshotRead: true });
   }
 }
 if (report.agentDisplay) {

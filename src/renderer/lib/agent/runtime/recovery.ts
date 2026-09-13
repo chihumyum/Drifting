@@ -1586,9 +1586,18 @@ function buildTranscript(
 ): { transcript: AgentChatMessage[]; repairs: AgentRuntimeRecoveryRepair[] } {
   const transcript: AgentChatMessage[] = [];
   const repairs: AgentRuntimeRecoveryRepair[] = [];
+  // `rows` has already been validated and sorted by provider-history ordinal.
+  // Group once without changing within-turn order or pair-repair boundaries.
+  const messagesByTurn = new Map<string, PersistedAgentRuntimeMessage[]>();
+  for (const row of rows) {
+    if (row.turnId === null) continue;
+    const turnRows = messagesByTurn.get(row.turnId) ?? [];
+    turnRows.push(row);
+    messagesByTurn.set(row.turnId, turnRows);
+  }
 
   for (const recovered of turns) {
-    const turnRows = rows.filter((row) => row.turnId === recovered.turnId);
+    const turnRows = messagesByTurn.get(recovered.turnId) ?? [];
     const visibleRows = turnRows.filter(
       (row) => row.status === 'complete' || (row.role === 'user' && row.status === 'accepted'),
     );
@@ -1806,6 +1815,7 @@ function replayTurns(
   turns: RecoveredAgentRuntimeTurn[];
   turnTransitions: AgentRuntimeStatusTransition<AgentRuntimeTurnStatus>[];
 } {
+  const messageById = new Map(snapshot.messages.map(message => [message.id, message]));
   const eventsByTurn = new Map<string, PersistedAgentRuntimeEvent[]>();
   for (const event of snapshot.events) {
     if (event.sessionId !== snapshot.session.id) {
@@ -1860,7 +1870,7 @@ function replayTurns(
           error,
         );
       }
-      const prompt = snapshot.messages.find((message) => message.id === turn.promptMessageId);
+      const prompt = turn.promptMessageId ? messageById.get(turn.promptMessageId) : undefined;
       if (
         journalState.prompt !== null &&
         typeof prompt?.content === 'string' &&
