@@ -13,3 +13,5 @@ export const agentRecoveryWork = { groupedMessageVisits: 0, promptMessageVisits:
 export const superElementCardWork = { categories: 0, elements: 0, bands: 0 };
 
 export const storyGraphCardWork = { lanes: 0, tiles: 0, groupingVisits: 0 };
+
+export const graphDriftWork = { storyShell: 0, storyCards: 0, storyWrappers: 0, elementShell: 0, elementCards: 0 };

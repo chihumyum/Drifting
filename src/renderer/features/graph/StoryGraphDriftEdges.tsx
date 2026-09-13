@@ -1,8 +1,12 @@
-import { useCallback, useRef, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useSyncExternalStore, type RefObject } from 'react';
 import { RelationArrowMarker } from '../../components/graph/RelationArrowMarker';
 import { relationArrowMarkerId, relationEdgePath } from '../../components/graph/relation-edge-visual';
 import { measureGraphEdges, sameGraphEdgeGeometry, type GraphDomEdge } from './graph-edge-geometry';
 import { useMeasuredGraphEdges } from './useMeasuredGraphEdges';
+import type { StoryGraphDriftDrag } from './story-graph-drift-drag';
+
+const noDragSubscription = () => () => {};
+const noDragSnapshot = () => null;
 
 interface StoryGraphDriftEdgesProps {
   edges: readonly GraphDomEdge[];
@@ -10,18 +14,22 @@ interface StoryGraphDriftEdgesProps {
   tileRefs: RefObject<Map<string, HTMLDivElement>>;
   viewportRef: RefObject<HTMLDivElement | null>;
   revision: unknown;
+  drag?: StoryGraphDriftDrag;
   selectedEdgeId: string | null;
   selectEdge(id: string, x: number, y: number): void;
   resolveRelationTypeLabel(id: string): string;
 }
 
-export function StoryGraphDriftEdges({ edges, driftCardRefs, tileRefs, viewportRef, revision,
+export function StoryGraphDriftEdges({ edges, driftCardRefs, tileRefs, viewportRef, revision, drag,
   selectedEdgeId, selectEdge, resolveRelationTypeLabel }: StoryGraphDriftEdgesProps) {
   const layerRef = useRef<SVGSVGElement | null>(null);
   const panningRef = useRef(false);
+  const dragSnapshot = useSyncExternalStore(drag?.subscribe ?? noDragSubscription,
+    drag?.getSnapshot ?? noDragSnapshot, drag?.getSnapshot ?? noDragSnapshot);
+  const layoutRevision = useMemo(() => ({ revision, dragSnapshot }), [revision, dragSnapshot]);
   const measure = useCallback(() => measureGraphEdges(edges, (_kind, id) =>
     driftCardRefs.current.get(id) ?? tileRefs.current.get(id)), [edges, driftCardRefs, tileRefs]);
-  const geometry = useMeasuredGraphEdges({ measure, equals: sameGraphEdgeGeometry, revision,
+  const geometry = useMeasuredGraphEdges({ measure, equals: sameGraphEdgeGeometry, revision: layoutRevision,
     animationWindowMs: 500, layerRef, panningRef, viewportRef });
   return (
     <svg ref={layerRef} className="graph-drift-edges" aria-hidden>

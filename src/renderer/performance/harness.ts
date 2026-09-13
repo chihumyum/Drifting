@@ -1,3 +1,4 @@
+import { runGraphDriftCardScenarios } from './graph-drift-card-scenarios';
 import { runStoryGraphCardScenarios } from './story-graph-card-scenarios';
 import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
 import { runAgentBackgroundScenarios } from './agent-background-scenarios';
@@ -136,6 +137,7 @@ async function run() {
     graphProjection: await runGraphProjectionScenarios(),
     superElementCards: await runSuperElementCardScenarios(),
     storyGraphCards: await runStoryGraphCardScenarios(),
+    graphDriftCards: await runGraphDriftCardScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),
     timeline: await runTimelineScenarios(),

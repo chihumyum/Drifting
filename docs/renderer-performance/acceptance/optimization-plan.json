@@ -361,7 +361,9 @@
             "docs/renderer-performance/acceptance/f5-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-cards.json",
             "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
-            "docs/renderer-performance/acceptance/f5-story-cards.json"
+            "docs/renderer-performance/acceptance/f5-story-cards.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards.json"
           ],
           "status": "partial"
         },
@@ -389,7 +391,10 @@
             "docs/renderer-performance/acceptance/f5-cards-native.json",
             "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-story-cards.json",
-            "docs/renderer-performance/acceptance/f5-story-cards-native.json"
+            "docs/renderer-performance/acceptance/f5-story-cards-native.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards-native.json"
           ],
           "status": "partial"
         },
@@ -407,12 +412,14 @@
             "docs/renderer-performance/acceptance/f5-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-cards.json",
             "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
-            "docs/renderer-performance/acceptance/f5-story-cards.json"
+            "docs/renderer-performance/acceptance/f5-story-cards.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-drift-cards.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "super_element_and_story_graph_lane_cards_stable_geometry_and_timeline_preview_isolated_remaining_cards_gestures_and_device_budgets_pending"
+      "implementationStatus": "super_element_story_graph_lane_and_drift_cards_stable_drag_presentation_isolated_remaining_unplaced_cards_persisted_gestures_and_device_budgets_pending"
     },
     {
       "id": "F6",

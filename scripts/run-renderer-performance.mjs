@@ -38,6 +38,28 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/DesktopStoryGraphView.tsx') || id.endsWith('/DesktopSuperElementView.tsx')) {
+          const anchors = id.endsWith('/DesktopStoryGraphView.tsx') ? [
+            ['export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {', 'graphDriftWork.storyShell++;'],
+          ] : [
+            ['export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {', 'graphDriftWork.elementShell++;'],
+          ];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Graph drift instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, anchor + ' ' + counter);
+          }
+          return { code: `import { graphDriftWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
+        if (id.endsWith('/StoryGraphDriftCards.tsx') || id.endsWith('/SuperElementDriftCards.tsx')) {
+          const anchors = id.endsWith('/StoryGraphDriftCards.tsx') ? [
+            ['}: DriftCardProps) {', 'storyCards'], ['nodes.map((node, index) => {', 'storyWrappers'],
+          ] : [['nodes.map((node) => {', 'elementCards']];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Drift card instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, anchor + ` graphDriftWork.${counter}++;`);
+          }
+          return { code: `import { graphDriftWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/StoryGraphLaneRow.tsx') || id.endsWith('/story-graph-layout.ts')) {
           const anchors = id.endsWith('/StoryGraphLaneRow.tsx')
             ? [['}: StoryGraphLaneRowProps) {', 'lanes'], ['const status = node.writingStatus;', 'tiles']]

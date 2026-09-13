@@ -1,3 +1,4 @@
+import { SuperElementDriftCards, type SuperElementDriftCardsProps } from '../../../features/graph/SuperElementDriftCards';
 import {
   CELL_W, CELL_H, BAND_PILL_PX, BAND_SLOT_PX,
   GROUP_HEADER_PX, CATEGORY_INNER_PAD_Y_TOP, CATEGORY_INNER_PAD_Y_BOTTOM, CATEGORY_GAP_X,
@@ -1161,6 +1162,24 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     setContextMenu({ kind: 'category', x: event.clientX + 2, y: event.clientY - 2, categoryId });
   }, []);
 
+  const handleDriftClick = useCallback<SuperElementDriftCardsProps['onClick']>((e, node) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    handleEntityClick('node', node.id, rect, { shiftKey: e.shiftKey });
+  }, [handleEntityClick]);
+  const handleDriftContextMenu = useCallback<SuperElementDriftCardsProps['onContextMenu']>((e, node) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDriftContextMenu({
+      x: e.clientX + 2,
+      y: e.clientY - 2,
+      nodeId: node.id,
+      nodeTitle: node.title ?? undefined,
+      nodeSummary: node.summary ?? undefined,
+      writingStatus: node.writingStatus,
+    });
+  }, []);
+
   // Commit a typed entity relation for the pending pair. The modal either
   // selects an existing compatible definition or creates one in place; every
   // shift-click relation remains a manual-origin write.
@@ -1706,9 +1725,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           );
         })()}
 
-      {/* Drift bottom-affordance — shared DriftPanel shell. Cards are
-          rendered inline below so the click / shift-click / popover wiring
-          stays in this view's hands. */}
+      {/* Drift bottom-affordance — shared DriftPanel shell. Card content executes only inside
+          the mounted panel; click / shift-click / popover commands stay here. */}
       {driftNodes.length > 0 && (
         <DriftPanel
           count={driftNodes.length}
@@ -1718,48 +1736,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           onOpen={openDriftPanel}
           onClose={closeDriftPanel}
         >
-          {driftNodes.map((node) => {
-            const isLinkSource = linkSource?.kind === 'node' && linkSource.id === node.id;
-            const isResting = node.writingStatus === 'resting';
-            return (
-              <div
-                key={node.id}
-                data-super-card="node"
-                data-node-id={node.id}
-                className={`drift-card${isLinkSource ? ' is-link-source' : ''}${isResting ? ' is-resting' : ''}`}
-                ref={(el) => {
-                  if (el) driftCardRefs.current.set(node.id, el);
-                  else driftCardRefs.current.delete(node.id);
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  handleEntityClick('node', node.id, rect, { shiftKey: e.shiftKey });
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDriftContextMenu({
-                    x: e.clientX + 2,
-                    y: e.clientY - 2,
-                    nodeId: node.id,
-                    nodeTitle: node.title ?? undefined,
-                    nodeSummary: node.summary ?? undefined,
-                    writingStatus: node.writingStatus,
-                  });
-                }}
-                title={
-                  node.summary
-                    ? `${node.title || t('common.untitled')}\n\n${node.summary}`
-                    : node.title || t('common.untitled')
-                }
-              >
-                <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
-                <div className="drift-card__title">{node.title || t('common.untitled')}</div>
-                {node.summary && <div className="drift-card__summary">{node.summary}</div>}
-              </div>
-            );
-          })}
+          <SuperElementDriftCards nodes={driftNodes} linkSourceId={linkSource?.kind === 'node' ? linkSource.id : null}
+            cardRefs={driftCardRefs} onClick={handleDriftClick} onContextMenu={handleDriftContextMenu} />
         </DriftPanel>
       )}
 

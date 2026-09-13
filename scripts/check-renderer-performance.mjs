@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -225,6 +225,25 @@ if (report.agentBackground) {
     assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
       originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
+  }
+}
+if (report.graphDriftCards) {
+  const baseline = read(path.join(directory, 'f5-drift-cards-baseline.json')).graphDriftCards;
+  const measurements = report.graphDriftCards.measurements;
+  assert.deepEqual(measurements.map(item => [item.view, item.drifts]), ['graph', 'element'].flatMap(view => [100, 1000, 5000].map(count => [view, count])));
+  const emptyWork = { storyShell: 0, storyCards: 0, storyWrappers: 0, elementShell: 0, elementCards: 0 };
+  for (const [index, item] of measurements.entries()) {
+    const story = item.view === 'graph';
+    assert.equal(item.fixtureHash, baseline.measurements[index].fixtureHash);
+    assert.equal(item.closedToggles, 20); assert.equal(item.popoverCycles, 10); assert.equal(item.hoverEvents, story ? 20 : 0);
+    assert((story ? item.mountWork.storyCards : item.mountWork.elementCards) >= item.drifts, 'Drift card mount instrumentation missing.');
+    assert.deepEqual(item.closedWork, { ...emptyWork, [story ? 'storyShell' : 'elementShell']: 20 }, 'Closed drift panel evaluated its card tree.');
+    assert.deepEqual(item.popoverWork, { ...emptyWork, [story ? 'storyShell' : 'elementShell']: 20 }, 'Popover rebuilt unchanged drift cards.');
+    if (story) assert.deepEqual(item.hoverWork, { ...emptyWork, storyCards: 19, storyWrappers: item.drifts * 20 }, 'Drift hover rebuilt the shell or unchanged card content. Wrapper traversal is still linear.');
+    else assert.equal(item.hoverWork, null);
+    assert.deepEqual(item.checks, { allCardsRetained: true, popoverCycles: true, restingStyle: true, specialEdges: true,
+      dragShiftAndCancel: story ? true : null, visualDropSettles: story ? true : null, latestPair: true, currentContextMenu: true,
+      renamedCard: true, closeAndReopen: true });
   }
 }
 if (report.storyGraphCards) {
