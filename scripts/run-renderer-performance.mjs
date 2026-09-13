@@ -37,6 +37,20 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/domain/agent-chat-transcript.ts') || id.endsWith('/runtime/chat-journal-projection.ts')) {
+          const tree = id.endsWith('/domain/agent-chat-transcript.ts');
+          const anchor = tree ? '  const copy = tree.slice();' : 'const copy = list.slice();';
+          if (code.split(anchor).length !== 2) throw new Error('Transcript allocation instrumentation drifted');
+          code = code.replace(anchor, anchor + (tree ? ' agentTranscriptWork.copiedTreeNodes++; agentTranscriptWork.copiedTreeSlots += tree.length;' : ' agentTranscriptWork.copiedArraySlots += list.length;'));
+          if (tree) {
+            const flatten = '    if (this.cached) return this.cached;';
+            if (code.split(flatten).length !== 2) throw new Error('Transcript materialization instrumentation drifted');
+            code = code.replace(flatten, flatten + '\n    agentTranscriptWork.flatMaterializations++; agentTranscriptWork.flattenedMessages += this.length;');
+          } else {
+            code = code.replace('append: (list, ...messages) => [...list, ...messages],', 'append: (list, ...messages) => (agentTranscriptWork.copiedArraySlots += list.length, [...list, ...messages]),');
+          }
+          return { code: `import { agentTranscriptWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/DesktopAgentTranscript.tsx') || id.endsWith('/MobileAgentTranscript.tsx')) {
           const rowTag = id.endsWith('/DesktopAgentTranscript.tsx') ? '<MessageView key={i}' : '<MobileAgentMessage key={index}';
           if (!code.includes(rowTag)) throw new Error(`Missing history row creation point: ${id}`);

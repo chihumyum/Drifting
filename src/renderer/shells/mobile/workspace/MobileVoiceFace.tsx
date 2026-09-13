@@ -1,3 +1,4 @@
+import { useAgentChatMessages } from '../../../features/agent/useAgentChatMessages';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -24,7 +25,6 @@ import {
 } from '../../../lib/speech/voice-context-pack';
 import {
   selectControlStatus,
-  selectMessages,
   selectPendingControl,
   selectRunning,
   useAgentChatStore,
@@ -78,7 +78,7 @@ export function MobileVoiceFace({ projectId }: { projectId: string }) {
   const projectName =
     useProjectStore((state) => state.currentProject?.name) ?? t('agentPanel.mobile.currentProject');
   const agentAuth = useSettingsStore((state) => state.agentAuth);
-  const messages = useAgentChatStore(selectMessages);
+  const messages = useAgentChatMessages();
   const prompt = useAgentChatStore((state) => state.prompt);
   const running = useAgentChatStore(selectRunning);
   const starting = useAgentChatStore((state) => state.starting);

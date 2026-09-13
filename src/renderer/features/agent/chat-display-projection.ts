@@ -20,7 +20,7 @@ const empty: AgentChatMessage[] = [];
 function select(state: State) {
   const id = state.activeConvId;
   const run = id ? state.runs[id] : undefined;
-  return { id, projectId: state.boundProjectId, run, messages: run?.messages ?? empty,
+  return { id, projectId: state.boundProjectId, run, transcript: run?.transcript,
     turnId: id ? state.runningTurns[id] : undefined, starting: state.starting };
 }
 
@@ -44,8 +44,9 @@ export function createAgentChatDisplayProjection(source: Source, scheduler: Agen
     cancelScheduled();
     if (!listeners.size) return;
     latest = select(source.getState());
-    if (snapshot === latest.messages) return;
-    snapshot = latest.messages;
+    const messages = latest.transcript?.toArray() ?? empty;
+    if (snapshot === messages) return;
+    snapshot = messages;
     for (const listener of listeners) listener();
   }
   function changed(state: State) {
@@ -60,8 +61,8 @@ export function createAgentChatDisplayProjection(source: Source, scheduler: Agen
     if (!ownerChanged && !controlChanged && latest.run === previous.run) return;
     // Non-message changes to this run (Stop, author actions, recovery) are also
     // flush boundaries. Unrelated conversations do not flush the visible stream.
-    if (ownerChanged || controlChanged || latest.messages === previous.messages
-      || !mayDeferAgentChatMessages(latest.messages) || scheduler.isHidden()) {
+    if (ownerChanged || controlChanged || latest.transcript === previous.transcript
+      || (!latest.transcript || !mayDeferAgentChatMessages(latest.transcript)) || scheduler.isHidden()) {
       flush();
       return;
     }
@@ -69,13 +70,13 @@ export function createAgentChatDisplayProjection(source: Source, scheduler: Agen
     if (timer === undefined) timer = scheduler.setTimer(flush, 50);
   }
   return {
-    getSnapshot: () => listeners.size ? snapshot : select(source.getState()).messages,
+    getSnapshot: () => listeners.size ? snapshot : (select(source.getState()).transcript?.toArray() ?? empty),
     subscribe(listener: () => void) {
       const first = listeners.size === 0;
       listeners.add(listener);
       if (first) {
         latest = select(source.getState());
-        snapshot = latest.messages;
+        snapshot = latest.transcript?.toArray() ?? empty;
         disconnect = source.subscribe(changed);
         detachVisibility = scheduler.subscribeVisibility(() => { if (scheduler.isHidden()) flush(); });
       }

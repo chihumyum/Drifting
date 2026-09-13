@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { describe, expect, it } from 'vitest';
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import type { AgentChatMessage } from '../domain/agent-conversation';
@@ -454,7 +455,7 @@ describe('agent chat canonical journal projection', () => {
       runs: {
         'conversation-1': {
           projectId: 'project-1',
-          messages: [],
+          transcript: AgentChatTranscript.from([]),
           runtimeSessionId: 'session-1',
           longTaskPlanState: continuationPlanState('none'),
           journalScope: createAgentChatJournalScope(),
@@ -508,7 +509,7 @@ describe('agent chat canonical journal projection', () => {
       runs: {
         'conversation-1': {
           projectId: 'project-1',
-          messages: [],
+          transcript: AgentChatTranscript.from([]),
           runtimeSessionId: 'session-1',
           longTaskPlanState: continuationPlanState('active'),
           journalScope: createAgentChatJournalScope(),
@@ -593,7 +594,7 @@ describe('agent chat canonical journal projection', () => {
           runs: {
             'conversation-origin': {
               projectId: 'project-intent',
-              messages: [],
+              transcript: AgentChatTranscript.from([]),
               runtimeSessionId: 'session-origin',
               journalScope: createAgentChatJournalScope(),
               controlStatus: null,
@@ -627,7 +628,7 @@ describe('agent chat canonical journal projection', () => {
         runningTurns: {},
         starting: false,
       });
-      expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);
+      expect(useAgentChatStore.getState().runs['conversation-origin']?.transcript.toArray()).toEqual([]);
 
       seedOrigin();
       const sendBeforeLoad = useAgentChatStore.getState().send();
@@ -642,7 +643,7 @@ describe('agent chat canonical journal projection', () => {
         runningTurns: {},
         starting: false,
       });
-      expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);
+      expect(useAgentChatStore.getState().runs['conversation-origin']?.transcript.toArray()).toEqual([]);
     } finally {
       useAgentChatStore.setState(previous, true);
     }

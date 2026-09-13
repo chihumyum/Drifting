@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 /**
  * Agent chat store (module-level, in-memory).
  *
@@ -53,7 +54,8 @@ import type {
 } from '../lib/agent/runtime/types';
 import {
   applyAgentChatJournalEntry,
-  finalizeAgentChatStreaming,
+  applyAgentChatTranscriptEntry,
+  finalizeAgentChatTranscript,
 } from '../lib/agent/runtime/chat-journal-projection';
 import {
   findCanonicalAgentChatSessionId,
@@ -90,7 +92,6 @@ try {
 // ---- transcript reducer (pure) --------------------------------------------
 
 export const applyEvent = applyAgentChatJournalEntry;
-const finalizeStreaming = finalizeAgentChatStreaming;
 
 /** First user line, condensed, as the conversation title. */
 function deriveTitle(text: string): string {
@@ -204,7 +205,7 @@ export interface AgentChatSendOptions {
 interface RunState {
   /** Owning project — so a background turn doesn't pulse another project's cells. */
   projectId: string;
-  messages: ChatMsg[];
+  transcript: AgentChatTranscript;
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
   /** Opaque owner for private live/replay deduplication; never persisted. */
@@ -264,7 +265,7 @@ interface AgentChatState {
 
 /** The displayed conversation's transcript (stable empty ref when none). */
 export const selectMessages = (s: AgentChatState): ChatMsg[] =>
-  s.activeConvId ? (s.runs[s.activeConvId]?.messages ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
+  s.activeConvId ? (s.runs[s.activeConvId]?.transcript.toArray() ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
 /** Is the displayed conversation the one with the in-flight turn? */
 export const selectRunning = (s: AgentChatState): boolean =>
   s.activeConvId !== null && Boolean(s.runningTurns[s.activeConvId]);
@@ -581,9 +582,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
               : armAgentAutomaticContinuation(previousAutomatic, Date.now());
       const run: RunState = {
         projectId,
-        messages: isRuntimeContinuation
-          ? [...(prevRun?.messages ?? [])]
-          : [...(prevRun?.messages ?? []), userMessage],
+        transcript: isRuntimeContinuation
+          ? (prevRun?.transcript ?? AgentChatTranscript.from([]))
+          : (prevRun?.transcript ?? AgentChatTranscript.from([])).append(userMessage),
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
         journalScope: prevRun?.journalScope ?? createAgentChatJournalScope(),
         controlStatus: null,
@@ -612,7 +613,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // cannot erase it merely because no terminal journal entry arrived.
       try {
         await repo.update(cid, {
-          messages: run.messages,
+          messages: run.transcript.toArray(),
           updatedAt: now,
         });
       } catch {
@@ -704,7 +705,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
                 ...st.runs,
                 [cid]: {
                   ...cur,
-                  messages: [...cur.messages, { kind: 'error' as const, text: r.error }],
+                  transcript: cur.transcript.append({ kind: 'error', text: r.error }),
                   automaticContinuation:
                     cur.automaticContinuation.status === 'off'
                       ? cur.automaticContinuation
@@ -928,7 +929,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           ...st.runs,
           [id]: {
             projectId: conv.projectId,
-            messages,
+            transcript: AgentChatTranscript.from(messages),
             runtimeSessionId,
             journalScope,
             controlStatus: null,
@@ -1068,7 +1069,7 @@ async function persistConv(convId: string): Promise<void> {
   if (!run) return;
   try {
     await repo.update(convId, {
-      messages: run.messages,
+      messages: run.transcript.toArray(),
       runtimeSessionId: run.runtimeSessionId,
       updatedAt: new Date().toISOString(),
     });
@@ -1360,15 +1361,15 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
         costUsd: ev.usage.costUsd,
       });
     }
-    const messages = applyEvent(run.messages, entry);
-    markAgentChatMessagePublication(messages, ev.type);
+    const transcript = applyAgentChatTranscriptEntry(run.transcript, entry);
+    markAgentChatMessagePublication(transcript, ev.type);
     rememberAgentChatJournalEvent(run.journalScope, entry.eventId);
     return {
       runs: {
         ...s.runs,
         [convId]: {
           ...run,
-          messages,
+          transcript,
           runtimeSessionId: entry.sessionId,
           controlStatus,
           pendingControl,
@@ -1424,7 +1425,7 @@ function appendRunError(convId: string, message: string): void {
         ...state.runs,
         [convId]: {
           ...run,
-          messages: [...finalizeStreaming(run.messages), { kind: 'error', text: message }],
+          transcript: finalizeAgentChatTranscript(run.transcript).append({ kind: 'error', text: message }),
         },
       },
     };

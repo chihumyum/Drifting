@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
-import { applyAgentChatJournalEntry } from './chat-journal-projection';
+import { AgentChatTranscript } from '../../../domain/agent-chat-transcript';
+import { applyAgentChatJournalEntry, applyAgentChatTranscriptEntry } from './chat-journal-projection';
 import type { AgentRuntimeEvent, AgentRuntimeJournalEntry } from './types';
 import { AGENT_RUNTIME_SCHEMA_VERSION } from './types';
 
@@ -26,13 +27,19 @@ function entry(
   };
 }
 
-function fold(entries: readonly AgentRuntimeJournalEntry[]): AgentChatMessage[] {
+function foldArray(entries: readonly AgentRuntimeJournalEntry[]): AgentChatMessage[] {
   let messages: AgentChatMessage[] = [];
   for (const item of entries) messages = applyAgentChatJournalEntry(messages, item);
   return messages;
 }
 
-describe('applyAgentChatJournalEntry thinking runs', () => {
+function foldTranscript(entries: readonly AgentRuntimeJournalEntry[]): AgentChatMessage[] {
+  let transcript = AgentChatTranscript.from([]);
+  for (const item of entries) transcript = applyAgentChatTranscriptEntry(transcript, item);
+  return transcript.toArray();
+}
+
+describe.each([['array', foldArray], ['live transcript', foldTranscript]] as const)('canonical thinking runs: %s', (_, fold) => {
   it('appends historical per-chunk thinking rows into one streaming message', () => {
     const messages = fold([
       entry(1, { type: 'thinking_delta', iteration: 1, text: '先想' }),

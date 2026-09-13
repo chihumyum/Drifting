@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { createElement, useLayoutEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -46,7 +47,7 @@ export async function runAgentDisplayScenarios() {
   try {
     useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId,
       refreshList: () => undefined, runningTurns: {}, runs: { [conversationId]: {
-        projectId, runtimeSessionId: sessionId, messages: [], journalScope: createAgentChatJournalScope(),
+        projectId, runtimeSessionId: sessionId, transcript: AgentChatTranscript.from([]), journalScope: createAgentChatJournalScope(),
         controlStatus: null, pendingControl: null, lastTerminal: null, longTaskPlanState: null, contextUsage: null,
         automaticContinuation: createInactiveAgentAutomaticContinuation(),
       } } });

@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -64,7 +65,7 @@ export async function runMobileAgentPanelScenarios({ verifyRenders = true } = {}
     for (const mode of ['sidebar', 'paper'] as const) {
       useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId, prompt: 'Synthetic mobile draft',
         refreshList: () => undefined, convList: [], starting: false, runningTurns: { [conversationId]: 'synthetic-mobile-turn' },
-        runs: { [conversationId]: { projectId, runtimeSessionId: 'synthetic-mobile-session', messages: history,
+        runs: { [conversationId]: { projectId, runtimeSessionId: 'synthetic-mobile-session', transcript: AgentChatTranscript.from(history),
           journalScope: createAgentChatJournalScope(), controlStatus: 'running', pendingControl: null, lastTerminal: null,
           longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } });
       render(mode); if (mode === 'paper') useAgentChatStore.getState().bindProject(projectId); await frame();
@@ -93,7 +94,7 @@ export async function runMobileAgentPanelScenarios({ verifyRenders = true } = {}
       emit({ type: 'model_iteration_completed', iteration: 1, stopReason: 'end_turn' });
       const oldRun = useAgentChatStore.getState().runs[conversationId];
       flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [otherId]: { ...oldRun,
-        messages: [{ kind: 'user', text: 'Other author' }, { kind: 'assistant', text: 'Other answer', streaming: false }],
+        transcript: AgentChatTranscript.from([{ kind: 'user', text: 'Other author' }, { kind: 'assistant', text: 'Other answer', streaming: false }]),
         journalScope: createAgentChatJournalScope(), runtimeSessionId: 'synthetic-mobile-other-session', controlStatus: null } } })));
       click(rows()[0].querySelectorAll<HTMLButtonElement>('button')[1]); const late = mobileAgentOutputs.nodes[mobileAgentOutputs.nodes.length - 1];
       switchTo(otherId); const opensBefore = opened.length; late.resolve({ id: 'synthetic-late-node' }); await frame();
@@ -121,7 +122,7 @@ export async function runMobileAgentPanelScenarios({ verifyRenders = true } = {}
       switchTo(otherId); switchTo(conversationId); removed.resolve({ id: 'synthetic-retired-return' }); await frame();
       check(`${mode}: returning to the same conversation does not revive a closed action owner`, opened.length === openedBeforeReturn && !rows()[0].querySelector('[role="status"]'));
       click(action(0, 0)); const replaced = mobileAgentOutputs.copies[mobileAgentOutputs.copies.length - 1]; const savedMessages = selectMessages(useAgentChatStore.getState());
-      flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: { ...state.runs[conversationId], messages: savedMessages.map((message, index) => index === 1 ? { kind: 'assistant', text: 'Replacement output.', streaming: false } : message) } } })));
+      flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: { ...state.runs[conversationId], transcript: AgentChatTranscript.from(savedMessages.map((message, index) => index === 1 ? { kind: 'assistant', text: 'Replacement output.', streaming: false } : message)) } } })));
       click(action(0, 0)); const replacement = mobileAgentOutputs.copies[mobileAgentOutputs.copies.length - 1]; replaced.resolve(); await frame();
       check(`${mode}: old message completion cannot release or label its replacement action`, replacement !== replaced && action(0, 0).disabled && !rows()[0].textContent?.includes('agentPanel.mobile.action.copied'));
       replacement.resolve(); await frame(); check(`${mode}: replacement action completes independently`, !action(0, 0).disabled && rows()[0].textContent?.includes('agentPanel.mobile.action.copied'));

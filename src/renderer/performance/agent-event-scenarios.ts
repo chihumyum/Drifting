@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { useAgentChatStore } from '../store/agent-chat-store';
 import { installGeneralAgentTransport, unsupportedGeneralAgentTransport } from '../lib/agent/transport';
@@ -40,7 +41,7 @@ export async function runAgentEventScenarios() {
       for (let repetition = 0; repetition < 3; repetition++) {
         useAgentChatStore.setState({ activeConvId: conversationId, runningTurns: {}, runs: {
           [conversationId]: {
-            projectId, runtimeSessionId: sessionId, messages: [], journalScope: createAgentChatJournalScope(),
+            projectId, runtimeSessionId: sessionId, transcript: AgentChatTranscript.from([]), journalScope: createAgentChatJournalScope(),
             controlStatus: null, pendingControl: null, lastTerminal: null, longTaskPlanState: null,
             contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation(),
           },
@@ -55,7 +56,7 @@ export async function runAgentEventScenarios() {
           notifications = commits;
           for (const entry of entries) emit(entry);
           duplicateNotifications = commits - notifications;
-          const messages = useAgentChatStore.getState().runs[conversationId].messages;
+          const messages = useAgentChatStore.getState().runs[conversationId].transcript.toArray();
           if (messages.length !== 1 || messages[0].kind !== 'assistant' || messages[0].text !== '字'.repeat(eventCount)) {
             throw new Error('Agent event fixture lost or duplicated text');
           }

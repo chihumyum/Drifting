@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -50,7 +51,7 @@ export async function runAgentPanelScenarios() {
     useSettingsStore.setState({ agentAuth: 'apikey' });
     useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId, prompt: 'Synthetic draft stays in the composer',
       refreshList: () => undefined, convList: [{ id: conversationId, title: 'Synthetic current conversation', mode: 'byok', updatedAt: '2026-01-01T00:00:00.000Z' }], starting: false, runningTurns: { [conversationId]: 'synthetic-panel-turn' },
-      runs: { [conversationId]: { projectId, runtimeSessionId: sessionId, messages: history, journalScope: createAgentChatJournalScope(),
+      runs: { [conversationId]: { projectId, runtimeSessionId: sessionId, transcript: AgentChatTranscript.from(history), journalScope: createAgentChatJournalScope(),
         controlStatus: 'running', pendingControl: null, lastTerminal: null, longTaskPlanState: null, contextUsage: null,
         automaticContinuation: createInactiveAgentAutomaticContinuation() } } });
     render(); await frame();
@@ -110,7 +111,7 @@ export async function runAgentPanelScenarios() {
     const oldRun = useAgentChatStore.getState().runs[conversationId];
     const otherId = 'synthetic-panel-other';
     flushSync(() => useAgentChatStore.setState(state => ({ activeConvId: otherId, runs: { ...state.runs,
-      [otherId]: { ...oldRun, messages: [{ kind: 'assistant', text: 'Other conversation only.', streaming: false }],
+      [otherId]: { ...oldRun, transcript: AgentChatTranscript.from([{ kind: 'assistant', text: 'Other conversation only.', streaming: false }]),
         runtimeSessionId: 'synthetic-panel-other-session', journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null } } })));
     check('conversation switch synchronously replaces the old transcript', log().textContent?.includes('Other conversation only.') && !log().textContent?.includes('Synthetic history'));
     resetAgentPanelRenders(); emit({ type: 'text_delta', iteration: 2, text: 'Background continuation.' }); await frame();
@@ -119,11 +120,11 @@ export async function runAgentPanelScenarios() {
     check('returning to a running conversation includes its background tail and resets follow', log().textContent?.includes('Background continuation.') && bottom());
     const originalMessages = selectMessages(useAgentChatStore.getState());
     flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: { ...state.runs[conversationId],
-      messages: [{ kind: 'thinking', text: 'Old conversation detail.', streaming: false }, ...originalMessages] } } })));
+      transcript: AgentChatTranscript.from([{ kind: 'thinking', text: 'Old conversation detail.', streaming: false }, ...originalMessages]) } } })));
     const details = host.querySelector<HTMLDetailsElement>('details')!; details.open = true;
     flushSync(() => useAgentChatStore.setState({ activeConvId: otherId }));
-    flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [otherId]: { ...state.runs[otherId], messages: [
-      { kind: 'thinking', text: 'New conversation detail.', streaming: false }, { kind: 'assistant', text: 'Other conversation only.', streaming: false } ] } } })));
+    flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [otherId]: { ...state.runs[otherId], transcript: AgentChatTranscript.from([
+      { kind: 'thinking', text: 'New conversation detail.', streaming: false }, { kind: 'assistant', text: 'Other conversation only.', streaming: false } ]) } } })));
     check('conversation ownership prevents expanded details leaking to another session', host.querySelector('details') !== details && host.querySelector<HTMLDetailsElement>('details')?.open === false);
     for (let cycle = 0; cycle < 100; cycle++) {
       render(false); render(); await frame();

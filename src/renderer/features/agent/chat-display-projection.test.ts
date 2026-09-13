@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../../domain/agent-chat-transcript';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import { useAgentChatStore } from '../../store/agent-chat-store';
@@ -11,7 +12,7 @@ type Run = State['runs'][string];
 function setup() {
   vi.useFakeTimers();
   const run = (): Run => ({ projectId: 'project', runtimeSessionId: 'session', journalScope: createAgentChatJournalScope(),
-    messages: [], controlStatus: null, pendingControl: null, lastTerminal: null, longTaskPlanState: null,
+    transcript: AgentChatTranscript.from([]), controlStatus: null, pendingControl: null, lastTerminal: null, longTaskPlanState: null,
     contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() });
   const source = createStore<State>(() => ({ ...useAgentChatStore.getState(), boundProjectId: 'project', activeConvId: 'first', runs: { first: run(), second: run() } }));
   const frames = new Map<number, () => void>();
@@ -27,10 +28,11 @@ function setup() {
   });
   function publish(text: string, id = 'first', urgent = false) {
     const current = source.getState().runs[id];
-    const messages: Run['messages'] = [{ kind: 'assistant', text, streaming: !urgent }];
-    markAgentChatMessagePublication(messages, urgent ? 'model_iteration_completed' : 'text_delta');
-    source.setState({ runs: { ...source.getState().runs, [id]: { ...current, messages } } });
-    return messages;
+    const messages: ReturnType<Run['transcript']['toArray']> = [{ kind: 'assistant', text, streaming: !urgent }];
+    const transcript = AgentChatTranscript.from(messages);
+    markAgentChatMessagePublication(transcript, urgent ? 'model_iteration_completed' : 'text_delta');
+    source.setState({ runs: { ...source.getState().runs, [id]: { ...current, transcript } } });
+    return transcript.toArray();
   }
   function changeRun(change: Partial<Run>) {
     const state = source.getState();
@@ -50,12 +52,12 @@ describe('Agent chat display notification projection', () => {
     const releaseFirst = f.projection.subscribe(first); const releaseSecond = f.projection.subscribe(second);
     const old = f.projection.getSnapshot();
     for (let index = 1; index <= 100; index++) f.publish('字'.repeat(index));
-    expect(f.source.getState().runs.first.messages).toMatchObject([{ text: '字'.repeat(100) }]);
+    expect(f.source.getState().runs.first.transcript.toArray()).toMatchObject([{ text: '字'.repeat(100) }]);
     expect(f.projection.getSnapshot()).toBe(old);
     expect(f.frames.size).toBe(1); expect(vi.getTimerCount()).toBe(1);
     f.nextFrame();
     expect(first).toHaveBeenCalledTimes(1); expect(second).toHaveBeenCalledTimes(1);
-    expect(f.projection.getSnapshot()).toBe(f.source.getState().runs.first.messages);
+    expect(f.projection.getSnapshot()).toBe(f.source.getState().runs.first.transcript.toArray());
     expect(old).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
     releaseFirst(); releaseSecond();

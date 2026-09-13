@@ -1,3 +1,4 @@
+import { runNativeAgentTranscriptScenario } from '../src/renderer/performance/native-agent-transcript-scenario';
 // Imported only by the acceptance build transform, never by the product entry.
 import { getActiveEditor, saveActiveEditor } from '../src/renderer/lib/active-editor';
 import { getLiveYDoc } from '../src/renderer/lib/yjs-doc-registry';
@@ -34,6 +35,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   inlineCopilot: boolean;
   mobileAgentPanel: boolean;
   agentHistory: boolean;
+  agentTranscript: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -47,6 +49,7 @@ const lifecycle: Array<{ projectId: string; mounted: boolean }> = [];
 const failures: string[] = [];
 const longTasks: number[] = [];
 const checks: Record<string, boolean> = {};
+let agentTranscriptResult: Awaited<ReturnType<typeof runNativeAgentTranscriptScenario>> | undefined;
 let agentHistoryResult: Awaited<ReturnType<typeof runAgentHistoryScenarios>> | undefined;
 let mobileAgentPanelResult: Awaited<ReturnType<typeof runMobileAgentPanelScenarios>> | undefined;
 const sessionEvents: Array<{ instance: number; projectId: string; sourceKind: string; sourceId: string; event: string }> = [];
@@ -898,8 +901,13 @@ async function run() {
     localStorage.setItem('native-acceptance-phase', 'restart');
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
+  if (config.agentTranscript) {
+    await progress('agent-transcript');
+    agentTranscriptResult = await runNativeAgentTranscriptScenario(config.projects[0].id, phase === 'restart');
+    checks.agentTranscript = true;
+  }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, agentHistory: agentHistoryResult, mobileAgentPanel: mobileAgentPanelResult, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, agentTranscript: agentTranscriptResult, agentHistory: agentHistoryResult, mobileAgentPanel: mobileAgentPanelResult, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

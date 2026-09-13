@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -179,6 +179,34 @@ if (report.agentEventProcessing) {
     assert.equal(item.duplicateNotifications, 0);
     assert.equal(item.finalCharacters, item.eventCount);
     if (!deterministic && scenario.implementation === 'private-membership-index') assert(item.medianMs <= item.eventCount * 0.02, 'F4a ingestion budget exceeded');
+  }
+}
+if (report.agentTranscript) {
+  const reportPart = report.agentTranscript;
+  assert.deepEqual(reportPart.projections.map(item => [item.implementation, item.historyMessages]), [300, 3000, 30000].flatMap(size => [['array-reference', size], ['persistent-tree', size]]));
+  function treeWork(work, eventCount) {
+    assert.equal(work.copiedArraySlots, 0); assert.equal(work.flatMaterializations, 0); assert.equal(work.flattenedMessages, 0);
+    assert(work.copiedTreeNodes >= eventCount && work.copiedTreeNodes <= eventCount * 3, 'unbounded event tree copies');
+    assert(work.copiedTreeSlots <= eventCount * 96, 'history copied during ingress');
+  }
+  for (const item of reportPart.projections) {
+    assert.match(item.fixtureHash, /^[0-9a-f]{64}$/); assert.equal(item.eventCount, 6000);
+    assert.equal(item.samplesMs.length, 3); assert(item.samplesMs.every(value => Number.isFinite(value) && value >= 0));
+    assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[1]); assert.equal(item.work.length, 3);
+    for (const work of item.work) {
+      if (item.implementation === 'persistent-tree') treeWork(work, item.eventCount);
+      else assert.deepEqual(work, { copiedTreeNodes: 0, copiedTreeSlots: 0, copiedArraySlots: (item.historyMessages + 1) * item.eventCount, flatMaterializations: 0, flattenedMessages: 0 });
+    }
+  }
+  assert.deepEqual(reportPart.ingress.map(item => item.historyMessages), [300, 3000, 30000]);
+  for (const item of reportPart.ingress) {
+    assert.equal(item.eventCount, 6000); assert(Number.isFinite(item.elapsedMs) && item.elapsedMs >= 0);
+    assert.equal(item.fixtureHash, reportPart.projections.find(p => p.historyMessages === item.historyMessages).fixtureHash);
+    treeWork(item.eventWork, item.eventCount);
+    assert.deepEqual(item.duplicateWork, { copiedTreeNodes: 0, copiedTreeSlots: 0, copiedArraySlots: 0, flatMaterializations: 0, flattenedMessages: 0 });
+    assert.equal(item.beforeFrame, 0); assert.equal(item.afterFrame, 1);
+    assert.deepEqual(item.frameWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
+    assert.deepEqual(item.checks, { canonicalCurrentBeforeFrame: true, originalSnapshotUnchanged: true, completeDisplay: true, duplicatesPreserveSnapshot: true });
   }
 }
 if (report.agentDisplay) {

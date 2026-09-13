@@ -265,7 +265,9 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f4-events-baseline.json",
             "docs/renderer-performance/acceptance/f4-event-dedup.json",
-            "docs/renderer-performance/acceptance/f4-chat-display.json"
+            "docs/renderer-performance/acceptance/f4-chat-display.json",
+            "docs/renderer-performance/acceptance/f4-transcript.json",
+            "docs/renderer-performance/acceptance/f4-transcript-native.json"
           ],
           "status": "partial"
         },
@@ -288,7 +290,9 @@
             "docs/renderer-performance/acceptance/f4-desktop-panel.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel-baseline.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel.json",
-            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
+            "docs/renderer-performance/acceptance/f4-transcript.json",
+            "docs/renderer-performance/acceptance/f4-transcript-native.json"
           ],
           "status": "passed"
         },
@@ -306,12 +310,14 @@
             "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
             "docs/renderer-performance/acceptance/f4-history-baseline.json",
             "docs/renderer-performance/acceptance/f4-history.json",
-            "docs/renderer-performance/acceptance/f4-history-native.json"
+            "docs/renderer-performance/acceptance/f4-history-native.json",
+            "docs/renderer-performance/acceptance/f4-transcript.json",
+            "docs/renderer-performance/acceptance/f4-transcript-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "stable_desktop_and_mobile_message_blocks_browser_work_counts_and_native_history_retention_verified_canonical_copy_and_device_budgets_pending"
+      "implementationStatus": "immutable_live_transcript_path_updates_browser_work_counts_and_native_sqlite_text_terminal_restart_verified_mixed_replay_recovery_and_device_budgets_pending"
     },
     {
       "id": "F5",

@@ -1,3 +1,4 @@
+import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
 import { runEditorSuggestionScenarios } from './editor-suggestion-scenarios';
 import { runInlineCopilotScenarios } from './copilot-inline-scenarios';
 import { runInlineEditApplyScenarios } from './inline-edit-apply-scenarios';
@@ -119,6 +120,7 @@ async function run() {
     decorationReadiness: runDecorationReadinessScenario(),
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     agentEventProcessing: await runAgentEventScenarios(),
+    agentTranscript: await runAgentTranscriptScenarios(),
     agentDisplay: await runAgentDisplayScenarios(),
     agentPanel: await runAgentPanelScenarios(),
     agentHistory: await runAgentHistoryScenarios(),

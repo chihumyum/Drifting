@@ -566,7 +566,7 @@ async function executeDebugTurn(
     if (!firstTurnId || !conversationId) {
       const failedConversationId = conversationId ?? startedState.activeConvId;
       const startupError = failedConversationId
-        ? [...(startedState.runs[failedConversationId]?.messages ?? [])]
+        ? [...(startedState.runs[failedConversationId]?.transcript.toArray() ?? [])]
             .reverse()
             .find((message) => message.kind === 'error')
         : undefined;

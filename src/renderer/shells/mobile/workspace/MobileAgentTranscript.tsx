@@ -94,7 +94,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
       const state = useAgentChatStore.getState();
       return state.boundProjectId === owner.projectId && state.activeConvId === owner.conversationId
         && (useAuthStore.getState().user?.id ?? '') === owner.userId
-        && owner.conversationId !== null && state.runs[owner.conversationId]?.messages[index] === message;
+        && owner.conversationId !== null && state.runs[owner.conversationId]?.transcript.at(index) === message;
     };
     if (!owner.alive || owner.pending.has(message) || !sourceCurrent() || message.kind !== 'assistant' || message.streaming || !message.text.trim()) return;
     const token = {}; owner.pending.set(message, token);
@@ -112,7 +112,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
         show(t('agentPanel.mobile.action.inspirationDone'));
         if (isCurrent()) open({ entityType: 'node', id: created.id });
       } else {
-        const context = mobileAgentContextBefore(useAgentChatStore.getState().runs[owner.conversationId!].messages, index);
+        const context = mobileAgentContextBefore(useAgentChatStore.getState().runs[owner.conversationId!].transcript.toArray(), index);
         const anchor = mobileAgentTodoAnchor(context);
         await createComment({ kind: 'todo', bodyJson: createPlainCommentDoc(message.text), ...anchor,
           ...(anchor.targetBlockId ? { targetBlockIds: [anchor.targetBlockId] } : {}) });

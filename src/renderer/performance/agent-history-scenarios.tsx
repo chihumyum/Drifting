@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { createInstance } from 'i18next';
@@ -30,7 +31,7 @@ export async function runAgentHistoryScenarios({ measure = true } = {}) {
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(messages)));
       const fixtureHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
       useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId, starting: false, runningTurns: { [conversationId]: 'synthetic-turn' },
-        runs: { [conversationId]: { projectId, runtimeSessionId: null, messages, journalScope: createAgentChatJournalScope(), controlStatus: 'running', pendingControl: null,
+        runs: { [conversationId]: { projectId, runtimeSessionId: null, transcript: AgentChatTranscript.from(messages), journalScope: createAgentChatJournalScope(), controlStatus: 'running', pendingControl: null,
           lastTerminal: null, longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } });
       flushSync(() => root.render(<I18nextProvider i18n={i18n}><WorkspaceNavigationProvider navigator={{ projectId, open() {}, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} }}>
         {surface === 'desktop' ? <DesktopAgentTranscript /> : <MobileAgentTranscript projectId={projectId} conversationId={conversationId} />}
@@ -41,8 +42,9 @@ export async function runAgentHistoryScenarios({ measure = true } = {}) {
       agentHistoryWork.rowElements = 0; const updateMs = [];
       for (let update = 0; update < 20; update++) {
         messages = [...messages.slice(0, -1), { kind: 'assistant', text: `Current tail. ${'word '.repeat(update + 1)}`, streaming: true }];
+        const transcript = AgentChatTranscript.from(messages);
         const start = performance.now();
-        flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: { ...state.runs[conversationId], messages } } })));
+        flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: { ...state.runs[conversationId], transcript } } })));
         updateMs.push(performance.now() - start);
       }
       const checks = [

@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChatStore, applyEvent } from './agent-chat-store';
 import { useSettingsStore } from './settings-store';
@@ -23,7 +24,7 @@ const sessionId = 'synthetic-session';
 const listeners = new Set<(entry: AgentRuntimeJournalEntry) => void>();
 let restoreTransport: () => void;
 function run() {
-  return { projectId, messages: [], runtimeSessionId: sessionId, journalScope: createAgentChatJournalScope(),
+  return { projectId, transcript: AgentChatTranscript.from([]), runtimeSessionId: sessionId, journalScope: createAgentChatJournalScope(),
     controlStatus: null, pendingControl: null, lastTerminal: null, longTaskPlanState: null, contextUsage: null,
     automaticContinuation: createInactiveAgentAutomaticContinuation() };
 }
@@ -73,7 +74,7 @@ describe('chat journal ingress and private deduplication', () => {
       emit(entry({ type: 'text_delta', iteration: 1, text: '末尾输出' }, 'pending-tail'));
       expect(display.getSnapshot()).toEqual([]);
       emit(entry({ type: 'turn_finished', outcome: 'completed', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 }, modelIterations: 1, durationMs: 100 }, 'terminal-tail'));
-      const messages = useAgentChatStore.getState().runs[conversationId].messages;
+      const messages = useAgentChatStore.getState().runs[conversationId].transcript.toArray();
       expect(display.getSnapshot()).toBe(messages);
       expect(messages[0]).toEqual({ kind: 'assistant', text: '末尾输出', streaming: false });
       expect(frames.size).toBe(0);
@@ -100,7 +101,7 @@ describe('chat journal ingress and private deduplication', () => {
     const beforeReplay = useAgentChatStore.getState();
     for (const value of trace) emit(value);
     expect(useAgentChatStore.getState()).toBe(beforeReplay);
-    expect(beforeReplay.runs[conversationId].messages).toEqual(reference);
+    expect(beforeReplay.runs[conversationId].transcript.toArray()).toEqual(reference);
     expect(persistence.update).toHaveBeenCalledTimes(1);
     expect(persistence.update).toHaveBeenCalledWith(conversationId, expect.objectContaining({ messages: reference, runtimeSessionId: sessionId }));
   });
@@ -132,7 +133,7 @@ describe('chat journal ingress and private deduplication', () => {
       expect(useAgentChatStore.getState()).toBe(before);
       useAgentChatStore.setState({ runs: { ...before.runs, sibling: run() } });
       for (const listener of otherListeners) listener({ ...value, route: { kind: 'chat', projectId, conversationId: 'sibling' } });
-      expect(useAgentChatStore.getState().runs.sibling.messages).toEqual(before.runs[conversationId].messages);
+      expect(useAgentChatStore.getState().runs.sibling.transcript.toArray()).toEqual(before.runs[conversationId].transcript.toArray());
     } finally { restore(); }
   });
 
@@ -140,7 +141,7 @@ describe('chat journal ingress and private deduplication', () => {
     const first = entry({ type: 'text_delta', iteration: 1, text: '已恢复' }, 'recovered-event');
     emit(first);
     const oldScope = useAgentChatStore.getState().runs[conversationId].journalScope;
-    const messages = useAgentChatStore.getState().runs[conversationId].messages;
+    const messages = useAgentChatStore.getState().runs[conversationId].transcript.toArray();
     await useAgentChatStore.getState().deleteConversation(conversationId);
     expect(useAgentChatStore.getState().runs[conversationId]).toBeUndefined();
     const deleted = useAgentChatStore.getState();
@@ -154,16 +155,16 @@ describe('chat journal ingress and private deduplication', () => {
     emit(first);
     expect(useAgentChatStore.getState()).toBe(recovered);
     emit(entry({ type: 'text_delta', iteration: 1, text: '新尾部' }, 'new-tail'));
-    expect(useAgentChatStore.getState().runs[conversationId].messages).toEqual([{ kind: 'assistant', text: '已恢复新尾部', streaming: true }]);
+    expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()).toEqual([{ kind: 'assistant', text: '已恢复新尾部', streaming: true }]);
   });
 
   it('does not remember an event when its projection fails', () => {
     const current = useAgentChatStore.getState().runs[conversationId];
-    useAgentChatStore.setState({ runs: { [conversationId]: { ...current, messages: null as unknown as typeof current.messages } } });
+    useAgentChatStore.setState({ runs: { [conversationId]: { ...current, transcript: null as unknown as typeof current.transcript } } });
     const value = entry({ type: 'text_delta', iteration: 1, text: '重试' }, 'retry');
     expect(() => emit(value)).toThrow();
     useAgentChatStore.setState({ runs: { [conversationId]: current } });
     emit(value);
-    expect(useAgentChatStore.getState().runs[conversationId].messages).toEqual([{ kind: 'assistant', text: '重试', streaming: true }]);
+    expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()).toEqual([{ kind: 'assistant', text: '重试', streaming: true }]);
   });
 });
