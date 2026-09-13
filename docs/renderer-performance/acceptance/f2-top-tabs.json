@@ -1,0 +1,2815 @@
+{
+  "kind": "top_tab_presentation_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-13T14:39:45.981Z",
+  "source": {
+    "commit": "4d016a49da8bb6dde8b75353a59d7827202d1c46",
+    "fingerprint": "25e728f738b86068141655c2284d88848bc3682cd96b5558367c4e2d241b0b7a"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "suites": [
+    "src/renderer/components/topBars/TopTimeline/top-tab-presentation.test.ts",
+    "src/renderer/store/ui-store.workspace-tabs.test.ts",
+    "src/renderer/shells/desktop/navigation/desktop-tab-close-transition.acceptance.test.ts",
+    "src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts",
+    "src/renderer/components/topBars/TopTimeline/create-return.acceptance.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "project-local workspace tabs removes local tabs whose restored workspace entity does not exist",
+      "status": "passed",
+      "durationMs": 2.085707999999997
+    },
+    {
+      "name": "project-local workspace tabs does not alter another project tab collection",
+      "status": "passed",
+      "durationMs": 0.26045799999999986
+    },
+    {
+      "name": "project-local workspace tabs opens one create draft per project at the end and preserves its choices",
+      "status": "passed",
+      "durationMs": 0.6502910000000099
+    },
+    {
+      "name": "project-local workspace tabs keeps the create draft last when normal entity navigation adds a tab",
+      "status": "passed",
+      "durationMs": 0.2555839999999989
+    },
+    {
+      "name": "project-local workspace tabs returns an active create draft to the content tab that opened it",
+      "status": "passed",
+      "durationMs": 0.43233299999999986
+    },
+    {
+      "name": "project-local workspace tabs returns an active create draft to Project Home even when background tabs remain",
+      "status": "passed",
+      "durationMs": 0.26566700000000765
+    },
+    {
+      "name": "project-local workspace tabs plans the create return route without unmounting the active draft",
+      "status": "passed",
+      "durationMs": 0.21637499999999932
+    },
+    {
+      "name": "project-local workspace tabs refreshes the create return target when an existing draft is reopened",
+      "status": "passed",
+      "durationMs": 0.2712499999999807
+    },
+    {
+      "name": "project-local workspace tabs restores the exact split and focused leaf that opened the create draft",
+      "status": "passed",
+      "durationMs": 0.4789169999999956
+    },
+    {
+      "name": "project-local workspace tabs keeps an in-flight create draft safe from direct and bulk close actions",
+      "status": "passed",
+      "durationMs": 0.4706250000000125
+    },
+    {
+      "name": "project-local workspace tabs replaces an active create draft in place with a dedicated entity leaf",
+      "status": "passed",
+      "durationMs": 0.2549579999999878
+    },
+    {
+      "name": "project-local workspace tabs does not steal focus when a background create draft completes",
+      "status": "passed",
+      "durationMs": 0.1855419999999981
+    },
+    {
+      "name": "project-local workspace tabs preserves the live create draft while pruning stale workspace entities",
+      "status": "passed",
+      "durationMs": 0.17395799999999895
+    },
+    {
+      "name": "project-local workspace tabs filters create drafts and their active key from persisted ui state",
+      "status": "passed",
+      "durationMs": 0.17425000000000068
+    },
+    {
+      "name": "project-local workspace tabs never folds the transient draft into a split",
+      "status": "passed",
+      "durationMs": 0.1435419999999965
+    },
+    {
+      "name": "project-local workspace tabs keeps Project Home outside the tab collection while preserving background tabs",
+      "status": "passed",
+      "durationMs": 0.13254200000000083
+    },
+    {
+      "name": "project-local workspace tabs activates an existing split side without creating a duplicate preview",
+      "status": "passed",
+      "durationMs": 0.5432500000000005
+    },
+    {
+      "name": "project-local workspace tabs migrates legacy dashboard leaves and mixed splits into Project Home state",
+      "status": "passed",
+      "durationMs": 0.25137500000002433
+    },
+    {
+      "name": "desktop create-tab return ownership normalizes Project Home ownership before activating the create draft",
+      "status": "passed",
+      "durationMs": 1.0697919999999925
+    },
+    {
+      "name": "open-tab semantic presentation keeps the same projection for metrics, prose, positions and names outside open tabs",
+      "status": "passed",
+      "durationMs": 1.3302500000000066
+    },
+    {
+      "name": "open-tab semantic presentation renames an open node without invalidating appearances",
+      "status": "passed",
+      "durationMs": 0.6063339999999897
+    },
+    {
+      "name": "open-tab semantic presentation changes primary storyline and category colors without invalidating labels",
+      "status": "passed",
+      "durationMs": 0.24858300000001066
+    },
+    {
+      "name": "open-tab semantic presentation updates memberships and nullable categories while preserving labels",
+      "status": "passed",
+      "durationMs": 0.26329199999999275
+    },
+    {
+      "name": "open-tab semantic presentation preserves chapter/drift fallback and glyph semantics when a title is empty",
+      "status": "passed",
+      "durationMs": 0.1964580000000069
+    },
+    {
+      "name": "open-tab semantic presentation includes both split leaves and singleton, storyline and category labels",
+      "status": "passed",
+      "durationMs": 0.8334580000000074
+    },
+    {
+      "name": "open-tab semantic presentation deduplicates repeated split leaves and ignores the create draft contents",
+      "status": "passed",
+      "durationMs": 0.18537500000000762
+    },
+    {
+      "name": "open-tab semantic presentation releases identical display projections across committed generations",
+      "status": "passed",
+      "durationMs": 0.23320900000000222
+    },
+    {
+      "name": "open-tab semantic presentation never uses another project or an uncommitted projection for matching ids",
+      "status": "passed",
+      "durationMs": 0.25037500000000534
+    },
+    {
+      "name": "open-tab semantic presentation shares the first-match index across independent selectors of the same snapshot",
+      "status": "passed",
+      "durationMs": 0.21770799999998758
+    },
+    {
+      "name": "open-tab semantic presentation invalidates deleted and restored targets and retains no missing title",
+      "status": "passed",
+      "durationMs": 0.1464159999999879
+    },
+    {
+      "name": "desktop universal create acceptance keeps the transient draft outside shared entity and mobile navigation contracts",
+      "status": "passed",
+      "durationMs": 1.1294579999999996
+    },
+    {
+      "name": "desktop universal create acceptance renders the plus immediately after the scrollable tab list without hover wash",
+      "status": "passed",
+      "durationMs": 0.47212500000000546
+    },
+    {
+      "name": "desktop universal create acceptance mounts one desktop-only create surface and reuses all four authored usecases",
+      "status": "passed",
+      "durationMs": 0.3669999999999902
+    },
+    {
+      "name": "desktop universal create acceptance preserves the Home-to-create transition when the tab store renders before the router",
+      "status": "passed",
+      "durationMs": 0.15645899999999813
+    },
+    {
+      "name": "desktop universal create acceptance documents session-only persistence, navigation, and replacement semantics",
+      "status": "passed",
+      "durationMs": 0.3065830000000034
+    },
+    {
+      "name": "desktop tab close transition acceptance keeps the create surface until the destination route commits",
+      "status": "passed",
+      "durationMs": 0.9822499999999934
+    },
+    {
+      "name": "desktop tab close transition acceptance shares the transition owner between mouse and keyboard close actions",
+      "status": "passed",
+      "durationMs": 0.4612499999999926
+    }
+  ],
+  "browser": {
+    "build": "production-React-mounted-top-tab-strip-Chromium",
+    "profiles": [
+      {
+        "nodes": 100,
+        "tabCount": 1,
+        "updates": 100,
+        "initialWidths": [
+          124
+        ],
+        "renameWidths": [
+          272
+        ],
+        "narrowWidths": [
+          126
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 10000,
+          "projectedLeaves": 100
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 10
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 1
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 1
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 1
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 102,
+          "projectedLeaves": 1
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": null,
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": null,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 100,
+        "tabCount": 5,
+        "updates": 100,
+        "initialWidths": [
+          124,
+          124,
+          124,
+          124,
+          124
+        ],
+        "renameWidths": [
+          235,
+          107,
+          107,
+          107,
+          107
+        ],
+        "narrowWidths": [
+          126,
+          124,
+          124,
+          124,
+          124
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 10000,
+          "projectedLeaves": 500
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 50
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 5
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 5
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 5
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 102,
+          "projectedLeaves": 5
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 5
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 498,
+            "right": 622
+          },
+          "marker": "opacity: 1; transform: translateX(620.5px);",
+          "ordered": [
+            "node:synthetic-node-96",
+            "node:synthetic-node-97",
+            "node:synthetic-node-98",
+            "node:synthetic-node-99",
+            "node:synthetic-node-95"
+          ],
+          "expected": "node:synthetic-node-95"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 100,
+        "tabCount": 20,
+        "updates": 100,
+        "initialWidths": [
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124
+        ],
+        "renameWidths": [
+          137,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62,
+          62
+        ],
+        "narrowWidths": [
+          126,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124,
+          124
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 10000,
+          "projectedLeaves": 2000
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 200
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 20
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 20
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 100,
+          "projectedLeaves": 20
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 102,
+          "projectedLeaves": 20
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 20
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 2358,
+            "right": 2482
+          },
+          "marker": "opacity: 1; transform: translateX(2480.5px);",
+          "ordered": [
+            "node:synthetic-node-81",
+            "node:synthetic-node-82",
+            "node:synthetic-node-83",
+            "node:synthetic-node-84",
+            "node:synthetic-node-85",
+            "node:synthetic-node-86",
+            "node:synthetic-node-87",
+            "node:synthetic-node-88",
+            "node:synthetic-node-89",
+            "node:synthetic-node-90",
+            "node:synthetic-node-91",
+            "node:synthetic-node-92",
+            "node:synthetic-node-93",
+            "node:synthetic-node-94",
+            "node:synthetic-node-95",
+            "node:synthetic-node-96",
+            "node:synthetic-node-97",
+            "node:synthetic-node-98",
+            "node:synthetic-node-99",
+            "node:synthetic-node-80"
+          ],
+          "expected": "node:synthetic-node-80"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 1000,
+        "tabCount": 1,
+        "updates": 100,
+        "initialWidths": [
+          131
+        ],
+        "renameWidths": [
+          272
+        ],
+        "narrowWidths": [
+          126
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100000,
+          "projectedLeaves": 100
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 10
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 1
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 1
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 1
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1002,
+          "projectedLeaves": 1
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": null,
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": null,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 1000,
+        "tabCount": 5,
+        "updates": 100,
+        "initialWidths": [
+          131,
+          131,
+          131,
+          131,
+          131
+        ],
+        "renameWidths": [
+          226,
+          109,
+          109,
+          109,
+          109
+        ],
+        "narrowWidths": [
+          126,
+          131,
+          131,
+          131,
+          131
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100000,
+          "projectedLeaves": 500
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 50
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 5
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 5
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 5
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1002,
+          "projectedLeaves": 5
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 5
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 519,
+            "right": 650
+          },
+          "marker": "opacity: 1; transform: translateX(648.5px);",
+          "ordered": [
+            "node:synthetic-node-996",
+            "node:synthetic-node-997",
+            "node:synthetic-node-998",
+            "node:synthetic-node-999",
+            "node:synthetic-node-995"
+          ],
+          "expected": "node:synthetic-node-995"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 1000,
+        "tabCount": 20,
+        "updates": 100,
+        "initialWidths": [
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131
+        ],
+        "renameWidths": [
+          130,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63
+        ],
+        "narrowWidths": [
+          126,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 100000,
+          "projectedLeaves": 2000
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 200
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 20
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 20
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1000,
+          "projectedLeaves": 20
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 1002,
+          "projectedLeaves": 20
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 20
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 2484,
+            "right": 2615
+          },
+          "marker": "opacity: 1; transform: translateX(2613.5px);",
+          "ordered": [
+            "node:synthetic-node-981",
+            "node:synthetic-node-982",
+            "node:synthetic-node-983",
+            "node:synthetic-node-984",
+            "node:synthetic-node-985",
+            "node:synthetic-node-986",
+            "node:synthetic-node-987",
+            "node:synthetic-node-988",
+            "node:synthetic-node-989",
+            "node:synthetic-node-990",
+            "node:synthetic-node-991",
+            "node:synthetic-node-992",
+            "node:synthetic-node-993",
+            "node:synthetic-node-994",
+            "node:synthetic-node-995",
+            "node:synthetic-node-996",
+            "node:synthetic-node-997",
+            "node:synthetic-node-998",
+            "node:synthetic-node-999",
+            "node:synthetic-node-980"
+          ],
+          "expected": "node:synthetic-node-980"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 5000,
+        "tabCount": 1,
+        "updates": 100,
+        "initialWidths": [
+          138
+        ],
+        "renameWidths": [
+          272
+        ],
+        "narrowWidths": [
+          126
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 500000,
+          "projectedLeaves": 100
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 10
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 1
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 1
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 1
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 1,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5002,
+          "projectedLeaves": 1
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": null,
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": null,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 5000,
+        "tabCount": 5,
+        "updates": 100,
+        "initialWidths": [
+          132,
+          132,
+          132,
+          132,
+          132
+        ],
+        "renameWidths": [
+          219,
+          111,
+          111,
+          111,
+          111
+        ],
+        "narrowWidths": [
+          126,
+          138,
+          138,
+          138,
+          138
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 500000,
+          "projectedLeaves": 500
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 50
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 5
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 5
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 5
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5002,
+          "projectedLeaves": 5
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 5,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 5
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 540,
+            "right": 678
+          },
+          "marker": "opacity: 1; transform: translateX(676.5px);",
+          "ordered": [
+            "node:synthetic-node-4996",
+            "node:synthetic-node-4997",
+            "node:synthetic-node-4998",
+            "node:synthetic-node-4999",
+            "node:synthetic-node-4995"
+          ],
+          "expected": "node:synthetic-node-4995"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      },
+      {
+        "nodes": 5000,
+        "tabCount": 20,
+        "updates": 100,
+        "initialWidths": [
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132,
+          132
+        ],
+        "renameWidths": [
+          124,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63,
+          63
+        ],
+        "narrowWidths": [
+          126,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138,
+          138
+        ],
+        "splitWidths": [
+          224,
+          125
+        ],
+        "metrics": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 500000,
+          "projectedLeaves": 2000
+        },
+        "unrelatedBodies": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 200
+        },
+        "outsideRename": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 20
+        },
+        "colorChange": {
+          "renders": 1,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 2,
+          "projectedLeaves": 20
+        },
+        "rename": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5000,
+          "projectedLeaves": 20
+        },
+        "generationChange": {
+          "renders": 1,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 5002,
+          "projectedLeaves": 20
+        },
+        "requestOnly": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "dragWork": {
+          "renders": 4,
+          "measurements": 20,
+          "scrollChecks": 1,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 20
+        },
+        "dragTrace": {
+          "startOpacity": "0.5",
+          "rect": {
+            "left": 2610,
+            "right": 2748
+          },
+          "marker": "opacity: 1; transform: translateX(2746.5px);",
+          "ordered": [
+            "node:synthetic-node-4981",
+            "node:synthetic-node-4982",
+            "node:synthetic-node-4983",
+            "node:synthetic-node-4984",
+            "node:synthetic-node-4985",
+            "node:synthetic-node-4986",
+            "node:synthetic-node-4987",
+            "node:synthetic-node-4988",
+            "node:synthetic-node-4989",
+            "node:synthetic-node-4990",
+            "node:synthetic-node-4991",
+            "node:synthetic-node-4992",
+            "node:synthetic-node-4993",
+            "node:synthetic-node-4994",
+            "node:synthetic-node-4995",
+            "node:synthetic-node-4996",
+            "node:synthetic-node-4997",
+            "node:synthetic-node-4998",
+            "node:synthetic-node-4999",
+            "node:synthetic-node-4980"
+          ],
+          "expected": "node:synthetic-node-4980"
+        },
+        "unmounted": {
+          "renders": 0,
+          "measurements": 0,
+          "scrollChecks": 0,
+          "arrayVisits": 0,
+          "indexRows": 0,
+          "projectedLeaves": 0
+        },
+        "checks": {
+          "metricsKeepWidths": true,
+          "colorApplied": true,
+          "colorsKeepWidths": true,
+          "renamed": true,
+          "foreignHidden": true,
+          "projectReturns": true,
+          "englishFallback": true,
+          "chineseFallback": true,
+          "driftFallback": true,
+          "navigationWorks": true,
+          "reorderWorks": true,
+          "splitLabels": true,
+          "singletonLabel": true,
+          "createDraftPreserved": true,
+          "closeWorks": true
+        }
+      }
+    ],
+    "boundary": "Actual strip, DOM widths, drag and UI store; synthetic shell adapters and data publications. No complete editor/native/device timing claim.",
+    "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "uncaughtErrors": []
+  },
+  "baseline": {
+    "commit": "4d016a49da8bb6dde8b75353a59d7827202d1c46",
+    "scenarioSha256": "4aad4531e1374ea6f9209af5d2afdcba5eef63e9429fdc4e95a492d35a2b87f5",
+    "browser": {
+      "build": "production-React-mounted-top-tab-strip-Chromium",
+      "profiles": [
+        {
+          "nodes": 100,
+          "tabCount": 1,
+          "updates": 100,
+          "initialWidths": [
+            124
+          ],
+          "renameWidths": [
+            272
+          ],
+          "narrowWidths": [
+            126
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 100,
+            "scrollChecks": 100,
+            "arrayVisits": 40100,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 10,
+            "scrollChecks": 10,
+            "arrayVisits": 4010,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 401,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 401,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 401,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 401,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": null,
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": null,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 100,
+          "tabCount": 5,
+          "updates": 100,
+          "initialWidths": [
+            124,
+            124,
+            124,
+            124,
+            124
+          ],
+          "renameWidths": [
+            235,
+            107,
+            107,
+            107,
+            107
+          ],
+          "narrowWidths": [
+            126,
+            124,
+            124,
+            124,
+            124
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 500,
+            "scrollChecks": 100,
+            "arrayVisits": 196500,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 50,
+            "scrollChecks": 10,
+            "arrayVisits": 19650,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 1965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 1965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 1965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 1965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 6390,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 498,
+              "right": 622
+            },
+            "marker": "opacity: 1; transform: translateX(620.5px);",
+            "ordered": [
+              "node:synthetic-node-96",
+              "node:synthetic-node-97",
+              "node:synthetic-node-98",
+              "node:synthetic-node-99",
+              "node:synthetic-node-95"
+            ],
+            "expected": "node:synthetic-node-95"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 100,
+          "tabCount": 20,
+          "updates": 100,
+          "initialWidths": [
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124
+          ],
+          "renameWidths": [
+            137,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62,
+            62
+          ],
+          "narrowWidths": [
+            126,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124,
+            124
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 2000,
+            "scrollChecks": 100,
+            "arrayVisits": 726000,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 200,
+            "scrollChecks": 10,
+            "arrayVisits": 72600,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 7260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 7260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 7260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 7260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 23610,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 2358,
+              "right": 2482
+            },
+            "marker": "opacity: 1; transform: translateX(2480.5px);",
+            "ordered": [
+              "node:synthetic-node-81",
+              "node:synthetic-node-82",
+              "node:synthetic-node-83",
+              "node:synthetic-node-84",
+              "node:synthetic-node-85",
+              "node:synthetic-node-86",
+              "node:synthetic-node-87",
+              "node:synthetic-node-88",
+              "node:synthetic-node-89",
+              "node:synthetic-node-90",
+              "node:synthetic-node-91",
+              "node:synthetic-node-92",
+              "node:synthetic-node-93",
+              "node:synthetic-node-94",
+              "node:synthetic-node-95",
+              "node:synthetic-node-96",
+              "node:synthetic-node-97",
+              "node:synthetic-node-98",
+              "node:synthetic-node-99",
+              "node:synthetic-node-80"
+            ],
+            "expected": "node:synthetic-node-80"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 1000,
+          "tabCount": 1,
+          "updates": 100,
+          "initialWidths": [
+            131
+          ],
+          "renameWidths": [
+            272
+          ],
+          "narrowWidths": [
+            126
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 100,
+            "scrollChecks": 100,
+            "arrayVisits": 400100,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 10,
+            "scrollChecks": 10,
+            "arrayVisits": 40010,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 4001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 4001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 4001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 4001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": null,
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": null,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 1000,
+          "tabCount": 5,
+          "updates": 100,
+          "initialWidths": [
+            131,
+            131,
+            131,
+            131,
+            131
+          ],
+          "renameWidths": [
+            226,
+            109,
+            109,
+            109,
+            109
+          ],
+          "narrowWidths": [
+            126,
+            131,
+            131,
+            131,
+            131
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 500,
+            "scrollChecks": 100,
+            "arrayVisits": 1996500,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 50,
+            "scrollChecks": 10,
+            "arrayVisits": 199650,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 19965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 19965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 19965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 19965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 64890,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 519,
+              "right": 650
+            },
+            "marker": "opacity: 1; transform: translateX(648.5px);",
+            "ordered": [
+              "node:synthetic-node-996",
+              "node:synthetic-node-997",
+              "node:synthetic-node-998",
+              "node:synthetic-node-999",
+              "node:synthetic-node-995"
+            ],
+            "expected": "node:synthetic-node-995"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 1000,
+          "tabCount": 20,
+          "updates": 100,
+          "initialWidths": [
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131
+          ],
+          "renameWidths": [
+            130,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63
+          ],
+          "narrowWidths": [
+            126,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131,
+            131
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 2000,
+            "scrollChecks": 100,
+            "arrayVisits": 7926000,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 200,
+            "scrollChecks": 10,
+            "arrayVisits": 792600,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 79260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 79260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 79260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 79260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 257610,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 2484,
+              "right": 2615
+            },
+            "marker": "opacity: 1; transform: translateX(2613.5px);",
+            "ordered": [
+              "node:synthetic-node-981",
+              "node:synthetic-node-982",
+              "node:synthetic-node-983",
+              "node:synthetic-node-984",
+              "node:synthetic-node-985",
+              "node:synthetic-node-986",
+              "node:synthetic-node-987",
+              "node:synthetic-node-988",
+              "node:synthetic-node-989",
+              "node:synthetic-node-990",
+              "node:synthetic-node-991",
+              "node:synthetic-node-992",
+              "node:synthetic-node-993",
+              "node:synthetic-node-994",
+              "node:synthetic-node-995",
+              "node:synthetic-node-996",
+              "node:synthetic-node-997",
+              "node:synthetic-node-998",
+              "node:synthetic-node-999",
+              "node:synthetic-node-980"
+            ],
+            "expected": "node:synthetic-node-980"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 5000,
+          "tabCount": 1,
+          "updates": 100,
+          "initialWidths": [
+            138
+          ],
+          "renameWidths": [
+            272
+          ],
+          "narrowWidths": [
+            126
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 100,
+            "scrollChecks": 100,
+            "arrayVisits": 2000100,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 10,
+            "scrollChecks": 10,
+            "arrayVisits": 200010,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 20001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 20001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 20001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 1,
+            "scrollChecks": 1,
+            "arrayVisits": 20001,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": null,
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": null,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 5000,
+          "tabCount": 5,
+          "updates": 100,
+          "initialWidths": [
+            132,
+            132,
+            132,
+            132,
+            132
+          ],
+          "renameWidths": [
+            219,
+            111,
+            111,
+            111,
+            111
+          ],
+          "narrowWidths": [
+            126,
+            138,
+            138,
+            138,
+            138
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 500,
+            "scrollChecks": 100,
+            "arrayVisits": 9996500,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 50,
+            "scrollChecks": 10,
+            "arrayVisits": 999650,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 99965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 99965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 99965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 99965,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 5,
+            "scrollChecks": 1,
+            "arrayVisits": 324890,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 540,
+              "right": 678
+            },
+            "marker": "opacity: 1; transform: translateX(676.5px);",
+            "ordered": [
+              "node:synthetic-node-4996",
+              "node:synthetic-node-4997",
+              "node:synthetic-node-4998",
+              "node:synthetic-node-4999",
+              "node:synthetic-node-4995"
+            ],
+            "expected": "node:synthetic-node-4995"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        },
+        {
+          "nodes": 5000,
+          "tabCount": 20,
+          "updates": 100,
+          "initialWidths": [
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132,
+            132
+          ],
+          "renameWidths": [
+            124,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63,
+            63
+          ],
+          "narrowWidths": [
+            126,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138,
+            138
+          ],
+          "splitWidths": [
+            224,
+            125
+          ],
+          "metrics": {
+            "renders": 100,
+            "measurements": 2000,
+            "scrollChecks": 100,
+            "arrayVisits": 39926000,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "unrelatedBodies": {
+            "renders": 10,
+            "measurements": 200,
+            "scrollChecks": 10,
+            "arrayVisits": 3992600,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "outsideRename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 399260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "colorChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 399260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "rename": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 399260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "generationChange": {
+            "renders": 1,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 399260,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "requestOnly": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragWork": {
+            "renders": 4,
+            "measurements": 20,
+            "scrollChecks": 1,
+            "arrayVisits": 1297610,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "dragTrace": {
+            "startOpacity": "0.5",
+            "rect": {
+              "left": 2610,
+              "right": 2748
+            },
+            "marker": "opacity: 1; transform: translateX(2746.5px);",
+            "ordered": [
+              "node:synthetic-node-4981",
+              "node:synthetic-node-4982",
+              "node:synthetic-node-4983",
+              "node:synthetic-node-4984",
+              "node:synthetic-node-4985",
+              "node:synthetic-node-4986",
+              "node:synthetic-node-4987",
+              "node:synthetic-node-4988",
+              "node:synthetic-node-4989",
+              "node:synthetic-node-4990",
+              "node:synthetic-node-4991",
+              "node:synthetic-node-4992",
+              "node:synthetic-node-4993",
+              "node:synthetic-node-4994",
+              "node:synthetic-node-4995",
+              "node:synthetic-node-4996",
+              "node:synthetic-node-4997",
+              "node:synthetic-node-4998",
+              "node:synthetic-node-4999",
+              "node:synthetic-node-4980"
+            ],
+            "expected": "node:synthetic-node-4980"
+          },
+          "unmounted": {
+            "renders": 0,
+            "measurements": 0,
+            "scrollChecks": 0,
+            "arrayVisits": 0,
+            "indexRows": 0,
+            "projectedLeaves": 0
+          },
+          "checks": {
+            "metricsKeepWidths": true,
+            "colorApplied": true,
+            "colorsKeepWidths": true,
+            "renamed": true,
+            "foreignHidden": false,
+            "projectReturns": true,
+            "englishFallback": true,
+            "chineseFallback": true,
+            "driftFallback": true,
+            "navigationWorks": true,
+            "reorderWorks": true,
+            "splitLabels": true,
+            "singletonLabel": true,
+            "createDraftPreserved": true,
+            "closeWorks": true
+          }
+        }
+      ],
+      "boundary": "Actual strip, DOM widths, drag and UI store; synthetic shell adapters and data publications. No complete editor/native/device timing claim.",
+      "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "uncaughtErrors": []
+    }
+  },
+  "acceptance": {
+    "browser": "actual-top-tab-strip-synthetic-shell-adapters-and-complete-publications",
+    "dataWrites": "none",
+    "native": "not-run",
+    "deviceBudget": "not-evaluated"
+  }
+}

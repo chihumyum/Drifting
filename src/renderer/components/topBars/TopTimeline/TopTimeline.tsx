@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
-import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
+import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import {
   useUiStore,
@@ -118,11 +118,8 @@ export function TopTimeline() {
   const extractFromSplit = useUiStore((s) => s.extractFromSplit);
   const promoteTab = useUiStore((s) => s.promoteTab);
   const reorderTabs = useUiStore((s) => s.reorderTabs);
-  const bookNodes = useDataStore((s) => s.bookNodes);
-  const storylines = useDataStore((s) => s.storylines);
-  const bookElements = useDataStore((s) => s.bookElements);
-  const bookElementCategories = useDataStore((s) => s.bookElementCategories);
-  const primaryStorylineByNode = useDataStore((s) => s.primaryStorylineByNode);
+  const selectPresentation = useMemo(() => createTopTabPresentationSelector(projectId, openTabs), [projectId, openTabs]);
+  const presentation = useDataStore(selectPresentation);
 
   // The active tab paints its own static rectangular state. The container ref
   // remains the authority for width allocation, drag/drop and scrolling.
@@ -169,63 +166,17 @@ export function TopTimeline() {
     return () => ro.disconnect();
   }, [containerRef]);
 
-  const lookups = useMemo(() => {
-    const labelOfLeaf = (leaf: LeafTab): string => {
-      switch (leaf.entityType) {
-        case 'node': {
-          const n = bookNodes.find((b) => b.id === leaf.id);
-          if (!n) return t('topTimeline.untitled.chapter');
-          if (n.title) return n.title;
-          return isChapter(n) ? t('topTimeline.untitled.chapter') : t('topTimeline.untitled.drift');
-        }
-        case 'storyline':
-          return (
-            storylines.find((s) => s.id === leaf.id)?.name || t('topTimeline.untitled.storyline')
-          );
-        case 'element':
-          return (
-            bookElements.find((e) => e.id === leaf.id)?.name || t('topTimeline.untitled.element')
-          );
-        case 'category':
-          return (
-            bookElementCategories.find((c) => c.id === leaf.id)?.name ||
-            t('topTimeline.untitled.category')
-          );
-        case 'all-chapters':
-          return t('topTimeline.singletons.allChapters');
-      }
-    };
-    const colorOfLeaf = (leaf: LeafTab): string | undefined => {
-      switch (leaf.entityType) {
-        case 'node': {
-          const n = bookNodes.find((b) => b.id === leaf.id);
-          if (!n) return undefined;
-          const primaryId = primaryStorylineByNode[n.id] ?? null;
-          return primaryId ? storylines.find((s) => s.id === primaryId)?.color : undefined;
-        }
-        case 'storyline':
-          return storylines.find((s) => s.id === leaf.id)?.color;
-        case 'element': {
-          const e = bookElements.find((b) => b.id === leaf.id);
-          if (!e) return undefined;
-          return bookElementCategories.find((c) => c.id === e.categoryId)?.color;
-        }
-        case 'category':
-          return bookElementCategories.find((c) => c.id === leaf.id)?.color;
-        case 'all-chapters':
-          // Singletons share the neutral ink color — no entity behind them
-          // that carries a palette, and a fixed accent would compete with
-          // the surrounding tabs.
-          return undefined;
-      }
-    };
-    const isDriftLeaf = (leaf: LeafTab): boolean => {
-      if (leaf.entityType !== 'node') return false;
-      const n = bookNodes.find((b) => b.id === leaf.id);
-      return Boolean(n) && isDriftNode(n!);
-    };
-    return { labelOfLeaf, colorOfLeaf, isDriftLeaf };
-  }, [bookNodes, storylines, bookElements, bookElementCategories, primaryStorylineByNode, t]);
+  const labelOfLeaf = useCallback((leaf: LeafTab): string => {
+    const label = presentation.labels.get(leafPresentationKey(leaf));
+    if (label?.title) return label.title;
+    return label?.fallback === 'all-chapters'
+      ? t('topTimeline.singletons.allChapters')
+      : t(`topTimeline.untitled.${label?.fallback ?? 'chapter'}`);
+  }, [presentation.labels, t]);
+  const colorOfLeaf = useCallback((leaf: LeafTab) => presentation.appearances.get(leafPresentationKey(leaf))?.color,
+    [presentation.appearances]);
+  const isDriftLeaf = useCallback((leaf: LeafTab) => presentation.appearances.get(leafPresentationKey(leaf))?.isDrift ?? false,
+    [presentation.appearances]);
 
   // Three-phase tab sizing:
   //
@@ -255,11 +206,11 @@ export function TopTimeline() {
     const ideals = openTabs.map((tab, i) => {
       const raw =
         tab.kind === 'leaf'
-          ? measureLabelWidth(lookups.labelOfLeaf(tab)) + TAB_CHROME_WIDTH
+          ? measureLabelWidth(labelOfLeaf(tab)) + TAB_CHROME_WIDTH
           : tab.kind === 'create'
             ? measureLabelWidth(t('topTimeline.newTab')) + TAB_CHROME_WIDTH
-            : measureLabelWidth(lookups.labelOfLeaf(tab.left)) +
-              measureLabelWidth(lookups.labelOfLeaf(tab.right)) +
+            : measureLabelWidth(labelOfLeaf(tab.left)) +
+              measureLabelWidth(labelOfLeaf(tab.right)) +
               SPLIT_CHROME_WIDTH;
       return Math.min(TAB_MAX_WIDTH * weights[i], raw);
     });
@@ -287,7 +238,7 @@ export function TopTimeline() {
     }
     const scale = Math.min(1, virtual / idealTotal);
     return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
-  }, [openTabs, lookups, containerWidth, t]);
+  }, [openTabs, labelOfLeaf, containerWidth, t]);
 
   // A narrow insertion marker translates between drag-and-drop positions.
   // It is reorder feedback, independent of the static active-tab treatment.
@@ -598,9 +549,9 @@ export function TopTimeline() {
               isActive={isActive}
               isDragging={isDragging}
               width={width}
-              label={lookups.labelOfLeaf(tab)}
-              color={lookups.colorOfLeaf(tab)}
-              isDrift={lookups.isDriftLeaf(tab)}
+              label={labelOfLeaf(tab)}
+              color={colorOfLeaf(tab)}
+              isDrift={isDriftLeaf(tab)}
               setDragFromIndex={setDragFromIndex}
               onDragOverSlot={onDragOverSlot}
               onDropSlot={onDropSlot}
@@ -621,12 +572,12 @@ export function TopTimeline() {
             isActive={isActive}
             isDragging={isDragging}
             width={width}
-            leftLabel={lookups.labelOfLeaf(tab.left)}
-            rightLabel={lookups.labelOfLeaf(tab.right)}
-            leftColor={lookups.colorOfLeaf(tab.left)}
-            rightColor={lookups.colorOfLeaf(tab.right)}
-            leftIsDrift={lookups.isDriftLeaf(tab.left)}
-            rightIsDrift={lookups.isDriftLeaf(tab.right)}
+            leftLabel={labelOfLeaf(tab.left)}
+            rightLabel={labelOfLeaf(tab.right)}
+            leftColor={colorOfLeaf(tab.left)}
+            rightColor={colorOfLeaf(tab.right)}
+            leftIsDrift={isDriftLeaf(tab.left)}
+            rightIsDrift={isDriftLeaf(tab.right)}
             setDragFromIndex={setDragFromIndex}
             onDragOverSlot={onDragOverSlot}
             onDropSlot={onDropSlot}

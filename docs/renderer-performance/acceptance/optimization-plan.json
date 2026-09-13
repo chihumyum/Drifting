@@ -135,7 +135,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f2-subscriptions.json",
             "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
-            "docs/renderer-performance/acceptance/f2-projection-generation.json"
+            "docs/renderer-performance/acceptance/f2-projection-generation.json",
+            "docs/renderer-performance/acceptance/f2-top-tabs.json"
           ],
           "status": "passed"
         },
@@ -147,7 +148,9 @@
             "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f2-projection-generation.json",
-            "docs/renderer-performance/acceptance/f2-global-search.json"
+            "docs/renderer-performance/acceptance/f2-global-search.json",
+            "docs/renderer-performance/acceptance/f2-top-tabs.json",
+            "docs/renderer-performance/acceptance/f2-top-tabs-native.json"
           ],
           "status": "partial"
         },
@@ -160,12 +163,14 @@
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f2-projection-generation.json",
-            "docs/renderer-performance/acceptance/f2-global-search.json"
+            "docs/renderer-performance/acceptance/f2-global-search.json",
+            "docs/renderer-performance/acceptance/f2-top-tabs.json",
+            "docs/renderer-performance/acceptance/f2-top-tabs-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "field_and_semantic_subscriptions_committed_generation_and_visible_global_search_session_sqlite_and_react_verified_full_provider_and_device_acceptance_pending"
+      "implementationStatus": "semantic_subscriptions_generation_visible_search_and_top_tab_presentation_verified_native_app_lifecycle_control_passed_full_stress_and_device_budgets_pending"
     },
     {
       "id": "F3",

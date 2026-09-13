@@ -3439,3 +3439,96 @@ and fixtures excluded. `acceptance/f2-global-search-browser.json` also passed th
 existing deterministic renderer contracts on this source tree. Both reports
 retain the real pre-commit source metadata; they are not hand-relabelled after
 commit.
+
+## F2e — Top tab presentation and semantic subscriptions
+
+`TopTimeline` subscribed to five full domain collections. A node metric or
+unrelated element-body change rerendered the strip, ran repeated array `find`
+lookups for every open leaf, remeasured each title through a hidden DOM span and
+checked the active tab's scroll geometry. A storyline-color change also caused
+title measurements even when the title stayed identical.
+
+`top-tab-presentation` now owns the open leaves' title/fallback, color and drift
+glyph projection. It reads one atomic workspace snapshot, uses the existing
+shared weak ID indexes and preserves the projection when only unrelated fields
+change. Label and appearance maps have separate identities, so color changes
+update the strip while retaining its width calculation. Project mismatch or an
+uncommitted projection uses empty entity labels; committed generation changes
+invalidate the projection even when ids and names match. A pending refresh alone
+does not invalidate committed display data. The mounted strip owns the selector;
+there is no new global cache of prose-bearing records.
+
+At 5,000 chapters and 20 open tabs, the identical production React scenario
+measured:
+
+| Operation | Baseline | Current |
+| --- | ---: | ---: |
+| 100 metric updates: strip renders | 100 | 0 |
+| 100 metric updates: title DOM measurements | 2,000 | 0 |
+| 100 metric updates: active-tab scroll checks | 100 | 0 |
+| 100 metric updates: array search visits / index rows | 39,926,000 searches | 500,000 index rows |
+| Ten unrelated element-body updates: title measurements | 200 | 0 |
+| Storyline color change: title measurements | 20 | 0 |
+
+The current metric pass still visits 20 open leaves per publication and builds
+one N-row shared ID index for each changed chapter array. Those 2,000 leaf
+projections and 500,000 index rows are included in the evidence. The batch does
+not claim constant-time data updates, a wall-clock speedup or a memory budget.
+Changing an open title still remeasures the strip for proportional allocation.
+The existing tab-size algorithm, zero gap, first-tab alignment and end padding
+remain unchanged.
+
+`acceptance/f2-top-tabs.json` is generated from the same browser harness on
+`4d016a49` and current source: 100/1,000/5,000 chapters × 1/5/20 tabs. Initial,
+renamed, narrow-container and split widths match the baseline exactly. Each
+profile checks colors, rename, project isolation/return, English/Chinese fallback,
+drift glyph, navigation, split/singleton labels, create-draft retention and close;
+drag reorder is exercised for multi-tab profiles and explicitly null for one tab.
+The drag events yield to React's continuous-event updates between start, hover
+and drop; the result records actual DOM marker position and UI-store order.
+Unmounted publications produce no strip work. Baseline foreign-id title leakage
+is reproduced and rejected by the current selector.
+
+The browser mounts the real strip and real data/UI stores with synthetic complete
+publications and shell navigation/close adapters. It does not mount an editor or
+open an author database. Thirty-seven focused projection, UI-store, create-tab
+and close-transition checks pass; separate contract mutation tests reject missing
+coverage, hidden linear work, width drift, stale results and unmeasured device
+claims. Instrumentation is added only by the browser acceptance build.
+
+```bash
+node scripts/run-top-tabs-acceptance.mjs --baseline=4d016a49
+node scripts/run-top-tabs-acceptance.mjs --check
+pnpm exec vitest run src/renderer/components/topBars/TopTimeline src/renderer/architecture/top-tab-presentation.acceptance.test.ts
+```
+
+F2 remains in progress. Full editor/ProjectRuntime integration, native WebKit,
+physical input and fixed-device performance budgets are not inferred from this
+strip scenario. Navigation commands and persistent editor lifetime remain owned
+by the existing shell; this batch changes their display consumer only.
+
+A separate fresh Tauri build of this same source also passed the complete App
+control scenario: `acceptance/f2-top-tabs-native.json`. The bundle
+`Drifting Acceptance 5ae77f01d248.app` has binary SHA-256
+`d8d09b43e4ff751e77d4b569ef2c3898da8f5b7a43c5d686ee057d48d514925a`.
+Nine first-process checks cover 20 retained tabs and undo, hidden Yjs persistence
+and outline preparation, graph/settings overlays, split identity, close cleanup
+and project switching. The restart prose check passed after real Cmd+Q; both
+processes exited zero with no uncaught errors. Independent read-only SQLite/Yjs
+replay confirmed one intentionally changed chapter, 52 unchanged chapter hashes,
+and passing integrity/foreign-key checks. This provides full-App lifecycle
+regression evidence for the batch, not native tab work counts, physical
+IME/drag/touch acceptance or fixed-device budgets.
+
+```bash
+pnpm perf:renderer:native --sessions --report=docs/renderer-performance/acceptance/f2-top-tabs-native.json
+pnpm perf:renderer:native --sessions --report=docs/renderer-performance/acceptance/f2-top-tabs-native.json --check
+```
+
+All six repository checks passed on the final product source. The complete
+suite passed 2,731 tests with one existing skip across 414 files; lint has zero
+errors and 30 existing warnings in the isolated checkout. The normal production
+build contains 32 JavaScript assets and excludes the tab acceptance scenario and
+counters. `acceptance/f2-top-tabs-browser.json` passed the ordinary deterministic
+renderer contracts. All three generated reports retain the actual pre-commit
+parent SHA and measured source fingerprints; none is relabelled after commit.

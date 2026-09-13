@@ -1,0 +1,791 @@
+{
+  "kind": "renderer_native_composition",
+  "status": "passed",
+  "generatedAt": "2026-09-13T14:45:38.428Z",
+  "source": {
+    "commit": "4d016a49da8bb6dde8b75353a59d7827202d1c46",
+    "fingerprint": "7108d298900d21e9bdac6078da25a4266b02f9f6f938c9e873691f49691768b3",
+    "trackedProductChanges": true
+  },
+  "artifact": {
+    "bundleName": "Drifting Acceptance 5ae77f01d248.app",
+    "identifier": "cc.drifting.client.acceptance.r5ae77f01d248",
+    "version": "0.1.0-alpha.1",
+    "sha256": "d8d09b43e4ff751e77d4b569ef2c3898da8f5b7a43c5d686ee057d48d514925a",
+    "modifiedAt": "2026-09-13T14:44:24.488Z",
+    "build": "packaged-debug-native-production-renderer",
+    "signed": false,
+    "instrumentation": [
+      "acceptance-only renderer import",
+      "ProjectRuntimeProvider lifecycle effect",
+      "isolated native keychain service",
+      "isolated app identifier and deep-link scheme",
+      "loopback report CSP",
+      "editor session attach/detach/persist/outline observations"
+    ]
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "fixture": {
+    "specification": {
+      "version": 1,
+      "seed": "renderer-native-control-v1",
+      "projects": [
+        {
+          "id": "native-control-a",
+          "chapters": 50,
+          "elements": 100,
+          "relations": 500,
+          "characters": 5000
+        },
+        {
+          "id": "native-control-b",
+          "chapters": 3,
+          "elements": 3,
+          "relations": 0,
+          "characters": 5000
+        }
+      ]
+    },
+    "semanticSha256": "298b7c1c9bd82e3a8aa77490754b8f25b54049aeed36d71ef1a89a62d1412e49",
+    "reproducible": true
+  },
+  "runs": [
+    {
+      "phase": "composition",
+      "step": "project-switch",
+      "kind": "result",
+      "status": "passed",
+      "checks": {
+        "twentyTabsIdentityAndUndo": true,
+        "hiddenSessionSavedWithoutOutlinePublish": true,
+        "hiddenOutlinePrepared": true,
+        "plainProseKeepsOutlineStable": true,
+        "overlaysPreserveRuntimeAndEditor": true,
+        "splitDocumentIdentity": true,
+        "closedTabsReleaseLiveDocuments": true,
+        "closedSessionBindingsReleased": true,
+        "projectSwitchAndSqliteRestore": true
+      },
+      "lifecycle": [
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        },
+        {
+          "projectId": "native-control-a",
+          "mounted": false
+        },
+        {
+          "projectId": "native-control-b",
+          "mounted": true
+        },
+        {
+          "projectId": "native-control-b",
+          "mounted": false
+        },
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        }
+      ],
+      "sessionEvents": [
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "attach"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "persist"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "attach"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "outline"
+        },
+        {
+          "instance": 3,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "35d36e80-1321-5846-bf55-05cd22f3a3bc",
+          "event": "attach"
+        },
+        {
+          "instance": 3,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "35d36e80-1321-5846-bf55-05cd22f3a3bc",
+          "event": "outline"
+        },
+        {
+          "instance": 4,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "11fc4c95-2bb6-575f-a509-0738bff1600b",
+          "event": "attach"
+        },
+        {
+          "instance": 4,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "11fc4c95-2bb6-575f-a509-0738bff1600b",
+          "event": "outline"
+        },
+        {
+          "instance": 5,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "7ff8a788-238a-5f59-a163-5698fbe5df40",
+          "event": "attach"
+        },
+        {
+          "instance": 5,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "7ff8a788-238a-5f59-a163-5698fbe5df40",
+          "event": "outline"
+        },
+        {
+          "instance": 6,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "26c845ea-b972-5163-88f1-dc5d9887ebee",
+          "event": "attach"
+        },
+        {
+          "instance": 6,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "26c845ea-b972-5163-88f1-dc5d9887ebee",
+          "event": "outline"
+        },
+        {
+          "instance": 7,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "1577b23a-e65b-5b15-8c0e-b5636fa1f1a8",
+          "event": "attach"
+        },
+        {
+          "instance": 7,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "1577b23a-e65b-5b15-8c0e-b5636fa1f1a8",
+          "event": "outline"
+        },
+        {
+          "instance": 8,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "99006f9a-4801-5b38-bd94-ad1115278359",
+          "event": "attach"
+        },
+        {
+          "instance": 8,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "99006f9a-4801-5b38-bd94-ad1115278359",
+          "event": "outline"
+        },
+        {
+          "instance": 9,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "736ecf58-db86-5e5f-bcc5-7592e9c18bc7",
+          "event": "attach"
+        },
+        {
+          "instance": 9,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "736ecf58-db86-5e5f-bcc5-7592e9c18bc7",
+          "event": "outline"
+        },
+        {
+          "instance": 10,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "09ad9052-65f0-5754-8be9-1ba40a651475",
+          "event": "attach"
+        },
+        {
+          "instance": 10,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "09ad9052-65f0-5754-8be9-1ba40a651475",
+          "event": "outline"
+        },
+        {
+          "instance": 11,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "fd630c8e-ecc3-5580-ad82-8607000971a7",
+          "event": "attach"
+        },
+        {
+          "instance": 11,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "fd630c8e-ecc3-5580-ad82-8607000971a7",
+          "event": "outline"
+        },
+        {
+          "instance": 12,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "d7189b8d-f5fc-54b7-b024-761d9d4d439c",
+          "event": "attach"
+        },
+        {
+          "instance": 12,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "d7189b8d-f5fc-54b7-b024-761d9d4d439c",
+          "event": "outline"
+        },
+        {
+          "instance": 13,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "b337d667-6a29-596e-9607-e8199183184a",
+          "event": "attach"
+        },
+        {
+          "instance": 13,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "b337d667-6a29-596e-9607-e8199183184a",
+          "event": "outline"
+        },
+        {
+          "instance": 14,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f20d74a0-6e04-524f-9480-adb4e2ece692",
+          "event": "attach"
+        },
+        {
+          "instance": 14,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f20d74a0-6e04-524f-9480-adb4e2ece692",
+          "event": "outline"
+        },
+        {
+          "instance": 15,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f154d353-8f25-5e01-b53f-bb95d4cf0b73",
+          "event": "attach"
+        },
+        {
+          "instance": 15,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f154d353-8f25-5e01-b53f-bb95d4cf0b73",
+          "event": "outline"
+        },
+        {
+          "instance": 16,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "9eeff7eb-ab3d-5f92-9d02-6f19e143ff26",
+          "event": "attach"
+        },
+        {
+          "instance": 16,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "9eeff7eb-ab3d-5f92-9d02-6f19e143ff26",
+          "event": "outline"
+        },
+        {
+          "instance": 17,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "5552d35b-c03a-5b44-86ee-1bd51a5fa477",
+          "event": "attach"
+        },
+        {
+          "instance": 17,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "5552d35b-c03a-5b44-86ee-1bd51a5fa477",
+          "event": "outline"
+        },
+        {
+          "instance": 18,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f8450c6b-c610-558e-a5b1-cdfc11826f61",
+          "event": "attach"
+        },
+        {
+          "instance": 18,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f8450c6b-c610-558e-a5b1-cdfc11826f61",
+          "event": "outline"
+        },
+        {
+          "instance": 19,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "bb3dde57-9884-5237-8d02-dfa45a3c09f9",
+          "event": "attach"
+        },
+        {
+          "instance": 19,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "bb3dde57-9884-5237-8d02-dfa45a3c09f9",
+          "event": "outline"
+        },
+        {
+          "instance": 20,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "890dd404-d8ad-5e3d-ba9c-9c2b321774d1",
+          "event": "attach"
+        },
+        {
+          "instance": 20,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "890dd404-d8ad-5e3d-ba9c-9c2b321774d1",
+          "event": "outline"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "persist"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "persist"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "outline"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "persist"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "outline"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "persist"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "persist"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 2,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "detach"
+        },
+        {
+          "instance": 21,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "attach"
+        },
+        {
+          "instance": 22,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "attach"
+        },
+        {
+          "instance": 21,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 22,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "outline"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "detach"
+        },
+        {
+          "instance": 3,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "35d36e80-1321-5846-bf55-05cd22f3a3bc",
+          "event": "detach"
+        },
+        {
+          "instance": 4,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "11fc4c95-2bb6-575f-a509-0738bff1600b",
+          "event": "detach"
+        },
+        {
+          "instance": 5,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "7ff8a788-238a-5f59-a163-5698fbe5df40",
+          "event": "detach"
+        },
+        {
+          "instance": 6,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "26c845ea-b972-5163-88f1-dc5d9887ebee",
+          "event": "detach"
+        },
+        {
+          "instance": 7,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "1577b23a-e65b-5b15-8c0e-b5636fa1f1a8",
+          "event": "detach"
+        },
+        {
+          "instance": 8,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "99006f9a-4801-5b38-bd94-ad1115278359",
+          "event": "detach"
+        },
+        {
+          "instance": 9,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "736ecf58-db86-5e5f-bcc5-7592e9c18bc7",
+          "event": "detach"
+        },
+        {
+          "instance": 10,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "09ad9052-65f0-5754-8be9-1ba40a651475",
+          "event": "detach"
+        },
+        {
+          "instance": 11,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "fd630c8e-ecc3-5580-ad82-8607000971a7",
+          "event": "detach"
+        },
+        {
+          "instance": 12,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "d7189b8d-f5fc-54b7-b024-761d9d4d439c",
+          "event": "detach"
+        },
+        {
+          "instance": 13,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "b337d667-6a29-596e-9607-e8199183184a",
+          "event": "detach"
+        },
+        {
+          "instance": 14,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f20d74a0-6e04-524f-9480-adb4e2ece692",
+          "event": "detach"
+        },
+        {
+          "instance": 15,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f154d353-8f25-5e01-b53f-bb95d4cf0b73",
+          "event": "detach"
+        },
+        {
+          "instance": 16,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "9eeff7eb-ab3d-5f92-9d02-6f19e143ff26",
+          "event": "detach"
+        },
+        {
+          "instance": 17,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "5552d35b-c03a-5b44-86ee-1bd51a5fa477",
+          "event": "detach"
+        },
+        {
+          "instance": 18,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "f8450c6b-c610-558e-a5b1-cdfc11826f61",
+          "event": "detach"
+        },
+        {
+          "instance": 19,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "bb3dde57-9884-5237-8d02-dfa45a3c09f9",
+          "event": "detach"
+        },
+        {
+          "instance": 20,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "890dd404-d8ad-5e3d-ba9c-9c2b321774d1",
+          "event": "detach"
+        },
+        {
+          "instance": 21,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "detach"
+        },
+        {
+          "instance": 22,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "531a7a71-7df3-5364-b8e2-be9d5fd66499",
+          "event": "detach"
+        },
+        {
+          "instance": 23,
+          "projectId": "native-control-b",
+          "sourceKind": "node",
+          "sourceId": "bbf83b87-8acb-5fa8-a8d0-494a52f21cb0",
+          "event": "attach"
+        },
+        {
+          "instance": 23,
+          "projectId": "native-control-b",
+          "sourceKind": "node",
+          "sourceId": "bbf83b87-8acb-5fa8-a8d0-494a52f21cb0",
+          "event": "outline"
+        },
+        {
+          "instance": 23,
+          "projectId": "native-control-b",
+          "sourceKind": "node",
+          "sourceId": "bbf83b87-8acb-5fa8-a8d0-494a52f21cb0",
+          "event": "detach"
+        },
+        {
+          "instance": 24,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "attach"
+        },
+        {
+          "instance": 24,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 24,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "persist"
+        }
+      ],
+      "typewriterObservations": [],
+      "outlineObservations": [],
+      "markerObservations": [],
+      "selectionObservations": {},
+      "contextMenuObservations": [],
+      "suggestionObservations": [],
+      "firstEditorReadyMs": 1634,
+      "runtime": {
+        "target": "desktop",
+        "shellMode": "desktop",
+        "appInfo": {
+          "name": "Drifting Acceptance 5ae77f01d248",
+          "version": "0.1.0-alpha.1",
+          "platform": "macos",
+          "architecture": "aarch64"
+        }
+      },
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "longTasks": null,
+      "jsHeap": null,
+      "uncaughtErrors": 0,
+      "exitCode": 0,
+      "shutdown": "attended native Quit command",
+      "launchToResultMs": 15499,
+      "nativeProcessPeakRssKiB": 161376,
+      "rssIncludesWebKitChildren": false
+    },
+    {
+      "phase": "restart",
+      "step": "opening-native-project",
+      "kind": "result",
+      "status": "passed",
+      "checks": {
+        "restartProse": true
+      },
+      "lifecycle": [
+        {
+          "projectId": "native-control-a",
+          "mounted": true
+        }
+      ],
+      "sessionEvents": [
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "attach"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "outline"
+        },
+        {
+          "instance": 1,
+          "projectId": "native-control-a",
+          "sourceKind": "node",
+          "sourceId": "ea8813db-87bb-5e4e-86f9-d5997bf92f60",
+          "event": "persist"
+        }
+      ],
+      "typewriterObservations": [],
+      "outlineObservations": [],
+      "markerObservations": [],
+      "selectionObservations": {},
+      "contextMenuObservations": [],
+      "suggestionObservations": [],
+      "firstEditorReadyMs": 427,
+      "runtime": {
+        "target": "desktop",
+        "shellMode": "desktop",
+        "appInfo": {
+          "name": "Drifting Acceptance 5ae77f01d248",
+          "version": "0.1.0-alpha.1",
+          "platform": "macos",
+          "architecture": "aarch64"
+        }
+      },
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "longTasks": null,
+      "jsHeap": null,
+      "uncaughtErrors": 0,
+      "exitCode": 0,
+      "shutdown": "attended native Quit command",
+      "launchToResultMs": 1293,
+      "nativeProcessPeakRssKiB": 142688,
+      "rssIncludesWebKitChildren": false
+    }
+  ],
+  "observations": [
+    {
+      "phase": "composition",
+      "step": "project-switch",
+      "kind": "observation",
+      "syntheticCommandToTwoFramesMs": 29
+    }
+  ],
+  "persistence": {
+    "savedChapters": 1,
+    "unchangedChapters": 52,
+    "integrityCheck": "ok",
+    "foreignKeyCheck": "ok"
+  },
+  "acceptance": {
+    "fullAppComposition": "passed",
+    "sqliteYjsRestart": "passed",
+    "input": "synthetic Tiptap commands; product navigation actions and DOM clicks",
+    "physicalIme": "not-run",
+    "physicalGestures": "not-run",
+    "performanceBudget": "not-evaluated",
+    "reactCommits": "not-measured",
+    "jsHeap": "unavailable",
+    "memoryReclamation": "not-measured",
+    "deviceMatrix": "not-run"
+  }
+}
