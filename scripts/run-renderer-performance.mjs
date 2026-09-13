@@ -37,6 +37,11 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/DesktopAgentTranscript.tsx') || id.endsWith('/MobileAgentTranscript.tsx')) {
+          const rowTag = id.endsWith('/DesktopAgentTranscript.tsx') ? '<MessageView key={i}' : '<MobileAgentMessage key={index}';
+          if (!code.includes(rowTag)) throw new Error(`Missing history row creation point: ${id}`);
+          code = `import { agentHistoryWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code.replace(rowTag, rowTag + ' {...(agentHistoryWork.rowElements++, {})}');
+        }
         if (id.endsWith('/workspace/MobileAgentPanel.tsx') || id.endsWith('/workspace/MobileAgentTranscript.tsx')) {
           for (const service of ['useBookNode', 'useComment']) {
             code = code.replace(`'../../../usecase/${service}'`, "'../../../performance/mobile-agent-output-services'");

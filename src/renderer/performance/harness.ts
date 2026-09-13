@@ -14,6 +14,7 @@ import { runAgentDecorationScenarios, runDecorationReadinessScenario } from './a
 import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenarios';
 import { runAgentEventScenarios } from './agent-event-scenarios';
 import { runAgentDisplayScenarios } from './agent-display-scenarios';
+import { runAgentHistoryScenarios } from './agent-history-scenarios';
 import { runAgentPanelScenarios } from './agent-panel-scenarios';
 import { runMobileAgentPanelScenarios } from './mobile-agent-panel-scenarios';
 import { runGraphProjectionScenarios } from './graph-projection-scenarios';
@@ -120,6 +121,7 @@ async function run() {
     agentEventProcessing: await runAgentEventScenarios(),
     agentDisplay: await runAgentDisplayScenarios(),
     agentPanel: await runAgentPanelScenarios(),
+    agentHistory: await runAgentHistoryScenarios(),
     mobileAgentPanel: await runMobileAgentPanelScenarios(),
     graphProjection: await runGraphProjectionScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),

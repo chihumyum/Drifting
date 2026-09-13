@@ -303,12 +303,15 @@
             "docs/renderer-performance/acceptance/f4-desktop-panel.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel-baseline.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel.json",
-            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
+            "docs/renderer-performance/acceptance/f4-history-baseline.json",
+            "docs/renderer-performance/acceptance/f4-history.json",
+            "docs/renderer-performance/acceptance/f4-history-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "desktop_and_mobile_transcript_owners_with_mobile_async_output_isolation_browser_and_native_webkit_verified"
+      "implementationStatus": "stable_desktop_and_mobile_message_blocks_browser_work_counts_and_native_history_retention_verified_canonical_copy_and_device_budgets_pending"
     },
     {
       "id": "F5",

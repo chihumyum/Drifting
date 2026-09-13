@@ -1,0 +1,2343 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_performance_run",
+  "generatedAt": "2026-09-13T06:19:07.605Z",
+  "status": "measured",
+  "source": {
+    "commit": "4c857726d32f46a93d573a4070913035a2eb0194",
+    "rendererFingerprint": "5234c3ce3f75c93565214c9a12c7893e03c4b4567e08e357d654a110d787b787",
+    "fingerprintVersion": 2,
+    "dirty": true,
+    "build": "vite-production-isolated-harness"
+  },
+  "scenarios": [
+    {
+      "id": "editor-5000-0",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 5000,
+        "links": 0,
+        "entities": 100,
+        "hash": "c4783eae75173dd42984ef6330c269298fe68962d893706afd65e8512e6398a5"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.09999990463256836,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.5,
+          0.2999999523162842,
+          0.5,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.8000000715255737,
+          0.5,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.5,
+          0.30000007152557373,
+          0.3999999761581421,
+          0.3999999761581421,
+          0.5,
+          0.5,
+          0.6999999284744263,
+          0.5,
+          0.5,
+          0.5999999046325684,
+          0.5,
+          0.6000000238418579,
+          0.3999999761581421,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.6999999284744263,
+          0.5,
+          0.7000000476837158,
+          0.5,
+          0.7999999523162842,
+          0.6999999284744263,
+          0.6000000238418579,
+          0.7999999523162842,
+          0.5,
+          0.6999999284744263,
+          0.5,
+          0.5,
+          0.6999999284744263,
+          0.5,
+          0.5,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.30000007152557373
+        ],
+        "median": 0.5,
+        "p95": 0.7000000476837158
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          1.899999976158142,
+          16.600000023841858,
+          16.600000023841858,
+          17.59999990463257,
+          16,
+          16.399999976158142,
+          16.40000009536743,
+          17.399999976158142,
+          16.800000071525574,
+          15.700000047683716,
+          17.199999928474426,
+          16.5,
+          17,
+          16.600000023841858,
+          15.899999976158142,
+          17.100000023841858,
+          16.5,
+          16.800000071525574,
+          16.5,
+          16.799999952316284,
+          17.300000071525574,
+          16.600000023841858,
+          16.899999976158142,
+          16.399999976158142,
+          15.899999976158142,
+          17.199999928474426,
+          16.600000023841858,
+          16.899999976158142,
+          15.900000095367432,
+          16.399999976158142,
+          16.5,
+          16.700000047683716,
+          16.899999976158142,
+          16.600000023841858,
+          16,
+          16.399999976158142,
+          15.800000071525574,
+          16.799999952316284,
+          16.399999976158142,
+          16,
+          17.199999928474426,
+          16.600000023841858,
+          16.90000009536743,
+          16.600000023841858,
+          16,
+          17,
+          16.799999952316284,
+          17.100000023841858,
+          17.600000023841858,
+          16.09999990463257,
+          16.799999952316284,
+          16.700000047683716,
+          16.899999976158142,
+          16.5,
+          16.299999952316284,
+          16.600000023841858,
+          16.600000023841858,
+          16.899999976158142,
+          16.100000023841858,
+          17.300000071525574
+        ],
+        "median": 16.600000023841858,
+        "p95": 17.300000071525574
+      },
+      "finalCharacters": 5170,
+      "finalLinks": 0
+    },
+    {
+      "id": "editor-20000-100",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 20000,
+        "links": 100,
+        "entities": 1000,
+        "hash": "cff3bdfe95ecb86ba1dd3528cb8a3dee5ccb08e45fa0582a4a71e03e7ef13067"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.10000002384185791,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.2999999523162842,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.5,
+          0.7000000476837158,
+          0.6000000238418579,
+          0.5,
+          0.5999999046325684,
+          0.7000000476837158,
+          0.5,
+          0.5,
+          0.6000000238418579,
+          0.6000000238418579,
+          0.8999999761581421,
+          0.7000000476837158,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.7000000476837158,
+          0.19999992847442627,
+          0.5999999046325684,
+          0.3999999761581421,
+          0.6000000238418579,
+          0.6999999284744263,
+          0.7000000476837158,
+          0.7000000476837158,
+          0.7999999523162842,
+          0.6000000238418579,
+          0.6000000238418579,
+          0.7999999523162842,
+          0.8999999761581421,
+          0.5,
+          0.5,
+          0.7000000476837158,
+          0.7999999523162842,
+          0.6000000238418579,
+          0.5,
+          0.6999999284744263,
+          0.2999999523162842,
+          0.7000000476837158,
+          0.30000007152557373,
+          0.5,
+          0.3999999761581421,
+          0.8000000715255737,
+          0.5,
+          0.5
+        ],
+        "median": 0.5,
+        "p95": 0.7999999523162842
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          15.100000023841858,
+          16.100000023841858,
+          15.700000047683716,
+          16.800000071525574,
+          16.100000023841858,
+          17,
+          17.299999952316284,
+          16.200000047683716,
+          16.700000047683716,
+          16.799999952316284,
+          16.899999976158142,
+          16.700000047683716,
+          16.800000071525574,
+          17.600000023841858,
+          16.399999976158142,
+          16.200000047683716,
+          16.59999990463257,
+          16.700000047683716,
+          16.600000023841858,
+          17.09999990463257,
+          17.199999928474426,
+          17.200000047683716,
+          16.699999928474426,
+          16.200000047683716,
+          16.600000023841858,
+          16.799999952316284,
+          16.700000047683716,
+          16.199999928474426,
+          17.199999928474426,
+          16.800000071525574,
+          16.600000023841858,
+          17.399999976158142,
+          16.399999976158142,
+          16.899999976158142,
+          16.59999990463257,
+          15.800000071525574,
+          16.600000023841858,
+          16.5,
+          16.800000071525574,
+          16.5,
+          16.600000023841858,
+          16.600000023841858,
+          16.200000047683716,
+          16.799999952316284,
+          16.899999976158142,
+          16.699999928474426,
+          17.299999952316284,
+          16.700000047683716,
+          17.899999976158142,
+          17.299999952316284,
+          16.700000047683716,
+          17.199999928474426,
+          17.299999952316284,
+          16.100000023841858,
+          17.5,
+          16.5,
+          16.600000023841858,
+          17.200000047683716,
+          16.700000047683716,
+          16.800000071525574
+        ],
+        "median": 16.700000047683716,
+        "p95": 17.399999976158142
+      },
+      "finalCharacters": 20170,
+      "finalLinks": 100
+    },
+    {
+      "id": "editor-50000-500",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 50000,
+        "links": 500,
+        "entities": 5000,
+        "hash": "b69239e2ab8b549b88e0b1e24a7261480b10c8a025bfb40a360f11e839f26854"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.10000002384185791,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.5,
+          0.7000000476837158,
+          0.7999999523162842,
+          0.6000000238418579,
+          1.100000023841858,
+          0.6999999284744263,
+          0.8999999761581421,
+          1.0999999046325684,
+          0.8000000715255737,
+          1.100000023841858,
+          0.8999999761581421,
+          1.100000023841858,
+          0.8999999761581421,
+          0.7999999523162842,
+          1,
+          0.7000000476837158,
+          0.6999999284744263,
+          0.3999999761581421,
+          0.7000000476837158,
+          0.9000000953674316,
+          0.5999999046325684,
+          0.7999999523162842,
+          0.7999999523162842,
+          0.6999999284744263,
+          0.8000000715255737,
+          0.8000000715255737,
+          1,
+          0.7000000476837158,
+          0.9000000953674316,
+          0.6999999284744263,
+          0.7000000476837158,
+          1,
+          1,
+          0.8999999761581421,
+          0.7999999523162842,
+          0.7999999523162842,
+          0.5,
+          0.7000000476837158,
+          0.6000000238418579,
+          0.6000000238418579,
+          0.6999999284744263,
+          1.100000023841858,
+          1,
+          0.8999999761581421,
+          0.6000000238418579,
+          0.8999999761581421,
+          1,
+          0.7999999523162842,
+          1,
+          0.8000000715255737,
+          1.100000023841858,
+          0.6000000238418579,
+          1.2000000476837158,
+          1.1999999284744263,
+          0.8999999761581421
+        ],
+        "median": 0.7999999523162842,
+        "p95": 1.100000023841858
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          15.100000023841858,
+          16.700000047683716,
+          16.700000047683716,
+          16.699999928474426,
+          16.899999976158142,
+          16.100000023841858,
+          16.700000047683716,
+          16.399999976158142,
+          17.200000047683716,
+          16.299999952316284,
+          16.600000023841858,
+          17.399999976158142,
+          17.09999990463257,
+          16.90000009536743,
+          16,
+          16.299999952316284,
+          16.899999976158142,
+          16.200000047683716,
+          17.699999928474426,
+          16.699999928474426,
+          16.700000047683716,
+          16.699999928474426,
+          16.799999952316284,
+          17.700000047683716,
+          16.100000023841858,
+          16.5,
+          16.399999976158142,
+          16.699999928474426,
+          16.600000023841858,
+          16.200000047683716,
+          15.600000023841858,
+          17.300000071525574,
+          16.600000023841858,
+          16.5,
+          16.899999976158142,
+          16.600000023841858,
+          16.699999928474426,
+          17.100000023841858,
+          16.600000023841858,
+          16.699999928474426,
+          16.600000023841858,
+          16.100000023841858,
+          16.600000023841858,
+          17.100000023841858,
+          16.100000023841858,
+          16.699999928474426,
+          16.700000047683716,
+          17.200000047683716,
+          16.699999928474426,
+          16.799999952316284,
+          16.600000023841858,
+          16.799999952316284,
+          16.700000047683716,
+          16.200000047683716,
+          16.700000047683716,
+          16.5,
+          17,
+          16.600000023841858,
+          17.399999976158142,
+          16.700000047683716
+        ],
+        "median": 16.699999928474426,
+        "p95": 17.399999976158142
+      },
+      "finalCharacters": 50170,
+      "finalLinks": 500
+    }
+  ],
+  "behaviorChecks": [
+    {
+      "id": "initial-mark-color",
+      "passed": true
+    },
+    {
+      "id": "external-appearance-refresh",
+      "passed": true
+    },
+    {
+      "id": "appearance-does-not-write-prose",
+      "passed": true
+    },
+    {
+      "id": "new-mark-uses-current-color",
+      "passed": true
+    },
+    {
+      "id": "undo-removes-added-mark",
+      "passed": true
+    },
+    {
+      "id": "redo-restyles-restored-mark",
+      "passed": true
+    },
+    {
+      "id": "changed-mark-attrs-replace-dom",
+      "passed": true
+    },
+    {
+      "id": "html-paste-uses-current-color",
+      "passed": true
+    },
+    {
+      "id": "prose-mode-clears-existing-colors",
+      "passed": true
+    },
+    {
+      "id": "appearance-restores-existing-colors",
+      "passed": true
+    },
+    {
+      "id": "remote-yjs-mark-color",
+      "passed": true
+    },
+    {
+      "id": "remote-yjs-prose-converges",
+      "passed": true
+    },
+    {
+      "id": "colors-not-persisted-in-mark-attrs",
+      "passed": true
+    }
+  ],
+  "reactSubscriptions": [
+    {
+      "consumers": 1,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 100,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 1,
+        "fields": 1
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    },
+    {
+      "consumers": 5,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 500,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 5,
+        "fields": 5
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    },
+    {
+      "consumers": 20,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 2000,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 20,
+        "fields": 20
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    }
+  ],
+  "semanticSubscriptions": {
+    "consumers": 20,
+    "nodes": 100,
+    "elements": 1000,
+    "metricUpdates": 100,
+    "metrics": {
+      "collection": 2000,
+      "names": 0,
+      "colors": 0
+    },
+    "rename": {
+      "collection": 20,
+      "names": 20,
+      "colors": 0
+    },
+    "appearance": {
+      "collection": 0,
+      "names": 0,
+      "colors": 20
+    }
+  },
+  "agentDecorations": {
+    "consumers": 20,
+    "unrelatedUpdates": 100,
+    "unrelated": {
+      "legacy": 2000,
+      "scoped": 0
+    },
+    "checks": [
+      {
+        "id": "unrelated-store-updates-do-not-dispatch",
+        "passed": true
+      },
+      {
+        "id": "empty-review-input-does-not-dispatch",
+        "passed": true
+      },
+      {
+        "id": "hidden-yjs-update-is-retained",
+        "passed": true
+      },
+      {
+        "id": "hidden-review-work-is-deferred",
+        "passed": true
+      },
+      {
+        "id": "prepare-flushes-mask-before-ready",
+        "passed": true
+      },
+      {
+        "id": "mask-hides-remote-prose",
+        "passed": true
+      },
+      {
+        "id": "guard-to-durable-projection-keeps-mask",
+        "passed": true
+      },
+      {
+        "id": "review-does-not-change-prose-or-selection",
+        "passed": true
+      },
+      {
+        "id": "undo-history-survives-decoration-updates",
+        "passed": true
+      },
+      {
+        "id": "failure-fixture-starts-visible",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-is-not-ready",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-is-hidden",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-can-retry",
+        "passed": true
+      },
+      {
+        "id": "only-injected-failure-was-reported",
+        "passed": true
+      },
+      {
+        "id": "dispose-releases-listeners-without-destroying-documents",
+        "passed": true
+      }
+    ],
+    "activeSubscriptionsAfterDispose": 0
+  },
+  "decorationReadiness": {
+    "preparedBeforeReveal": true,
+    "unfocusedVisiblePaneHasPresentation": true,
+    "unfocusedPaneOwnsCommands": false
+  },
+  "entityLinkOwnership": {
+    "groups": [
+      {
+        "editors": 1,
+        "correctEditors": 1
+      },
+      {
+        "editors": 5,
+        "correctEditors": 5
+      },
+      {
+        "editors": 20,
+        "correctEditors": 20
+      }
+    ],
+    "checks": [
+      {
+        "id": "1:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "1:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "1:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "1:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "1:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "1:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "1:destroy-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "5:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "5:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "5:1:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:2:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:3:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:4:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "5:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "5:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "5:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "5:destroy-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "20:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "20:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "20:1:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:2:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:3:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:4:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:5:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:6:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:7:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:8:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:9:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:10:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:11:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:12:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:13:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:14:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:15:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:16:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:17:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:18:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:19:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "20:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "20:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "20:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "20:destroy-cancels-pending-work",
+        "passed": true
+      }
+    ]
+  },
+  "agentEventProcessing": {
+    "implementation": "private-membership-index",
+    "repetitions": 3,
+    "scenarios": [
+      {
+        "eventCount": 1000,
+        "fixtureHash": "7e393cdb834988428b5587dd7732f0552459977fa9ce42aa8c61b3a386514733",
+        "samplesMs": [
+          9.299999952316284,
+          2.600000023841858,
+          3.5999999046325684
+        ],
+        "medianMs": 3.5999999046325684,
+        "notifications": 1000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 1000
+      },
+      {
+        "eventCount": 3000,
+        "fixtureHash": "76ac30bba031e9f07d9297fb0a711708e2137c805fa1c70200c30aca20358f47",
+        "samplesMs": [
+          8,
+          7.299999952316284,
+          7.800000071525574
+        ],
+        "medianMs": 7.800000071525574,
+        "notifications": 3000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 3000
+      },
+      {
+        "eventCount": 6000,
+        "fixtureHash": "c343f8ec07ca872e1e38eb4c24cd1fb3c2eb4fd1d53f554c616674548e8fcd08",
+        "samplesMs": [
+          18.100000023841858,
+          15.200000047683716,
+          16.300000071525574
+        ],
+        "medianMs": 16.300000071525574,
+        "notifications": 6000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 6000
+      }
+    ],
+    "boundary": "Real chat-store consumer; synthetic text events only; no React view, model, SQLite, terminal persistence or native UI."
+  },
+  "agentDisplay": {
+    "consumers": 20,
+    "streamEvents": 100,
+    "burst": {
+      "immediate": 2000,
+      "batched": 0
+    },
+    "displayCommitsAfterFrame": 20,
+    "checks": [
+      {
+        "id": "one-canonical-subscriber",
+        "passed": true
+      },
+      {
+        "id": "canonical-text-current-before-display-frame",
+        "passed": true
+      },
+      {
+        "id": "burst-notifications-coalesced",
+        "passed": true
+      },
+      {
+        "id": "one-display-commit-per-consumer",
+        "passed": true
+      },
+      {
+        "id": "actual-message-markdown-renders-latest-text",
+        "passed": true
+      },
+      {
+        "id": "permission-flushes-tail-synchronously",
+        "passed": true
+      },
+      {
+        "id": "cancellation-flushes-tail-synchronously",
+        "passed": true
+      },
+      {
+        "id": "non-stream-boundary-flushes-final-tail",
+        "passed": true
+      }
+    ],
+    "boundary": "Real React hook, chat-store ingress and MessageView rendering; synthetic burst. Full panel scrolling, native UI and durable terminal writes remain separate."
+  },
+  "agentPanel": {
+    "checks": [
+      "full authenticated desktop panel mounts all 300 historical messages",
+      "asynchronous authentication mounts history at the bottom",
+      "stream display updates only the transcript and newest message",
+      "streaming preserves composer DOM focus draft and selection",
+      "streaming preserves historical message DOM",
+      "streaming follows the latest displayed text at bottom",
+      "canonical journal contains every streamed delta",
+      "composer draft updates do not render the transcript or historical messages",
+      "reading history keeps scroll and selected text during a new tail",
+      "scrolling away exposes latest control",
+      "latest control reengages bottom follow",
+      "history is an anchored portal outside the panel",
+      "selecting the already active conversation reengages follow",
+      "completed tool detail remains expanded across subsequent streaming",
+      "session usage footer retains the tool count",
+      "permission boundary displays pending card and full tail immediately",
+      "cancellation control disables steering without erasing the draft",
+      "panel remount reads current canonical stream and retains draft",
+      "panel remount positions the current transcript at bottom",
+      "conversation switch synchronously replaces the old transcript",
+      "background sibling events do not render the active panel or transcript",
+      "returning to a running conversation includes its background tail and resets follow",
+      "conversation ownership prevents expanded details leaking to another session",
+      "repeated panel closure releases its authentication listener"
+    ],
+    "historyMessages": 300,
+    "displayBatches": 20,
+    "streamEvents": 400,
+    "streaming": {
+      "panel": 0,
+      "composer": 0,
+      "message": 20,
+      "transcript": 20
+    },
+    "drafting": {
+      "panel": 20,
+      "composer": 20,
+      "message": 0,
+      "transcript": 0
+    },
+    "initialBottom": true,
+    "returningBottom": true,
+    "cycles": 100,
+    "remainingAuthListeners": 0,
+    "scope": "Actual desktop panel and composer, production React, canonical synthetic journal and no persistence/model calls. Desktop Chromium scroll and selection; mobile and native acceptance remain separate."
+  },
+  "agentHistory": {
+    "measurements": [
+      {
+        "surface": "desktop",
+        "historyMessages": 300,
+        "fixtureHash": "6e0baecabf8e114160558c6f4f12833bc736d06c7f9c762875fb3eac294717c5",
+        "displayUpdates": 20,
+        "rowElements": 6020,
+        "updateMs": [
+          0.5,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.40000009536743164,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.3999999761581421,
+          0.19999992847442627,
+          0.40000009536743164,
+          0.19999992847442627,
+          0.3999999761581421,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.2999999523162842
+        ],
+        "medianMs": 0.30000007152557373,
+        "p95Ms": 0.40000009536743164,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "desktop",
+        "historyMessages": 3000,
+        "fixtureHash": "f80e7a08512d547a4c983853a385fd1a0e1b454268e2f3c8d4905fc3d5b6f746",
+        "displayUpdates": 20,
+        "rowElements": 60020,
+        "updateMs": [
+          2.399999976158142,
+          1.7999999523162842,
+          1.7999999523162842,
+          1.9000000953674316,
+          1.6999999284744263,
+          1.600000023841858,
+          1.600000023841858,
+          1.5,
+          6.099999904632568,
+          1.9000000953674316,
+          2,
+          1.399999976158142,
+          1.399999976158142,
+          1.2999999523162842,
+          1.3000000715255737,
+          1.5,
+          1.5,
+          1.600000023841858,
+          1.5999999046325684,
+          1.7000000476837158
+        ],
+        "medianMs": 1.600000023841858,
+        "p95Ms": 2.399999976158142,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "historyMessages": 300,
+        "fixtureHash": "6e0baecabf8e114160558c6f4f12833bc736d06c7f9c762875fb3eac294717c5",
+        "displayUpdates": 20,
+        "rowElements": 6020,
+        "updateMs": [
+          0.2999999523162842,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.2999999523162842,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.20000004768371582
+        ],
+        "medianMs": 0.20000004768371582,
+        "p95Ms": 0.2999999523162842,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "historyMessages": 3000,
+        "fixtureHash": "f80e7a08512d547a4c983853a385fd1a0e1b454268e2f3c8d4905fc3d5b6f746",
+        "displayUpdates": 20,
+        "rowElements": 60020,
+        "updateMs": [
+          1.899999976158142,
+          1.8000000715255737,
+          1.6999999284744263,
+          1.600000023841858,
+          3.5,
+          1.5,
+          1.5,
+          1.2999999523162842,
+          1.5,
+          1.7000000476837158,
+          1.399999976158142,
+          1.5,
+          1.399999976158142,
+          1.5,
+          1.399999976158142,
+          1.5,
+          1.4000000953674316,
+          1.5999999046325684,
+          1.4000000953674316,
+          1.6999999284744263
+        ],
+        "medianMs": 1.5,
+        "p95Ms": 1.899999976158142,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "boundary": "Actual desktop/mobile transcripts with every historical DOM row retained; synchronous full display commits. Source arrays prepared outside timing; no canonical journal ingestion, model, persistence or native input."
+  },
+  "mobileAgentPanel": {
+    "checks": [
+      "sidebar: actual panel mounts history, output actions and composer",
+      "sidebar: streaming updates only the transcript and latest row",
+      "sidebar: streaming retains composer focus draft and selection",
+      "sidebar: canonical transcript contains every delta",
+      "sidebar: drafting does not reconcile the transcript or its rows",
+      "sidebar: reading history keeps its scroll position",
+      "sidebar: latest control appears",
+      "sidebar: latest control returns to bottom",
+      "sidebar: retired output results do not publish into or navigate a different session",
+      "sidebar: repeated pending action starts one local write",
+      "sidebar: current inspiration result publishes and opens the created drift",
+      "sidebar: todo uses the original message project and block anchor",
+      "sidebar: current todo result releases action controls",
+      "sidebar: copy captures the exact selected output",
+      "sidebar: completed copy feedback belongs to its message",
+      "sidebar: current failure is visible and permits retry",
+      "sidebar: retired failure does not appear in the incoming conversation",
+      "sidebar: returning to the same conversation does not revive a closed action owner",
+      "sidebar: old message completion cannot release or label its replacement action",
+      "sidebar: replacement action completes independently",
+      "sidebar: actor rebind clears pending feedback and ignores its old completion",
+      "sidebar: incoming actor can own the next action on the same message",
+      "sidebar: unmounted panel cannot publish or navigate after an existing write finishes",
+      "sidebar: project guard suppresses results even before the surface unmounts",
+      "sidebar: background streaming leaves the incoming transcript unchanged",
+      "sidebar: repeated unmount releases the auth subscription",
+      "paper: actual panel mounts history, output actions and composer",
+      "paper: streaming updates only the transcript and latest row",
+      "paper: streaming retains composer focus draft and selection",
+      "paper: canonical transcript contains every delta",
+      "paper: drafting does not reconcile the transcript or its rows",
+      "paper: reading history keeps its scroll position",
+      "paper: latest control appears",
+      "paper: latest control returns to bottom",
+      "paper: retired output results do not publish into or navigate a different session",
+      "paper: repeated pending action starts one local write",
+      "paper: current inspiration result publishes and opens the created drift",
+      "paper: todo uses the original message project and block anchor",
+      "paper: current todo result releases action controls",
+      "paper: copy captures the exact selected output",
+      "paper: completed copy feedback belongs to its message",
+      "paper: current failure is visible and permits retry",
+      "paper: retired failure does not appear in the incoming conversation",
+      "paper: returning to the same conversation does not revive a closed action owner",
+      "paper: old message completion cannot release or label its replacement action",
+      "paper: replacement action completes independently",
+      "paper: actor rebind clears pending feedback and ignores its old completion",
+      "paper: incoming actor can own the next action on the same message",
+      "paper: unmounted panel cannot publish or navigate after an existing write finishes",
+      "paper: project guard suppresses results even before the surface unmounts",
+      "paper: background streaming leaves the incoming transcript unchanged",
+      "paper: repeated unmount releases the auth subscription"
+    ],
+    "measurements": [
+      {
+        "mode": "sidebar",
+        "streaming": {
+          "panel": 0,
+          "composer": 0,
+          "message": 20,
+          "transcript": 20
+        },
+        "drafting": {
+          "panel": 20,
+          "composer": 20,
+          "message": 0,
+          "transcript": 0
+        },
+        "background": {
+          "panel": 0,
+          "composer": 0,
+          "message": 0,
+          "transcript": 0
+        },
+        "messageRows": 20,
+        "lateFeedbackCrossedSession": false,
+        "lateNavigation": 0,
+        "duplicateWrites": 1,
+        "cycles": 100
+      },
+      {
+        "mode": "paper",
+        "streaming": {
+          "panel": 0,
+          "composer": 0,
+          "message": 20,
+          "transcript": 20
+        },
+        "drafting": {
+          "panel": 20,
+          "composer": 20,
+          "message": 0,
+          "transcript": 0
+        },
+        "background": {
+          "panel": 0,
+          "composer": 0,
+          "message": 0,
+          "transcript": 0
+        },
+        "messageRows": 20,
+        "lateFeedbackCrossedSession": false,
+        "lateNavigation": 0,
+        "duplicateWrites": 1,
+        "cycles": 100
+      }
+    ],
+    "historyMessages": 300,
+    "displayBatches": 20,
+    "streamEventsPerMode": 400,
+    "verifyRenders": true,
+    "scope": "Actual mobile sidebar and paper dock components at 390px with synthetic journal and deferred write ports. Host engine is recorded by the runner. No real clipboard, SQLite writes, model, touch device or keyboard viewport acceptance."
+  },
+  "graphProjection": {
+    "implementation": "shared-id-index",
+    "results": [
+      {
+        "elements": 100,
+        "nodes": 20,
+        "relations": 300,
+        "fixtureHash": "d040d9aaabda744470de62452520842406431eebfcec19eca29e7dd947c29c42",
+        "firstProjectionIdReads": 120,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 300,
+        "samplesMs": [
+          0.10000002384185791,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.10000002384185791
+        ],
+        "medianMs": 0.10000002384185791
+      },
+      {
+        "elements": 1000,
+        "nodes": 200,
+        "relations": 3000,
+        "fixtureHash": "3cd5872a31187274bd2226d6a895eec5144fc745dd5202f3a65f6e65b371391f",
+        "firstProjectionIdReads": 1200,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 3000,
+        "samplesMs": [
+          0.6000000238418579,
+          0.5,
+          0.3999999761581421,
+          0.6000000238418579,
+          0.5
+        ],
+        "medianMs": 0.5
+      },
+      {
+        "elements": 5000,
+        "nodes": 1000,
+        "relations": 15000,
+        "fixtureHash": "7f1c221270787c84dc9853d638b95755acd33d9408bdfb2264e3cda4822bb111",
+        "firstProjectionIdReads": 6000,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 15000,
+        "samplesMs": [
+          1.899999976158142,
+          1.2999999523162842,
+          2.700000047683716,
+          2.1999999284744263,
+          1.600000023841858
+        ],
+        "medianMs": 1.899999976158142
+      }
+    ],
+    "boundary": "Actual Super Element world projection and three viewport modes. Synthetic getter counters; world timing uses warm inputs with counting disabled. Fixture output equivalence checked independently. No full graph UI/native acceptance."
+  },
+  "graphGeometry": {
+    "implementation": "unique-endpoint-overlay-state",
+    "profiles": [
+      {
+        "edges": 100,
+        "uniqueEndpoints": 20,
+        "layoutReads": 20,
+        "projectedEdges": 100
+      },
+      {
+        "edges": 1000,
+        "uniqueEndpoints": 100,
+        "layoutReads": 100,
+        "projectedEdges": 1000
+      },
+      {
+        "edges": 5000,
+        "uniqueEndpoints": 500,
+        "layoutReads": 500,
+        "projectedEdges": 5000
+      }
+    ],
+    "ownership": {
+      "cards": 20,
+      "events": 100,
+      "cardCommits": 0,
+      "geometryRenderPasses": 0,
+      "geometryLabelReads": 0,
+      "layoutReads": 100
+    },
+    "moved": {
+      "cardCommits": 0,
+      "geometryRenderPasses": 1,
+      "geometryLabelReads": 1000,
+      "layoutReads": 100
+    },
+    "checks": [
+      {
+        "id": "actual-drift-svg-renders-all-edges",
+        "passed": true
+      },
+      {
+        "id": "labels-and-direction-markers-preserved",
+        "passed": true
+      },
+      {
+        "id": "entry-measurement-stops",
+        "passed": true
+      },
+      {
+        "id": "burst-defers-layout-reads",
+        "passed": true
+      },
+      {
+        "id": "unchanged-burst-one-read-per-endpoint-no-card-commits-or-line-render",
+        "passed": true
+      },
+      {
+        "id": "moved-geometry-only-renders-line-layer",
+        "passed": true
+      },
+      {
+        "id": "pan-ref-skips-measurement-and-react",
+        "passed": true
+      },
+      {
+        "id": "pan-end-keeps-stale-lines-hidden",
+        "passed": true
+      },
+      {
+        "id": "pan-end-reveals-fresh-committed-lines",
+        "passed": true
+      },
+      {
+        "id": "edge-hit-target-preserves-selection-anchor",
+        "passed": true
+      },
+      {
+        "id": "filtered-card-removes-only-dangling-lines",
+        "passed": true
+      },
+      {
+        "id": "unmount-releases-listeners-and-observers",
+        "passed": true
+      },
+      {
+        "id": "unmount-cancels-pending-measurements",
+        "passed": true
+      }
+    ],
+    "boundary": "Actual DOM measurement, production SuperElementDriftEdges, real animation frames and synthetic sibling cards. Full graph shell/card components, native gestures and device acceptance are separate."
+  },
+  "graphOverlays": {
+    "viewport": {
+      "unchanged": {
+        "cardCommits": 0,
+        "lineRenders": 0
+      },
+      "resized": {
+        "cardCommits": 0,
+        "lineRenders": 1
+      },
+      "checks": [
+        {
+          "id": "sticky-node-matches-real-band-dom",
+          "passed": true
+        },
+        {
+          "id": "focused-edge-retains-width-and-tooltip",
+          "passed": true
+        },
+        {
+          "id": "equal-viewport-output-does-not-render-cards-or-lines",
+          "passed": true
+        },
+        {
+          "id": "container-resize-keeps-band-and-svg-aligned",
+          "passed": true
+        },
+        {
+          "id": "pan-transforms-without-line-or-card-render",
+          "passed": true
+        },
+        {
+          "id": "viewport-pan-end-keeps-old-lines-hidden",
+          "passed": true
+        },
+        {
+          "id": "viewport-pan-end-reveals-aligned-lines",
+          "passed": true
+        },
+        {
+          "id": "label-only-change-reaches-tooltip",
+          "passed": true
+        },
+        {
+          "id": "viewport-hit-target-retains-selection",
+          "passed": true
+        },
+        {
+          "id": "viewport-unmount-removes-layer",
+          "passed": true
+        }
+      ]
+    },
+    "story": {
+      "unchanged": {
+        "cardCommits": 0,
+        "lineRenders": 0,
+        "layoutReads": 100
+      },
+      "moved": {
+        "cardCommits": 0,
+        "lineRenders": 1,
+        "layoutReads": 100
+      },
+      "checks": [
+        {
+          "id": "story-svg-preserves-edge-count-style-and-arrows",
+          "passed": true
+        },
+        {
+          "id": "story-layer-is-visible-after-measurement",
+          "passed": true
+        },
+        {
+          "id": "story-animation-window-stops",
+          "passed": true
+        },
+        {
+          "id": "story-scroll-burst-defers-reads",
+          "passed": true
+        },
+        {
+          "id": "story-scroll-burst-one-read-per-endpoint-no-render",
+          "passed": true
+        },
+        {
+          "id": "story-movement-only-renders-lines",
+          "passed": true
+        },
+        {
+          "id": "story-hit-target-preserves-anchor",
+          "passed": true
+        },
+        {
+          "id": "story-bound-filter-removes-dangling-lines",
+          "passed": true
+        },
+        {
+          "id": "story-unmount-cancels-reads",
+          "passed": true
+        }
+      ]
+    },
+    "boundary": "Production viewport/Story Graph line components, visibility CSS and Super Element transform hook with synthetic cards and real DOM/ResizeObserver. Full project shell, native gestures and device acceptance remain separate."
+  },
+  "timeline": {
+    "leaders": {
+      "implementation": "shared-id-index",
+      "profiles": [
+        {
+          "chapters": 100,
+          "firstIdReads": 100,
+          "repeatedIdReads": 0,
+          "leaders": 100,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "medianMs": 0
+        },
+        {
+          "chapters": 1000,
+          "firstIdReads": 1000,
+          "repeatedIdReads": 0,
+          "leaders": 1000,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            0.19999992847442627,
+            0.20000004768371582,
+            0.20000004768371582,
+            0.40000009536743164,
+            0.20000004768371582
+          ],
+          "medianMs": 0.20000004768371582
+        },
+        {
+          "chapters": 5000,
+          "firstIdReads": 5000,
+          "repeatedIdReads": 0,
+          "leaders": 5000,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            1,
+            0.9000000953674316,
+            1.100000023841858,
+            1.1999999284744263,
+            0.8999999761581421
+          ],
+          "medianMs": 1
+        }
+      ]
+    },
+    "marker": {
+      "implementation": "local-pin-and-guide-preview",
+      "groups": [
+        {
+          "variant": "bottom",
+          "cards": 20,
+          "moves": 100,
+          "dragCardCommits": 0,
+          "frameNotifications": 1,
+          "writes": [
+            11.4,
+            11.575
+          ],
+          "checks": [
+            {
+              "id": "pointer-burst-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "one-frame-publishes-latest-guide",
+              "passed": true
+            },
+            {
+              "id": "pin-line-hides-during-drag",
+              "passed": true
+            },
+            {
+              "id": "rail-and-lane-guides-align",
+              "passed": true
+            },
+            {
+              "id": "display-frame-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-commits-continuous-coordinate",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-clears-preview-immediately",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-before-frame-keeps-exact-final-coordinate",
+              "passed": true
+            },
+            {
+              "id": "ended-preview-does-not-reappear",
+              "passed": true
+            },
+            {
+              "id": "foreign-pointer-cannot-cancel-active-drag",
+              "passed": true
+            },
+            {
+              "id": "cancel-clears-without-write",
+              "passed": true
+            },
+            {
+              "id": "window-blur-cancels-without-write",
+              "passed": true
+            },
+            {
+              "id": "pin-unmount-cancels-pending-drag-and-listeners",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "variant": "graph",
+          "cards": 20,
+          "moves": 100,
+          "dragCardCommits": 0,
+          "frameNotifications": 1,
+          "writes": [
+            11.4,
+            11.575
+          ],
+          "checks": [
+            {
+              "id": "pointer-burst-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "one-frame-publishes-latest-guide",
+              "passed": true
+            },
+            {
+              "id": "pin-line-hides-during-drag",
+              "passed": true
+            },
+            {
+              "id": "display-frame-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-commits-continuous-coordinate",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-clears-preview-immediately",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-before-frame-keeps-exact-final-coordinate",
+              "passed": true
+            },
+            {
+              "id": "ended-preview-does-not-reappear",
+              "passed": true
+            },
+            {
+              "id": "foreign-pointer-cannot-cancel-active-drag",
+              "passed": true
+            },
+            {
+              "id": "cancel-clears-without-write",
+              "passed": true
+            },
+            {
+              "id": "window-blur-cancels-without-write",
+              "passed": true
+            },
+            {
+              "id": "pin-unmount-cancels-pending-drag-and-listeners",
+              "passed": true
+            }
+          ]
+        }
+      ]
+    },
+    "act": {
+      "cards": 20,
+      "moves": 100,
+      "dragCardCommits": 0,
+      "frameNotifications": 1,
+      "writes": [
+        11.4,
+        11.575
+      ],
+      "checks": [
+        {
+          "id": "act-pointer-burst-does-not-render-cards",
+          "passed": true
+        },
+        {
+          "id": "act-guide-coalesces-and-keeps-host-offset",
+          "passed": true
+        },
+        {
+          "id": "act-commits-continuous-coordinate",
+          "passed": true
+        },
+        {
+          "id": "act-commit-does-not-wait-for-frame",
+          "passed": true
+        },
+        {
+          "id": "act-cancel-clears-without-write",
+          "passed": true
+        },
+        {
+          "id": "act-unmount-cancels-without-write",
+          "passed": true
+        }
+      ]
+    },
+    "boundary": "Actual mobile leader projection, shared TimelinePin/ActRail and guide components; synthetic sparse entries/cards and pointer events. Full Timeline UI, native touch and durable database writes are separate."
+  },
+  "workspaceProjection": {
+    "membership": {
+      "implementation": "linear-membership-sets",
+      "profiles": [
+        {
+          "nodes": 100,
+          "links": 200,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "1ee75975b5437f51a3dc0e039304895cb3d73606ec5c59303f9de047ea2a7d85",
+          "samplesMs": [
+            0.10000002384185791,
+            0.10000002384185791,
+            0.19999992847442627,
+            0,
+            0.09999990463256836
+          ],
+          "medianMs": 0.10000002384185791
+        },
+        {
+          "nodes": 1000,
+          "links": 2000,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "a60d749d6e593a396ea3d2cc641d433f5440d35c584c6b182a528b10666504d8",
+          "samplesMs": [
+            0.6000000238418579,
+            0.40000009536743164,
+            0.5,
+            0.20000004768371582,
+            0.30000007152557373
+          ],
+          "medianMs": 0.40000009536743164
+        },
+        {
+          "nodes": 5000,
+          "links": 10000,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "a8910b0e68fd4a1c61ea421808c57c27450aecec38c07930b4d81942b89a30d5",
+          "samplesMs": [
+            1.5,
+            1.7999999523162842,
+            1.7000000476837158,
+            1.6999999284744263,
+            1.5999999046325684
+          ],
+          "medianMs": 1.6999999284744263
+        }
+      ]
+    },
+    "publication": {
+      "implementation": "share-capture-values",
+      "profiles": [
+        {
+          "nodes": 100,
+          "elements": 20,
+          "reusedNodeRecords": 100,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "570e33cd0b1d6dca1ebb0714f4a01f364b328e66711775820ffaf4f71bcf5598",
+          "samplesMs": [
+            0.8999999761581421,
+            0.6000000238418579,
+            0.3999999761581421,
+            0.2999999523162842,
+            1
+          ],
+          "medianMs": 0.6000000238418579
+        },
+        {
+          "nodes": 1000,
+          "elements": 200,
+          "reusedNodeRecords": 1000,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "f725188a5ac087c42b2b5be9237fcf8db533627d37ed3dd6c9fdee57e36a9ae1",
+          "samplesMs": [
+            2.200000047683716,
+            1.3000000715255737,
+            1.2000000476837158,
+            0.8999999761581421,
+            0.8000000715255737
+          ],
+          "medianMs": 1.2000000476837158
+        },
+        {
+          "nodes": 5000,
+          "elements": 1000,
+          "reusedNodeRecords": 5000,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "6a81221d2e5bd6a78b9cc422b6514320fbf4c04f30f4bdccd3baddbb91710e67",
+          "samplesMs": [
+            4.5,
+            2.899999976158142,
+            4.699999928474426,
+            2.700000047683716,
+            3.299999952316284
+          ],
+          "medianMs": 3.299999952316284
+        }
+      ]
+    },
+    "subscriptions": {
+      "consumers": 20,
+      "refreshes": 100,
+      "unrelated": {
+        "fields": 0,
+        "records": 0
+      },
+      "rename": {
+        "fields": 20,
+        "records": 1
+      }
+    },
+    "boundary": "Production membership derivation and workspace commit with complete synthetic capture-shaped data and real Zustand/React subscribers. SQLite read count, reference parsing, full provider and native recovery are not measured here."
+  },
+  "editorContextMenus": {
+    "groups": [
+      {
+        "editors": 1,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 214,
+        "removals": 214,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 5,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 20,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      }
+    ],
+    "collaborativeFormats": {
+      "checks": [
+        "heading and generated trailing block enter one Yjs undo item",
+        "format undo restores exact content and block identities",
+        "format redo restores exact content and block identities",
+        "split creates unique identities in one undo item",
+        "split undo restores original block",
+        "split redo restores assigned block identities",
+        "explicitly excluded write assigns IDs without entering history"
+      ],
+      "scope": "Real Yjs, Collaboration, StarterKit trailing node and BlockId; synthetic DOM actions."
+    },
+    "initialSessionFocus": {
+      "checks": [
+        "initialization cannot blur a subsequently focused editor",
+        "inactive initialization cannot clear another editor selection"
+      ]
+    },
+    "scope": "Actual DOM and Tiptap editors in isolated Chromium; no React shell, native input, or memory/latency budget inferred."
+  },
+  "editorSuggestions": {
+    "groups": [
+      {
+        "editors": 1,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 211,
+        "subscriptions": 4,
+        "releases": 4,
+        "maxSubscriptions": 2,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "destroy releases all owned gates and portals"
+        ]
+      },
+      {
+        "editors": 5,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 214,
+        "subscriptions": 12,
+        "releases": 12,
+        "maxSubscriptions": 10,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "retiring another editor preserves the current popup",
+          "destroy releases all owned gates and portals"
+        ]
+      },
+      {
+        "editors": 20,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 214,
+        "subscriptions": 42,
+        "releases": 42,
+        "maxSubscriptions": 40,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "retiring another editor preserves the current popup",
+          "destroy releases all owned gates and portals"
+        ]
+      }
+    ],
+    "asyncCreation": [
+      {
+        "action": "complete",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "link-mark",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "hidden-return",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "blur",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "selection",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "query",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "query-undo",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "same-text-replacement",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "appended-replacement",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "readonly-return",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "destroy",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "escape",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "cancel",
+        "creations": 1,
+        "passed": true
+      }
+    ],
+    "template": {
+      "blurClosesAndRejectsStaleActions": true
+    },
+    "scope": "Real Tiptap plugins and DOM in active isolated Chromium; synthetic actions, no native input or performance budget inferred."
+  },
+  "inlineCopilot": {
+    "checks": [
+      "unmount releases the global invocation and its retained prose",
+      "return does not revive the previous invocation",
+      "fixed popover portals outside transformed and clipped editor parents",
+      "current invocation remains mounted",
+      "matching node in another project creates no duplicate portal",
+      "unrelated owner cleanup preserves the current invocation and portal",
+      "available action: copilotInline.actions.ask",
+      "first controlled stream starts",
+      "available action: copilotInline.actions.ask",
+      "replacement aborts only the old stream and preserves new context",
+      "obsolete stream cannot clear the new conversation busy state",
+      "current stream completes normally",
+      "available action: copilotInline.actions.chapterSummary",
+      "available action: copilotInline.actions.chapterSummary",
+      "chapter summary calls are controlled without database writes",
+      "old summary completion cannot change a new invocation",
+      "current summary completion remains visible",
+      "available action: copilotInline.actions.inlineCursor",
+      "controlled inline edit starts",
+      "unmount aborts inline edit and cannot revive a late preview",
+      "available action: copilotInline.actions.inlineSelection",
+      "available action: copilotInline.actions.accept ↵",
+      "current edit applies through the real editor and releases its invocation",
+      "current edit remains one undoable prose change",
+      "available action: copilotInline.actions.inlineSelection",
+      "available action: copilotInline.actions.accept ↵",
+      "actual popover reports target conflict without altering author text",
+      "conflict feedback cannot retry the invalid captured target",
+      "available action: copilotInline.actions.close",
+      "conflict dismissal releases captured context",
+      "author change survives rejected apply and remains undoable",
+      "Escape releases current context and portal",
+      "readonly transition releases the invocation",
+      "editable return does not revive the old invocation",
+      "source mismatch remains invisible and cannot clear another project context",
+      "100 hide and return cycles leave no invocation, portal or prose changes",
+      "editor destruction releases its invocation and portal",
+      "all owned window keyboard listeners are released",
+      "owned span transaction tracking releases on success, conflict and destruction"
+    ],
+    "conflictFeedback": true,
+    "spanTrackers": {
+      "additions": 3,
+      "removals": 3,
+      "remaining": 0,
+      "peak": 1
+    },
+    "cycles": 100,
+    "listeners": {
+      "additions": 119,
+      "removals": 119,
+      "remaining": 0,
+      "peak": 1
+    },
+    "services": {
+      "edits": 3,
+      "asks": 2,
+      "summaries": 2
+    },
+    "scope": "Actual production React popover and Tiptap in isolated Chromium; deferred service doubles, no external model requests, database writes or native input. StrictMode development effect replay is not inferred from this production build."
+  },
+  "inlineEditApply": {
+    "checks": [
+      "changed span cannot be overwritten by an old proposal",
+      "formatting added to the span is preserved on conflict",
+      "span follows its original block after an identical prefix insertion",
+      "repeated text before the span cannot steal its mapped target",
+      "same-text replacement permanently invalidates the original span",
+      "undo to original content cannot revive an invalidated span",
+      "appended same-text replacement also invalidates the span",
+      "detached span tracking cannot apply an old result",
+      "whitespace changes remain a real conflict",
+      "invalid span rejects without a transaction",
+      "span cannot cross into another block",
+      "current span writes model output as literal prose",
+      "following author input has its own undo operation",
+      "current span undo preserves immediately preceding author input",
+      "unrelated later prose does not invalidate a current span",
+      "missing block rejects the whole proposal without partial application",
+      "one changed target rejects every proposed block",
+      "block source includes formatting in its precondition",
+      "duplicate target identities cannot be applied twice",
+      "the complete authored target is checked even when one block has no proposed change",
+      "current block proposal commits every target together",
+      "multi-block edit is one undo operation with original identities",
+      "stable block identities allow an unrelated prefix insertion",
+      "a current unchanged result is a prose no-op",
+      "readonly editor cannot accept a proposal",
+      "destroyed editor rejects without accessing its view"
+    ],
+    "collaborativeHistory": {
+      "separateUndoItems": 3,
+      "exactOriginalRestored": true,
+      "mappedCollaborativeSpan": true,
+      "sameTextPeerReplacementRejected": true,
+      "yjsObservers": {
+        "additions": 2,
+        "removals": 2,
+        "remaining": 0
+      }
+    },
+    "scope": "Real ProseMirror/Tiptap/Yjs proposals and transactions in isolated Chromium; exact target conflicts, literal text and undo. No provider request or native input."
+  },
+  "copilotRuns": {
+    "checks": [
+      "context preparation is controlled",
+      "unmount during context preparation does not start an orphaned capability",
+      "out-of-order context completion cannot replace the latest capability",
+      "replacement aborts detection before waiting for new context",
+      "late aborted detection cannot write or cancel its replacement",
+      "manual task replacement ends each started task exactly once",
+      "unmount aborts an active detector and suppresses its late suggestions",
+      "readonly return cannot revive a retired invocation",
+      "settings rebind invalidates the previous effect context preparation",
+      "project replacement invalidates pending old-project context",
+      "incoming project owns the current capability",
+      "current suggestions retain their authored anchor and write normally",
+      "already-started persistence finishes without launching remaining writes after closure",
+      "summary remains owned after its detector completes",
+      "unmount aborts the outstanding summary",
+      "late old summary completion cannot release a new owner summary lock",
+      "current summary completion permits the next summary",
+      "closed owners release every manual command listener",
+      "editor destruction aborts outstanding detection before late persistence",
+      "task IDs do not repeat after remount or settings rebind",
+      "every announced task has exactly one terminal event"
+    ],
+    "cycles": 100,
+    "detections": 11,
+    "writes": 2,
+    "summaries": 3,
+    "remainingManualListeners": 0,
+    "scope": "Actual React hook and Tiptap editor with deferred synthetic services; no model or SQLite calls."
+  },
+  "subscriptions": {
+    "operations": 100,
+    "allStoreNotifications": 100,
+    "chapterSliceChanges": 0
+  },
+  "environment": {
+    "documentFocused": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "viewport": [
+      1280,
+      813
+    ],
+    "devicePixelRatio": 1,
+    "platform": "darwin",
+    "release": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "node": "v24.19.0",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "runnerImage": null,
+    "runnerImageVersion": null
+  },
+  "validationMode": "measurement",
+  "limitations": [
+    "Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.",
+    "Animation-frame callback is not a compositor paint measurement.",
+    "Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.",
+    "Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN."
+  ]
+}

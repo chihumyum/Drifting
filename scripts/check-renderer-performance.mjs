@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -188,6 +188,23 @@ if (report.agentDisplay) {
   assert.equal(scenario.displayCommitsAfterFrame, scenario.consumers);
   assert(scenario.checks.length > 0);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+}
+if (report.agentHistory && (deterministic || report.agentHistory.implementation)) {
+  const history = report.agentHistory;
+  assert.equal(history.implementation, 'stable-message-blocks');
+  assert.equal(history.measure, true);
+  assert.deepEqual(history.measurements.map(item => [item.surface, item.historyMessages]), [['desktop', 300], ['desktop', 3000], ['mobile', 300], ['mobile', 3000]]);
+  for (const item of history.measurements) {
+    assert.match(item.fixtureHash, /^[0-9a-f]{64}$/);
+    assert.equal(item.displayUpdates, 20);
+    assert.equal(item.rowElements, ((item.historyMessages % 64) + 1) * 20, 'history row creation regressed');
+    assert.equal(item.updateMs.length, 20);
+    assert(item.updateMs.every(value => Number.isFinite(value) && value >= 0));
+    const sorted = [...item.updateMs].sort((a, b) => a - b);
+    assert.equal(item.medianMs, sorted[10]); assert.equal(item.p95Ms, sorted[18]);
+    assert.deepEqual(item.checks.map(check => check.id), ['all-history-stays-mounted', 'historical-dom-and-selection-retained', 'tool-detail-dom-and-expansion-retained', 'latest-text-complete']);
+    assert(item.checks.every(check => check.passed === true));
+  }
 }
 if (report.agentPanel) {
   const scenario = report.agentPanel;

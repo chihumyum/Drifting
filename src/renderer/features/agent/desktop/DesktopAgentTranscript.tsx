@@ -1,11 +1,16 @@
 import { forwardRef, memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAgentMessageBlocks, type AgentMessageBlock } from '../useAgentMessageBlocks';
 import { useAgentChatMessages } from '../useAgentChatMessages';
 import { selectAutomaticContinuation, selectAgentTaskContinuationReason, selectControlStatus, selectPendingControl, selectRunning, useAgentChatStore } from '../../../store/agent-chat-store';
 import { useAgentActivityStore } from '../../../store/agent-activity-store';
 import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavigationContext';
 import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
 import { EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
+
+const DesktopMessageBlock = memo(function DesktopMessageBlock({ block }: { block: AgentMessageBlock }) {
+  return <>{block.messages.map((m, i) => <MessageView key={i} msg={m} />)}</>;
+});
 
 export interface AgentTranscriptHandle { follow(): void }
 
@@ -14,6 +19,7 @@ export interface AgentTranscriptHandle { follow(): void }
 export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(function DesktopAgentTranscript(_props, ref) {
   const { t } = useTranslation();
   const messages = useAgentChatMessages();
+  const messageBlocks = useAgentMessageBlocks(messages);
   const running = useAgentChatStore(selectRunning);
   const starting = useAgentChatStore(s => s.starting);
   const controlStatus = useAgentChatStore(selectControlStatus);
@@ -96,7 +102,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
           {messages.length === 0 ? (
             <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
           ) : (
-            messages.map((m, i) => <MessageView key={i} msg={m} />)
+            messageBlocks.map(block => <DesktopMessageBlock key={block.start} block={block} />)
           )}
           {waiting && <PendingRow status={controlStatus} />}
           {pendingControl && (

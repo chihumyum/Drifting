@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { v7 as uuidv7 } from 'uuid';
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
 import { createPlainCommentDoc } from '../../../domain/comment';
+import { useAgentMessageBlocks, type AgentMessageBlock } from '../../../features/agent/useAgentMessageBlocks';
 import { useAgentChatMessages } from '../../../features/agent/useAgentChatMessages';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX } from '../../../features/agent/AgentMessageViews';
@@ -40,6 +41,18 @@ const MobileAgentMessage = memo(function MobileAgentMessage({ message, index, fe
   </div>;
 });
 
+const MobileMessageBlock = memo(function MobileMessageBlock({ block, actionState, owner, onAction }: {
+  block: AgentMessageBlock; actionState: Record<number, OutputFeedback>; owner: OutputOwner;
+  onAction(index: number, action: OutputAction, message: AgentChatMessage): Promise<void>;
+}) {
+  return <>{block.messages.map((message, offset) => {
+    const index = block.start + offset;
+    const feedback = actionState[index];
+    return <MobileAgentMessage key={index} message={message} index={index}
+      feedback={feedback?.owner === owner && feedback.message === message ? feedback : undefined} onAction={onAction} />;
+  })}</>;
+});
+
 function evidenceLabel(evidence: MobileAgentEvidenceRef, deletedLabel: string): string {
   const data = useDataStore.getState();
   const label =
@@ -58,6 +71,7 @@ function evidenceLabel(evidence: MobileAgentEvidenceRef, deletedLabel: string): 
 export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle, { projectId: string; conversationId: string | null }>(function MobileAgentTranscript({ projectId, conversationId }, ref) {
   const { t } = useTranslation();
   const messages = useAgentChatMessages();
+  const messageBlocks = useAgentMessageBlocks(messages);
   const running = useAgentChatStore(selectRunning);
   const starting = useAgentChatStore(state => state.starting);
   const pendingControl = useAgentChatStore(selectPendingControl);
@@ -145,8 +159,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
               onScroll={onScroll}
             >
               {messages.length === 0 && <div className="m-tool-empty">{t('agentPanel.mobile.empty')}</div>}
-              {messages.map((message, index) => <MobileAgentMessage key={index} message={message} index={index}
-                feedback={actionState[index]?.owner === owner && actionState[index]?.message === message ? actionState[index] : undefined} onAction={runOutputAction} />)}
+              {messageBlocks.map(block => <MobileMessageBlock key={block.start} block={block} actionState={actionState} owner={owner} onAction={runOutputAction} />)}
               {waiting && <PendingRow status={controlStatus} />}
               {pendingControl && (
                 <RuntimeControlCard
