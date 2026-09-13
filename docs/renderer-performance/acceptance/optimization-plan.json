@@ -275,7 +275,8 @@
             "docs/renderer-performance/acceptance/f4-journal-owner-native.json",
             "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json",
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
-            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
+            "docs/renderer-performance/acceptance/f4-conversation-navigation.json"
           ],
           "status": "partial"
         },
@@ -307,7 +308,8 @@
             "docs/renderer-performance/acceptance/f4-background.json",
             "docs/renderer-performance/acceptance/f4-background-native.json",
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
-            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
+            "docs/renderer-performance/acceptance/f4-conversation-navigation.json"
           ],
           "status": "passed"
         },
@@ -338,12 +340,13 @@
             "docs/renderer-performance/acceptance/f4-background.json",
             "docs/renderer-performance/acceptance/f4-background-native.json",
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
-            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
+            "docs/renderer-performance/acceptance/f4-conversation-navigation.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "app_owned_journal_send_preparation_and_bounded_live_recovery_hidden_display_coalescing_mixed_sqlite_crash_verified_remaining_runtime_recovery_compaction_and_device_budgets_pending"
+      "implementationStatus": "app_owned_journal_navigation_hydration_and_send_preparation_bounded_live_recovery_hidden_display_coalescing_mixed_sqlite_crash_verified_remaining_cleanup_runtime_recovery_compaction_and_device_budgets_pending"
     },
     {
       "id": "F5",

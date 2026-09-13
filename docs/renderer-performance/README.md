@@ -2949,3 +2949,52 @@ and excludes the acceptance drivers/counters. The browser regression report
 deterministic checks. These headless/browser/Node recovery results do not prove
 native renderer restart, physical input, power-loss recovery or device latency.
 F6 remains `in_progress`.
+
+## F4l — Conversation navigation, list ownership and hydration
+
+`chat-conversation-navigation.ts` now owns list request order, project-binding
+generations and automatic-restoration intent. Older successful or failed reads
+cannot replace the newest list, including an A → B → A project sequence. A real
+project change immediately clears the previous project's history. Same-project
+remounts preserve the original restoration policy and refresh only the list.
+
+Automatic restoration is consumed once from the latest accepted list. Opening
+another conversation or starting a new draft supersedes restoration that has
+not displayed its transcript yet. Ordinary list refreshes do not repeat or
+cancel a restoration already hydrating. After a restored transcript becomes
+visible, typing continues to allow pending-control recovery to finish; explicit
+navigation still invalidates the old load. Disposing the controller rejects
+pending list callbacks and future requests without adding timers or listeners.
+
+`chat-conversation-hydration.ts` separately reads the display cache, canonical
+session/journal and long-task state under the load guard. It never publishes to
+the store. Each asynchronous stage checks ownership, including the boundary
+between plan and manifest reads. The existing canonical-message preference and
+display-cache fallback remain. The store owns the final run/active-conversation
+publication and transport controls, reducing it from 1,240 to 1,128 lines.
+
+```bash
+pnpm agent:navigation:acceptance
+pnpm agent:navigation:acceptance --check
+```
+
+`acceptance/f4-conversation-navigation.json` copies the identical 15 store probes
+into a disposable baseline worktree at `db0607f8`: nine fail there and all pass
+in the candidate. Current navigation, controller lifetime, send preparation and
+journal/store regression suites total 59 passing checks. Cases include stale
+success/failure, binding ABA, immediate list isolation, restore opt-out, manual
+load and draft races, hydration cancellation, visible pending-control recovery,
+canonical/cache fallback, reentrant publication and disposal. Repository,
+canonical-recovery and pending-control ports are synthetic; these checks do not
+prove native SQLite recovery, a real provider/control lifecycle, storage
+transaction cancellation or a device latency budget. Async delete/clear command
+ownership and the full runtime recovery matrix remain separate work. F4 stays
+`in_progress`.
+
+The isolated batch passes 2,602 full-suite tests with one existing skip, typecheck,
+CI/public contracts and 19 Agent capability checks. Lint reports zero errors and
+33 existing warnings. `acceptance/f4-conversation-navigation-browser.json`
+passes the candidate-source fingerprint and deterministic browser contracts.
+The normal local-only production build retains 32 JS chunks and excludes the
+acceptance drivers/counters. No speedup or native/device budget is inferred from
+this lifecycle refactor.
