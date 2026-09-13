@@ -29,7 +29,7 @@ function parseTemplateJson(templateJson: string | null): JSONContent {
 }
 
 // Plain TipTap editor for a category's element template. Intentionally simpler
-// than useEntityEditor: no entity links, no mentions, no slash menu, no
+// than useEntityEditor: no entity links, no mentions and no
 // reference projection — this doc is structural (a default heading skeleton
 // for new elements), not user-facing content. Persist on every update.
 export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: Props) {

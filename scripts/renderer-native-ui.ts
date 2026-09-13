@@ -17,6 +17,8 @@ import { addCommentToStickyNoteRail, removeCommentFromAllStickyNoteRails } from 
 import type { Comment } from '../src/renderer/domain/comment';
 import { yUndoPluginKey } from '@tiptap/y-tiptap';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
+import { useCopilotInlineStore } from '../src/renderer/store/copilot-inline-store';
+import { applyInlineEdit, type InlineEditResult } from '../src/renderer/lib/copilot/inline-edit';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
@@ -26,10 +28,15 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   markers: boolean;
   selectionMemory: boolean;
   contextMenus: boolean;
+  suggestions: boolean;
+  inlineCopilot: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
 const marker = ' NATIVE_ACCEPTANCE_SAVED';
+const suggestionCreatedName = 'SyntheticSuggestionCreated';
+const inlinePanel = () => document.body.querySelector<HTMLElement>(':scope > [data-copilot-inline]');
+const inlineChord = (dom: HTMLElement) => dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'I', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
 const started = performance.now();
 const phase = localStorage.getItem('native-acceptance-phase') === 'restart' ? 'restart' : 'composition';
 const lifecycle: Array<{ projectId: string; mounted: boolean }> = [];
@@ -48,8 +55,17 @@ const markerObservations: Array<{ surface: string; counts: Record<string, number
 const selectionObservations: Record<string, number> = {};
 const contextMenuInstances = new WeakMap<object, number>();
 const contextMenuObservations: Array<{ surface: string; counts: Record<string, number> }> = [];
+const suggestionInstances = new WeakMap<object, number>();
+const suggestionObservations: Array<{ surface: string; plugin: string; attach: number; detach: number }> = [];
 let step = 'bootstrap';
 Object.assign(globalThis, {
+  __nativeAcceptanceSuggestionEvent(owner: object, editor: { isDestroyed: boolean; view: { dom: HTMLElement } }, plugin: string, event: 'attach' | 'detach') {
+    let index = suggestionInstances.get(owner);
+    if (index === undefined) { index = suggestionObservations.length; suggestionInstances.set(owner, index); suggestionObservations.push({ surface: '', plugin, attach: 0, detach: 0 }); }
+    const row = suggestionObservations[index];
+    if (!editor.isDestroyed) row.surface = editor.view.dom.closest<HTMLElement>('[data-editor-surface]')?.dataset.editorSurface ?? row.surface;
+    row[event]++;
+  },
   __nativeAcceptanceContextMenuEvent(owner: { editor: { isDestroyed: boolean; view: { dom: HTMLElement } } }, event: string) {
     let index = contextMenuInstances.get(owner);
     if (index === undefined) {
@@ -114,11 +130,11 @@ const frames = () => Promise.race([
 function ensure(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
-async function waitFor<T>(predicate: () => T | Promise<T>, description: string, timeout = 45000): Promise<NonNullable<T>> {
+async function waitFor<T>(predicate: () => T | Promise<T>, description: string, timeout = 45000): Promise<Exclude<T, false | 0 | '' | null | undefined>> {
   const begin = performance.now();
   while (performance.now() - begin < timeout) {
     const value = await predicate();
-    if (value) return value as NonNullable<T>;
+    if (value) return value as Exclude<T, false | 0 | '' | null | undefined>;
     await delay(50);
   }
   throw new Error(`Timed out: ${description}; projection=${useDataStore.getState().workspaceProjectionStatus}; alerts=${document.querySelector('[role="alert"]')?.textContent?.slice(0, 300) ?? ''}`);
@@ -167,6 +183,14 @@ async function run() {
   if (phase === 'restart') {
     ensure(first.getText().endsWith(marker), 'Saved native prose did not survive process restart');
     checks.restartProse = true;
+    if (config.suggestions) {
+      ensure(useDataStore.getState().bookElements.some(element => element.id === localStorage.getItem('native-suggestion-created-id') && element.name === suggestionCreatedName), 'Created suggestion element did not survive restart');
+      checks.suggestionCreatedElementRestored = true;
+    }
+    if (config.inlineCopilot) {
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Transient inline Copilot invocation restored after restart');
+      checks.inlineCopilotTransientAfterRestart = true;
+    }
     ensure(await saveActiveEditor(), 'Restart save callback absent');
   } else {
     const doc = getLiveYDoc(`node-content:${a.nodeIds[0]}`);
@@ -263,7 +287,9 @@ async function run() {
         heading.setAttribute('id', headingId);
         heading.setAttribute('level', 1);
         heading.insert(0, [new Y.XmlText(headingText)]);
-        hiddenDoc.getXmlFragment('default').insert(0, [heading]);
+        // Yjs permits JSON attributes; XmlFragment's declaration defaults the
+        // child element attributes to strings, unlike Tiptap's numeric level.
+        hiddenDoc.getXmlFragment('default').insert(0, [heading as unknown as Y.XmlElement]);
       }, 'agent');
       await flushOpenYjsDocument(`node-content:${id}`);
       const content = createBookContentRepository();
@@ -340,7 +366,7 @@ async function run() {
         heading.setAttribute('id', `synthetic-outline-${index}`); heading.setAttribute('level', 1);
         heading.insert(0, [new Y.XmlText(`Synthetic outline ${index}`)]); return heading;
       });
-      doc.transact(() => doc.getXmlFragment('default').insert(0, headings), 'agent');
+      doc.transact(() => doc.getXmlFragment('default').insert(0, headings as unknown as Y.XmlElement[]), 'agent');
       await flushOpenYjsDocument(`node-content:${a.nodeIds[0]}`);
       const viewport = first.view.dom.closest<HTMLElement>('.editor-scroll');
       const surface = first.view.dom.closest<HTMLElement>('[data-editor-surface]');
@@ -558,6 +584,133 @@ async function run() {
       ensure(await saveActiveEditor(), 'Menu format cleanup save missing');
       checks.menusFormatAndLocale = true;
     }
+    if (config.suggestions) {
+      await progress('suggestion-lifetime');
+      const popup = (kind: string) => document.body.querySelector<HTMLElement>(`[data-editor-suggestion="${kind}"]`);
+      const history = yUndoPluginKey.getState(first.state)!.undoManager;
+      const baseline = JSON.stringify(first.getJSON());
+      const reset = () => {
+        for (let attempt = 0; JSON.stringify(first.getJSON()) !== baseline && attempt < 5; attempt++) ensure(first.commands.undo(), 'Suggestion operation lost undo');
+        ensure(JSON.stringify(first.getJSON()) === baseline, 'Suggestion cleanup changed canonical prose or block identity');
+        history.stopCapturing();
+      };
+      const begin = async (kind: 'slash' | 'mention', query = '') => {
+        history.stopCapturing(); first.commands.setTextSelection(first.state.doc.content.size - 1);
+        first.commands.insertContent(` ${kind === 'slash' ? '/' : '@'}${query}`);
+        return waitFor(() => { const menu = popup(kind); return menu?.querySelector('button') && menu; }, 'live native suggestion items');
+      };
+      for (const kind of ['slash', 'mention'] as const) {
+        const menu = await begin(kind); const stale = menu.querySelector<HTMLButtonElement>('button')!;
+        const hiddenProse = JSON.stringify(first.getJSON());
+        await open(a.id, a.nodeIds[2]);
+        ensure(!popup(kind), 'Hidden chapter kept its suggestion portal'); stale.click();
+        ensure(JSON.stringify(first.getJSON()) === hiddenProse, 'Detached suggestion action changed hidden prose');
+        await open(a.id, a.nodeIds[0]); ensure(!popup(kind), 'Returning chapter revived its dismissed suggestion'); reset();
+        const active = await begin(kind);
+        const action = kind === 'slash' ? [...active.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '一级标题')! : active.querySelector<HTMLButtonElement>('button')!;
+        const insertedLabel = action.lastElementChild?.textContent;
+        action.click(); await frames();
+        ensure(!popup(kind) && (kind === 'slash' ? first.isActive('heading', { level: 1 }) : JSON.stringify(first.getJSON()).includes('entityLink') && first.getText().endsWith(`${insertedLabel} `)), 'Native suggestion command missed current range');
+        reset();
+      }
+      checks.suggestionsHiddenAndStaleActions = true; checks.suggestionsCurrentCommands = true;
+      const retained = await begin('mention');
+      useUiStore.getState().closeTab(a.id, { entityType: 'node', id: a.nodeIds[8] });
+      await waitFor(() => !getLiveYDoc(`node-content:${a.nodeIds[8]}`), 'unrelated suggestion owner retired');
+      ensure(popup('mention') === retained, 'Unrelated owner removed the current suggestion');
+      first.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); reset();
+      await open(a.id, a.nodeIds[8]); await open(a.id, a.nodeIds[0]);
+      checks.suggestionsUnrelatedOwnerCleanup = true;
+      const creationMenu = await begin('mention', suggestionCreatedName);
+      const create = [...creationMenu.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('创建元素'));
+      ensure(create, 'Real native create-element suggestion missing'); create.click(); create.click();
+      const created = await waitFor(() => useDataStore.getState().bookElements.find(element => element.name === suggestionCreatedName), 'actual created suggestion element');
+      await waitFor(() => first.getText().endsWith(`${suggestionCreatedName} `) && JSON.stringify(first.getJSON()).includes(created.id), 'asynchronous native marked insertion');
+      ensure(useDataStore.getState().bookElements.filter(element => element.name === suggestionCreatedName).length === 1, 'Repeated click created duplicate elements');
+      localStorage.setItem('native-suggestion-created-id', created.id);
+      reset(); ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Suggestion commands replaced canonical Yjs');
+      ensure(await saveActiveEditor(), 'Suggestion cleanup save missing'); checks.suggestionsCreateElement = true;
+    }
+    if (config.inlineCopilot) {
+      await progress('inline-copilot-lifetime');
+      const baseline = JSON.stringify(first.getJSON());
+      const begin = async () => {
+        first.view.focus(); inlineChord(first.view.dom);
+        const panel = await waitFor(inlinePanel, 'current native inline Copilot portal');
+        const ctx = useCopilotInlineStore.getState().ctx;
+        ensure(ctx?.projectId === a.id && ctx.nodeId === a.nodeIds[0], 'Inline invocation source mismatch');
+        ensure(getComputedStyle(panel).position === 'fixed', 'Inline panel lost viewport positioning');
+        return panel;
+      };
+      for (let index = 0; index < 5; index++) {
+        await begin(); await open(a.id, a.nodeIds[2]);
+        ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Hidden native chapter retained inline context');
+        inlineChord(first.view.dom); await frames();
+        ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Hidden editor chord built inline context');
+        await open(a.id, a.nodeIds[0]); ensure(!inlinePanel(), 'Returning to chapter revived old inline popup');
+      }
+      checks.inlineCopilotLifetime = true;
+      first.setEditable(false); inlineChord(first.view.dom); await frames();
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Readonly editor opened inline Copilot');
+      first.setEditable(true); await begin();
+      first.setEditable(false); await frames();
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Readonly transition retained inline Copilot');
+      first.setEditable(true); await frames(); checks.inlineCopilotCommandGates = true;
+      const retained = await begin();
+      useUiStore.getState().closeTab(a.id, { entityType: 'node', id: a.nodeIds[8] }); await frames();
+      ensure(inlinePanel() === retained && useCopilotInlineStore.getState().ctx?.nodeId === a.nodeIds[0], 'Unrelated close removed current inline invocation');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await frames();
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Inline Escape retained context');
+      await open(a.id, a.nodeIds[8]); await open(a.id, a.nodeIds[0]);
+      ensure(JSON.stringify(first.getJSON()) === baseline && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Inline lifetime changed canonical prose or Yjs identity');
+      checks.inlineCopilotUnrelatedCleanup = true;
+      await progress('inline-copilot-apply-preconditions');
+      const history = yUndoPluginKey.getState(first.state)!.undoManager;
+      const proposal = async (): Promise<InlineEditResult> => {
+        first.commands.setTextSelection({ from: 2, to: 8 }); await begin();
+        const ctx = useCopilotInlineStore.getState().ctx!;
+        ensure(ctx.spanWithinBlock && ctx.spanSource, 'Native shortcut did not capture the exact span source');
+        return { refused: false, reason: 'Synthetic native proposal', span: { from: ctx.from, to: ctx.to, oldText: ctx.selectedText, newText: 'Native <literal>', source: ctx.spanSource, diff: [] } };
+      };
+      const closeInline = async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await frames();
+      };
+      const staleProposal = await proposal(); history.stopCapturing();
+      first.view.dispatch(first.state.tr.insertText('Synthetic concurrent', 2, 8));
+      const concurrent = JSON.stringify(first.getJSON());
+      ensure(!applyInlineEdit(first, staleProposal) && JSON.stringify(first.getJSON()) === concurrent, 'Stale native span overwrote current Yjs prose');
+      await closeInline(); ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === baseline, 'Native span conflict setup failed to undo');
+      checks.inlineCopilotSpanConflict = true;
+      history.stopCapturing(); first.view.dispatch(first.state.tr.insertText('!', 1));
+      const beforeApply = JSON.stringify(first.getJSON()); const currentProposal = await proposal();
+      ensure(applyInlineEdit(first, currentProposal) && first.getText().includes('Native <literal>'), 'Current native span did not insert literal prose');
+      const applied = JSON.stringify(first.getJSON()); await closeInline();
+      first.view.dispatch(first.state.tr.insertText('?', 2));
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === applied, 'Following native input merged with Copilot undo');
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === beforeApply, 'Copilot native undo consumed preceding author input');
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === baseline, 'Preceding native author input failed to restore');
+      checks.inlineCopilotHistory = true;
+      history.stopCapturing();
+      first.view.dispatch(first.state.tr.insert(first.state.doc.content.size, ['a', 'b'].map(id => first.schema.nodes.paragraph.create({ id: `synthetic-native-inline-${id}` }, first.schema.text(`Synthetic inline ${id}.`)))));
+      const blockSetup = JSON.stringify(first.getJSON()); const targets: NonNullable<InlineEditResult['blocks']> = [];
+      let lastTarget = 0;
+      first.state.doc.descendants((node, pos) => {
+        if (String(node.attrs.id).startsWith('synthetic-native-inline-')) {
+          targets.push({ id: node.attrs.id, kind: node.type.name, sourceJson: JSON.stringify(node.toJSON()), oldText: node.textContent, newText: `Changed ${node.textContent}`, changed: true, diff: [] }); lastTarget = pos;
+        }
+      });
+      ensure(targets.length === 2, 'Native synthetic block proposal did not find both targets');
+      history.stopCapturing(); first.view.dispatch(first.state.tr.delete(lastTarget, lastTarget + first.state.doc.nodeAt(lastTarget)!.nodeSize));
+      const missingTarget = JSON.stringify(first.getJSON());
+      ensure(!applyInlineEdit(first, { refused: false, reason: '', blocks: targets }) && JSON.stringify(first.getJSON()) === missingTarget, 'Native missing block caused partial proposal application');
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === blockSetup, 'Native block deletion setup failed to undo');
+      ensure(applyInlineEdit(first, { refused: false, reason: '', blocks: targets }), 'Current native block proposal failed');
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === blockSetup, 'Native multi-block proposal lost one-step undo');
+      ensure(first.commands.undo() && JSON.stringify(first.getJSON()) === baseline, 'Native block setup did not restore exact prose');
+      history.stopCapturing(); ensure(await saveActiveEditor(), 'Native inline proposal cleanup save missing');
+      ensure(getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Inline proposal application replaced canonical Yjs');
+      checks.inlineCopilotBlockConflict = true;
+    }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
@@ -620,10 +773,40 @@ async function run() {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       ensure(!menu(), 'Split Escape retained its menu'); checks.menusSplitCommandOwnership = true;
     }
+    if (config.suggestions) {
+      const splitEditors = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]')];
+      const left = getActiveEditor(); ensure(left?.view.dom === splitEditors[0], 'Context menu scenario must leave the left split active');
+      const prior = JSON.stringify(left.getJSON()); const undo = yUndoPluginKey.getState(left.state)!.undoManager; undo.stopCapturing();
+      left.commands.setTextSelection(left.state.doc.content.size - 1); left.commands.insertContent(' /');
+      await waitFor(() => document.querySelector('[data-editor-suggestion="slash"] button'), 'left split suggestion');
+      splitEditors[1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 300, clientY: 300 }));
+      await frames(); splitEditors[1].focus();
+      await waitFor(() => getActiveEditor()?.view.dom === splitEditors[1], 'right split command owner');
+      ensure(!document.querySelector('[data-editor-suggestion]'), 'Inactive visible split retained suggestion');
+      // Restore only the synthetic trigger in the still-live left document.
+      ensure(left.commands.undo() && JSON.stringify(left.getJSON()) === prior, 'Split suggestion cleanup lost history');
+      checks.suggestionsSplitCommandOwnership = true;
+    }
+    if (config.inlineCopilot) {
+      const splitEditors = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]')];
+      inlineChord(splitEditors[0]); await frames();
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Unfocused visible split owned inline Copilot');
+      inlineChord(splitEditors[1]); await waitFor(inlinePanel, 'right split inline popup');
+      splitEditors[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })); await frames(); splitEditors[0].focus();
+      await waitFor(() => getActiveEditor()?.view.dom === splitEditors[0], 'left split inline ownership');
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Split ownership loss retained inline context');
+      inlineChord(splitEditors[0]); await waitFor(inlinePanel, 'left split inline popup');
+      checks.inlineCopilotSplitOwnership = true;
+    }
     useUiStore.getState().clearProjectTabs(a.id);
     location.hash = `/project/${a.id}`;
     await waitFor(() => a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'closed-tab live document cleanup');
     checks.closedTabsReleaseLiveDocuments = true;
+    if (config.suggestions) {
+      ensure(suggestionObservations.length >= 40 && suggestionObservations.every(row => row.attach === row.detach), 'Closed suggestion plugin views leaked');
+      ensure(!document.querySelector('[data-editor-suggestion]'), 'Closed suggestion portal survived');
+      checks.suggestionsClosedOwnersReleased = true;
+    }
     if (config.contextMenus) {
       ensure(contextMenuObservations.length >= 20 && contextMenuObservations.every(row =>
         row.counts.dispose === 1 && (row.counts.open ?? 0) === (row.counts.close ?? 0) && (row.counts.bind ?? 0) === (row.counts.unbind ?? 0)), 'Closed context menu owners leaked');
@@ -657,6 +840,10 @@ async function run() {
       ensure(counts.size >= 20 && [...counts.values()].every(count => count === 0), 'Closed editor session bindings leaked');
       checks.closedSessionBindingsReleased = true;
     }
+    if (config.inlineCopilot) {
+      ensure(!inlinePanel() && !useCopilotInlineStore.getState().ctx, 'Closed editors retained inline Copilot context or portal');
+      checks.inlineCopilotClosedOwnersReleased = true;
+    }
     if (config.selectionMemory) {
       await waitFor(() => a.nodeIds.slice(0, 20).every(id => !hasEditorSelectionSnapshot(editorTabSelectionKey(a.id, { entityType: 'node', id }))), 'closed selection memory pruned');
       checks.selectionClosedMemoryPruned = true;
@@ -688,7 +875,7 @@ async function run() {
       ensure(restored.state.selection.anchor === 35 && restored.state.selection.head === 12, 'Project return lost selection direction or offsets');
       checks.selectionProjectRestore = true;
     }
-    ensure(useDataStore.getState().bookElements.length === 100 && useDataStore.getState().entityRelations.length === 500, 'Restored project projection incorrect');
+    ensure(useDataStore.getState().bookElements.length === 100 + (config.suggestions ? 1 : 0) && useDataStore.getState().entityRelations.length === 500, 'Restored project projection incorrect');
     ensure(!getLiveYDoc(`node-content:${b.nodeIds[0]}`), 'Second project doc leaked');
     checks.projectSwitchAndSqliteRestore = true;
     ensure(await saveActiveEditor(), 'Restored editor save callback missing');
@@ -696,7 +883,7 @@ async function run() {
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

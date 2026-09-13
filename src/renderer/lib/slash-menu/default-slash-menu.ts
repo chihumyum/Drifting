@@ -70,7 +70,7 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
       props?.run?.();
     },
     render: () => {
-      let container: HTMLDivElement | null;
+      let container: HTMLDivElement | null = null;
       let selected = 0;
       let items: Array<{ id: string; title: string; run?: () => void }> = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,6 +83,7 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
       }) => {
         lastProps = props;
         items = props.items || [];
+        if (selected >= items.length) selected = 0;
         if (!container) {
           return;
         }
@@ -122,21 +123,21 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
           btn.style.flexShrink = '0';
           btn.onmouseenter = () => {
             // Only update selection on hover if not in keyboard mode
-            if (!keyboardMode) {
+            if (container?.contains(btn) && !keyboardMode) {
               selected = idx;
               renderList(lastProps);
             }
           };
           btn.onmousemove = () => {
             // Exit keyboard mode when mouse moves
-            if (keyboardMode) {
+            if (container?.contains(btn) && keyboardMode) {
               keyboardMode = false;
               selected = idx;
               renderList(lastProps);
             }
           };
           btn.onmousedown = (e) => e.preventDefault();
-          btn.onclick = () => lastProps?.command(items[idx]);
+          btn.onclick = () => { if (container?.contains(btn)) lastProps?.command(item); };
           if (idx === selected) selectedBtn = btn;
           list.appendChild(btn);
         });
@@ -185,7 +186,10 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
 
       return {
         onStart: (props: { clientRect?: () => DOMRect | null }) => {
+          container?.remove();
+          selected = 0; keyboardMode = false;
           container = document.createElement('div');
+          container.dataset.editorSuggestion = 'slash';
           document.body.appendChild(container);
           // @ts-expect-error - props type is broad
           renderList(props);
@@ -222,10 +226,8 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
           return false;
         },
         onExit: () => {
-          if (container) {
-            container.remove();
-            container = null;
-          }
+          container?.remove(); container = null;
+          items = []; lastProps = null; selected = 0; keyboardMode = false;
         },
       };
     },

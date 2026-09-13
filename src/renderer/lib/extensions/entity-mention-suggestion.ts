@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
-import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
+import type { SuggestionOptions } from '@tiptap/suggestion';
+import { createOwnedSuggestion, type EditorSuggestionGate } from '../editor-suggestion-interaction';
 import type { EntityKind } from './entity-link';
 
 // Distinct from the slash-menu's pluginKey so the two suggestion plugins can
@@ -37,6 +38,7 @@ export interface EntityMentionSuggestionOptions {
   // Source of truth for the entity list. Called on every keystroke; should be
   // cheap (the picker filters in-memory).
   getEntities: () => MentionableEntity[];
+  gate?: EditorSuggestionGate;
   // If provided, the picker offers a "+ create element 「query」" affordance
   // when the query is non-empty and doesn't exactly match an existing element
   // by name.
@@ -61,7 +63,8 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
   addProseMirrorPlugins() {
     const { editor: extensionEditor, options } = this;
     return [
-      Suggestion<MentionPickerItem>({
+      createOwnedSuggestion<MentionPickerItem>({
+        gate: options.gate,
         editor: extensionEditor,
         pluginKey: options.pluginKey ?? EntityMentionPluginKey,
         char: '@',
@@ -111,7 +114,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
           }
           return items;
         },
-        command: async ({ editor, range, props }) => {
+        command: async ({ editor, range, props }, stillCurrent) => {
           const item = props as MentionPickerItem;
           let resolved: { kind: EntityKind; id: string; name: string } | null = null;
 
@@ -130,6 +133,8 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               resolved = { kind: 'element', id: created.id, name: created.name };
             }
           }
+
+          if (!stillCurrent()) return;
 
           if (!resolved) {
             // Cancel cleanly: just remove the @-trigger text so the editor
@@ -259,20 +264,20 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               btn.appendChild(label);
 
               btn.onmouseenter = () => {
-                if (!keyboardMode) {
+                if (container?.contains(btn) && !keyboardMode) {
                   selected = idx;
                   renderList(lastProps);
                 }
               };
               btn.onmousemove = () => {
-                if (keyboardMode) {
+                if (container?.contains(btn) && keyboardMode) {
                   keyboardMode = false;
                   selected = idx;
                   renderList(lastProps);
                 }
               };
               btn.onmousedown = (e) => e.preventDefault();
-              btn.onclick = () => lastProps?.command(items[idx]);
+              btn.onclick = () => { if (container?.contains(btn)) lastProps?.command(item); };
               if (idx === selected) selectedBtn = btn;
               list.appendChild(btn);
             });
@@ -308,7 +313,9 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
 
           return {
             onStart: (props) => {
+              container?.remove();
               container = document.createElement('div');
+              container.dataset.editorSuggestion = 'mention';
               document.body.appendChild(container);
               selected = 0;
               keyboardMode = false;
@@ -346,6 +353,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             onExit: () => {
               container?.remove();
               container = null;
+              items = []; lastProps = null; selected = 0; keyboardMode = false;
             },
           };
         },

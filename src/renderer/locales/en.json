@@ -2580,7 +2580,7 @@
       "retry": "Retry"
     },
     "errors": {
-      "selectionChanged": "The selection changed, so the edit cannot be applied."
+      "selectionChanged": "The target text changed, so the edit cannot be applied. Close this panel and select the text again."
     }
   },
   "referencesPanel": {

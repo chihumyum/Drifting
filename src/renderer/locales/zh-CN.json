@@ -2580,7 +2580,7 @@
       "retry": "重试"
     },
     "errors": {
-      "selectionChanged": "选区已发生变化，无法应用修改。"
+      "selectionChanged": "目标正文已发生变化，无法应用修改。请关闭后重新选择文本。"
     }
   },
   "referencesPanel": {

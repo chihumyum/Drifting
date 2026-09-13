@@ -14,9 +14,10 @@
  *     「本章节触发」(chapter summary — selection-independent).
  * Capability runs land in the margin (批注); inline-edit previews inline.
  *
- * Mounted per ChapterEditor; renders only when the store's ctx.nodeId matches.
+ * Mounted by the active ChapterEditor; renders only for its project and node.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import { useTranslation } from 'react-i18next';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../../store/copilot-inline-store';
@@ -31,6 +32,7 @@ import type { DiffChunk } from '../../lib/copilot/text-diff';
 import { runInlineAskStream, type AskTurn } from '../../lib/copilot/inline-ask';
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
 import { events } from '../../lib/events';
+import { useInlineCopilotInvocation } from '../../features/editor/useInlineCopilotInvocation';
 import '../../../styles/copilot-surface.css';
 
 const PANEL_WIDTH = 360;
@@ -51,22 +53,25 @@ interface Action {
 interface CopilotInlinePopoverProps {
   editor: Editor;
   nodeId: string;
+  projectId: string;
 }
 
-export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverProps) {
+export function CopilotInlinePopover({ editor, nodeId, projectId }: CopilotInlinePopoverProps) {
   const { t } = useTranslation();
-  const ctx = useCopilotInlineStore((s) => s.ctx);
+  const ctx = useCopilotInlineStore((s) => s.ctx?.projectId === projectId && s.ctx.nodeId === nodeId ? s.ctx : null);
   const close = useCopilotInlineStore((s) => s.close);
   const allowNewContent = useSettingsStore((s) => s.copilotInlineEditAllowNewContent);
   const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
 
-  const visible = !!ctx && ctx.nodeId === nodeId;
+  const visible = !!ctx;
+  const { abortRef, isCurrent } = useInlineCopilotInvocation(editor, ctx);
 
   const [instruction, setInstruction] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('input');
   const [result, setResult] = useState<InlineEditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [targetConflict, setTargetConflict] = useState(false);
   const [chapterBusy, setChapterBusy] = useState(false);
   const [chapterMsg, setChapterMsg] = useState<string | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -78,7 +83,6 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   // Mirrors chatTurns synchronously so the async stream loop reads the latest
   // history without waiting for a re-render.
   const turnsRef = useRef<AskTurn[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -99,13 +103,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   // Reset to a fresh input state on each new invocation (render-phase reset —
   // the "adjust state when a prop changes" pattern, not an effect).
   const [seenCtx, setSeenCtx] = useState<CopilotInlineCtx | null>(null);
-  if (visible && seenCtx !== ctx) {
+  if (seenCtx !== ctx) {
     setSeenCtx(ctx);
     setInstruction('');
     setSelectedIndex(0);
     setPhase('input');
     setResult(null);
     setError(null);
+    setTargetConflict(false);
     setChapterBusy(false);
     setChapterMsg(null);
     setPos(null);
@@ -202,14 +207,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     }
   }, [visible, ctx, phase, chatBusy]);
 
-  // Abort any in-flight call when the popover unmounts OR the invocation
-  // changes (so a stream from a prior selection can't bleed into a new one).
-  useEffect(() => () => abortRef.current?.abort(), [ctx]);
-
   // Reset the chat-history mirror on each new invocation. Lives in an effect,
   // not the render-phase reset above, since refs can't be mutated in render.
   useEffect(() => {
     turnsRef.current = [];
+    lastInstructionRef.current = '';
   }, [ctx]);
 
   // Auto-follow the newest tokens as the answer streams — but only while the
@@ -235,13 +237,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   }, [chatBusy]);
 
   const doClose = useCallback(() => {
+    if (!ctx || !isCurrent()) return;
     abortRef.current?.abort();
-    close();
-  }, [close]);
+    close(ctx);
+  }, [ctx, isCurrent, abortRef, close]);
 
   const runEdit = useCallback(
     async (instr: string, opts?: { forceAllowNewContent?: boolean }) => {
-      if (!ctx || !instr.trim()) return;
+      if (!ctx || !isCurrent() || !instr.trim()) return;
       lastInstructionRef.current = instr.trim();
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -252,6 +255,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         const r = await runInlineEdit({
           target: {
             spanWithinBlock: ctx.spanWithinBlock,
+            spanSource: ctx.spanSource,
             from: ctx.from,
             to: ctx.to,
             selectedText: ctx.selectedText,
@@ -268,16 +272,16 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           projectId: ctx.projectId,
           signal: controller.signal,
         });
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isCurrent()) return;
         setResult(r);
         setPhase(r.refused ? 'refused' : 'result');
       } catch (e) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isCurrent()) return;
         setError(e instanceof Error ? e.message : String(e));
         setPhase('error');
       }
     },
-    [ctx, allowNewContent],
+    [ctx, allowNewContent, isCurrent, abortRef],
   );
 
   // 提问/讨论: append the question and stream a free-form answer. Multi-turn,
@@ -285,7 +289,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const sendAsk = useCallback(
     async (question: string) => {
       const q = question.trim();
-      if (!ctx || !q) return;
+      if (!ctx || !isCurrent() || !q) return;
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -310,42 +314,43 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           projectId: ctx.projectId,
           signal: controller.signal,
         })) {
-          if (controller.signal.aborted) return;
+          if (controller.signal.aborted || !isCurrent()) return;
           acc += delta;
           setStreamingText(acc);
         }
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isCurrent()) return;
         const next: AskTurn[] = [...turnsRef.current, { role: 'model', content: acc }];
         turnsRef.current = next;
         setChatTurns(next);
         setStreamingText('');
       } catch (e) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isCurrent()) return;
         setError(e instanceof Error ? e.message : String(e));
         setPhase('error');
       } finally {
-        setChatBusy(false);
+        if (!controller.signal.aborted && abortRef.current === controller && isCurrent()) setChatBusy(false);
       }
     },
-    [ctx],
+    [ctx, isCurrent, abortRef],
   );
 
   const acceptResult = useCallback(() => {
-    if (!result) return;
+    if (!ctx || !isCurrent() || !result) return;
     const ok = applyInlineEdit(editor, result);
     if (!ok) {
+      setTargetConflict(true);
       setError(t('copilotInline.errors.selectionChanged'));
       setPhase('error');
       return;
     }
-    close();
-  }, [result, editor, close, t]);
+    close(ctx);
+  }, [ctx, isCurrent, result, editor, close, t]);
 
   // Run a block-scoped capability via the manual-run engine, carrying the
   // typed prompt as a steer. Results land in the margin; close the popover.
   const runCapability = useCallback(
     (capId: string) => {
-      if (!ctx) return;
+      if (!ctx || !isCurrent()) return;
       events.emit('copilot:manual-run', {
         nodeId: ctx.nodeId,
         capId,
@@ -354,18 +359,19 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         // mode → omit, so it runs on the rolling context (Task 7).
         selectionBlockIds: ctx.mode === 'selection' ? ctx.selectionBlockIds : undefined,
       });
-      close();
+      close(ctx);
     },
-    [ctx, instruction, close],
+    [ctx, instruction, close, isCurrent],
   );
 
   // 本章节触发: reverse chapter summary (Task 5, fill-empty only).
   const handleChapterSummary = useCallback(async () => {
-    if (!ctx) return;
+    if (!ctx || !isCurrent()) return;
     setChapterBusy(true);
     setChapterMsg(null);
     try {
       const r = await generateChapterSummary({ projectId: ctx.projectId, chapterId: ctx.nodeId });
+      if (!isCurrent()) return;
       setChapterMsg(
         r.status === 'written'
           ? t('copilotInline.chapter.written')
@@ -376,11 +382,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               : t('copilotInline.chapter.failed'),
       );
     } catch {
-      setChapterMsg(t('copilotInline.chapter.failed'));
+      if (isCurrent()) setChapterMsg(t('copilotInline.chapter.failed'));
     } finally {
-      setChapterBusy(false);
+      if (isCurrent()) setChapterBusy(false);
     }
-  }, [ctx, t]);
+  }, [ctx, t, isCurrent]);
 
   const triggerAction = useCallback(
     (a: Action | undefined) => {
@@ -423,7 +429,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     g.items.push({ action, index });
   });
 
-  return (
+  return createPortal(
     <>
       <div
         onMouseDown={doClose}
@@ -431,6 +437,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       />
       <div
         ref={panelRef}
+        data-copilot-inline=""
         onMouseDown={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
@@ -741,9 +748,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             </div>
             <div style={{ color: 'var(--copilot-text-dim)', wordBreak: 'break-word' }}>{error}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
+              {!targetConflict && <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
                 {t('copilotInline.error.retry')}
-              </button>
+              </button>}
               <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
                 {t('copilotInline.actions.close')}
               </button>
@@ -751,7 +758,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           </div>
         )}
       </div>
-    </>
+    </>, document.body
   );
 }
 

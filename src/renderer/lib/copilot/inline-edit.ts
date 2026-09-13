@@ -23,8 +23,8 @@
  *   2. The prompt itself refuses the nuanced ones (output.refused).
  * Both are bypassed when the author opts into allowNewContent.
  */
-import type { Editor } from '@tiptap/core';
-import type { Node as PMNode } from '@tiptap/pm/model';
+import type { InlineEditSpanSource } from './inline-edit-apply';
+export { applyInlineEdit } from './inline-edit-apply';
 import { runStructured } from '../ai/run-structured';
 import { inlineEditPrompt } from '../ai/prompts/templates/inline-edit';
 import { inlineEditBlocksPrompt } from '../ai/prompts/templates/inline-edit-blocks';
@@ -34,6 +34,8 @@ import { diffChars, type DiffChunk } from './text-diff';
 export interface InlineEditTarget {
   /** True for a partial span inside one block; false for a block-level target. */
   spanWithinBlock: boolean;
+  /** Local proposal precondition, never sent to the model. */
+  spanSource: InlineEditSpanSource | null;
   /** Span mode — document position of the span start (ProseMirror absolute pos). */
   from: number;
   /** Span mode — document position of the span end. */
@@ -58,6 +60,8 @@ export interface InlineEditBlockChange {
   id: string;
   /** 'heading' | 'paragraph' — for the panel label. */
   kind: string;
+  /** Exact original block JSON, including formatting and identity. */
+  sourceJson: string;
   oldText: string;
   newText: string;
   /** Whether the model actually changed this block. */
@@ -80,6 +84,7 @@ export interface InlineEditResult {
     oldText: string;
     newText: string;
     diff: DiffChunk[];
+    source: InlineEditSpanSource | null;
   };
 }
 
@@ -146,7 +151,7 @@ export async function runInlineEdit(params: {
     return {
       refused: false,
       reason: out.reason,
-      span: { from: target.from, to: target.to, oldText, newText, diff: diffChars(oldText, newText) },
+      span: { from: target.from, to: target.to, oldText, newText, diff: diffChars(oldText, newText), source: target.spanSource },
     };
   }
 
@@ -183,6 +188,7 @@ export async function runInlineEdit(params: {
     return {
       id: b.id,
       kind: b.kind,
+      sourceJson: b.sourceJson,
       oldText: b.text,
       newText,
       changed: newText !== b.text,
@@ -191,74 +197,4 @@ export async function runInlineEdit(params: {
   });
 
   return { refused: false, reason: out.reason, blocks };
-}
-
-/**
- * Apply an inline-edit result to the live editor. Dispatches by shape; both
- * shapes commit as ONE ProseMirror transaction, so a single Cmd+Z restores the
- * prior text. Returns false if the target is no longer valid.
- */
-export function applyInlineEdit(editor: Editor, result: InlineEditResult): boolean {
-  if (result.refused) return false;
-  if (result.span) return applySpan(editor, result.span);
-  if (result.blocks) return applyBlocks(editor, result.blocks);
-  return false;
-}
-
-/** Replace a partial span [from,to] inside one block. */
-function applySpan(
-  editor: Editor,
-  span: { from: number; to: number; newText: string },
-): boolean {
-  const { from, to, newText } = span;
-  const docSize = editor.state.doc.content.size;
-  if (from < 0 || to > docSize || from > to) return false;
-  // One block → a stray newline can't become a paragraph break, so flatten it.
-  const text = newText.replace(/\s*\n\s*/g, ' ').trim();
-  if (!text) return editor.chain().focus().deleteRange({ from, to }).run();
-  return editor.chain().focus().insertContentAt({ from, to }, text).run();
-}
-
-/**
- * Replace each changed block's content IN PLACE, located by its BlockId. The
- * block node itself (type, heading level, id, alignment) is untouched — only
- * its inline content is swapped — so headings stay headings and blocks never
- * collapse. All edits go in one transaction, applied back-to-front so earlier
- * positions stay valid. Because no blocks are added/removed, the BlockId
- * extension's id-backfill (an addToHistory:false transaction) never fires over
- * this edit, which keeps the Yjs undo entry clean and Cmd+Z working.
- */
-function applyBlocks(editor: Editor, blocks: InlineEditBlockChange[]): boolean {
-  const changed = blocks.filter((b) => b.changed);
-  if (changed.length === 0) return true; // nothing to apply — treat as a no-op success
-
-  const { state } = editor;
-  const { schema } = state;
-
-  // Locate every editable block by id in the CURRENT doc.
-  const posById = new Map<string, { pos: number; node: PMNode }>();
-  state.doc.descendants((node, pos) => {
-    const id = node.attrs?.id as string | undefined;
-    if (node.isTextblock && id) posById.set(id, { pos, node });
-    return true;
-  });
-
-  const edits = changed
-    .map((b) => ({ b, loc: posById.get(b.id) }))
-    .filter((e): e is { b: InlineEditBlockChange; loc: { pos: number; node: PMNode } } => !!e.loc)
-    .sort((a, b) => b.loc.pos - a.loc.pos); // back-to-front
-
-  if (edits.length === 0) return false; // none of the target blocks still exist
-
-  const tr = state.tr;
-  for (const { b, loc } of edits) {
-    const start = loc.pos + 1;
-    const end = loc.pos + loc.node.nodeSize - 1;
-    if (b.newText) tr.replaceWith(start, end, schema.text(b.newText));
-    else tr.delete(start, end);
-  }
-
-  editor.view.focus();
-  editor.view.dispatch(tr.scrollIntoView());
-  return true;
 }

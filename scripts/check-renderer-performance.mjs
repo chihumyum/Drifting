@@ -83,6 +83,36 @@ if (report.entityLinkOwnership) {
   assert(report.entityLinkOwnership.checks.length > 0);
   for (const check of report.entityLinkOwnership.checks) assert.equal(check.passed, true, check.id);
 }
+if (report.inlineCopilot) {
+  assert.equal(report.inlineCopilot.cycles, 100);
+  assert(report.inlineCopilot.checks.length >= 25);
+  assert.deepEqual(report.inlineCopilot.services, { edits: report.inlineCopilot.conflictFeedback ? 3 : 2, asks: 2, summaries: 2 });
+  assert.equal(report.inlineCopilot.listeners.peak, 1);
+  assert.equal(report.inlineCopilot.listeners.remaining, 0);
+  assert.equal(report.inlineCopilot.listeners.additions, report.inlineCopilot.listeners.removals);
+}
+if (report.inlineEditApply) {
+  assert.equal(report.inlineCopilot.conflictFeedback, true);
+  assert.equal(report.inlineEditApply.checks.length, 26);
+  assert.equal(report.inlineCopilot.spanTrackers.peak, 1);
+  assert.equal(report.inlineCopilot.spanTrackers.remaining, 0);
+  assert.equal(report.inlineCopilot.spanTrackers.additions, report.inlineCopilot.spanTrackers.removals);
+  assert.deepEqual(report.inlineEditApply.collaborativeHistory, { separateUndoItems: 3, exactOriginalRestored: true, mappedCollaborativeSpan: true, sameTextPeerReplacementRejected: true, yjsObservers: { additions: 2, removals: 2, remaining: 0 } });
+}
+if (report.editorSuggestions) {
+  assert.equal(report.environment.documentFocused, true);
+  assert.deepEqual(report.editorSuggestions.groups.map(group => group.editors), [1, 5, 20]);
+  for (const group of report.editorSuggestions.groups) {
+    assert.equal(group.cyclesPerMenu, 100);
+    assert.equal(group.maxSubscriptions, group.editors * 2);
+    assert.equal(group.subscriptions, group.releases);
+    assert.equal(group.remainingSubscriptions, 0);
+    assert(group.checks.length >= 16);
+  }
+  assert.equal(report.editorSuggestions.asyncCreation.length, 13);
+  assert(report.editorSuggestions.asyncCreation.every(item => item.passed && item.creations === 1));
+  assert.equal(report.editorSuggestions.template.blurClosesAndRejectsStaleActions, true);
+}
 if (report.editorContextMenus) {
   assert.equal(report.editorContextMenus.collaborativeFormats.checks.length, 7);
   assert.equal(report.editorContextMenus.initialSessionFocus.checks.length, 2);

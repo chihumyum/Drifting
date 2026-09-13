@@ -117,7 +117,7 @@ export function ChapterEditor({
   onReadyChange,
 }: ChapterEditorProps) {
   const { t } = useTranslation();
-  const { isCommandActive } = useEditorSurfaceLifecycle();
+  const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
   }
@@ -436,13 +436,13 @@ export function ChapterEditor({
       />
 
       {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
-      {isCommandActive && !ydocError && (
+      {ready && isVisible && isCommandActive && !readOnly && !ydocError && (
         <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
       )}
 
       {/* Cmd+Shift+I inline-Copilot popover (input box + capability menu). Renders
-          only when its nodeId matches the active invocation. */}
-      {isCommandActive && !ydocError && <CopilotInlinePopover editor={editor} nodeId={nodeId} />}
+          only for the canonical editable command surface and its project/node. */}
+      {ready && isVisible && isCommandActive && !readOnly && !ydocError && <CopilotInlinePopover editor={editor} nodeId={nodeId} projectId={projectId} />}
     </div>
   );
 }

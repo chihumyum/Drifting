@@ -44,7 +44,18 @@ let client;
 try {
   await build({
     root, configFile: false, envDir: false, logLevel: 'warn',
-    plugins: [react()],
+    plugins: [{
+      name: 'isolated-inline-copilot-services', enforce: 'pre',
+      transform(code, id) {
+        if (!id.endsWith('/components/copilot/CopilotInlinePopover.tsx')) return null;
+        for (const service of ['inline-edit', 'inline-ask', 'reverse-chapter-summary']) {
+          const source = `'../../lib/copilot/${service}'`;
+          if (code.split(source).length !== 2) throw new Error(`Expected one popover service import: ${service}`);
+          code = code.replace(source, "'../../performance/copilot-inline-services'");
+        }
+        return { code, map: null };
+      },
+    }, react()],
     resolve: { alias: { '@': path.join(root, 'src') } },
     build: { outDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-performance.html') } },
   });
@@ -72,6 +83,8 @@ try {
   const loaded = client.Page.loadEventFired();
   await client.Page.navigate({ url: `${server.resolvedUrls.local[0]}scripts/renderer-performance.html` });
   await loaded;
+  // DOM focus/blur lifecycle tests require the isolated target to be active.
+  await client.Page.bringToFront();
   const result = await client.Runtime.evaluate({
     expression: 'window.__DRIFTING_PERFORMANCE_HARNESS__.run()', awaitPromise: true, returnByValue: true,
   });

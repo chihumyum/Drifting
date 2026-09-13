@@ -1,12 +1,13 @@
 import { Extension } from '@tiptap/core';
 import type { PluginKey } from '@tiptap/pm/state';
 import type { SuggestionOptions } from '@tiptap/suggestion';
-import Suggestion from '@tiptap/suggestion';
+import { createOwnedSuggestion, type EditorSuggestionGate } from '../editor-suggestion-interaction';
 
 export type SlashMenuItem = unknown;
 
 export interface SlashMenuOptions<I = SlashMenuItem> {
   pluginKey?: PluginKey;
+  gate?: EditorSuggestionGate;
   char: string;
   allowSpaces: boolean;
   allowToIncludeChar: boolean;
@@ -69,7 +70,7 @@ export const SlashMenu = Extension.create<SlashMenuOptions>({
       allow: this.options.allow,
     };
 
-    return [Suggestion({ editor: this.editor, ...suggestionOptions })];
+    return [createOwnedSuggestion({ editor: this.editor, ...suggestionOptions, gate: this.options.gate })];
   },
 });
 

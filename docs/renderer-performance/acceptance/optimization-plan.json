@@ -188,7 +188,11 @@
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-selection-native.json",
             "docs/renderer-performance/acceptance/f3-context-menus.json",
-            "docs/renderer-performance/acceptance/f3-context-menus-native.json"
+            "docs/renderer-performance/acceptance/f3-context-menus-native.json",
+            "docs/renderer-performance/acceptance/f3-suggestions.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot.json",
+            "docs/renderer-performance/acceptance/f3-inline-targets.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         },
@@ -205,7 +209,11 @@
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-selection-native.json",
             "docs/renderer-performance/acceptance/f3-context-menus.json",
-            "docs/renderer-performance/acceptance/f3-context-menus-native.json"
+            "docs/renderer-performance/acceptance/f3-context-menus-native.json",
+            "docs/renderer-performance/acceptance/f3-suggestions.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot.json",
+            "docs/renderer-performance/acceptance/f3-inline-targets.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         },
@@ -223,12 +231,16 @@
             "docs/renderer-performance/acceptance/f3-selection-native.json",
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
             "docs/renderer-performance/acceptance/f3-context-menus.json",
-            "docs/renderer-performance/acceptance/f3-context-menus-native.json"
+            "docs/renderer-performance/acceptance/f3-context-menus-native.json",
+            "docs/renderer-performance/acceptance/f3-suggestions.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot.json",
+            "docs/renderer-performance/acceptance/f3-inline-targets.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "canonical_sessions_review_links_typewriter_outline_marker_viewports_selection_memory_and_context_menus_implemented_other_interactions_and_device_budgets_pending"
+      "implementationStatus": "canonical_sessions_review_links_viewports_selection_menus_suggestions_inline_invocations_and_proposal_preconditions_native_verified_device_budgets_and_full_review_interactions_pending"
     },
     {
       "id": "F4",
@@ -499,7 +511,8 @@
             "docs/renderer-performance/acceptance/f3-outline-native.json",
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-selection-native.json",
-            "docs/renderer-performance/acceptance/f3-context-menus-native.json"
+            "docs/renderer-performance/acceptance/f3-context-menus-native.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         },
@@ -518,7 +531,8 @@
             "docs/renderer-performance/acceptance/f3-outline-native.json",
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-selection-native.json",
-            "docs/renderer-performance/acceptance/f3-context-menus-native.json"
+            "docs/renderer-performance/acceptance/f3-context-menus-native.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         },
@@ -530,7 +544,8 @@
             "docs/renderer-performance/acceptance/f3-editor-sessions-native.json",
             "docs/renderer-performance/acceptance/f3-typewriter-native.json",
             "docs/renderer-performance/acceptance/f3-outline-native.json",
-            "docs/renderer-performance/acceptance/f3-markers-native.json"
+            "docs/renderer-performance/acceptance/f3-markers-native.json",
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
           ],
           "status": "partial"
         }

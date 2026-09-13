@@ -1,3 +1,4 @@
+import { EditorSuggestionGate } from '../lib/editor-suggestion-interaction';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,8 @@ import {
 } from '../lib/slash-menu';
 import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
 import type { EditorView } from '@tiptap/pm/view';
+import type { Node as PMNode } from '@tiptap/pm/model';
+import { captureInlineSpanSource } from '../lib/copilot/inline-edit-apply';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
@@ -150,6 +153,7 @@ function buildInlineCopilotCtx(
     level?: number;
     text: string;
     isText: boolean;
+    node: PMNode;
   }[] = [];
   doc.descendants((node) => {
     if (!isBlockType(node.type.name)) return undefined;
@@ -162,6 +166,7 @@ function buildInlineCopilotCtx(
         level: typeof level === 'number' ? level : undefined,
         text: node.textContent.replace(/\s+/g, ' ').trim(),
         isText: node.isTextblock,
+        node,
       });
     }
     return false;
@@ -234,6 +239,7 @@ function buildInlineCopilotCtx(
       kind: b.kind === 'heading' ? 'heading' : 'paragraph',
       level: b.level,
       text: b.text,
+      sourceJson: JSON.stringify(b.node.toJSON()),
     }));
 
   // Adaptive context scope. When the whole chapter is small enough, send ALL of
@@ -293,6 +299,7 @@ function buildInlineCopilotCtx(
     selectionBlockIds,
     targetBlocks,
     spanWithinBlock: singleBlockPartial,
+    spanSource: singleBlockPartial ? captureInlineSpanSource(doc, selection.from, selection.to) : null,
     clientX: coords.clientX,
     clientY: coords.clientY,
   };
@@ -436,6 +443,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const { isCommandActive, isVisible, isPreparing } = useEditorSurfaceLifecycle();
   // The later DOM handler delegates to the current canonical editor's owner.
   const contextMenuRef = useRef<EditorContextMenu | null>(null);
+  const suggestionGate = useMemo(() => new EditorSuggestionGate(), []);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -591,11 +599,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         }),
         // eslint-disable-next-line react-hooks/refs
         EntityMentionSuggestion.configure({
+          gate: suggestionGate,
           getEntities: getMentionableEntities,
           onCreateElement: handleCreateElementFromPicker,
         }),
         // eslint-disable-next-line react-hooks/refs
-        createDefaultSlashMenu({ extraItems: getSlashItems }),
+        createDefaultSlashMenu({ extraItems: getSlashItems, gate: suggestionGate }),
       ],
       content: initialContent,
       autofocus: autoFocus ? 'end' : false,
@@ -629,6 +638,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           // would let it fall through to TipTap's Mod-I italic alias, which is
           // exactly what ⇧⌘I must never do here.
           event.preventDefault();
+          const owner = contextMenuRef.current;
+          if (!owner?.isEnabled() || owner.editor.view !== view) return true;
           const c = view.coordsAtPos(view.state.selection.from);
           const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
             clientX: c.left,
@@ -844,6 +855,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   useLayoutEffect(() => {
     contextMenuRef.current?.setEnabled(canonicalReady && editable && isVisible && isCommandActive);
   }, [editor, canonicalReady, editable, projectId, sourceKind, sourceId, isVisible, isCommandActive]);
+
+  useLayoutEffect(() => {
+    suggestionGate.setEditor(canonicalReady && editable && isVisible && isCommandActive ? editor : null);
+    return () => { suggestionGate.setEditor(null); };
+  }, [suggestionGate, editor, canonicalReady, editable, projectId, sourceKind, sourceId, isVisible, isCommandActive]);
 
   useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled });
 

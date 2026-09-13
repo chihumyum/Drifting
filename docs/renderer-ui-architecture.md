@@ -295,6 +295,52 @@ Initial no-autofocus session setup blurs only its own DOM synchronously; it neve
 queues Tiptap's global-selection-clearing blur command after user interaction.
 The initialization save-suppression frame stays owned and cancellable.
 
+Slash and entity-mention suggestions use `createOwnedSuggestion`, whose lifecycle
+belongs to the actual ProseMirror plugin view. The entity-editor hook's stable
+`EditorSuggestionGate` points only at its canonical, editable, visible command
+editor. Unavailable views skip matching/item generation; DOM blur or gate loss
+exits the suggestion without mutating prose. Plugin-view cleanup removes its blur
+listener and gate subscription, and each renderer releases only its own portal,
+rows and captured command props. Template editors use actual DOM focus without
+joining the chapter shell's gate.
+
+Each suggestion command claims one invocation. Deferred element creation may
+insert only while its editor, trigger, scalar range, block identity and focus
+remain valid. Once invalidated, later restoration of the same text cannot revive
+it. Transaction step maps also invalidate same-text replacements, including
+appended transactions. Retroactive link marks may change without invalidating the same trigger.
+Canceling insertion never deletes an element already created by the authored
+command. The guard adds no second prose state, global focus manager or durable
+queue.
+
+Inline Copilot mounts only on a ready, editable, visible command surface and
+selects its exact project/node invocation. `useInlineCopilotInvocation` owns its
+transient request and context lifecycle: replacement, hiding, readonly and
+destruction invalidate actions and abort requests. Store cleanup compares the
+captured context identity so an old owner cannot close a new invocation; unmount
+store cleanup uses a microtask to allow immediate effect reacquisition. Closed
+component state releases the old preview/context. Async responses and finalizers
+publish only into their current invocation. An authored chapter-summary job may
+finish independently, without updating a newer popover. The panel and overlay
+portal to `body`; the keyboard entry checks the existing canonical command owner
+before capturing prose context.
+
+`inline-edit-apply.ts` owns optimistic application of an inline proposal to that
+live editor. Span sources retain the exact selected fragment and block identity;
+block sources retain exact target node JSON. These are transient proposal
+preconditions, not prose authority, and are omitted from model input. Validation
+covers the complete original target before any write; a changed/missing target
+rejects the proposal as a whole. Successful application uses literal text and a
+separate ProseMirror/Yjs undo item, preserving surrounding authored keystrokes.
+Conflict feedback requires a fresh selection instead of retrying a stale target.
+The invocation owns a span's transaction tracking. Unaffected ProseMirror ranges
+map through root/appended transactions; Yjs uses relative positions to identify
+the original characters across repeated-text peer updates. Target Y.Text
+observation detects identical interior replacements. Tracking releases its
+editor/Yjs observers on cleanup; weak keys and scalar document revisions avoid
+retaining old document trees. Captured proposals are transient object identities,
+not a serialized or durable write protocol.
+
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact

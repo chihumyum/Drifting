@@ -4,12 +4,13 @@
  *
  * The editor resolves the target (selection, or the current block when there's
  * no selection) + nearby context + screen coords and calls open(); the popover
- * mounted in ChapterEditor renders when the context's nodeId matches its own
+ * mounted in ChapterEditor renders when the context's project/node matches its own
  * (so virtualized multi-chapter views only pop the right one).
  *
  * Not persisted — purely ephemeral UI state.
  */
 import { create } from 'zustand';
+import type { InlineEditSpanSource } from '../lib/copilot/inline-edit-apply';
 
 /** One whole block in the inline-edit target region, used by the block-by-block
  *  edit pipeline (multi-block / whole-block / Cmd+A targets). */
@@ -22,6 +23,8 @@ export interface InlineTargetBlock {
   level?: number;
   /** Block's current plain text. */
   text: string;
+  /** Exact original node, including marks/attrs; local apply precondition only. */
+  sourceJson: string;
 }
 
 export interface CopilotInlineCtx {
@@ -59,6 +62,8 @@ export interface CopilotInlineCtx {
   /** True when the target is a partial span inside ONE block (e.g. a few
    *  selected words). Then we revise just that span, not whole blocks. */
   spanWithinBlock: boolean;
+  /** Exact selected fragment and block identity; never included in model input. */
+  spanSource: InlineEditSpanSource | null;
   /** Viewport coords to anchor the popover near the selection/caret. */
   clientX: number;
   clientY: number;
@@ -67,11 +72,12 @@ export interface CopilotInlineCtx {
 interface CopilotInlineState {
   ctx: CopilotInlineCtx | null;
   open: (ctx: CopilotInlineCtx) => void;
-  close: () => void;
+  /** An old owner may release only its own invocation. */
+  close: (expected?: CopilotInlineCtx) => void;
 }
 
 export const useCopilotInlineStore = create<CopilotInlineState>((set) => ({
   ctx: null,
   open: (ctx) => set({ ctx }),
-  close: () => set({ ctx: null }),
+  close: (expected) => set(state => expected && state.ctx !== expected ? state : { ctx: null }),
 }));

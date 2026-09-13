@@ -1968,3 +1968,221 @@ pnpm perf:renderer:native --context-menus --check
 F3/F8 remain `in_progress`; slash/mention/inline-Copilot interactions, full Agent review masks,
 physical input and the comparative device/latency/memory budgets retain their
 separate acceptance requirements.
+
+## F3i — Owned slash and mention suggestions
+
+Real Tiptap/Chromium reproduction showed a slash suggestion remaining in its
+body portal after editor blur. Slash/mention renderers also retained their last
+props/items after exit, and detached buttons could invoke a refreshed row through
+mutable renderer state. The asynchronous create-element command unconditionally
+used its old range after the creation promise resolved.
+
+`createOwnedSuggestion` now binds interaction work to the actual ProseMirror
+plugin view. `useEntityEditor` supplies one `EditorSuggestionGate` for its
+canonical, editable, visible command editor; the category-template slash menu
+uses its own actual DOM focus without a shell gate. Unavailable views skip the
+text matcher and item builder. Losing visibility/command ownership or DOM focus
+exits the suggestion without changing prose. Plugin-view destruction removes its
+blur listener and gate subscription, and view recreation establishes a fresh
+lifecycle. Each renderer owns/removes only its portal, clears retained props/items
+on exit, and rejects events from detached rows. Slash selection is clamped when
+its query results shrink. Existing menu labels, actions and fixed body-portal
+positioning remain in place.
+
+A command claims its invocation once and dismisses the UI before running. A
+pending create-element insertion retains only trigger text, scalar positions and
+block identity, with an invalidation generation. Cursor/query/block changes,
+readonly transitions, hiding, blur, Escape and destruction invalidate it;
+returning to identical text does not revive it. Transaction step maps invalidate
+replacements touching the trigger, including same-text replacements in appended
+transactions; a final text comparison alone cannot detect those edits.
+Link-mark updates caused by the
+new element's retroactive linking are allowed when trigger text and positions
+remain unchanged. An already-created element remains durable if insertion is
+canceled; the guard never deletes that element or writes to a replacement
+editor. A canceled creation in the still-current context retains the previous
+trigger-removal behavior.
+
+`acceptance/f3-suggestions.json` runs real plugins with 1/5/20 editors and 100
+hide/return cycles for each menu. It verifies inactive builders stay idle, stale
+rows, current actions, blur/Escape/readonly, plugin-view recreation, hidden
+transactions and unrelated-owner cleanup. Gate subscriptions peak at 2/10/40 and
+all return to zero after destruction; these are owner counts, not total retained
+memory. Thirteen asynchronous creation cases include current success, intervening
+link marks, hidden return, blur, selection/query changes, restored query text,
+same-text and appended replacements, readonly return, destruction, Escape and
+cancellation. The ungated template menu
+also closes on blur and rejects its stale row.
+
+The isolated browser runner now brings its target page to the foreground before
+DOM scenarios, and records `environment.documentFocused`. Background targets can
+have `document.activeElement` without delivering focus/blur events, so they are
+not adequate for these lifecycle checks. Timing comparisons require matching
+focus/environment conditions; this report does not claim a device latency or
+memory budget.
+
+```bash
+pnpm perf:renderer --output=docs/renderer-performance/acceptance/f3-suggestions.json
+pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f3-suggestions.json
+pnpm perf:renderer:native --suggestions
+pnpm perf:renderer:native --suggestions --check
+```
+
+All 2,480 regular tests pass (1 existing skip), together with typecheck, lint
+(0 errors, 73 existing warnings), CI/public contracts and Agent capabilities.
+The normal production build passes and its 32 JS chunks exclude native acceptance
+instrumentation and fixture identities. Browser evidence validation passes.
+
+Early attempts on the locked or occluded desktop stopped at
+`opening-native-project` without passed evidence. An attended native run then
+found a real return-path defect: hidden metadata transactions cleared Tiptap's
+dismissed suggestion range, allowing the old menu to reopen on restored focus.
+The owned wrapper now preserves only that mapped range while unavailable; it
+still skips hidden prose matching and item construction. The browser cycle now
+includes blur, a hidden transaction, focus and selection restoration. It failed
+before the fix and passes in the regenerated `f3-inline-targets.json`.
+
+The combined `--inline-copilot` run subsequently passed on a fresh native build,
+including suggestion creation, split ownership and actual Quit/restart; its
+evidence and boundaries are recorded below. The earlier browser reports remain
+historical snapshots. F3/F8 remain `in_progress`; full Agent-review interactions,
+physical input and comparative device/latency/memory budgets remain separate.
+
+## F3j — Inline Copilot invocation ownership
+
+The real React popover reproduced an invocation remaining in the global store
+after its chapter unmounted. Returning to that chapter could reopen the captured
+context, while `useCopilot`'s automatic-run guard continued to see a nonempty
+inline context. Closed but still-mounted popovers also retained their last
+context and preview in component state.
+
+`useInlineCopilotInvocation` now owns the transient context and request lifetime.
+The popover selects only its project/node context. Chapter composition mounts it
+only on a ready, visible, editable command surface, and the keyboard entry checks
+the existing canonical context-menu owner before building prose context. A stale
+owner can close only its own context identity. Replacement, unmount, readonly and
+editor destruction abort the owned request; closed component state and mirrors
+are cleared. Unmount invalidates actions and aborts requests synchronously, with
+store release in a microtask so immediate React effect reacquisition can retain
+the same invocation. This does not retain a second live document or add a global
+focus controller.
+
+Async edit/ask responses check their invocation before publishing. An aborted
+stream's `finally` cannot clear a newer stream's busy state. An already-authored
+chapter-summary operation retains its existing durable completion semantics,
+while its late UI response cannot update another invocation. The actual fixed
+panel/overlay now portal to `document.body`, outside transformed/clipped editor
+ancestors. Current local-edit application and undo continue through the live
+editor.
+
+`acceptance/f3-inline-copilot.json` contains 31 checks, including 100 hide/return
+cycles, cross-project node isolation, unrelated-owner cleanup, readonly return,
+destruction, Escape, obsolete edit/stream/summary completions and current edit
+application with one undo. The popover's window key listener peaks at one;
+115 registrations have matching releases and none remain. These are measured
+owner counts, not a heap or device performance budget. The production React
+build does not exercise development StrictMode effect replay.
+
+Only this isolated browser runner redirects the popover's three service imports
+to deferred synthetic responses. It exercises the actual component, store,
+ownership hook and Tiptap apply path without model requests or SQLite writes.
+The normal production build has 32 JS chunks and excludes native instrumentation
+and synthetic service identities. The regular suite passes 2,480 tests with one
+existing skip; typecheck, full lint (zero errors, 73 existing warnings), CI/public
+contracts and 19 Agent-capability tests pass. The native UI harness also passes
+a separate TypeScript check after correcting its truthy-wait return type and
+the declaration boundary for synthetic numeric Yjs heading attributes.
+
+```bash
+pnpm perf:renderer --output=docs/renderer-performance/acceptance/f3-inline-copilot.json
+pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f3-inline-copilot.json
+pnpm perf:renderer:native --inline-copilot
+pnpm perf:renderer:native --inline-copilot --check
+```
+
+`--inline-copilot` adds native canonical command gates, repeated hide/return,
+unrelated-close, split transfer, closed-owner and transient-after-restart checks
+on top of all suggestion scenarios. It does not redirect services or trigger
+model requests. The combined native run passed, including the proposal checks
+and persistence evidence described below. F3/F8 remain `in_progress`; full
+Agent-review interactions and device/latency/memory budgets are not closed by
+these lifecycle checks.
+
+## F3k — Inline proposal preconditions and undo boundaries
+
+The next real-editor reproduction found an existing write hazard: span apply
+checked only numeric bounds, while block apply silently skipped missing targets.
+A late proposal could overwrite intervening author text/formatting or apply only
+the surviving part of its original region. A separate rapid-input reproduction
+also showed the proposal merging with a preceding keystroke in undo history.
+
+`inline-edit-apply.ts` now owns local application independently of model routing.
+Each span proposal carries its original block identity/type and exact selected
+fragment; each block proposal carries exact original node JSON. These bounded,
+transient preconditions include whitespace and formatting and are captured only
+for authored targets. The model receives the existing text/context input, never
+these local snapshots. Before writing, apply validates every original target,
+including unchanged model rows. Missing, duplicate or changed targets reject the
+entire proposal without a prose transaction. Stable block IDs allow unrelated
+prefix insertion. While its popover is owned, a span follows untouched ranges
+through ProseMirror transactions, including appended transactions. Canonical
+Yjs ranges use relative positions associated with the selected content, so an
+identical peer-inserted prefix cannot steal the target. Target Y.Text observation
+also catches interior replacements with identical final text. Lost tracking,
+changed target content/formatting and affected replacements invalidate the
+source; undo cannot revive it. Weak document keys and scalar revision IDs avoid
+retaining old document trees. Tracking is detached with its invocation, with no
+new work for closed/hidden popovers.
+
+Successful span output is inserted as literal prose, including angle brackets,
+with target marks. Block changes retain their original node identities and
+structure. A successful proposal dispatches one prose transaction and separates
+it from surrounding author input using the applicable ProseMirror/Yjs history
+boundary. The non-Yjs path also uses a metadata-only history-closing transaction;
+this does not alter prose. A target conflict displays guidance to close and
+select again, with no retry action using the invalid captured target.
+
+`acceptance/f3-inline-targets.json` adds 26 direct apply checks plus actual Yjs
+verification that preceding input, proposal and following input form three
+separate undo items and restore exact original JSON. The actual React popover
+suite now has 39 checks, including concurrent-edit conflict feedback, dismissal
+and preserved author undo. Its 119 keyboard-listener registrations all release,
+with peak one and none remaining. Span transaction trackers also peak at one
+and release after success, conflict and destruction. Actual `Y.applyUpdate`
+checks an identical peer prefix and an identical interior replacement; both
+target Y.Text observers release. Three regular tests verify proposal source
+metadata survives model-output mapping without entering model input, and retain
+the existing no-request local refusal behavior.
+
+All 2,483 regular tests pass (one existing skip), together with renderer and
+native-harness TypeScript checks, full lint (zero errors, 73 existing warnings),
+CI/public contracts, 19 Agent-capability tests and the normal production build.
+The generated browser report has no native/device performance claim. The
+prepared `--inline-copilot` native scenario now includes exact shortcut-captured
+span conflicts, literal application, surrounding-input Yjs undo, missing-block
+atomic rejection and successful multi-block undo, restoring fixture prose before
+the existing SQLite/save/restart checks.
+
+`acceptance/f3-inline-copilot-native.json` now records 53 passing composition
+checks and three restart checks on a freshly packaged Debug native build with
+the production renderer, on Apple M3 Pro / 36 GiB. The runner verified its
+bundle identity, binary modification time and SHA-256 before launching against
+isolated synthetic data. Both processes exited successfully through real Cmd+Q.
+The created suggestion element survived restart with the same ID/name; the
+inline context and popover did not. Read-only SQLite/Yjs inspection found the
+one expected saved chapter, 52 unchanged chapter bodies, one intentional new
+element, zero marker comments, and passing integrity/foreign-key checks. Both
+renderer processes reported zero uncaught errors. The exact-source native
+evidence check passes.
+
+These results close the F3i/F3j/F3k interaction batch. Synthetic native commands
+do not establish physical IME/gestures, compositor paint, total WebKit memory or
+the M1/8 GiB device budgets. Full Agent-review interactions and the F0–F8 goal
+remain incomplete.
+
+```bash
+pnpm perf:renderer --output=docs/renderer-performance/acceptance/f3-inline-targets.json
+pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f3-inline-targets.json
+pnpm perf:renderer:native --inline-copilot
+pnpm perf:renderer:native --inline-copilot --check
+```

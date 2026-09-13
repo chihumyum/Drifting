@@ -236,3 +236,62 @@ native Quit/restart and read-only SQLite/Yjs persistence checks still apply.
 These events are synthetic native UI actions. The checks cover menu ownership
 and continuity; physical mouse/keyboard/IME/touch, full Agent/Copilot interactions,
 whole-App retained memory and comparative latency budgets require separate runs.
+
+## Suggestion ownership and creation scenario
+
+```bash
+pnpm perf:renderer:native --suggestions
+pnpm perf:renderer:native --suggestions --check
+```
+
+This mode includes the context-menu and earlier scenarios and writes
+`acceptance/f3-suggestions-native.json`. Its temporary transform observes actual
+suggestion plugin-view attachment/detachment. It opens slash/mention portals,
+hides their chapter and rejects detached rows, returns without reviving the old
+portal, executes current commands and verifies undo restores exact block identity.
+Closing an unrelated chapter must leave the active suggestion intact. Visible
+split command focus moves close the inactive pane's suggestion. Closing all tabs
+must balance the plugin-view subscriptions and remove all suggestion portals.
+
+The real mention picker creates one synthetic element through the production
+hook/SQLite path and inserts its marked name once, including the retroactive
+link-mark update emitted during creation. Undo removes the synthetic trigger and
+inserted prose; the newly created element intentionally remains in the isolated
+fixture. Consequently this mode expects 101 elements in project A after creation
+and a total element-count increase of one in read-only SQLite inspection. The
+restart must restore that exact created ID/name. Earlier modes keep their
+unchanged element-count requirement. The one intentionally changed chapter,
+52 unchanged chapter bodies, native Quit/restart, zero synthetic marker comments
+and SQLite integrity/foreign-key checks remain required.
+
+Pending creation cancellation races are exercised by the separate real-browser
+scenario with a controlled promise. The native successful creation path does not
+substitute for those controlled cases, physical input or a performance budget.
+
+## Inline Copilot invocation composition
+
+`pnpm perf:renderer:native --inline-copilot` includes `--suggestions` and all its
+prerequisites. It uses the actual editor shortcut handler and actual popover to
+verify five chapter hide/return cycles, hidden and readonly command rejection,
+readonly cleanup, unrelated-tab close, visible split command transfer and
+closed-tab cleanup. No command in this scenario starts a model request. The
+popup must be a fixed direct child of `body`, and the transient context must be
+empty after hiding/closure and after real native Quit/restart. The scenario
+preserves exact chapter JSON and canonical Yjs identity before proceeding to
+the existing persistence/integrity checks.
+
+The result is `acceptance/f3-inline-copilot-native.json`; validate the same source
+with `pnpm perf:renderer:native --inline-copilot --check`. Browser-controlled late
+service responses remain separate evidence. The generated report passes 53
+composition checks and three restart checks on a fresh M3 Pro / 36 GiB build,
+with real native Quit for both processes and the expected SQLite/Yjs invariants.
+
+The inline proposal extension also captures a real shortcut context and tests
+stale-span rejection after a live concurrent edit. A current span inserts literal
+angle-bracket text; immediate preceding/following input and the proposal must undo
+separately through the native Yjs history. Two temporary synthetic blocks exercise
+all-or-nothing rejection when one target is missing and one-step undo when both
+are current. Each setup is undone back to exact baseline JSON and saved before
+continuing. No model request is made, and these temporary writes must not alter
+the final SQLite chapter-count/content invariants. These checks passed in the
+combined report; physical input and device/performance budgets remain untested.
