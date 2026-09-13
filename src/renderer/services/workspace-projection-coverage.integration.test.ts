@@ -98,7 +98,7 @@ describe('workspace projection invalidation coverage', () => {
   it('rejects a delayed row-scoped capture after a local edit and recovers through full capture', async () => {
     const { db, capture } = await fixture(); const initial = (await capture())!;
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data);
+    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data, undefined, initial.coverage?.epoch ?? null);
     useProjectStore.getState().setCurrentProject(initial.project);
     let pause = false; let release!: () => void; let entered!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -273,7 +273,7 @@ describe('workspace projection invalidation coverage', () => {
   it('connects covered reads to the project queue while explicit repair wins over narrow requests', async () => {
     const { db, capture } = await fixture(); const initial = (await capture())!;
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data);
+    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data, undefined, initial.coverage?.epoch ?? null);
     useProjectStore.getState().setCurrentProject(initial.project);
     const results: WorkspaceProjectionCapture[] = [];
     const queue = createWorkspaceProjectionRefresh({ ...INPUT, onPublished: (value) => results.push(value), onMissing: () => {}, onError: (error) => { throw error; } });

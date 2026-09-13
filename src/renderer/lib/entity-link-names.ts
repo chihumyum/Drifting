@@ -2,11 +2,11 @@ import type { useDataStore } from '../store/data-store';
 import type { AutoDetectTarget, EntityKind, EntityLinkAutoDetectConfig } from './extensions/entity-link';
 
 type Workspace = ReturnType<typeof useDataStore.getState>;
-type NameInput = Pick<Workspace, 'workspaceProjectId' | 'workspaceProjectionEpoch' | 'bookElements' | 'bookNodes'>;
+type NameInput = Pick<Workspace, 'workspaceProjectId' | 'workspaceProjectionGeneration' | 'bookElements' | 'bookNodes'>;
 
 interface NameProjection {
   readonly projectId: string | null;
-  readonly epoch: number;
+  readonly generation: string | null;
   readonly signature: string;
   readonly elements: readonly { readonly id: string; readonly name: string; readonly aliases: readonly string[] }[];
   readonly nodes: readonly { readonly id: string; readonly title: string }[];
@@ -22,7 +22,7 @@ const nodeNames = new WeakMap<NameInput['bookNodes'], { records: NameProjection[
 export function selectEntityLinkNames(state: NameInput): NameProjection {
   let byElements = byNodes.get(state.bookNodes);
   const cached = byElements?.get(state.bookElements);
-  if (cached?.projectId === state.workspaceProjectId && cached.epoch === state.workspaceProjectionEpoch) {
+  if (cached?.projectId === state.workspaceProjectId && cached.generation === state.workspaceProjectionGeneration) {
     latest = cached;
     return cached;
   }
@@ -40,9 +40,9 @@ export function selectEntityLinkNames(state: NameInput): NameProjection {
   }
   const signature = `${elements.signature}\n${nodes.signature}`;
   const projection = latest?.projectId === state.workspaceProjectId
-    && latest.epoch === state.workspaceProjectionEpoch && latest.signature === signature
+    && latest.generation === state.workspaceProjectionGeneration && latest.signature === signature
     ? latest
-    : { projectId: state.workspaceProjectId, epoch: state.workspaceProjectionEpoch, signature, elements: elements.records, nodes: nodes.records };
+    : { projectId: state.workspaceProjectId, generation: state.workspaceProjectionGeneration, signature, elements: elements.records, nodes: nodes.records };
   if (!byElements) {
     byElements = new WeakMap();
     byNodes.set(state.bookNodes, byElements);

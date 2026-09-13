@@ -17,7 +17,7 @@ export async function runEntityLinkOwnershipScenarios() {
   for (const count of [1, 5, 20]) {
     const fixture = createSyntheticWorkspaceProjection('synthetic-link-ownership', count + 1, 1);
     fixture.bookNodes = fixture.bookNodes.map((node, index) => ({ ...node, title: `合成章节【${index}】` }));
-    const names = selectEntityLinkNames({ ...fixture, workspaceProjectId: 'synthetic-link-ownership', workspaceProjectionEpoch: 1 });
+    const names = selectEntityLinkNames({ ...fixture, workspaceProjectId: 'synthetic-link-ownership', workspaceProjectionGeneration: 'synthetic-generation' });
     const prose = fixture.bookNodes.map((node) => node.title).join('，');
     const editors: Editor[] = [];
     const hosts: HTMLElement[] = [];

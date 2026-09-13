@@ -43,10 +43,10 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(refresh).toContain('await flushDurability()');
     expect(projectRuntime).toContain('await captureWorkspaceProjection({ projectId, userId })');
     expect(refresh).toContain("requestWorkspaceProjection(projectId, 'refreshing')");
-    expect(refresh).toContain('commitWorkspaceProjection(projectId, epoch, result.data, base)');
+    expect(refresh).toContain('commitWorkspaceProjection(projectId, epoch, result.data, base, result.coverage?.epoch ?? null)');
     expect(projectRuntime).toContain("events.on('sync:projects-restored', restore)");
     expect(projectRuntime).toContain('refresh.dispose()');
-    expect(projectRuntime).toContain('commitWorkspaceProjection(projectId, epoch, capture.data)');
+    expect(projectRuntime).toContain('commitWorkspaceProjection(projectId, epoch, capture.data, undefined, capture.coverage?.epoch ?? null)');
     expect(projectRuntime).not.toContain('nodeUsecases.loadNodes()');
     expect(projectRuntime).toContain('clearWorkspaceProjection(projectId, epoch)');
     expect(projectRuntime).toContain('<Navigate to="/" replace />');

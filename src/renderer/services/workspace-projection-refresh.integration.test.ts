@@ -35,7 +35,7 @@ async function fixture() {
   await db.insert(NodeStorylineLinkTable).values({ nodeId: 'node', storylineId: 'main', isPrimary: true });
   const initial = (await captureWorkspaceProjection(INPUT))!;
   const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-  useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data);
+  useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data, undefined, initial.coverage?.epoch ?? null);
   useProjectStore.getState().setCurrentProject(initial.project);
   const write = (title: string) => db.update(BookNodeTable).set({ title }).where(eq(BookNodeTable.id, 'node'));
   const unbind = () => { uninstall?.(); uninstall = null; };
@@ -162,7 +162,7 @@ describe('workspace refresh with product SQLite', () => {
     await write('New full projection');
     const next = (await captureWorkspaceProjection(INPUT))!;
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'refreshing');
-    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, next.data);
+    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, next.data, undefined, next.coverage?.epoch ?? null);
     const before = useDataStore.getState();
     delayed.release.resolve(); await running;
     expect(published).not.toHaveBeenCalled(); expect(useDataStore.getState()).toBe(before);
@@ -174,7 +174,7 @@ describe('workspace refresh with product SQLite', () => {
     queue.request();
     const external = (await captureWorkspaceProjection(INPUT))!;
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'refreshing');
-    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, external.data);
+    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, external.data, undefined, external.coverage?.epoch ?? null);
     await write('After external refresh');
     queue.request(); await queue.flush();
     expect(capture).toHaveBeenCalledTimes(1); expect(published).toHaveBeenCalledTimes(1);

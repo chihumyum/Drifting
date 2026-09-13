@@ -299,7 +299,7 @@ export function ProjectRuntimeProvider({
         }
         const accepted = useDataStore
           .getState()
-          .commitWorkspaceProjection(projectId, epoch, capture.data);
+          .commitWorkspaceProjection(projectId, epoch, capture.data, undefined, capture.coverage?.epoch ?? null);
         if (!accepted) return;
         useProjectStore.getState().setCurrentProject(capture.project);
         pruneDeviceTabsToProjection(projectId, capture.data);

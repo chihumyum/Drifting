@@ -94,13 +94,13 @@ describe('covered element projection', () => {
   it('rejects a captured element update after a newer optimistic publication', async () => {
     const { db, capture } = await fixture(); const previous = (await capture())!;
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, previous.data);
+    useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, previous.data, undefined, previous.coverage?.epoch ?? null);
     await db.update(BookElementTable).set({ name: 'Remote' }).where(eq(BookElementTable.id, 'a'));
     const refresh = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'refreshing'); const base = useDataStore.getState();
     const delayed = await compare(previous, 'changed');
     const optimistic = base.bookElements.map((element) => element.id === 'a' ? { ...element, name: 'Newer local' } : element);
     useDataStore.setState({ bookElements: optimistic });
-    expect(useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, refresh, delayed.data, base)).toBe(false);
+    expect(useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, refresh, delayed.data, base, delayed.coverage?.epoch ?? null)).toBe(false);
     expect(useDataStore.getState().bookElements).toBe(optimistic);
   });
 });

@@ -13,7 +13,7 @@ describe('local project bootstrap and lifecycle architecture', () => {
     expect(provider).not.toContain('pullAndHydrateProjectGraph');
     expect(provider).not.toContain('startPreferencesSync');
     expect(provider).toContain('captureWorkspaceProjection({ projectId, userId })');
-    expect(provider).toContain('commitWorkspaceProjection(projectId, epoch, capture.data)');
+    expect(provider).toContain('commitWorkspaceProjection(projectId, epoch, capture.data, undefined, capture.coverage?.epoch ?? null)');
     expect(provider).toContain('clearWorkspaceProjection(projectId, epoch)');
     expect(provider).toContain('<Navigate to="/" replace />');
     expect(provider).not.toContain('useNavigate');

@@ -3,7 +3,7 @@ import { createSyntheticWorkspaceProjection } from '../performance/fixture';
 import { buildEntityAutoDetectTargets, releaseEntityLinkNames, selectEntityLinkNames, selectProseAutoDetectConfig } from './entity-link-names';
 
 function input(projectId = 'synthetic-project') {
-  return { ...createSyntheticWorkspaceProjection(projectId, 2, 2), workspaceProjectId: projectId, workspaceProjectionEpoch: 1 };
+  return { ...createSyntheticWorkspaceProjection(projectId, 2, 2), workspaceProjectId: projectId, workspaceProjectionGeneration: 'synthetic-generation-1' };
 }
 
 describe('shared entity-link name projection', () => {
@@ -38,7 +38,7 @@ describe('shared entity-link name projection', () => {
       { ...before, bookElements: before.bookElements.map((element) => ({ ...element, aliases: ['新别名'] })) },
       { ...before, bookElements: [] },
       { ...before, workspaceProjectId: 'another-project' },
-      { ...before, workspaceProjectionEpoch: 2 },
+      { ...before, workspaceProjectionGeneration: 'synthetic-generation-2' },
     ]) expect(selectEntityLinkNames(after)).not.toBe(names);
     // Going back to an older generation may rebuild identity, never its data.
     const restored = selectEntityLinkNames(before);

@@ -3068,3 +3068,85 @@ in the SQL test interceptor was followed by the 75-check acceptance rerun.
 `acceptance/f4-conversation-removal-browser.json` passes the candidate-source
 fingerprint and deterministic browser contracts. The normal local-only production
 build retains 32 JS chunks and excludes the isolated acceptance drivers.
+
+## F2c — Committed generation ownership across workspace refresh
+
+The F2b name cache incorrectly used the capture request epoch as its data
+identity. A comment-only refresh advanced that epoch before its SQLite read,
+notifying every name subscriber and rebuilding every editor's automatic-link
+target map even though the names had not changed. Direct reducer-only probes
+and the earlier field-sharing probe did not exercise this combined path.
+
+`workspaceProjectionEpoch` still rejects old requests. The separate
+`workspaceProjectionGeneration` describes the committed data: both production
+bootstrap and refresh pass the clock epoch captured in the same SQLite snapshot.
+Pending and failed refreshes keep the old complete projection and its name
+identity. On acceptance, rows, membership maps and generation publish in one
+store update. Normal same-generation sharing preserves unchanged references;
+a changed SQLite generation bypasses that sharing and invalidates the name
+projection, even when all displayed names are equal. Missing clock coverage
+uses a fresh request-scoped identity instead of trusting an old capture.
+Loading another project and authoritative clearing reset the committed scope.
+Pure in-memory fixture publishers retain their explicit loading lifetime.
+
+The existing project/epoch, database-owner and expected-base checks remain in
+force. A late capture cannot reset a newer A→B→A view or publish ahead of a
+newly requested generation. No database migration or sync protocol was changed;
+the existing immutable projection-clock triggers supply the generation boundary.
+
+```bash
+pnpm workspace:generation:acceptance
+pnpm workspace:generation:acceptance --check
+```
+
+`acceptance/f2-projection-generation.json` runs the identical eight SQLite probes
+against baseline `bc70faba` (seven failures) and the candidate (all passing).
+The 38 current checks also include the existing refresh, store publication and
+name-cache suites. Temporary WAL/FULL databases use all product migrations;
+each new probe verifies SQLite integrity and foreign keys. Generation replacement
+retires the old SyncGeneration and inserts a new one through the actual schema,
+then observes the resulting clock. The matrix covers comment/metric refreshes,
+failed reads and retries, delayed rename publication, generation replacement,
+old/new generation races, missing clocks and project ABA.
+
+The same report builds production React for both commits and executes identical
+mounted-consumer probes using complete synthetic capture-shaped data. Counts
+are layout-effect commits and the actual per-editor target-map derivation;
+the request and publication are separately flushed so pending states are visible.
+
+| Consumers | Name commits / target rebuilds for 100 comment refreshes, before → after | Same counts for 100 metric refreshes, before → after | One rename, before → after |
+| --- | --- | --- | --- |
+| 1 | 100 → 0 | 100 → 0 | 2 → 1 |
+| 5 | 500 → 0 | 500 → 0 | 10 → 5 |
+| 20 | 2,000 → 0 | 2,000 → 0 | 40 → 20 |
+
+Color/membership changes notify their intended consumers; generation changes
+replace name and record identities at commit. Every observed combined snapshot
+keeps its project, names, rows and primary/reverse membership consistent.
+Authoritative missing-project clearing removes names, and unmounted consumers
+no longer render. This last observation is not a listener-count or heap proof.
+The normal renderer performance harness now runs this scenario, and its ordinary
+CI checker rejects omitted coverage, broad target rebuilds and stale-generation
+reuse. Mutation tests verify that those regressions are actually rejected.
+
+These are actual hooks/target derivation and real SQLite refresh tests, not a
+full mounted ProjectRuntimeProvider/editor or a native WebKit generation test.
+Full-capture comparison still visits complete changed collections; the zero
+notification counts are not an overall refresh-time or memory budget result.
+F2's remaining full-app and device acceptance is still incomplete.
+
+The isolated final full suite passes 2,630 tests with one existing skip.
+Typecheck, CI/public contracts and all 19 Agent capability checks pass. Lint
+reports zero errors and 33 existing warnings. The generated
+`acceptance/f2-projection-generation-browser.json` passes current-source and
+ordinary deterministic CI validation, including the new generation contract.
+The normal local-only production build retains 32 JS chunks and excludes the
+isolated generation scenario. Hosted CI has not run because this goal does not
+include pushing the commits.
+
+The recovery fixture now also passes its captured generation at initial
+publication. `acceptance/f6-workspace-recovery.json` was regenerated: all 20
+process-termination cases and 40 independent restarts pass, including unchanged
+persistent-state hashes, full-capture reconstruction, project isolation, integrity
+and foreign keys. This remains renderer-process recovery; native gateway crash
+and power-loss acceptance are not inferred.

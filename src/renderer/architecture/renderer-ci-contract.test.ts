@@ -25,8 +25,9 @@ type Report = {
   agentPanel: { streaming: { composer: number } };
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
+  workspaceGeneration?: { profiles: { comments: { targets: number }; metrics: { names: number }; checks: { changedGenerationReleasesRecords: boolean }; incoherentCommits: number }[] };
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f5-drift-slots.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f2-projection-generation-browser.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -81,6 +82,15 @@ describe('ordinary CI renderer evidence', () => {
     const staleChapter = fixture(); staleChapter.storyGraphUnplaced.measurements[0].checks.currentTitleAndPrimary = false;
     const chapterDrag = fixture(); chapterDrag.storyGraphUnplaced.measurements[0].checks.cancelledDrag = false;
     for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane, hiddenDrifts, driftShell, driftCards, driftWrappers, driftLegacy, driftReverse, driftSlots, driftCleanup, inapplicableDrag, hiddenChapters, repeatedChapters, staleChapter, chapterDrag]) expect(validate(report).status).not.toBe(0);
+  });
+  it('rejects missing generation coverage, broad target rebuilds and stale authority reuse', () => {
+    const missing = fixture(); delete missing.workspaceGeneration;
+    expect(validate(missing).output).toContain('missing current contract workspaceGeneration');
+    const comments = fixture(); comments.workspaceGeneration!.profiles[2].comments.targets = 2000;
+    const metrics = fixture(); metrics.workspaceGeneration!.profiles[2].metrics.names = 2000;
+    const stale = fixture(); stale.workspaceGeneration!.profiles[0].checks.changedGenerationReleasesRecords = false;
+    const mixed = fixture(); mixed.workspaceGeneration!.profiles[0].incoherentCommits = 1;
+    for (const report of [comments, metrics, stale, mixed]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();

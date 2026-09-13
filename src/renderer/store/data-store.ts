@@ -70,6 +70,8 @@ interface DataState {
   workspaceProjectId: string | null;
   workspaceRequestedProjectId: string | null;
   workspaceProjectionEpoch: number;
+  /** Committed data authority, independent of outstanding capture requests. */
+  workspaceProjectionGeneration: string | null;
   workspaceProjectionStatus: WorkspaceProjectionStatus;
   workspaceProjectionError: string | null;
   requestWorkspaceProjection: (
@@ -81,6 +83,8 @@ interface DataState {
     epoch: number,
     projection: WorkspaceDataProjection,
     expectedBase?: WorkspaceDataProjection,
+    /** SQLite captures pass their clock epoch, or null when coverage is unknown. */
+    generation?: string | null,
   ) => boolean;
   clearWorkspaceProjection: (projectId: string, epoch: number, expectedBase?: WorkspaceDataProjection) => boolean;
   failWorkspaceProjection: (projectId: string, epoch: number, error: string) => boolean;
@@ -263,6 +267,7 @@ export const useDataStore = create<DataState>((set) => ({
   workspaceProjectId: null,
   workspaceRequestedProjectId: null,
   workspaceProjectionEpoch: 0,
+  workspaceProjectionGeneration: null,
   workspaceProjectionStatus: 'idle',
   workspaceProjectionError: null,
   requestWorkspaceProjection: (projectId, mode) => {
@@ -273,6 +278,7 @@ export const useDataStore = create<DataState>((set) => ({
       return {
         ...(shouldClear ? { ...emptyWorkspaceProjection(), nodeStorylineMapping: {} } : {}),
         workspaceProjectId: shouldClear ? null : state.workspaceProjectId,
+        workspaceProjectionGeneration: shouldClear ? null : state.workspaceProjectionGeneration,
         workspaceRequestedProjectId: projectId,
         workspaceProjectionEpoch: epoch,
         workspaceProjectionStatus: mode,
@@ -281,7 +287,7 @@ export const useDataStore = create<DataState>((set) => ({
     });
     return epoch;
   },
-  commitWorkspaceProjection: (projectId, epoch, projection, expectedBase) => {
+  commitWorkspaceProjection: (projectId, epoch, projection, expectedBase, generation) => {
     let accepted = false;
     set((state) => {
       if (
@@ -293,15 +299,22 @@ export const useDataStore = create<DataState>((set) => ({
       }
       accepted = true;
       const sameProject = state.workspaceProjectId === projectId;
+      // Pure in-memory publishers retain their loading lifetime. SQLite callers
+      // supply the captured clock; missing coverage forbids cross-capture reuse.
+      const committedGeneration = generation === undefined
+        ? (sameProject ? state.workspaceProjectionGeneration : null) ?? `local:${epoch}`
+        : generation ?? `unknown:${epoch}`;
+      const sameAuthority = sameProject && committedGeneration === state.workspaceProjectionGeneration;
       const normalized = { ...projection, timelineMarkers: sortMarkers(projection.timelineMarkers) };
-      const shared = sameProject ? shareWorkspaceProjection(state, normalized) : normalized;
-      const reverse = shared.storylineNodeMapping === state.storylineNodeMapping && sameProject
+      const shared = sameAuthority ? shareWorkspaceProjection(state, normalized) : normalized;
+      const reverse = shared.storylineNodeMapping === state.storylineNodeMapping && sameAuthority
         ? state.nodeStorylineMapping
         : deriveNodeStorylineMapping(shared.storylineNodeMapping);
       return {
         ...shared,
-        nodeStorylineMapping: sameProject ? shareWorkspaceKeyedValues(state.nodeStorylineMapping, reverse) : reverse,
+        nodeStorylineMapping: sameAuthority ? shareWorkspaceKeyedValues(state.nodeStorylineMapping, reverse) : reverse,
         workspaceProjectId: projectId,
+        workspaceProjectionGeneration: committedGeneration,
         workspaceProjectionStatus: 'ready',
         workspaceProjectionError: null,
       };
@@ -323,6 +336,7 @@ export const useDataStore = create<DataState>((set) => ({
         ...emptyWorkspaceProjection(),
         nodeStorylineMapping: {},
         workspaceProjectId: null,
+        workspaceProjectionGeneration: null,
         workspaceRequestedProjectId: null,
         workspaceProjectionStatus: 'idle',
         workspaceProjectionError: null,

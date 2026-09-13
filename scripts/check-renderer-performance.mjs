@@ -57,7 +57,7 @@ if (process.argv.includes('--current')) {
 if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must
   // execute every current contract and may not pass by omitting its section.
-  for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
+  for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
@@ -97,6 +97,20 @@ if (report.semanticSubscriptions) {
   assert.equal(scenario.rename.colors, 0);
   assert.equal(scenario.appearance.names, 0);
   assert.equal(scenario.appearance.colors, scenario.consumers);
+}
+if (report.workspaceGeneration) {
+  assert.deepEqual(report.workspaceGeneration.profiles.map(row => row.consumers), [1, 5, 20]);
+  for (const row of report.workspaceGeneration.profiles) {
+    const n = row.consumers;
+    assert.equal(row.refreshes, 100); assert.equal(row.incoherentCommits, 0); assert(row.coherentCommits > 0);
+    assert.equal(Object.keys(row.checks).length, 10); assert(Object.values(row.checks).every(value => value === true));
+    assert.deepEqual(row.comments, { names: 0, targets: 0, colors: 0, fields: 0, records: 0 });
+    assert.deepEqual(row.metrics, { names: 0, targets: 0, colors: 0, fields: n * 100, records: n * 100 });
+    assert.deepEqual(row.rename, { names: n, targets: n, colors: 0, fields: n, records: n });
+    assert.deepEqual(row.membership, { names: 0, targets: 0, colors: n, fields: n, records: 0 });
+    assert.deepEqual(row.generationChange, { names: n, targets: n, colors: 0, fields: n, records: n });
+    assert.deepEqual(row.failure, { names: 0, targets: 0, colors: 0, fields: 0, records: 0 });
+  }
 }
 if (report.agentDecorations) {
   const scenario = report.agentDecorations;

@@ -87,7 +87,7 @@ export function createWorkspaceProjectionRefresh(options: WorkspaceProjectionRef
         return;
       }
       const accepted = useDataStore.getState()
-        .commitWorkspaceProjection(projectId, epoch, result.data, base);
+        .commitWorkspaceProjection(projectId, epoch, result.data, base, result.coverage?.epoch ?? null);
       if (!accepted) {
         // Optimistic edits/derived metrics changed data without changing the
         // request epoch. Keep the barrier and recapture; never publish the old

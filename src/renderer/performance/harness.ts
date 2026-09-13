@@ -17,6 +17,7 @@ import { DEFAULT_ENTITY_LINK_KIND_COLORS, resolveEntityLinkTargetColor, type Ent
 import { useDataStore } from '../store/data-store';
 import { createRendererFixture, RENDERER_FIXTURE_PROFILES } from './fixture';
 import { runEntityLinkScenarios } from './entity-link-scenarios';
+import { runWorkspaceGenerationScenario } from './workspace-generation-scenario';
 import { runSemanticSubscriptionScenario, runSubscriptionScenarios } from './subscription-scenarios';
 import { runAgentDecorationScenarios, runDecorationReadinessScenario } from './agent-decoration-scenarios';
 import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenarios';
@@ -123,6 +124,7 @@ async function run() {
     behaviorChecks: runEntityLinkScenarios(),
     reactSubscriptions: runSubscriptionScenarios(),
     semanticSubscriptions: runSemanticSubscriptionScenario(),
+    workspaceGeneration: runWorkspaceGenerationScenario(),
     agentDecorations: runAgentDecorationScenarios(),
     decorationReadiness: runDecorationReadinessScenario(),
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),

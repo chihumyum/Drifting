@@ -45,7 +45,7 @@ describe('workspace SQLite read scope and invalidation write cost', () => {
       for (let iteration = 0; iteration < 6; iteration += 1) for (const mode of ['full', 'changes'] as const) {
         const before = (await captureWorkspaceProjection(INPUT))!;
         const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-        useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, before.data);
+        useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, before.data, undefined, before.coverage?.epoch ?? null);
         await db.update(BookNodeTable).set({ title: `Changed ${iteration} ${mode}` }).where(eq(BookNodeTable.id, 'chapter'));
         const refreshEpoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'refreshing');
         const base = useDataStore.getState();
@@ -56,7 +56,7 @@ describe('workspace SQLite read scope and invalidation write cost', () => {
         let publications = 0;
         const unsubscribe = useDataStore.subscribe((next, previous) => { if (next.bookNodes !== previous.bookNodes) publications += 1; });
         const publishStart = performance.now();
-        const accepted = useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, refreshEpoch, capture.data, base);
+        const accepted = useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, refreshEpoch, capture.data, base, capture.coverage?.epoch ?? null);
         const publicationMs = performance.now() - publishStart;
         unsubscribe();
         const sample = { mode, reads: { ...reads }, captureMs, publicationMs, publications, nodeRead: capture.nodeRead };

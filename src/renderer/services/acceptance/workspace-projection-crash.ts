@@ -61,7 +61,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     const initial = (await captureWorkspaceProjection(INPUT))!;
     assert(initial); assert.equal(initial.mode, 'full');
     const epoch = useDataStore.getState().requestWorkspaceProjection(INPUT.projectId, 'loading');
-    assert(useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data));
+    assert(useDataStore.getState().commitWorkspaceProjection(INPUT.projectId, epoch, initial.data, undefined, initial.coverage?.epoch ?? null));
     useProjectStore.getState().setCurrentProject(initial.project);
     let stage: 'warming' | 'authored' | 'refresh' = 'warming';
     let published: WorkspaceProjectionCapture | undefined;

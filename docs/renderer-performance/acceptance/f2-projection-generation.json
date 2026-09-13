@@ -1,0 +1,700 @@
+{
+  "kind": "workspace_projection_generation_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-13T12:16:25.469Z",
+  "source": {
+    "commit": "bc70faba739a46f88efa98f55f61cf6a2fe3c13a",
+    "fingerprint": "b679bd161755b225cd9b15e7a879dc6b446b7813d93b488a4227d25e316505ac"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "suites": [
+    "src/renderer/services/workspace-projection-generation.integration.test.ts",
+    "src/renderer/services/workspace-projection-refresh.integration.test.ts",
+    "src/renderer/store/data-store.workspace-projection.test.ts",
+    "src/renderer/lib/entity-link-names.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "shared entity-link name projection selects closed prose sources explicitly and rejects a different project snapshot",
+      "title": "selects closed prose sources explicitly and rejects a different project snapshot",
+      "status": "passed",
+      "durationMs": 1.0502909999999872
+    },
+    {
+      "name": "shared entity-link name projection keeps semantic identity across metrics, summary and body updates",
+      "title": "keeps semantic identity across metrics, summary and body updates",
+      "status": "passed",
+      "durationMs": 0.1461670000000055
+    },
+    {
+      "name": "shared entity-link name projection invalidates names, aliases, deletions and project generations independently",
+      "title": "invalidates names, aliases, deletions and project generations independently",
+      "status": "passed",
+      "durationMs": 0.8623750000000001
+    },
+    {
+      "name": "shared entity-link name projection excludes self and parent before resolving aliases and chapter-name collisions",
+      "title": "excludes self and parent before resolving aliases and chapter-name collisions",
+      "status": "passed",
+      "durationMs": 0.17395900000001063
+    },
+    {
+      "name": "shared entity-link name projection reads unchanged name collections once across metric updates and multiple consumers",
+      "title": "reads unchanged name collections once across metric updates and multiple consumers",
+      "status": "passed",
+      "durationMs": 1.8333750000000038
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh keeps names and appearance stable through comments request and commit",
+      "title": "keeps names and appearance stable through comments request and commit",
+      "status": "passed",
+      "durationMs": 40.32241699999997
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh keeps names and appearance stable through metrics request and commit",
+      "title": "keeps names and appearance stable through metrics request and commit",
+      "status": "passed",
+      "durationMs": 27.58979199999999
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh keeps committed names throughout a failed refresh and the subsequent retry",
+      "title": "keeps committed names throughout a failed refresh and the subsequent retry",
+      "status": "passed",
+      "durationMs": 28.057583999999963
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh publishes a renamed target only when its full capture commits",
+      "title": "publishes a renamed target only when its full capture commits",
+      "status": "passed",
+      "durationMs": 26.894791999999995
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh replaces name and record identities atomically on a real generation change",
+      "title": "replaces name and record identities atomically on a real generation change",
+      "status": "passed",
+      "durationMs": 26.925207999999998
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh rejects the old capture before publishing a newer database generation",
+      "title": "rejects the old capture before publishing a newer database generation",
+      "status": "passed",
+      "durationMs": 29.22950000000003
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh does not reuse cross-capture names or records when the SQLite clock is unavailable",
+      "title": "does not reuse cross-capture names or records when the SQLite clock is unavailable",
+      "status": "passed",
+      "durationMs": 29.367165999999997
+    },
+    {
+      "name": "committed workspace generation with real SQLite refresh rejects late captures across project A to B to A without changing the new generation",
+      "title": "rejects late captures across project A to B to A without changing the new generation",
+      "status": "passed",
+      "durationMs": 27.8365
+    },
+    {
+      "name": "workspace refresh with product SQLite coalesces a burst and publishes node and membership changes in one snapshot",
+      "title": "coalesces a burst and publishes node and membership changes in one snapshot",
+      "status": "passed",
+      "durationMs": 37.16066699999999
+    },
+    {
+      "name": "workspace refresh with product SQLite starts reading at the first-arrival deadline despite repeated sync events",
+      "title": "starts reading at the first-arrival deadline despite repeated sync events",
+      "status": "passed",
+      "durationMs": 24.82433400000002
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local title update, then recaptures",
+      "title": "rejects a captured snapshot after an in-flight local title update, then recaptures",
+      "status": "passed",
+      "durationMs": 27.310249999999996
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a captured snapshot after an in-flight local wordCount update, then recaptures",
+      "title": "rejects a captured snapshot after an in-flight local wordCount update, then recaptures",
+      "status": "passed",
+      "durationMs": 26.754417000000046
+    },
+    {
+      "name": "workspace refresh with product SQLite preserves an in-flight local project rename and retries before publishing project metadata",
+      "title": "preserves an in-flight local project rename and retries before publishing project metadata",
+      "status": "passed",
+      "durationMs": 24.705375000000004
+    },
+    {
+      "name": "workspace refresh with product SQLite rejects a missing result after a local projection change in the same epoch",
+      "title": "rejects a missing result after a local projection change in the same epoch",
+      "status": "passed",
+      "durationMs": 22.77341700000005
+    },
+    {
+      "name": "workspace refresh with product SQLite does not overwrite a newer full projection committed during its read",
+      "title": "does not overwrite a newer full projection committed during its read",
+      "status": "passed",
+      "durationMs": 26.252832999999953
+    },
+    {
+      "name": "workspace refresh with product SQLite retains a new event after an external full refresh supersedes its pending epoch",
+      "title": "retains a new event after an external full refresh supersedes its pending epoch",
+      "status": "passed",
+      "durationMs": 28.32795800000008
+    },
+    {
+      "name": "workspace refresh with product SQLite backs off repeated local-write conflicts with one pending pass and recovers when writes settle",
+      "title": "backs off repeated local-write conflicts with one pending pass and recovers when writes settle",
+      "status": "passed",
+      "durationMs": 35.296084000000064
+    },
+    {
+      "name": "workspace refresh with product SQLite keeps one pending request behind an in-flight read and never publishes its superseded snapshot",
+      "title": "keeps one pending request behind an in-flight read and never publishes its superseded snapshot",
+      "status": "passed",
+      "durationMs": 23.496999999999957
+    },
+    {
+      "name": "workspace refresh with product SQLite waits for pending author durability before starting the SQLite capture",
+      "title": "waits for pending author durability before starting the SQLite capture",
+      "status": "passed",
+      "durationMs": 21.632791999999995
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded missing capture navigate or fail a newer refresh",
+      "title": "does not let a superseded missing capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 21.29816699999992
+    },
+    {
+      "name": "workspace refresh with product SQLite does not let a superseded error capture navigate or fail a newer refresh",
+      "title": "does not let a superseded error capture navigate or fail a newer refresh",
+      "status": "passed",
+      "durationMs": 21.589875000000006
+    },
+    {
+      "name": "workspace refresh with product SQLite reports a current read error and supports a fresh complete retry",
+      "title": "reports a current read error and supports a fresh complete retry",
+      "status": "passed",
+      "durationMs": 21.581416999999988
+    },
+    {
+      "name": "workspace refresh with product SQLite clears a confirmed missing project only after its authoritative capture",
+      "title": "clears a confirmed missing project only after its authoritative capture",
+      "status": "passed",
+      "durationMs": 21.761791000000017
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its project owner changes",
+      "title": "revokes an in-flight capture when its project owner changes",
+      "status": "passed",
+      "durationMs": 21.35866699999997
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its dispose owner changes",
+      "title": "revokes an in-flight capture when its dispose owner changes",
+      "status": "passed",
+      "durationMs": 21.853874999999903
+    },
+    {
+      "name": "workspace refresh with product SQLite revokes an in-flight capture when its database owner changes",
+      "title": "revokes an in-flight capture when its database owner changes",
+      "status": "passed",
+      "durationMs": 20.927917000000093
+    },
+    {
+      "name": "workspace refresh with product SQLite cancels a scheduled capture on disposal and lets a replacement owner refresh",
+      "title": "cancels a scheduled capture on disposal and lets a replacement owner refresh",
+      "status": "passed",
+      "durationMs": 21.069499999999948
+    },
+    {
+      "name": "workspace projection authority rejects a slow project capture after a newer project route owns the epoch",
+      "title": "rejects a slow project capture after a newer project route owns the epoch",
+      "status": "passed",
+      "durationMs": 1.3681250000000063
+    },
+    {
+      "name": "workspace projection authority keeps the last complete project visible until one atomic refresh commit",
+      "title": "keeps the last complete project visible until one atomic refresh commit",
+      "status": "passed",
+      "durationMs": 0.4284159999999986
+    },
+    {
+      "name": "workspace projection authority clears only the authoritative missing-project projection",
+      "title": "clears only the authoritative missing-project projection",
+      "status": "passed",
+      "durationMs": 0.3642499999999984
+    },
+    {
+      "name": "workspace projection authority shares unchanged records while publishing a changed relation and primary membership atomically",
+      "title": "shares unchanged records while publishing a changed relation and primary membership atomically",
+      "status": "passed",
+      "durationMs": 1.0653750000000173
+    },
+    {
+      "name": "workspace projection authority sorts markers before sharing and does not reuse a changed record solely by ID or timestamp",
+      "title": "sorts markers before sharing and does not reuse a changed record solely by ID or timestamp",
+      "status": "passed",
+      "durationMs": 0.4804579999999987
+    },
+    {
+      "name": "workspace projection authority rejects stale epochs without notifying and clears reverse memberships at project/reset boundaries",
+      "title": "rejects stale epochs without notifying and clears reverse memberships at project/reset boundaries",
+      "status": "passed",
+      "durationMs": 0.6537500000000023
+    }
+  ],
+  "browser": {
+    "build": "production-React-isolated-Chromium",
+    "profiles": [
+      {
+        "consumers": 1,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 100,
+          "records": 100
+        },
+        "rename": {
+          "names": 1,
+          "targets": 1,
+          "colors": 0,
+          "fields": 1,
+          "records": 1
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 1,
+          "fields": 1,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 1,
+          "targets": 1,
+          "colors": 0,
+          "fields": 1,
+          "records": 1
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      },
+      {
+        "consumers": 5,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 500,
+          "records": 500
+        },
+        "rename": {
+          "names": 5,
+          "targets": 5,
+          "colors": 0,
+          "fields": 5,
+          "records": 5
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 5,
+          "fields": 5,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 5,
+          "targets": 5,
+          "colors": 0,
+          "fields": 5,
+          "records": 5
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      },
+      {
+        "consumers": 20,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 2000,
+          "records": 2000
+        },
+        "rename": {
+          "names": 20,
+          "targets": 20,
+          "colors": 0,
+          "fields": 20,
+          "records": 20
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 20,
+          "fields": 20,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 20,
+          "targets": 20,
+          "colors": 0,
+          "fields": 20,
+          "records": 20
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      }
+    ],
+    "boundary": "Complete synthetic capture-shaped publications, real Zustand hooks, shared name/color selectors and per-editor target construction. Full provider, SQLite, native input and device timing budgets are not measured here.",
+    "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "uncaughtErrors": []
+  },
+  "baseline": {
+    "commit": "bc70faba739a46f88efa98f55f61cf6a2fe3c13a",
+    "testSha256": "30672eb7f164af6ab591109924c30b999ba1a3f0345700e8022d46caf2aee5b7",
+    "tests": [
+      {
+        "name": "committed workspace generation with real SQLite refresh keeps names and appearance stable through comments request and commit",
+        "title": "keeps names and appearance stable through comments request and commit",
+        "status": "failed",
+        "durationMs": 37.214417000000026
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh keeps names and appearance stable through metrics request and commit",
+        "title": "keeps names and appearance stable through metrics request and commit",
+        "status": "failed",
+        "durationMs": 24.40891700000003
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh keeps committed names throughout a failed refresh and the subsequent retry",
+        "title": "keeps committed names throughout a failed refresh and the subsequent retry",
+        "status": "failed",
+        "durationMs": 24.633790999999974
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh publishes a renamed target only when its full capture commits",
+        "title": "publishes a renamed target only when its full capture commits",
+        "status": "failed",
+        "durationMs": 26.34858300000002
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh replaces name and record identities atomically on a real generation change",
+        "title": "replaces name and record identities atomically on a real generation change",
+        "status": "failed",
+        "durationMs": 25.49320799999998
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh rejects the old capture before publishing a newer database generation",
+        "title": "rejects the old capture before publishing a newer database generation",
+        "status": "failed",
+        "durationMs": 25.112707999999998
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh does not reuse cross-capture names or records when the SQLite clock is unavailable",
+        "title": "does not reuse cross-capture names or records when the SQLite clock is unavailable",
+        "status": "failed",
+        "durationMs": 26.310625000000073
+      },
+      {
+        "name": "committed workspace generation with real SQLite refresh rejects late captures across project A to B to A without changing the new generation",
+        "title": "rejects late captures across project A to B to A without changing the new generation",
+        "status": "passed",
+        "durationMs": 28.152500000000032
+      }
+    ],
+    "browser": {
+      "build": "production-React-isolated-Chromium",
+      "profiles": [
+        {
+          "consumers": 1,
+          "nodes": 100,
+          "elements": 20,
+          "refreshes": 100,
+          "comments": {
+            "names": 100,
+            "targets": 100,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "metrics": {
+            "names": 100,
+            "targets": 100,
+            "colors": 0,
+            "fields": 100,
+            "records": 100
+          },
+          "rename": {
+            "names": 2,
+            "targets": 2,
+            "colors": 0,
+            "fields": 1,
+            "records": 1
+          },
+          "membership": {
+            "names": 1,
+            "targets": 1,
+            "colors": 1,
+            "fields": 1,
+            "records": 0
+          },
+          "generationChange": {
+            "names": 1,
+            "targets": 1,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "failure": {
+            "names": 2,
+            "targets": 2,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "checks": {
+            "pendingRenameStable": false,
+            "pendingGenerationStable": false,
+            "changedGenerationReleasesRecords": false,
+            "changedGenerationReleasesNames": true,
+            "failedRefreshRetainsNames": false,
+            "staleRejected": true,
+            "staleABARejected": true,
+            "missingClearsNames": true,
+            "coherentSnapshots": true,
+            "unmountedDoesNotRender": true
+          },
+          "coherentCommits": 315,
+          "incoherentCommits": 0
+        },
+        {
+          "consumers": 5,
+          "nodes": 100,
+          "elements": 20,
+          "refreshes": 100,
+          "comments": {
+            "names": 500,
+            "targets": 500,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "metrics": {
+            "names": 500,
+            "targets": 500,
+            "colors": 0,
+            "fields": 500,
+            "records": 500
+          },
+          "rename": {
+            "names": 10,
+            "targets": 10,
+            "colors": 0,
+            "fields": 5,
+            "records": 5
+          },
+          "membership": {
+            "names": 5,
+            "targets": 5,
+            "colors": 5,
+            "fields": 5,
+            "records": 0
+          },
+          "generationChange": {
+            "names": 5,
+            "targets": 5,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "failure": {
+            "names": 10,
+            "targets": 10,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "checks": {
+            "pendingRenameStable": false,
+            "pendingGenerationStable": false,
+            "changedGenerationReleasesRecords": false,
+            "changedGenerationReleasesNames": true,
+            "failedRefreshRetainsNames": false,
+            "staleRejected": true,
+            "staleABARejected": true,
+            "missingClearsNames": true,
+            "coherentSnapshots": true,
+            "unmountedDoesNotRender": true
+          },
+          "coherentCommits": 315,
+          "incoherentCommits": 0
+        },
+        {
+          "consumers": 20,
+          "nodes": 100,
+          "elements": 20,
+          "refreshes": 100,
+          "comments": {
+            "names": 2000,
+            "targets": 2000,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "metrics": {
+            "names": 2000,
+            "targets": 2000,
+            "colors": 0,
+            "fields": 2000,
+            "records": 2000
+          },
+          "rename": {
+            "names": 40,
+            "targets": 40,
+            "colors": 0,
+            "fields": 20,
+            "records": 20
+          },
+          "membership": {
+            "names": 20,
+            "targets": 20,
+            "colors": 20,
+            "fields": 20,
+            "records": 0
+          },
+          "generationChange": {
+            "names": 20,
+            "targets": 20,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "failure": {
+            "names": 40,
+            "targets": 40,
+            "colors": 0,
+            "fields": 0,
+            "records": 0
+          },
+          "checks": {
+            "pendingRenameStable": false,
+            "pendingGenerationStable": false,
+            "changedGenerationReleasesRecords": false,
+            "changedGenerationReleasesNames": true,
+            "failedRefreshRetainsNames": false,
+            "staleRejected": true,
+            "staleABARejected": true,
+            "missingClearsNames": true,
+            "coherentSnapshots": true,
+            "unmountedDoesNotRender": true
+          },
+          "coherentCommits": 315,
+          "incoherentCommits": 0
+        }
+      ],
+      "boundary": "Complete synthetic capture-shaped publications, real Zustand hooks, shared name/color selectors and per-editor target construction. Full provider, SQLite, native input and device timing budgets are not measured here.",
+      "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "uncaughtErrors": []
+    }
+  },
+  "acceptance": {
+    "sqlite": "real-temporary-WAL-FULL-product-migrations",
+    "browser": "actual-hooks-synthetic-complete-publications",
+    "fullProvider": "not-run",
+    "native": "not-run",
+    "deviceBudget": "not-evaluated"
+  }
+}
