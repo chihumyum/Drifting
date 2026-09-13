@@ -1,0 +1,658 @@
+{
+  "kind": "global_search_session_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-09-13T14:13:00.715Z",
+  "source": {
+    "commit": "bd1a47a91bdada6627549837bd334bf910adf1e2",
+    "fingerprint": "70bdbf87d1923d518a92887009d2f22304219fc8ac777ea4f17f73f3fe057b25"
+  },
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "suites": [
+    "src/renderer/components/search/global-search-model.test.ts",
+    "src/renderer/components/search/global-search-repository.integration.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "visible global-search projection preserves entity order, drift nodes, field order, case-insensitive matching and literal punctuation",
+      "status": "passed",
+      "durationMs": 2.2988750000000095
+    },
+    {
+      "name": "visible global-search projection caps matches across fields while retaining the omitted count and valid highlights",
+      "status": "passed",
+      "durationMs": 0.6592080000000067
+    },
+    {
+      "name": "visible global-search projection keeps metadata searchable when JSON is malformed or a node body is absent",
+      "status": "passed",
+      "durationMs": 0.2779160000000047
+    },
+    {
+      "name": "visible global-search projection reuses unchanged JSON across queries and renames, but parses a changed body",
+      "status": "passed",
+      "durationMs": 0.8059160000000105
+    },
+    {
+      "name": "visible global-search projection releases removed entities and does not reuse a no-longer-returned node body",
+      "status": "passed",
+      "durationMs": 0.2236249999999984
+    },
+    {
+      "name": "visible global-search projection releases every cached body across generation changes and explicit close",
+      "status": "passed",
+      "durationMs": 0.19933400000000745
+    },
+    {
+      "name": "visible global-search projection keeps identical ids from different entity kinds and projects independent",
+      "status": "passed",
+      "durationMs": 0.13162499999999966
+    },
+    {
+      "name": "visible global-search projection uses localized fallbacks and joins paragraphs without searching JSON attributes",
+      "status": "passed",
+      "durationMs": 0.1774159999999938
+    },
+    {
+      "name": "project-scoped global-search SQLite reads returns current live chapters and free-floating drift bodies, excluding foreign and trashed nodes",
+      "status": "passed",
+      "durationMs": 32.92845799999998
+    },
+    {
+      "name": "project-scoped global-search SQLite reads treats % literally in LIKE and parameters",
+      "status": "passed",
+      "durationMs": 24.433291999999994
+    },
+    {
+      "name": "project-scoped global-search SQLite reads treats _ literally in LIKE and parameters",
+      "status": "passed",
+      "durationMs": 23.954833000000008
+    },
+    {
+      "name": "project-scoped global-search SQLite reads treats \\ literally in LIKE and parameters",
+      "status": "passed",
+      "durationMs": 23.87312499999996
+    },
+    {
+      "name": "project-scoped global-search SQLite reads treats ' OR 1=1 -- literally in LIKE and parameters",
+      "status": "passed",
+      "durationMs": 23.818415999999957
+    },
+    {
+      "name": "project-scoped global-search SQLite reads returns changed persisted caches and skips whitespace-only queries",
+      "status": "passed",
+      "durationMs": 23.714041000000066
+    }
+  ],
+  "browser": {
+    "build": "production-React-mounted-global-search-Chromium",
+    "profiles": [
+      {
+        "elements": 100,
+        "initial": {
+          "reads": 1,
+          "parses": 100,
+          "groups": 101
+        },
+        "repeatedQueries": {
+          "reads": 2,
+          "parses": 0,
+          "groups": 202
+        },
+        "rename": {
+          "reads": 1,
+          "parses": 0,
+          "groups": 101
+        },
+        "changedBody": {
+          "reads": 1,
+          "parses": 1,
+          "groups": 101
+        },
+        "generationChange": {
+          "reads": 1,
+          "parses": 100,
+          "groups": 101
+        },
+        "hidden": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "reopened": {
+          "reads": 1,
+          "parses": 100,
+          "groups": 101
+        },
+        "lateClosedRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "lateProjectReply": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "newGeneration": {
+          "reads": 0,
+          "parses": 100,
+          "groups": 101
+        },
+        "lateGenerationRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "databaseReplacement": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0,
+          "hidesOldResults": true
+        },
+        "loading": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "checks": {
+          "initialResults": true,
+          "reopenedEmpty": true,
+          "projectReturnClearsQuery": true,
+          "projectReturnRecovers": true,
+          "pendingRefreshRetainsResults": true,
+          "generationHidesOldResults": true,
+          "generationCannotOpenOldResult": true,
+          "generationRecovers": true,
+          "keyboardOpensCurrent": true,
+          "generationRejectStaysEmpty": true,
+          "replacementGenerationCompletes": true,
+          "readFailureKeepsMetadata": true,
+          "loadingHidesResults": true,
+          "loadingPreservesQuery": true,
+          "escapeCloses": true
+        },
+        "databaseScope": {
+          "readsObserved": 16,
+          "allProjectScoped": true
+        }
+      },
+      {
+        "elements": 1000,
+        "initial": {
+          "reads": 1,
+          "parses": 1000,
+          "groups": 1001
+        },
+        "repeatedQueries": {
+          "reads": 2,
+          "parses": 0,
+          "groups": 2002
+        },
+        "rename": {
+          "reads": 1,
+          "parses": 0,
+          "groups": 1001
+        },
+        "changedBody": {
+          "reads": 1,
+          "parses": 1,
+          "groups": 1001
+        },
+        "generationChange": {
+          "reads": 1,
+          "parses": 1000,
+          "groups": 1001
+        },
+        "hidden": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "reopened": {
+          "reads": 1,
+          "parses": 1000,
+          "groups": 1001
+        },
+        "lateClosedRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "lateProjectReply": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "newGeneration": {
+          "reads": 0,
+          "parses": 1000,
+          "groups": 1001
+        },
+        "lateGenerationRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "databaseReplacement": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0,
+          "hidesOldResults": true
+        },
+        "loading": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "checks": {
+          "initialResults": true,
+          "reopenedEmpty": true,
+          "projectReturnClearsQuery": true,
+          "projectReturnRecovers": true,
+          "pendingRefreshRetainsResults": true,
+          "generationHidesOldResults": true,
+          "generationCannotOpenOldResult": true,
+          "generationRecovers": true,
+          "keyboardOpensCurrent": true,
+          "generationRejectStaysEmpty": true,
+          "replacementGenerationCompletes": true,
+          "readFailureKeepsMetadata": true,
+          "loadingHidesResults": true,
+          "loadingPreservesQuery": true,
+          "escapeCloses": true
+        },
+        "databaseScope": {
+          "readsObserved": 16,
+          "allProjectScoped": true
+        }
+      },
+      {
+        "elements": 5000,
+        "initial": {
+          "reads": 1,
+          "parses": 5000,
+          "groups": 5001
+        },
+        "repeatedQueries": {
+          "reads": 2,
+          "parses": 0,
+          "groups": 10002
+        },
+        "rename": {
+          "reads": 1,
+          "parses": 0,
+          "groups": 5001
+        },
+        "changedBody": {
+          "reads": 1,
+          "parses": 1,
+          "groups": 5001
+        },
+        "generationChange": {
+          "reads": 1,
+          "parses": 5000,
+          "groups": 5001
+        },
+        "hidden": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "reopened": {
+          "reads": 1,
+          "parses": 5000,
+          "groups": 5001
+        },
+        "lateClosedRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "lateProjectReply": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "newGeneration": {
+          "reads": 0,
+          "parses": 5000,
+          "groups": 5001
+        },
+        "lateGenerationRejection": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "databaseReplacement": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0,
+          "hidesOldResults": true
+        },
+        "loading": {
+          "reads": 0,
+          "parses": 0,
+          "groups": 0
+        },
+        "checks": {
+          "initialResults": true,
+          "reopenedEmpty": true,
+          "projectReturnClearsQuery": true,
+          "projectReturnRecovers": true,
+          "pendingRefreshRetainsResults": true,
+          "generationHidesOldResults": true,
+          "generationCannotOpenOldResult": true,
+          "generationRecovers": true,
+          "keyboardOpensCurrent": true,
+          "generationRejectStaysEmpty": true,
+          "replacementGenerationCompletes": true,
+          "readFailureKeepsMetadata": true,
+          "loadingHidesResults": true,
+          "loadingPreservesQuery": true,
+          "escapeCloses": true
+        },
+        "databaseScope": {
+          "readsObserved": 16,
+          "allProjectScoped": true
+        }
+      }
+    ],
+    "boundary": "Actual modal, input events, navigation and store publications; synthetic async DB port. Separate real SQLite integration. No native/physical-input/device-budget claim.",
+    "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "uncaughtErrors": []
+  },
+  "baseline": {
+    "commit": "bd1a47a91bdada6627549837bd334bf910adf1e2",
+    "scenarioSha256": "d9601283d0327b7af1e059b9ba93577ca46a5291b7e4695ced8cd597286601f7",
+    "browser": {
+      "build": "production-React-mounted-global-search-Chromium",
+      "profiles": [
+        {
+          "elements": 100,
+          "initial": {
+            "reads": 1,
+            "parses": 100,
+            "groups": 101
+          },
+          "repeatedQueries": {
+            "reads": 2,
+            "parses": 200,
+            "groups": 202
+          },
+          "rename": {
+            "reads": 1,
+            "parses": 100,
+            "groups": 101
+          },
+          "changedBody": {
+            "reads": 1,
+            "parses": 100,
+            "groups": 101
+          },
+          "generationChange": {
+            "reads": 1,
+            "parses": 100,
+            "groups": 101
+          },
+          "hidden": {
+            "reads": 10,
+            "parses": 1000,
+            "groups": 1010
+          },
+          "reopened": {
+            "reads": 1,
+            "parses": 100,
+            "groups": 101
+          },
+          "lateClosedRejection": {
+            "reads": 0,
+            "parses": 100,
+            "groups": 101
+          },
+          "lateProjectReply": {
+            "reads": 0,
+            "parses": 100,
+            "groups": 101
+          },
+          "newGeneration": {
+            "reads": 0,
+            "parses": 0,
+            "groups": 0
+          },
+          "lateGenerationRejection": {
+            "reads": 0,
+            "parses": 100,
+            "groups": 101
+          },
+          "databaseReplacement": {
+            "reads": 0,
+            "parses": 100,
+            "groups": 101,
+            "hidesOldResults": false
+          },
+          "loading": {
+            "reads": 1,
+            "parses": 0,
+            "groups": 0
+          },
+          "checks": {
+            "initialResults": true,
+            "reopenedEmpty": true,
+            "projectReturnClearsQuery": false,
+            "projectReturnRecovers": true,
+            "pendingRefreshRetainsResults": true,
+            "generationHidesOldResults": false,
+            "generationCannotOpenOldResult": false,
+            "generationRecovers": false,
+            "keyboardOpensCurrent": false,
+            "generationRejectStaysEmpty": false,
+            "replacementGenerationCompletes": true,
+            "readFailureKeepsMetadata": true,
+            "loadingHidesResults": false,
+            "loadingPreservesQuery": true,
+            "escapeCloses": true
+          },
+          "databaseScope": {
+            "readsObserved": 25,
+            "allProjectScoped": false
+          }
+        },
+        {
+          "elements": 1000,
+          "initial": {
+            "reads": 1,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "repeatedQueries": {
+            "reads": 2,
+            "parses": 2000,
+            "groups": 2002
+          },
+          "rename": {
+            "reads": 1,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "changedBody": {
+            "reads": 1,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "generationChange": {
+            "reads": 1,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "hidden": {
+            "reads": 10,
+            "parses": 10000,
+            "groups": 10010
+          },
+          "reopened": {
+            "reads": 1,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "lateClosedRejection": {
+            "reads": 0,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "lateProjectReply": {
+            "reads": 0,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "newGeneration": {
+            "reads": 0,
+            "parses": 0,
+            "groups": 0
+          },
+          "lateGenerationRejection": {
+            "reads": 0,
+            "parses": 1000,
+            "groups": 1001
+          },
+          "databaseReplacement": {
+            "reads": 0,
+            "parses": 1000,
+            "groups": 1001,
+            "hidesOldResults": false
+          },
+          "loading": {
+            "reads": 1,
+            "parses": 0,
+            "groups": 0
+          },
+          "checks": {
+            "initialResults": true,
+            "reopenedEmpty": true,
+            "projectReturnClearsQuery": false,
+            "projectReturnRecovers": true,
+            "pendingRefreshRetainsResults": true,
+            "generationHidesOldResults": false,
+            "generationCannotOpenOldResult": false,
+            "generationRecovers": false,
+            "keyboardOpensCurrent": false,
+            "generationRejectStaysEmpty": false,
+            "replacementGenerationCompletes": true,
+            "readFailureKeepsMetadata": true,
+            "loadingHidesResults": false,
+            "loadingPreservesQuery": true,
+            "escapeCloses": true
+          },
+          "databaseScope": {
+            "readsObserved": 25,
+            "allProjectScoped": false
+          }
+        },
+        {
+          "elements": 5000,
+          "initial": {
+            "reads": 1,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "repeatedQueries": {
+            "reads": 2,
+            "parses": 10000,
+            "groups": 10002
+          },
+          "rename": {
+            "reads": 1,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "changedBody": {
+            "reads": 1,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "generationChange": {
+            "reads": 1,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "hidden": {
+            "reads": 10,
+            "parses": 50000,
+            "groups": 50010
+          },
+          "reopened": {
+            "reads": 1,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "lateClosedRejection": {
+            "reads": 0,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "lateProjectReply": {
+            "reads": 0,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "newGeneration": {
+            "reads": 0,
+            "parses": 0,
+            "groups": 0
+          },
+          "lateGenerationRejection": {
+            "reads": 0,
+            "parses": 5000,
+            "groups": 5001
+          },
+          "databaseReplacement": {
+            "reads": 0,
+            "parses": 5000,
+            "groups": 5001,
+            "hidesOldResults": false
+          },
+          "loading": {
+            "reads": 1,
+            "parses": 0,
+            "groups": 0
+          },
+          "checks": {
+            "initialResults": true,
+            "reopenedEmpty": true,
+            "projectReturnClearsQuery": false,
+            "projectReturnRecovers": true,
+            "pendingRefreshRetainsResults": true,
+            "generationHidesOldResults": false,
+            "generationCannotOpenOldResult": false,
+            "generationRecovers": false,
+            "keyboardOpensCurrent": false,
+            "generationRejectStaysEmpty": false,
+            "replacementGenerationCompletes": true,
+            "readFailureKeepsMetadata": true,
+            "loadingHidesResults": false,
+            "loadingPreservesQuery": true,
+            "escapeCloses": true
+          },
+          "databaseScope": {
+            "readsObserved": 25,
+            "allProjectScoped": false
+          }
+        }
+      ],
+      "boundary": "Actual modal, input events, navigation and store publications; synthetic async DB port. Separate real SQLite integration. No native/physical-input/device-budget claim.",
+      "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "uncaughtErrors": []
+    }
+  },
+  "acceptance": {
+    "sqlite": "real-temporary-WAL-FULL-product-migrations",
+    "browser": "actual-modal-synthetic-async-database-port",
+    "native": "not-run",
+    "deviceBudget": "not-evaluated",
+    "liveYjsSearch": "existing-persisted-cache-semantics"
+  }
+}

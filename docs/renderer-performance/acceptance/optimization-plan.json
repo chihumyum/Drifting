@@ -146,7 +146,8 @@
             "docs/renderer-performance/acceptance/f2-subscriptions.json",
             "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
-            "docs/renderer-performance/acceptance/f2-projection-generation.json"
+            "docs/renderer-performance/acceptance/f2-projection-generation.json",
+            "docs/renderer-performance/acceptance/f2-global-search.json"
           ],
           "status": "partial"
         },
@@ -158,12 +159,13 @@
             "docs/renderer-performance/acceptance/f2-semantic-indexes.json",
             "docs/renderer-performance/acceptance/f6-workspace-sharing.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
-            "docs/renderer-performance/acceptance/f2-projection-generation.json"
+            "docs/renderer-performance/acceptance/f2-projection-generation.json",
+            "docs/renderer-performance/acceptance/f2-global-search.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "field_and_semantic_subscriptions_with_committed_generation_ownership_sqlite_and_react_combination_verified_full_provider_and_device_acceptance_pending"
+      "implementationStatus": "field_and_semantic_subscriptions_committed_generation_and_visible_global_search_session_sqlite_and_react_verified_full_provider_and_device_acceptance_pending"
     },
     {
       "id": "F3",

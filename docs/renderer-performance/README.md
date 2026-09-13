@@ -3360,3 +3360,82 @@ CI/public contracts and all 19 Agent capability checks; lint has zero errors and
 `acceptance/f4-checkpoint-retention-browser.json`. The explicit local-only
 production build succeeds with 32 JS chunks and excludes the fixture/worker.
 No hosted CI or push is inferred from these local checks.
+
+## F2d — Visible global-search session and project-scoped body reads
+
+`GlobalSearchModal` previously stayed subscribed after close. Its retained query
+restarted a debounced database read and every entity's body parsing when chapter
+metrics or other subscribed data changed. The body query also read matching
+`node_content` rows from every project before the view discarded foreign ids.
+
+The modal now mounts a project-keyed session only while open. The view owns input,
+selection and navigation; `useGlobalSearchResults` owns the debounce, atomic
+workspace snapshot and asynchronous result lifetime; `global-search-repository`
+reads live nodes in the current project; `global-search-model` builds excerpts
+and caches parsed body text for the visible session. Closing releases the
+subscriptions, timer and index. Already dispatched database calls may finish,
+but a late success or failure cannot enter the result model after close, project
+switch, committed generation change, relevant data publication or DB replacement.
+Results are tagged with their input snapshot, so old rows cannot be selected
+while replacement results are pending. A refresh request alone retains the
+committed projection and does not reset the query.
+
+The text cache is scoped to project/generation and current entity kind/id/JSON.
+It prunes deleted entities and node bodies absent from the latest query; close,
+empty query and authority changes release it. This trades bounded, session-local
+plain-text memory for avoiding repeated JSON parsing. Active searches still scan
+current text and render all matching groups. This batch does not introduce FTS,
+result virtualization or an application-wide body cache.
+
+Node body search retains the pre-existing persisted `contentJson` cache semantics:
+SQLite/Yjs remain the authority for editing, and an unsaved live Yjs change is not
+promised to appear in this search. Literal LIKE escaping, entity/field order,
+case-insensitive matches, 30 occurrences per entity, excerpts, malformed JSON
+fallback, drift nodes and keyboard navigation remain covered.
+
+Reproduce the generated evidence with:
+
+```bash
+node scripts/run-global-search-acceptance.mjs --baseline=bd1a47a9
+node scripts/run-global-search-acceptance.mjs --check
+pnpm exec vitest run src/renderer/components/search src/renderer/architecture/global-search.acceptance.test.ts
+```
+
+`acceptance/f2-global-search.json` records the same instrumented production React
+modal scenario at 100/1,000/5,000 elements on the baseline and current source.
+The browser uses the actual modal, Zustand publications, input events and
+navigation with a synthetic asynchronous database port. Fourteen model and real
+SQLite integration tests separately verify parsing, cache invalidation, project
+and trash boundaries, and literal `%`, `_`, backslash and SQL-like input. The
+counter instrumentation exists only in the acceptance build. Contract mutation
+tests reject missing checks, background work, stale results, substituted baseline
+measurements and unsupported native claims.
+
+Measured at 5,000 elements (the 100/1,000 profiles follow the same counts):
+
+| Operation | Baseline | Current |
+| --- | ---: | ---: |
+| Ten data updates after close: DB reads / body parses | 10 / 50,000 | 0 / 0 |
+| Two new queries over unchanged bodies: JSON parses | 10,000 | 0 |
+| Rename one element: JSON parses | 5,000 | 0 |
+| Change one element body: JSON parses | 5,000 | 1 |
+| Late rejected query after close: JSON parses | 5,000 | 0 |
+| Reopen or change committed generation: JSON parses | 5,000 | 5,000 |
+
+All 15 current browser behavior checks passed at each scale. The baseline exposes
+stale selectable generation results and retains a query across project A → B → A;
+the current scenario rejects both. These are deterministic work counts, not wall
+clock speedup measurements.
+
+The standalone search scenario is not a full ProjectRuntimeProvider, native
+WebKit, physical keyboard/IME or fixed-device timing acceptance. F2 stays in
+progress; full-app and device criteria retain their existing partial status.
+
+Batch verification: all six repository checks passed; the full suite passed
+2,704 tests with one existing skip across 412 files. Lint reported zero errors
+and 30 existing warnings in the isolated checkout. The ordinary renderer
+production build produced 32 JavaScript assets with search acceptance counters
+and fixtures excluded. `acceptance/f2-global-search-browser.json` also passed the
+existing deterministic renderer contracts on this source tree. Both reports
+retain the real pre-commit source metadata; they are not hand-relabelled after
+commit.
