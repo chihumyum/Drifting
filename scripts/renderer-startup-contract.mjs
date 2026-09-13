@@ -40,3 +40,29 @@ export function validateStartupReport(report) {
   assert.equal(report.acceptance.fixedM1Budget,'not-run'); assert.equal(report.acceptance.coldFilesystem,'not-controlled');
   assert.equal(report.acceptance.physicalIme,'not-run'); assert.equal(report.acceptance.signedRc,'not-run');
 }
+
+/** Failed attempts are diagnostic records, never samples or passing budgets. */
+export function validateStartupFailure(report) {
+  assert.equal(report.schemaVersion, 1); assert.equal(report.kind, 'renderer_native_startup_failure');
+  assert.equal(report.status, 'failed'); assert.equal(report.measurementStatus, 'incomplete'); assert.equal(report.shutdown, 'not-accepted');
+  assert.equal(report.summary, undefined); assert.equal(report.runs, undefined);
+  assert.match(report.source.fingerprint, /^[a-f0-9]{64}$/); assert.match(report.artifact.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(report.artifact.build, 'packaged-release-production-renderer'); assert.equal(report.artifact.signed, false);
+  assert.equal(report.fixture.reproducible, true); assert.equal(report.fixture.freshCopyPerLaunch, true);
+  assert(Number.isInteger(report.attemptIndex) && report.attemptIndex >= 0 && report.attemptIndex < startupRepetitions);
+  assert.equal(report.completedSamples, report.attemptIndex);
+  const failure = report.failure;
+  assert.equal(failure.status, 'failed'); assert.equal(typeof failure.message, 'string'); assert(failure.message.length > 0);
+  assert(Number.isFinite(failure.observedAtMs) && failure.observedAtMs >= 0);
+  assert.equal(typeof failure.focused, 'boolean'); assert(['visible', 'hidden'].includes(failure.visibility));
+  assert(failure.activeElement === null || /^[A-Z0-9-]+$/.test(failure.activeElement));
+  assert(Array.isArray(failure.failures) && Array.isArray(failure.marks));
+  if ('error' in failure.nativeWindow) assert.equal(typeof failure.nativeWindow.error, 'string');
+  else { assert.equal(typeof failure.nativeWindow.focused, 'boolean'); assert.equal(typeof failure.nativeWindow.visible, 'boolean'); }
+  assert(Array.isArray(failure.focusTransitions) && failure.focusTransitions.length <= 32);
+  for (const transition of failure.focusTransitions) {
+    assert(['focus', 'blur', 'visibilitychange'].includes(transition.event));
+    assert(Number.isFinite(transition.atMs) && transition.atMs >= 0); assert.equal(typeof transition.focused, 'boolean');
+    assert(['visible', 'hidden'].includes(transition.visibility));
+  }
+}

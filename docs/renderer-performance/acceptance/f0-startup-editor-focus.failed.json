@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_native_startup_failure",
+  "status": "failed",
+  "generatedAt": "2026-09-13T16:26:23.738Z",
+  "source": {
+    "commit": "0c4644a33a7f5854ea054373ff1a4a6a8e12991a",
+    "fingerprint": "de7bdc3dc2f9fd3147e6d51a8a58acf15952bd143b439669cff88ab877bafb60",
+    "trackedProductChanges": true
+  },
+  "artifact": {
+    "bundleName": "Drifting Startup 184ea7e08e95.app",
+    "identifier": "cc.drifting.client.startup.r184ea7e08e95",
+    "version": "0.1.0-alpha.1",
+    "sha256": "87f690d79fd5cc82560aaf781e2f246779c75237a561d1f8b2240b4e6420dc2f",
+    "modifiedAt": "2026-09-13T16:25:39.793Z",
+    "build": "packaged-release-production-renderer",
+    "signed": false
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "fixture": {
+    "specification": {
+      "version": 1,
+      "seed": "renderer-native-startup-v1",
+      "firstEditorCharacters": 50000,
+      "projects": [
+        {
+          "id": "native-control-a",
+          "chapters": 50,
+          "elements": 100,
+          "relations": 500,
+          "characters": 5000
+        },
+        {
+          "id": "native-control-b",
+          "chapters": 3,
+          "elements": 3,
+          "relations": 0,
+          "characters": 5000
+        }
+      ]
+    },
+    "semanticSha256": "f26f43dc3ac517ca0069e0f3b3fe765214eeed41868db4caedcdce1904e6e535",
+    "reproducible": true,
+    "freshCopyPerLaunch": true
+  },
+  "attemptIndex": 1,
+  "completedSamples": 1,
+  "measurementStatus": "incomplete",
+  "shutdown": "not-accepted",
+  "failure": {
+    "status": "failed",
+    "message": "Error: Chapter did not retain native focus",
+    "marks": [
+      {
+        "name": "bootstrap-start",
+        "atMs": 187
+      },
+      {
+        "name": "metadata-ready",
+        "atMs": 217
+      },
+      {
+        "name": "react-mount-requested",
+        "atMs": 217
+      },
+      {
+        "name": "projection-capture-start",
+        "atMs": 580
+      },
+      {
+        "name": "projection-capture-ready",
+        "atMs": 594
+      }
+    ],
+    "failures": [],
+    "observedAtMs": 1296,
+    "focused": false,
+    "visibility": "visible",
+    "activeElement": "DIV",
+    "nativeWindow": {
+      "focused": false,
+      "visible": true
+    },
+    "focusTransitions": [
+      {
+        "event": "focus",
+        "atMs": 1013.0000000000001,
+        "focused": true,
+        "visibility": "visible",
+        "activeElement": "DIV"
+      },
+      {
+        "event": "blur",
+        "atMs": 1050,
+        "focused": true,
+        "visibility": "visible",
+        "activeElement": "BODY"
+      },
+      {
+        "event": "blur",
+        "atMs": 1173,
+        "focused": false,
+        "visibility": "visible",
+        "activeElement": "BODY"
+      },
+      {
+        "event": "focus",
+        "atMs": 1285,
+        "focused": false,
+        "visibility": "visible",
+        "activeElement": "DIV"
+      }
+    ]
+  }
+}

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "implementation_plan",
   "maintainedBy": "human",
-  "updatedAt": "2026-09-13",
+  "updatedAt": "2026-09-14",
   "document": "docs/renderer-performance/optimization-plan.md",
   "reviewBaselineCommit": "8106f90b5ab898f51d296f6c2fb838e13dd74c2c",
   "planStatus": "recorded",
@@ -44,7 +44,9 @@
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
-            "docs/renderer-performance/acceptance/f0-native-startup.json"
+            "docs/renderer-performance/acceptance/f0-native-startup.json",
+            "docs/renderer-performance/acceptance/f0-startup-focus.failed.json",
+            "docs/renderer-performance/acceptance/f0-startup-editor-focus.failed.json"
           ],
           "status": "partial"
         },
@@ -66,7 +68,9 @@
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
-            "docs/renderer-performance/acceptance/f0-native-startup.json"
+            "docs/renderer-performance/acceptance/f0-native-startup.json",
+            "docs/renderer-performance/acceptance/f0-startup-focus.failed.json",
+            "docs/renderer-performance/acceptance/f0-startup-editor-focus.failed.json"
           ],
           "status": "partial"
         }

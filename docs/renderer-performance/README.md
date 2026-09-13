@@ -3688,3 +3688,29 @@ All six required repository checks passed on the final source, together with
 skip across 419 files; lint has zero errors and 30 existing warnings. The normal
 production build contains 42 JS assets and no startup probe markers. The
 ordinary browser report remains historical and was not relabelled as new timing.
+
+
+## F0 — Failed startup records and headless execution scope
+
+[Startup failure diagnostics](startup-failure-diagnostics.md) retain two actual
+unsigned Release failures as separate generated records. Bounded document and
+native-window observations help distinguish an incomplete run from a passing
+six-process baseline. No partial percentile, normal-shutdown acceptance or
+product focus fix is claimed. The operator confirmed using or switching windows
+during the test period, so these captures do not establish a product defect.
+
+The operator has now limited autonomous optimization to headless checks. Native
+window/focus runs are suspended for this task; the proposed interactive launch
+gate was removed before delivery. Continue independent architecture work using
+unit/integration tests, isolated SQLite/Yjs recovery, headless browser acceptance
+and production builds. Native input, physical devices and their budgets remain
+open without blocking work that can be verified headlessly.
+
+Both historical failure records pass their diagnostic validator. Ten new
+contract checks cover incomplete series, failure/shutdown claims, required
+observations and bounded traces. All six required repository checks and the
+architecture command passed: 2,789 tests passed, one existing test skipped
+across 420 files. Lint has zero errors and 30 existing warnings. The ordinary
+production build contains 42 JavaScript assets and no startup diagnostic probe.
+The historical passing baseline is unchanged; this batch adds no new native
+passing result and changes no product startup or production capability behavior.

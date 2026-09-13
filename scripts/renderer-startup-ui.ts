@@ -10,6 +10,14 @@ declare const __DRIFTING_STARTUP_CONFIG__: { endpoint: string; token: string; pr
 const config = __DRIFTING_STARTUP_CONFIG__;
 const marks: Array<{ name: string; atMs: number }> = [];
 const failures: string[] = [];
+const focusTransitions: Array<{ event: string; atMs: number; focused: boolean; visibility: DocumentVisibilityState; activeElement: string | null }> = [];
+const focusState = () => ({ focused: document.hasFocus(), visibility: document.visibilityState, activeElement: document.activeElement?.tagName ?? null });
+for (const event of ['focus', 'blur', 'visibilitychange']) {
+  window.addEventListener(event, () => {
+    focusTransitions.push({ event, atMs: performance.now(), ...focusState() });
+    if (focusTransitions.length > 32) focusTransitions.shift();
+  }, true);
+}
 Object.assign(globalThis, { __DRIFTING_STARTUP_MARK__: (name: string) => marks.push({ name, atMs: performance.now() }) });
 window.addEventListener('error', e => failures.push(String(e.message).slice(0, 200)));
 window.addEventListener('unhandledrejection', e => failures.push(String(e.reason).slice(0, 200)));
@@ -64,4 +72,14 @@ async function run() {
   await post({ status: 'passed', timeOrigin: performance.timeOrigin, shelfReadyMs, projectRequestedMs, projectReadyMs, editorTrials, marks,
     browser: navigator.userAgent, focused: document.hasFocus(), visible: document.visibilityState === 'visible', failures });
 }
-void run().catch(error => post({ status: 'failed', message: String(error), marks, failures }).catch(() => undefined));
+void run().catch(async error => {
+  const observed = { observedAtMs: performance.now(), ...focusState() };
+  let nativeWindow: { focused: boolean; visible: boolean } | { error: string };
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const window = getCurrentWindow();
+    const [focused, visible] = await Promise.all([window.isFocused(), window.isVisible()]);
+    nativeWindow = { focused, visible };
+  } catch (nativeError) { nativeWindow = { error: String(nativeError).slice(0, 200) }; }
+  await post({ status: 'failed', message: String(error), marks, failures, ...observed, nativeWindow, focusTransitions });
+}).catch(() => undefined);

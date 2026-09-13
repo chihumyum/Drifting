@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_native_startup_failure",
+  "status": "failed",
+  "generatedAt": "2026-09-13T16:31:29.497Z",
+  "source": {
+    "commit": "0c4644a33a7f5854ea054373ff1a4a6a8e12991a",
+    "fingerprint": "de7bdc3dc2f9fd3147e6d51a8a58acf15952bd143b439669cff88ab877bafb60",
+    "trackedProductChanges": true
+  },
+  "artifact": {
+    "bundleName": "Drifting Startup 5ae3f0eb530b.app",
+    "identifier": "cc.drifting.client.startup.r5ae3f0eb530b",
+    "version": "0.1.0-alpha.1",
+    "sha256": "5fff9f3892426e3bb401a51c6ef0a75050fd5ebc47a93ad9ab74943c191cafb8",
+    "modifiedAt": "2026-09-13T16:31:25.870Z",
+    "build": "packaged-release-production-renderer",
+    "signed": false
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "fixture": {
+    "specification": {
+      "version": 1,
+      "seed": "renderer-native-startup-v1",
+      "firstEditorCharacters": 50000,
+      "projects": [
+        {
+          "id": "native-control-a",
+          "chapters": 50,
+          "elements": 100,
+          "relations": 500,
+          "characters": 5000
+        },
+        {
+          "id": "native-control-b",
+          "chapters": 3,
+          "elements": 3,
+          "relations": 0,
+          "characters": 5000
+        }
+      ]
+    },
+    "semanticSha256": "f26f43dc3ac517ca0069e0f3b3fe765214eeed41868db4caedcdce1904e6e535",
+    "reproducible": true,
+    "freshCopyPerLaunch": true
+  },
+  "attemptIndex": 0,
+  "completedSamples": 0,
+  "measurementStatus": "incomplete",
+  "shutdown": "not-accepted",
+  "failure": {
+    "status": "failed",
+    "message": "Error: OS launch did not foreground the application",
+    "marks": [
+      {
+        "name": "bootstrap-start",
+        "atMs": 189
+      },
+      {
+        "name": "metadata-ready",
+        "atMs": 218
+      },
+      {
+        "name": "react-mount-requested",
+        "atMs": 218
+      }
+    ],
+    "failures": [],
+    "observedAtMs": 579,
+    "focused": false,
+    "visibility": "visible",
+    "activeElement": "BODY",
+    "nativeWindow": {
+      "focused": false,
+      "visible": true
+    },
+    "focusTransitions": []
+  }
+}

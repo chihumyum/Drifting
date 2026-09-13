@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { startupRepetitions, summarizeStartupRuns, validateStartupReport } from './renderer-startup-contract.mjs';
+import { startupRepetitions, summarizeStartupRuns, validateStartupReport, validateStartupFailure } from './renderer-startup-contract.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sourcePaths = ['src', 'src-tauri', 'drizzle', 'packages', 'patches', 'vite-plugins', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'index.html', 'tailwind.config.js', 'postcss.config.js'];
 const harnessFiles = ['scripts/run-renderer-startup.mjs', 'scripts/renderer-startup-ui.ts', 'scripts/renderer-startup-contract.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts'];
@@ -15,6 +15,12 @@ const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const fingerprint = () => hash([...new Set([...git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean), ...harnessFiles])].sort().map(file => `${file}\0${hash(readFileSync(path.join(root,file)))}`).join('\n'));
 const output = path.resolve(root,process.argv.find(arg=>arg.startsWith('--report='))?.slice(9) ?? 'docs/renderer-performance/acceptance/f0-native-startup.json');
+const failureOutput = path.join(path.dirname(output), `${path.parse(output).name}.failed.json`);
+if(process.argv.includes('--check-failure')) {
+  const report=JSON.parse(readFileSync(failureOutput,'utf8'));validateStartupFailure(report);
+  if(!process.argv.includes('--historical')) assert.equal(report.source.fingerprint,fingerprint(),'Failed attempt source or collector changed.');
+  console.log(process.argv.includes('--historical') ? 'Historical failed startup record validates; current source was not asserted.' : 'Failed startup attempt matches current source; it is not passing startup evidence.');process.exit(0);
+}
 if(process.argv.includes('--check')) {
   const report=JSON.parse(readFileSync(output,'utf8'));validateStartupReport(report);
   assert.equal(report.source.fingerprint,fingerprint(),'Native startup source or collector changed.');
@@ -58,6 +64,11 @@ try {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const endpoint=`http://127.0.0.1:${server.address().port}/report`;
   const secureFile=path.join(source,'src-tauri/src/secure_storage.rs');const secure=readFileSync(secureFile,'utf8');const anchor='const KEYCHAIN_SERVICE: &str = "Drifting";';
   assert.equal(secure.split(anchor).length,2);writeFileSync(secureFile,secure.replace(anchor,`const KEYCHAIN_SERVICE: &str = "Drifting.Startup.${runId}";`));
+  // Read-only diagnostics belong to this isolated acceptance build only.
+  const capabilityFile=path.join(source,'src-tauri/capabilities/desktop.json');
+  const capability=JSON.parse(readFileSync(capabilityFile,'utf8'));
+  capability.permissions.push('core:window:allow-is-focused','core:window:allow-is-visible');
+  writeFileSync(capabilityFile,JSON.stringify(capability));
   const base=JSON.parse(readFileSync(path.join(source,'src-tauri/tauri.conf.json'),'utf8'));
   writeFileSync(path.join(source,'src-tauri/tauri.startup.conf.json'),JSON.stringify({productName,identifier,
     build:{beforeBuildCommand:'pnpm exec vite build --config vite.renderer-startup.config.ts'},
@@ -107,7 +118,18 @@ export default env => mergeConfig(base(env), {
       nativePid ??= Number(nativeProcesses().find(row=>row[2]===binary)?.[1])||null;
       assert.equal(launcher.exitCode,null,'Launcher ended before startup report');await delay(50);
     }
-    assert(result,'No startup report; inspect owned native logs.');assert.equal(result.status,'passed',JSON.stringify(result));assert(nativePid,'Native process identity was not observed');
+    assert(result,'No startup report; inspect owned native logs.');
+    if(result.status!=='passed') {
+      const failed={schemaVersion:1,kind:'renderer_native_startup_failure',status:'failed',generatedAt:new Date().toISOString(),
+        source:{commit,fingerprint:sourceFingerprint,trackedProductChanges:patch.length>0},artifact,
+        environment:{platform:os.platform(),architecture:os.arch(),osRelease:os.release(),cpu:os.cpus()[0].model,totalMemoryBytes:os.totalmem()},
+        fixture:{specification:fixture.specification,semanticSha256:fixture.semanticSha256,reproducible:true,freshCopyPerLaunch:true},
+        attemptIndex:index,completedSamples:runs.length,measurementStatus:'incomplete',shutdown:'not-accepted',failure:result};
+      validateStartupFailure(failed);assert.equal(fingerprint(),sourceFingerprint);
+      writeFileSync(failureOutput,JSON.stringify(failed,null,2)+'\n');
+      console.error(`Failed startup report (not passing evidence): ${failureOutput}`);
+    }
+    assert.equal(result.status,'passed',JSON.stringify(result));assert(nativePid,'Native process identity was not observed');
     const getMark=name=>{const found=result.marks.filter(m=>m.name===name);assert.equal(found.length,1,name);return found[0].atMs;};
     const metrics={launchToShelfMs:result.timeOrigin+result.shelfReadyMs-launchRequestedAt,projectOpenMs:result.projectReadyMs-result.projectRequestedMs,
       first50kOpenMs:result.editorTrials[0].readyMs-result.editorTrials[0].requestedMs,small5kOpenMs:result.editorTrials[1].readyMs-result.editorTrials[1].requestedMs,

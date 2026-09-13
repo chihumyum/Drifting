@@ -1,5 +1,10 @@
 # Native startup and first chapter baseline
 
+Current execution scope (2026-09-14): autonomous work uses headless checks only.
+Do not launch this attended collector as part of the ongoing optimization task.
+Native window, physical input and device gates remain unaccepted until separately
+requested. Existing records describe historical runs.
+
 This collector builds a new unsigned **Release** Tauri app with the production
 Vite renderer, then launches it six times through macOS LaunchServices. It uses
 the complete application, SQLite IPC, workspace capture, tab navigation,
@@ -116,3 +121,12 @@ Validation for this baseline: all six repository checks and the separate
 architecture command passed; 2,762 full-suite tests passed with one existing skip.
 The ordinary production build has 42 JS assets and excludes all startup collector
 marks/configuration. No application behavior or published migration changed.
+
+## Failed attempts
+
+Renderer-reported failures now produce a separate `*.failed.json` with native
+and document focus/visibility observations. `--check-failure` checks that record
+without treating it as passing measurement or normal-shutdown evidence. The
+accepted six-run schema and ready conditions remain unchanged. See
+[startup failure diagnostics](startup-failure-diagnostics.md) for the captured
+failures, isolated read permissions and interpretation limits.
