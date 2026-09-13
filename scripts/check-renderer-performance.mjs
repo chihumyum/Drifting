@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -225,6 +225,19 @@ if (report.agentBackground) {
     assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
       originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
+  }
+}
+if (report.superElementCards) {
+  const baseline = read(path.join(directory, 'f5-cards-baseline.json')).superElementCards;
+  assert.deepEqual(report.superElementCards.measurements.map(item => item.elements), [100, 1000, 5000]);
+  for (const [index, item] of report.superElementCards.measurements.entries()) {
+    assert.equal(item.fixtureHash, baseline.measurements[index].fixtureHash);
+    assert.equal(item.categories, 8); assert.equal(item.chapters, 20); assert.equal(item.focusToggles, 20); assert.equal(item.wheelEvents, 100);
+    assert(Number.isFinite(item.focusMs) && item.focusMs >= 0);
+    assert.deepEqual(item.focusWork, { categories: 0, elements: 0, bands: 0 }, 'Focus mode rerendered the stable card tree.');
+    assert.deepEqual(item.wheelWork, { categories: 0, elements: 0, bands: 0 }, 'Wheel commit rerendered the stable card tree.');
+    assert.deepEqual(item.checks, { allCardsRetained: true, focusModeReturned: true, shiftSelectsSource: true, shiftClearsSource: true,
+      elementPairUsesLatestSource: true, chapterPairUsesLatestSource: true, renameUpdatesCard: true, categoryNavigation: true });
   }
 }
 if (report.agentJournal) {

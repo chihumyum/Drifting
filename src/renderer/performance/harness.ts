@@ -1,5 +1,6 @@
 import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
 import { runAgentBackgroundScenarios } from './agent-background-scenarios';
+import { runSuperElementCardScenarios } from './super-element-card-scenarios';
 import { runAgentRecoveryScenarios } from './agent-recovery-scenarios';
 import { runAgentJournalScenarios } from './agent-journal-scenarios';
 import { runEditorSuggestionScenarios } from './editor-suggestion-scenarios';
@@ -132,6 +133,7 @@ async function run() {
     agentHistory: await runAgentHistoryScenarios(),
     mobileAgentPanel: await runMobileAgentPanelScenarios(),
     graphProjection: await runGraphProjectionScenarios(),
+    superElementCards: await runSuperElementCardScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),
     timeline: await runTimelineScenarios(),

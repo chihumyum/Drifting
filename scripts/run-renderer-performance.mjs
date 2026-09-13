@@ -8,6 +8,7 @@ import CDP from 'chrome-remote-interface';
 import { build, preview } from 'vite';
 import react from '@vitejs/plugin-react';
 import { rendererFingerprintVersion, rendererSourceFingerprint } from './renderer-performance-source.mjs';
+import { deferredEntryPlugin } from '../vite-plugins/deferred-entry.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
@@ -37,6 +38,16 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/SuperElementCategoryBox.tsx') || id.endsWith('/SuperElementChapterBand.tsx')) {
+          const anchors = id.endsWith('/SuperElementCategoryBox.tsx')
+            ? [['}: CategoryBoxProps) {', 'categories'], ['const isLinkSource = linkSourceElementId === element.id;', 'elements']]
+            : [['}: ChapterBandProps) {', 'bands']];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Super Element card instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, anchor + ` superElementCardWork.${counter}++;`);
+          }
+          return { code: `import { superElementCardWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/runtime/recovery.ts') || id.endsWith('/runtime/recovered-transcript.ts')) {
           const replacements = id.endsWith('/runtime/recovery.ts') ? [
             ['const turnRows = messagesByTurn.get(row.turnId) ?? [];', 'agentRecoveryWork.groupedMessageVisits++; const turnRows = messagesByTurn.get(row.turnId) ?? [];'],
@@ -114,7 +125,11 @@ try {
         }
         return { code, map: null };
       },
-    }, react()],
+    }, react(), ...[
+      ['virtual:graph-ui', 'src/renderer/features/graph/graph-ui-components.ts', 'graph-ui', 'loadGraphUi'],
+      ['virtual:story-graph', 'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx', 'story-graph', 'loadStoryGraph'],
+      ['virtual:element-graph', 'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx', 'element-graph', 'loadElementGraph'],
+    ].map(([id, entry, name, exportName]) => deferredEntryPlugin({ id, entry, name, exportName, attemptParam: 'graph-attempt' }))],
     resolve: { alias: { '@': path.join(root, 'src') } },
     build: { outDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-performance.html') } },
   });

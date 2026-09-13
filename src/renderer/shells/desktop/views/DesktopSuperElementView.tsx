@@ -1,3 +1,12 @@
+import {
+  CELL_W, CELL_H, BAND_PILL_PX, BAND_SLOT_PX,
+  GROUP_HEADER_PX, CATEGORY_INNER_PAD_Y_TOP, CATEGORY_INNER_PAD_Y_BOTTOM, CATEGORY_GAP_X,
+  cardColStep, ZOOM_MIN, ZOOM_MAX, BAND_PAD_CELLS,
+  BAND_PAD_PX, BAND_OUTER_PAD_PX, BAND_OUTER_RESERVE_CELLS, STICKY_PAD_CELLS_X,
+  STICKY_PAD_CELLS_Y, EDGE_SELECTED_WIDTH, EDGE_DEFAULT_WIDTH, EDGE_HIT_WIDTH,
+} from '../../../features/graph/super-element-metrics';
+import { SuperElementChapterBand, type ChapterBandProps } from '../../../features/graph/SuperElementChapterBand';
+import { SuperElementCategoryBox, type CategoryBoxProps } from '../../../features/graph/SuperElementCategoryBox';
 import { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
@@ -12,7 +21,6 @@ import { actBoundDriftIds } from '../../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
 import type { BookNode } from '../../../domain/book-node';
 import { isChapter, isDrift } from '../../../domain/book-node';
-import type { Storyline } from '../../../domain/storyline';
 import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { findById } from '../../../lib/immutable-id-index';
@@ -51,83 +59,6 @@ import {
 } from '../../../features/graph/super-view-canvas-gesture';
 import { getPlatformRuntime } from '../../../platform/runtime';
 
-// Visual cell dimensions for CATEGORY world. Each element card occupies one
-// cell. Categories expand by adding cells along whichever axis the
-// group/element layout demands. Taller cells make the canvas taller; wider
-// cells make horizontal scrolling more frequent.
-const CELL_W = 96;
-const CELL_H = 56;
-
-// Chapter band geometry, decoupled from category cells. Pills are FIXED
-// width (so a chapter title can read at any zoom); slot pitch controls
-// how compact the overall band is — narrower slot = shorter timeline.
-// Adjust BAND_SLOT_PX to compress / stretch the band without changing
-// pill size.
-const BAND_PILL_PX = 110;
-const BAND_SLOT_PX = 120;
-
-// Group-header strip rendered between groups inside a category box. Pixels,
-// NOT cells — so headers don't gobble a full card row when the category
-// only has 1–2 groups. Only rendered when a category has 2+ named groups
-// (a single group's label is redundant with the category legend on top).
-const GROUP_HEADER_PX = 16;
-
-// Inner Y padding around the card grid inside a category box. Top padding
-// leaves room for the legend-straddles-border treatment to clear the first
-// card; bottom padding mirrors it for symmetry. Horizontal symmetry is
-// handled directly by the card's own +3/-6 inset against its colStep, so
-// no CATEGORY_INNER_PAD_X is needed (the previous 3px left-only bias was
-// the reason last-column cards covered the right border).
-const CATEGORY_INNER_PAD_Y_TOP = 8;
-const CATEGORY_INNER_PAD_Y_BOTTOM = 4;
-
-// Visible horizontal gap between two adjacent category boxes. Each box
-// renders inset by CATEGORY_GAP_X / 2 on its left and right edges; the
-// solver still reserves widthCells whole cells per box, so the layout
-// math stays integer-grid. Card cells inside compress slightly (colStep
-// below) so the last column doesn't overflow the visible right border.
-const CATEGORY_GAP_X = CELL_W / 8;
-
-/** Per-column horizontal pitch for cards inside a category box. The box's
- *  visible width is widthCells*CELL_W - CATEGORY_GAP_X; distributing that
- *  across widthCells columns keeps the first and last cards' inset against
- *  the box border symmetric (3px each side). */
-function cardColStep(widthCells: number): number {
-  return (widthCells * CELL_W - CATEGORY_GAP_X) / widthCells;
-}
-
-// Zoom range; matches the BottomTimeline expanded-scale ergonomics.
-const ZOOM_MIN = 0.4;
-const ZOOM_MAX = 2.0;
-
-// Inner padding inside the chapter band — kept small so storyline rows
-// hug the band's top/bottom borders. The pills themselves carry a 3px
-// inset against their lane edges (see pill `top = row + 3, height = CELL_H - 6`),
-// which is enough breathing room without reserving a half-cell of empty
-// band background. The outer gap to the nearest category strip is
-// controlled separately by BAND_OUTER_PAD_PX / BAND_OUTER_RESERVE_CELLS.
-const BAND_PAD_CELLS = 0.25;
-const BAND_PAD_PX = (BAND_PAD_CELLS * CELL_H) / 2;
-
-// Outer gap between the band and the nearest category strip — the band's
-// visible top/bottom edges sit BAND_OUTER_PAD_PX inside the cell area the
-// solver reserves. Result: ~28px of empty space above and below the band.
-// Solver-side, we reserve an extra full cell of band-area; visually the
-// band content offsets down by half a cell so the gap splits symmetrically.
-const BAND_OUTER_PAD_PX = CELL_H / 2;
-const BAND_OUTER_RESERVE_CELLS = 1;
-
-// Breathing space around sticky-mode pan clamps. The bounds let the user
-// scroll a few element-cards' worth past the band's x range and the
-// category skyline's y extent — keeps the layout from feeling like it's
-// caged against the viewport edges. Values are in cell units; they get
-// multiplied by zoom at clamp time.
-const STICKY_PAD_CELLS_X = 3;
-const STICKY_PAD_CELLS_Y = 3;
-
-const EDGE_SELECTED_WIDTH = 2.4;
-const EDGE_DEFAULT_WIDTH = 1.6;
-const EDGE_HIT_WIDTH = 10;
 // localStorage key for the viewport (pan + zoom) per project. Restoring on
 // re-entry preserves the user's mental map — they don't have to re-pan to
 // the iceberg every time they pop the view.
@@ -147,662 +78,6 @@ function buildCategoryRenderModel(
     paddingTop: CATEGORY_INNER_PAD_Y_TOP,
     paddingBottom: CATEGORY_INNER_PAD_Y_BOTTOM,
   });
-}
-
-/**
- * Read-only storyline band rendered in the middle of the canvas. Lifted from
- * BottomTimeline's mental model but pared down: no drag, no click-to-open,
- * no narrative-axis pins. Only the cross-storyline dashed transit + node
- * pills with hover summary, per design decision 1.
- *
- * The band's height in cells is `storylines.length + 1`: one row per
- * storyline plus a thin top axis. Drift nodes are not shown here — they
- * surface via the optional drift panel.
- */
-interface ChapterBandProps {
-  storylines: Storyline[];
-  nodes: BookNode[];
-  nodeStorylineMapping: Record<string, string[]>;
-  /** Map from nodeId to its primary storyline id (null = "未归属"). */
-  primaryStorylineByNode: Record<string, string | null>;
-  /** Cell-coordinate origin: gridX=0, gridY=0 corresponds to band top-left. */
-  bandWidthCells: number;
-  bandHeightCells: number;
-  onNodeClick: (node: BookNode, anchor: DOMRect, opts: { shiftKey: boolean }) => void;
-  linkSourceNodeId?: string | null;
-}
-
-function ChapterBand({
-  storylines,
-  nodes,
-  nodeStorylineMapping,
-  primaryStorylineByNode,
-  bandWidthCells,
-  bandHeightCells,
-  onNodeClick,
-  linkSourceNodeId,
-}: ChapterBandProps) {
-  const { t } = useTranslation();
-  const placedNodes = useMemo(() => nodes.filter(isChapter), [nodes]);
-
-  const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
-  const rowIndexByStoryline = useMemo(() => {
-    const m = new Map<string, number>();
-    storylines.forEach((s, i) => m.set(s.id, i));
-    return m;
-  }, [storylines]);
-
-  // Position chapters by their SEQUENTIAL INDEX in book order — packs them
-  // tight regardless of gaps in bookOrder values, so the band length
-  // scales with chapter count rather than the raw bookOrder range. Pills
-  // themselves are fixed-width (BAND_PILL_PX) so they stay readable at
-  // any density.
-  const sortedPlacedNodes = useMemo(
-    () => placedNodes.slice().sort((a, b) => a.bookOrder - b.bookOrder),
-    [placedNodes],
-  );
-  const slotIndexByNodeId = useMemo(() => {
-    const m = new Map<string, number>();
-    sortedPlacedNodes.forEach((n, i) => m.set(n.id, i));
-    return m;
-  }, [sortedPlacedNodes]);
-
-  // Cross-storyline transit lines: a node that belongs to multiple
-  // storylines surfaces a dashed connector from the previous to next node
-  // on each non-main storyline lane. Coordinates use the slot index above.
-  const sortedByStoryline = useMemo(() => {
-    const m = new Map<string, BookNode[]>();
-    storylines.forEach((s) => m.set(s.id, []));
-    sortedPlacedNodes.forEach((n) => {
-      const ids = nodeStorylineMapping[n.id] || [];
-      ids.forEach((sId) => {
-        const arr = m.get(sId);
-        if (arr) arr.push(n);
-      });
-    });
-    return m;
-  }, [storylines, sortedPlacedNodes, nodeStorylineMapping]);
-
-  const slotCenterX = (idx: number): number => idx * BAND_SLOT_PX + BAND_PILL_PX / 2;
-
-  const transits = useMemo(() => {
-    type Transit = { key: string; x1: number; y1: number; x2: number; y2: number; color: string };
-    const out: Transit[] = [];
-    for (const sl of storylines) {
-      const lane = sortedByStoryline.get(sl.id) ?? [];
-      for (let i = 0; i < lane.length - 1; i++) {
-        const a = lane[i];
-        const b = lane[i + 1];
-        const primaryA = primaryStorylineByNode[a.id] ?? null;
-        const primaryB = primaryStorylineByNode[b.id] ?? null;
-        if (primaryA === sl.id && primaryB === sl.id) continue;
-        const rowA = rowIndexByStoryline.get(primaryA ?? '');
-        const rowB = rowIndexByStoryline.get(primaryB ?? '');
-        const idxA = slotIndexByNodeId.get(a.id);
-        const idxB = slotIndexByNodeId.get(b.id);
-        if (rowA === undefined || rowB === undefined) continue;
-        if (idxA === undefined || idxB === undefined) continue;
-        out.push({
-          key: `${sl.id}:${a.id}->${b.id}`,
-          x1: slotCenterX(idxA),
-          y1: BAND_PAD_PX + rowA * CELL_H + CELL_H / 2,
-          x2: slotCenterX(idxB),
-          y2: BAND_PAD_PX + rowB * CELL_H + CELL_H / 2,
-          color: sl.color || 'hsl(var(--ink-4))',
-        });
-      }
-    }
-    return out;
-  }, [
-    storylines,
-    sortedByStoryline,
-    rowIndexByStoryline,
-    slotIndexByNodeId,
-    primaryStorylineByNode,
-  ]);
-
-  // Band fits exactly N slots wide. Caller passes bandWidthCells purely for
-  // the empty/legend states; the actual pixel width is derived from the
-  // slot count.
-  const bandPxWidth =
-    sortedPlacedNodes.length > 0
-      ? sortedPlacedNodes.length * BAND_SLOT_PX
-      : bandWidthCells * BAND_SLOT_PX;
-  const bandPxHeight = bandHeightCells * CELL_H;
-
-  if (storylines.length === 0) {
-    return (
-      <div
-        style={{
-          width: bandPxWidth,
-          height: bandPxHeight,
-          background: 'hsl(var(--paper-deep))',
-          border: '1px dashed hsl(var(--rule))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'hsl(var(--ink-4))',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-        }}
-      >
-        {t('superElement.empty.noStorylines')}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: bandPxWidth,
-        height: bandPxHeight,
-        background: 'hsl(var(--paper-deep) / 0.65)',
-        borderTop: '1px solid hsl(var(--rule))',
-        borderBottom: '1px solid hsl(var(--rule))',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Storyline lane backgrounds (thin tint behind each row). The band
-          no longer carries an axis row — the storyline labels alone suffice
-          for context, and dropping the axis tightens the iceberg's middle.
-          A small BAND_PAD_PX of empty top/bottom space keeps storyline rows
-          from touching the categories above/below the band. */}
-      {storylines.map((s, idx) => (
-        <div
-          key={`lane-${s.id}`}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: BAND_PAD_PX + idx * CELL_H,
-            width: bandPxWidth,
-            height: CELL_H,
-            borderTop: idx === 0 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
-            borderBottom:
-              idx === storylines.length - 1 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              color: 'hsl(var(--ink-3))',
-              letterSpacing: '0.08em',
-              maxWidth: 110,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 2,
-                background: s.color || 'hsl(var(--ink-4))',
-                flexShrink: 0,
-              }}
-            />
-            <span>{s.name || 'untitled'}</span>
-          </div>
-        </div>
-      ))}
-
-      {/* Cross-storyline transit dashed lines. */}
-      <svg
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-        }}
-      >
-        {transits.map((t) => (
-          <line
-            key={t.key}
-            x1={t.x1}
-            y1={t.y1}
-            x2={t.x2}
-            y2={t.y2}
-            stroke={t.color}
-            strokeWidth={1}
-            strokeDasharray="3 3"
-            opacity={0.55}
-          />
-        ))}
-      </svg>
-
-      {/* Node pills. Mirror StoryGraphView's tile pattern: title on top, summary
-          as a 2-line clamp underneath when present. Hover title attribute
-          stays as a fallback so the full text is still inspectable when the
-          clamp truncates. Shift-click marks the pill as a link source for
-          cross-band relations. */}
-      {sortedPlacedNodes.map((node, idx) => {
-        const primaryId = primaryStorylineByNode[node.id] ?? null;
-        const rowIdx = rowIndexByStoryline.get(primaryId ?? '');
-        if (rowIdx === undefined) return null;
-        const sl = primaryId ? storylineById.get(primaryId) : undefined;
-        const color = sl?.color || 'hsl(var(--ink-4))';
-        const x = idx * BAND_SLOT_PX;
-        // Pill mirrors element cards (CELL_H - 6 tall, 3px top inset). The
-        // vertical centre still lands on row centre so edge endpoints
-        // computed in the parent (CELL_H/2 offset) line up unchanged.
-        const y = BAND_PAD_PX + rowIdx * CELL_H + 3;
-        const isLinkSource = linkSourceNodeId === node.id;
-        return (
-          <div
-            key={node.id}
-            data-super-card="node"
-            data-node-id={node.id}
-            title={
-              node.summary
-                ? `${node.title || t('common.untitled')}\n\n${node.summary}`
-                : node.title || t('common.untitled')
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onNodeClick(node, rect, { shiftKey: e.shiftKey });
-            }}
-            style={{
-              position: 'absolute',
-              left: x,
-              top: y,
-              width: BAND_PILL_PX,
-              height: CELL_H - 6,
-              borderRadius: 3,
-              background: isLinkSource
-                ? 'hsl(var(--paper-deep))'
-                : `color-mix(in srgb, ${color} 6%, hsl(var(--paper)))`,
-              border: `1px solid ${color}`,
-              boxShadow: 'none',
-              outline: isLinkSource ? `2px dashed ${color}` : 'none',
-              outlineOffset: isLinkSource ? '1px' : 0,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: node.summary ? 'flex-start' : 'center',
-              gap: 2,
-              padding: '4px 7px',
-              overflow: 'hidden',
-              // Inherit viewport's grab cursor — plain click is a no-op
-              // (chapters are read-only), but the user can drag from here
-              // to pan the canvas. shift-click still pairs for linking.
-              cursor: 'inherit',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 11,
-                lineHeight: 1.15,
-                color: 'hsl(var(--ink-1))',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {node.title || t('common.untitled')}
-            </div>
-            {node.summary && (
-              <div
-                style={{
-                  fontSize: 9,
-                  lineHeight: 1.25,
-                  color: 'hsl(var(--ink-4))',
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  flex: 1,
-                }}
-              >
-                {node.summary}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Renders one category box at its assigned grid position. Internal layout
- * is computed in PIXELS (no dedicated header row): a fieldset-style legend
- * floats on the top border with the category name + count; named groups
- * get thin horizontal-rule strips between card rows; element cards fill
- * the rest of the surface so the box reads as "mostly cards".
- */
-interface CategoryBoxProps {
-  model: CategoryRenderModel;
-  placement: LayoutPlacement;
-  onElementClick: (element: BookElement, anchor: DOMRect, opts: { shiftKey: boolean }) => void;
-  onCategoryClick: (categoryId: string) => void;
-  /** Element id currently flagged as the link source (shift-click pending). */
-  linkSourceElementId?: string | null;
-  /** Element whose popover is open — anchor of the click-focus highlight. */
-  focusedElementId?: string | null;
-  /** Elements sharing an edge with the focused one — drawn highlighted. */
-  connectedElementIds?: ReadonlySet<string> | null;
-  /**
-   * Mutable map the parent owns so it can read element-card DOM rects for
-   * drift-edge geometry. Each card writes itself in on mount and removes
-   * itself on unmount.
-   */
-  elementCardRefs?: React.MutableRefObject<Map<string, HTMLDivElement>>;
-  // Per-card right-click. The parent owns the menu state so SuperElementView
-  // can render a single EntityCellContextMenu at the canvas root.
-  onElementContextMenu?: (
-    event: React.MouseEvent,
-    element: { id: string; categoryId: string | null; groupName: string | null; name: string },
-  ) => void;
-  onCategoryContextMenu?: (event: React.MouseEvent, categoryId: string) => void;
-}
-
-function CategoryBox({
-  model,
-  placement,
-  onElementClick,
-  onCategoryClick,
-  linkSourceElementId,
-  focusedElementId,
-  connectedElementIds,
-  elementCardRefs,
-  onElementContextMenu,
-  onCategoryContextMenu,
-}: CategoryBoxProps) {
-  const { t } = useTranslation();
-  const { category, groups, widthCells, heightCells, totalElements } = model;
-  const accent = category?.color ?? 'hsl(var(--ink-4))';
-  // Visible box width sheds CATEGORY_GAP_X so two adjacent categories
-  // sit with a small breathing gap between their borders. Cards inside
-  // are compressed onto colStep so the rightmost column still clears
-  // the box's right border by the same 3px the leftmost does.
-  const boxPxWidth = widthCells * CELL_W - CATEGORY_GAP_X;
-  const boxPxHeight = heightCells * CELL_H;
-  const colStep = cardColStep(widthCells);
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: placement.gridX * CELL_W + CATEGORY_GAP_X / 2,
-        top: placement.gridY * CELL_H,
-        width: boxPxWidth,
-        height: boxPxHeight,
-        background: 'hsl(var(--paper))',
-        // Border picks up the category accent so each box reads as a
-        // distinct "shelf" of that category's color at a glance.
-        border: `1.5px solid ${accent}`,
-        borderRadius: 3,
-        boxShadow: '0 1px 3px hsl(var(--ink-1) / 0.05)',
-      }}
-    >
-      {/* Legend straddling the top border — fieldset/legend pattern. The
-          paper background punches a hole through the border so the label
-          looks set into the frame. Cards inside are padded down so they
-          never collide with the legend's bottom edge. */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onCategoryClick(model.categoryId);
-        }}
-        onContextMenu={(e) => {
-          if (!onCategoryContextMenu) return;
-          e.preventDefault();
-          e.stopPropagation();
-          onCategoryContextMenu(e, model.categoryId);
-        }}
-        title={category?.name ?? model.categoryId}
-        style={{
-          position: 'absolute',
-          left: 10,
-          top: -9,
-          height: 14,
-          background: 'hsl(var(--paper))',
-          padding: '0 7px',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          border: 'none',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          textTransform: 'uppercase',
-          letterSpacing: '0.12em',
-          color: accent,
-          fontWeight: 600,
-          maxWidth: boxPxWidth - 20,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 1.5,
-            background: accent,
-            flexShrink: 0,
-          }}
-        />
-        <span
-          style={{
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: 'hsl(var(--ink-1))',
-          }}
-        >
-          {category?.name ?? t('common.untitled')}
-        </span>
-        <span style={{ color: 'hsl(var(--ink-4))', flexShrink: 0, fontWeight: 400 }}>
-          ·{totalElements}
-        </span>
-      </button>
-
-      {/* Group headers — thin strips between card rows. Skipped entirely
-          when a group has no name (ungrouped bucket). */}
-      {groups
-        .filter((g) => g.headerTopPx >= 0 && g.groupName !== null)
-        .map((g) => (
-          <div
-            key={`group-${g.groupName}`}
-            style={{
-              position: 'absolute',
-              left: 6,
-              top: g.headerTopPx,
-              width: boxPxWidth - 12,
-              height: GROUP_HEADER_PX,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              pointerEvents: 'none',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              color: 'hsl(var(--ink-4))',
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                width: 10,
-                height: 1,
-                background: 'hsl(var(--rule) / 0.6)',
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ flexShrink: 0 }}>{g.groupName}</span>
-            <span
-              aria-hidden
-              style={{
-                flex: 1,
-                height: 1,
-                background: 'hsl(var(--rule) / 0.6)',
-              }}
-            />
-          </div>
-        ))}
-
-      {/* Element cards — laid out group by group. */}
-      {groups.flatMap((g) =>
-        g.items.map((element, idx) => {
-          const col = idx % widthCells;
-          const rowOffset = Math.floor(idx / widthCells);
-          const left = col * colStep;
-          const top = g.cardRowsTopPx + rowOffset * CELL_H;
-          const width = colStep;
-          const height = CELL_H;
-          const isLinkSource = linkSourceElementId === element.id;
-          // Click-focus highlight: the popover's element + its edge
-          // neighbors share the hover treatment (accent border + deep bg),
-          // held while the popover is open.
-          const isFocusLit =
-            !isLinkSource &&
-            (focusedElementId === element.id || !!connectedElementIds?.has(element.id));
-          return (
-            <div
-              key={element.id}
-              data-super-card="element"
-              data-element-id={element.id}
-              ref={(node) => {
-                if (!elementCardRefs) return;
-                if (node) elementCardRefs.current.set(element.id, node);
-                else elementCardRefs.current.delete(element.id);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                onElementClick(element, rect, { shiftKey: e.shiftKey });
-              }}
-              onContextMenu={(e) => {
-                if (!onElementContextMenu) return;
-                e.preventDefault();
-                e.stopPropagation();
-                onElementContextMenu(e, element);
-              }}
-              style={{
-                position: 'absolute',
-                left: left + 3,
-                top: top + 3,
-                width: width - 6,
-                height: height - 6,
-                border:
-                  isLinkSource || isFocusLit
-                    ? `1.5px solid ${accent}`
-                    : '1px solid hsl(var(--rule))',
-                borderRadius: 2,
-                background:
-                  isLinkSource || isFocusLit ? 'hsl(var(--paper-deep))' : 'hsl(var(--paper))',
-                outline: isLinkSource ? `2px dashed ${accent}` : 'none',
-                outlineOffset: isLinkSource ? '1px' : 0,
-                padding: '5px 7px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                cursor: 'pointer',
-                transition: 'background 120ms, border-color 120ms, outline-color 120ms',
-                overflow: 'hidden',
-              }}
-              onMouseEnter={(e) => {
-                if (isLinkSource || isFocusLit) return;
-                e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                e.currentTarget.style.borderColor = accent;
-              }}
-              onMouseLeave={(e) => {
-                if (isLinkSource || isFocusLit) return;
-                e.currentTarget.style.background = 'hsl(var(--paper))';
-                e.currentTarget.style.borderColor = 'hsl(var(--rule))';
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 11.5,
-                  lineHeight: 1.15,
-                  color: 'hsl(var(--ink-1))',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-                title={element.name}
-              >
-                <span aria-hidden style={{ color: accent, marginRight: 4, fontStyle: 'italic' }}>
-                  ◆
-                </span>
-                {element.name}
-              </div>
-              {element.summary && (
-                <div
-                  title={element.summary}
-                  style={{
-                    fontSize: 9.5,
-                    lineHeight: 1.3,
-                    color: 'hsl(var(--ink-4))',
-                    overflow: 'hidden',
-                    // Multi-line clamp: lets the summary breathe vertically
-                    // up to the card's available height, ellipsizing the
-                    // overflow rather than truncating to one line.
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    flex: 1,
-                  }}
-                >
-                  {element.summary}
-                </div>
-              )}
-            </div>
-          );
-        }),
-      )}
-
-      {/* Empty-state placeholder — single empty cell, per design decision 13. */}
-      {totalElements === 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 3,
-            top: 3,
-            width: boxPxWidth - 6,
-            height: boxPxHeight - 6,
-            border: '1px dashed hsl(var(--rule))',
-            borderRadius: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            color: 'hsl(var(--ink-4))',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-          }}
-        >
-          {t('superElement.empty.categoryEmpty')}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {
@@ -1868,6 +1143,24 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     [driftIds, linkSource, mobileLinkMode],
   );
 
+  const handleNodeClick = useCallback<ChapterBandProps['onNodeClick']>((node, rect, opts) => {
+    handleEntityClick('node', node.id, rect, opts);
+  }, [handleEntityClick]);
+  const handleElementClick = useCallback<CategoryBoxProps['onElementClick']>((element, rect, opts) => {
+    handleEntityClick('element', element.id, rect, opts);
+  }, [handleEntityClick]);
+  const handleCategoryClick = useCallback<CategoryBoxProps['onCategoryClick']>(id => {
+    openEntity({ entityType: 'category', id });
+    close();
+  }, [openEntity, close]);
+  const handleElementContextMenu = useCallback<NonNullable<CategoryBoxProps['onElementContextMenu']>>((event, element) => {
+    setContextMenu({ kind: 'element', x: event.clientX + 2, y: event.clientY - 2,
+      elementId: element.id, elementName: element.name });
+  }, []);
+  const handleCategoryContextMenu = useCallback<NonNullable<CategoryBoxProps['onCategoryContextMenu']>>((event, categoryId) => {
+    setContextMenu({ kind: 'category', x: event.clientX + 2, y: event.clientY - 2, categoryId });
+  }, []);
+
   // Commit a typed entity relation for the pending pair. The modal either
   // selects an existing compatible definition or creates one in place; every
   // shift-click relation remains a manual-origin write.
@@ -2048,16 +1341,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 height: bandHeightCells * CELL_H,
               }}
             >
-              <ChapterBand
+              <SuperElementChapterBand
                 storylines={storylines}
                 nodes={bookNodes}
                 nodeStorylineMapping={nodeStorylineMapping}
                 primaryStorylineByNode={primaryStorylineByNode}
                 bandWidthCells={bandWidthCells}
                 bandHeightCells={bandHeightCells}
-                onNodeClick={(node, rect, opts) => {
-                  handleEntityClick('node', node.id, rect, opts);
-                }}
+                onNodeClick={handleNodeClick}
                 linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
               />
             </div>
@@ -2068,7 +1359,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
             const placement = placementById.get(model.categoryId);
             if (!placement) return null;
             return (
-              <CategoryBox
+              <SuperElementCategoryBox
                 key={model.categoryId}
                 model={model}
                 placement={placement}
@@ -2076,30 +1367,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 focusedElementId={focusedElementId}
                 connectedElementIds={focusConnected?.elementIds ?? null}
                 elementCardRefs={elementCardRefs}
-                onElementClick={(element, rect, opts) => {
-                  handleEntityClick('element', element.id, rect, opts);
-                }}
-                onCategoryClick={(id) => {
-                  openEntity({ entityType: 'category', id });
-                  close();
-                }}
-                onElementContextMenu={(event, element) => {
-                  setContextMenu({
-                    kind: 'element',
-                    x: event.clientX + 2,
-                    y: event.clientY - 2,
-                    elementId: element.id,
-                    elementName: element.name,
-                  });
-                }}
-                onCategoryContextMenu={(event, categoryId) => {
-                  setContextMenu({
-                    kind: 'category',
-                    x: event.clientX + 2,
-                    y: event.clientY - 2,
-                    categoryId,
-                  });
-                }}
+                onElementClick={handleElementClick}
+                onCategoryClick={handleCategoryClick}
+                onElementContextMenu={handleElementContextMenu}
+                onCategoryContextMenu={handleCategoryContextMenu}
               />
             );
           })}
@@ -2221,16 +1492,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               zIndex: 5,
             }}
           >
-            <ChapterBand
+            <SuperElementChapterBand
               storylines={storylines}
               nodes={bookNodes}
               nodeStorylineMapping={nodeStorylineMapping}
               primaryStorylineByNode={primaryStorylineByNode}
               bandWidthCells={bandWidthCells}
               bandHeightCells={bandHeightCells}
-              onNodeClick={(node, rect, opts) => {
-                handleEntityClick('node', node.id, rect, opts);
-              }}
+              onNodeClick={handleNodeClick}
               linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
             />
           </div>
