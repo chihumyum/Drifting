@@ -3895,3 +3895,37 @@ architecture command passed. Full Vitest: 2,859 passed, one existing skip,
 428 files. Lint: zero errors and 30 existing warnings. The ordinary production
 build has 42 JavaScript assets and no acceptance probes. No native windows were
 launched; the remaining F3 and device gates are not marked complete.
+
+## F6 — Scoped comment and action payloads
+
+[Comment projection reads](comment-reads.md) now use existing durable coverage
+for both comments and actions. Stable covered updates read at most 128 changed
+rows and preserve unchanged objects. Unchanged `createdAt` plus covered identity
+preserves SQLite rowid ties, avoiding a complete ID query. Identity/lifecycle,
+creation-time, coverage and size changes retain full fallback; parent deletion
+and comment/action updates remain atomically captured.
+
+`acceptance/f6-comment-reads.json` runs the identical probe on the exact
+`842e8ca2` checkout and this implementation. Across 65/1,025-row synthetic
+fixtures, an edit reads one complete payload instead of 65/1,025. For 1,025 rows,
+serialized results fall from 17,096,100 to 16,908 bytes for comments and from
+17,082,651 to 16,902 bytes for actions. Query count stays four; total returned
+rows fall from 1,028 to four. The detailed document includes all profiles and
+five-sample diagnostic timings, without a whole-app or device budget claim.
+
+The read report contains 73 checks (31 collection behavior, 38 shared coverage,
+four measurement cases). `acceptance/f6-comment-recovery.json` records 20
+SIGKILL cases and 40 fresh restarts through actual authored transactions and
+refresh queues, including atomic comment resolution/action application. Full
+capture equality, persistent-row hashes, project isolation and SQLite integrity
+are checked on every restart. Fourteen report contracts reject missing or
+contradictory evidence and unsupported native/power-loss claims. Both reports
+matched the final source fingerprint when collected; their pre-commit SHA and
+fingerprint are retained rather than relabeled as a later revision.
+
+All six required checks plus renderer architecture passed: 2,908 tests passed,
+one existing skip across 431 files. Lint retained 30 existing warnings and zero
+errors. The ordinary production build contains 42 JS assets with no batch
+acceptance/recovery probes. The existing node-recovery smoke path also passed.
+Everything ran headlessly. Array merge, initial full-read, remaining collection,
+whole-app and native/device costs remain open, and F6 remains in progress.

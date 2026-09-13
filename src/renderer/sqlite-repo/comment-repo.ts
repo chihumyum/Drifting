@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import { CommentActionTable, CommentTable } from '../schema/drizzle';
 import type {
@@ -30,7 +30,7 @@ export type CommentActionUpdateData = Partial<
 
 export interface CommentRepository {
   findById(id: string): Promise<Comment | null>;
-  findAll(): Promise<Comment[]>;
+  findAll(ids?: readonly string[]): Promise<Comment[]>;
   create(input: CommentCreateData): Promise<Comment>;
   update(id: string, data: CommentUpdateData): Promise<Comment | null>;
   delete(id: string): Promise<boolean>;
@@ -38,7 +38,7 @@ export interface CommentRepository {
 
 export interface CommentActionRepository {
   findById(id: string): Promise<CommentAction | null>;
-  findAll(): Promise<CommentAction[]>;
+  findAll(ids?: readonly string[]): Promise<CommentAction[]>;
   findByComment(commentId: string): Promise<CommentAction[]>;
   create(input: CommentActionCreateData): Promise<CommentAction>;
   update(id: string, data: CommentActionUpdateData): Promise<CommentAction | null>;
@@ -102,12 +102,13 @@ export function createCommentRepository(
     return rows[0] ? toCommentDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<Comment[]> => {
+  const findAll = async (ids?: readonly string[]): Promise<Comment[]> => {
+    if (ids?.length === 0) return [];
     const rows = await dbProvider()
       .select()
       .from(CommentTable)
-      .where(eq(CommentTable.projectId, projectId))
-      .orderBy(asc(CommentTable.createdAt));
+      .where(and(eq(CommentTable.projectId, projectId), ids ? inArray(CommentTable.id, [...ids]) : undefined))
+      .orderBy(asc(CommentTable.createdAt), sql`rowid ASC`);
     return rows.map(toCommentDomain);
   };
 
@@ -191,12 +192,13 @@ export function createCommentActionRepository(
     return rows[0] ? toActionDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<CommentAction[]> => {
+  const findAll = async (ids?: readonly string[]): Promise<CommentAction[]> => {
+    if (ids?.length === 0) return [];
     const rows = await dbProvider()
       .select()
       .from(CommentActionTable)
-      .where(eq(CommentActionTable.projectId, projectId))
-      .orderBy(asc(CommentActionTable.createdAt));
+      .where(and(eq(CommentActionTable.projectId, projectId), ids ? inArray(CommentActionTable.id, [...ids]) : undefined))
+      .orderBy(asc(CommentActionTable.createdAt), sql`rowid ASC`);
     return rows.map(toActionDomain);
   };
 
@@ -208,7 +210,7 @@ export function createCommentActionRepository(
         .select()
         .from(CommentActionTable)
         .where(and(eq(CommentActionTable.projectId, projectId), eq(CommentActionTable.commentId, commentId)))
-        .orderBy(asc(CommentActionTable.createdAt));
+        .orderBy(asc(CommentActionTable.createdAt), sql`rowid ASC`);
       return rows.map(toActionDomain);
     },
     create: async (input) => {

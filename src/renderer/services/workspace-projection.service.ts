@@ -27,6 +27,7 @@ import {
 } from '../store/data-store';
 
 import { readWorkspaceProjectionChanges, readWorkspaceProjectionCoverage, type WorkspaceProjectionCoverage } from './workspace-projection-coverage';
+import { readWorkspaceComments } from './workspace-projection-comments';
 import { readWorkspaceLibrary } from './workspace-projection-library';
 import { readWorkspaceElements } from './workspace-projection-elements';
 import { WORKSPACE_PROJECTION_COLLECTIONS, type WorkspaceProjectionCollection } from './workspace-projection-sources';
@@ -42,6 +43,8 @@ export interface WorkspaceProjectionCapture {
   nodeRead: 'all' | 'changed' | 'reuse';
   elementRead: 'all' | 'changed' | 'reuse';
   libraryRead: 'all' | 'changed' | 'reuse';
+  commentRead: 'all' | 'changed' | 'reuse';
+  commentActionRead: 'all' | 'changed' | 'reuse';
 }
 
 /**
@@ -112,8 +115,8 @@ export async function captureWorkspaceProjection(input: {
       trashedCategories,
       projectAssets,
       { libraryItems, libraryRead },
-      comments,
-      commentActions,
+      { rows: comments, read: commentRead },
+      { rows: commentActions, read: commentActionRead },
       entityRelationTypes,
       blockSections,
       bookActs,
@@ -134,8 +137,12 @@ export async function captureWorkspaceProjection(input: {
       needs('library')
         ? readWorkspaceLibrary(createLibraryItemSqliteRepository(input.projectId, tx), base?.libraryItems, changes?.libraryIds)
         : Promise.resolve({ libraryItems: base!.libraryItems, libraryRead: 'reuse' as const }),
-      select('comments', () => createCommentRepository(input.projectId, tx).findAll(), base?.comments),
-      select('comment-actions', () => createCommentActionRepository(input.projectId, tx).findAll(), base?.commentActions),
+      needs('comments')
+        ? readWorkspaceComments(createCommentRepository(input.projectId, tx), base?.comments, changes?.commentIds)
+        : Promise.resolve({ rows: base!.comments, read: 'reuse' as const }),
+      needs('comment-actions')
+        ? readWorkspaceComments(createCommentActionRepository(input.projectId, tx), base?.commentActions, changes?.commentActionIds)
+        : Promise.resolve({ rows: base!.commentActions, read: 'reuse' as const }),
       select('relation-types', () => createEntityRelationTypeRepository(input.projectId, tx).list(), base?.entityRelationTypes),
       select('sections', () => createBlockSectionRepository(tx).findByProject(input.projectId), base?.blockSections),
       select('acts', () => createBookActRepository(input.projectId, tx).findAll(), base?.bookActs),
@@ -193,6 +200,8 @@ export async function captureWorkspaceProjection(input: {
       nodeRead,
       elementRead,
       libraryRead,
+      commentRead,
+      commentActionRead,
       data: {
         storylines,
         storylineNodeMapping,

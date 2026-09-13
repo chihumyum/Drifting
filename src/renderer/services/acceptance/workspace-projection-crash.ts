@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { installHeadlessDatabaseClient } from '../../lib/db';
-import { BookElementTable, BookNodeTable, LibraryItemTable, NodeContentTable, ProjectTable, SyncGenerationTable } from '../../schema/drizzle';
+import { BookElementTable, BookNodeTable, CommentActionTable, CommentTable, LibraryItemTable, NodeContentTable, ProjectTable, SyncGenerationTable } from '../../schema/drizzle';
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { createAuthoredTransactionRunner } from '../../sync/journal/authored-transaction';
@@ -36,7 +36,7 @@ async function hold(value: unknown): Promise<never> {
 export async function runWorkspaceCrashWorker(args: string[]) {
   const [mode, databasePath, boundary, scenario, seedText] = args;
   assert(databasePath && boundary && ['write', 'recover'].includes(mode ?? ''));
-  assert(scenario === 'node-metadata' || scenario === 'collection-change' || scenario === 'library-change');
+  assert(scenario === 'node-metadata' || scenario === 'collection-change' || scenario === 'library-change' || scenario === 'comment-change' || scenario === 'comment-action-change');
   const seed = Number(seedText);
   assert(Number.isSafeInteger(seed) && seed > 0);
   const gateway = new ProductFileBackedSqliteGateway(databasePath);
@@ -56,6 +56,10 @@ export async function runWorkspaceCrashWorker(args: string[]) {
         await tx.insert(NodeContentTable).values({ ...stamps, nodeId: 'node', contentJson: '{"type":"doc","content":[]}' });
         await tx.insert(BookElementTable).values({ ...owned, id: 'element', name: 'Before', contentJson: '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Synthetic body."}]}]}' });
         await tx.insert(LibraryItemTable).values({ ...owned, id: 'library', kind: 'text', title: 'Before', bodyJson: '{"type":"doc","content":[]}' });
+        if (scenario.startsWith('comment')) {
+          await tx.insert(CommentTable).values({ ...owned, id: 'comment', bodyJson: '{"synthetic":"Before"}' });
+          await tx.insert(CommentActionTable).values({ ...owned, id: 'action', commentId: 'comment', kind: 'accept_suggestion', payloadJson: '{"synthetic":"Before"}' });
+        }
         await tx.insert(SyncGenerationTable).values({ ...owned, projectSyncId: 'synthetic-sync', syncGenerationId: 'synthetic-generation', generationNumber: 1, status: 'active' });
       });
     }
@@ -68,7 +72,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     let published: WorkspaceProjectionCapture | undefined;
     let observedCapture: WorkspaceProjectionCapture | undefined;
     const baselineHash = databaseHash(gateway);
-    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead, elementRead: observedCapture?.elementRead, libraryRead: observedCapture?.libraryRead });
+    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead, elementRead: observedCapture?.elementRead, libraryRead: observedCapture?.libraryRead, commentRead: observedCapture?.commentRead, commentActionRead: observedCapture?.commentActionRead });
     queue = createWorkspaceProjectionRefresh({
       ...INPUT,
       onPublished: (value) => { published = value; useProjectStore.getState().setCurrentProject(value.project); },
@@ -81,6 +85,8 @@ export async function runWorkspaceCrashWorker(args: string[]) {
           assert.equal(value.nodeRead, scenario === 'node-metadata' ? 'changed' : 'reuse');
           assert.equal(value.elementRead, scenario === 'collection-change' ? 'changed' : 'reuse');
           assert.equal(value.libraryRead, scenario === 'library-change' ? 'changed' : 'reuse');
+          assert.equal(value.commentRead, scenario.startsWith('comment') ? 'changed' : 'reuse');
+          assert.equal(value.commentActionRead, scenario === 'comment-action-change' ? 'changed' : 'reuse');
           observedCapture = value;
           if (boundary === 'capture-before-publish') await hold(ready());
         }
@@ -106,6 +112,20 @@ export async function runWorkspaceCrashWorker(args: string[]) {
       });
       await runAuthored(INPUT.projectId, 'workspace.acceptance', async ({ tx, changes }) => {
         const value = `After ${seed}`;
+        if (scenario.startsWith('comment')) {
+          const bodyJson = JSON.stringify({ synthetic: value });
+          await tx.update(CommentTable).set({ bodyJson, status: 'resolved' }).where(eq(CommentTable.id, 'comment'));
+          for (const [field, fieldValue] of [['bodyJson', bodyJson], ['status', 'resolved']]) {
+            changes.add({ action: 'field.set', target: { family: 'entity', kind: 'comment', id: 'comment', incarnation: 0 }, payload: { field, value: fieldValue } });
+          }
+          if (scenario === 'comment-action-change') {
+            await tx.update(CommentActionTable).set({ payloadJson: bodyJson, resultJson: bodyJson, status: 'applied' }).where(eq(CommentActionTable.id, 'action'));
+            for (const [field, fieldValue] of [['payloadJson', bodyJson], ['resultJson', bodyJson], ['status', 'applied']]) {
+              changes.add({ action: 'field.set', target: { family: 'entity', kind: 'comment-action', id: 'action', incarnation: 0 }, payload: { field, value: fieldValue } });
+            }
+          }
+          return;
+        }
         if (scenario === 'node-metadata') await tx.update(BookNodeTable).set({ title: value }).where(eq(BookNodeTable.id, 'node'));
         else if (scenario === 'library-change') await tx.update(LibraryItemTable).set({ title: value }).where(eq(LibraryItemTable.id, 'library'));
         else await tx.update(BookElementTable).set({ name: value }).where(eq(BookElementTable.id, 'element'));
@@ -124,6 +144,14 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     assert.equal(published!.data.bookNodes[0]!.title, changed && scenario === 'node-metadata' ? `After ${seed}` : 'Before');
     assert.equal(published!.data.bookElements[0]!.name, changed && scenario === 'collection-change' ? `After ${seed}` : 'Before');
     assert.equal(published!.data.libraryItems[0]!.title, changed && scenario === 'library-change' ? `After ${seed}` : 'Before');
+    if (scenario.startsWith('comment')) {
+      assert.equal(published!.data.comments[0]!.bodyJson, JSON.stringify({ synthetic: changed ? `After ${seed}` : 'Before' }));
+      assert.equal(published!.data.comments[0]!.status, changed ? 'resolved' : 'open');
+      const applied = changed && scenario === 'comment-action-change';
+      assert.equal(published!.data.commentActions[0]!.payloadJson, JSON.stringify({ synthetic: applied ? `After ${seed}` : 'Before' }));
+      assert.equal(published!.data.commentActions[0]!.resultJson, applied ? JSON.stringify({ synthetic: `After ${seed}` }) : null);
+      assert.equal(published!.data.commentActions[0]!.status, applied ? 'applied' : 'pending');
+    }
     const full = (await captureWorkspaceProjection(INPUT))!;
     assert.deepEqual(published!.data, full.data);
     assert.equal(databaseHash(gateway), baselineHash);

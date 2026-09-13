@@ -1,0 +1,1304 @@
+{
+  "schemaVersion": 1,
+  "kind": "workspace_projection_process_recovery",
+  "status": "passed",
+  "generatedAt": "2026-09-13T18:15:37.394Z",
+  "source": {
+    "commit": "842e8ca267dbbd14fc1b84e7ea8ae2feec90af9d",
+    "fingerprint": "2725c1c01091b167dd81e3031b7e9d50028dc1f79457c5dfc500fe4555833d80",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "fixture": {
+    "provenance": "synthetic content only",
+    "sources": "comment bodies and action payloads/results with atomic resolved/applied status; isolated second project",
+    "database": "file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite",
+    "identity": "synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged"
+  },
+  "cases": [
+    {
+      "scenario": "comment-change",
+      "boundary": "authored-before-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "comment-change",
+        "seed": 1,
+        "baselineHash": "fc73e1480108e3e0bb56bb40019c78d47c297fb47676f295aa212562eac56834",
+        "databaseHash": "00a15ff01594607af34f2f1342a7349fdcac394e6861ded28ea5b236345d3406",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "fc73e1480108e3e0bb56bb40019c78d47c297fb47676f295aa212562eac56834",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "fc73e1480108e3e0bb56bb40019c78d47c297fb47676f295aa212562eac56834",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "authored-before-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "comment-change",
+        "seed": 2,
+        "baselineHash": "dd8945e86c13e8d3e5352bdf958d9eb733f3c3ab99e804665e8deb8aee4f8bf7",
+        "databaseHash": "a589ebbf42d2d791aa5e744dcc3564fbe5c84606fae400c6625f4330158fb5b8",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "dd8945e86c13e8d3e5352bdf958d9eb733f3c3ab99e804665e8deb8aee4f8bf7",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "dd8945e86c13e8d3e5352bdf958d9eb733f3c3ab99e804665e8deb8aee4f8bf7",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "authored-after-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "comment-change",
+        "seed": 1,
+        "baselineHash": "71858b627c29fdc00b426c03892295c8ff7354b4813afab75747549062890e30",
+        "databaseHash": "4e1f78d1a5611e4b48415e10e7b90b4cea20e84497cf4fbfbf99f4c2656d73ff",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "4e1f78d1a5611e4b48415e10e7b90b4cea20e84497cf4fbfbf99f4c2656d73ff",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "4e1f78d1a5611e4b48415e10e7b90b4cea20e84497cf4fbfbf99f4c2656d73ff",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "authored-after-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "comment-change",
+        "seed": 2,
+        "baselineHash": "ce5d2957dc044b426b28680620c423ef0fe6c16d700f35c005620cd5f91de80a",
+        "databaseHash": "cbddf1a925520566620536e2f611467c8cf229fe93eefadd2499c5957ca1842f",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "cbddf1a925520566620536e2f611467c8cf229fe93eefadd2499c5957ca1842f",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "cbddf1a925520566620536e2f611467c8cf229fe93eefadd2499c5957ca1842f",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "queue-waiting",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "comment-change",
+        "seed": 1,
+        "baselineHash": "bb0ae5830c74ab8b6ff91166f62ee7fa34c550b4c973425be75ed3e5c353c5b0",
+        "databaseHash": "ad2a54ba2ff607e62f2a9e44c1fe37d28fb4d67791676f5af73d760a624ff447",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "ad2a54ba2ff607e62f2a9e44c1fe37d28fb4d67791676f5af73d760a624ff447",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "ad2a54ba2ff607e62f2a9e44c1fe37d28fb4d67791676f5af73d760a624ff447",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "queue-waiting",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "comment-change",
+        "seed": 2,
+        "baselineHash": "81efe0b52b6e8f0bc48bdebad6215bc427c4b5d2f9bacc0bc040075c7ef5eb17",
+        "databaseHash": "d979f90fe84db2774137b9aac7e7c9e69ee2f645bc4bad13df988c2c5fb3e7e9",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "d979f90fe84db2774137b9aac7e7c9e69ee2f645bc4bad13df988c2c5fb3e7e9",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "d979f90fe84db2774137b9aac7e7c9e69ee2f645bc4bad13df988c2c5fb3e7e9",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "capture-before-publish",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "comment-change",
+        "seed": 1,
+        "baselineHash": "6528c271eed86fce61a1657b96ce353f32fdb0807776935a4e15c80e19b324a5",
+        "databaseHash": "989c19e857b97e17b0b4152c1599d131457e6910a884cfe8dd850cf2d4ae3202",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "reuse",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "989c19e857b97e17b0b4152c1599d131457e6910a884cfe8dd850cf2d4ae3202",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "989c19e857b97e17b0b4152c1599d131457e6910a884cfe8dd850cf2d4ae3202",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "capture-before-publish",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "comment-change",
+        "seed": 2,
+        "baselineHash": "4d199ec2538c0d3f5b3e205638ccfe5b25d2f1528a28e673244ea453aa205d8e",
+        "databaseHash": "01c251490719d0fa128d36b3340aaaabb23df74d38e56c455075d82edb5fe176",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "reuse",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "01c251490719d0fa128d36b3340aaaabb23df74d38e56c455075d82edb5fe176",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "01c251490719d0fa128d36b3340aaaabb23df74d38e56c455075d82edb5fe176",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "published",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "comment-change",
+        "seed": 1,
+        "baselineHash": "df20d4669ca846c49ffb5968bf17c1bc5de8791e1dd52d287e98e2ebf9f1913e",
+        "databaseHash": "da2227f1ebf3d93b5ee23de568f73b4b160a011f2b8cbbc09baa343f325e1515",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "reuse",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "da2227f1ebf3d93b5ee23de568f73b4b160a011f2b8cbbc09baa343f325e1515",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-change",
+          "seed": 1,
+          "databaseHash": "da2227f1ebf3d93b5ee23de568f73b4b160a011f2b8cbbc09baa343f325e1515",
+          "projectionHash": "07164dc74f9dd67cd3cfb942c7298f61356a008abcecc8810ecb7caeaa4a8177",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-change",
+      "boundary": "published",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "comment-change",
+        "seed": 2,
+        "baselineHash": "cec9e7c93fe9c205fbaacbefae42283f6c76cc3ea165298ae769c28d3e865d2d",
+        "databaseHash": "c8cfee7fb6fd7bf359b6c59d2efe4eb8870053af566b37c265a21e5b5e12f236",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "reuse",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "c8cfee7fb6fd7bf359b6c59d2efe4eb8870053af566b37c265a21e5b5e12f236",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-change",
+          "seed": 2,
+          "databaseHash": "c8cfee7fb6fd7bf359b6c59d2efe4eb8870053af566b37c265a21e5b5e12f236",
+          "projectionHash": "3933974f44f55e7891da4b830dab2dde2a58b40b5ef856586fa7010bf5588869",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "authored-before-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "comment-action-change",
+        "seed": 1,
+        "baselineHash": "6f03578df699556bc558077d4b2cd2605bd6b17ae9e05e0d0a47c75bbbf342ec",
+        "databaseHash": "4a1d9c648f20688842adea614eb1a3046acc65166c8ce0026699ffb5336f3d83",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "6f03578df699556bc558077d4b2cd2605bd6b17ae9e05e0d0a47c75bbbf342ec",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "6f03578df699556bc558077d4b2cd2605bd6b17ae9e05e0d0a47c75bbbf342ec",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "authored-before-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "comment-action-change",
+        "seed": 2,
+        "baselineHash": "1de9eca2346df2bf9a165957a5983794d043ef2da30ddb29864d6e0c9a69b228",
+        "databaseHash": "9e29ee4e25cdcd395a18b305d0009cf8ababe7a009ba4ce348f5c4c4cff11fcc",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "1de9eca2346df2bf9a165957a5983794d043ef2da30ddb29864d6e0c9a69b228",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "1de9eca2346df2bf9a165957a5983794d043ef2da30ddb29864d6e0c9a69b228",
+          "projectionHash": "049016fc751e2fab7eb1fe26e54e8f733afe19f2d1036cb7f6972ff27db52bef",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "authored-after-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "comment-action-change",
+        "seed": 1,
+        "baselineHash": "8bb4d4fcbd8559e91f5c9aa021118091bb103360be285e5020c964c25ccf7ee2",
+        "databaseHash": "d6c57bbb10a2614fbd2f7eef798a00ea12d10418914d08986651fe3ffceaf1a4",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "d6c57bbb10a2614fbd2f7eef798a00ea12d10418914d08986651fe3ffceaf1a4",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "d6c57bbb10a2614fbd2f7eef798a00ea12d10418914d08986651fe3ffceaf1a4",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "authored-after-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "comment-action-change",
+        "seed": 2,
+        "baselineHash": "1204a6f2caf936f64cc2a80506da737ff6d9fcdca9a09e99da2f89834ccc23ef",
+        "databaseHash": "9f6aae86c09c79daf71e28e4332dcb4bac015176c596e6ef2fd9ecdedd9cd428",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "9f6aae86c09c79daf71e28e4332dcb4bac015176c596e6ef2fd9ecdedd9cd428",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "9f6aae86c09c79daf71e28e4332dcb4bac015176c596e6ef2fd9ecdedd9cd428",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "queue-waiting",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "comment-action-change",
+        "seed": 1,
+        "baselineHash": "38be5fc6c928bf2828d37b47832040c06a5bec992b70bb12d720cb36dc4404ad",
+        "databaseHash": "80dd0feb615be7d83acf7347eb6c772fbc7d6101a036b5b4bdac5089f78ea42e",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "80dd0feb615be7d83acf7347eb6c772fbc7d6101a036b5b4bdac5089f78ea42e",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "80dd0feb615be7d83acf7347eb6c772fbc7d6101a036b5b4bdac5089f78ea42e",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "queue-waiting",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "comment-action-change",
+        "seed": 2,
+        "baselineHash": "42c52068a93b2b8da97819668880dd91da66bfe8f811e185b24ec4a2b5a79f60",
+        "databaseHash": "02f269dd5698d11ef9b7288035b72d654abfbf4d3a818abd64f15c6233f991af",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "02f269dd5698d11ef9b7288035b72d654abfbf4d3a818abd64f15c6233f991af",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "02f269dd5698d11ef9b7288035b72d654abfbf4d3a818abd64f15c6233f991af",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "capture-before-publish",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "comment-action-change",
+        "seed": 1,
+        "baselineHash": "8f470597ff12376eff30b7e5b4599bc5f64a5b390b06a900aa9c9b656f176671",
+        "databaseHash": "8f89b8d5fc594c16801d1b321299485f0394c8d291eb39fd1633794e754d7248",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "8f89b8d5fc594c16801d1b321299485f0394c8d291eb39fd1633794e754d7248",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "8f89b8d5fc594c16801d1b321299485f0394c8d291eb39fd1633794e754d7248",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "capture-before-publish",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "comment-action-change",
+        "seed": 2,
+        "baselineHash": "100869ffd3f15b77df1daa11a747277ab00fcef45a9d68427195ffeeed524aeb",
+        "databaseHash": "767ecc21b0af94c13fff090aba540d520b5ca3409b973b12cf456627f1a40f79",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "767ecc21b0af94c13fff090aba540d520b5ca3409b973b12cf456627f1a40f79",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "767ecc21b0af94c13fff090aba540d520b5ca3409b973b12cf456627f1a40f79",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "published",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "comment-action-change",
+        "seed": 1,
+        "baselineHash": "0478daf303aa7af1b2536836eb7ea97e81fd9b3f53003ac9dcf8d9c349d51501",
+        "databaseHash": "bf684a7234ed565103b1cc0ede42df9289cdf2a5ded4cf6beaa3b3b962baf431",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "bf684a7234ed565103b1cc0ede42df9289cdf2a5ded4cf6beaa3b3b962baf431",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-action-change",
+          "seed": 1,
+          "databaseHash": "bf684a7234ed565103b1cc0ede42df9289cdf2a5ded4cf6beaa3b3b962baf431",
+          "projectionHash": "c14417d389686c1f94a776d31181f6a8d5760926b9fe0b4e6d38f194ccee69de",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "comment-action-change",
+      "boundary": "published",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "comment-action-change",
+        "seed": 2,
+        "baselineHash": "5ebc54ada3a5a8ad7fca4b76f66c1cc19c16bae1db8215893c6739e45308bffa",
+        "databaseHash": "910ec1c605d00f6020e1ca093ab89bfe68b6d781f380958476ce07a085396a17",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "reuse",
+        "commentRead": "changed",
+        "commentActionRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "910ec1c605d00f6020e1ca093ab89bfe68b6d781f380958476ce07a085396a17",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "comment-action-change",
+          "seed": 2,
+          "databaseHash": "910ec1c605d00f6020e1ca093ab89bfe68b6d781f380958476ce07a085396a17",
+          "projectionHash": "ae48d642ea22a91024bde11d9c5123b1ccc9c74eabcc1d10731af6d63ec6fd34",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "processRecovery": "passed",
+    "nativeGateway": "not-run",
+    "powerLoss": "not-run",
+    "performance": "not-measured"
+  },
+  "limitations": [
+    "The warm actual refresh queue is interrupted after an authored transaction, while waiting, after a covered capture and after publication. Every cold restart captures the complete workspace and does not reuse an in-memory cursor.",
+    "Node SQLite uses the product renderer gateway adapter. Native migration recovery is tested separately; this does not exercise a Tauri renderer restart or physical device.",
+    "SIGKILL does not simulate OS crash, disk failure or power loss. No latency or device acceptance is claimed.",
+    "All persistent rows, including author journal, projection cursors and the other project, must remain byte-for-byte unchanged by recovery. The projection is compared with an independent full capture and a fixture field oracle."
+  ]
+}

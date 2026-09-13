@@ -515,7 +515,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-element-reads.json",
             "docs/renderer-performance/acceptance/f2-shelf-stats.json",
-            "docs/renderer-performance/acceptance/f6-library-reads.json"
+            "docs/renderer-performance/acceptance/f6-library-reads.json",
+            "docs/renderer-performance/acceptance/f6-comment-reads.json"
           ],
           "status": "partial"
         },
@@ -532,7 +533,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
             "docs/renderer-performance/acceptance/f6-element-reads.json",
-            "docs/renderer-performance/acceptance/f6-library-reads.json"
+            "docs/renderer-performance/acceptance/f6-library-reads.json",
+            "docs/renderer-performance/acceptance/f6-comment-reads.json"
           ],
           "status": "partial"
         },
@@ -542,7 +544,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f6-reference-recovery.json",
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
-            "docs/renderer-performance/acceptance/f6-library-recovery.json"
+            "docs/renderer-performance/acceptance/f6-library-recovery.json",
+            "docs/renderer-performance/acceptance/f6-comment-recovery.json"
           ],
           "status": "partial"
         },
@@ -560,12 +563,13 @@
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
             "docs/renderer-performance/acceptance/f6-element-reads.json",
             "docs/renderer-performance/acceptance/f2-shelf-stats.json",
-            "docs/renderer-performance/acceptance/f6-library-reads.json"
+            "docs/renderer-performance/acceptance/f6-library-reads.json",
+            "docs/renderer-performance/acceptance/f6-comment-reads.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "covered_collection_node_and_element_row_reads_renderer_recovery_and_native_migration_safety_implemented_full_app_performance_and_native_renderer_recovery_pending"
+      "implementationStatus": "covered_collection_node_element_library_and_comment_row_reads_renderer_recovery_and_native_migration_safety_implemented_full_app_performance_and_native_renderer_recovery_pending"
     },
     {
       "id": "F7",

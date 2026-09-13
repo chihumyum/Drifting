@@ -10,9 +10,11 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const worker = fileURLToPath(new URL('./workspace-projection-crash-worker.mjs', import.meta.url));
 const boundaries = ['authored-before-commit', 'authored-after-commit', 'queue-waiting', 'capture-before-publish', 'published'];
 const libraryOnly = process.argv.includes('--library');
-const scenarios = libraryOnly ? ['library-change'] : ['node-metadata', 'collection-change'];
+const commentsOnly = process.argv.includes('--comments');
+assert(!(libraryOnly && commentsOnly), 'Choose one collection recovery suite.');
+const scenarios = commentsOnly ? ['comment-change', 'comment-action-change'] : libraryOnly ? ['library-change'] : ['node-metadata', 'collection-change'];
 const checks = ['fixture-oracle', 'uncached-full-capture', 'persistent-state-unchanged', 'project-isolation', 'integrity', 'foreign-keys'];
-const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9) ?? (libraryOnly ? 'docs/renderer-performance/acceptance/f6-library-recovery.json' : 'docs/renderer-performance/acceptance/f6-workspace-recovery.json');
+const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9) ?? (commentsOnly ? 'docs/renderer-performance/acceptance/f6-comment-recovery.json' : libraryOnly ? 'docs/renderer-performance/acceptance/f6-library-recovery.json' : 'docs/renderer-performance/acceptance/f6-workspace-recovery.json');
 const seeds = 2;
 const smoke = process.argv.includes('--smoke');
 const boundariesFor = () => boundaries;
@@ -90,6 +92,11 @@ function validate(report) {
       assert.equal(entry.kill.nodeRead, entry.scenario === 'node-metadata' ? 'changed' : 'reuse');
       assert.equal(entry.kill.elementRead, entry.scenario === 'collection-change' ? 'changed' : 'reuse');
       if (libraryOnly) assert.equal(entry.kill.libraryRead, 'changed');
+      if (commentsOnly) {
+        assert.equal(entry.kill.libraryRead, 'reuse');
+        assert.equal(entry.kill.commentRead, 'changed');
+        assert.equal(entry.kill.commentActionRead, entry.scenario === 'comment-action-change' ? 'changed' : 'reuse');
+      }
     }
     assert.equal(entry.restarts.length, 2);
     for (const restart of entry.restarts) {
@@ -133,7 +140,7 @@ if (process.argv.includes('--check')) {
         schemaVersion: 1, kind: 'workspace_projection_process_recovery', status: 'passed', generatedAt: new Date().toISOString(),
         source: { commit: sourceCommit, fingerprint, dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()) },
         environment: { platform: process.platform, node: process.version, sqlite: process.versions.sqlite },
-        fixture: { provenance: 'synthetic content only', sources: libraryOnly ? 'library metadata and prose-bearing library row; isolated second project' : 'node metadata and prose-bearing element collection; isolated second project', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged' },
+        fixture: { provenance: 'synthetic content only', sources: commentsOnly ? 'comment bodies and action payloads/results with atomic resolved/applied status; isolated second project' : libraryOnly ? 'library metadata and prose-bearing library row; isolated second project' : 'node metadata and prose-bearing element collection; isolated second project', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged' },
         cases,
         acceptance: { processRecovery: 'passed', nativeGateway: 'not-run', powerLoss: 'not-run', performance: 'not-measured' },
         limitations: [
