@@ -57,6 +57,7 @@
     "perf:renderer:native": "node scripts/run-renderer-native.mjs",
     "perf:renderer:selection": "node --conditions=import --import=tsx scripts/measure-selection-memory.ts",
     "perf:renderer:libraries": "node scripts/run-renderer-deferred-libraries.mjs",
+    "agent:send:acceptance": "node scripts/run-agent-send-acceptance.mjs",
     "workspace:refresh:acceptance": "node scripts/run-workspace-refresh-acceptance.mjs",
     "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",
     "reference:index:acceptance": "node scripts/run-reference-index-acceptance.mjs",

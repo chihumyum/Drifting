@@ -31,10 +31,10 @@ import { useSettingsStore } from './settings-store';
 import { useProjectStore } from './project-store';
 import { useAgentActivityStore } from './agent-activity-store';
 import { useDataStore } from './data-store';
-import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
+import { useAgentEditStore } from './agent-edit-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
-import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
-import { prepareAgentWorkingMemoryForTurn } from '../usecase/useAgentWorkingMemory';
+import { createAgentChatStartOwner } from '../lib/agent/runtime/chat-start-owner';
+import { buildAgentChatRevertNote, prepareAgentChatMemories } from '../lib/agent/runtime/chat-send-preparation';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
 import type {
@@ -113,48 +113,6 @@ function entityDisplayName(entityType: ActivityEntityType, id: string): string {
     default:
       return id;
   }
-}
-
-/** A system note (zh-CN) telling the agent which of its edits the user rejected
- *  since the last turn, so it works from the restored text instead of believing
- *  its edits stuck (it ran bypassPermissions). Prepended to the next prompt. */
-function buildRevertNote(reverts: RevertRecord[]): string {
-  const clamp = (t: string): string => (t.length > 200 ? `${t.slice(0, 200)}…` : t);
-  const lines = reverts.map((rv) => {
-    const name = `《${entityDisplayName(rv.entityType, rv.id)}》`;
-    // Non-prose field edits (summary / kv / template kv) name the field.
-    if (rv.field) {
-      const f = rv.field;
-      // Patch review: rejecting a CREATE deletes it; a DELETE keeps it; an
-      // UPDATE restores the pre-edit title/body.
-      if (f.kind === 'patch') {
-        if (rv.op === 'deleted')
-          return `- 你删除的${name}的补丁「${f.label}」已被用户保留（未删除）。`;
-        if (rv.op === 'changed')
-          return `- 你对${name}的补丁「${f.label}」的修改已被用户撤销，已还原为改动前的内容。`;
-        return `- 你为${name}创建的补丁「${f.label}」已被用户删除。`;
-      }
-      const fieldLabel =
-        f.kind === 'summary'
-          ? '摘要'
-          : f.kind === 'group'
-            ? '分组'
-            : f.kind === 'kv'
-              ? `字段「${f.key ?? ''}」`
-              : f.kind === 'templatekv'
-                ? `模版字段「${f.key ?? ''}」`
-                : '字段';
-      if (rv.op === 'new') return `- 你为${name}新增的${fieldLabel}已被用户撤销（删除）。`;
-      if (rv.op === 'deleted')
-        return `- 你删除的${name}的${fieldLabel}已被用户恢复为：「${clamp(rv.restoredText)}」。`;
-      return `- 你对${name}的${fieldLabel}的修改已被用户拒绝，已恢复为：「${clamp(rv.restoredText)}」。`;
-    }
-    if (rv.op === 'new') return `- 你在${name}中新增的一个段落已被用户撤销（删除）。`;
-    if (rv.op === 'deleted')
-      return `- 你在${name}中删除的段落已被用户恢复为原文：「${clamp(rv.restoredText)}」。`;
-    return `- 你在${name}中的一处改写已被用户拒绝，已恢复为原文：「${clamp(rv.restoredText)}」。`;
-  });
-  return `【系统提示】自你上一轮之后，用户拒绝并还原了以下改动。请以还原后的文本为当前内容，未经用户明确要求不要重新应用这些改动：\n${lines.join('\n')}`;
 }
 
 // ---- store -----------------------------------------------------------------
@@ -340,7 +298,9 @@ export class AgentConversationLoadGuard {
 }
 
 const conversationLoadGuard = new AgentConversationLoadGuard();
-const conversationStartGuard = new AgentConversationLoadGuard();
+const conversationStartOwner = createAgentChatStartOwner(value => {
+  useAgentChatStore.setState(state => state.starting === value ? state : { starting: value });
+});
 
 export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   boundProjectId: null,
@@ -372,7 +332,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       return;
     }
     conversationLoadGuard.invalidate();
-    conversationStartGuard.invalidate();
+    const leavingProjectId = get().boundProjectId;
+    if (leavingProjectId) conversationStartOwner.cancelProject(leavingProjectId);
     const leavingConvId = get().activeConvId;
     if (leavingConvId) {
       pauseAutomaticContinuationForConversation(leavingConvId, 'author_navigated');
@@ -462,10 +423,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // Claim startup before the first await. `continueTask` and the
     // ordinary composer share this exact gate.
     conversationLoadGuard.invalidate();
-    const startToken = conversationStartGuard.begin(s.boundProjectId);
-    const isCurrentStart = (): boolean =>
-      conversationStartGuard.isCurrent(startToken, get().boundProjectId);
-    set({ starting: true });
+    const start = conversationStartOwner.begin(s.boundProjectId, s.activeConvId);
+    if (!start) return;
+    const isCurrentStart = (): boolean => start.isCurrent(get().boundProjectId);
     try {
       const projectId = s.boundProjectId;
       const text = submittedPrompt.trim();
@@ -517,7 +477,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       try {
         convId = await new AgentConversationSyncRepository().forkForContinuation(convId);
       } catch (error) {
-        appendRunError(convId, error instanceof Error ? error.message : String(error));
+        if (isCurrentStart()) appendRunError(convId, error instanceof Error ? error.message : String(error));
         return;
       }
       if (!isCurrentStart()) return;
@@ -570,6 +530,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         runningTurnId: turnId,
         runningConvId: cid,
       }));
+      start.prepareTurn(cid, () => {
+        journalConsumer.releaseTurn(turnId);
+        set((state) => withoutRunningTurn(state, cid, turnId) ?? state);
+      });
       // A prompt is accepted once it leaves the composer. Persist that user
       // message before model startup so a crash, auth failure, or app restart
       // cannot erase it merely because no terminal journal entry arrived.
@@ -581,14 +545,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       } catch {
         /* persistence is best-effort — the in-memory transcript remains usable */
       }
-      const discardPreparedTurn = (): void => {
-        journalConsumer.releaseTurn(turnId);
-        set((state) => withoutRunningTurn(state, cid, turnId) ?? state);
-      };
-      if (!isCurrentStart()) {
-        discardPreparedTurn();
-        return;
-      }
+      if (!isCurrentStart()) return;
       // Remember this as the project's last-active conversation so it re-opens on
       // next launch.
       useSettingsStore.getState().setLastAgentConv(projectId, cid);
@@ -600,8 +557,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       const projectContext = buildGeneralAgentProjectContext(projectId, project);
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
-      const memories = await loadActiveMemoryHints(projectId).catch(() => []);
-      const workingMemory = await prepareAgentWorkingMemoryForTurn(projectId).catch(() => null);
+      const prepared = await prepareAgentChatMemories(projectId, isCurrentStart);
+      if (!prepared || !isCurrentStart() || !start.submit()) return;
 
       // Drain rejected edits only once all cancellable preflight reads are done.
       // The visible transcript keeps the original user text; only the provider
@@ -612,12 +569,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Durable write-review decisions are first-class pinned context rows in
       // the product composition. Do not duplicate them into every user prompt;
       // that legacy path grew long tasks quadratically and blurred authorship.
-      const promptNotes = reverts.length ? [buildRevertNote(reverts)] : [];
+      const promptNotes = reverts.length ? [buildAgentChatRevertNote(reverts, entityDisplayName)] : [];
       const visibleContextNote = agentTurnContextPrompt(turnContext);
       if (visibleContextNote) promptNotes.push(visibleContextNote);
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
-      const r = await generalAgentTransport
-        .start({
+      const r = await (async () => generalAgentTransport.start({
           prompt: promptToSend,
           promptSource: isRuntimeContinuation ? 'runtime_continuation' : 'author',
           route: { kind: 'chat', projectId, conversationId: cid },
@@ -636,25 +592,18 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           toolAccess,
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
-          memories,
-          workingMemory: workingMemory
-            ? {
-                contentMd: workingMemory.contentMd,
-                revision: workingMemory.revision,
-                approxTokens: workingMemory.approxTokens,
-              }
-            : { contentMd: '', revision: 0, approxTokens: 0 },
+          ...prepared,
           turnId,
-        })
+        }))()
         .catch((error: unknown) => ({
           ok: false as const,
           code: 'AGENT_RUNTIME_START_FAILED',
           error: error instanceof Error ? error.message : 'Agent Runtime failed to start.',
         }));
-      if (!isCurrentStart()) {
-        discardPreparedTurn();
-        return;
-      }
+      // Once submitted, result ownership is the captured turn, independent of
+      // which conversation is now visible. Navigation preserves background work.
+      if (r.ok && start.shouldAbort()) void generalAgentTransport.abort({ turnId });
+      if (get().runningTurns[cid] !== turnId) return;
       // !ok only fires for pre-flight failures (e.g. auth) that emitted no events
       // for this turn — a turn that started surfaces its own terminal state via
       // the canonical journal. So surface this one and clear the in-flight turn.
@@ -682,17 +631,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           const cleared = withoutRunningTurn(st, cid, turnId);
           return {
             runs,
-            ...(cleared
-              ? {
-                  ...cleared,
-                  starting: false,
-                }
-              : {}),
+            ...(cleared ?? {}),
           };
         });
       }
     } finally {
-      set((state) => (state.starting ? { starting: false } : state));
+      start.finish();
     }
   },
 
@@ -780,7 +724,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   abort: () => {
     const s = get();
     const convId = s.activeConvId;
-    if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
+    if (convId) {
+      conversationStartOwner.cancelConversation(convId);
+      pauseAutomaticContinuationForConversation(convId, 'author_stopped');
+    } else conversationStartOwner.cancelActive();
     const turnId = convId ? s.runningTurns[convId] : undefined;
     if (turnId) void generalAgentTransport.abort({ turnId });
   },
@@ -791,7 +738,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       pauseAutomaticContinuationForConversation(activeConvId, 'author_navigated');
     }
     conversationLoadGuard.invalidate();
-    conversationStartGuard.invalidate();
+    conversationStartOwner.invalidate();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
     // Switch the view to a fresh, empty chat. A background turn (if any) keeps
@@ -806,7 +753,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (previousActiveConvId && previousActiveConvId !== id) {
       pauseAutomaticContinuationForConversation(previousActiveConvId, 'author_navigated');
     }
-    conversationStartGuard.invalidate();
+    conversationStartOwner.invalidate();
     const loadToken = conversationLoadGuard.begin(boundProjectId);
     const isCurrentLoad = (): boolean =>
       conversationLoadGuard.isCurrent(loadToken, get().boundProjectId);
@@ -937,9 +884,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   deleteConversation: async (id) => {
     cancelAutomaticContinuationTimer(id);
     conversationLoadGuard.invalidate();
-    if (get().runningTurns[id] && get().starting) {
-      conversationStartGuard.invalidate();
-    }
+    conversationStartOwner.cancelConversation(id);
     // Abort only this conversation's turn; sibling conversations keep running.
     const deletingTurnId = get().runningTurns[id];
     if (deletingTurnId) {
@@ -974,9 +919,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   clearConversations: async () => {
     conversationLoadGuard.invalidate();
-    conversationStartGuard.invalidate();
     const pid = get().boundProjectId;
     if (!pid) return;
+    conversationStartOwner.cancelProject(pid);
     for (const [convId, run] of Object.entries(get().runs)) {
       if (run.projectId === pid) cancelAutomaticContinuationTimer(convId);
     }
@@ -1290,6 +1235,6 @@ function ensureSubscription(): void { journalConsumer.ensureConnected(); }
 
 if (import.meta.hot) import.meta.hot.dispose(() => {
   journalConsumer.dispose();
-  conversationLoadGuard.invalidate(); conversationStartGuard.invalidate();
+  conversationLoadGuard.invalidate(); conversationStartOwner.dispose();
   for (const conversationId of automaticContinuationTimers.keys()) cancelAutomaticContinuationTimer(conversationId);
 });

@@ -273,7 +273,9 @@
             "docs/renderer-performance/acceptance/f4-recovery-native.json",
             "docs/renderer-performance/acceptance/f4-journal-owner.json",
             "docs/renderer-performance/acceptance/f4-journal-owner-native.json",
-            "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json"
+            "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
           ],
           "status": "partial"
         },
@@ -303,7 +305,9 @@
             "docs/renderer-performance/acceptance/f4-journal-owner-native.json",
             "docs/renderer-performance/acceptance/f4-background-baseline.json",
             "docs/renderer-performance/acceptance/f4-background.json",
-            "docs/renderer-performance/acceptance/f4-background-native.json"
+            "docs/renderer-performance/acceptance/f4-background-native.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
           ],
           "status": "passed"
         },
@@ -332,12 +336,14 @@
             "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json",
             "docs/renderer-performance/acceptance/f4-background-baseline.json",
             "docs/renderer-performance/acceptance/f4-background.json",
-            "docs/renderer-performance/acceptance/f4-background-native.json"
+            "docs/renderer-performance/acceptance/f4-background-native.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation.json",
+            "docs/renderer-performance/acceptance/f4-send-preparation-browser.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "app_owned_journal_and_bounded_live_recovery_work_hidden_display_coalescing_mixed_sqlite_crash_verified_native_crash_checkpoint_compaction_and_device_budgets_pending"
+      "implementationStatus": "app_owned_journal_send_preparation_and_bounded_live_recovery_hidden_display_coalescing_mixed_sqlite_crash_verified_remaining_runtime_recovery_compaction_and_device_budgets_pending"
     },
     {
       "id": "F5",
