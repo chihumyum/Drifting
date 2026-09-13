@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -204,6 +204,20 @@ if (report.agentPanel) {
     assert.equal(scenario.returningBottom, true);
     assert.equal(scenario.cycles, 100);
     assert.equal(scenario.remainingAuthListeners, 0);
+  }
+}
+if (report.mobileAgentPanel && (deterministic || report.mobileAgentPanel.verifyRenders)) {
+  const panel = report.mobileAgentPanel;
+  assert.equal(panel.verifyRenders, true);
+  assert.equal(panel.checks.length, 52);
+  assert.equal(panel.historyMessages, 300); assert.equal(panel.displayBatches, 20); assert.equal(panel.streamEventsPerMode, 400);
+  assert.deepEqual(panel.measurements.map(item => item.mode), ['sidebar', 'paper']);
+  for (const item of panel.measurements) {
+    assert.deepEqual(item.streaming, { panel: 0, composer: 0, message: 20, transcript: 20 });
+    assert.deepEqual(item.drafting, { panel: 20, composer: 20, message: 0, transcript: 0 });
+    assert.deepEqual(item.background, { panel: 0, composer: 0, message: 0, transcript: 0 });
+    assert.equal(item.messageRows, 20); assert.equal(item.cycles, 100);
+    assert.equal(item.lateFeedbackCrossedSession, false); assert.equal(item.lateNavigation, 0); assert.equal(item.duplicateWrites, 1);
   }
 }
 if (report.graphProjection) {

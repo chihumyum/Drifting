@@ -15,6 +15,7 @@ import { runEntityLinkOwnershipScenarios } from './entity-link-ownership-scenari
 import { runAgentEventScenarios } from './agent-event-scenarios';
 import { runAgentDisplayScenarios } from './agent-display-scenarios';
 import { runAgentPanelScenarios } from './agent-panel-scenarios';
+import { runMobileAgentPanelScenarios } from './mobile-agent-panel-scenarios';
 import { runGraphProjectionScenarios } from './graph-projection-scenarios';
 import { runGraphGeometryScenarios } from './graph-geometry-scenarios';
 import { runGraphOverlayScenarios } from './graph-overlay-scenarios';
@@ -119,6 +120,7 @@ async function run() {
     agentEventProcessing: await runAgentEventScenarios(),
     agentDisplay: await runAgentDisplayScenarios(),
     agentPanel: await runAgentPanelScenarios(),
+    mobileAgentPanel: await runMobileAgentPanelScenarios(),
     graphProjection: await runGraphProjectionScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),

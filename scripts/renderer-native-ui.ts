@@ -19,6 +19,7 @@ import { yUndoPluginKey } from '@tiptap/y-tiptap';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
 import { useCopilotInlineStore } from '../src/renderer/store/copilot-inline-store';
 import { applyInlineEdit, type InlineEditResult } from '../src/renderer/lib/copilot/inline-edit';
+import { runMobileAgentPanelScenarios } from '../src/renderer/performance/mobile-agent-panel-scenarios';
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
@@ -30,6 +31,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   contextMenus: boolean;
   suggestions: boolean;
   inlineCopilot: boolean;
+  mobileAgentPanel: boolean;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -43,6 +45,7 @@ const lifecycle: Array<{ projectId: string; mounted: boolean }> = [];
 const failures: string[] = [];
 const longTasks: number[] = [];
 const checks: Record<string, boolean> = {};
+let mobileAgentPanelResult: Awaited<ReturnType<typeof runMobileAgentPanelScenarios>> | undefined;
 const sessionEvents: Array<{ instance: number; projectId: string; sourceKind: string; sourceId: string; event: string }> = [];
 const sessionInstances = new WeakMap<object, number>();
 let nextSessionInstance = 0;
@@ -879,11 +882,16 @@ async function run() {
     ensure(!getLiveYDoc(`node-content:${b.nodeIds[0]}`), 'Second project doc leaked');
     checks.projectSwitchAndSqliteRestore = true;
     ensure(await saveActiveEditor(), 'Restored editor save callback missing');
+    if (config.mobileAgentPanel) {
+      await progress('mobile-agent-panel');
+      mobileAgentPanelResult = await runMobileAgentPanelScenarios({ verifyRenders: false });
+      checks.mobileAgentPanel = true;
+    }
     localStorage.setItem('native-acceptance-phase', 'restart');
     await post({ kind: 'observation', syntheticCommandToTwoFramesMs });
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, mobileAgentPanel: mobileAgentPanelResult, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

@@ -37,6 +37,25 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/workspace/MobileAgentPanel.tsx') || id.endsWith('/workspace/MobileAgentTranscript.tsx')) {
+          for (const service of ['useBookNode', 'useComment']) {
+            code = code.replace(`'../../../usecase/${service}'`, "'../../../performance/mobile-agent-output-services'");
+          }
+          const anchor = '  const { t } = useTranslation();';
+          // The original panel has a ContextChips helper with the same hook;
+          // instrument the hook after the exported component signature only.
+          const entry = code.indexOf(id.endsWith('MobileAgentPanel.tsx') ? 'function MobileAgentPanel(' : 'function MobileAgentTranscript(');
+          const at = code.indexOf(anchor, entry);
+          if (at < 0) throw new Error(`Missing mobile Agent render point: ${id}`);
+          code = code.slice(0, at) + code.slice(at).replace(anchor, `${anchor}\n  agentPanelRenders.${id.endsWith('MobileAgentPanel.tsx') ? 'panel' : 'transcript'}++;`);
+          if (id.endsWith('MobileAgentTranscript.tsx')) {
+            const row = code.indexOf('function MobileAgentMessage(');
+            const hook = code.indexOf(anchor, row);
+            if (row < 0 || hook < 0) throw new Error('Missing mobile Agent message render point');
+            code = code.slice(0, hook) + code.slice(hook).replace(anchor, `${anchor}\n  agentMobileRows.renders++;`);
+          }
+          return { code: `import { agentPanelRenders, agentMobileRows } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         const counter = id.endsWith('/desktop/DesktopAgentPanel.tsx') ? ['panel', '  const { t } = useTranslation();']
           : id.endsWith('/agent/AgentComposerConfig.tsx') ? ['composer', '  const { t } = useTranslation();']
           : id.endsWith('/agent/AgentMessageViews.tsx') ? ['message', 'export const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {']
@@ -114,7 +133,7 @@ try {
       'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
       'Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.',
-      'Desktop Agent panel is exercised with synthetic journal and auth ports; mobile panels, durable Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
+      'Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
     ],
   };
   if (assertInputBudget) {

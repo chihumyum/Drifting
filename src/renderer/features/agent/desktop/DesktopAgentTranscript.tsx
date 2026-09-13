@@ -236,4 +236,3 @@ const usageFooter: React.CSSProperties = {
   borderTop: '1px solid hsl(var(--rule))',
   fontVariantNumeric: 'tabular-nums',
 };
-

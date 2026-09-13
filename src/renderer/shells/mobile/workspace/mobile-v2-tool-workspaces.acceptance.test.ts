@@ -39,15 +39,16 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
 
   it('persists visible context and keeps evidence/output changes behind author taps', () => {
     const agent = source('shells/mobile/workspace/MobileAgentPanel.tsx');
+    const transcript = source('shells/mobile/workspace/MobileAgentTranscript.tsx');
     const model = source('shells/mobile/workspace/mobile-agent-model.ts');
     const context = source('lib/agent/turn-context.ts');
 
     expect(agent).toContain('<ContextChips refs={turnContext} />');
-    expect(agent).toContain('collectMobileAgentEvidence(messages)');
-    expect(agent).toContain('openMobileAgentEvidence(item');
-    expect(agent).toContain("action: 'copy' | 'inspiration' | 'todo'");
-    expect(agent).toContain("kind: 'drift'");
-    expect(agent).toContain("kind: 'todo'");
+    expect(transcript).toContain('collectMobileAgentEvidence(messages)');
+    expect(transcript).toContain('openMobileAgentEvidence(item');
+    expect(transcript).toContain("type OutputAction = 'copy' | 'inspiration' | 'todo'");
+    expect(transcript).toContain("kind: 'drift'");
+    expect(transcript).toContain("kind: 'todo'");
     expect(model).toContain('selectedMobileAgentBlockId');
     expect(model).toContain('targetBlockId: target.blockId');
     expect(model).toContain('scrollToBlock(evidence.entityId, evidence.blockId)');

@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const inlineCopilot = process.argv.includes('--inline-copilot');
+const mobileAgentPanel = process.argv.includes('--mobile-agent-panel');
+const inlineCopilot = mobileAgentPanel || process.argv.includes('--inline-copilot');
 const suggestions = inlineCopilot || process.argv.includes('--suggestions');
 const contextMenus = suggestions || process.argv.includes('--context-menus');
 const selectionMemory = contextMenus || process.argv.includes('--selection');
@@ -23,7 +24,7 @@ const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${inlineCopilot ? 'f3-inline-copilot-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${mobileAgentPanel ? 'f4-mobile-panel-native' : inlineCopilot ? 'f3-inline-copilot-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -67,6 +68,17 @@ function validate(report) {
   if (inlineCopilot) {
     for (const name of ['inlineCopilotLifetime', 'inlineCopilotCommandGates', 'inlineCopilotUnrelatedCleanup', 'inlineCopilotSplitOwnership', 'inlineCopilotClosedOwnersReleased', 'inlineCopilotSpanConflict', 'inlineCopilotHistory', 'inlineCopilotBlockConflict']) assert.equal(report.runs[0].checks[name], true, name);
     assert.equal(report.runs[1].checks.inlineCopilotTransientAfterRestart, true);
+  }
+  if (mobileAgentPanel) {
+    assert.equal(report.runs[0].checks.mobileAgentPanel, true);
+    const panel = report.runs[0].mobileAgentPanel;
+    assert.equal(panel.verifyRenders, false);
+    assert.equal(panel.checks.length, 44);
+    assert.deepEqual(panel.measurements.map(item => item.mode), ['sidebar', 'paper']);
+    for (const item of panel.measurements) {
+      assert.equal(item.streaming, null); assert.equal(item.drafting, null); assert.equal(item.background, null); assert.equal(item.messageRows, null);
+      assert.equal(item.lateFeedbackCrossedSession, false); assert.equal(item.lateNavigation, 0); assert.equal(item.duplicateWrites, 1); assert.equal(item.cycles, 100);
+    }
   }
   assert.deepEqual(report.runs[0].lifecycle, [
     { projectId: 'native-control-a', mounted: true }, { projectId: 'native-control-a', mounted: false },
@@ -173,9 +185,17 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
+    if (${mobileAgentPanel} && id.endsWith('/workspace/MobileAgentTranscript.tsx')) {
+      for (const service of ['useBookNode', 'useComment']) {
+        const from = "'../../../usecase/" + service + "'";
+        if (code.split(from).length !== 2) throw new Error('Mobile Agent write isolation anchor drifted: ' + service);
+        code = code.replace(from, "'../../../performance/mobile-agent-output-services'");
+      }
+      return code;
+    }
     if (${editorSessions} && id.endsWith('/features/editor/entity-editor-session.ts')) {
       for (const [anchor, event] of [
         ['this.attached = true;', 'attach'],
@@ -290,6 +310,7 @@ export default (env) => mergeConfig(base(env), {
   if (selectionMemory) artifact.instrumentation.push('selection capture/write/prune counts');
   if (contextMenus) artifact.instrumentation.push('context-menu open/close and owner subscription lifecycle counts');
   if (suggestions) artifact.instrumentation.push('suggestion plugin-view attach/detach lifecycle counts');
+  if (mobileAgentPanel) artifact.instrumentation.push('mobile Agent components with synthetic auth, journal and deferred local-write ports; renderer counters not instrumented');
   console.log(`Verified fresh artifact: ${binary} (${artifact.sha256})`);
   console.log('Keep the acceptance window visible and foreground in each process; occluded WebKit animation frames may be suspended.');
   for (const phase of ['composition', 'restart']) {

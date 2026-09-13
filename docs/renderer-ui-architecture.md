@@ -458,8 +458,15 @@ fields. Its memo boundary prevents draft edits from reconciling the transcript,
 and stream display updates do not render the composer. Mount-time layout work
 positions the actual log after asynchronous authentication or remount. Explicit
 send/history actions use the transcript ref to resume bottom follow. The message
-list and usage aggregation still scale with history length. Mobile output actions
-remain in the mobile shell and have not been moved into this desktop component.
+list and usage aggregation still scale with history length. The mobile shell has its own
+`MobileAgentTranscript` and memoized output rows. Its parent retains paper/session
+binding, the composer, history and touch/focus behavior. Retry visibility is a
+boolean selector with weakly cached immutable-array error detection. Mobile
+output actions have a project/conversation/user owner and exact-message guard;
+pending actions are deduplicated per message. Completion feedback and navigation
+require the same live owner and message. Disposal suppresses late UI effects,
+while already-started local writes finish normally through existing use cases.
+These mobile operations are not imported into the desktop transcript.
 
 Workspace consumers subscribe to explicit fields through `useDataStoreFields`
 or a narrower `useDataStore(selector)`. The field helper selects from one

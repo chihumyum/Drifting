@@ -285,7 +285,10 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f4-chat-display.json",
             "docs/renderer-performance/acceptance/f4-desktop-panel-baseline.json",
-            "docs/renderer-performance/acceptance/f4-desktop-panel.json"
+            "docs/renderer-performance/acceptance/f4-desktop-panel.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-baseline.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
           ],
           "status": "passed"
         },
@@ -297,12 +300,15 @@
             "docs/renderer-performance/acceptance/f4-event-dedup.json",
             "docs/renderer-performance/acceptance/f4-chat-display.json",
             "docs/renderer-performance/acceptance/f4-desktop-panel-baseline.json",
-            "docs/renderer-performance/acceptance/f4-desktop-panel.json"
+            "docs/renderer-performance/acceptance/f4-desktop-panel.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-baseline.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "private_journal_membership_shared_display_scheduler_and_desktop_transcript_owner_browser_verified"
+      "implementationStatus": "desktop_and_mobile_transcript_owners_with_mobile_async_output_isolation_browser_and_native_webkit_verified"
     },
     {
       "id": "F5",
@@ -527,7 +533,8 @@
             "docs/renderer-performance/acceptance/f3-context-menus-native.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
-            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json"
+            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
           ],
           "status": "partial"
         },
@@ -555,7 +562,8 @@
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
-            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json"
+            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
           ],
           "status": "partial"
         },
