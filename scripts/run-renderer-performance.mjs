@@ -50,6 +50,12 @@ try {
           }
           return { code: `import { graphDriftWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
         }
+        if (id.endsWith('/StoryGraphUnplacedChapters.tsx')) {
+          const anchor = 'nodes.map((node) => {';
+          if (code.split(anchor).length !== 2) throw new Error('Unplaced chapter instrumentation drifted');
+          return { code: `import { storyGraphUnplacedWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n`
+            + code.replace(anchor, anchor + ' storyGraphUnplacedWork.chips++;'), map: null };
+        }
         if (id.endsWith('/StoryGraphDriftCards.tsx') || id.endsWith('/SuperElementDriftCards.tsx')) {
           const anchors = id.endsWith('/StoryGraphDriftCards.tsx') ? [
             ['}: DriftCardProps) {', 'storyCards'], ['nodes.map((node, index) => {', 'storyWrappers'],

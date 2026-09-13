@@ -116,7 +116,7 @@ describe('shared menu surface style', () => {
       'src/renderer/features/agent/desktop/DesktopAgentPanel.tsx',
       'src/renderer/components/ui/RelationKindMenu.tsx',
       'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
-      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+      'src/renderer/features/graph/StoryGraphUnplacedChapters.tsx',
       'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',
     ];
     for (const path of richMenus) {

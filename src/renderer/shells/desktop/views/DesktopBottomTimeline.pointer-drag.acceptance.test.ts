@@ -8,6 +8,10 @@ const storyGraphLane = readFileSync(
   new URL('../../../features/graph/StoryGraphLaneRow.tsx', import.meta.url),
   'utf8',
 );
+const storyGraphUnplaced = readFileSync(
+  new URL('../../../features/graph/StoryGraphUnplacedChapters.tsx', import.meta.url),
+  'utf8',
+);
 const sharedDrag = readFileSync(
   new URL('../../../features/graph/chapter-lane-drag.ts', import.meta.url),
   'utf8',
@@ -45,7 +49,9 @@ describe('desktop chapter pointer drag acceptance', () => {
     expect(storyGraphLane).toContain('onPointerDown={(event) => onNodePointerDown(event, node)}');
     expect(storyGraph).toContain('onNodePointerDown={handleChapterPointerDown}');
     expect(storyGraph).toContain("const handleChapterPointerDown = useCallback<StoryGraphLaneRowProps['onNodePointerDown']>");
-    expect(storyGraph).toContain('onPointerDown={(event) => {');
+    expect(storyGraphUnplaced).toContain('onPointerDown={(event) => onNodePointerDown(event, node)}');
+    expect(storyGraph).toContain('onNodePointerDown={handleUnplacedPointerDown}');
+    expect(storyGraph).toContain("const handleUnplacedPointerDown = useCallback<StoryGraphUnplacedChaptersProps['onNodePointerDown']>");
     expect(storyGraph).toContain(
       'if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);',
     );

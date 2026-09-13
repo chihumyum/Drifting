@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -225,6 +225,22 @@ if (report.agentBackground) {
     assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
       originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
+  }
+}
+if (report.storyGraphUnplaced) {
+  const baseline = read(path.join(directory, 'f5-unplaced-baseline.json')).storyGraphUnplaced.measurements;
+  const measurements = report.storyGraphUnplaced.measurements;
+  assert.deepEqual(measurements.map(item => item.chapters), [100, 1000, 5000]);
+  for (const [index, item] of measurements.entries()) {
+    assert.equal(item.fixtureHash, baseline[index].fixtureHash);
+    assert.equal(item.popoverCycles, 10); assert.equal(item.pointerMoves, 100);
+    assert.deepEqual(item.initialWork, { shell: 1, chips: 0 }, 'Closed unplaced chapters executed during mount.');
+    assert.deepEqual(item.mountWork, { shell: 1, chips: item.chapters }, 'Unplaced mount instrumentation missing.');
+    assert.deepEqual(item.closedWork, { shell: 20, chips: 0 }, 'Hidden unplaced chapters were rebuilt.');
+    assert.deepEqual(item.openWork, { shell: 20, chips: 0 }, 'Unrelated popovers rebuilt unplaced chapters.');
+    assert.deepEqual(item.checks, { closedPopoverCycles: true, orderedChapters: true, bodyPortal: true,
+      primaryAndUnassignedColors: true, openPopoverCycles: true, unchangedDom: true, currentTitleAndPrimary: true,
+      currentStorylineColor: true, cancelledDrag: true, escapeCloses: true, emptyState: true, reopenCurrentData: true });
   }
 }
 if (report.graphDriftCards) {

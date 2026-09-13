@@ -1,3 +1,4 @@
+import { runStoryGraphUnplacedScenarios } from './story-graph-unplaced-scenarios';
 import { runGraphDriftCardScenarios } from './graph-drift-card-scenarios';
 import { runStoryGraphCardScenarios } from './story-graph-card-scenarios';
 import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
@@ -137,6 +138,7 @@ async function run() {
     graphProjection: await runGraphProjectionScenarios(),
     superElementCards: await runSuperElementCardScenarios(),
     storyGraphCards: await runStoryGraphCardScenarios(),
+    storyGraphUnplaced: await runStoryGraphUnplacedScenarios(),
     graphDriftCards: await runGraphDriftCardScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),

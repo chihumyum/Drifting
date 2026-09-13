@@ -17,6 +17,7 @@ type Report = {
   agentBackground: { measurements: { ingressWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
   agentJournal: { checks: { passed: boolean }[] };
+  storyGraphUnplaced: { measurements: { initialWork: { chips: number }; openWork: { chips: number }; checks: { currentTitleAndPrimary: boolean; cancelledDrag: boolean } }[] };
   graphDriftCards: { measurements: { closedWork: { elementCards: number }; hoverWork: { storyShell: number; storyCards: number } | null; checks: { visualDropSettles: boolean | null; closeAndReopen: boolean } }[] };
   storyGraphCards: { measurements: { mountWork: { groupingVisits: number }; popoverWork: { tiles: number }; checks: { reassignedPrimaryLane: boolean } }[] };
   superElementCards: { measurements: { focusWork: { elements: number }; wheelWork: { bands: number }; checks: { chapterPairUsesLatestSource: boolean } }[] };
@@ -25,7 +26,7 @@ type Report = {
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f5-drift-cards.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f5-unplaced.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -71,7 +72,11 @@ describe('ordinary CI renderer evidence', () => {
     const driftCards = fixture(); driftCards.graphDriftCards.measurements[2].hoverWork!.storyCards = 100000;
     const driftCleanup = fixture(); driftCleanup.graphDriftCards.measurements[2].checks.closeAndReopen = false;
     const inapplicableDrag = fixture(); inapplicableDrag.graphDriftCards.measurements[3].checks.visualDropSettles = true;
-    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane, hiddenDrifts, driftShell, driftCards, driftCleanup, inapplicableDrag]) expect(validate(report).status).not.toBe(0);
+    const hiddenChapters = fixture(); hiddenChapters.storyGraphUnplaced.measurements[2].initialWork.chips = 5000;
+    const repeatedChapters = fixture(); repeatedChapters.storyGraphUnplaced.measurements[2].openWork.chips = 100000;
+    const staleChapter = fixture(); staleChapter.storyGraphUnplaced.measurements[0].checks.currentTitleAndPrimary = false;
+    const chapterDrag = fixture(); chapterDrag.storyGraphUnplaced.measurements[0].checks.cancelledDrag = false;
+    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane, hiddenDrifts, driftShell, driftCards, driftCleanup, inapplicableDrag, hiddenChapters, repeatedChapters, staleChapter, chapterDrag]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();

@@ -1,3 +1,4 @@
+import { StoryGraphUnplacedChapters, type StoryGraphUnplacedChaptersProps } from '../../../features/graph/StoryGraphUnplacedChapters';
 import { createStoryGraphDriftDrag } from '../../../features/graph/story-graph-drift-drag';
 import { StoryGraphDriftCards, type StoryGraphDriftCardsProps } from '../../../features/graph/StoryGraphDriftCards';
 import { GRAPH_CONFIG, EMPTY_POSITIONED_NODES, groupPositionedNodesByRow, type PositionedNode, type StoryGraphLane } from '../../../features/graph/story-graph-layout';
@@ -39,7 +40,6 @@ import type { RelationEdgePopoverAnchor } from '../../../components/graph/Relati
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
-import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { RelationTypeField } from '../../../components/ui/RelationTypeField';
 import {
@@ -272,9 +272,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     setSelectedEdgeId(id);
     setSelectedEdgeAnchor({ x: clientX, y: clientY });
   }, []);
-  // "未放置" (unplaced chapters) popover anchored to the head button.
-  // Narrative-mode only — the concept doesn't apply in book view.
-  const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
   // Dismiss the edge selection on any click that doesn't land on an edge or
   // its portaled detail surface. Escape is routed through the shared stack.
@@ -891,6 +888,13 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     });
   }, [positionToOrder, primaryStorylineId, orderField, moveChapterOnTimeline]);
 
+  const toggleUnplacedChapters = useCallback(() => setDrawerOpen(value => !value), []);
+  const closeUnplacedChapters = useCallback(() => setDrawerOpen(false), []);
+  const handleUnplacedPointerDown = useCallback<StoryGraphUnplacedChaptersProps['onNodePointerDown']>((event, node) => {
+    event.stopPropagation();
+    startGraphChapterPointerDrag(event, node, { fromDrawer: true });
+  }, [startGraphChapterPointerDrag]);
+
   const handleChapterPointerDown = useCallback<StoryGraphLaneRowProps['onNodePointerDown']>((event, node) => {
     if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);
   }, [mobileLinkMode, startGraphChapterPointerDrag]);
@@ -1108,67 +1112,9 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                 into a track. Renders as a popover anchored to the head
                 button rather than the old below-head drawer. */}
             {isNarrative && (
-              <div
-                className="graph-head__unplaced super-view-head__no-drag"
-                data-tauri-drag-region="false"
-              >
-                <button
-                  ref={unplacedBtnRef}
-                  type="button"
-                  className={`graph-head__unplaced-btn${drawerOpen ? ' is-open' : ''}`}
-                  onClick={() => setDrawerOpen((v) => !v)}
-                  title={t('bottomTimeline.unplaced.title')}
-                  aria-haspopup="menu"
-                  aria-expanded={drawerOpen}
-                >
-                  <span>{t('bottomTimeline.unplaced.label')}</span>
-                  <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
-                </button>
-                <AnchoredPopover
-                  anchorRef={unplacedBtnRef}
-                  open={drawerOpen}
-                  onClose={() => setDrawerOpen(false)}
-                  placement="bottom-start"
-                  className="menu-surface menu-surface--rich menu-surface--panel graph-head__unplaced-popover super-view-head__no-drag"
-                  role="dialog"
-                  ariaLabel={t('bottomTimeline.unplaced.title')}
-                  autoFocus={false}
-                  dismissOnEscape={false}
-                  maxHeight={260}
-                >
-                  {unplacedNodes.length === 0 ? (
-                    <div className="graph-head__unplaced-empty">
-                      {t('bottomTimeline.unplaced.empty')}
-                    </div>
-                  ) : (
-                    unplacedNodes.map((node) => {
-                      const primaryId = primaryStorylineId(node);
-                      const sl = primaryId ? storylineById.get(primaryId) : null;
-                      const color = sl?.color || 'hsl(var(--ink-4))';
-                      return (
-                        <div
-                          key={node.id}
-                          className="graph-head__unplaced-chip"
-                          onPointerDown={(event) => {
-                            event.stopPropagation();
-                            startGraphChapterPointerDrag(event, node, { fromDrawer: true });
-                          }}
-                          style={{ ['--chip-color' as string]: color } as React.CSSProperties}
-                          title={node.title || t('common.untitled')}
-                        >
-                          <span className="graph-head__unplaced-chip-dot" />
-                          <span className="graph-head__unplaced-chip-num">
-                            § {String(node.bookOrder).padStart(2, '0')}
-                          </span>
-                          <span className="graph-head__unplaced-chip-title">
-                            {node.title || t('common.untitled')}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </AnchoredPopover>
-              </div>
+              <StoryGraphUnplacedChapters nodes={unplacedNodes} primaryStorylineId={primaryStorylineId}
+                storylineById={storylineById} open={drawerOpen} onToggle={toggleUnplacedChapters}
+                onClose={closeUnplacedChapters} onNodePointerDown={handleUnplacedPointerDown} />
             )}
           </>
         }
