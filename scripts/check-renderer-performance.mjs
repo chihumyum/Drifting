@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { rendererFingerprintVersion, rendererSourceFingerprint } from './renderer-performance-source.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const directory = path.join(root, 'docs/renderer-performance/acceptance');
@@ -39,6 +41,7 @@ if (plan.optimizationImplementationStatus === 'complete') {
 const reportPath = process.argv.find((arg) => arg.startsWith('--report='))?.slice(9)
   ?? path.join(directory, 'baseline-editor.json');
 const report = read(reportPath);
+const deterministic = process.argv.includes('--deterministic');
 assert.equal(report.schemaVersion, 1);
 assert.equal(report.kind, 'renderer_performance_run');
 assert.equal(report.status, 'measured');
@@ -46,6 +49,35 @@ assert.match(report.source.commit, /^[0-9a-f]{40}$/);
 assert.match(report.source.rendererFingerprint, /^[0-9a-f]{64}$/);
 assert(report.limitations.length > 0);
 assert(report.scenarios.length > 0);
+if (process.argv.includes('--current')) {
+  assert.equal(report.source.fingerprintVersion, rendererFingerprintVersion, 'current source fingerprint version required');
+  assert.equal(report.source.commit, execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), 'report is from another commit');
+  assert.equal(report.source.rendererFingerprint, rendererSourceFingerprint(root), 'report is from another source tree');
+}
+if (deterministic) {
+  // Historical reports may legitimately predate a scenario. Ordinary CI must
+  // execute every current contract and may not pass by omitting its section.
+  for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
+    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
+    'agentDisplay', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply']) {
+    assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
+  }
+  assert.deepEqual(report.scenarios.map(item => [item.fixture.characters, item.fixture.links]), [[5_000, 0], [20_000, 100], [50_000, 500]]);
+  for (const scenario of report.scenarios) {
+    assert.equal(scenario.countedOperations, 100);
+    assert.deepEqual(scenario.counts, { fullLinkQueries: 0, colorResolutions: 0, styleWrites: 0 }, 'input locality regressed');
+  }
+  assert.deepEqual(report.reactSubscriptions.map(item => item.consumers), [1, 5, 20]);
+  for (const item of report.reactSubscriptions) assert.equal(item.operations, 100);
+  assert.equal(report.agentEventProcessing.implementation, 'private-membership-index');
+  assert.equal(report.graphProjection.implementation, 'shared-id-index');
+  assert.equal(report.graphGeometry.implementation, 'unique-endpoint-overlay-state');
+  assert.equal(report.timeline.leaders.implementation, 'shared-id-index');
+  assert.equal(report.timeline.marker.implementation, 'local-pin-and-guide-preview');
+  assert.equal(report.workspaceProjection.membership.implementation, 'linear-membership-sets');
+  assert.equal(report.workspaceProjection.publication.implementation, 'share-capture-values');
+}
 for (const check of [...(report.behaviorChecks ?? []), ...(report.budgetChecks ?? [])]) {
   assert.equal(check.passed, true, `failed check ${check.id}`);
 }
@@ -138,7 +170,7 @@ if (report.agentEventProcessing) {
     assert.equal(item.notifications, item.eventCount);
     assert.equal(item.duplicateNotifications, 0);
     assert.equal(item.finalCharacters, item.eventCount);
-    if (scenario.implementation === 'private-membership-index') assert(item.medianMs <= item.eventCount * 0.02, 'F4a ingestion budget exceeded');
+    if (!deterministic && scenario.implementation === 'private-membership-index') assert(item.medianMs <= item.eventCount * 0.02, 'F4a ingestion budget exceeded');
   }
 }
 if (report.agentDisplay) {
@@ -170,7 +202,7 @@ if (report.graphProjection) {
       assert.equal(item.repeatedProjectionIdReads, 0);
       assert.equal(item.viewportProjectionIdReads, 0);
       assert.equal(item.worldProjectionMatchesFixture, true);
-      assert(item.medianMs <= [10, 30, 100][index], 'F5a projection time budget exceeded');
+      if (!deterministic) assert(item.medianMs <= [10, 30, 100][index], 'F5a projection time budget exceeded');
     }
   }
 }
@@ -237,7 +269,7 @@ if (report.timeline) {
       assert(item.firstIdReads <= item.chapters, 'F5d leader index read budget exceeded');
       assert.equal(item.repeatedIdReads, 0);
       assert.equal(item.pathsMatchFixture, true);
-      assert(item.medianMs <= [10, 30, 50][index], 'F5d leader projection budget exceeded');
+      if (!deterministic) assert(item.medianMs <= [10, 30, 50][index], 'F5d leader projection budget exceeded');
     } else {
       assert.equal(item.firstIdReads, item.chapters * (item.chapters + 1) / 2);
       assert.equal(item.repeatedIdReads, item.firstIdReads);
@@ -291,13 +323,13 @@ if (report.workspaceProjection) {
   for (const [index, item] of membership.profiles.entries()) {
     assert.equal(item.links, item.nodes * 2); assert.equal(item.matchesFixture, true);
     assert.equal(item.scannedSlots, membership.implementation === 'linear-membership-sets' ? 0 : item.nodes * (item.nodes - 1));
-    if (membership.implementation === 'linear-membership-sets') assert(item.medianMs <= [5, 10, 30][index], 'F6a1 membership budget exceeded');
+    if (!deterministic && membership.implementation === 'linear-membership-sets') assert(item.medianMs <= [5, 10, 30][index], 'F6a1 membership budget exceeded');
   }
   for (const [index, item] of publication.profiles.entries()) {
     assert.equal(item.elements, item.nodes / 5); assert.equal(item.slices, 17);
     assert.equal(item.reusedNodeRecords, optimized ? item.nodes : 0);
     assert.equal(item.stableCollections, optimized ? 16 : 0);
-    if (optimized) assert(item.medianMs <= [10, 30, 50][index], 'F6a1 publication comparison budget exceeded');
+    if (!deterministic && optimized) assert(item.medianMs <= [10, 30, 50][index], 'F6a1 publication comparison budget exceeded');
   }
   assert.equal(subscriptions.consumers, 20); assert.equal(subscriptions.refreshes, 100);
   assert.deepEqual(subscriptions.unrelated, { fields: optimized ? 0 : 2_000, records: optimized ? 0 : 2_000 });
@@ -319,4 +351,4 @@ for (const scenario of report.scenarios) {
     assert.equal(metric.p95, sorted[Math.ceil(sorted.length * 0.95) - 1]);
   }
 }
-console.log(`Renderer performance contract passed: ${phases.size} phases, ${criteria.size} criteria, ${report.scenarios.length} measured scenarios. No native acceptance inferred.`);
+console.log(`Renderer ${deterministic ? 'deterministic CI' : 'performance'} contract passed: ${phases.size} phases, ${criteria.size} criteria, ${report.scenarios.length} measured scenarios. No native acceptance inferred.`);

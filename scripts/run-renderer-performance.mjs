@@ -1,6 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, platform, release, tmpdir, totalmem } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,12 +7,15 @@ import { setTimeout as delay } from 'node:timers/promises';
 import CDP from 'chrome-remote-interface';
 import { build, preview } from 'vite';
 import react from '@vitejs/plugin-react';
+import { rendererFingerprintVersion, rendererSourceFingerprint } from './renderer-performance-source.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
 const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9)
   ?? '.local-data/renderer-performance/latest.json';
 const assertInputBudget = process.argv.includes('--assert-input-budget');
+const ci = process.argv.includes('--ci');
+if (ci && assertInputBudget) throw new Error('CI checks deterministic contracts; run device timing budgets separately');
 const chrome = process.env.DRIFTING_PERF_CHROME ?? [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome',
@@ -22,25 +24,13 @@ if (!chrome || !existsSync(chrome)) throw new Error('Set DRIFTING_PERF_CHROME to
 const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-perf-'));
 const profile = path.join(temporary, 'profile');
 const outDir = path.join(temporary, 'dist');
-const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const sourceFiles = [];
-function visit(directory) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) visit(file);
-    else if (/\.(ts|tsx|css)$/.test(file)) sourceFiles.push(path.relative(root, file));
-  }
-}
-visit(path.join(root, 'src/renderer'));
-visit(path.join(root, 'src/styles'));
-sourceFiles.push('scripts/run-renderer-performance.mjs', 'scripts/renderer-performance.html', 'pnpm-lock.yaml');
-sourceFiles.sort();
-const fingerprint = () => hash(sourceFiles.map((file) => `${file}\0${hash(readFileSync(file))}`).join('\n'));
+const fingerprint = () => rendererSourceFingerprint(root);
 const sourceFingerprint = fingerprint();
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 let browser;
 let server;
 let client;
+let reportWritten = false;
 try {
   await build({
     root, configFile: false, envDir: false, logLevel: 'warn',
@@ -94,11 +84,15 @@ try {
     schemaVersion: 1, kind: 'renderer_performance_run', generatedAt: new Date().toISOString(),
     status: 'measured', source: {
       commit: sourceCommit, rendererFingerprint: sourceFingerprint,
+      fingerprintVersion: rendererFingerprintVersion,
       dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()),
       build: 'vite-production-isolated-harness',
     },
-    environment: { platform: platform(), release: release(), cpu: cpus()[0]?.model, memoryBytes: totalmem(), node: process.version },
     ...result.result.value,
+    environment: { ...result.result.value.environment, platform: platform(), release: release(), cpu: cpus()[0]?.model,
+      memoryBytes: totalmem(), node: process.version, browser: await client.Browser.getVersion(),
+      runnerImage: process.env.ImageOS ?? null, runnerImageVersion: process.env.ImageVersion ?? null },
+    validationMode: ci ? 'deterministic-ci' : 'measurement',
     limitations: [
       'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
@@ -118,7 +112,18 @@ try {
   }
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
+  reportWritten = true;
+  if (ci) execFileSync(process.execPath, [path.join(root, 'scripts/check-renderer-performance.mjs'),
+    '--deterministic', '--current', `--report=${path.resolve(output)}`], { stdio: 'inherit' });
   console.log(JSON.stringify({ output, source: report.source, status: report.status, behaviorChecks: report.behaviorChecks, budgetChecks: report.budgetChecks, scenarios: report.scenarios.map(({ id, counts, transactionMs }) => ({ id, counts, transactionP95Ms: transactionMs.p95 })) }, null, 2));
+} catch (error) {
+  if (!reportWritten) {
+    mkdirSync(path.dirname(output), { recursive: true });
+    writeFileSync(output, `${JSON.stringify({ kind: 'renderer_performance_failure', status: 'failed',
+      generatedAt: new Date().toISOString(), source: { commit: sourceCommit, rendererFingerprint: sourceFingerprint,
+        fingerprintVersion: rendererFingerprintVersion }, error: String(error) }, null, 2)}\n`);
+  }
+  throw error;
 } finally {
   if (client) await client.close();
   if (browser && browser.exitCode === null) {

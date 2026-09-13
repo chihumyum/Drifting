@@ -41,7 +41,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
-            "docs/renderer-performance/acceptance/f3-selection-capture.json"
+            "docs/renderer-performance/acceptance/f3-selection-capture.json",
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
           ],
           "status": "partial"
         },
@@ -50,7 +51,8 @@
           "requirement": "计数可区分输入、订阅、事件、几何、引用的全量与局部工作，预算在优化前固定",
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
-            "docs/renderer-performance/acceptance/f3-selection-capture.json"
+            "docs/renderer-performance/acceptance/f3-selection-capture.json",
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
           ],
           "status": "partial"
         },
@@ -59,7 +61,8 @@
           "requirement": "计划与报告有可复现校验入口，采集不增加生产默认热路径成本",
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
           ],
           "status": "partial"
         }
@@ -519,7 +522,10 @@
         {
           "id": "F8-02",
           "requirement": "确定性性能约束纳入 CI，设备性能结果有固定环境、容差和复跑规则",
-          "evidence": []
+          "evidence": [
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
+          ],
+          "status": "partial"
         },
         {
           "id": "F8-03",
@@ -532,7 +538,8 @@
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-selection-native.json",
             "docs/renderer-performance/acceptance/f3-context-menus-native.json",
-            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json"
+            "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
           ],
           "status": "partial"
         },
@@ -550,7 +557,7 @@
           "status": "partial"
         }
       ],
-      "implementationStatus": "native_control_composition_and_restart_verified_budgets_stress_ci_and_device_matrix_pending"
+      "implementationStatus": "native_control_and_editor_interactions_restart_verified_deterministic_ci_gate_locally_validated_hosted_run_budgets_stress_and_device_matrix_pending"
     }
   ]
 }

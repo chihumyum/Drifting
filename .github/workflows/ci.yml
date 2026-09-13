@@ -66,12 +66,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run --shard="$TEST_SHARD"
 
+  client-renderer:
+    name: client / renderer contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Check current renderer behavior and operation counts
+        run: pnpm perf:renderer --ci --output=.local-data/renderer-performance/ci.json
+      - name: Retain renderer evidence and failure diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: renderer-contracts-${{ github.sha }}
+          path: .local-data/renderer-performance/ci.json
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
+
   # Keep the stable `client` context required by the main-branch ruleset while
   # allowing checks, builds, and test shards to finish independently.
   client:
     name: client
     if: ${{ always() }}
-    needs: [client-checks, client-tests]
+    needs: [client-checks, client-tests, client-renderer]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -79,9 +103,11 @@ jobs:
         env:
           CHECKS_RESULT: ${{ needs.client-checks.result }}
           TESTS_RESULT: ${{ needs.client-tests.result }}
+          RENDERER_RESULT: ${{ needs.client-renderer.result }}
         run: |
           test "$CHECKS_RESULT" = success
           test "$TESTS_RESULT" = success
+          test "$RENDERER_RESULT" = success
 
   native:
     runs-on: macos-14

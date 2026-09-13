@@ -15,16 +15,19 @@ if (/^\s{4}tags:/mu.test(ci)) {
   errors.push('ordinary CI must not duplicate the exact-SHA release workflow on tags');
 }
 
-for (const job of ['client-checks', 'client-tests', 'client', 'native']) {
+for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native']) {
   requireMatch(ci, new RegExp(`^  ${job}:\\s*$`, 'mu'), `CI is missing the ${job} job`);
 }
 requireMatch(ci, /^\s{4}name: client\s*$/mu, 'CI must preserve the required client context');
 requireMatch(
   ci,
-  /^\s{4}needs: \[client-checks, client-tests\]\s*$/mu,
-  'client must aggregate checks and test shards',
+  /^\s{4}needs: \[client-checks, client-tests, client-renderer\]\s*$/mu,
+  'client must aggregate checks, test shards and renderer contracts',
 );
 requireMatch(ci, /pnpm exec vitest run --shard="\$TEST_SHARD"/u, 'CI must run sharded Vitest');
+requireMatch(ci, /pnpm perf:renderer --ci --output=\.local-data\/renderer-performance\/ci\.json/u, 'CI must generate and validate current deterministic renderer evidence');
+requireMatch(ci, /test "\$RENDERER_RESULT" = success/u, 'client must require renderer success');
+requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u, 'renderer gate must read the renderer job result');
 
 for (const command of [
   'pnpm ci:contract:check',
