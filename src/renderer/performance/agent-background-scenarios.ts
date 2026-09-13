@@ -83,6 +83,6 @@ export async function runAgentBackgroundScenarios() {
       } finally { release(); }
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     }
-    return { measurements, boundary: 'Real store, journal consumer and display projection in Chromium; synthetic text and controlled hidden/timer ports. No OS background timer latency, SQLite, model or native input.' };
+    return { displayProjection: 'tree-snapshot', measurements, boundary: 'Real store, journal consumer and display projection in Chromium; synthetic text and controlled hidden/timer ports. Timer work excludes an explicit legacy array read. No OS background timer latency, SQLite, model or native input.' };
   } finally { useAgentChatStore.setState(before, true); restore(); }
 }

@@ -12,6 +12,7 @@ describe('immutable live transcript', () => {
     const appended = initial.append(message(length), message(length + 1));
     expect(appended.toArray()).toEqual([...source, message(length), message(length + 1)]);
     expect(initial.toArray()).toBe(array); expect(initial.length).toBe(length);
+    expect([...initial]).toEqual(source); expect([...appended]).toEqual([...source, message(length), message(length + 1)]);
     const updated = appended.replace(Math.floor(length / 2), message(-1));
     expect(updated.at(Math.floor(length / 2))).toEqual(message(-1));
     expect(appended.at(Math.floor(length / 2))).toEqual(message(Math.floor(length / 2)));
@@ -41,4 +42,24 @@ describe('immutable live transcript', () => {
     }
     expect(transcript.toArray()).toEqual(expected);
   });
+});
+
+it('exposes ordered immutable leaves and iteration without flattening or losing shared branches', () => {
+  const original = AgentChatTranscript.from(Array.from({ length: 1025 }, (_, index) => message(index)));
+  const leaves: { rows: readonly AgentChatMessage[]; start: number }[] = [];
+  original.forEachLeaf((rows, start) => leaves.push({ rows, start }));
+  expect(leaves.map(leaf => leaf.start)).toEqual(Array.from({ length: 33 }, (_, index) => index * 32));
+  expect(leaves.slice(0, -1).every(leaf => leaf.rows.length === 32)).toBe(true);
+  expect(leaves[leaves.length - 1].rows).toHaveLength(1);
+  const changed = original.replace(1024, message(-1)); const next: (readonly AgentChatMessage[])[] = [];
+  changed.forEachLeaf(rows => next.push(rows));
+  expect(next.slice(0, -1).every((rows, i) => rows === leaves[i].rows)).toBe(true);
+  expect(next[next.length - 1]).not.toBe(leaves[leaves.length - 1].rows);
+  expect([...original]).toEqual(leaves.flatMap(leaf => leaf.rows)); expect([...changed][1024]).toEqual(message(-1));
+  const first = original[Symbol.iterator](); const independent = original[Symbol.iterator]();
+  expect(first.next().value).toBe(original.at(0)); expect(first.next().value).toBe(original.at(1));
+  expect(independent.next().value).toBe(original.at(0));
+  expect([...first]).toEqual(original.toArray().slice(2));
+  expect(first.next()).toEqual({ done: true, value: undefined }); expect(first.next().done).toBe(true);
+  const empty: unknown[] = []; AgentChatTranscript.from([]).forEachLeaf(rows => empty.push(rows)); expect(empty).toEqual([]);
 });

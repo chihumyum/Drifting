@@ -1,4 +1,4 @@
-import type { AgentChatMessage } from '../../domain/agent-conversation';
+import { AgentChatTranscript } from '../../domain/agent-chat-transcript';
 import type { useAgentChatStore } from '../../store/agent-chat-store';
 import { mayDeferAgentChatMessages } from '../../lib/agent/runtime/chat-message-publication';
 
@@ -16,7 +16,7 @@ export interface AgentChatDisplayScheduler {
   subscribeVisibility(callback: () => void): () => void;
 }
 
-const empty: AgentChatMessage[] = [];
+const empty = AgentChatTranscript.from([]);
 function select(state: State) {
   const id = state.activeConvId;
   const run = id ? state.runs[id] : undefined;
@@ -49,7 +49,7 @@ export function createAgentChatDisplayProjection(source: Source, scheduler: Agen
     cancelScheduled();
     if (!listeners.size) return;
     latest = select(source.getState());
-    const messages = latest.transcript?.toArray() ?? empty;
+    const messages = latest.transcript ?? empty;
     if (snapshot === messages) return;
     snapshot = messages;
     for (const listener of listeners) listener();
@@ -81,14 +81,15 @@ export function createAgentChatDisplayProjection(source: Source, scheduler: Agen
     if (timer === undefined) timer = scheduler.setTimer(scheduledFlush, 50);
   }
   return {
-    getSnapshot: () => listeners.size ? snapshot : (select(source.getState()).transcript?.toArray() ?? empty),
+    getSnapshot: () => (listeners.size ? snapshot : (select(source.getState()).transcript ?? empty)).toArray(),
+    getTranscriptSnapshot: () => listeners.size ? snapshot : (select(source.getState()).transcript ?? empty),
     subscribe(listener: () => void) {
       const first = listeners.size === 0;
       listeners.add(listener);
       if (first) {
         const connection = ++connectionGeneration;
         latest = select(source.getState());
-        snapshot = latest.transcript?.toArray() ?? empty;
+        snapshot = latest.transcript ?? empty;
         disconnect = source.subscribe(changed);
         detachVisibility = scheduler.subscribeVisibility(() => { if (connection === connectionGeneration) flush(); });
       }

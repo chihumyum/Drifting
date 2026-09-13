@@ -159,3 +159,30 @@ describe('Agent chat display notification projection', () => {
     releaseAgain();
   });
 });
+
+it('publishes tree snapshots without flattening and materializes only for an explicit array reader', () => {
+  const f = setup(); const flatten = vi.spyOn(AgentChatTranscript.prototype, 'toArray');
+  const release = f.projection.subscribe(() => undefined);
+  try {
+    const original = f.projection.getTranscriptSnapshot();
+    const current = original.append({ kind: 'assistant', text: 'Complete stream', streaming: true });
+    markAgentChatMessagePublication(current, 'text_delta'); f.changeRun({ transcript: current });
+    expect(f.projection.getTranscriptSnapshot()).toBe(original);
+    f.nextFrame(); expect(f.projection.getTranscriptSnapshot()).toBe(current);
+    expect(flatten).not.toHaveBeenCalled();
+    expect(f.projection.getSnapshot()).toEqual([...current]); expect(flatten).toHaveBeenCalledOnce();
+  } finally { release(); flatten.mockRestore(); }
+  const replacement = AgentChatTranscript.from([{ kind: 'user', text: 'New canonical snapshot' }]); f.changeRun({ transcript: replacement });
+  expect(f.projection.getTranscriptSnapshot()).toBe(replacement);
+});
+it('keeps tree and array subscribers on the same coalesced control and owner boundary', () => {
+  const f = setup(); let tree = f.projection.getTranscriptSnapshot(); let array = f.projection.getSnapshot();
+  const releaseTree = f.projection.subscribe(() => { tree = f.projection.getTranscriptSnapshot(); });
+  const releaseArray = f.projection.subscribe(() => { array = f.projection.getSnapshot(); });
+  try {
+    f.publish('Stream'); f.nextFrame(); expect(array).toBe(tree.toArray());
+    f.publish('Terminal', 'first', true); expect(array).toBe(tree.toArray()); expect(tree.at(0)).toMatchObject({ text: 'Terminal' });
+    f.source.setState({ activeConvId: 'second' }); expect(array).toBe(tree.toArray()); expect(tree.length).toBe(0);
+    f.hide(); f.publish('Hidden other conversation', 'second'); vi.advanceTimersByTime(50); expect(array).toBe(tree.toArray());
+  } finally { releaseArray(); releaseTree(); }
+});

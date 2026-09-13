@@ -311,7 +311,9 @@
             "docs/renderer-performance/acceptance/f4-control-recovery.json",
             "docs/renderer-performance/acceptance/f4-control-recovery-browser.json",
             "docs/renderer-performance/acceptance/f4-checkpoint-retention.json",
-            "docs/renderer-performance/acceptance/f4-checkpoint-retention-browser.json"
+            "docs/renderer-performance/acceptance/f4-checkpoint-retention-browser.json",
+            "docs/renderer-performance/acceptance/f4-tree-display.json",
+            "docs/renderer-performance/acceptance/f4-tree-display-regression.json"
           ],
           "status": "partial"
         },
@@ -347,7 +349,9 @@
             "docs/renderer-performance/acceptance/f4-conversation-navigation.json",
             "docs/renderer-performance/acceptance/f4-conversation-removal.json",
             "docs/renderer-performance/acceptance/f4-control-recovery.json",
-            "docs/renderer-performance/acceptance/f4-control-recovery-browser.json"
+            "docs/renderer-performance/acceptance/f4-control-recovery-browser.json",
+            "docs/renderer-performance/acceptance/f4-tree-display.json",
+            "docs/renderer-performance/acceptance/f4-tree-display-regression.json"
           ],
           "status": "passed"
         },
@@ -384,12 +388,14 @@
             "docs/renderer-performance/acceptance/f4-control-recovery.json",
             "docs/renderer-performance/acceptance/f4-control-recovery-browser.json",
             "docs/renderer-performance/acceptance/f4-checkpoint-retention.json",
-            "docs/renderer-performance/acceptance/f4-checkpoint-retention-browser.json"
+            "docs/renderer-performance/acceptance/f4-checkpoint-retention-browser.json",
+            "docs/renderer-performance/acceptance/f4-tree-display.json",
+            "docs/renderer-performance/acceptance/f4-tree-display-regression.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "app_owned_journal_navigation_hydration_send_and_committed_removal_atomic_recovered_controls_indexed_checkpoint_anchors_and_retained_commit_identity_verified_remaining_tool_resume_context_compaction_and_device_budgets_pending"
+      "implementationStatus": "app_owned_journal_navigation_hydration_send_and_committed_removal_atomic_recovered_controls_indexed_checkpoint_anchors_and_retained_commit_identity_verified_remaining_tool_resume_context_compaction_and_device_budgets_pending; tree_snapshots_and_shared_leaf_display_blocks_verified_with_explicit_legacy_array_boundary"
     },
     {
       "id": "F5",

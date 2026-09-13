@@ -287,6 +287,8 @@ if (report.agentTranscript) {
   }
 }
 if (report.agentBackground) {
+  const treeSnapshot = report.agentBackground.displayProjection === 'tree-snapshot';
+  if (deterministic) assert(treeSnapshot, 'Current background display must publish a tree snapshot.');
   const baseline = read(path.join(directory, 'f4-background-baseline.json')).agentBackground;
   assert.deepEqual(report.agentBackground.measurements.map(item => item.historyMessages), [300, 3000, 30000]);
   for (const [index, item] of report.agentBackground.measurements.entries()) {
@@ -299,7 +301,7 @@ if (report.agentBackground) {
     assert.deepEqual(item.duplicateWork, { copiedTreeNodes: 0, copiedTreeSlots: 0, copiedArraySlots: 0, flatMaterializations: 0, flattenedMessages: 0 });
     assert.deepEqual(item.scheduled, { frames: 0, timers: 1, timerDelays: [50] });
     assert.equal(item.beforeTimer, 0); assert.equal(item.afterTimer, 1);
-    assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
+    assert.deepEqual(item.timerWork, treeSnapshot ? { flatMaterializations: 0, flattenedMessages: 0 } : { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
       originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
   }

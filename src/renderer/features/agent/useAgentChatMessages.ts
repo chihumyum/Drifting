@@ -19,3 +19,8 @@ const display = createAgentChatDisplayProjection(useAgentChatStore, {
 export function useAgentChatMessages() {
   return useSyncExternalStore(display.subscribe, display.getSnapshot, display.getSnapshot);
 }
+
+/** Tree snapshots keep ordinary transcript views off the full-array boundary. */
+export function useAgentChatTranscript() {
+  return useSyncExternalStore(display.subscribe, display.getTranscriptSnapshot, display.getTranscriptSnapshot);
+}

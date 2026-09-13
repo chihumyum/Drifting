@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AgentChatTranscript } from '../../../domain/agent-chat-transcript';
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
 import { useDataStore } from '../../../store/data-store';
 import {
@@ -59,6 +60,7 @@ describe('mobile agent model', () => {
       },
     ];
     const evidence = collectMobileAgentEvidence(messages);
+    expect(collectMobileAgentEvidence(AgentChatTranscript.from(messages))).toEqual(evidence);
     expect(evidence).toEqual([
       { entityType: 'node', entityId: 'node-1', blockId: 'block-1', operation: 'read' },
     ]);
@@ -67,6 +69,16 @@ describe('mobile agent model', () => {
     openMobileAgentEvidence(evidence[0]!, { open, scrollToBlock });
     expect(open).toHaveBeenCalledWith({ entityType: 'node', id: 'node-1' });
     expect(scrollToBlock).toHaveBeenCalledWith('node-1', 'block-1');
+  });
+
+  it('preserves evidence order, deduplication and the limit across tree leaves', () => {
+    useDataStore.setState({ bookNodes: [{ id: 'node-1', projectId: 'p1', title: 'Chapter One', kind: 'chapter' } as never] });
+    const rows: AgentChatMessage[] = Array.from({ length: 33 }, () => ({ kind: 'assistant', text: 'History' }));
+    for (let i = 0; i < 40; i++) rows.push({ kind: 'tool', id: `tool-${i}`, name: 'read_block', status: 'ok',
+      input: { node: 'Chapter One', blockId: `block-${Math.max(0, i - 1)}` }, result: '{"found":true}' });
+    const expected = collectMobileAgentEvidence(rows);
+    expect(expected.map(ref => ref.blockId)).toEqual(Array.from({ length: 32 }, (_, index) => `block-${index}`));
+    expect(collectMobileAgentEvidence(AgentChatTranscript.from(rows))).toEqual(expected);
   });
 
   it('prepares output only for an explicit inspiration action', () => {

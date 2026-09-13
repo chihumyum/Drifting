@@ -93,7 +93,7 @@ function blockIdsFromTool(message: Extract<AgentChatMessage, { kind: 'tool' }>):
 }
 
 export function collectMobileAgentEvidence(
-  messages: readonly AgentChatMessage[],
+  messages: Iterable<AgentChatMessage>,
 ): MobileAgentEvidenceRef[] {
   const byKey = new Map<string, MobileAgentEvidenceRef>();
   for (const message of messages) {

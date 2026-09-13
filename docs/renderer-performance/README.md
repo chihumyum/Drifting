@@ -3968,3 +3968,51 @@ before final typecheck and report collection. The ordinary production build has
 smoke path also passed. Native local-resource/offline-upgrade behavior, live
 provider conformance, first-request latency and whole-app startup/heap budgets
 remain open. F7 is still in progress.
+
+## F4p — Tree snapshots through desktop and mobile display
+
+[Transcript display](tree-display.md) now publishes the immutable message tree
+through the existing coalesced scheduler. Desktop and mobile views reuse
+64-message groups by checking their shared 32-message leaves first. Rebuilt
+trees, legacy arrays and abandoned render snapshots retain row-identity
+fallback. Group keys, historical DOM, selection, expanded tool details and
+canonical event/persistence ownership stay intact. Array materialization is
+limited to explicit consumers such as legacy readers and idle turn references.
+
+`acceptance/f4-tree-display.json` compares actual mounted desktop/mobile views
+with the exact `c355d6cf` baseline using the same synthetic traces. For 10,000
+history rows and 20 visible tail updates, complete arrays fall from 20 to zero,
+flattened rows from 200,020 to zero, and message identity comparisons from
+200,020 to 340. The block projection still visits 6,260 leaves; usage and
+evidence aggregation still traverse history. All history remains mounted.
+The six profiles pass nine continuity checks each, and 38 unit checks cover
+immutable tree boundaries, independent iterators, group reuse, rebuilt/older
+snapshots, mixed subscribers and mobile evidence ordering/limits.
+
+Diagnostic median update time for the 10,000-row profile is 2.80→2.65 ms on
+desktop and 5.50→3.60 ms on mobile; both 3,000-row medians remain 0.90 ms.
+The dedicated document retains all median/p95 results and measurement limits.
+This is a deterministic allocation/comparison improvement, with no fixed-device
+or whole-app latency/heap claim. Recursive per-row iterator delegation was
+removed before final collection; sequential iteration preserves usage addition
+and evidence order.
+
+The existing combined headless renderer suite was regenerated in
+`acceptance/f4-tree-display-regression.json`. Background timer publication now
+requires zero complete arrays, while the subsequent explicit legacy read still
+returns the complete display. Ordinary CI requires the tree-publication marker
+and rejects omitted or eager-array results. Existing historical evidence keeps
+its original assertion outside the current deterministic contract. The new
+dedicated evidence contract also rejects incomplete, mismatched or overstated
+view results. Both reports matched final source fingerprints before commit and
+retain their actual pre-commit SHA.
+
+All six required checks and renderer architecture passed: 2,950 tests passed,
+one existing skip across 435 files; lint has zero errors and 30 existing warnings.
+The ordinary production build contains 45 JS assets without acceptance probes.
+Conversation-sync evidence was regenerated through its real test generator;
+all 60 renderer and 108 Rust library/database checks passed, followed by the
+conversation-sync contract check. Physical/native-window, live-provider and
+fixed-device gates remain unrun.
+F4-01/04 remain partial, and F4 stays in progress. Every validation in this batch
+ran headlessly, including Rust library/database tests.

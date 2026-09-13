@@ -1,3 +1,4 @@
+import { AgentChatTranscript } from '../../domain/agent-chat-transcript';
 import { describe, expect, it } from 'vitest';
 import type { AgentChatMessage } from '../../domain/agent-conversation';
 import { createAgentMessageBlockProjection } from './useAgentMessageBlocks';
@@ -29,5 +30,34 @@ describe('display message blocks', () => {
     const result = project(inserted); expect(result.flatMap(block => block.messages)).toEqual(inserted);
     expect(result.map(block => block.start)).toEqual([0, 64]);
     expect(createAgentMessageBlockProjection()(b)[0]).not.toBe(second[0]);
+  });
+});
+describe('tree display blocks', () => {
+  it('reuses stable leaves, changed historical groups and boundary appends without flattening', () => {
+    const project = createAgentMessageBlockProjection();
+    let source = AgentChatTranscript.from(history(128)); const first = project(source);
+    source = source.append({ kind: 'assistant', text: 'Tail' }); const second = project(source);
+    expect(second[0]).toBe(first[0]); expect(second[1]).toBe(first[1]); expect(second[2].start).toBe(128);
+    const changed = source.replace(63, { kind: 'tool', id: 'tool', name: 'read', status: 'ok' });
+    const third = project(changed); expect(third[0]).not.toBe(second[0]); expect(third[1]).toBe(second[1]); expect(third[2]).toBe(second[2]);
+    expect(third.flatMap(block => block.messages)).toEqual([...changed]);
+    expect(project(source).flatMap(block => block.messages)).toEqual([...source]);
+  });
+  it('keeps identity reuse for rebuilt hydration trees and mixed legacy array reads', () => {
+    const project = createAgentMessageBlockProjection(); const rows = history(130); const first = project(rows);
+    expect(project(AgentChatTranscript.from(rows))).toBe(first);
+    expect(project([...rows])).toBe(first);
+    expect(project(AgentChatTranscript.from(rows))).toBe(first);
+    expect(project(AgentChatTranscript.from(rows.slice(0, 64)))).toEqual([first[0]]);
+    expect(project(AgentChatTranscript.from([]))).toEqual([]);
+  });
+  it('handles deep growth, arbitrary history edits and nonmonotonic snapshots', () => {
+    const project = createAgentMessageBlockProjection(); const initial = AgentChatTranscript.from(history(32768));
+    const before = project(initial); const grown = initial.append({ kind: 'user', text: 'Next' }); const after = project(grown);
+    expect(after.slice(0, -1).every((block, i) => block === before[i])).toBe(true);
+    expect(after[after.length - 1].start).toBe(32768);
+    const changed = grown.replace(1023, { kind: 'assistant', text: 'Changed' }); const result = project(changed);
+    expect(result.flatMap(block => block.messages)).toEqual([...changed]);
+    expect(project(initial).flatMap(block => block.messages)).toEqual([...initial]);
   });
 });

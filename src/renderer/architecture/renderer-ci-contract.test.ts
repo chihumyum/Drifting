@@ -14,7 +14,7 @@ type Report = {
   agentDecorations: { checks: { passed: boolean }[] };
   inlineCopilot: { listeners: { remaining: number } };
   agentTranscript: { ingress: { eventWork: { flatMaterializations: number } }[] };
-  agentBackground: { measurements: { ingressWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
+  agentBackground: { displayProjection?: string; measurements: { ingressWork: { flatMaterializations: number }; timerWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
   agentJournal: { checks: { passed: boolean }[] };
   storyGraphUnplaced: { measurements: { initialWork: { chips: number }; openWork: { chips: number }; checks: { currentTitleAndPrimary: boolean; cancelledDrag: boolean } }[] };
@@ -31,7 +31,7 @@ type Report = {
   entityTargetState?: { profiles: { indexedRowReads: number; repeatedRowReads: number }[]; checks: { passed: boolean }[] };
   workspaceGeneration?: { profiles: { comments: { targets: number }; metrics: { names: number }; checks: { changedGenerationReleasesRecords: boolean }; incoherentCommits: number }[] };
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f3-link-presentation-browser.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-tree-display-regression.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -56,6 +56,11 @@ describe('ordinary CI renderer evidence', () => {
     const failed = fixture(); failed.entityLinkPresentation!.checks[0].passed = false;
     const cleanup = fixture(); cleanup.entityLinkPresentation!.lifecycleCycles = 0;
     for (const report of [missing, repeated, colors, names, hidden, failed, cleanup]) expect(validate(report).status).not.toBe(0);
+  });
+  it('rejects eager array generation or omitted tree publication in background display', () => {
+    const eager = fixture(); eager.agentBackground.measurements[0].timerWork.flatMaterializations = 1;
+    const omitted = fixture(); delete omitted.agentBackground.displayProjection;
+    for (const report of [eager, omitted]) expect(validate(report).status).not.toBe(0);
   });
   it('rejects missing or failed real-editor literal matching evidence', () => {
     const missing = fixture(); delete missing.retroactiveLinkMatching;

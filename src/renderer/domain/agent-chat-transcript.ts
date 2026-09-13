@@ -70,6 +70,33 @@ export class AgentChatTranscript {
     return new AgentChatTranscript(length, depth, tree);
   }
 
+  /** Read-only leaves preserve identity across edits to other tree branches. */
+  forEachLeaf(visit: (messages: readonly AgentChatMessage[], start: number) => void): void {
+    const walk = (tree: Tree, depth: number, start: number) => {
+      if (depth === 0) visit(tree as readonly AgentChatMessage[], start);
+      else for (let slot = 0; slot < tree.length; slot++) walk(tree[slot] as Tree, depth - 1, start + slot * WIDTH ** depth);
+    };
+    if (this.length) walk(this.tree, this.depth, 0);
+  }
+
+  [Symbol.iterator](): IterableIterator<AgentChatMessage> {
+    let index = 0;
+    let leaf = this.tree;
+    const { length, depth, tree } = this;
+    // Descend once per leaf, avoiding recursive generator delegation per row.
+    return {
+      [Symbol.iterator]() { return this; },
+      next(): IteratorResult<AgentChatMessage> {
+        if (index >= length) return { done: true, value: undefined };
+        if (index % WIDTH === 0) {
+          leaf = tree;
+          for (let level = depth; level > 0; level--) leaf = leaf[Math.floor(index / WIDTH ** level) % WIDTH] as Tree;
+        }
+        return { done: false, value: leaf[index++ % WIDTH] as AgentChatMessage };
+      },
+    };
+  }
+
   /** Callers treat this cached array and its message objects as immutable. */
   toArray(): AgentChatMessage[] {
     if (this.cached) return this.cached;
