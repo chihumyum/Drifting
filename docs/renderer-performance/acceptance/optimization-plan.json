@@ -596,7 +596,8 @@
             "docs/renderer-performance/acceptance/f7-settings-after-preload.json",
             "docs/renderer-performance/acceptance/f7-memo-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
-            "docs/renderer-performance/acceptance/f7-memo-browser.json"
+            "docs/renderer-performance/acceptance/f7-memo-browser.json",
+            "docs/renderer-performance/acceptance/f7-ai-providers.json"
           ],
           "status": "partial"
         },
@@ -614,7 +615,8 @@
             "docs/renderer-performance/acceptance/f7-memo-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
             "docs/renderer-performance/acceptance/f7-memo-browser.json",
-            "docs/renderer-performance/acceptance/f7-memo-native.json"
+            "docs/renderer-performance/acceptance/f7-memo-native.json",
+            "docs/renderer-performance/acceptance/f7-ai-providers.json"
           ],
           "status": "partial"
         },
@@ -631,7 +633,8 @@
             "docs/renderer-performance/acceptance/f7-memo-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
             "docs/renderer-performance/acceptance/f7-memo-browser.json",
-            "docs/renderer-performance/acceptance/f7-memo-native.json"
+            "docs/renderer-performance/acceptance/f7-memo-native.json",
+            "docs/renderer-performance/acceptance/f7-ai-providers.json"
           ],
           "status": "partial"
         },
@@ -641,7 +644,7 @@
           "evidence": []
         }
       ],
-      "implementationStatus": "pdf_zip_settings_graphs_memo_and_bounded_intent_preloading_implemented_browser_recovery_verified_other_entries_and_full_app_budgets_pending"
+      "implementationStatus": "pdf_zip_settings_graphs_memo_ai_provider_code_and_bounded_intent_preloading_implemented_browser_recovery_verified_other_entries_and_full_app_budgets_pending"
     },
     {
       "id": "F8",

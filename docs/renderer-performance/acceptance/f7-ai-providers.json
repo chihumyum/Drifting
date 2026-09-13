@@ -1,0 +1,2108 @@
+{
+  "kind": "renderer_deferred_ai_providers",
+  "status": "passed",
+  "generatedAt": "2026-09-13T18:35:13.509Z",
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "browser": "headless Chromium; isolated disposable profile"
+  },
+  "before": {
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "source": {
+      "commit": "8f17a6c5963533ea65454d62dbbf33d8ed7e4d6f",
+      "fingerprint": "3c9e43adb2b0ec44dee5113eb647d79e1f88faf99e9808954fdde159cba2b676"
+    },
+    "chunks": [
+      {
+        "file": "assets/react-vendor-DguZUK0D.js",
+        "htmlEntry": false,
+        "bytes": 50500,
+        "imports": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/tiptap-BXvzS1eE.js",
+        "htmlEntry": false,
+        "bytes": 399910,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-BO2GQv_a.js",
+        "htmlEntry": true,
+        "bytes": 1225269,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/SettingsPrimitives-BsnbXhrL.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/relation-edge-popover-3tIfoKhw.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/useComment-DXnBUbGi.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/Modal-wfZfudHO.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/persistence-lifecycle-CdWoouOS.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/RelationTypeField-DZ7YZATm.js",
+          "assets/LabelMono-DLB0dZSw.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/loader-circle-CXhIYhwl.js",
+          "assets/graph-view-B163QukY.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/snapshot-history.service-DlcQ3POY.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/graph-ui-DaRfFTlj.js",
+        "htmlEntry": false,
+        "bytes": 24096,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/relation-edge-popover-3tIfoKhw.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/useComment-DXnBUbGi.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/relation-edge-popover-3tIfoKhw.js",
+        "htmlEntry": false,
+        "bytes": 178599,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/useComment-DXnBUbGi.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/settings-panels-DY5RquUM.js",
+        "htmlEntry": false,
+        "bytes": 173969,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/SettingsPrimitives-BsnbXhrL.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/persistence-lifecycle-CdWoouOS.js",
+          "assets/loader-circle-CXhIYhwl.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/active-editor-DC_px_c1.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/SettingsPrimitives-BsnbXhrL.js",
+        "htmlEntry": false,
+        "bytes": 426823,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/persistence-lifecycle-CdWoouOS.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/SegmentedControl-CCuEbWNv.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/agent-activity-store-C0njbuvH.js",
+        "htmlEntry": false,
+        "bytes": 1485952,
+        "imports": [
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [
+          "openai",
+          "google"
+        ],
+        "initial": true
+      },
+      {
+        "file": "assets/story-graph-B4JI4TL2.js",
+        "htmlEntry": false,
+        "bytes": 32596,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/graph-view-B163QukY.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/RelationTypeField-DZ7YZATm.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/yjs-prose-command-q8SXQa-I.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/graph-view-B163QukY.js",
+        "htmlEntry": false,
+        "bytes": 20550,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useBookElement-CR5oVKgK.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/SegmentedControl-CCuEbWNv.js",
+        "htmlEntry": false,
+        "bytes": 493,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/element-graph-B-lygwM-.js",
+        "htmlEntry": false,
+        "bytes": 38148,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/RelationTypeField-DZ7YZATm.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/Modal-wfZfudHO.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/yjs-prose-command-q8SXQa-I.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/RelationTypeField-DZ7YZATm.js",
+        "htmlEntry": false,
+        "bytes": 30701,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/chapter-prose-RKBRTlHK.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useBookElement-CR5oVKgK.js",
+        "htmlEntry": false,
+        "bytes": 33169,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/chapter-prose-RKBRTlHK.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/chapter-prose-RKBRTlHK.js",
+        "htmlEntry": false,
+        "bytes": 200664,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/yjs-prose-command-q8SXQa-I.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/memo-material-Cn6jIUj9.js",
+        "htmlEntry": false,
+        "bytes": 22532,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/LabelMono-DLB0dZSw.js",
+          "assets/useComment-DXnBUbGi.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/Modal-wfZfudHO.js",
+          "assets/loader-circle-CXhIYhwl.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/LabelMono-DLB0dZSw.js",
+        "htmlEntry": false,
+        "bytes": 52995,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/Modal-wfZfudHO.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/loader-circle-CXhIYhwl.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useComment-DXnBUbGi.js",
+        "htmlEntry": false,
+        "bytes": 8590,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/loader-circle-CXhIYhwl.js",
+        "htmlEntry": false,
+        "bytes": 153,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/comment-BTunjyCl.js",
+        "htmlEntry": false,
+        "bytes": 6176,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/Modal-wfZfudHO.js",
+        "htmlEntry": false,
+        "bytes": 1798,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/GhostIconButton-Cu2Lxlu3.js",
+        "htmlEntry": false,
+        "bytes": 807,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+        "htmlEntry": false,
+        "bytes": 37931,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/runtime-C82HpxJ5.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useRelationTypePresentation-B7f9jLRK.js",
+        "htmlEntry": false,
+        "bytes": 30261,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/runtime-C82HpxJ5.js",
+        "htmlEntry": false,
+        "bytes": 1525,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/confirmation-store-kXZUGqI1.js",
+        "htmlEntry": false,
+        "bytes": 691658,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/persistence-lifecycle-CdWoouOS.js",
+        "htmlEntry": false,
+        "bytes": 1636,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/active-editor-DC_px_c1.js",
+        "htmlEntry": false,
+        "bytes": 413,
+        "imports": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/snapshot-history.service-DlcQ3POY.js",
+        "htmlEntry": false,
+        "bytes": 6027,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/pdf-runtime-Dsq98h1n.js",
+        "htmlEntry": false,
+        "bytes": 489688,
+        "imports": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/yjs-prose-command-q8SXQa-I.js",
+        "htmlEntry": false,
+        "bytes": 29365,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-kXZUGqI1.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-BTvwUCQm.js",
+        "htmlEntry": false,
+        "bytes": 3684,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/y-prosemirror-wtP33VYs.js",
+        "htmlEntry": false,
+        "bytes": 5072,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/index-D35Zzh6R.js",
+        "htmlEntry": false,
+        "bytes": 312532,
+        "imports": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/imported-history-BjbVHjNr.js",
+        "htmlEntry": false,
+        "bytes": 1566,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/comment-BTunjyCl.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/seed-DEQ6OwSu.js",
+        "htmlEntry": false,
+        "bytes": 3406,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/comment-BTunjyCl.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/repository-DAR9wzEy.js",
+        "htmlEntry": false,
+        "bytes": 23109,
+        "imports": [
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/agent-activity-store-C0njbuvH.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/markdown-58HrXopg.js",
+        "htmlEntry": false,
+        "bytes": 1414,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/snapshot-history.service-DlcQ3POY.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/docx-CZcB0AhY.js",
+        "htmlEntry": false,
+        "bytes": 405465,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/index-BO2GQv_a.js",
+          "assets/jszip.min-DdNwJInE.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/yjs-prose-command-q8SXQa-I.js",
+          "assets/agent-activity-store-C0njbuvH.js",
+          "assets/chapter-prose-RKBRTlHK.js",
+          "assets/confirmation-store-kXZUGqI1.js",
+          "assets/snapshot-history.service-DlcQ3POY.js",
+          "assets/comment-BTunjyCl.js",
+          "assets/SettingsPrimitives-BsnbXhrL.js",
+          "assets/persistence-lifecycle-CdWoouOS.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/runtime-C82HpxJ5.js",
+          "assets/repository-DAR9wzEy.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/relation-edge-popover-3tIfoKhw.js",
+          "assets/useBookElement-CR5oVKgK.js",
+          "assets/useRelationTypePresentation-B7f9jLRK.js",
+          "assets/GhostIconButton-Cu2Lxlu3.js",
+          "assets/useComment-DXnBUbGi.js",
+          "assets/Modal-wfZfudHO.js",
+          "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+          "assets/RelationTypeField-DZ7YZATm.js",
+          "assets/LabelMono-DLB0dZSw.js",
+          "assets/loader-circle-CXhIYhwl.js",
+          "assets/graph-view-B163QukY.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-BwKXEFhF.js",
+        "htmlEntry": false,
+        "bytes": 508,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/jszip.min-DdNwJInE.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-DdNwJInE.js",
+        "htmlEntry": false,
+        "bytes": 96734,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": false
+      }
+    ],
+    "initial": {
+      "requested": [
+        "",
+        "assets/DesktopSuperViewHeader-B5ck_PkS.css",
+        "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+        "assets/GhostIconButton-Cu2Lxlu3.js",
+        "assets/LabelMono-DLB0dZSw.js",
+        "assets/Modal-wfZfudHO.js",
+        "assets/RelationTypeField-DZ7YZATm.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/SettingsPrimitives-BsnbXhrL.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-C0njbuvH.js",
+        "assets/chapter-prose-RKBRTlHK.js",
+        "assets/comment-BTunjyCl.js",
+        "assets/confirmation-store-kXZUGqI1.js",
+        "assets/graph-view-B163QukY.js",
+        "assets/graph-view-CA35WYBF.css",
+        "assets/index-3Rs8WWWx.css",
+        "assets/index-BO2GQv_a.js",
+        "assets/loader-circle-CXhIYhwl.js",
+        "assets/persistence-lifecycle-CdWoouOS.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/relation-edge-popover-3tIfoKhw.js",
+        "assets/relation-edge-popover-BkWJLGpG.css",
+        "assets/repository-DAR9wzEy.js",
+        "assets/runtime-C82HpxJ5.js",
+        "assets/snapshot-history.service-DlcQ3POY.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/useBookElement-CR5oVKgK.js",
+        "assets/useComment-DXnBUbGi.js",
+        "assets/useRelationTypePresentation-B7f9jLRK.js",
+        "assets/yjs-prose-command-q8SXQa-I.js"
+      ],
+      "parsed": [
+        "",
+        "assets/DesktopSuperViewHeader-Df2rFTZY.js",
+        "assets/GhostIconButton-Cu2Lxlu3.js",
+        "assets/LabelMono-DLB0dZSw.js",
+        "assets/Modal-wfZfudHO.js",
+        "assets/RelationTypeField-DZ7YZATm.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/SettingsPrimitives-BsnbXhrL.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-C0njbuvH.js",
+        "assets/chapter-prose-RKBRTlHK.js",
+        "assets/comment-BTunjyCl.js",
+        "assets/confirmation-store-kXZUGqI1.js",
+        "assets/graph-view-B163QukY.js",
+        "assets/index-BO2GQv_a.js",
+        "assets/loader-circle-CXhIYhwl.js",
+        "assets/persistence-lifecycle-CdWoouOS.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/relation-edge-popover-3tIfoKhw.js",
+        "assets/repository-DAR9wzEy.js",
+        "assets/runtime-C82HpxJ5.js",
+        "assets/snapshot-history.service-DlcQ3POY.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/useBookElement-CR5oVKgK.js",
+        "assets/useComment-DXnBUbGi.js",
+        "assets/useRelationTypePresentation-B7f9jLRK.js",
+        "assets/yjs-prose-command-q8SXQa-I.js"
+      ],
+      "evaluated": [
+        "openai",
+        "google"
+      ]
+    },
+    "initialJsBytes": 4945074,
+    "checks": {},
+    "moduleRequests": [],
+    "completions": [
+      {
+        "id": "deepseek",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      },
+      {
+        "id": "openai",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      },
+      {
+        "id": "google-ai-studio",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      }
+    ],
+    "streams": [
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "finishReason": "stop",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      },
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "finishReason": "stop",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      },
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      }
+    ],
+    "calls": [
+      {
+        "provider": "deepseek",
+        "key": "synthetic-factory-deepseek",
+        "model": "deepseek-v4-flash",
+        "stream": false
+      },
+      {
+        "provider": "deepseek",
+        "key": "synthetic-deepseek-stream",
+        "model": "deepseek-v4-flash",
+        "stream": true
+      },
+      {
+        "provider": "openai",
+        "key": "synthetic-factory-openai",
+        "model": "gpt-5.6-sol",
+        "stream": false
+      },
+      {
+        "provider": "openai",
+        "key": "synthetic-openai-stream",
+        "model": "gpt-5.6-sol",
+        "stream": true
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-factory-google",
+        "model": "gemini-3.5-flash",
+        "stream": false
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-google-stream",
+        "model": "gemini-3.5-flash",
+        "stream": true
+      }
+    ]
+  },
+  "after": {
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "source": {
+      "commit": "8f17a6c5963533ea65454d62dbbf33d8ed7e4d6f",
+      "fingerprint": "da98dffc16d01d4b0049edf479582b09bee65dab826e923a2202cd2334966339"
+    },
+    "chunks": [
+      {
+        "file": "assets/react-vendor-DguZUK0D.js",
+        "htmlEntry": false,
+        "bytes": 50500,
+        "imports": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/tiptap-BXvzS1eE.js",
+        "htmlEntry": false,
+        "bytes": 399910,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-7rShH1GH.js",
+        "htmlEntry": true,
+        "bytes": 1225297,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/SettingsPrimitives-YzKfyaUv.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/relation-edge-popover-Bzv2hTUE.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/useComment-DJwm6QCR.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/Modal-CJGq7vtY.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/persistence-lifecycle-B0x3goBP.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/RelationTypeField-BoY8DHl3.js",
+          "assets/LabelMono-BJ_Pncs0.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/loader-circle-yC8mbPzf.js",
+          "assets/graph-view-DBgNbn-d.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/graph-ui-D0vulV1G.js",
+        "htmlEntry": false,
+        "bytes": 24124,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/relation-edge-popover-Bzv2hTUE.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/useComment-DJwm6QCR.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/relation-edge-popover-Bzv2hTUE.js",
+        "htmlEntry": false,
+        "bytes": 178632,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/types-BRMYK13e.js",
+          "assets/useComment-DJwm6QCR.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/settings-panels-CSE2G1hD.js",
+        "htmlEntry": false,
+        "bytes": 174002,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/SettingsPrimitives-YzKfyaUv.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/persistence-lifecycle-B0x3goBP.js",
+          "assets/loader-circle-yC8mbPzf.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/active-editor-DC_px_c1.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/SettingsPrimitives-YzKfyaUv.js",
+        "htmlEntry": false,
+        "bytes": 426822,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/persistence-lifecycle-B0x3goBP.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/SegmentedControl-CCuEbWNv.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/agent-activity-store-O5jo-brN.js",
+        "htmlEntry": false,
+        "bytes": 949437,
+        "imports": [
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/google-provider-BHzePqkx.js",
+        "htmlEntry": false,
+        "bytes": 375914,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "targets": [
+          "google"
+        ],
+        "initial": false
+      },
+      {
+        "file": "assets/openai-providers-BvVk18Fz.js",
+        "htmlEntry": false,
+        "bytes": 161052,
+        "imports": [
+          "assets/types-BRMYK13e.js"
+        ],
+        "targets": [
+          "openai"
+        ],
+        "initial": false
+      },
+      {
+        "file": "assets/types-BRMYK13e.js",
+        "htmlEntry": false,
+        "bytes": 112,
+        "imports": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/story-graph-u16QPIeX.js",
+        "htmlEntry": false,
+        "bytes": 32596,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/graph-view-DBgNbn-d.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/RelationTypeField-BoY8DHl3.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/yjs-prose-command-D6meNz0O.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/graph-view-DBgNbn-d.js",
+        "htmlEntry": false,
+        "bytes": 20550,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useBookElement-C0xyOCeB.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/SegmentedControl-CCuEbWNv.js",
+        "htmlEntry": false,
+        "bytes": 493,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/element-graph-DM5oZxZ1.js",
+        "htmlEntry": false,
+        "bytes": 38148,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/RelationTypeField-BoY8DHl3.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/Modal-CJGq7vtY.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/yjs-prose-command-D6meNz0O.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/RelationTypeField-BoY8DHl3.js",
+        "htmlEntry": false,
+        "bytes": 30701,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/chapter-prose-C-AsiShz.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useBookElement-C0xyOCeB.js",
+        "htmlEntry": false,
+        "bytes": 33169,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/chapter-prose-C-AsiShz.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/chapter-prose-C-AsiShz.js",
+        "htmlEntry": false,
+        "bytes": 200664,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/yjs-prose-command-D6meNz0O.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/memo-material-BbB3q2kH.js",
+        "htmlEntry": false,
+        "bytes": 22532,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/LabelMono-BJ_Pncs0.js",
+          "assets/useComment-DJwm6QCR.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/Modal-CJGq7vtY.js",
+          "assets/loader-circle-yC8mbPzf.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/LabelMono-BJ_Pncs0.js",
+        "htmlEntry": false,
+        "bytes": 52995,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/Modal-CJGq7vtY.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/loader-circle-yC8mbPzf.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useComment-DJwm6QCR.js",
+        "htmlEntry": false,
+        "bytes": 8590,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/loader-circle-yC8mbPzf.js",
+        "htmlEntry": false,
+        "bytes": 153,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/comment-30eUvTdw.js",
+        "htmlEntry": false,
+        "bytes": 6176,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/Modal-CJGq7vtY.js",
+        "htmlEntry": false,
+        "bytes": 1798,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/GhostIconButton-BobmYamA.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/GhostIconButton-BobmYamA.js",
+        "htmlEntry": false,
+        "bytes": 807,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/DesktopSuperViewHeader-Chsctxx5.js",
+        "htmlEntry": false,
+        "bytes": 37931,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/runtime-L319Sg_j.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useRelationTypePresentation-C-x4eOu9.js",
+        "htmlEntry": false,
+        "bytes": 30261,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/runtime-L319Sg_j.js",
+        "htmlEntry": false,
+        "bytes": 1525,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/confirmation-store-C6Z0T-M4.js",
+        "htmlEntry": false,
+        "bytes": 691652,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/persistence-lifecycle-B0x3goBP.js",
+        "htmlEntry": false,
+        "bytes": 1636,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/active-editor-DC_px_c1.js",
+        "htmlEntry": false,
+        "bytes": 413,
+        "imports": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/snapshot-history.service-CuyPnhgS.js",
+        "htmlEntry": false,
+        "bytes": 6027,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/pdf-runtime-Dsq98h1n.js",
+        "htmlEntry": false,
+        "bytes": 489688,
+        "imports": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/yjs-prose-command-D6meNz0O.js",
+        "htmlEntry": false,
+        "bytes": 29365,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/confirmation-store-C6Z0T-M4.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-CLSKWBXA.js",
+        "htmlEntry": false,
+        "bytes": 3684,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/y-prosemirror-DkNqRH7K.js",
+        "htmlEntry": false,
+        "bytes": 5072,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/index-D35Zzh6R.js",
+        "htmlEntry": false,
+        "bytes": 312532,
+        "imports": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/imported-history-DP8iF_WT.js",
+        "htmlEntry": false,
+        "bytes": 1599,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/seed-LWG8YxgH.js",
+        "htmlEntry": false,
+        "bytes": 3434,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/repository-lMI2mBgt.js",
+        "htmlEntry": false,
+        "bytes": 23109,
+        "imports": [
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/agent-activity-store-O5jo-brN.js"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/markdown-Dn4Vyxm6.js",
+        "htmlEntry": false,
+        "bytes": 1414,
+        "imports": [
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/snapshot-history.service-CuyPnhgS.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/docx-DMmeLTHO.js",
+        "htmlEntry": false,
+        "bytes": 405493,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/index-7rShH1GH.js",
+          "assets/jszip.min-DdNwJInE.js",
+          "assets/tiptap-BXvzS1eE.js",
+          "assets/yjs-prose-command-D6meNz0O.js",
+          "assets/agent-activity-store-O5jo-brN.js",
+          "assets/chapter-prose-C-AsiShz.js",
+          "assets/confirmation-store-C6Z0T-M4.js",
+          "assets/snapshot-history.service-CuyPnhgS.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-30eUvTdw.js",
+          "assets/SettingsPrimitives-YzKfyaUv.js",
+          "assets/persistence-lifecycle-B0x3goBP.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/runtime-L319Sg_j.js",
+          "assets/repository-lMI2mBgt.js",
+          "assets/SegmentedControl-CCuEbWNv.js",
+          "assets/relation-edge-popover-Bzv2hTUE.js",
+          "assets/useBookElement-C0xyOCeB.js",
+          "assets/useRelationTypePresentation-C-x4eOu9.js",
+          "assets/GhostIconButton-BobmYamA.js",
+          "assets/useComment-DJwm6QCR.js",
+          "assets/Modal-CJGq7vtY.js",
+          "assets/DesktopSuperViewHeader-Chsctxx5.js",
+          "assets/RelationTypeField-BoY8DHl3.js",
+          "assets/LabelMono-BJ_Pncs0.js",
+          "assets/loader-circle-yC8mbPzf.js",
+          "assets/graph-view-DBgNbn-d.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-BwKXEFhF.js",
+        "htmlEntry": false,
+        "bytes": 508,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js",
+          "assets/jszip.min-DdNwJInE.js"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-DdNwJInE.js",
+        "htmlEntry": false,
+        "bytes": 96734,
+        "imports": [
+          "assets/react-vendor-DguZUK0D.js"
+        ],
+        "targets": [],
+        "initial": false
+      }
+    ],
+    "initial": {
+      "requested": [
+        "",
+        "assets/DesktopSuperViewHeader-B5ck_PkS.css",
+        "assets/DesktopSuperViewHeader-Chsctxx5.js",
+        "assets/GhostIconButton-BobmYamA.js",
+        "assets/LabelMono-BJ_Pncs0.js",
+        "assets/Modal-CJGq7vtY.js",
+        "assets/RelationTypeField-BoY8DHl3.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/SettingsPrimitives-YzKfyaUv.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-O5jo-brN.js",
+        "assets/chapter-prose-C-AsiShz.js",
+        "assets/comment-30eUvTdw.js",
+        "assets/confirmation-store-C6Z0T-M4.js",
+        "assets/graph-view-CA35WYBF.css",
+        "assets/graph-view-DBgNbn-d.js",
+        "assets/index-3Rs8WWWx.css",
+        "assets/index-7rShH1GH.js",
+        "assets/loader-circle-yC8mbPzf.js",
+        "assets/persistence-lifecycle-B0x3goBP.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/relation-edge-popover-BkWJLGpG.css",
+        "assets/relation-edge-popover-Bzv2hTUE.js",
+        "assets/repository-lMI2mBgt.js",
+        "assets/runtime-L319Sg_j.js",
+        "assets/snapshot-history.service-CuyPnhgS.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/types-BRMYK13e.js",
+        "assets/useBookElement-C0xyOCeB.js",
+        "assets/useComment-DJwm6QCR.js",
+        "assets/useRelationTypePresentation-C-x4eOu9.js",
+        "assets/yjs-prose-command-D6meNz0O.js"
+      ],
+      "parsed": [
+        "",
+        "assets/DesktopSuperViewHeader-Chsctxx5.js",
+        "assets/GhostIconButton-BobmYamA.js",
+        "assets/LabelMono-BJ_Pncs0.js",
+        "assets/Modal-CJGq7vtY.js",
+        "assets/RelationTypeField-BoY8DHl3.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/SettingsPrimitives-YzKfyaUv.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/agent-activity-store-O5jo-brN.js",
+        "assets/chapter-prose-C-AsiShz.js",
+        "assets/comment-30eUvTdw.js",
+        "assets/confirmation-store-C6Z0T-M4.js",
+        "assets/graph-view-DBgNbn-d.js",
+        "assets/index-7rShH1GH.js",
+        "assets/loader-circle-yC8mbPzf.js",
+        "assets/persistence-lifecycle-B0x3goBP.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/relation-edge-popover-Bzv2hTUE.js",
+        "assets/repository-lMI2mBgt.js",
+        "assets/runtime-L319Sg_j.js",
+        "assets/snapshot-history.service-CuyPnhgS.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/types-BRMYK13e.js",
+        "assets/useBookElement-C0xyOCeB.js",
+        "assets/useComment-DJwm6QCR.js",
+        "assets/useRelationTypePresentation-C-x4eOu9.js",
+        "assets/yjs-prose-command-D6meNz0O.js"
+      ],
+      "evaluated": []
+    },
+    "initialJsBytes": 4408725,
+    "checks": {
+      "constructionIsDeferred": true,
+      "openaiFailureSurfaced": true,
+      "openaiCancelIsolated": true,
+      "openaiSnapshotPreserved": true,
+      "openaiRetryNewKey": true,
+      "googleFailureSurfaced": true,
+      "googleCancelIsolated": true,
+      "offlineDuringGoogleLoad": true,
+      "googleSnapshotPreserved": true,
+      "googleRetryNewKey": true,
+      "factoryCompletion": true,
+      "allStreams": true,
+      "oneSdkEvaluation": true,
+      "cachedReuse": true
+    },
+    "moduleRequests": [
+      {
+        "kind": "openai",
+        "url": "assets/openai-providers-BvVk18Fz.js?provider-attempt=1"
+      },
+      {
+        "kind": "openai",
+        "url": "assets/openai-providers-BvVk18Fz.js?provider-attempt=2"
+      },
+      {
+        "kind": "google",
+        "url": "assets/google-provider-BHzePqkx.js?provider-attempt=1"
+      },
+      {
+        "kind": "google",
+        "url": "assets/google-provider-BHzePqkx.js?provider-attempt=2"
+      }
+    ],
+    "completions": [
+      {
+        "id": "deepseek",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      },
+      {
+        "id": "openai",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      },
+      {
+        "id": "google-ai-studio",
+        "text": "OK",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1
+        }
+      }
+    ],
+    "streams": [
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "finishReason": "stop",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      },
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "finishReason": "stop",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      },
+      {
+        "status": "passed",
+        "result": [
+          {
+            "delta": "OK"
+          },
+          {
+            "delta": "",
+            "usage": {
+              "inputTokens": 3,
+              "outputTokens": 1
+            }
+          }
+        ]
+      }
+    ],
+    "calls": [
+      {
+        "provider": "deepseek",
+        "key": "synthetic-openai-active",
+        "model": "deepseek-v4-flash",
+        "stream": false
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-google-active",
+        "model": "gemini-3.5-flash",
+        "stream": false
+      },
+      {
+        "provider": "deepseek",
+        "key": "synthetic-factory-deepseek",
+        "model": "deepseek-v4-flash",
+        "stream": false
+      },
+      {
+        "provider": "deepseek",
+        "key": "synthetic-deepseek-stream",
+        "model": "deepseek-v4-flash",
+        "stream": true
+      },
+      {
+        "provider": "openai",
+        "key": "synthetic-factory-openai",
+        "model": "gpt-5.6-sol",
+        "stream": false
+      },
+      {
+        "provider": "openai",
+        "key": "synthetic-openai-stream",
+        "model": "gpt-5.6-sol",
+        "stream": true
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-factory-google",
+        "model": "gemini-3.5-flash",
+        "stream": false
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-google-stream",
+        "model": "gemini-3.5-flash",
+        "stream": true
+      },
+      {
+        "provider": "deepseek",
+        "key": "synthetic-factory-deepseek",
+        "model": "deepseek-v4-flash",
+        "stream": false
+      },
+      {
+        "provider": "openai",
+        "key": "synthetic-factory-openai",
+        "model": "gpt-5.6-sol",
+        "stream": false
+      },
+      {
+        "provider": "google",
+        "key": "synthetic-factory-google",
+        "model": "gemini-3.5-flash",
+        "stream": false
+      }
+    ]
+  },
+  "adapters": [
+    {
+      "name": "deepseek",
+      "before": "f9fcfed4009a3abbcb8e1e1f67d77845ec11fd4138cf1eb58c0407c21a387bf4",
+      "after": "f9fcfed4009a3abbcb8e1e1f67d77845ec11fd4138cf1eb58c0407c21a387bf4"
+    },
+    {
+      "name": "openai",
+      "before": "4a2812b09cefa3c82d6bddc9424350e054bba4975d8d969b5ff5a37b2dfff256",
+      "after": "4a2812b09cefa3c82d6bddc9424350e054bba4975d8d969b5ff5a37b2dfff256"
+    },
+    {
+      "name": "google",
+      "before": "fb17193545c6c3e3ccbb28ba4e78c84d82489214fc46560ff115715a7b332a4a",
+      "after": "fb17193545c6c3e3ccbb28ba4e78c84d82489214fc46560ff115715a7b332a4a"
+    }
+  ],
+  "suites": [
+    "src/renderer/architecture/deferred-ai-plugin.test.ts",
+    "src/renderer/lib/ai/client/providers/deferred-provider.test.ts",
+    "src/renderer/lib/ai/client/providers/openai.test.ts",
+    "src/renderer/lib/ai/client/providers/deepseek.test.ts",
+    "src/renderer/lib/ai/client/build-default-client.test.ts",
+    "src/renderer/lib/ai/client/llm-client.test.ts",
+    "src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts",
+    "src/renderer/lib/ai/test-provider-connection.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "keeps ordinary imports in SSR and leaves unrelated modules alone",
+      "status": "passed",
+      "durationMs": 0.922458000000006
+    },
+    {
+      "name": "rewrites both browser loaders to the same-build retry entries",
+      "status": "passed",
+      "durationMs": 0.24812500000001592
+    },
+    {
+      "name": "fails the build if a required import changes instead of silently losing retry support",
+      "status": "passed",
+      "durationMs": 0.38841600000000653
+    },
+    {
+      "name": "direct BYOK provider connectivity check uses the direct deepseek adapter with the exact key and model",
+      "status": "passed",
+      "durationMs": 2.0862089999999966
+    },
+    {
+      "name": "direct BYOK provider connectivity check uses the direct anthropic adapter with the exact key and model",
+      "status": "passed",
+      "durationMs": 0.3240000000000123
+    },
+    {
+      "name": "direct BYOK provider connectivity check uses the direct google adapter with the exact key and model",
+      "status": "passed",
+      "durationMs": 0.24774999999999636
+    },
+    {
+      "name": "direct BYOK provider connectivity check uses native fixed-origin OpenAI Responses without decrypting its key in JavaScript",
+      "status": "passed",
+      "durationMs": 0.7956250000000296
+    },
+    {
+      "name": "direct BYOK provider connectivity check fails closed without trying another provider when the selected key is absent",
+      "status": "passed",
+      "durationMs": 0.4199169999999981
+    },
+    {
+      "name": "direct BYOK client factory builds the explicitly selected deepseek adapter",
+      "status": "passed",
+      "durationMs": 0.9263750000000073
+    },
+    {
+      "name": "direct BYOK client factory builds the explicitly selected anthropic adapter",
+      "status": "passed",
+      "durationMs": 0.11541599999998198
+    },
+    {
+      "name": "direct BYOK client factory builds the explicitly selected openai adapter",
+      "status": "passed",
+      "durationMs": 0.09795800000000554
+    },
+    {
+      "name": "direct BYOK client factory builds the explicitly selected google adapter",
+      "status": "passed",
+      "durationMs": 0.09770800000001145
+    },
+    {
+      "name": "direct BYOK client factory does not enable the hosted proxy in the default local-only build",
+      "status": "passed",
+      "durationMs": 0.08629200000001447
+    },
+    {
+      "name": "direct BYOK client factory rejects General Agent provider construction before reading credentials while offline",
+      "status": "passed",
+      "durationMs": 0.7672079999999823
+    },
+    {
+      "name": "direct BYOK client factory rechecks the BYOK capability immediately before a request",
+      "status": "passed",
+      "durationMs": 0.16508400000003576
+    },
+    {
+      "name": "LLMClient.stream delivers the provider first delta before the provider terminal gate opens",
+      "status": "passed",
+      "durationMs": 2.0918340000000057
+    },
+    {
+      "name": "LLMClient.stream aggregates interleaved parallel tool deltas into one after response",
+      "status": "passed",
+      "durationMs": 0.7265419999999949
+    },
+    {
+      "name": "LLMClient.stream settles a normally completed stream with after once and no onError",
+      "status": "passed",
+      "durationMs": 0.29404199999999037
+    },
+    {
+      "name": "LLMClient.stream settles a provider stream error with onError once and no after",
+      "status": "passed",
+      "durationMs": 0.4199160000000006
+    },
+    {
+      "name": "LLMClient.stream fails the metered terminal contract when 'usage' is missing",
+      "status": "passed",
+      "durationMs": 0.40529200000000287
+    },
+    {
+      "name": "LLMClient.stream fails the metered terminal contract when 'finish reason' is missing",
+      "status": "passed",
+      "durationMs": 0.15179200000000037
+    },
+    {
+      "name": "LLMClient.stream settles consumer iterator.return() as one cancellation error and never after",
+      "status": "passed",
+      "durationMs": 0.24508299999999394
+    },
+    {
+      "name": "LLMClient.stream falls back to complete for tool requests when provider tool streaming is unsupported",
+      "status": "passed",
+      "durationMs": 0.920375000000007
+    },
+    {
+      "name": "LLMClient.stream preserves a completion length finish instead of upgrading a partial tool call",
+      "status": "passed",
+      "durationMs": 0.15216599999999403
+    },
+    {
+      "name": "LLMClient strict terminal validation rejects an incomplete completion before observers record success",
+      "status": "passed",
+      "durationMs": 0.25329200000001606
+    },
+    {
+      "name": "LLMClient strict terminal validation retries an invalid completion sample before observers record success",
+      "status": "passed",
+      "durationMs": 1.727833000000004
+    },
+    {
+      "name": "LLMClient strict terminal validation requires reasoning content for a reasoning-enabled tool completion and resamples it",
+      "status": "passed",
+      "durationMs": 1.6871250000000089
+    },
+    {
+      "name": "LLMClient strict terminal validation resamples a completion that ignores a forced tool choice",
+      "status": "passed",
+      "durationMs": 1.5958749999999782
+    },
+    {
+      "name": "LLMClient strict terminal validation does not synthesize a finish reason for a streamless provider",
+      "status": "passed",
+      "durationMs": 0.21641599999998107
+    },
+    {
+      "name": "LLMClient strict terminal validation rejects tool calls paired with a text finish before observers record success",
+      "status": "passed",
+      "durationMs": 0.19491700000000378
+    },
+    {
+      "name": "LLMClient strict terminal validation never rewrites non-JSON completion tool arguments to an empty object",
+      "status": "passed",
+      "durationMs": 0.3322909999999979
+    },
+    {
+      "name": "DeepSeekProvider.stream preserves the complete tool loop request and streams text, interleaved parallel calls, finish, and usage",
+      "status": "passed",
+      "durationMs": 65.91429200000002
+    },
+    {
+      "name": "DeepSeekProvider.stream uses the current thinking wire shape and preserves reasoning_content for tool replay",
+      "status": "passed",
+      "durationMs": 1.5704580000000021
+    },
+    {
+      "name": "DeepSeekProvider.stream rejects an already-aborted stream without sending or yielding a successful terminal chunk",
+      "status": "passed",
+      "durationMs": 0.595041000000009
+    },
+    {
+      "name": "DeepSeekProvider.stream stops after a mid-stream abort and never emits buffered finish or usage terminals",
+      "status": "passed",
+      "durationMs": 1.158208000000002
+    },
+    {
+      "name": "DeepSeekProvider.stream fails a tool stream that omits terminal usage instead of bypassing budgets with zero",
+      "status": "passed",
+      "durationMs": 0.6835829999999987
+    },
+    {
+      "name": "DeepSeekProvider.stream requires usage for a tool-free metered Agent synthesis stream",
+      "status": "passed",
+      "durationMs": 0.5461249999999893
+    },
+    {
+      "name": "DeepSeekProvider.stream requires an explicit finish reason for a metered Agent stream",
+      "status": "passed",
+      "durationMs": 0.5002079999999864
+    },
+    {
+      "name": "DeepSeekProvider.stream rejects a present but incomplete usage object",
+      "status": "passed",
+      "durationMs": 0.4773339999999848
+    },
+    {
+      "name": "does not load code or create a provider when constructing a facade",
+      "status": "passed",
+      "durationMs": 2.197999999999979
+    },
+    {
+      "name": "rejects an already aborted complete without loading",
+      "status": "passed",
+      "durationMs": 0.9952499999999986
+    },
+    {
+      "name": "rejects an already aborted stream without loading",
+      "status": "passed",
+      "durationMs": 0.2369589999999846
+    },
+    {
+      "name": "cancels complete immediately during loading without late sends",
+      "status": "passed",
+      "durationMs": 1.1191249999999968
+    },
+    {
+      "name": "cancels stream immediately during loading without late sends",
+      "status": "passed",
+      "durationMs": 0.30033399999999233
+    },
+    {
+      "name": "keeps a concurrent request alive when its peer cancels and constructs just one instance",
+      "status": "passed",
+      "durationMs": 0.42250000000001364
+    },
+    {
+      "name": "constructs one instance for two simultaneous successful requests, never sharing instances between facades",
+      "status": "passed",
+      "durationMs": 0.10625000000001705
+    },
+    {
+      "name": "rechecks offline capability after loading before constructing or sending",
+      "status": "passed",
+      "durationMs": 0.2080829999999878
+    },
+    {
+      "name": "surfaces a code load failure and lets the next request retry",
+      "status": "passed",
+      "durationMs": 0.1906669999999906
+    },
+    {
+      "name": "passes through provider errors and the exact original request/signal",
+      "status": "passed",
+      "durationMs": 0.3166249999999877
+    },
+    {
+      "name": "forwards iterator return so provider streaming cleanup runs",
+      "status": "passed",
+      "durationMs": 0.1837500000000034
+    },
+    {
+      "name": "removes the abort listener when code loading settles with resolve",
+      "status": "passed",
+      "durationMs": 0.14566600000000562
+    },
+    {
+      "name": "removes the abort listener when code loading settles with reject",
+      "status": "passed",
+      "durationMs": 0.6737919999999917
+    },
+    {
+      "name": "OpenAI provider conformance preserves tool history and streams parallel fragmented calls with terminal usage",
+      "status": "passed",
+      "durationMs": 64.84545799999998
+    },
+    {
+      "name": "OpenAI provider conformance requires finish and usage and maps abort before send",
+      "status": "passed",
+      "durationMs": 1.2716670000000079
+    },
+    {
+      "name": "DriftingAgentModelDriver resolves credentials lazily and builds a fresh client for each turn",
+      "status": "passed",
+      "durationMs": 1.9520829999999592
+    },
+    {
+      "name": "DriftingAgentModelDriver maps credential initialization failures without exposing provider details",
+      "status": "passed",
+      "durationMs": 0.37429199999996854
+    },
+    {
+      "name": "DriftingAgentModelDriver rejects every selected provider before construction while offline",
+      "status": "passed",
+      "durationMs": 0.5232920000000263
+    },
+    {
+      "name": "DriftingAgentModelDriver keeps workload attribution for a General Agent review task",
+      "status": "passed",
+      "durationMs": 0.7904159999999933
+    },
+    {
+      "name": "DriftingAgentModelDriver routes deepseek with an immutable provider/model pair",
+      "status": "passed",
+      "durationMs": 0.24033299999996416
+    },
+    {
+      "name": "DriftingAgentModelDriver routes anthropic with an immutable provider/model pair",
+      "status": "passed",
+      "durationMs": 0.13312500000000682
+    },
+    {
+      "name": "DriftingAgentModelDriver routes openai with an immutable provider/model pair",
+      "status": "passed",
+      "durationMs": 0.13745899999997846
+    },
+    {
+      "name": "DriftingAgentModelDriver routes OpenAI through native Responses transport inside Tauri",
+      "status": "passed",
+      "durationMs": 3.9633329999999773
+    },
+    {
+      "name": "DriftingAgentModelDriver routes the ChatGPT subscription through the native Codex transport inside Tauri",
+      "status": "passed",
+      "durationMs": 0.31841700000001083
+    },
+    {
+      "name": "DriftingAgentModelDriver refuses the ChatGPT subscription route outside the native runtime",
+      "status": "passed",
+      "durationMs": 0.18837500000000773
+    },
+    {
+      "name": "DriftingAgentModelDriver rejects a model from another provider before constructing a client",
+      "status": "passed",
+      "durationMs": 0.16091699999998355
+    },
+    {
+      "name": "DriftingAgentModelDriver reuses one provider driver across tool iterations and releases it at turn end",
+      "status": "passed",
+      "durationMs": 0.15850000000000364
+    },
+    {
+      "name": "DriftingAgentModelDriver isolates one-shot internal calls from the active turn reasoning cache",
+      "status": "passed",
+      "durationMs": 0.1715830000000551
+    }
+  ],
+  "acceptance": {
+    "productionModuleLoading": "passed",
+    "syntheticProviderTransport": "passed",
+    "cancellationAndRetry": "passed",
+    "nativeOrDevice": "not-run",
+    "liveProvider": "not-run",
+    "wholeAppStartup": "not-measured"
+  },
+  "limitations": [
+    "The actual production renderer entry/config is built with SDK evaluation counters and a synthetic provider invocation API. No native app window or author database is used. Full app readiness is not claimed.",
+    "Only model-code modules are shared; each provider facade snapshots its own configuration and constructs its own client after demand. The existing Agent runtime, events, credentials and native Responses routes keep their original startup ownership.",
+    "Real SDK complete/stream calls use intercepted synthetic HTTP/SSE responses and synthetic credentials. No live provider is contacted and no real account conformance is claimed.",
+    "Four real module fetches are observed: failure then a new same-build URL for each SDK. The graph contract requires every static dependency of each cold SDK entry to already be in the initial closure.",
+    "Initial JS bytes describe uncompressed static dependency closure for the instrumented production build. Module fetch/parse/evaluation are recorded separately; no p95, heap, native offline upgrade or full-app startup budget is claimed."
+  ]
+}

@@ -3929,3 +3929,42 @@ errors. The ordinary production build contains 42 JS assets with no batch
 acceptance/recovery probes. The existing node-recovery smoke path also passed.
 Everything ran headlessly. Array merge, initial full-read, remaining collection,
 whole-app and native/device costs remain open, and F6 remains in progress.
+
+## F7f — AI SDK code on first request
+
+[AI provider loading](ai-provider-loading.md) keeps synchronous public facades
+while loading Google/OpenAI SDK code only when complete/stream is requested.
+The three provider adapter implementations moved unchanged, with exact old/new
+source hashes in `acceptance/f7-ai-providers.json`. Module caches hold code only;
+client instances and their configuration remain separate. Canceling during load
+returns immediately and prevents a late send without canceling another waiter.
+The post-load network check preserves offline behavior across the added await.
+
+The actual production entry/config comparison against `8f17a6c5` reports initial
+static JS decreasing from 4,945,074 to 4,408,725 bytes (536,349 bytes / about
+524 KiB). Both SDKs remain unrequested, unparsed and unevaluated before demand.
+The two cold entries carry all their own cold dependencies; their static imports
+must already belong to the initial graph. Real browser request interception
+blocks each once, and the existing same-build entry mechanism retries each with
+a fresh module-map URL key. Native runtime/events and credential lookup timing
+are not moved behind those imports.
+
+Fourteen headless production-browser checks cover loading, failure/retry,
+cancellation isolation, configuration snapshots, offline transition, real SDK
+completion/stream decoding from synthetic HTTP/SSE, factory selection and
+module reuse. Sixty-seven unit/conformance checks and nine report-contract tests
+cover lifecycle/iterator cleanup, Node/SSR import preservation, browser loader
+rewrites and rejection of missing or unsupported evidence. Synthetic credentials
+and responses are used throughout; no live model provider or native app runs.
+The report records both exact browser versions and source fingerprints and
+retains the real pre-commit SHA. Ordinary validation requires a current matching
+fingerprint; historical-only validation explicitly does not assert that match.
+
+All six required checks plus renderer architecture passed. The final full suite
+has 2,933 passed tests and one existing skip across 434 files. Lint has zero
+errors and 30 existing warnings. A test-only iterator typing issue was corrected
+before final typecheck and report collection. The ordinary production build has
+45 JS assets with no AI acceptance probes; the existing headless process-recovery
+smoke path also passed. Native local-resource/offline-upgrade behavior, live
+provider conformance, first-request latency and whole-app startup/heap budgets
+remain open. F7 is still in progress.
