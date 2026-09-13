@@ -61,6 +61,17 @@ afterEach(async () => {
 });
 
 describe('chat journal ingress and private deduplication', () => {
+  it('rejects a foreign project route before changing the conversation or persistence', () => {
+    const before = useAgentChatStore.getState();
+    const value = entry({ type: 'text_delta', iteration: 1, text: 'Foreign output' }, 'foreign-route');
+    emit({ ...value, route: { kind: 'chat', projectId: 'another-project', conversationId } });
+    expect(useAgentChatStore.getState()).toBe(before);
+    expect(persistence.update).not.toHaveBeenCalled();
+    // A rejected delivery must not claim the event identity in the real owner.
+    emit(value);
+    expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()).toEqual([{ kind: 'assistant', text: 'Foreign output', streaming: true }]);
+  });
+
   it('flushes the actual terminal tail before its finalized transcript is persisted', async () => {
     const frames = new Map<number, () => void>();
     const display = createAgentChatDisplayProjection(useAgentChatStore, {

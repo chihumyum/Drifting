@@ -15,12 +15,13 @@ type Report = {
   inlineCopilot: { listeners: { remaining: number } };
   agentTranscript: { ingress: { eventWork: { flatMaterializations: number } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
+  agentJournal: { checks: { passed: boolean }[] };
   agentHistory: { measurements: { rowElements: number }[] };
   agentPanel: { streaming: { composer: number } };
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-recovery.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-journal-owner.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -51,7 +52,8 @@ describe('ordinary CI renderer evidence', () => {
     const history = fixture(); history.agentHistory.measurements[1].rowElements = 60020;
     const transcript = fixture(); transcript.agentTranscript.ingress[0].eventWork.flatMaterializations = 6000;
     const recovery = fixture(); recovery.agentRecovery.measurements[0].work[0].groupedMessageVisits = 20000;
-    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery]) expect(validate(report).status).not.toBe(0);
+    const journal = fixture(); journal.agentJournal.checks[0].passed = false;
+    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();

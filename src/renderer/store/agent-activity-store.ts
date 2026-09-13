@@ -8,7 +8,7 @@
  *   - touched: entities the agent WROTE/CREATED this run → a breathing dot that
  *     persists until the user opens that entity (or sends a new prompt).
  *
- * Fed from agent-chat-store.handleEvent (the one place agent events land); read
+ * Fed by the app-owned chat journal consumer through the store composition; read
  * by the left panels (cell effects) and the left tab switcher (aggregate badge).
  */
 import { create } from 'zustand';

@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentRecovery', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -208,6 +208,27 @@ if (report.agentTranscript) {
     assert.deepEqual(item.frameWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeFrame: true, originalSnapshotUnchanged: true, completeDisplay: true, duplicatesPreserveSnapshot: true });
   }
+}
+if (report.agentJournal) {
+  assert.equal(report.agentJournal.cycles, 100);
+  assert.deepEqual(report.agentJournal.checks.map(check => check.id), [
+    'one-connection-and-no-late-work-after-100-disposals',
+    'foreign-project-kind-and-conflicting-route-rejected',
+    'registered-turn-routes-without-visible-conversation',
+    'duplicate-keeps-state-and-effects',
+    'released-mapping-allows-explicit-sibling-route',
+    'background-project-does-not-pulse-visible-activity',
+    'accepted-terminal-finishes-effects-during-disposal',
+    'terminal-persistence-sees-final-array',
+    'unavailable-connection-is-retryable',
+    'failed-connection-callback-cannot-enter-new-generation',
+    'retried-connection-receives-new-events',
+    'second-subscription-failure-releases-journal',
+    'second-subscription-failure-can-retry',
+    'disposal-during-journal-connection-cleans-returned-listener',
+    'disposal-during-changes-connection-cleans-both-listeners',
+  ]);
+  assert(report.agentJournal.checks.every(check => check.passed === true), 'journal owner lifecycle regressed');
 }
 if (report.agentRecovery) {
   assert.deepEqual(report.agentRecovery.measurements.map(item => item.turns), [100, 500, 1500]);

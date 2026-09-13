@@ -11,7 +11,7 @@ import { AgentChatTranscript } from '../domain/agent-chat-transcript';
  *
  * Per-conversation live state lives in `runs` (keyed by convId), which decouples
  * "which conversation is displayed" (`activeConvId`) from "which conversation a
- * streamed event belongs to" (resolved from the event's turnId via `turnConv`).
+ * streamed event belongs to" (resolved by the app-owned journal consumer).
  * That decoupling is what lets a turn keep running in the background: switching
  * conversation or project changes only the displayed `runs` entry; the in-flight
  * turn keeps folding into — and on `turn_finished` persists to — its OWN
@@ -49,12 +49,9 @@ import type {
 } from '../lib/agent/protocol';
 import type {
   AgentContextUsageSnapshot,
-  AgentRuntimeJournalEntry,
-  AgentRuntimeOutcome,
 } from '../lib/agent/runtime/types';
 import {
   applyAgentChatJournalEntry,
-  applyAgentChatTranscriptEntry,
   finalizeAgentChatTranscript,
 } from '../lib/agent/runtime/chat-journal-projection';
 import {
@@ -66,14 +63,14 @@ import {
   beginAutomaticContinuationSlice,
   createInactiveAgentAutomaticContinuation,
   decideAgentAutomaticContinuation,
-  markAutomaticContinuationTerminal,
   observeAgentAutomaticContinuationProgress,
   summarizeLongTaskPlanForContinuation,
   type AgentAutomaticContinuationState,
   type AgentLongTaskPlanContinuationState,
 } from '../lib/agent/runtime/long-task-auto-continuation';
-import { createAgentChatJournalScope, hasAgentChatJournalEvent, rememberAgentChatJournalEvent, type AgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
-import { markAgentChatMessagePublication } from '../lib/agent/runtime/chat-message-publication';
+import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
+import { createAgentChatJournalConsumer } from '../lib/agent/runtime/chat-journal-consumer';
+import type { AgentChatRunState as RunState, AgentChatTerminalState as RunTerminalState } from '../lib/agent/runtime/chat-run-projection';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 import { agentTurnContextPrompt, normalizeAgentTurnContext } from '../lib/agent/turn-context';
@@ -170,12 +167,6 @@ export const BUDGET_CONTINUATION_PROMPT =
 export const ACTIVE_PLAN_CONTINUATION_PROMPT =
   '继续执行当前持久化任务计划。先用 read_task_plan 读取计划、约束和当前项目状态，不要重复已完成的步骤；只能用 update_task_step 更新单个步骤状态，update_task_plan 只处理任务级状态。从第一个尚未完成的步骤继续。如果所有步骤已经完成且任务仍为 active，必须先用 update_task_plan 的 set_status 将任务设为 completed，再给最终总结；不要只口头宣布完成。';
 
-interface RunTerminalState {
-  turnId: string;
-  outcome: AgentRuntimeOutcome;
-  message?: string;
-}
-
 type RunLongTaskPlanState = AgentLongTaskPlanContinuationState;
 
 export type AgentChatSendOrigin =
@@ -194,31 +185,6 @@ export interface AgentChatSendOptions {
   turnContext?: readonly AgentConversationContextRef[];
   /** Mobile Answer mode removes every write tool at the runtime boundary. */
   toolAccess?: 'read_only' | 'read_write';
-}
-
-/**
- * Live state for one conversation opened (or running) this session. Keyed by
- * convId in `runs`, this is what decouples "which conversation is displayed"
- * from "which conversation a streamed event belongs to": a background turn keeps
- * folding into its own RunState even while the user views another conversation.
- */
-interface RunState {
-  /** Owning project — so a background turn doesn't pulse another project's cells. */
-  projectId: string;
-  transcript: AgentChatTranscript;
-  /** Provider-neutral canonical runtime session used for context recovery. */
-  runtimeSessionId: string | null;
-  /** Opaque owner for private live/replay deduplication; never persisted. */
-  journalScope: AgentChatJournalScope;
-  controlStatus: AgentControlStatus | null;
-  pendingControl: AgentPendingControl | null;
-  lastTerminal: RunTerminalState | null;
-  /** Latest durable plan in this exact session; null means unchecked/read failure. */
-  longTaskPlanState: RunLongTaskPlanState | null;
-  /** Latest verified provider-input projection for this conversation. */
-  contextUsage: AgentContextUsageSnapshot | null;
-  /** Renderer-lifetime only; never restored into unattended execution. */
-  automaticContinuation: AgentAutomaticContinuationState;
 }
 
 interface AgentChatState {
@@ -326,10 +292,6 @@ export const selectAgentTaskContinuationReason = (
 export const selectCanContinueAgentTask = (s: AgentChatState): boolean =>
   selectAgentTaskContinuationReason(s) !== null;
 
-// Maps an in-flight turn id → the conversation that owns it, so streamed events
-// route to that conversation even after the user navigates elsewhere. A turn not
-// in this map is foreign (e.g. left over from before a reload) and is ignored.
-const turnConv = new Map<string, string>();
 const automaticContinuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function runningPointers(runningTurns: Record<string, string>): {
@@ -599,7 +561,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       };
 
       const turnId = uuidv7();
-      turnConv.set(turnId, cid);
+      journalConsumer.registerTurn(turnId, cid);
       set((st) => ({
         runs: { ...st.runs, [cid]: run },
         activeConvId: cid,
@@ -620,7 +582,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         /* persistence is best-effort — the in-memory transcript remains usable */
       }
       const discardPreparedTurn = (): void => {
-        turnConv.delete(turnId);
+        journalConsumer.releaseTurn(turnId);
         set((state) => withoutRunningTurn(state, cid, turnId) ?? state);
       };
       if (!isCurrentStart()) {
@@ -697,7 +659,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // for this turn — a turn that started surfaces its own terminal state via
       // the canonical journal. So surface this one and clear the in-flight turn.
       if (!r.ok) {
-        turnConv.delete(turnId);
+        journalConsumer.releaseTurn(turnId);
         set((st) => {
           const cur = st.runs[cid];
           const runs = cur
@@ -983,7 +945,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (deletingTurnId) {
       const deletingSessionId = get().runs[id]?.runtimeSessionId;
       void generalAgentTransport.abort({ turnId: deletingTurnId });
-      turnConv.delete(deletingTurnId);
+      journalConsumer.releaseTurn(deletingTurnId);
       if (deletingSessionId) {
         useAgentActivityStore
           .getState()
@@ -1025,7 +987,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     for (const [convId, turnId] of clearingTurns) {
       const sessionId = get().runs[convId]?.runtimeSessionId;
       void generalAgentTransport.abort({ turnId });
-      turnConv.delete(turnId);
+      journalConsumer.releaseTurn(turnId);
       if (sessionId) {
         useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
       }
@@ -1259,6 +1221,7 @@ async function refreshLongTaskPlanState(
   } catch {
     // Continuation authority is fail-closed when the durable plan cannot be read.
   }
+  if (journalConsumer.isDisposed()) return;
   useAgentChatStore.setState((state) => {
     const run = state.runs[convId];
     if (!run || run.runtimeSessionId !== sessionId || run.lastTerminal?.turnId !== terminalTurnId) {
@@ -1277,145 +1240,6 @@ async function refreshLongTaskPlanState(
   settleAutomaticContinuationAfterPlanRefresh(convId, terminalTurnId);
 }
 
-function handleEvent(entry: AgentRuntimeJournalEntry): void {
-  const { turnId, event: ev } = entry;
-  const routedConvId = entry.route.kind === 'chat' ? entry.route.conversationId : undefined;
-  const mappedConvId = turnConv.get(turnId);
-  if (mappedConvId && routedConvId && mappedConvId !== routedConvId) return;
-  const convId = mappedConvId ?? routedConvId;
-  if (!convId) return;
-
-  const before = useAgentChatStore.getState().runs[convId];
-  if (!before || hasAgentChatJournalEvent(before.journalScope, entry.eventId)) return;
-  const sessionBindingChanged = before.runtimeSessionId !== entry.sessionId;
-
-  // Fold the canonical event and control state into the OWNING conversation
-  // (not necessarily the displayed one). eventId makes a live/recovery race
-  // idempotent instead of duplicating deltas, tool cards, usage, or errors.
-  useAgentChatStore.setState((s) => {
-    const run = s.runs[convId];
-    if (!run || hasAgentChatJournalEvent(run.journalScope, entry.eventId)) return s;
-    let controlStatus = run.controlStatus;
-    let pendingControl = run.pendingControl;
-    let lastTerminal = run.lastTerminal;
-    let longTaskPlanState = run.longTaskPlanState;
-    let automaticContinuation = run.automaticContinuation;
-    if (ev.type === 'turn_started' || ev.type === 'model_iteration_started') {
-      controlStatus = 'running';
-      if (ev.type === 'turn_started') {
-        lastTerminal = null;
-        longTaskPlanState = null;
-      }
-    } else if (ev.type === 'permission_requested') {
-      controlStatus = 'waiting_permission';
-      // The active slice is already suspended by the runtime. Keep continuous
-      // execution armed: once this exact request is resolved, the same slice
-      // resumes and a later terminal may safely schedule the next durable-plan
-      // slice. A renderer restart still drops the in-memory authorization.
-      pendingControl = {
-        sessionId: ev.request.sessionId,
-        turnId: ev.request.turnId,
-        status: 'waiting_permission',
-        permissionRequest: ev.request,
-        requiresContinuation: false,
-      };
-    } else if (ev.type === 'permission_resolved') {
-      controlStatus = 'running';
-      if (pendingControl?.permissionRequest?.requestId === ev.resolution.requestId) {
-        pendingControl = null;
-      }
-    } else if (ev.type === 'user_input_requested') {
-      controlStatus = 'waiting_user';
-      // Asking a question pauses the current provider loop by construction;
-      // answering it should not silently revoke an already armed continuous
-      // task. It remains cancellable through the single Stop control.
-      pendingControl = {
-        sessionId: ev.request.sessionId,
-        turnId: ev.request.turnId,
-        status: 'waiting_user',
-        userInputRequest: ev.request,
-        requiresContinuation: false,
-      };
-    } else if (ev.type === 'user_input_received') {
-      if (pendingControl?.userInputRequest?.requestId === ev.response.requestId) {
-        pendingControl = null;
-      }
-      controlStatus = 'running';
-    } else if (ev.type === 'cancellation_requested') {
-      controlStatus = 'cancelling';
-    } else if (ev.type === 'commit_started') {
-      controlStatus = 'committing';
-    } else if (ev.type === 'turn_finished') {
-      controlStatus = null;
-      pendingControl = null;
-      // Hide continuation until an authoritative same-session plan read
-      // completes; never infer it from a tool-result payload.
-      longTaskPlanState = null;
-      lastTerminal = {
-        turnId,
-        outcome: ev.outcome,
-        ...(ev.message ? { message: ev.message } : {}),
-      };
-      automaticContinuation = markAutomaticContinuationTerminal(automaticContinuation, {
-        turnId,
-        costUsd: ev.usage.costUsd,
-      });
-    }
-    const transcript = applyAgentChatTranscriptEntry(run.transcript, entry);
-    markAgentChatMessagePublication(transcript, ev.type);
-    rememberAgentChatJournalEvent(run.journalScope, entry.eventId);
-    return {
-      runs: {
-        ...s.runs,
-        [convId]: {
-          ...run,
-          transcript,
-          runtimeSessionId: entry.sessionId,
-          controlStatus,
-          pendingControl,
-          lastTerminal,
-          longTaskPlanState,
-          automaticContinuation,
-          contextUsage: ev.type === 'context_planned' ? ev.snapshot : run.contextUsage,
-        },
-      },
-    };
-  });
-
-  // Mirror tool activity to the perception store (left-panel pulses + dots) only
-  // when the running conversation belongs to the project currently displayed, so
-  // a background turn in another project doesn't pulse foreign cells.
-  const st = useAgentChatStore.getState();
-  const run = st.runs[convId];
-  if (sessionBindingChanged) {
-    // Bind the conversation to canonical persistence at turn start, not only
-    // at terminal completion. A renderer crash midway through the first turn
-    // can then find and replay its durable journal on the next launch.
-    void persistConv(convId);
-  }
-  if (run && run.projectId === st.boundProjectId && st.runningTurns[convId] === turnId) {
-    const activity = useAgentActivityStore.getState();
-    if (ev.type === 'tool_call_ready') {
-      activity.onToolUse({ sessionId: entry.sessionId, turnId }, ev.callId, ev.name, ev.arguments);
-    } else if (ev.type === 'tool_result') {
-      activity.onToolResult({ sessionId: entry.sessionId, turnId }, ev.callId, ev.ok, ev.content);
-    }
-  }
-
-  if (ev.type === 'turn_finished') {
-    if (run) {
-      void refreshLongTaskPlanState(convId, run.projectId, entry.sessionId, turnId);
-    }
-    turnConv.delete(turnId);
-    useAgentActivityStore.getState().onTurnEnd({ sessionId: entry.sessionId, turnId });
-    useAgentChatStore.setState((s) => withoutRunningTurn(s, convId, turnId) ?? s);
-    // setState is synchronous, so persistConv sees the finalized transcript.
-    void persistConv(convId);
-  }
-}
-
-let subscribed = false;
-
 function appendRunError(convId: string, message: string): void {
   useAgentChatStore.setState((state) => {
     const run = state.runs[convId];
@@ -1432,14 +1256,26 @@ function appendRunError(convId: string, message: string): void {
   });
 }
 
-/** Subscribe to the canonical journal once for the app's lifetime (never torn
- * down, so streaming survives the panel unmounting). Idempotent. */
-function ensureSubscription(): void {
-  if (subscribed) return;
-  const subscription = generalAgentTransport.subscribeJournal(handleEvent);
-  if (!subscription.ok) return;
-  subscribed = true;
-  events.on('agent:conversations-changed', ({ projectId, conversationIds }) => {
+// One app owner; panel remounts only ensure the connection exists. Ports keep
+// persistence, activity and automatic-plan effects at the composition boundary.
+const journalConsumer = createAgentChatJournalConsumer({
+  read: () => useAgentChatStore.getState(),
+  updateRun: (conversationId, project) => useAgentChatStore.setState(state => {
+    const run = state.runs[conversationId];
+    if (!run) return state;
+    const next = project(run);
+    return next === run ? state : { runs: { ...state.runs, [conversationId]: next } };
+  }),
+  persistConversation: conversationId => { void persistConv(conversationId); },
+  refreshPlan: (conversationId, projectId, sessionId, turnId) => { void refreshLongTaskPlanState(conversationId, projectId, sessionId, turnId); },
+  finishTurn: (conversationId, turnId) => useAgentChatStore.setState(state => withoutRunningTurn(state, conversationId, turnId) ?? state),
+  activity: () => useAgentActivityStore.getState(),
+  subscribeJournal: callback => generalAgentTransport.subscribeJournal(callback),
+  subscribeChanges: callback => {
+    events.on('agent:conversations-changed', callback);
+    return () => events.off('agent:conversations-changed', callback);
+  },
+  conversationsChanged: ({ projectId, conversationIds }) => {
     const state = useAgentChatStore.getState();
     if (state.boundProjectId !== projectId) return;
     state.refreshList();
@@ -1447,5 +1283,13 @@ function ensureSubscription(): void {
     // Keep live runs intact. Idle histories may have acquired a remote tail.
     useAgentChatStore.setState((current) => ({ runs: Object.fromEntries(Object.entries(current.runs).filter(([id, run]) => !conversationIds.includes(id) || Boolean(current.runningTurns[id]) || ['armed', 'evaluating', 'scheduled'].includes(run.automaticContinuation.status))) }));
     if (activeId && conversationIds.includes(activeId) && !useAgentChatStore.getState().runs[activeId]) void state.loadConversation(activeId);
-  });
-}
+  },
+});
+
+function ensureSubscription(): void { journalConsumer.ensureConnected(); }
+
+if (import.meta.hot) import.meta.hot.dispose(() => {
+  journalConsumer.dispose();
+  conversationLoadGuard.invalidate(); conversationStartGuard.invalidate();
+  for (const conversationId of automaticContinuationTimers.keys()) cancelAutomaticContinuationTimer(conversationId);
+});
