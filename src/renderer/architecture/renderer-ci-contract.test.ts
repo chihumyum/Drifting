@@ -14,6 +14,7 @@ type Report = {
   agentDecorations: { checks: { passed: boolean }[] };
   inlineCopilot: { listeners: { remaining: number } };
   agentTranscript: { ingress: { eventWork: { flatMaterializations: number } }[] };
+  agentBackground: { measurements: { ingressWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
   agentJournal: { checks: { passed: boolean }[] };
   agentHistory: { measurements: { rowElements: number }[] };
@@ -21,7 +22,7 @@ type Report = {
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-journal-owner.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-background.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -53,7 +54,10 @@ describe('ordinary CI renderer evidence', () => {
     const transcript = fixture(); transcript.agentTranscript.ingress[0].eventWork.flatMaterializations = 6000;
     const recovery = fixture(); recovery.agentRecovery.measurements[0].work[0].groupedMessageVisits = 20000;
     const journal = fixture(); journal.agentJournal.checks[0].passed = false;
-    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal]) expect(validate(report).status).not.toBe(0);
+    const background = fixture(); background.agentBackground.measurements[0].ingressWork.flatMaterializations = 6000;
+    const timers = fixture(); timers.agentBackground.measurements[0].scheduled.timers = 6000;
+    const returning = fixture(); returning.agentBackground.measurements[0].checks.foregroundFlushesTail = false;
+    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();

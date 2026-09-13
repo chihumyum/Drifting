@@ -17,12 +17,13 @@ function setup() {
   const source = createStore<State>(() => ({ ...useAgentChatStore.getState(), boundProjectId: 'project', activeConvId: 'first', runs: { first: run(), second: run() } }));
   const frames = new Map<number, () => void>();
   const visibility = new Set<() => void>();
+  const timerCallbacks: (() => void)[] = [];
   let hidden = false;
   let nextFrame = 0;
   const projection = createAgentChatDisplayProjection(source, {
     requestFrame: (callback) => { const id = ++nextFrame; frames.set(id, callback); return id; },
     cancelFrame: (id) => { frames.delete(id); },
-    setTimer: (callback, ms) => setTimeout(callback, ms), clearTimer: clearTimeout,
+    setTimer: (callback, ms) => { timerCallbacks.push(callback); return setTimeout(callback, ms); }, clearTimer: id => clearTimeout(id),
     isHidden: () => hidden,
     subscribeVisibility: (callback) => { visibility.add(callback); return () => { visibility.delete(callback); }; },
   });
@@ -38,9 +39,10 @@ function setup() {
     const state = source.getState();
     source.setState({ runs: { ...state.runs, first: { ...state.runs.first, ...change } } });
   }
-  return { source, projection, frames, visibility, publish, changeRun,
+  return { source, projection, frames, visibility, timerCallbacks, publish, changeRun,
     nextFrame: () => { for (const callback of [...frames.values()]) callback(); },
     hide: () => { hidden = true; for (const callback of visibility) callback(); },
+    show: () => { hidden = false; for (const callback of visibility) callback(); },
   };
 }
 afterEach(() => { vi.useRealTimers(); });
@@ -63,17 +65,47 @@ describe('Agent chat display notification projection', () => {
     releaseFirst(); releaseSecond();
   });
 
-  it('flushes after 50 ms without a frame and flushes immediately when hidden', () => {
+  it('bounds hidden bursts with one timer and flushes both visibility transitions', () => {
     const f = setup(); const listener = vi.fn(); const release = f.projection.subscribe(listener);
     f.publish('首段');
     vi.advanceTimersByTime(49); expect(listener).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1); expect(listener).toHaveBeenCalledTimes(1); expect(f.frames.size).toBe(0);
     f.publish('隐藏前的尾部'); f.hide();
     expect(f.projection.getSnapshot()).toMatchObject([{ text: '隐藏前的尾部' }]);
-    f.publish('后台新尾部');
-    expect(f.projection.getSnapshot()).toMatchObject([{ text: '后台新尾部' }]);
+    for (let index = 1; index <= 100; index++) f.publish(`后台尾部 ${index}`);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(f.frames.size).toBe(0); expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(49); expect(listener).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(1); expect(listener).toHaveBeenCalledTimes(3);
+    expect(f.projection.getSnapshot()).toMatchObject([{ text: '后台尾部 100' }]);
+    f.publish('返回前台的尾部'); f.show();
+    expect(f.projection.getSnapshot()).toMatchObject([{ text: '返回前台的尾部' }]);
     expect(f.frames.size).toBe(0); expect(vi.getTimerCount()).toBe(0);
     release();
+  });
+
+  it.each(['permission', 'cancellation', 'terminal', 'author'] as const)('flushes hidden text synchronously on %s', boundary => {
+    const f = setup(); const listener = vi.fn(); const release = f.projection.subscribe(listener); f.hide();
+    f.publish('边界前的隐藏文本'); expect(listener).not.toHaveBeenCalled();
+    if (boundary === 'permission') f.changeRun({ controlStatus: 'waiting_permission' });
+    else if (boundary === 'cancellation') f.changeRun({ controlStatus: 'cancelling' });
+    else if (boundary === 'terminal') f.changeRun({ controlStatus: null, lastTerminal: { turnId: 'turn', outcome: 'completed' } });
+    else f.source.setState({ starting: true });
+    expect(f.projection.getSnapshot()).toMatchObject([{ text: '边界前的隐藏文本' }]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(f.frames.size).toBe(0); expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(100); expect(listener).toHaveBeenCalledTimes(1); release();
+  });
+
+  it.each(['frame', 'timer', 'visibility'] as const)('ignores an old %s callback after remount', kind => {
+    const f = setup(); const release = f.projection.subscribe(() => undefined); f.publish('旧订阅');
+    const stale = kind === 'frame' ? [...f.frames.values()][0] : kind === 'timer' ? f.timerCallbacks[0] : [...f.visibility][0];
+    release();
+    const listener = vi.fn(); const releaseAgain = f.projection.subscribe(listener); f.publish('新订阅等待刷新');
+    stale();
+    expect(listener).not.toHaveBeenCalled(); expect(f.frames.size).toBe(1); expect(vi.getTimerCount()).toBe(1);
+    f.nextFrame(); expect(f.projection.getSnapshot()).toMatchObject([{ text: '新订阅等待刷新' }]);
+    expect(listener).toHaveBeenCalledTimes(1); releaseAgain();
   });
 
   it('flushes pending text on permission, cancellation, terminal and author changes', () => {

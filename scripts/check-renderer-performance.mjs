@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -207,6 +207,24 @@ if (report.agentTranscript) {
     assert.equal(item.beforeFrame, 0); assert.equal(item.afterFrame, 1);
     assert.deepEqual(item.frameWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeFrame: true, originalSnapshotUnchanged: true, completeDisplay: true, duplicatesPreserveSnapshot: true });
+  }
+}
+if (report.agentBackground) {
+  const baseline = read(path.join(directory, 'f4-background-baseline.json')).agentBackground;
+  assert.deepEqual(report.agentBackground.measurements.map(item => item.historyMessages), [300, 3000, 30000]);
+  for (const [index, item] of report.agentBackground.measurements.entries()) {
+    assert.equal(item.fixtureHash, baseline.measurements[index].fixtureHash); assert.equal(item.eventCount, 6000);
+    assert(Number.isFinite(item.elapsedMs) && item.elapsedMs >= 0);
+    assert.equal(item.ingressWork.copiedArraySlots, 0); assert.equal(item.ingressWork.flatMaterializations, 0);
+    assert.equal(item.ingressWork.flattenedMessages, 0);
+    assert(item.ingressWork.copiedTreeNodes >= item.eventCount && item.ingressWork.copiedTreeNodes <= item.eventCount * 3);
+    assert(item.ingressWork.copiedTreeSlots <= item.eventCount * 96);
+    assert.deepEqual(item.duplicateWork, { copiedTreeNodes: 0, copiedTreeSlots: 0, copiedArraySlots: 0, flatMaterializations: 0, flattenedMessages: 0 });
+    assert.deepEqual(item.scheduled, { frames: 0, timers: 1, timerDelays: [50] });
+    assert.equal(item.beforeTimer, 0); assert.equal(item.afterTimer, 1);
+    assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
+    assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
+      originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
   }
 }
 if (report.agentJournal) {

@@ -1,4 +1,5 @@
 import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
+import { runAgentBackgroundScenarios } from './agent-background-scenarios';
 import { runAgentRecoveryScenarios } from './agent-recovery-scenarios';
 import { runAgentJournalScenarios } from './agent-journal-scenarios';
 import { runEditorSuggestionScenarios } from './editor-suggestion-scenarios';
@@ -123,6 +124,7 @@ async function run() {
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     agentEventProcessing: await runAgentEventScenarios(),
     agentTranscript: await runAgentTranscriptScenarios(),
+    agentBackground: await runAgentBackgroundScenarios(),
     agentRecovery: await runAgentRecoveryScenarios(),
     agentJournal: runAgentJournalScenarios(),
     agentDisplay: await runAgentDisplayScenarios(),
