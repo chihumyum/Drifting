@@ -3783,3 +3783,36 @@ and 30 existing warnings. The ordinary production build contains 42 JS assets
 and no acceptance probes. Work stayed headless. Initial full-library costs,
 remaining collections, overall performance and native/device recovery gates
 remain open; F6 is not marked complete.
+
+## F3m — Project-owned element creation links
+
+[Retroactive entity links](editor-link-events.md) now have a separate canonical
+editor binding and one shared application subscription. Previously, a late
+creation notification from project A could scan and mark matching prose in
+project B. Routing by the persisted element's project removes that cross-project
+write. The binding retires in layout cleanup when its editor, source or
+canonical readiness changes. Same-project hidden editors retain their necessary
+live Tiptap/Yjs linking behavior; the document owner and persistence path are
+unchanged.
+
+`acceptance/f3-editor-link-events-browser.json` contains 126 passing checks with
+real Tiptap editors, 1/5/20 editor groups, shared visible/hidden Yjs views and 100
+attach/detach cycles. The prior-listener reference reproduces the old routing in
+the same build. With 20 editors, a foreign notification previously makes 20
+linking calls and visits 800 text nodes; both counts are now zero, and all 20
+documents remain unchanged. Own-project notifications still link all 20 views.
+The single application listener is fully released on close. Independent Yjs
+update replay retains the expected mark. Five registry unit tests additionally
+cover project routing, independent registrations and reentrant disposal.
+
+The deterministic report checker rejects missing scenarios, foreign work,
+missing hidden-editor linking, leaked listeners and failed behavior checks.
+The generated report matched the final source with `--current` before commit
+and retains its real pre-commit SHA and fingerprint. All six required checks
+and the architecture command passed: 2,828 tests passed with one existing skip
+across 425 files; lint has zero errors and 30 existing warnings. The ordinary
+production build contains 42 JavaScript assets and no acceptance probes.
+
+This batch is entirely headless. Other auto-detection and editing commands,
+matching-project full-document scan cost, full Review interactions and native
+input/device budgets remain outside this result. F3 remains `in_progress`.

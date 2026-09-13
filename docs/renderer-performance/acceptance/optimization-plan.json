@@ -218,7 +218,8 @@
             "docs/renderer-performance/acceptance/f3-inline-targets.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-events-browser.json"
           ],
           "status": "partial"
         },
@@ -265,12 +266,13 @@
             "docs/renderer-performance/acceptance/f3-inline-targets.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f3-editor-link-events-browser.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "editor_interactions_proposal_preconditions_and_copilot_invocation_lifetimes_native_verified_full_review_and_device_budgets_pending"
+      "implementationStatus": "editor_interactions_and_copilot_lifetimes_native_verified_project_routed_link_events_headless_verified_full_review_and_device_budgets_pending"
     },
     {
       "id": "F4",

@@ -1,3 +1,4 @@
+import { runRetroactiveEntityLinkScenarios } from './retroactive-entity-link-scenarios';
 import { runEntityLinkTargetStateScenarios } from './entity-link-target-state-scenarios';
 import { runStoryGraphUnplacedScenarios } from './story-graph-unplaced-scenarios';
 import { runGraphDriftCardScenarios } from './graph-drift-card-scenarios';
@@ -130,6 +131,7 @@ async function run() {
     decorationReadiness: runDecorationReadinessScenario(),
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     entityTargetState: runEntityLinkTargetStateScenarios(),
+    retroactiveEntityLinks: await runRetroactiveEntityLinkScenarios(),
     agentEventProcessing: await runAgentEventScenarios(),
     agentTranscript: await runAgentTranscriptScenarios(),
     agentBackground: await runAgentBackgroundScenarios(),

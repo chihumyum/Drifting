@@ -38,6 +38,17 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/lib/extensions/entity-link.ts')) {
+          const anchors = [
+            ['  const names = Array.from(new Set(target.names.map((n) => n.trim()).filter(Boolean)));', 'calls'],
+            ['    const alreadyLinked = node.marks.some(', 'textNodes'],
+          ];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Retroactive link instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, `retroactiveLinkWork.${counter}++;\n` + anchor);
+          }
+          return { code: `import { retroactiveLinkWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/DesktopStoryGraphView.tsx') || id.endsWith('/DesktopSuperElementView.tsx')) {
           const anchors = id.endsWith('/DesktopStoryGraphView.tsx') ? [
             ['export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {', 'graphDriftWork.storyShell++;'],

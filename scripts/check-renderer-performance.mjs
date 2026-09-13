@@ -58,7 +58,7 @@ if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
-    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'agentEventProcessing',
+    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'retroactiveEntityLinks', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
@@ -142,6 +142,23 @@ if (report.entityTargetState) {
   assert.equal(scenario.mountedEditors, 2); assert.equal(scenario.hiddenEditors, 1);
   assert.equal(scenario.checks.length, 25);
   assert.equal(new Set(scenario.checks.map(check => check.id)).size, 25);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  assert(scenario.limitations.length > 0);
+}
+if (report.retroactiveEntityLinks) {
+  const scenario = report.retroactiveEntityLinks;
+  assert.equal(scenario.implementation, 'project-routed-canonical-owner');
+  assert.deepEqual(scenario.groups.map(row => row.editors), [1, 5, 20]);
+  for (const row of scenario.groups) {
+    assert.equal(row.paragraphs, 40);
+    assert.deepEqual(row.legacy, { listeners: row.editors, calls: row.editors, textNodes: row.editors * 40, crossProjectLinkedEditors: row.editors });
+    assert.equal(row.current.listeners, 1);
+    assert.deepEqual(row.current.foreign, { calls: 0, textNodes: 0 });
+    assert.deepEqual(row.current.own, { calls: row.editors, textNodes: row.editors * 40 });
+    assert.equal(row.current.unchangedForeignEditors, row.editors); assert.equal(row.current.linkedOwnEditors, row.editors);
+  }
+  assert.equal(scenario.lifecycleCycles, 100); assert.equal(scenario.remainingListeners, 0);
+  assert.equal(scenario.checks.length, 126); assert.equal(new Set(scenario.checks.map(check => check.id)).size, 126);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
   assert(scenario.limitations.length > 0);
 }

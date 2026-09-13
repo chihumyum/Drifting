@@ -17,3 +17,5 @@ export const storyGraphCardWork = { lanes: 0, tiles: 0, groupingVisits: 0 };
 export const graphDriftWork = { storyShell: 0, storyCards: 0, storyWrappers: 0, elementShell: 0, elementCards: 0 };
 
 export const storyGraphUnplacedWork = { chips: 0 };
+
+export const retroactiveLinkWork = { calls: 0, textNodes: 0 };

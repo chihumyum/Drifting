@@ -15,6 +15,7 @@ import loglevel from 'loglevel';
 
 import type { OutlineItem } from '../lib/outline';
 import { EditorContextMenu } from '../features/editor/editor-context-menu';
+import { useRetroactiveEntityLinks } from '../features/editor/useRetroactiveEntityLinks';
 import { useEntityEditorSession } from '../features/editor/useEntityEditorSession';
 import type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 export type { EditorPersistDerived } from '../features/editor/entity-editor-session';
@@ -25,12 +26,9 @@ import {
 } from '../lib/extensions/agent-diff-decoration';
 import {
   EntityLink,
-  isEntityLinkAutoDetectEnabled,
-  linkEntityInDoc,
   type EntityKind,
   type EntityLinkRef,
 } from '../lib/extensions/entity-link';
-import type { BookElement } from '../domain/book-element';
 import {
   EntityMentionSuggestion,
   type MentionableEntity,
@@ -49,7 +47,6 @@ import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-i
 import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
-import { events } from '../lib/events';
 import type { CommentTargetKind } from '../domain/comment';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
 import { useEntityLinkConfiguration } from '../features/editor/useEntityLinkConfiguration';
@@ -866,34 +863,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const decorationsReady = useAgentEditorDecorations(editor, sourceKind, sourceId, isVisible || isPreparing);
   const ready = canonicalReady && sessionReady && decorationsReady;
 
-  // Retroactively link prose that mentioned an element before it was created.
-  // Auto-detect only fires on freshly-typed text, so an element created after
-  // its name was already written (e.g. accepting a Copilot element-candidate)
-  // would leave those earlier blocks unlinked. createElement emits this event;
-  // every mounted editor handles it, so all open chapters pick up the new link
-  // — not just whichever editor happened to be active at creation time.
-  useEffect(() => {
-    if (!editor) return;
-    const onElementCreated = ({ element }: { element: BookElement }) => {
-      if (editor.isDestroyed || !isEntityLinkAutoDetectEnabled(editor)) return;
-      // Mirror the autoDetectTargets exclusions: never self-link the entity (or
-      // its parent element) this editor is editing.
-      const { sourceKind: sk, sourceId: sid, parentElementId: pid } = sourceRef.current;
-      if (sk === 'element' && element.id === sid) return;
-      if (pid && element.id === pid) return;
-      try {
-        linkEntityInDoc(editor, {
-          kind: 'element',
-          id: element.id,
-          names: [element.name, ...element.aliases],
-        });
-      } catch (err) {
-        log.warn('Retroactive entity link failed:', err);
-      }
-    };
-    events.on('element:element-created', onElementCreated);
-    return () => events.off('element:element-created', onElementCreated);
-  }, [editor, sourceRef]);
+  useRetroactiveEntityLinks(editor, { projectId, sourceKind, sourceId, parentElementId, canonicalReady });
 
   return { editor, outline, ready };
 }
