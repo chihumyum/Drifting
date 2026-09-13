@@ -39,3 +39,18 @@ export function inspectNativeFixture(file: string) {
       comments: Number(db.prepare('SELECT count(*) AS count FROM comment').get()?.count) };
   } finally { db.close(); }
 }
+
+/** Separate structural witness: graph acceptance must not widen the prose inspector's schema. */
+export function inspectNativeGraphFixture(file: string) {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    assert.equal(db.prepare('PRAGMA integrity_check').get()?.integrity_check, 'ok');
+    assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0);
+    return {
+      nodes: db.prepare('SELECT id, project_id AS projectId, kind, book_order AS bookOrder, narrative_order AS narrativeOrder FROM book_node WHERE deleted_at IS NULL ORDER BY id').all(),
+      links: db.prepare('SELECT node_id AS nodeId, storyline_id AS storylineId, is_primary AS isPrimary FROM node_storyline_link ORDER BY node_id, storyline_id').all(),
+      relations: db.prepare('SELECT id, project_id AS projectId, from_kind AS fromKind, from_id AS fromId, to_kind AS toKind, to_id AS toId, relation_type_id AS relationTypeId FROM entity_relation ORDER BY id').all(),
+      markers: db.prepare('SELECT id, project_id AS projectId, narrative_order AS narrativeOrder, label, drift_node_id AS driftNodeId FROM timeline_marker ORDER BY id').all(),
+    };
+  } finally { db.close(); }
+}

@@ -1,3 +1,4 @@
+import { validateNativeGraphReport, assertNativeGraphPersistence } from './renderer-native-graph-contract.mjs';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
@@ -9,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const agentTranscript = process.argv.includes('--agent-transcript');
+const graphInteractions = process.argv.includes('--graph-interactions');
+const agentTranscript = graphInteractions || process.argv.includes('--agent-transcript');
 const agentHistory = agentTranscript || process.argv.includes('--agent-history');
 const mobileAgentPanel = agentHistory || process.argv.includes('--mobile-agent-panel');
 const inlineCopilot = mobileAgentPanel || process.argv.includes('--inline-copilot');
@@ -20,13 +22,13 @@ const markers = selectionMemory || process.argv.includes('--markers');
 const outline = markers || process.argv.includes('--outline');
 const typewriter = outline || process.argv.includes('--typewriter');
 const editorSessions = typewriter || process.argv.includes('--sessions');
-const harnessFiles = ['scripts/run-renderer-native.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts', 'scripts/renderer-native-ui.ts'];
+const harnessFiles = ['scripts/run-renderer-native.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts', 'scripts/renderer-native-ui.ts', 'scripts/renderer-native-graph-contract.mjs'];
 const sourcePaths = ['src', 'src-tauri', 'drizzle', 'packages', 'patches', 'vite-plugins', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'index.html', 'tailwind.config.js', 'postcss.config.js'];
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${agentTranscript ? 'f4-transcript-native' : agentHistory ? 'f4-history-native' : mobileAgentPanel ? 'f4-mobile-panel-native' : inlineCopilot ? 'f3-inline-copilot-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${graphInteractions ? 'f5-graph-interactions-native' : agentTranscript ? 'f4-transcript-native' : agentHistory ? 'f4-history-native' : mobileAgentPanel ? 'f4-mobile-panel-native' : inlineCopilot ? 'f3-inline-copilot-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -82,6 +84,7 @@ function validate(report) {
       assert.equal(item.lateFeedbackCrossedSession, false); assert.equal(item.lateNavigation, 0); assert.equal(item.duplicateWrites, 1); assert.equal(item.cycles, 100);
     }
   }
+  if (graphInteractions) validateNativeGraphReport(report);
   if (agentTranscript) {
     for (const [index, run] of report.runs.entries()) {
       assert.equal(run.checks.agentTranscript, true);
@@ -109,7 +112,7 @@ function validate(report) {
     { projectId: 'native-control-a', mounted: true },
   ]);
   assert.equal(report.persistence.savedChapters, 1);
-  assert.equal(report.persistence.unchangedChapters, 52);
+  assert.equal(report.persistence.unchangedChapters, 52 + (graphInteractions ? 2 : 0));
   assert.equal(report.fixture.reproducible, true);
   assert.equal(report.acceptance.physicalIme, 'not-run'); assert.equal(report.acceptance.performanceBudget, 'not-evaluated');
   assert.match(report.artifact.sha256, /^[a-f0-9]{64}$/);
@@ -159,12 +162,12 @@ try {
   for (const file of harnessFiles) cpSync(path.join(root, file), path.join(source, file));
   const fixtureDir = path.join(temporary, 'fixture');
   const secondFixtureDir = path.join(temporary, 'fixture-reproduction');
-  await run(process.execPath, ['--conditions=import', '--import=tsx', 'scripts/renderer-native-fixture.ts', fixtureDir]);
-  await run(process.execPath, ['--conditions=import', '--import=tsx', 'scripts/renderer-native-fixture.ts', secondFixtureDir]);
+  await run(process.execPath, ['--conditions=import', '--import=tsx', 'scripts/renderer-native-fixture.ts', fixtureDir, ...(graphInteractions ? ['--graph-interactions'] : [])]);
+  await run(process.execPath, ['--conditions=import', '--import=tsx', 'scripts/renderer-native-fixture.ts', secondFixtureDir, ...(graphInteractions ? ['--graph-interactions'] : [])]);
   const fixture = JSON.parse(readFileSync(path.join(fixtureDir, 'fixture.json'), 'utf8'));
   const reproduced = JSON.parse(readFileSync(path.join(secondFixtureDir, 'fixture.json'), 'utf8'));
   assert.deepEqual(reproduced, fixture, 'Independent synthetic fixtures must have identical semantic manifests');
-  const inspect = file => JSON.parse(execFileSync(process.execPath, ['--conditions=import', '--import=tsx', '--input-type=module', '-e', 'const mod = await import("./scripts/renderer-native-db.ts"); const inspect = mod.inspectNativeFixture ?? mod.default.inspectNativeFixture; console.log(JSON.stringify(inspect(process.argv[1])))', file], { cwd: source, env, encoding: 'utf8' }));
+  const inspect = file => JSON.parse(execFileSync(process.execPath, ['--conditions=import', '--import=tsx', '--input-type=module', '-e', 'const mod = await import("./scripts/renderer-native-db.ts"); const api = mod.default ?? mod; const result = api.inspectNativeFixture(process.argv[1]); if (process.argv[2] === "graph") result.graph = api.inspectNativeGraphFixture(process.argv[1]); console.log(JSON.stringify(result))', file, graphInteractions ? 'graph' : 'prose'], { cwd: source, env, encoding: 'utf8' }));
   const databaseFile = path.join(fixtureDir, 'drifting-library.db');
   const before = inspect(databaseFile);
   let currentResult;
@@ -208,7 +211,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel, agentHistory, agentTranscript }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, graph: fixture.graph ?? null, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel, agentHistory, agentTranscript }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${mobileAgentPanel} && id.endsWith('/workspace/MobileAgentTranscript.tsx')) {
@@ -368,13 +371,14 @@ export default (env) => mergeConfig(base(env), {
   assert.equal(changed.length, 1); assert.equal(changed[0].id, fixture.projects[0].nodeIds[0]);
   assert.equal(changed[0].hasSavedMarker, true); assert.equal(changed[0].characters, 5000 + ' NATIVE_ACCEPTANCE_SAVED'.length);
   if (markers) { assert.equal(before.comments, 0); assert.equal(after.comments, 0); }
-  assert.equal(after.elements, before.elements + (suggestions ? 1 : 0)); assert.equal(after.relations, before.relations);
+  assert.equal(after.elements, before.elements + (suggestions ? 1 : 0)); assert.equal(after.relations, before.relations + (graphInteractions ? 3 : 0));
+  if (graphInteractions) assertNativeGraphPersistence(before.graph, after.graph, fixture.graph, reports[0].graphInteractions);
   assert.equal(fingerprint(), sourceFingerprint, 'Source changed while native acceptance was running');
   const report = { kind: 'renderer_native_composition', status: 'passed', generatedAt: new Date().toISOString(),
     source: { commit, fingerprint: sourceFingerprint, trackedProductChanges: patch.length > 0 }, artifact,
     environment: { platform: os.platform(), architecture: os.arch(), osRelease: os.release(), cpu: os.cpus()[0].model, totalMemoryBytes: os.totalmem() },
-    fixture: { specification: fixture.specification, semanticSha256: fixture.semanticSha256, reproducible: true },
-    runs: reports, observations, persistence: { ...(suggestions ? { createdSuggestionElements: after.elements - before.elements } : {}), ...(markers ? { markerFixtureCommentsRemaining: after.comments } : {}), savedChapters: changed.length, unchangedChapters: after.chapters.length - changed.length, integrityCheck: 'ok', foreignKeyCheck: 'ok' },
+    fixture: { ...(graphInteractions ? { graph: fixture.graph } : {}), specification: fixture.specification, semanticSha256: fixture.semanticSha256, reproducible: true },
+    runs: reports, observations, persistence: { ...(graphInteractions ? { graph: { independentReadOnlySqlite: true, unrelatedStructurePreserved: true, createdRelations: 3, createdMarkers: 1 } } : {}), ...(suggestions ? { createdSuggestionElements: after.elements - before.elements } : {}), ...(markers ? { markerFixtureCommentsRemaining: after.comments } : {}), savedChapters: changed.length, unchangedChapters: after.chapters.length - changed.length, integrityCheck: 'ok', foreignKeyCheck: 'ok' },
     acceptance: { fullAppComposition: 'passed', sqliteYjsRestart: 'passed', input: 'synthetic Tiptap commands; product navigation actions and DOM clicks', physicalIme: 'not-run', physicalGestures: 'not-run', performanceBudget: 'not-evaluated', reactCommits: 'not-measured', jsHeap: 'unavailable', memoryReclamation: 'not-measured', deviceMatrix: 'not-run' },
   };
   validate(report); writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); completed = true;

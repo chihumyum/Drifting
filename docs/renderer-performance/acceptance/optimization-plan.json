@@ -427,7 +427,9 @@
             "docs/renderer-performance/acceptance/f5-unplaced-baseline.json",
             "docs/renderer-performance/acceptance/f5-unplaced.json",
             "docs/renderer-performance/acceptance/f5-unplaced-native.json",
-            "docs/renderer-performance/acceptance/f5-drift-slots.json"
+            "docs/renderer-performance/acceptance/f5-drift-slots.json",
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json",
+            "docs/renderer-performance/acceptance/f5-graph-interactions.json"
           ],
           "status": "partial"
         },
@@ -455,7 +457,7 @@
           "status": "partial"
         }
       ],
-      "implementationStatus": "stable_graph_card_trees_and_drift_slot_subscriptions_remaining_commands_persisted_gestures_initial_mount_and_device_budgets_pending"
+      "implementationStatus": "stable_graph_card_trees_and_drift_slot_subscriptions_native_graph_writes_and_restart_verified_physical_gestures_initial_mount_and_device_budgets_pending"
     },
     {
       "id": "F6",
@@ -623,7 +625,8 @@
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
             "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
-            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
           ],
           "status": "partial"
         },
@@ -652,7 +655,8 @@
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
             "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
-            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json"
+            "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
           ],
           "status": "partial"
         },
@@ -666,7 +670,8 @@
             "docs/renderer-performance/acceptance/f3-outline-native.json",
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
           ],
           "status": "partial"
         }

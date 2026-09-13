@@ -1,3 +1,4 @@
+import { runNativeGraphInteractions, type NativeGraphFixture } from '../src/renderer/performance/native-graph-scenario';
 import { runNativeAgentTranscriptScenario } from '../src/renderer/performance/native-agent-transcript-scenario';
 // Imported only by the acceptance build transform, never by the product entry.
 import { getActiveEditor, saveActiveEditor } from '../src/renderer/lib/active-editor';
@@ -36,6 +37,7 @@ declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   mobileAgentPanel: boolean;
   agentHistory: boolean;
   agentTranscript: boolean;
+  graph: NativeGraphFixture | null;
   projects: Array<{ id: string; nodeIds: string[] }>;
 };
 const config = __DRIFTING_NATIVE_ACCEPTANCE__;
@@ -49,6 +51,7 @@ const lifecycle: Array<{ projectId: string; mounted: boolean }> = [];
 const failures: string[] = [];
 const longTasks: number[] = [];
 const checks: Record<string, boolean> = {};
+let graphInteractionsResult: Awaited<ReturnType<typeof runNativeGraphInteractions>> | undefined;
 let agentTranscriptResult: Awaited<ReturnType<typeof runNativeAgentTranscriptScenario>> | undefined;
 let agentHistoryResult: Awaited<ReturnType<typeof runAgentHistoryScenarios>> | undefined;
 let mobileAgentPanelResult: Awaited<ReturnType<typeof runMobileAgentPanelScenarios>> | undefined;
@@ -183,7 +186,7 @@ async function run() {
   if (config.outline) useSettingsStore.getState().setOutlineRailMode('visible');
   route(a.id, a.nodeIds[0]);
   await progress('opening-native-project');
-  await readyProject(a.id, 50);
+  await readyProject(a.id, 50 + (config.graph ? 2 : 0));
   const first = await open(a.id, a.nodeIds[0]);
   const runtime = getPlatformRuntime();
   ensure(runtime.isMacDesktop && runtime.appInfo, 'This scenario requires the actual macOS Tauri platform');
@@ -192,6 +195,11 @@ async function run() {
   if (phase === 'restart') {
     ensure(first.getText().endsWith(marker), 'Saved native prose did not survive process restart');
     checks.restartProse = true;
+    if (config.graph) {
+      await progress('graph-interactions-restart');
+      graphInteractionsResult = await runNativeGraphInteractions(config.graph, true);
+      checks.graphInteractions = true;
+    }
     if (config.suggestions) {
       ensure(useDataStore.getState().bookElements.some(element => element.id === localStorage.getItem('native-suggestion-created-id') && element.name === suggestionCreatedName), 'Created suggestion element did not survive restart');
       checks.suggestionCreatedElementRestored = true;
@@ -724,6 +732,12 @@ async function run() {
     const lifecycleBefore = JSON.stringify(lifecycle);
     useUiStore.getState().setActiveSuperView('graph');
     await waitFor(() => document.querySelector('.graph-overlay'), 'actual lazy story graph');
+    if (config.graph) {
+      await progress('graph-interactions');
+      graphInteractionsResult = await runNativeGraphInteractions(config.graph, false);
+      checks.graphInteractions = true;
+      await progress('graph-and-settings');
+    }
     useUiStore.getState().setActiveSuperView('none');
     await waitFor(() => !document.querySelector('.graph-overlay'), 'graph close');
     events.emit('settings:open', { railId: 'appearance' });
@@ -870,7 +884,7 @@ async function run() {
     ensure(useDataStore.getState().bookElements.length === 3 && useDataStore.getState().entityRelations.length === 0, 'Mixed project projection');
     ensure(a.nodeIds.slice(0, 20).every(id => !getLiveYDoc(`node-content:${id}`)), 'Old project live docs remained');
     route(a.id, a.nodeIds[0]);
-    await readyProject(a.id, 50);
+    await readyProject(a.id, 50 + (config.graph ? 2 : 0));
     if (config.selectionMemory) {
       // This project return creates a new canonical editor with saved position
       // memory. Observe the session's automatic focus before open/editorReady
@@ -884,7 +898,7 @@ async function run() {
       ensure(restored.state.selection.anchor === 35 && restored.state.selection.head === 12, 'Project return lost selection direction or offsets');
       checks.selectionProjectRestore = true;
     }
-    ensure(useDataStore.getState().bookElements.length === 100 + (config.suggestions ? 1 : 0) && useDataStore.getState().entityRelations.length === 500, 'Restored project projection incorrect');
+    ensure(useDataStore.getState().bookElements.length === 100 + (config.suggestions ? 1 : 0) && useDataStore.getState().entityRelations.length === 500 + (config.graph ? 3 : 0), 'Restored project projection incorrect');
     ensure(!getLiveYDoc(`node-content:${b.nodeIds[0]}`), 'Second project doc leaked');
     checks.projectSwitchAndSqliteRestore = true;
     ensure(await saveActiveEditor(), 'Restored editor save callback missing');
@@ -907,7 +921,7 @@ async function run() {
     checks.agentTranscript = true;
   }
   ensure(failures.length === 0, `Uncaught renderer errors: ${failures.join('; ')}`);
-  await post({ kind: 'result', status: 'passed', checks, agentTranscript: agentTranscriptResult, agentHistory: agentHistoryResult, mobileAgentPanel: mobileAgentPanelResult, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
+  await post({ kind: 'result', status: 'passed', checks, graphInteractions: graphInteractionsResult, agentTranscript: agentTranscriptResult, agentHistory: agentHistoryResult, mobileAgentPanel: mobileAgentPanelResult, lifecycle, sessionEvents, typewriterObservations, outlineObservations, markerObservations, selectionObservations, contextMenuObservations, suggestionObservations, createdSuggestionElementId: config.suggestions ? localStorage.getItem('native-suggestion-created-id') : undefined, firstEditorReadyMs,
     runtime: { target: runtime.target, shellMode: runtime.shellMode, appInfo: runtime.appInfo },
     userAgent: navigator.userAgent, longTasks: supportsLongTasks ? longTasks : null,
     jsHeap: null, uncaughtErrors: failures.length });

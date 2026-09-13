@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import * as Y from 'yjs';
-import { inspectNativeFixture, nativeEditMarker } from '../../scripts/renderer-native-db';
+import { inspectNativeFixture, inspectNativeGraphFixture, nativeEditMarker } from '../../scripts/renderer-native-db';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -56,6 +56,38 @@ describe('native renderer acceptance data boundary', () => {
       expect(readFileSync(file)).toEqual(bytes);
       expect(inspectNativeFixture(file)).toEqual(observed);
     } finally { if (db.isOpen) db.close(); doc.destroy(); rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it('reads fractional graph coordinates, memberships and directed edges without changing SQLite bytes', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'drifting-graph-inspection-'));
+    const file = path.join(directory, 'synthetic.db');
+    const db = new DatabaseSync(file);
+    try {
+      db.exec(`
+        CREATE TABLE book_node (id TEXT, project_id TEXT, kind TEXT, book_order REAL, narrative_order REAL, deleted_at TEXT);
+        INSERT INTO book_node VALUES ('chapter', 'project', 'chapter', 7.5, 4.25, NULL), ('drift', 'project', 'drift', NULL, 1.5, NULL), ('deleted', 'project', 'chapter', 8, 5, 'deleted');
+        CREATE TABLE node_storyline_link (node_id TEXT, storyline_id TEXT, is_primary INTEGER);
+        INSERT INTO node_storyline_link VALUES ('chapter', 'line-a', 0), ('chapter', 'line-b', 1);
+        CREATE TABLE entity_relation (id TEXT, project_id TEXT, from_kind TEXT, from_id TEXT, to_kind TEXT, to_id TEXT, relation_type_id TEXT);
+        INSERT INTO entity_relation VALUES ('relation', 'project', 'node', 'drift', 'node', 'chapter', 'type');
+        CREATE TABLE timeline_marker (id TEXT, project_id TEXT, narrative_order REAL, label TEXT, drift_node_id TEXT);
+        INSERT INTO timeline_marker VALUES ('marker', 'project', 6.75, '', 'drift');
+      `);
+      db.close();
+      const bytes = readFileSync(file);
+      const observed = inspectNativeGraphFixture(file);
+      expect(observed).toEqual({
+        nodes: [
+          { id: 'chapter', projectId: 'project', kind: 'chapter', bookOrder: 7.5, narrativeOrder: 4.25 },
+          { id: 'drift', projectId: 'project', kind: 'drift', bookOrder: null, narrativeOrder: 1.5 },
+        ],
+        links: [{ nodeId: 'chapter', storylineId: 'line-a', isPrimary: 0 }, { nodeId: 'chapter', storylineId: 'line-b', isPrimary: 1 }],
+        relations: [{ id: 'relation', projectId: 'project', fromKind: 'node', fromId: 'drift', toKind: 'node', toId: 'chapter', relationTypeId: 'type' }],
+        markers: [{ id: 'marker', projectId: 'project', narrativeOrder: 6.75, label: '', driftNodeId: 'drift' }],
+      });
+      expect(inspectNativeGraphFixture(file)).toEqual(observed);
+      expect(readFileSync(file)).toEqual(bytes);
+    } finally { if (db.isOpen) db.close(); rmSync(directory, { recursive: true, force: true }); }
   });
 
   it('keeps acceptance imports out of the normal renderer and native credential source', () => {

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { installHeadlessRendererGlobals } from '../src/dev-cli/headless-globals';
-import { inspectNativeFixture } from './renderer-native-db';
+import { inspectNativeFixture, inspectNativeGraphFixture } from './renderer-native-db';
 
 /** Synthetic author data only; use the production CLI domain runtime for all entity writes. */
 async function main() {
@@ -24,6 +24,8 @@ async function main() {
     { id: 'native-control-a', chapters: 50, elements: 100, relations: 500, characters: 5000 },
     { id: 'native-control-b', chapters: 3, elements: 3, relations: 0, characters: 5000 },
   ] };
+  const graphInteractions = process.argv.includes('--graph-interactions');
+  let graph: Record<string, unknown> | undefined;
   const projects: Array<{ id: string; nodeIds: string[]; elementIds: string[] }> = [];
   const body = '合成数据只用于性能验收。春雨落在石阶上，远处的灯光照见空旷的长廊。';
   try {
@@ -54,20 +56,41 @@ async function main() {
           toType: 'chapter', toName: `Synthetic chapter ${String(Math.floor(n / item.elements)).padStart(3, '0')}`, relationType: 'Synthetic appearance' });
         if (n % 100 === 0) process.stdout.write(`Seeded ${item.id}: ${n}/${item.relations} relations\n`);
       }
-      const nodes = product.gateway.database.prepare('SELECT id FROM book_node WHERE project_id = ? AND deleted_at IS NULL ORDER BY title').all(item.id);
+      if (graphInteractions && item.id === 'native-control-a') {
+        for (const name of ['Synthetic graph A', 'Synthetic graph B', 'Synthetic graph C']) await call('create_storyline', { name });
+        for (const chapter of ['Synthetic chapter 046', 'Synthetic chapter 047']) {
+          for (const storyline of ['Synthetic graph A', 'Synthetic graph C']) await call('add_chapter_to_storyline', { chapter, storyline });
+        }
+        await call('create_relation_type', { name: 'Synthetic graph link', orientation: 'directed',
+          sourceRole: 'source', targetRole: 'target', sourceKinds: ['chapter', 'inspiration', 'element'], targetKinds: ['chapter', 'inspiration', 'element'] });
+        for (let index = 0; index < 2; index++) await call('create_inspiration', {
+          title: `Synthetic graph drift ${index}`, body: body.repeat(Math.ceil(5000 / body.length)).slice(0, 5000),
+        });
+        const findId = (table: string, field: string, value: string) => String(product.gateway.database.prepare(`SELECT id FROM ${table} WHERE project_id = ? AND ${field} = ?`).get(item.id, value)!.id);
+        const placedId = findId('book_node', 'title', 'Synthetic chapter 046');
+        // Fixture-only initial coordinates; the UI must perform all subsequent moves.
+        product.gateway.database.prepare('UPDATE book_node SET narrative_order = 0 WHERE id = ?').run(placedId);
+        graph = { projectId: item.id, placedId, unplacedId: findId('book_node', 'title', 'Synthetic chapter 047'),
+          lineIds: ['Synthetic graph A', 'Synthetic graph B', 'Synthetic graph C'].map(name => findId('storylines', 'name', name)),
+          driftIds: [0, 1].map(index => findId('book_node', 'title', `Synthetic graph drift ${index}`)),
+          typeId: findId('entity_relation_type', 'name', 'Synthetic graph link'), elementId: findId('element', 'name', 'Synthetic element 000') };
+      }
+      const nodes = product.gateway.database.prepare("SELECT id FROM book_node WHERE project_id = ? AND deleted_at IS NULL AND kind = 'chapter' ORDER BY title").all(item.id);
       const elements = product.gateway.database.prepare('SELECT id FROM element WHERE project_id = ? AND deleted_at IS NULL ORDER BY name').all(item.id);
       assert.equal(nodes.length, item.chapters); assert.equal(elements.length, item.elements);
       assert.equal(product.gateway.database.prepare('SELECT count(*) AS count FROM entity_relation WHERE project_id = ?').get(item.id)?.count, item.relations);
       projects.push({ id: item.id, nodeIds: nodes.map(row => String(row.id)), elementIds: elements.map(row => String(row.id)) });
     }
     const observed = inspectNativeFixture(databaseFile);
-    assert.equal(observed.chapters.length, 53);
+    assert.equal(observed.chapters.length, 53 + (graphInteractions ? 2 : 0));
     for (const chapter of observed.chapters) {
       const expected = body.repeat(Math.ceil(5000 / body.length)).slice(0, 5000);
       assert.equal(chapter.characters, 5000);
       assert.equal(chapter.sha256, createHash('sha256').update(expected).digest('hex'));
     }
-    const manifest = { specification, semanticSha256: observed.semanticSha256, projects };
+    const structure = graph ? inspectNativeGraphFixture(databaseFile) : undefined;
+    const semanticSha256 = structure ? createHash('sha256').update(JSON.stringify({ prose: observed.semanticSha256, nodes: structure.nodes, links: structure.links, markers: structure.markers })).digest('hex') : observed.semanticSha256;
+    const manifest = { specification, semanticSha256, projects, ...(graph ? { graph } : {}) };
     await writeFile(path.join(directory, 'fixture.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     process.stdout.write('Synthetic native fixture completed\n');
   } finally { await product.close(); }
