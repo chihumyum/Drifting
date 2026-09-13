@@ -7,15 +7,16 @@
  *
  * The conversation state + the agent-event subscription live in a module-level
  * store (useAgentChatStore), so this view survives the panel unmounting on tab
- * switches and streaming keeps flowing while it's not mounted. This component is
- * a thin projection: render + local UI concerns (scroll, history dropdown).
+ * switches and streaming keeps flowing while it's not mounted. This component
+ * owns the composer and history controls. DesktopAgentTranscript independently
+ * owns message display subscriptions and scrolling.
  *
  * Provider/model/reasoning selection lives in this composer. API keys are
  * managed once in Settings → 模型与 API; a missing selected-provider key links
  * there instead of creating another credential form in the chat surface.
  */
-import { useAgentChatMessages } from '../useAgentChatMessages';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DesktopAgentTranscript, type AgentTranscriptHandle } from './DesktopAgentTranscript';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useSettingsStore,
@@ -23,19 +24,12 @@ import {
 import {
   useAgentChatStore,
   selectAutomaticContinuation,
-  selectAgentTaskContinuationReason,
   selectContextUsage,
   selectControlStatus,
   selectPendingControl,
   selectRunning,
 } from '../../../store/agent-chat-store';
-import { useAgentActivityStore } from '../../../store/agent-activity-store';
-import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavigationContext';
 import { useAutosizeTextArea } from '../../../hooks/useAutosizeTextArea';
-import {
-  collectTurnEntityRefs,
-  type ToolEntityRef,
-} from '../../../lib/agent/tool-entity-ref';
 import { events } from '../../../lib/events';
 import {
   isGeneralAgentUsable,
@@ -46,16 +40,7 @@ import type { AgentConversationSummary } from '../../../domain/agent-conversatio
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { AgentContextIndicator } from '../../../components/agent/AgentContextIndicator';
 import '../../../../styles/agent-panel.css';
-import {
-  EntityLinkChip,
-  MessageView,
-  PendingRow,
-  RuntimeControlCard,
-  STREAM_FOLLOW_BOTTOM_THRESHOLD_PX,
-  fmtCost,
-  fmtTokens,
-  relTime,
-} from '../../../features/agent/AgentMessageViews';
+import { relTime } from '../AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
 import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
@@ -67,7 +52,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
-  const messages = useAgentChatMessages();
   const prompt = useAgentChatStore((s) => s.prompt);
   // Every conversation owns at most one turn; sibling conversations may run in
   // parallel and remain visible through history-row indicators.
@@ -75,7 +59,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const starting = useAgentChatStore((s) => s.starting);
   const controlStatus = useAgentChatStore(selectControlStatus);
   const pendingControl = useAgentChatStore(selectPendingControl);
-  const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
   const runningTurns = useAgentChatStore((s) => s.runningTurns);
@@ -83,10 +66,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
   const send = useAgentChatStore((s) => s.send);
-  const continueTask = useAgentChatStore((s) => s.continueTask);
-  const respondPermission = useAgentChatStore((s) => s.respondPermission);
   const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
-  const cancelRecoveredControl = useAgentChatStore((s) => s.cancelRecoveredControl);
   const newConversation = useAgentChatStore((s) => s.newConversation);
   const loadConversation = useAgentChatStore((s) => s.loadConversation);
   const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
@@ -96,7 +76,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
   const [panelView, setPanelView] = useState<'chat' | 'working-memory'>('chat');
   const [showHistory, setShowHistory] = useState(false);
-  const [atBottom, setAtBottom] = useState(true);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
   // Inline rename: the header edits the active conversation; a history row edits
   // whichever entry is `editingItemId`.
@@ -104,7 +83,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const [headerDraft, setHeaderDraft] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemDraft, setItemDraft] = useState('');
-  const logRef = useRef<HTMLDivElement>(null);
+  const transcriptRef = useRef<AgentTranscriptHandle>(null);
   // Auto-grow the composer from one line up to the CSS max-height (then it scrolls
   // internally). A ref-callback + ResizeObserver (not a one-shot [prompt] effect)
   // so the height is re-measured every mount AND when the textarea regains a real
@@ -112,11 +91,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   // remounts this panel. The old [prompt]-only effect re-ran once on remount before
   // the panel had settled its width, so a multi-line draft collapsed to one row.
   const taRef = useAutosizeTextArea(prompt);
-  // Whether to keep pinning the view to the bottom during streaming. The user
-  // scrolling up sets this false (breaks free); scrolling back to the bottom
-  // re-engages it.
-  const stickRef = useRef(true);
-
   const refreshStatus = useCallback(() => {
     if (!api.capability.available) return;
     void api
@@ -149,52 +123,26 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     bindProject(projectId);
   }, [projectId, bindProject]);
 
-  // Auto-follow the stream only while pinned to the bottom.
-  useEffect(() => {
-    if (stickRef.current && logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [messages, pendingControl, controlStatus]);
-
-  const onScroll = useCallback(() => {
-    const el = logRef.current;
-    if (!el) return;
-    const bottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < STREAM_FOLLOW_BOTTOM_THRESHOLD_PX;
-    stickRef.current = bottom;
-    setAtBottom((prev) => (prev === bottom ? prev : bottom));
-  }, []);
-
-  const jumpToBottom = useCallback(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-    stickRef.current = true;
-    setAtBottom(true);
-  }, []);
-
   const handleSend = useCallback(() => {
-    stickRef.current = true; // sending re-engages auto-follow
-    setAtBottom(true);
+    transcriptRef.current?.follow();
     void send();
   }, [send]);
 
   const handleNew = useCallback(() => {
+    transcriptRef.current?.follow();
     newConversation();
     setShowHistory(false);
     setEditingHeaderId(null);
     setEditingItemId(null);
-    stickRef.current = true;
-    setAtBottom(true);
   }, [newConversation]);
 
   const handleLoad = useCallback(
     (id: string) => {
+      transcriptRef.current?.follow();
       void loadConversation(id);
       setShowHistory(false);
       setEditingHeaderId(null);
       setEditingItemId(null);
-      stickRef.current = true;
-      setAtBottom(true);
     },
     [loadConversation],
   );
@@ -219,49 +167,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     automaticContinuation?.status === 'armed' ||
     automaticContinuation?.status === 'evaluating' ||
     automaticContinuation?.status === 'scheduled';
-
-  // Show a "思考中…" placeholder whenever the agent is running but nothing is
-  // actively streaming — i.e. the dead-air gaps (right after send, and between a
-  // tool finishing and the next token), where there was previously no feedback.
-  const lastMsg = messages[messages.length - 1];
-  const busyTail =
-    !!lastMsg &&
-    (((lastMsg.kind === 'assistant' || lastMsg.kind === 'thinking') && lastMsg.streaming) ||
-      (lastMsg.kind === 'tool' && lastMsg.status === 'running'));
-  const waiting = (running || starting) && !busyTail && !pendingControl;
-
-  // Session totals — summed across the conversation's per-turn usage rows (which
-  // persist in the transcript), plus a tool-call count. Drives the footer.
-  const sessionUsage = useMemo(() => {
-    let inTok = 0;
-    let outTok = 0;
-    let cost = 0;
-    let tools = 0;
-    for (const m of messages) {
-      if (m.kind === 'usage') {
-        inTok += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
-        outTok += m.outputTokens;
-        cost += m.costUsd;
-      } else if (m.kind === 'tool') {
-        tools += 1;
-      }
-    }
-    return { inTok, outTok, cost, tools };
-  }, [messages]);
-
-  // Entities the agent created/edited this turn → clickable "本轮改动" links.
-  const { open: openEntity } = useWorkspaceNavigator();
-  const turnRefs = useMemo(
-    () => (running ? [] : collectTurnEntityRefs(messages)),
-    [messages, running],
-  );
-  const openRef = useCallback(
-    (ref: ToolEntityRef) => {
-      openEntity({ entityType: ref.entityType, id: ref.id });
-      useAgentActivityStore.getState().clearTouched(ref.entityType, ref.id);
-    },
-    [openEntity],
-  );
 
   const beginHeaderRename = useCallback(() => {
     if (!activeConv) return;
@@ -506,99 +411,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
         )}
       </AnchoredPopover>
 
-      <div style={logWrap}>
-        <div ref={logRef} style={logStyle} onScroll={onScroll}>
-          {messages.length === 0 ? (
-            <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
-          ) : (
-            messages.map((m, i) => <MessageView key={i} msg={m} />)
-          )}
-          {waiting && <PendingRow status={controlStatus} />}
-          {pendingControl && (
-            <RuntimeControlCard
-              pending={pendingControl}
-              onPermission={(decision, scope) => {
-                void respondPermission(decision, scope);
-              }}
-              onCancelRecovered={() => {
-                void cancelRecoveredControl();
-              }}
-            />
-          )}
-          {continuationReason && (
-            <div className="agt-control-card" role="status">
-              <strong>
-                {automaticContinuation?.stopReason === 'waiting_review'
-                  ? t('agentPanel.autoContinue.waitingReviewTitle')
-                  : automaticContinuation?.stopReason === 'no_progress'
-                    ? t('agentPanel.autoContinue.noProgressTitle')
-                    : continuationReason === 'budget_exceeded'
-                      ? t('agentPanel.budget.title', {
-                          defaultValue: '本次上下文需要续接',
-                        })
-                      : t('agentPanel.longTask.title', {
-                          defaultValue: '任务计划尚未完成',
-                        })}
-              </strong>
-              <span>
-                {automaticContinuation?.stopReason === 'waiting_review'
-                  ? t('agentPanel.autoContinue.waitingReviewBody')
-                  : automaticContinuation?.stopReason === 'no_progress'
-                    ? t('agentPanel.autoContinue.noProgressBody')
-                    : continuationReason === 'budget_exceeded'
-                      ? t('agentPanel.budget.body', {
-                          defaultValue:
-                            '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
-                        })
-                      : t('agentPanel.longTask.body', {
-                          defaultValue:
-                            '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
-                        })}
-              </span>
-              <div className="agt-control-card__actions">
-                <button
-                  type="button"
-                  className="agt-control-card__allow"
-                  onClick={() => void continueTask()}
-                >
-                  {t('agentPanel.budget.continue', {
-                    defaultValue: '继续此任务',
-                  })}
-                </button>
-              </div>
-            </div>
-          )}
-          {turnRefs.length > 0 && (
-            <div className="agt-entity-links">
-              <span style={{ opacity: 0.55, fontSize: 11 }}>{t('agentPanel.turnChanges')}</span>
-              {turnRefs.map((r) => (
-                <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} />
-              ))}
-            </div>
-          )}
-        </div>
-        {!atBottom && (
-          <button
-            type="button"
-            style={jumpBtn}
-            onClick={jumpToBottom}
-            title={t('agentPanel.jumpLatest')}
-          >
-            ↓
-          </button>
-        )}
-      </div>
-
-      {(sessionUsage.outTok > 0 || sessionUsage.tools > 0) && (
-        <div style={usageFooter} title={t('agentPanel.usage.sessionTitle')}>
-          <span style={{ opacity: 0.7 }}>{t('agentPanel.usage.session')}</span>
-          <span>
-            ↑{fmtTokens(sessionUsage.inTok)} ↓{fmtTokens(sessionUsage.outTok)}
-          </span>
-          {sessionUsage.cost > 0 && <span>{fmtCost(sessionUsage.cost)}</span>}
-          <span>{t('agentPanel.usage.toolsCount', { count: sessionUsage.tools })}</span>
-        </div>
-      )}
+      <DesktopAgentTranscript key={`${projectId}:${activeConvId ?? "new"}`} ref={transcriptRef} />
 
       <div style={inputArea}>
         <div className="agt-composer">
@@ -772,58 +585,9 @@ const historyInput: React.CSSProperties = {
   outline: 'none',
 };
 
-const logWrap: React.CSSProperties = {
-  position: 'relative',
-  flex: 1,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const logStyle: React.CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '8px 12px 12px',
-  fontSize: 12,
-  lineHeight: 1.5,
-  minHeight: 120,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-};
-
-const jumpBtn: React.CSSProperties = {
-  position: 'absolute',
-  bottom: 10,
-  right: 12,
-  width: 28,
-  height: 28,
-  borderRadius: 2,
-  border: '1px solid hsl(var(--rule))',
-  background: 'hsl(var(--paper))',
-  color: 'hsl(var(--ink-1))',
-  cursor: 'pointer',
-  boxShadow: '0 2px 10px hsl(var(--ink-1) / 0.2)',
-  fontSize: 14,
-  lineHeight: 1,
-  zIndex: 10,
-};
-
 const inputArea: React.CSSProperties = {
   padding: 10,
   flexShrink: 0,
-};
-
-const usageFooter: React.CSSProperties = {
-  display: 'flex',
-  gap: 10,
-  alignItems: 'center',
-  padding: '4px 12px',
-  fontSize: 11,
-  opacity: 0.6,
-  flexShrink: 0,
-  borderTop: '1px solid hsl(var(--rule))',
-  fontVariantNumeric: 'tabular-nums',
 };
 
 const primaryBtn: React.CSSProperties = {

@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'graphProjection', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -188,6 +188,23 @@ if (report.agentDisplay) {
   assert.equal(scenario.displayCommitsAfterFrame, scenario.consumers);
   assert(scenario.checks.length > 0);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+}
+if (report.agentPanel) {
+  const scenario = report.agentPanel;
+  // The baseline records the original full-panel renders and missing initial
+  // bottom position. Current CI requires the isolated transcript contract.
+  if (deterministic || scenario.drafting) {
+    assert.equal(scenario.checks.length, 24);
+    assert.equal(scenario.historyMessages, 300);
+    assert.equal(scenario.displayBatches, 20);
+    assert.equal(scenario.streamEvents, 400);
+    assert.deepEqual(scenario.streaming, { panel: 0, composer: 0, message: 20, transcript: 20 });
+    assert.deepEqual(scenario.drafting, { panel: 20, composer: 20, message: 0, transcript: 0 });
+    assert.equal(scenario.initialBottom, true);
+    assert.equal(scenario.returningBottom, true);
+    assert.equal(scenario.cycles, 100);
+    assert.equal(scenario.remainingAuthListeners, 0);
+  }
 }
 if (report.graphProjection) {
   const scenario = report.graphProjection;

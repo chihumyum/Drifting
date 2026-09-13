@@ -451,6 +451,16 @@ state. Last-view disposal releases timers, listeners and retained run/message
 references. History message identities and `MessageView` memoization remain
 unchanged.
 
+The desktop shell mounts `DesktopAgentTranscript` with project/conversation
+identity. This component owns message display subscriptions, control cards and
+scrolling; the parent owns composer/history controls and subscribes only to their
+fields. Its memo boundary prevents draft edits from reconciling the transcript,
+and stream display updates do not render the composer. Mount-time layout work
+positions the actual log after asynchronous authentication or remount. Explicit
+send/history actions use the transcript ref to resume bottom follow. The message
+list and usage aggregation still scale with history length. Mobile output actions
+remain in the mobile shell and have not been moved into this desktop component.
+
 Workspace consumers subscribe to explicit fields through `useDataStoreFields`
 or a narrower `useDataStore(selector)`. The field helper selects from one
 snapshot and preserves its result identity with shallow comparison; unrelated

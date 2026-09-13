@@ -2299,3 +2299,41 @@ pnpm perf:renderer --ci --output=docs/renderer-performance/acceptance/f3-copilot
 pnpm perf:renderer:native --inline-copilot --report=docs/renderer-performance/acceptance/f3-copilot-runs-native.json
 pnpm perf:renderer:native --inline-copilot --report=docs/renderer-performance/acceptance/f3-copilot-runs-native.json --check
 ```
+
+## F4c：桌面消息区域拥有独立显示订阅
+
+完整 `DesktopAgentPanel` 的生产 React 浏览器场景揭示了显示合并之后的
+第二层传播：300 条历史消息、400 个增量、20 个显示批次，旧面板执行
+40 次 render，输入配置组件执行 20 次 render。历史 `MessageView` 的 memo
+已经有效，最新消息只执行 20 次；这次没有重写 Markdown 或引入消息窗口化。
+首次异步鉴权后，旧面板的滚动 effect 在列表 DOM 出现前执行，长历史留在顶部。
+原始观测保存在 `acceptance/f4-desktop-panel-baseline.json`，包含原始源码指纹。
+这些是隔离构建中注入计数器得到的函数 render 次数，不是 React commit 或绘制耗时。
+
+`DesktopAgentTranscript` 现在独立持有共享显示订阅、消息/控制卡片、用量与
+本轮改动链接以及滚动状态；父面板只订阅输入和标题/控制所需字段。消息区域
+按项目/会话标识挂载，memo 阻止输入草稿使整段历史参与 reconciliation。
+发送及显式选择历史通过一个组件 ref 恢复底部跟随。滚动在真实列表挂载后的
+layout effect 中定位；底部状态没有改变时不再安排 React 状态更新。
+会话变化也会重置详情展开状态，避免同一消息下标沿用另一会话的局部 UI 状态。
+canonical journal、终态持久化、恢复和 provider-neutral transport 均未修改。
+
+`acceptance/f4-desktop-panel.json` 是生成的完整浏览器报告。相同 400 个增量下：
+父面板及输入配置 render 均为 0，消息区域与最新消息各为 20；20 次输入草稿
+更新时，消息区域和消息 render 均为 0。实际桌面组件还覆盖首次/重开底部定位、
+草稿/焦点/选区、读历史时不抢滚动、跳到最新、历史 portal、重复选择当前会话、
+工具详情与用量显示、权限/取消立即显示、后台会话隔离、会话切换和 100 次挂载清理。
+计数器仅由隔离浏览器构建注入，普通 renderer 构建不包含它们。
+
+边界：合成鉴权和 journal，无模型或 SQLite 调用。这里的桌面 Chromium
+滚动/选区检查不替代原生 WebKit、移动端触摸、完整恢复或设备性能预算。
+消息区域内的历史元素遍历与用量汇总仍随历史长度增长；本批减少的是更新传播，
+不声称长历史的全部算法成本已消除。F4-04 继续保留 partial。
+
+同一批源码另外生成了 `acceptance/f4-desktop-composition-native.json`：新构建的
+隔离 Tauri 应用通过 53 项既有组合检查及 3 项重启检查，两次真实 Cmd+Q 正常退出，
+0 个未捕获错误；SQLite 核对 1 章保存、52 章不变、1 个预期建议元素、无残留标记便笺，
+完整性和外键检查均为 `ok`。该控制组覆盖编辑器/分栏/图谱/设置/恢复组合；
+它没有调用本批合成 Agent 流式场景，不能据此声称原生聊天性能已验收。
+本批常规 2493 项测试通过，1 项既有跳过；typecheck、lint（0 错误，73 项既有警告）、
+CI 契约、公开边界、19 项 Agent 能力检查及普通生产构建通过。

@@ -37,6 +37,15 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        const counter = id.endsWith('/desktop/DesktopAgentPanel.tsx') ? ['panel', '  const { t } = useTranslation();']
+          : id.endsWith('/agent/AgentComposerConfig.tsx') ? ['composer', '  const { t } = useTranslation();']
+          : id.endsWith('/agent/AgentMessageViews.tsx') ? ['message', 'export const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {']
+          : id.endsWith('/desktop/DesktopAgentTranscript.tsx') ? ['transcript', '  const { t } = useTranslation();'] : null;
+        if (counter) {
+          if (code.split(counter[1]).length !== 2) throw new Error(`Expected one render instrumentation point: ${id}`);
+          return { code: `import { agentPanelRenders } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n`
+            + code.replace(counter[1], `${counter[1]}\n  agentPanelRenders.${counter[0]}++;`), map: null };
+        }
         if (id.endsWith('/hooks/useCopilot.ts')) {
           for (const service of ['../usecase/useComment', '../lib/copilot/base-block-context', '../lib/copilot/produce-block-section-summary']) {
             const source = `'${service}'`;
@@ -105,7 +114,7 @@ try {
       'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
       'Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.',
-      'Full Agent panels and durable event persistence, graph, references, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
+      'Desktop Agent panel is exercised with synthetic journal and auth ports; mobile panels, durable Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',
     ],
   };
   if (assertInputBudget) {

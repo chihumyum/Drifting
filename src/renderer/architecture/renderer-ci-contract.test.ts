@@ -13,9 +13,10 @@ type Report = {
   agentEventProcessing: { implementation: string };
   agentDecorations: { checks: { passed: boolean }[] };
   inlineCopilot: { listeners: { remaining: number } };
+  agentPanel: { streaming: { composer: number } };
   editorSuggestions?: unknown;
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f3-copilot-runs.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f4-desktop-panel.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -41,7 +42,8 @@ describe('ordinary CI renderer evidence', () => {
     const legacy = fixture(); legacy.agentEventProcessing.implementation = 'record-copy';
     const leak = fixture(); leak.inlineCopilot.listeners.remaining = 1;
     const failed = fixture(); failed.agentDecorations.checks[0].passed = false;
-    for (const report of [scans, legacy, leak, failed]) expect(validate(report).status).not.toBe(0);
+    const panel = fixture(); panel.agentPanel.streaming.composer = 20;
+    for (const report of [scans, legacy, leak, failed, panel]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();

@@ -283,7 +283,9 @@
           "id": "F4-03",
           "requirement": "展示通知合并不丢真实事件，取消、权限、终态和后台 flush 及时有序",
           "evidence": [
-            "docs/renderer-performance/acceptance/f4-chat-display.json"
+            "docs/renderer-performance/acceptance/f4-chat-display.json",
+            "docs/renderer-performance/acceptance/f4-desktop-panel-baseline.json",
+            "docs/renderer-performance/acceptance/f4-desktop-panel.json"
           ],
           "status": "passed"
         },
@@ -293,12 +295,14 @@
           "evidence": [
             "docs/renderer-performance/acceptance/f4-events-baseline.json",
             "docs/renderer-performance/acceptance/f4-event-dedup.json",
-            "docs/renderer-performance/acceptance/f4-chat-display.json"
+            "docs/renderer-performance/acceptance/f4-chat-display.json",
+            "docs/renderer-performance/acceptance/f4-desktop-panel-baseline.json",
+            "docs/renderer-performance/acceptance/f4-desktop-panel.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "private_journal_membership_and_shared_chat_display_scheduling_implemented"
+      "implementationStatus": "private_journal_membership_shared_display_scheduler_and_desktop_transcript_owner_browser_verified"
     },
     {
       "id": "F5",
@@ -522,7 +526,8 @@
             "docs/renderer-performance/acceptance/f3-selection-native.json",
             "docs/renderer-performance/acceptance/f3-context-menus-native.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json"
           ],
           "status": "partial"
         },
@@ -549,7 +554,8 @@
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f4-desktop-composition-native.json"
           ],
           "status": "partial"
         },
