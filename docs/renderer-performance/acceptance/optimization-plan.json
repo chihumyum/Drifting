@@ -272,7 +272,8 @@
             "docs/renderer-performance/acceptance/f4-recovery.json",
             "docs/renderer-performance/acceptance/f4-recovery-native.json",
             "docs/renderer-performance/acceptance/f4-journal-owner.json",
-            "docs/renderer-performance/acceptance/f4-journal-owner-native.json"
+            "docs/renderer-performance/acceptance/f4-journal-owner-native.json",
+            "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json"
           ],
           "status": "partial"
         },
@@ -324,12 +325,13 @@
             "docs/renderer-performance/acceptance/f4-recovery.json",
             "docs/renderer-performance/acceptance/f4-recovery-native.json",
             "docs/renderer-performance/acceptance/f4-journal-owner.json",
-            "docs/renderer-performance/acceptance/f4-journal-owner-native.json"
+            "docs/renderer-performance/acceptance/f4-journal-owner-native.json",
+            "docs/renderer-performance/acceptance/f4-chat-crash-recovery.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "app_owned_journal_routing_and_pure_run_projection_disposal_verified_live_and_recovery_work_bounded_mixed_crash_checkpoint_and_device_budgets_pending"
+      "implementationStatus": "app_owned_journal_consumer_and_bounded_live_recovery_work_mixed_sqlite_process_crash_verified_native_crash_checkpoint_compaction_and_device_budgets_pending"
     },
     {
       "id": "F5",

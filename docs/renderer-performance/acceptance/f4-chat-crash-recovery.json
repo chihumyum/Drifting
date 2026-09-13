@@ -1,0 +1,1907 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent_chat_process_recovery",
+  "status": "passed",
+  "generatedAt": "2026-09-13T07:56:34.677Z",
+  "source": {
+    "commit": "b779065c43bd4b16253e40f65b6fca1a7602c589",
+    "fingerprint": "1fc5bb0a8c32151ba2cb7f4950a29f000a7b352e7aa742fbdaca9580e0803d05",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.19.0",
+    "sqlite": "3.53.3"
+  },
+  "fixture": {
+    "provenance": "synthetic content only",
+    "database": "file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite",
+    "trace": "one prior committed turn and one two-iteration mixed turn: consolidated thinking, text, streamed tool arguments, one success and one failure, usage and terminal",
+    "composition": "real journal consumer, persistence adapter, repositories and strict recovery; synchronous state/activity ports; no model, tool execution, React or native process"
+  },
+  "cases": [
+    {
+      "boundary": "tool-arguments",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-arguments",
+        "seed": 1,
+        "through": 6,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-arguments",
+          "seed": 1,
+          "through": 6,
+          "committed": false,
+          "messageCount": 8,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "efa3d160dc154fcf6bb7e7287b371479c1c9943d66afab89c2f0bc02a3be3767",
+          "displayHash": "27257c95b60182a9863b06f9ba2c9fc6fc32e291cc51d1740eb25d227f641949",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-arguments",
+          "seed": 1,
+          "through": 6,
+          "committed": false,
+          "messageCount": 8,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "efa3d160dc154fcf6bb7e7287b371479c1c9943d66afab89c2f0bc02a3be3767",
+          "displayHash": "27257c95b60182a9863b06f9ba2c9fc6fc32e291cc51d1740eb25d227f641949",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-arguments",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-arguments",
+        "seed": 2,
+        "through": 6,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-arguments",
+          "seed": 2,
+          "through": 6,
+          "committed": false,
+          "messageCount": 8,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "9eba0e27e57f54b619c6cb8cd0d66413a0161229668df34eb777952375accb96",
+          "displayHash": "0e75d22d3c9a0a252d60d15d997b1fec4bc53dbd81b06ee4ce303a89a3c750ee",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-arguments",
+          "seed": 2,
+          "through": 6,
+          "committed": false,
+          "messageCount": 8,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "9eba0e27e57f54b619c6cb8cd0d66413a0161229668df34eb777952375accb96",
+          "displayHash": "0e75d22d3c9a0a252d60d15d997b1fec4bc53dbd81b06ee4ce303a89a3c750ee",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-executing",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-executing",
+        "seed": 1,
+        "through": 14,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-executing",
+          "seed": 1,
+          "through": 14,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "fb34ae8c9ec029ff90a30e4cd0458f2b71e0dd58dede7cee731af52a5e8839e1",
+          "displayHash": "27c20b10a8b1238262dde3fa5555b706f5ed1d585108c35bba3de7de2ec7d3ee",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-executing",
+          "seed": 1,
+          "through": 14,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "fb34ae8c9ec029ff90a30e4cd0458f2b71e0dd58dede7cee731af52a5e8839e1",
+          "displayHash": "27c20b10a8b1238262dde3fa5555b706f5ed1d585108c35bba3de7de2ec7d3ee",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-executing",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-executing",
+        "seed": 2,
+        "through": 14,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-executing",
+          "seed": 2,
+          "through": 14,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "dc241f5ecf0d29205af0dad88347d2bc31b67ce69a7c06c941b58a095b0343b5",
+          "displayHash": "917c0947e222eaf77ec9aa85ab1991ad02231229097dc55952125d7723a05b88",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-executing",
+          "seed": 2,
+          "through": 14,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "dc241f5ecf0d29205af0dad88347d2bc31b67ce69a7c06c941b58a095b0343b5",
+          "displayHash": "917c0947e222eaf77ec9aa85ab1991ad02231229097dc55952125d7723a05b88",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-result-journal",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-result-journal",
+        "seed": 1,
+        "through": 15,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-result-journal",
+          "seed": 1,
+          "through": 15,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "b21face82863d1aaa050707899ee653770c7b540664a7fbe4e073102595fee83",
+          "displayHash": "8aac5c6f8b9f6b6792860feeefbbab8d5dd6a6bc2c5faea5dd89cae5fb644f7c",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-result-journal",
+          "seed": 1,
+          "through": 15,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "b21face82863d1aaa050707899ee653770c7b540664a7fbe4e073102595fee83",
+          "displayHash": "8aac5c6f8b9f6b6792860feeefbbab8d5dd6a6bc2c5faea5dd89cae5fb644f7c",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-result-journal",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-result-journal",
+        "seed": 2,
+        "through": 15,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-result-journal",
+          "seed": 2,
+          "through": 15,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "865e4c63172eebad98a1435cd50c12d7562e3ff1a8a856590da7468c38c4d724",
+          "displayHash": "ec566ff8885e930d6ae77daba245d4aa381cd1deaf2bc4366dcc566a129f7ee9",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-result-journal",
+          "seed": 2,
+          "through": 15,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "865e4c63172eebad98a1435cd50c12d7562e3ff1a8a856590da7468c38c4d724",
+          "displayHash": "ec566ff8885e930d6ae77daba245d4aa381cd1deaf2bc4366dcc566a129f7ee9",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-results",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-results",
+        "seed": 1,
+        "through": 17,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-results",
+          "seed": 1,
+          "through": 17,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "fba21455a96f40a89bd2797636435a3d92154cff111e95080cb51442733ea392",
+          "displayHash": "8c66972a71f9cafdc98e907d5d31b1f0b56cb07b2f63fd819230490d2c9bf50e",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-results",
+          "seed": 1,
+          "through": 17,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "fba21455a96f40a89bd2797636435a3d92154cff111e95080cb51442733ea392",
+          "displayHash": "8c66972a71f9cafdc98e907d5d31b1f0b56cb07b2f63fd819230490d2c9bf50e",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "tool-results",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "tool-results",
+        "seed": 2,
+        "through": 17,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "tool-results",
+          "seed": 2,
+          "through": 17,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "b3d78f0e90fd18d2375d7bed75045ab9455bf2d78fb4ff3fd66a024b2da9cc52",
+          "displayHash": "b6893ff804e85d090010c86e8176f8271edfa4d43de43118c4dc40234edab17c",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "tool-results",
+          "seed": 2,
+          "through": 17,
+          "committed": false,
+          "messageCount": 9,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "b3d78f0e90fd18d2375d7bed75045ab9455bf2d78fb4ff3fd66a024b2da9cc52",
+          "displayHash": "b6893ff804e85d090010c86e8176f8271edfa4d43de43118c4dc40234edab17c",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "assistant-tail",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "assistant-tail",
+        "seed": 1,
+        "through": 21,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "assistant-tail",
+          "seed": 1,
+          "through": 21,
+          "committed": false,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "5f269f24e7349c95228846afabab51ff5f54fc4d22893a2477533f61e6cb8e80",
+          "displayHash": "e5fea6c0595786f1bc1e020aadffc36a886c9556c18a04b55f98998b23f7351e",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "assistant-tail",
+          "seed": 1,
+          "through": 21,
+          "committed": false,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "5f269f24e7349c95228846afabab51ff5f54fc4d22893a2477533f61e6cb8e80",
+          "displayHash": "e5fea6c0595786f1bc1e020aadffc36a886c9556c18a04b55f98998b23f7351e",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "assistant-tail",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "assistant-tail",
+        "seed": 2,
+        "through": 21,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "assistant-tail",
+          "seed": 2,
+          "through": 21,
+          "committed": false,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "64e412da70c3ddafaa0bd7b67e85ab68f1e1b3bd230503ddb73cbce4c41daac7",
+          "displayHash": "66000383e8a212282463dc3feb0ce24eadad990e328b42b9d74ab276cb0adf57",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "assistant-tail",
+          "seed": 2,
+          "through": 21,
+          "committed": false,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "64e412da70c3ddafaa0bd7b67e85ab68f1e1b3bd230503ddb73cbce4c41daac7",
+          "displayHash": "66000383e8a212282463dc3feb0ce24eadad990e328b42b9d74ab276cb0adf57",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "terminal-journal",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "terminal-journal",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "terminal-journal",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "9fdd17753d9bf1c1a5c84ada99ab8552207d74d1c0093c637008ece11a34e2eb",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "terminal-journal",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "9fdd17753d9bf1c1a5c84ada99ab8552207d74d1c0093c637008ece11a34e2eb",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "terminal-journal",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "terminal-journal",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 0,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "terminal-journal",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "da8d3138fca49323f354f111cb212df478f286786c8b02e54d08b72e057d31f9",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "terminal-journal",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "da8d3138fca49323f354f111cb212df478f286786c8b02e54d08b72e057d31f9",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-message",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-message",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 1,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-message",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "e32d50cdcb8ea6a876773dbebd9013e736be7e64e389cb03595536eec61aa693",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-message",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "e32d50cdcb8ea6a876773dbebd9013e736be7e64e389cb03595536eec61aa693",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-message",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-message",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 1,
+          "checkpointWritten": false,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-message",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "7df6cb1fe535bd88f3229ac2600014a8bed781ed356918159a3db364bdd6ba60",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-message",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "7df6cb1fe535bd88f3229ac2600014a8bed781ed356918159a3db364bdd6ba60",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-checkpoint",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-checkpoint",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-checkpoint",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "3a44c7df7f17274251c65e650ecc095ce080711bfc246528b6e85f825a0270f6",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-checkpoint",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "3a44c7df7f17274251c65e650ecc095ce080711bfc246528b6e85f825a0270f6",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-checkpoint",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-checkpoint",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": false,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-checkpoint",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "09e530e26bf092c90563d71b9ba0f0beedf761e29f9974fd433441caa4cef488",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-checkpoint",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "09e530e26bf092c90563d71b9ba0f0beedf761e29f9974fd433441caa4cef488",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-before-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-before-commit",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-before-commit",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "daab9cea7f5d62d304ab45258bcf2081906dafead5c23fc9c5b49f1e0ff97922",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-before-commit",
+          "seed": 1,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "daab9cea7f5d62d304ab45258bcf2081906dafead5c23fc9c5b49f1e0ff97922",
+          "displayHash": "43712f128babba91b78aa010d430c3d898d5cf9508badbe79f1fe143d86b7574",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-before-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-before-commit",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": false
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-before-commit",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "8493c15a316c205fbbd7d3a0aa2aa95f449021f7b29b7a9b2ef42d26d52f4cb3",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-before-commit",
+          "seed": 2,
+          "through": 25,
+          "committed": false,
+          "messageCount": 12,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "8493c15a316c205fbbd7d3a0aa2aa95f449021f7b29b7a9b2ef42d26d52f4cb3",
+          "displayHash": "039e72b744fe1db47ec81d9eccecf9d71fa1152b59af8526b08a0d6c7851565f",
+          "providerHash": "aff7ae1fc8959a791b7f6113d8c9fcf83a1578b4f612d43a3f8a0caafd47b6f8",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-commit",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-commit",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "1e730d604ad0680a75918c1cc3cb692ca994d1dd842d726935bee6eb2e3b9e54",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-commit",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "1e730d604ad0680a75918c1cc3cb692ca994d1dd842d726935bee6eb2e3b9e54",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "commit-after-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "commit-after-commit",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "commit-after-commit",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "ee1c2c5726252595f0aca305364ab7b601585981bf3bf7a1e03b762b649448eb",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "commit-after-commit",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "ee1c2c5726252595f0aca305364ab7b601585981bf3bf7a1e03b762b649448eb",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "consumer-before-cache",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "consumer-before-cache",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "consumer-before-cache",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "98341fc42c8c9159147aea2a15b2007a85395f4f38f82a26f253d9dcd5102eac",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "consumer-before-cache",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "98341fc42c8c9159147aea2a15b2007a85395f4f38f82a26f253d9dcd5102eac",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "consumer-before-cache",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "consumer-before-cache",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "consumer-before-cache",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "26433561289218c919b7af315bc4c0131fdcf76e799b59235b3c43081fff348e",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "consumer-before-cache",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "26433561289218c919b7af315bc4c0131fdcf76e799b59235b3c43081fff348e",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "cache-after-write",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "cache-after-write",
+        "seed": 1,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "cache-after-write",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "8ecfd8e4c7f8cacad8862b62cc2a4312044db9d8e1d32505845d708764d795f6",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "cache-after-write",
+          "seed": 1,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "8ecfd8e4c7f8cacad8862b62cc2a4312044db9d8e1d32505845d708764d795f6",
+          "displayHash": "dd05d1f01bf2ac51e8b96f96d7bd2ee3544b846b305c4738783fff751368fdf1",
+          "providerHash": "7067fc142a7069a44c92b4440302dc0feae70db670af12d094d3d1c928fa5287",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "cache-after-write",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "cache-after-write",
+        "seed": 2,
+        "through": 25,
+        "observed": {
+          "completionRows": 3,
+          "checkpointWritten": true,
+          "terminalWritten": true,
+          "transactionCommitted": true
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "cache-after-write",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "1457481023f4b4625e46ef61e0da2b771389061d1ab6621e463647409ed477b9",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "cache-after-write",
+          "seed": 2,
+          "through": 25,
+          "committed": true,
+          "messageCount": 11,
+          "checks": [
+            "literal-display",
+            "committed-provider-history",
+            "checkpoint-atomicity",
+            "journal-and-tool-rows",
+            "cache-boundary",
+            "foreign-project-isolation",
+            "replay-deduplication",
+            "disposed-consumer",
+            "read-only-recovery",
+            "integrity",
+            "foreign-keys"
+          ],
+          "databaseHash": "1457481023f4b4625e46ef61e0da2b771389061d1ab6621e463647409ed477b9",
+          "displayHash": "a9e6fdfe52b61038bf96d50c59c3347135fd8b97354b3fc0a015430ba7772a7a",
+          "providerHash": "de665ff9e824ab48b93e2b06c5f203ba1bce2c2ea079a59508dd384898ecbe03",
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "processRecovery": "passed",
+    "nativeGateway": "not-run",
+    "powerLoss": "not-run",
+    "performance": "not-measured"
+  },
+  "limitations": [
+    "SIGKILL terminates an owned Node process. It does not simulate OS crash, disk failure or power loss.",
+    "This covers real SQLite and consumer/recovery composition, not the full Zustand store, transport relay, React display, native Rust gateway or device input.",
+    "Recovery here is read-only. Resuming interrupted tools, write receipts, permissions, user controls, checkpoint compaction and large-history latency remain separate acceptance."
+  ]
+}

@@ -61,6 +61,7 @@
     "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",
     "reference:index:acceptance": "node scripts/run-reference-index-acceptance.mjs",
     "reference:index:recovery": "node scripts/run-reference-index-recovery.mjs",
+    "agent:chat:recovery": "node scripts/run-agent-chat-recovery.mjs",
     "test:agent-runtime": "vitest run src/renderer/lib/agent/runtime --reporter=dot",
     "agent:debug:server": "node scripts/agent-headless-debug-server.mjs",
     "agent:debug:turn": "node scripts/agent-headless-debug-turn.mjs",

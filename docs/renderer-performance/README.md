@@ -2565,3 +2565,45 @@ editor/mobile/history 链的 56 项组合检查及 4 项重启检查通过。真
 public boundary、19 项 Agent capability 检查通过。Lint 为 0 错误、74 警告；
 正常产品构建仍为 32 个 JS chunk，未混入原生验收入口或性能计数器。浏览器与原生
 报告均校验候选源码指纹；托管 CI、真实手机和物理输入未执行，本目标不推送。
+
+## F4i：混合聊天的真实 SQLite 进程崩溃恢复
+
+本批补齐前述 F4h 的一部分恢复证据，产品消费者、投影、去重和持久化实现不变。
+新增 `pnpm agent:chat:recovery`，用完整产品迁移、文件 SQLite WAL/FULL 和现有
+renderer gateway adapter 执行真实 repository / transport persistence / journal consumer
+组合；父进程在子进程报告精确边界后发送 SIGKILL，再启动两个独立恢复进程。
+子进程在边界同步冻结，避免待执行缓存写入或 SQLite close/checkpoint 抢先完成。
+
+每组使用一个已提交的旧回合，以及一个两轮模型迭代的合成混合回合：thinking、文本、
+流式参数、成功与失败各一次的工具结果、最终文本、usage 和终态。工具与模型只提供
+合成事件，不执行真实工具或外部请求；预期显示消息单独逐项定义，不由被测折叠器生成。
+
+| 中断位置 | 重启时必须满足 |
+| --- | --- |
+| 参数流、工具执行、结果 journal 已落盘但工具行未更新、两个工具结果完成、最后文本 | 保留已持久输出；未完成工具显示中断；没有假流式光标；旧回合和 provider history 不变 |
+| 终态 journal 已落盘、完成消息已插入但未提交、checkpoint 已插入但未提交、事务提交前 | 提示完成上下文未能持久采用；完成消息/checkpoint/终态不能部分落盘或误报成功 |
+| 完成事务提交后、消费者收到终态但缓存尚未写入、缓存写入后 | 从权威 journal 和已提交行恢复完整显示，忽略旧缓存中的过期 assistant；完整 provider history 和 checkpoint 一致 |
+
+事务钩子绑定实际插入本轮完成消息的 transaction ID，并记录消息数、checkpoint、
+终态行和实际提交状态。生成报告验证这些见证，防止误把 `loadRecoverySnapshot`
+读取事务的提交当作完成事务。每次恢复还检查完整 event ID、工具行状态、另一个
+项目的 sentinel、两轮重复 replay 不发布或触发副作用、dispose 后迟到回调无效，
+以及数据库全表哈希不变、integrity 和外键通过。
+
+`acceptance/f4-chat-crash-recovery.json` 记录 24 次实际 SIGKILL 和 48 次独立重启；
+两次重启的数据库、显示及 provider history 哈希必须完全一致。
+`pnpm agent:chat:recovery --check` 同时校验完整矩阵和候选源码指纹；`--smoke`
+只运行每个边界的一组种子，不生成完整验收报告。普通 Vitest 使用已生成报告验证
+缺失场景、假 SIGKILL、缺少事务见证、缺少重启、假完成、缺少检查、结果分叉和重复
+消息均会被拒绝；当前性由单独的 `--check` 门槛负责。
+
+边界仍然明确：这里是 Node 进程和真实 SQLite，状态/活动端口为同步合成组合，
+没有重跑完整 Zustand store、transport relay、React 或原生 Rust 进程。此处恢复
+为只读；恢复后的工具续跑、写入收据、权限/用户等待、checkpoint 压缩、大历史耗时、
+原生崩溃和断电仍需独立验收。F4-01/04 保持 partial，不把正确性矩阵记作性能提升。
+
+本批验收：24 次 SIGKILL / 48 次独立重启全部通过；全量 Vitest 2,531 通过、
+1 项既有跳过（393 个测试文件）。Typecheck、CI contract、public boundary 和
+19 项 Agent capability 检查通过；Lint 0 错误、74 项既有警告。正常构建仍为
+32 个 JS chunk，没有混入崩溃 fixture 或性能计数器。本批未重跑浏览器或原生 UI；
+生成报告保留执行时的父提交 `b779065c` 和完整候选源码指纹，不手改提交身份。
