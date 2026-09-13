@@ -11,6 +11,7 @@ import {
   foreignKey,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import { fullAgentCheckpointPredicate } from './agent-checkpoint-retention';
 
 // Agent chat uses a separate versioned object stream. These tables never enter
 // project protocol v1 snapshots; runtime sessions and grants remain local.
@@ -1704,6 +1705,8 @@ export const AgentRuntimeCheckpointTable = sqliteTable(
   (t) => [
     uniqueIndex('uniq_agent_runtime_checkpoint_session_turn').on(t.sessionId, t.throughTurnOrdinal),
     index('idx_agent_runtime_checkpoint_session_created').on(t.sessionId, t.createdAt),
+    index('idx_agent_runtime_checkpoint_full_anchor').on(t.sessionId, t.throughTurnOrdinal)
+      .where(fullAgentCheckpointPredicate(t)),
   ],
 );
 

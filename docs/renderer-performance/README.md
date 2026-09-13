@@ -3226,3 +3226,90 @@ production renderer build succeeds with 32 JS chunks and excludes the crash work
 Hosted CI has not run; this goal includes local commits and no push. The separate
 pending native graph acceptance is preserved outside this commit and remains
 unverified while the Mac is locked.
+
+## F4o — Indexed checkpoint anchors and retained commit identity
+
+Every completed turn used to read and JSON-decode all historical checkpoint
+rows during recovery and again during compaction, even though almost all were
+already retained digest identities. Retention also used adjacent turn ordinals:
+failed or cancelled turns between successful turns could leave only one full
+anchor. Finally, transport commit retries searched the recovery-only anchor
+list, so an older successfully committed turn could be rejected after its
+checkpoint had been compacted to a retained digest.
+
+Full-anchor reads and compaction now use one shared SQL predicate and a partial
+index. The predicate excludes the exact canonical digest representation emitted
+by the repository; it does not parse context JSON. Compaction retains the new
+anchor and the latest actual older anchor, then replaces older full payloads
+with their existing digest identities in the same transaction as the new
+messages, checkpoint and terminal state. A separate indexed identity lookup
+acknowledges old commit retries without loading their former full context.
+Strict recovery continues to reject corrupt full anchors. Retaining two anchors
+does not mean automatically falling back when the latest hash is invalid.
+
+Generated migration `0003_agent_checkpoint_anchors.sql` adds only the partial
+index; 0000–0002 are unchanged. Drizzle generation reports no further schema
+drift. Native database tests exercise successful and failed upgrades from each
+published prefix, even when the app version is unchanged. Each path creates a
+verified safety snapshot; failed migration candidates leave the complete source
+schema and data unchanged. Synthetic full/unknown, retained-digest and undecodable
+checkpoint payloads remain byte-identical in both backup and active database.
+The existing shadow-migration process-kill matrix also passes.
+
+```bash
+pnpm agent:checkpoint:acceptance --baseline=34ccdc53
+pnpm agent:checkpoint:acceptance --check
+```
+
+`acceptance/f4-checkpoint-retention.json` uses identical fixture, worker and
+integration probes on baseline `34ccdc53` and the candidate. Synthetic normalized
+history and immutable journals are seeded into temporary WAL/FULL databases using
+all product migrations. Existing V4 anchors are verified against exact complete
+message history. A new mixed turn with one successful and one failed read-tool
+result goes through the real persistence adapter, canonical repository and strict
+recovery. Provider/tool implementations are synthetic journal inputs here.
+
+| Historical checkpoints | Recovery-list rows before → after | Checkpoint rows read during one commit before → after |
+| --- | --- | --- |
+| 100 | 100 → 2 | 100 + 99 → 2 + 2 |
+| 1,000 | 1,000 → 2 | 1,000 + 999 → 2 + 2 |
+| 5,000 | 5,000 → 2 | 5,000 + 4,999 → 2 + 2 |
+
+These are actual rows crossing the renderer database gateway. The report also
+records returned bytes, observed durations and each actual SQLite query plan;
+the candidate uses `idx_agent_runtime_checkpoint_full_anchor`. List reads are
+read-only, both builds recover identical complete provider history, and the two
+expected full anchors remain. The index addresses the repeated checkpoint scan;
+full journal/message loading and strict history reconstruction still scale with
+the session. The measurements do not establish an overall latency, heap or device
+performance budget.
+
+Eight identical SQLite behavior probes fail six checks on the baseline and pass
+all on the candidate; the five current suites pass 36 checks. They cover failed-turn
+gaps, index use, old transport retry without writes, rollback and retry after
+compaction/lifecycle/root-commit failure, undecodable payloads and rejection of a
+corrupt latest hash. Failed or cancelled history never becomes provider context.
+
+The process matrix uses six cut points and two seeds: after the first completion
+message, new checkpoint, older-anchor compaction, lifecycle update, before root
+commit and after root commit. All 12 SIGKILL cases have two fresh process restarts
+(24 total). Pre-commit exits preserve the whole database hash and anchors 2/4;
+post-commit exits retain anchors 4/6, all three new completion messages and the
+completed mixed turn. Actual transaction IDs and SQL writes witness the compaction
+boundary. Repeated recovery produces identical database, display and provider
+hashes, preserves the foreign-project sentinel, passes integrity/foreign keys,
+and acknowledges a much older compacted commit without changing any row.
+
+The report additionally runs all 18 Rust database tests. Those establish native
+migration/safety-snapshot behavior, not native checkpoint-transaction termination.
+Checkpoint crash tests terminate owned Node workers; they do not simulate power
+loss, real provider/tool execution, native UI interaction, context-summary
+compaction, long mixed device histories or tool-write resumption. F4-01/04 remain
+partial, and F4 stays in progress.
+
+Final isolated checks pass 2,670 tests with one existing skip, typecheck,
+CI/public contracts and all 19 Agent capability checks; lint has zero errors and
+33 existing warnings. The current-source ordinary renderer regression report is
+`acceptance/f4-checkpoint-retention-browser.json`. The explicit local-only
+production build succeeds with 32 JS chunks and excludes the fixture/worker.
+No hosted CI or push is inferred from these local checks.

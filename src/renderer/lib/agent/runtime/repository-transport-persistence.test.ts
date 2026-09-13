@@ -108,6 +108,7 @@ function fakeRepository(): FakeRepository {
     ),
     findSessionForRoute: vi.fn(async () => structuredClone(state.session)),
     listTurns: vi.fn(async () => structuredClone(state.turns)),
+    hasCheckpointThroughTurn: vi.fn(async (id: string, ordinal: number) => state.checkpoints.some(row => row.sessionId === id && row.throughTurnOrdinal === ordinal)),
     interruptSession: vi.fn(async (_id: string, at: string) => {
       order.push('interrupt');
       state.session.status = 'interrupted';

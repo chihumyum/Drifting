@@ -1,0 +1,1691 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent_checkpoint_retention",
+  "status": "passed",
+  "generatedAt": "2026-09-13T13:10:17.455Z",
+  "source": {
+    "commit": "34ccdc53a1ca2afa83b2485c7f5372c6978b963e",
+    "fingerprint": "6b9dcd3cc6719187a90748046d212d510316cb219aaf47b64d4792796e4470e1"
+  },
+  "workerSha256": "da4bac2dec979323a3cbb4d646d1abc0775b7884979b9a7bff7faafa793e66c6",
+  "testSha256": "e570c5bbf74be467d5bfe797813de8bf5a23c2811f8c4475fcdd0f46b9a5f9e4",
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "suites": [
+    "src/renderer/sqlite-repo/agent-checkpoint-retention.integration.test.ts",
+    "src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts",
+    "src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts",
+    "src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts",
+    "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "checkpoint retention across real SQLite commits keeps the latest two actual anchors across failed-turn gaps",
+      "status": "passed",
+      "durationMs": 159.79233400000004
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits uses the partial anchor index for both recovery reads and commit compaction",
+      "status": "passed",
+      "durationMs": 58.112499999999955
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits acknowledges a transport retry whose original checkpoint is retained as a digest",
+      "status": "passed",
+      "durationMs": 35.80495900000005
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on compaction failure",
+      "status": "passed",
+      "durationMs": 66.30570799999998
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on lifecycle failure",
+      "status": "passed",
+      "durationMs": 59.519874999999956
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on commit failure",
+      "status": "passed",
+      "durationMs": 69.114375
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits keeps malformed checkpoint payloads visible so recovery fails closed",
+      "status": "passed",
+      "durationMs": 34.10791700000004
+    },
+    {
+      "name": "checkpoint retention across real SQLite commits does not fall back to the older anchor when the newest checkpoint hash is corrupted",
+      "status": "passed",
+      "durationMs": 33.067999999999984
+    },
+    {
+      "name": "agent runtime persistence repository against real SQLite atomically accepts, journals, settles, checkpoints, and replays one turn",
+      "status": "passed",
+      "durationMs": 30.511833000000024
+    },
+    {
+      "name": "agent runtime persistence repository against real SQLite keeps checkpoint storage linear while retaining old commit idempotency",
+      "status": "passed",
+      "durationMs": 16.348915999999974
+    },
+    {
+      "name": "agent runtime persistence repository against real SQLite rolls back route ownership failures without orphan rows",
+      "status": "passed",
+      "durationMs": 10.631207999999958
+    },
+    {
+      "name": "agent runtime persistence repository against real SQLite marks in-flight reads interrupted and entered writes uncertain exactly once",
+      "status": "passed",
+      "durationMs": 17.506250000000023
+    },
+    {
+      "name": "file-backed Agent V2 context recovery adopts one exact history when SQLite committed but the first commit acknowledgement was lost",
+      "status": "passed",
+      "durationMs": 215.512042
+    },
+    {
+      "name": "file-backed Agent V2 context recovery commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history",
+      "status": "passed",
+      "durationMs": 172.333167
+    },
+    {
+      "name": "file-backed Agent V2 context recovery stores a V4 row digest when a stale V2 projection cannot prove the completed turn",
+      "status": "passed",
+      "durationMs": 159.85391600000003
+    },
+    {
+      "name": "file-backed Agent V2 context recovery stores a bounded V4 row digest after validating an oversized V2 checkpoint",
+      "status": "passed",
+      "durationMs": 210.24091699999997
+    },
+    {
+      "name": "file-backed Agent V2 context recovery restarts and resumes a V2 session containing a canonical denied tool pair",
+      "status": "passed",
+      "durationMs": 147.68854199999987
+    },
+    {
+      "name": "file-backed Agent V2 context recovery canonicalizes non-lexical nested tool arguments while preserving rawArguments across a V2 restart",
+      "status": "passed",
+      "durationMs": 149.39874999999984
+    },
+    {
+      "name": "repository Agent transport persistence adapter settles a recovered wait without approving a lost stack: commit",
+      "status": "passed",
+      "durationMs": 7.39020800000003
+    },
+    {
+      "name": "repository Agent transport persistence adapter settles a recovered wait without approving a lost stack: write-effect-error",
+      "status": "passed",
+      "durationMs": 2.1838749999999436
+    },
+    {
+      "name": "repository Agent transport persistence adapter settles a recovered wait without approving a lost stack: aborted-after-write-effects",
+      "status": "passed",
+      "durationMs": 0.9132089999999948
+    },
+    {
+      "name": "repository Agent transport persistence adapter hydrates provider history through the real strict recovery codec",
+      "status": "passed",
+      "durationMs": 2.039041999999995
+    },
+    {
+      "name": "repository Agent transport persistence adapter restores only the author request when explicitly continuing an aborted turn",
+      "status": "passed",
+      "durationMs": 0.6570000000000391
+    },
+    {
+      "name": "repository Agent transport persistence adapter does not revive an aborted author request when the author changes tasks",
+      "status": "passed",
+      "durationMs": 0.35308300000002646
+    },
+    {
+      "name": "repository Agent transport persistence adapter repairs stale state, accepts the prompt before the provider, and commits a checkpoint from completed-turn history only",
+      "status": "passed",
+      "durationMs": 2.343334000000027
+    },
+    {
+      "name": "repository Agent transport persistence adapter fails closed on a cross-project resume before accepting a prompt",
+      "status": "passed",
+      "durationMs": 0.31983299999996007
+    },
+    {
+      "name": "repository Agent transport persistence adapter acknowledges an exact retry when SQLite committed but the success response was lost",
+      "status": "passed",
+      "durationMs": 1.99512500000003
+    },
+    {
+      "name": "repository Agent transport persistence adapter validates a recovery snapshot before applying interruption repairs",
+      "status": "passed",
+      "durationMs": 0.39100000000001955
+    },
+    {
+      "name": "repository Agent transport persistence adapter checks cancellation before touching durable state",
+      "status": "passed",
+      "durationMs": 0.26524999999998045
+    },
+    {
+      "name": "repository Agent transport persistence adapter keeps pre-execution runtime rejections in the journal without inventing a tool lifecycle row",
+      "status": "passed",
+      "durationMs": 0.2524169999999799
+    },
+    {
+      "name": "product file-backed migration acceptance creates the exact current baseline and reopens idempotently",
+      "status": "passed",
+      "durationMs": 30.902750000000026
+    },
+    {
+      "name": "product file-backed migration acceptance preserves continuous chapter coordinates in integer-affinity baseline columns",
+      "status": "passed",
+      "durationMs": 22.261250000000018
+    },
+    {
+      "name": "product file-backed migration acceptance enforces immutable, single-owner assets while preserving project cascade",
+      "status": "passed",
+      "durationMs": 28.662791000000027
+    },
+    {
+      "name": "product file-backed migration acceptance fails closed when an applied baseline hash is tampered",
+      "status": "passed",
+      "durationMs": 29.30083300000001
+    },
+    {
+      "name": "product file-backed migration acceptance fails closed when application tables have no current baseline history",
+      "status": "passed",
+      "durationMs": 1.7702090000000226
+    },
+    {
+      "name": "product file-backed migration acceptance refuses a database created by a newer migration journal",
+      "status": "passed",
+      "durationMs": 28.730875000000026
+    }
+  ],
+  "measurements": [
+    {
+      "mode": "measure",
+      "count": 100,
+      "seed": 1,
+      "lists": [
+        {
+          "rows": 2,
+          "bytes": 998,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 998,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 998,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        }
+      ],
+      "commitReads": [
+        {
+          "rows": 2,
+          "bytes": 998,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 998,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=? AND through_turn_ordinal<?)"
+          ]
+        }
+      ],
+      "listMs": [
+        0.2971670000000586,
+        0.1133750000000191,
+        0.09299999999996089
+      ],
+      "commitMs": 19.40266699999995,
+      "providerHash": "2d06636213d95707dfdb15bd6deac573ee35f686fc710a112a8244f5b8161259",
+      "checks": [
+        "read-only-list",
+        "full-provider-history",
+        "two-anchors",
+        "actual-query-plan"
+      ],
+      "exit": {
+        "code": 0,
+        "signal": null
+      }
+    },
+    {
+      "mode": "measure",
+      "count": 1000,
+      "seed": 1,
+      "lists": [
+        {
+          "rows": 2,
+          "bytes": 1006,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1006,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1006,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        }
+      ],
+      "commitReads": [
+        {
+          "rows": 2,
+          "bytes": 1006,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1006,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=? AND through_turn_ordinal<?)"
+          ]
+        }
+      ],
+      "listMs": [
+        0.3562499999998181,
+        0.12141700000006495,
+        0.09629100000006474
+      ],
+      "commitMs": 139.71029199999998,
+      "providerHash": "3e5fbd9da4be893a3e8825ae5afffb8f06809fbdc7c746516333983705720e26",
+      "checks": [
+        "read-only-list",
+        "full-provider-history",
+        "two-anchors",
+        "actual-query-plan"
+      ],
+      "exit": {
+        "code": 0,
+        "signal": null
+      }
+    },
+    {
+      "mode": "measure",
+      "count": 5000,
+      "seed": 1,
+      "lists": [
+        {
+          "rows": 2,
+          "bytes": 1012,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1012,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1012,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        }
+      ],
+      "commitReads": [
+        {
+          "rows": 2,
+          "bytes": 1012,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=?)"
+          ]
+        },
+        {
+          "rows": 2,
+          "bytes": 1012,
+          "plan": [
+            "SEARCH agent_runtime_checkpoint USING INDEX idx_agent_runtime_checkpoint_full_anchor (session_id=? AND through_turn_ordinal<?)"
+          ]
+        }
+      ],
+      "listMs": [
+        0.34875000000010914,
+        0.1147080000000642,
+        0.09508300000015879
+      ],
+      "commitMs": 712.8076659999997,
+      "providerHash": "bd20d1c158642d3aececc77a10a8d348ca1ba1cd2ded329263ce69f0523fd664",
+      "checks": [
+        "read-only-list",
+        "full-provider-history",
+        "two-anchors",
+        "actual-query-plan"
+      ],
+      "exit": {
+        "code": 0,
+        "signal": null
+      }
+    }
+  ],
+  "crashes": [
+    {
+      "boundary": "message",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "message",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "31f3d5359dd0bd8360eed65538b15058c9a2802e0b3c36784262a1d34dc8adf0",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 1,
+          "checkpoint": false,
+          "compacted": [],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "message",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "31f3d5359dd0bd8360eed65538b15058c9a2802e0b3c36784262a1d34dc8adf0",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "message",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "31f3d5359dd0bd8360eed65538b15058c9a2802e0b3c36784262a1d34dc8adf0",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "message",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "message",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "0ef6430c6b04a619ec5da99ba5f1bec58da2479aef2e3084e0801d642a1f6b77",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 1,
+          "checkpoint": false,
+          "compacted": [],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "message",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "0ef6430c6b04a619ec5da99ba5f1bec58da2479aef2e3084e0801d642a1f6b77",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "message",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "0ef6430c6b04a619ec5da99ba5f1bec58da2479aef2e3084e0801d642a1f6b77",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "checkpoint",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "checkpoint",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "4172ab2199c4769a31efb35271a78eda1992f5b4cfcc4f34ae53afbb522d39ed",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "checkpoint",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "4172ab2199c4769a31efb35271a78eda1992f5b4cfcc4f34ae53afbb522d39ed",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "checkpoint",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "4172ab2199c4769a31efb35271a78eda1992f5b4cfcc4f34ae53afbb522d39ed",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "checkpoint",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "checkpoint",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "828c9c57d946375633d0ee001738a226d59a1500c69ca2966a85dcfcbdc62aba",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "checkpoint",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "828c9c57d946375633d0ee001738a226d59a1500c69ca2966a85dcfcbdc62aba",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "checkpoint",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "828c9c57d946375633d0ee001738a226d59a1500c69ca2966a85dcfcbdc62aba",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "compaction",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "compaction",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "63670d168271338cc521e327183c210387a176d343d48722539d30aee73f3227",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "compaction",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "63670d168271338cc521e327183c210387a176d343d48722539d30aee73f3227",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "compaction",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "63670d168271338cc521e327183c210387a176d343d48722539d30aee73f3227",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "compaction",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "compaction",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "428abae7cea5e9ce8b7e772f19bab73fe44745ff01d2a823787cdcaf43d3fbdd",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": false,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "compaction",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "428abae7cea5e9ce8b7e772f19bab73fe44745ff01d2a823787cdcaf43d3fbdd",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "compaction",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "428abae7cea5e9ce8b7e772f19bab73fe44745ff01d2a823787cdcaf43d3fbdd",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "lifecycle",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "lifecycle",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "f9cdc22184ee2ab2d150a894a61edac36765e5bf65d0e9ef32b0d788781fe5fc",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "lifecycle",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "f9cdc22184ee2ab2d150a894a61edac36765e5bf65d0e9ef32b0d788781fe5fc",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "lifecycle",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "f9cdc22184ee2ab2d150a894a61edac36765e5bf65d0e9ef32b0d788781fe5fc",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "lifecycle",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "lifecycle",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "63e13d85d9a37c51b30503ccf5b87a726eba6c69d85a544b75172b8deb666a05",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "lifecycle",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "63e13d85d9a37c51b30503ccf5b87a726eba6c69d85a544b75172b8deb666a05",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "lifecycle",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "63e13d85d9a37c51b30503ccf5b87a726eba6c69d85a544b75172b8deb666a05",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "before-commit",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "before-commit",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "75cc9bc65227870acaf125dc902170699836db162a174cacdae3963d7acb2de1",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "75cc9bc65227870acaf125dc902170699836db162a174cacdae3963d7acb2de1",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "75cc9bc65227870acaf125dc902170699836db162a174cacdae3963d7acb2de1",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "ec0aa553cfc53b598c540ab4c4a3088e3dc9238e0e2e41843c62c827415df832",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "before-commit",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "before-commit",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "7e1a6176f7eeaf3ad66f28c36cdae9e43002828d52d481d2e6a5527c861ad401",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": false,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "7e1a6176f7eeaf3ad66f28c36cdae9e43002828d52d481d2e6a5527c861ad401",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "7e1a6176f7eeaf3ad66f28c36cdae9e43002828d52d481d2e6a5527c861ad401",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+          "displayHash": "e0a6dc666e166c65a470746af7585bac0d4161a8632653cad7448cb2029b9e89",
+          "fullOrdinals": [
+            2,
+            4
+          ],
+          "lastTurnStatus": "running",
+          "checkpoints": 3,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "committed",
+      "seed": 1,
+      "kill": {
+        "mode": "write",
+        "boundary": "committed",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "899531e4114d73582c6f1e10bfda9fa08f04327a686e8d655b5a6f97927b1fba",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": true,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "6e0db3f882ff8e8fb5a03f3313c56a960f014f835b213b4034199f5c7895305f",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+          "displayHash": "5cfa81def96da2ce49a48cb3584528b648859b0948f7f9261809cb293de7e254",
+          "fullOrdinals": [
+            4,
+            6
+          ],
+          "lastTurnStatus": "completed",
+          "checkpoints": 4,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "6e0db3f882ff8e8fb5a03f3313c56a960f014f835b213b4034199f5c7895305f",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "3d89b33db2713efcc966ca1ccaccc198bc64f2ddc0bb8bcef2b5923bfe7e3f19",
+          "displayHash": "5cfa81def96da2ce49a48cb3584528b648859b0948f7f9261809cb293de7e254",
+          "fullOrdinals": [
+            4,
+            6
+          ],
+          "lastTurnStatus": "completed",
+          "checkpoints": 4,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "boundary": "committed",
+      "seed": 2,
+      "kill": {
+        "mode": "write",
+        "boundary": "committed",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "fafea82a0cb552047c5d6e4b61cd00de001a500b133be0d65413b236e7c8dd7c",
+        "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+        "beforeProviderHash": "ec784fd0b319b7ecbe0657d06045221ce9a2b0a33632a5c402a44969c27daac8",
+        "afterProviderHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+        "observed": {
+          "messages": 3,
+          "checkpoint": true,
+          "compacted": [
+            2
+          ],
+          "terminal": true,
+          "committed": true,
+          "transactionIds": [
+            "35",
+            "35",
+            "35",
+            "35",
+            "35",
+            "35"
+          ]
+        },
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "boundary": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "95bee9fb385dde515a4a1f1bb88c921c4e2cea92671ce24ee9059a0a1102d37a",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+          "displayHash": "af603dea2ca9a7523bbc8961b564237364621886e18e42e4d8bd9f459e795e3b",
+          "fullOrdinals": [
+            4,
+            6
+          ],
+          "lastTurnStatus": "completed",
+          "checkpoints": 4,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "boundary": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "95bee9fb385dde515a4a1f1bb88c921c4e2cea92671ce24ee9059a0a1102d37a",
+          "foreignHash": "0ace06ea477ca50c40405ca2ff561685d293633e022112967ec74feadbaf0fb6",
+          "providerHash": "bb22bfbcbfc78cdc5abb9813091b6dd0523c7d0ce4baebfe7eea201a29e12553",
+          "displayHash": "af603dea2ca9a7523bbc8961b564237364621886e18e42e4d8bd9f459e795e3b",
+          "fullOrdinals": [
+            4,
+            6
+          ],
+          "lastTurnStatus": "completed",
+          "checkpoints": 4,
+          "checks": [
+            "read-only-recovery-and-old-commit-retry",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    }
+  ],
+  "native": {
+    "tests": [
+      "database::tests::a_fresh_renderer_session_recovers_a_stale_transaction",
+      "database::tests::agent_runtime_migration_enforces_canonical_journal_constraints",
+      "database::tests::another_renderer_cannot_take_over_without_explicit_recovery",
+      "database::tests::current_local_first_baseline_is_exactly_recorded_and_idempotent",
+      "database::tests::database_names_cannot_escape_the_managed_directory",
+      "database::tests::failed_shadow_candidate_never_changes_the_active_database",
+      "database::tests::malformed_recovery_receipt_stops_startup_instead_of_guessing",
+      "database::tests::ordinary_requests_wait_until_the_owning_transaction_finishes",
+      "database::tests::pre_update_safety_snapshot_is_standalone_and_once_per_version",
+      "database::tests::project_upgrades_preserve_published_prefixes_with_same_version_safety_snapshots",
+      "database::tests::refuses_a_database_migrated_by_a_newer_client",
+      "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
+      "database::tests::restart_after_replace_completes_marker_only_after_validating_active_database",
+      "database::tests::restart_after_replace_never_migrates_an_incomplete_active_database",
+      "database::tests::round_trips_every_sqlite_storage_class_without_losing_i64_precision",
+      "database::tests::shadow_migration_sigkill_worker",
+      "database::tests::sigkill_matrix_reconciles_to_exactly_old_or_new_database",
+      "database::tests::the_same_renderer_session_cannot_recover_its_own_active_transaction"
+    ],
+    "exitCode": 0,
+    "failed": 0
+  },
+  "baseline": {
+    "commit": "34ccdc53a1ca2afa83b2485c7f5372c6978b963e",
+    "workerSha256": "da4bac2dec979323a3cbb4d646d1abc0775b7884979b9a7bff7faafa793e66c6",
+    "testSha256": "e570c5bbf74be467d5bfe797813de8bf5a23c2811f8c4475fcdd0f46b9a5f9e4",
+    "tests": [
+      {
+        "name": "checkpoint retention across real SQLite commits keeps the latest two actual anchors across failed-turn gaps",
+        "status": "failed",
+        "durationMs": 146.186417
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits uses the partial anchor index for both recovery reads and commit compaction",
+        "status": "failed",
+        "durationMs": 54.62645800000007
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits acknowledges a transport retry whose original checkpoint is retained as a digest",
+        "status": "failed",
+        "durationMs": 31.31879200000003
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on compaction failure",
+        "status": "failed",
+        "durationMs": 60.00091599999996
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on lifecycle failure",
+        "status": "failed",
+        "durationMs": 54.40600000000006
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits rolls back new messages, new checkpoint and old-anchor compaction on commit failure",
+        "status": "failed",
+        "durationMs": 56.08420899999999
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits keeps malformed checkpoint payloads visible so recovery fails closed",
+        "status": "passed",
+        "durationMs": 27.08329100000003
+      },
+      {
+        "name": "checkpoint retention across real SQLite commits does not fall back to the older anchor when the newest checkpoint hash is corrupted",
+        "status": "passed",
+        "durationMs": 27.716583000000014
+      }
+    ],
+    "measurements": [
+      {
+        "mode": "measure",
+        "count": 100,
+        "seed": 1,
+        "lists": [
+          {
+            "rows": 100,
+            "bytes": 36205,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 100,
+            "bytes": 36205,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 100,
+            "bytes": 36205,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          }
+        ],
+        "commitReads": [
+          {
+            "rows": 100,
+            "bytes": 36205,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 99,
+            "bytes": 35767,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=? AND through_turn_ordinal<?)"
+            ]
+          }
+        ],
+        "listMs": [
+          0.42766599999993105,
+          0.2682089999999562,
+          0.2413329999999405
+        ],
+        "commitMs": 18.252208999999993,
+        "providerHash": "2d06636213d95707dfdb15bd6deac573ee35f686fc710a112a8244f5b8161259",
+        "checks": [
+          "read-only-list",
+          "full-provider-history",
+          "two-anchors",
+          "actual-query-plan"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "mode": "measure",
+        "count": 1000,
+        "seed": 1,
+        "lists": [
+          {
+            "rows": 1000,
+            "bytes": 362508,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 1000,
+            "bytes": 362508,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 1000,
+            "bytes": 362508,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          }
+        ],
+        "commitReads": [
+          {
+            "rows": 1000,
+            "bytes": 362508,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 999,
+            "bytes": 362066,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=? AND through_turn_ordinal<?)"
+            ]
+          }
+        ],
+        "listMs": [
+          2.3372920000001614,
+          2.017082999999957,
+          2.020915999999943
+        ],
+        "commitMs": 129.60420900000008,
+        "providerHash": "3e5fbd9da4be893a3e8825ae5afffb8f06809fbdc7c746516333983705720e26",
+        "checks": [
+          "read-only-list",
+          "full-provider-history",
+          "two-anchors",
+          "actual-query-plan"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "mode": "measure",
+        "count": 5000,
+        "seed": 1,
+        "lists": [
+          {
+            "rows": 5000,
+            "bytes": 1822510,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 5000,
+            "bytes": 1822510,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 5000,
+            "bytes": 1822510,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          }
+        ],
+        "commitReads": [
+          {
+            "rows": 5000,
+            "bytes": 1822510,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=?)"
+            ]
+          },
+          {
+            "rows": 4999,
+            "bytes": 1822064,
+            "plan": [
+              "SEARCH agent_runtime_checkpoint USING INDEX uniq_agent_runtime_checkpoint_session_turn (session_id=? AND through_turn_ordinal<?)"
+            ]
+          }
+        ],
+        "listMs": [
+          9.655916999999135,
+          8.111541000000216,
+          7.865042000000358
+        ],
+        "commitMs": 720.70075,
+        "providerHash": "bd20d1c158642d3aececc77a10a8d348ca1ba1cd2ded329263ce69f0523fd664",
+        "checks": [
+          "read-only-list",
+          "full-provider-history",
+          "two-anchors",
+          "actual-query-plan"
+        ],
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ]
+  },
+  "acceptance": {
+    "sqlite": "file-backed-product-schema-WAL-FULL",
+    "provider": "synthetic-journal-and-normalized-history",
+    "currentCrashCases": 12,
+    "currentKills": 12,
+    "independentRestarts": 24,
+    "nativeDatabaseTests": 18,
+    "upgradePrefixes": [
+      1,
+      2,
+      3
+    ],
+    "nativeUI": "not-run",
+    "nativeCheckpointCrash": "not-run",
+    "powerLoss": "not-run",
+    "deviceBudget": "not-evaluated"
+  },
+  "limitations": [
+    "Measurement covers checkpoint rows crossing the renderer gateway and actual query plans. Complete journal/message recovery still loads full history; no overall latency or memory budget is claimed.",
+    "Canonical seed rows and mixed tool journals are synthetic. No real provider or tool implementation runs.",
+    "Checkpoint SIGKILL ends owned Node processes. Rust tests cover published-prefix safety snapshots and migration crash recovery, not native checkpoint commit termination or device/UI interaction."
+  ]
+}

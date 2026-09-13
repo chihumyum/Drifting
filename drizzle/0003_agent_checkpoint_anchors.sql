@@ -1,0 +1,1 @@
+CREATE INDEX `idx_agent_runtime_checkpoint_full_anchor` ON `agent_runtime_checkpoint` (`session_id`,`through_turn_ordinal`) WHERE "agent_runtime_checkpoint"."context_json" != json_object('contextHash', "agent_runtime_checkpoint"."context_hash", 'format', 'drifting.agent-runtime-checkpoint-digest', 'schemaVersion', 1);

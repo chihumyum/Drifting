@@ -483,11 +483,10 @@ export function createRepositoryAgentTransportPersistence(
                 message.completedAt === input.endedAt,
             );
           });
-        const hasCheckpoint = snapshot.checkpoints.some(
-          (candidate) =>
-            candidate.sessionId === input.sessionId &&
-            candidate.throughTurnOrdinal === turn.ordinal,
-        );
+        // Recovery loads full anchors only. Old completed turns retain a
+        // digest identity, which still witnesses their original settlement.
+        const hasCheckpoint = await repository.hasCheckpointThroughTurn(input.sessionId, turn.ordinal);
+        throwIfAborted(signal);
         if (
           turn.status !== terminalStatus ||
           turn.endedAt !== input.endedAt ||

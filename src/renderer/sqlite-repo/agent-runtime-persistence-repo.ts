@@ -1,4 +1,5 @@
 import { events } from '../lib/events';
+import { fullAgentCheckpointPredicate } from '../schema/agent-checkpoint-retention';
 import {
   and,
   asc,
@@ -160,6 +161,8 @@ export interface AgentRuntimePersistenceRepository {
     checkpoint: PersistedAgentRuntimeCheckpoint,
   ): Promise<IdempotentPersistenceOutcome>;
   listCheckpoints(sessionId: string): Promise<PersistedAgentRuntimeCheckpoint[]>;
+  /** Full anchors and retained digest identities both witness an old commit. */
+  hasCheckpointThroughTurn(sessionId: string, turnOrdinal: number): Promise<boolean>;
 
   /**
    * Durably accepts the user prompt before provider execution. New-session
@@ -643,7 +646,7 @@ export function createAgentRuntimePersistenceRepository(
     const rows = await executor
       .select()
       .from(AgentRuntimeCheckpointTable)
-      .where(eq(AgentRuntimeCheckpointTable.sessionId, sessionId))
+      .where(and(eq(AgentRuntimeCheckpointTable.sessionId, sessionId), fullAgentCheckpointPredicate(AgentRuntimeCheckpointTable)))
       .orderBy(asc(AgentRuntimeCheckpointTable.throughTurnOrdinal));
     return rows
       .map(checkpointToDomain)
@@ -714,12 +717,11 @@ export function createAgentRuntimePersistenceRepository(
     executor: DbExecutor,
     checkpoint: PersistedAgentRuntimeCheckpoint,
   ): Promise<void> => {
-    // Keep the latest two full anchor checkpoints so recovery can fall back
-    // one completed turn if the newest payload is damaged. Everything older
-    // retains only its immutable digest/idempotency identity.
-    const compactBeforeOrdinal =
-      checkpoint.throughTurnOrdinal - 1;
-    if (compactBeforeOrdinal <= 0) return;
+    // Retain the new anchor and the latest actual older anchor. Failed and
+    // cancelled turns need not have checkpoints, so adjacent turn ordinals
+    // cannot define retention. Recovery still fails closed on corruption.
+    // The partial index omits exact retained digests without loading/parsing
+    // the entire historical ledger on every completed turn.
     const rows = await executor
       .select()
       .from(AgentRuntimeCheckpointTable)
@@ -731,13 +733,15 @@ export function createAgentRuntimePersistenceRepository(
           ),
           lt(
             AgentRuntimeCheckpointTable.throughTurnOrdinal,
-            compactBeforeOrdinal,
+            checkpoint.throughTurnOrdinal,
           ),
+          fullAgentCheckpointPredicate(AgentRuntimeCheckpointTable),
         ),
-      );
-    for (const row of rows) {
-      const durable = checkpointToDomain(row);
-      if (isRetainedCheckpointDigest(durable.context)) continue;
+      )
+      .orderBy(desc(AgentRuntimeCheckpointTable.throughTurnOrdinal));
+    const olderAnchors = rows.map(checkpointToDomain)
+      .filter((durable) => !isRetainedCheckpointDigest(durable.context));
+    for (const durable of olderAnchors.slice(1)) {
       const digest: RetainedCheckpointDigest = {
         schemaVersion: 1,
         format: RETAINED_CHECKPOINT_DIGEST_FORMAT,
@@ -1049,6 +1053,13 @@ export function createAgentRuntimePersistenceRepository(
       }, { behavior: 'immediate' });
     },
     listCheckpoints,
+    async hasCheckpointThroughTurn(sessionId, turnOrdinal) {
+      const rows = await dbProvider().select({ id: AgentRuntimeCheckpointTable.id })
+        .from(AgentRuntimeCheckpointTable)
+        .where(and(eq(AgentRuntimeCheckpointTable.sessionId, sessionId), eq(AgentRuntimeCheckpointTable.throughTurnOrdinal, turnOrdinal)))
+        .limit(1);
+      return rows.length > 0;
+    },
 
     async acceptTurn({ session, turn, promptMessage }) {
       return dbProvider().transaction(async (tx) => {

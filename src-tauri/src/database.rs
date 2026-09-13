@@ -2756,11 +2756,28 @@ mod tests {
                 }
                 connection.execute_batch("INSERT INTO project (id, name, user_id, created_at, updated_at) VALUES ('p', 'Synthetic project', 'local', '2026-09-05T00:00:00.000Z', '2026-09-05T00:00:00.000Z');
                 INSERT INTO agent_conversation (id, project_id, title, messages_json, created_at, updated_at) VALUES ('c', 'p', 'Synthetic history', '[]', '2026-09-05T00:00:00.000Z', '2026-09-05T00:00:00.000Z');").unwrap();
-                if inject_failure {
-                    connection
-                    .execute_batch("CREATE TABLE workspace_projection_clock (project_id TEXT PRIMARY KEY);")
-                    .unwrap();
+                connection.execute_batch("INSERT INTO agent_runtime_session (id, project_id, route_kind, conversation_id, provider, created_at, updated_at) VALUES ('s', 'p', 'chat', 'c', 'synthetic', '2026-09-05T00:00:00.000Z', '2026-09-05T00:00:00.000Z');").unwrap();
+                // Upgrade must preserve every payload, including unknown JSON and
+                // undecodable data. The anchor index must not parse context_json.
+                let checkpoint_payloads = [
+                    r#"{"schemaVersion":99,"syntheticUnknown":true}"#,
+                    r#"{"contextHash":"sha256:synthetic","format":"drifting.agent-runtime-checkpoint-digest","schemaVersion":1}"#,
+                    "{synthetic-undecodable",
+                ];
+                for (ordinal, payload) in checkpoint_payloads.iter().enumerate() {
+                    connection.execute("INSERT INTO agent_runtime_checkpoint (id, session_id, through_turn_ordinal, message_count, context_json, context_hash, created_at) VALUES (?1, 's', ?2, 0, ?3, 'sha256:synthetic', '2026-09-05T00:00:00.000Z')",
+                        rusqlite::params![format!("checkpoint-{ordinal}"), ordinal as i64, payload]).unwrap();
                 }
+                if inject_failure {
+                    let conflict = if prefix < 3 {
+                        "CREATE TABLE workspace_projection_clock (project_id TEXT PRIMARY KEY);"
+                    } else {
+                        "CREATE INDEX idx_agent_runtime_checkpoint_full_anchor ON agent_runtime_checkpoint(id);"
+                    };
+                    connection.execute_batch(conflict).unwrap();
+                }
+                let schema_before: String = connection.query_row(
+                    "SELECT group_concat(sql, char(10)) FROM (SELECT sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY name)", [], |row| row.get(0)).unwrap();
                 drop(connection);
                 record_opened_app_version(
                     directory.path(),
@@ -2818,16 +2835,9 @@ mod tests {
                             .unwrap(),
                         prefix as i64
                     );
-                    assert_eq!(
-                    active
-                        .query_row(
-                            "SELECT count(*) FROM sqlite_schema WHERE name='workspace_projection_change'",
-                            [],
-                            |row| row.get::<_, i64>(0)
-                        )
-                        .unwrap(),
-                    0
-                );
+                    let schema_after: String = active.query_row(
+                        "SELECT group_concat(sql, char(10)) FROM (SELECT sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY name)", [], |row| row.get(0)).unwrap();
+                    assert_eq!(schema_after, schema_before);
                     assert_eq!(
                         active
                             .query_row(
@@ -2856,6 +2866,25 @@ mod tests {
                         [vec![DatabaseValue::Text("Synthetic history".into())]]
                     );
                     gateway.close(CLIENT_SESSION.into()).unwrap();
+                }
+                // Both the verified backup and the active database keep all
+                // author bytes after either a successful or failed upgrade.
+                let active = Connection::open(&database_path).unwrap();
+                for preserved in [&backup, &active] {
+                    for (ordinal, payload) in checkpoint_payloads.iter().enumerate() {
+                        let actual: String = preserved
+                            .query_row(
+                                "SELECT context_json FROM agent_runtime_checkpoint WHERE id=?1",
+                                [format!("checkpoint-{ordinal}")],
+                                |row| row.get(0),
+                            )
+                            .unwrap();
+                        assert_eq!(&actual, payload);
+                    }
+                }
+                if !inject_failure {
+                    let index_sql: String = active.query_row("SELECT sql FROM sqlite_schema WHERE name='idx_agent_runtime_checkpoint_full_anchor'", [], |row| row.get(0)).unwrap();
+                    assert!(index_sql.contains("json_object"));
                 }
             }
         }
