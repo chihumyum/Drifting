@@ -58,7 +58,7 @@ if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
-    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
+    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
@@ -128,6 +128,22 @@ if (report.entityLinkOwnership) {
   for (const group of report.entityLinkOwnership.groups) assert.equal(group.correctEditors, group.editors);
   assert(report.entityLinkOwnership.checks.length > 0);
   for (const check of report.entityLinkOwnership.checks) assert.equal(check.passed, true, check.id);
+}
+if (report.entityTargetState) {
+  const scenario = report.entityTargetState;
+  assert.equal(scenario.implementation, 'shared-snapshot-id-index');
+  assert.deepEqual(scenario.profiles.map(row => [row.entitiesPerKind, row.consumers]),
+    [100, 1000, 5000].flatMap(n => [1, 5, 20].map(c => [n, c])));
+  for (const row of scenario.profiles) {
+    assert.equal(row.linksPerConsumer, 500); assert.equal(row.lookups, row.consumers * 500);
+    assert.equal(row.linearRowReads, row.entitiesPerKind * row.lookups);
+    assert.equal(row.indexedRowReads, row.entitiesPerKind * 4); assert.equal(row.repeatedRowReads, 0);
+  }
+  assert.equal(scenario.mountedEditors, 2); assert.equal(scenario.hiddenEditors, 1);
+  assert.equal(scenario.checks.length, 25);
+  assert.equal(new Set(scenario.checks.map(check => check.id)).size, 25);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  assert(scenario.limitations.length > 0);
 }
 if (report.inlineCopilot) {
   assert.equal(report.inlineCopilot.cycles, 100);

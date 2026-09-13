@@ -57,7 +57,8 @@
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
-            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json",
+            "docs/renderer-performance/acceptance/f2-link-target-state-browser.json"
           ],
           "status": "partial"
         },
@@ -173,7 +174,8 @@
             "docs/renderer-performance/acceptance/f2-projection-generation.json",
             "docs/renderer-performance/acceptance/f2-global-search.json",
             "docs/renderer-performance/acceptance/f2-top-tabs.json",
-            "docs/renderer-performance/acceptance/f2-top-tabs-native.json"
+            "docs/renderer-performance/acceptance/f2-top-tabs-native.json",
+            "docs/renderer-performance/acceptance/f2-link-target-state-browser.json"
           ],
           "status": "partial"
         }

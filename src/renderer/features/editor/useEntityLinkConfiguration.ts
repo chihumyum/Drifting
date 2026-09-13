@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 import type { Editor } from '@tiptap/core';
-import { useDataStore, trashedKey } from '../../store/data-store';
+import { useDataStore } from '../../store/data-store';
+import { resolveEntityLinkTargetState } from '../../lib/entity-link-target-state';
 import { useSettingsStore } from '../../store/settings-store';
 import { buildEntityLinkColorSignature, resolveEntityLinkTargetColor } from '../../lib/entity-link-appearance';
 import { configureEntityLinkAutoDetect, entityLinkConfig, EntityLinkDanglingPluginKey, type EntityLinkAutoDetectConfig } from '../../lib/extensions/entity-link';
@@ -24,26 +25,8 @@ export function useEntityLinkConfiguration(editor: Editor | null, { autoDetectTa
     // deleted (its mark still embedded in this doc's content) is treated as
     // non-alive: dimmed if the target sits in the trash (recoverable), stripped
     // if it's gone for good — and never opens a phantom "untitled" editor.
-    entityLinkConfig.resolveTargetState = (kind, id) => {
-      const state = useDataStore.getState();
-      const alive = (() => {
-        switch (kind) {
-          case 'element':
-            return state.bookElements.some((e) => e.id === id);
-          case 'node':
-            return state.bookNodes.some((n) => n.id === id);
-          case 'storyline':
-            return state.storylines.some((s) => s.id === id);
-          case 'category':
-            return state.bookElementCategories.some((c) => c.id === id);
-          default:
-            // Kinds we don't track here (e.g. patch) stay navigable.
-            return true;
-        }
-      })();
-      if (alive) return 'alive';
-      return state.trashedEntityIds.has(trashedKey(kind, id)) ? 'trashed' : 'gone';
-    };
+    entityLinkConfig.resolveTargetState = (kind, id) =>
+      resolveEntityLinkTargetState(useDataStore.getState(), kind, id);
     entityLinkConfig.resolveTargetColor = (kind, id) => {
       const state = useDataStore.getState();
       return resolveEntityLinkTargetColor(

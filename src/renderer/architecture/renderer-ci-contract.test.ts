@@ -25,9 +25,10 @@ type Report = {
   agentPanel: { streaming: { composer: number } };
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
+  entityTargetState?: { profiles: { indexedRowReads: number; repeatedRowReads: number }[]; checks: { passed: boolean }[] };
   workspaceGeneration?: { profiles: { comments: { targets: number }; metrics: { names: number }; checks: { changedGenerationReleasesRecords: boolean }; incoherentCommits: number }[] };
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f2-projection-generation-browser.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f2-link-target-state-browser.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -42,6 +43,13 @@ function validate(report: Report, flags = ['--deterministic']) {
 describe('ordinary CI renderer evidence', () => {
   it('accepts complete current behavior coverage without requiring historical report provenance', () => {
     expect(validate(fixture()).status).toBe(0);
+  });
+  it('rejects omitted, unbounded or behavior-failing entity target lookups', () => {
+    const missing = fixture(); delete missing.entityTargetState;
+    const repeated = fixture(); repeated.entityTargetState!.profiles[0].repeatedRowReads = 1;
+    const unbounded = fixture(); unbounded.entityTargetState!.profiles[8].indexedRowReads = 50000000;
+    const failed = fixture(); failed.entityTargetState!.checks[0].passed = false;
+    for (const report of [missing, repeated, unbounded, failed]) expect(validate(report).status).not.toBe(0);
   });
   it('rejects missing scenarios instead of treating optional historical fields as current coverage', () => {
     const report = fixture(); delete report.editorSuggestions;
