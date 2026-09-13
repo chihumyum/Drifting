@@ -3607,3 +3607,41 @@ the affected runners and lint pass after those corrections.
 The four reports retain their actual pre-commit SHA and measured fingerprints.
 F7 remains in progress: other heavy entries, full native offline/upgrade recovery,
 physical input and the fixed-device startup/first-use budgets remain separate.
+
+
+## F0 — Repeated native Release startup baseline
+
+The [native startup collector](native-startup.md) now measures full-app shelf
+readiness, workspace capture and the first 50k ChapterEditor separately, with
+source/build identity and explicit cache conditions. It has no production entry
+import. `acceptance/f0-native-startup.json` records six fresh processes of
+`Drifting Startup 0f29d8b97da5.app` on M3 Pro / 36 GiB. Each uses a fresh copy of
+the same synthetic SQLite fixture and passes independent 53-chapter Yjs replay
+after normal native Quit. The LaunchServices wait handle exits zero; native exit
+codes are correctly left unavailable.
+
+The first launch is 1,762 ms to shelf readiness. The next five have medians of
+994 ms to shelf, 110 ms for project opening, 348 ms for the first 50k editor and
+211 ms for the subsequent 5k control. Nearest-rank p95/max values are
+1,009 / 112 / 355 / 222 ms. This is a single-build baseline with warmed OS/WebKit
+caches, not an improvement comparison, stable tail estimate, signed RC or
+M1/8GB qualification. The original device budgets remain unchanged and open.
+
+The 14 contract mutations reject incomplete repetitions, wrong document size,
+changed prose, hidden windows, reused databases, missing stages, unsupported exit
+claims, invalid metrics/statistics and unmeasured hardware/cold-cache claims.
+The pilot rejected a non-drawing window; only the complete newly built series
+with a fixed inter-launch quiet interval enters the report.
+
+```bash
+node scripts/run-renderer-startup.mjs
+node scripts/run-renderer-startup.mjs --check
+pnpm exec vitest run src/renderer/architecture/native-startup.acceptance.test.ts src/dev-cli/renderer-native-fixture.test.ts
+```
+
+All six required repository checks and the architecture command passed. The full
+suite passed 2,762 tests with one existing skip across 416 files; lint has zero
+errors and 30 existing warnings. The normal production build contains 42 JS
+assets and no startup probe markers/configuration. The existing ordinary renderer
+report still passes its deterministic contract; it was not rerun or relabelled as
+new timing evidence for this collector-only batch.

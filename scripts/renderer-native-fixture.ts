@@ -20,7 +20,8 @@ async function main() {
   const databaseFile = path.join(directory, 'drifting-library.db');
   const product = new OfflineProductDatabase(databaseFile, { migrate: true });
   await product.open();
-  const specification = { version: 1, seed: 'renderer-native-control-v1', projects: [
+  const startup = process.argv.includes('--startup');
+  const specification = { version: 1, seed: startup ? 'renderer-native-startup-v1' : 'renderer-native-control-v1', ...(startup ? { firstEditorCharacters: 50000 } : {}), projects: [
     { id: 'native-control-a', chapters: 50, elements: 100, relations: 500, characters: 5000 },
     { id: 'native-control-b', chapters: 3, elements: 3, relations: 0, characters: 5000 },
   ] };
@@ -45,8 +46,9 @@ async function main() {
       await call('create_relation_type', { name: 'Synthetic appearance', orientation: 'directed',
         sourceRole: 'element', targetRole: 'chapter', sourceKinds: ['element'], targetKinds: ['chapter'] });
       for (let n = 0; n < item.chapters; n++) {
+        const characters = startup && item.id === 'native-control-a' && n === 1 ? 50000 : item.characters;
         await call('create_chapter', { title: `Synthetic chapter ${String(n).padStart(3, '0')}`,
-          body: body.repeat(Math.ceil(item.characters / body.length)).slice(0, item.characters) });
+          body: body.repeat(Math.ceil(characters / body.length)).slice(0, characters) });
       }
       for (let n = 0; n < item.elements; n++) {
         await call('create_element', { category: 'Synthetic category', name: `Synthetic element ${String(n).padStart(3, '0')}`, summary: 'Generated fixture element' });
@@ -84,8 +86,9 @@ async function main() {
     const observed = inspectNativeFixture(databaseFile);
     assert.equal(observed.chapters.length, 53 + (graphInteractions ? 2 : 0));
     for (const chapter of observed.chapters) {
-      const expected = body.repeat(Math.ceil(5000 / body.length)).slice(0, 5000);
-      assert.equal(chapter.characters, 5000);
+      const characters = startup && chapter.projectId === 'native-control-a' && chapter.title === 'Synthetic chapter 001' ? 50000 : 5000;
+      const expected = body.repeat(Math.ceil(characters / body.length)).slice(0, characters);
+      assert.equal(chapter.characters, characters);
       assert.equal(chapter.sha256, createHash('sha256').update(expected).digest('hex'));
     }
     const structure = graph ? inspectNativeGraphFixture(databaseFile) : undefined;

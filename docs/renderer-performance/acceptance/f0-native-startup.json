@@ -1,0 +1,511 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_native_startup",
+  "status": "passed",
+  "generatedAt": "2026-09-13T15:31:55.644Z",
+  "source": {
+    "commit": "be4425c950831812f01db3d2453e5b3393e465fc",
+    "fingerprint": "f8481248e5a4ea23125be540cf5b0db8c0306334a37b79de6e9fbe1bd937e489",
+    "trackedProductChanges": true
+  },
+  "artifact": {
+    "bundleName": "Drifting Startup 0f29d8b97da5.app",
+    "identifier": "cc.drifting.client.startup.r0f29d8b97da5",
+    "version": "0.1.0-alpha.1",
+    "sha256": "0f333ef267fadc54fc7b49fa0a55a3d3cfe1b201b8db89660d56c23b2b7db47d",
+    "modifiedAt": "2026-09-13T15:28:27.718Z",
+    "build": "packaged-release-production-renderer",
+    "signed": false
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "fixture": {
+    "specification": {
+      "version": 1,
+      "seed": "renderer-native-startup-v1",
+      "firstEditorCharacters": 50000,
+      "projects": [
+        {
+          "id": "native-control-a",
+          "chapters": 50,
+          "elements": 100,
+          "relations": 500,
+          "characters": 5000
+        },
+        {
+          "id": "native-control-b",
+          "chapters": 3,
+          "elements": 3,
+          "relations": 0,
+          "characters": 5000
+        }
+      ]
+    },
+    "semanticSha256": "f26f43dc3ac517ca0069e0f3b3fe765214eeed41868db4caedcdce1904e6e535",
+    "reproducible": true,
+    "freshCopyPerLaunch": true
+  },
+  "warmupRuns": 1,
+  "interLaunchDelayMs": 1500,
+  "runs": [
+    {
+      "status": "passed",
+      "timeOrigin": 1789313310663,
+      "shelfReadyMs": 590,
+      "projectRequestedMs": 590,
+      "projectReadyMs": 698.0000000000001,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 698.0000000000001,
+          "readyMs": 1046,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1046,
+          "readyMs": 1271.0000000000002,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 182
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 205.00000000000003
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 205.00000000000003
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 597
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 610
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 0,
+      "launchRequestedAt": 1789313309491,
+      "metrics": {
+        "launchToShelfMs": 1762,
+        "projectOpenMs": 108.00000000000011,
+        "first50kOpenMs": 347.9999999999999,
+        "small5kOpenMs": 225.00000000000023,
+        "bootstrapMs": 23.00000000000003,
+        "projectionCaptureMs": 13
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    },
+    {
+      "status": "passed",
+      "timeOrigin": 1789313375160,
+      "shelfReadyMs": 606,
+      "projectRequestedMs": 606,
+      "projectReadyMs": 716,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 716,
+          "readyMs": 1068,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1068,
+          "readyMs": 1278,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 184
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 206.00000000000003
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 206.00000000000003
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 614
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 628
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 1,
+      "launchRequestedAt": 1789313374757,
+      "metrics": {
+        "launchToShelfMs": 1009,
+        "projectOpenMs": 110,
+        "first50kOpenMs": 352,
+        "small5kOpenMs": 210,
+        "bootstrapMs": 22.00000000000003,
+        "projectionCaptureMs": 14
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    },
+    {
+      "status": "passed",
+      "timeOrigin": 1789313409559,
+      "shelfReadyMs": 589,
+      "projectRequestedMs": 589,
+      "projectReadyMs": 701.0000000000001,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 701.0000000000001,
+          "readyMs": 1056,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1056,
+          "readyMs": 1265.0000000000002,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 181
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 204.00000000000003
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 204.00000000000003
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 597
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 609
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 2,
+      "launchRequestedAt": 1789313409154,
+      "metrics": {
+        "launchToShelfMs": 994,
+        "projectOpenMs": 112.00000000000011,
+        "first50kOpenMs": 354.9999999999999,
+        "small5kOpenMs": 209.00000000000023,
+        "bootstrapMs": 23.00000000000003,
+        "projectionCaptureMs": 12
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    },
+    {
+      "status": "passed",
+      "timeOrigin": 1789313433271.0002,
+      "shelfReadyMs": 582,
+      "projectRequestedMs": 582,
+      "projectReadyMs": 682,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 682,
+          "readyMs": 1030,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1030,
+          "readyMs": 1243,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 182
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 207.00000000000003
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 207.00000000000003
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 589
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 602
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 3,
+      "launchRequestedAt": 1789313432870,
+      "metrics": {
+        "launchToShelfMs": 983.000244140625,
+        "projectOpenMs": 100,
+        "first50kOpenMs": 348,
+        "small5kOpenMs": 213,
+        "bootstrapMs": 25.00000000000003,
+        "projectionCaptureMs": 13
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    },
+    {
+      "status": "passed",
+      "timeOrigin": 1789313460099,
+      "shelfReadyMs": 608,
+      "projectRequestedMs": 608,
+      "projectReadyMs": 707,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 707,
+          "readyMs": 1048,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1048,
+          "readyMs": 1259.0000000000002,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 198
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 228
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 228
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 613
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 627
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 4,
+      "launchRequestedAt": 1789313459761,
+      "metrics": {
+        "launchToShelfMs": 946,
+        "projectOpenMs": 99,
+        "first50kOpenMs": 341,
+        "small5kOpenMs": 211.00000000000023,
+        "bootstrapMs": 30,
+        "projectionCaptureMs": 14
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    },
+    {
+      "status": "passed",
+      "timeOrigin": 1789313484333,
+      "shelfReadyMs": 599,
+      "projectRequestedMs": 599,
+      "projectReadyMs": 711,
+      "editorTrials": [
+        {
+          "characters": 50000,
+          "requestedMs": 711,
+          "readyMs": 1059,
+          "canonicalYjs": true,
+          "focused": true
+        },
+        {
+          "characters": 5000,
+          "requestedMs": 1059,
+          "readyMs": 1281,
+          "canonicalYjs": true,
+          "focused": true
+        }
+      ],
+      "marks": [
+        {
+          "name": "bootstrap-start",
+          "atMs": 183
+        },
+        {
+          "name": "metadata-ready",
+          "atMs": 205.00000000000003
+        },
+        {
+          "name": "react-mount-requested",
+          "atMs": 205.00000000000003
+        },
+        {
+          "name": "projection-capture-start",
+          "atMs": 607
+        },
+        {
+          "name": "projection-capture-ready",
+          "atMs": 618
+        }
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+      "focused": true,
+      "visible": true,
+      "failures": [],
+      "index": 5,
+      "launchRequestedAt": 1789313483923,
+      "metrics": {
+        "launchToShelfMs": 1009,
+        "projectOpenMs": 112,
+        "first50kOpenMs": 348,
+        "small5kOpenMs": 222,
+        "bootstrapMs": 22.00000000000003,
+        "projectionCaptureMs": 11
+      },
+      "launcherExitCode": 0,
+      "nativeProcessExited": true,
+      "nativeExitCode": null,
+      "proseUnchanged": true,
+      "unchangedChapters": 53,
+      "integrityCheck": "ok",
+      "foreignKeyCheck": "ok"
+    }
+  ],
+  "summary": {
+    "launchToShelfMs": {
+      "samples": 5,
+      "median": 994,
+      "p95": 1009,
+      "min": 946,
+      "max": 1009
+    },
+    "projectOpenMs": {
+      "samples": 5,
+      "median": 110,
+      "p95": 112.00000000000011,
+      "min": 99,
+      "max": 112.00000000000011
+    },
+    "first50kOpenMs": {
+      "samples": 5,
+      "median": 348,
+      "p95": 354.9999999999999,
+      "min": 341,
+      "max": 354.9999999999999
+    },
+    "small5kOpenMs": {
+      "samples": 5,
+      "median": 211.00000000000023,
+      "p95": 222,
+      "min": 209.00000000000023,
+      "max": 222
+    },
+    "bootstrapMs": {
+      "samples": 5,
+      "median": 23.00000000000003,
+      "p95": 30,
+      "min": 22.00000000000003,
+      "max": 30
+    },
+    "projectionCaptureMs": {
+      "samples": 5,
+      "median": 13,
+      "p95": 14,
+      "min": 11,
+      "max": 14
+    }
+  },
+  "acceptance": {
+    "fixedM1Budget": "not-run",
+    "coldFilesystem": "not-controlled",
+    "physicalIme": "not-run",
+    "signedRc": "not-run"
+  },
+  "limitations": [
+    "Unsigned Release Tauri binary with production Vite renderer, lightweight acceptance-only marks and product singleton imports. This is a baseline on the reported host, not a signed RC or fixed M1/8GB qualification.",
+    "Launch begins at the open -n -W request, includes LaunchServices and window activation, and ends at an enabled shelf action after fonts and two animation frames. Epoch clocks are from the same host; five millisecond polling and frame observation add measurement overhead.",
+    "One first launch is retained separately; summary uses five subsequent fresh processes with warmed OS/WebKit disk caches. Filesystem caches are not flushed. Each process receives the same fresh SQLite fixture copy and empty in-memory tabs; local app storage/keychain and compiled caches may be warmed.",
+    "Project time uses the actual shelf card click. The first 50k and subsequent 5k chapter use product tab/navigation commands. Editable focused canonical Yjs, exact text length, loaded fonts and two frames form the ready condition. No synthetic typing or physical input latency is measured.",
+    "Normal native Cmd+Q is attended; LaunchServices wrapper exit zero and disappearance of the exact native PID are verified. Native process exit code is unavailable because LaunchServices owns it. Independent read-only SQLite/Yjs replay verifies all 53 chapter hashes after each exit.",
+    "Five samples give a nearest-rank p95 equal to the maximum; this is not a statistically stable tail estimate. No startup improvement, regression budget, memory reclamation or device matrix completion is inferred from this single-build baseline."
+  ]
+}

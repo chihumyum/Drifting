@@ -31,7 +31,8 @@
           "requirement": "合成 fixture 可按 seed/hash 重建，操作轨迹不含个人数据",
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
-            "docs/renderer-performance/acceptance/f8-native-composition.json"
+            "docs/renderer-performance/acceptance/f8-native-composition.json",
+            "docs/renderer-performance/acceptance/f0-native-startup.json"
           ],
           "status": "partial"
         },
@@ -42,7 +43,8 @@
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
-            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json",
+            "docs/renderer-performance/acceptance/f0-native-startup.json"
           ],
           "status": "partial"
         },
@@ -62,7 +64,8 @@
           "evidence": [
             "docs/renderer-performance/acceptance/baseline-editor.json",
             "docs/renderer-performance/acceptance/f8-native-composition.json",
-            "docs/renderer-performance/acceptance/f8-ci-contracts.json"
+            "docs/renderer-performance/acceptance/f8-ci-contracts.json",
+            "docs/renderer-performance/acceptance/f0-native-startup.json"
           ],
           "status": "partial"
         }
