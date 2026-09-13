@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type {
   LibraryAssetItem,
   LibraryItem,
@@ -14,7 +14,8 @@ export type LibraryItemUpdateData = LibraryItemPatch & { updatedAt: string };
 
 export interface LibraryItemRepository {
   findById(id: string): Promise<LibraryItem | null>;
-  findAll(): Promise<LibraryItem[]>;
+  findAll(ids?: readonly string[]): Promise<LibraryItem[]>;
+  findOrderedIds(): Promise<string[]>;
   create(input: LibraryItemCreateData): Promise<LibraryItem>;
   update(id: string, data: LibraryItemUpdateData): Promise<LibraryItem | null>;
   delete(id: string): Promise<boolean>;
@@ -85,13 +86,20 @@ export function createLibraryItemSqliteRepository(
 
   return {
     findById,
-    async findAll() {
+    async findAll(ids) {
+      if (ids?.length === 0) return [];
       const rows = await dbProvider()
         .select()
         .from(LibraryItemTable)
-        .where(eq(LibraryItemTable.projectId, projectId))
-        .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt));
+        .where(and(eq(LibraryItemTable.projectId, projectId), ids ? inArray(LibraryItemTable.id, [...ids]) : undefined))
+        .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt), asc(sql`${LibraryItemTable}.rowid`));
       return rows.map(toDomain);
+    },
+    async findOrderedIds() {
+      const rows = await dbProvider().select({ id: LibraryItemTable.id }).from(LibraryItemTable)
+        .where(eq(LibraryItemTable.projectId, projectId))
+        .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt), asc(sql`${LibraryItemTable}.rowid`));
+      return rows.map(({ id }) => id);
     },
     async create(input) {
       if (input.projectId !== projectId) {

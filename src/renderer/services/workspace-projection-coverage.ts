@@ -14,6 +14,7 @@ export interface WorkspaceProjectionChanges {
   /** Null promotes this collection to a complete read. */
   readonly nodeIds: readonly string[] | null;
   readonly elementIds: readonly string[] | null;
+  readonly libraryIds: readonly string[] | null;
 }
 
 /** Capture the cursor in the same SQLite snapshot as the projected rows. */
@@ -35,7 +36,7 @@ export async function readWorkspaceProjectionChanges(
 ): Promise<WorkspaceProjectionChanges | null> {
   if (!current || current.epoch !== previous.epoch ||
     previous.revision < current.retainedAfter || previous.revision > current.revision) return null;
-  if (previous.revision === current.revision) return { collections: new Set(), nodeIds: null, elementIds: null };
+  if (previous.revision === current.revision) return { collections: new Set(), nodeIds: null, elementIds: null, libraryIds: null };
   const rows = await tx.select({
     collection: WorkspaceProjectionChangeTable.collection,
     entityId: WorkspaceProjectionChangeTable.entityId,
@@ -57,5 +58,6 @@ export async function readWorkspaceProjectionChanges(
     collections: new Set(rows.map(({ collection }) => collection as WorkspaceProjectionCollection)),
     nodeIds: selectedIds('nodes'),
     elementIds: selectedIds('elements'),
+    libraryIds: selectedIds('library'),
   };
 }

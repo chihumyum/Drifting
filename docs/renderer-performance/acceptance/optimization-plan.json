@@ -505,7 +505,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-element-reads.json",
-            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json",
+            "docs/renderer-performance/acceptance/f6-library-reads.json"
           ],
           "status": "partial"
         },
@@ -521,7 +522,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-refresh.json",
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
-            "docs/renderer-performance/acceptance/f6-element-reads.json"
+            "docs/renderer-performance/acceptance/f6-element-reads.json",
+            "docs/renderer-performance/acceptance/f6-library-reads.json"
           ],
           "status": "partial"
         },
@@ -530,7 +532,8 @@
           "requirement": "提交、排队和索引写入边界终止后可恢复，与权威内容完整重建一致",
           "evidence": [
             "docs/renderer-performance/acceptance/f6-reference-recovery.json",
-            "docs/renderer-performance/acceptance/f6-workspace-recovery.json"
+            "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
+            "docs/renderer-performance/acceptance/f6-library-recovery.json"
           ],
           "status": "partial"
         },
@@ -547,7 +550,8 @@
             "docs/renderer-performance/acceptance/f6-workspace-reads.json",
             "docs/renderer-performance/acceptance/f6-workspace-recovery.json",
             "docs/renderer-performance/acceptance/f6-element-reads.json",
-            "docs/renderer-performance/acceptance/f2-shelf-stats.json"
+            "docs/renderer-performance/acceptance/f2-shelf-stats.json",
+            "docs/renderer-performance/acceptance/f6-library-reads.json"
           ],
           "status": "partial"
         }

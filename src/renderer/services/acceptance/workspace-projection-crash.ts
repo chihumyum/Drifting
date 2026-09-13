@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { installHeadlessDatabaseClient } from '../../lib/db';
-import { BookElementTable, BookNodeTable, NodeContentTable, ProjectTable, SyncGenerationTable } from '../../schema/drizzle';
+import { BookElementTable, BookNodeTable, LibraryItemTable, NodeContentTable, ProjectTable, SyncGenerationTable } from '../../schema/drizzle';
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { createAuthoredTransactionRunner } from '../../sync/journal/authored-transaction';
@@ -36,7 +36,7 @@ async function hold(value: unknown): Promise<never> {
 export async function runWorkspaceCrashWorker(args: string[]) {
   const [mode, databasePath, boundary, scenario, seedText] = args;
   assert(databasePath && boundary && ['write', 'recover'].includes(mode ?? ''));
-  assert(scenario === 'node-metadata' || scenario === 'collection-change');
+  assert(scenario === 'node-metadata' || scenario === 'collection-change' || scenario === 'library-change');
   const seed = Number(seedText);
   assert(Number.isSafeInteger(seed) && seed > 0);
   const gateway = new ProductFileBackedSqliteGateway(databasePath);
@@ -55,6 +55,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
         await tx.insert(BookNodeTable).values({ ...owned, id: 'node', title: 'Before', kind: 'chapter', bookOrder: 1, positionX: 0, positionY: 0 });
         await tx.insert(NodeContentTable).values({ ...stamps, nodeId: 'node', contentJson: '{"type":"doc","content":[]}' });
         await tx.insert(BookElementTable).values({ ...owned, id: 'element', name: 'Before', contentJson: '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Synthetic body."}]}]}' });
+        await tx.insert(LibraryItemTable).values({ ...owned, id: 'library', kind: 'text', title: 'Before', bodyJson: '{"type":"doc","content":[]}' });
         await tx.insert(SyncGenerationTable).values({ ...owned, projectSyncId: 'synthetic-sync', syncGenerationId: 'synthetic-generation', generationNumber: 1, status: 'active' });
       });
     }
@@ -67,7 +68,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     let published: WorkspaceProjectionCapture | undefined;
     let observedCapture: WorkspaceProjectionCapture | undefined;
     const baselineHash = databaseHash(gateway);
-    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead, elementRead: observedCapture?.elementRead });
+    const ready = () => ({ ready: true, boundary, scenario, seed, baselineHash, databaseHash: databaseHash(gateway), captureMode: observedCapture?.mode, nodeRead: observedCapture?.nodeRead, elementRead: observedCapture?.elementRead, libraryRead: observedCapture?.libraryRead });
     queue = createWorkspaceProjectionRefresh({
       ...INPUT,
       onPublished: (value) => { published = value; useProjectStore.getState().setCurrentProject(value.project); },
@@ -79,6 +80,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
           assert(value); assert.equal(value.mode, 'changes');
           assert.equal(value.nodeRead, scenario === 'node-metadata' ? 'changed' : 'reuse');
           assert.equal(value.elementRead, scenario === 'collection-change' ? 'changed' : 'reuse');
+          assert.equal(value.libraryRead, scenario === 'library-change' ? 'changed' : 'reuse');
           observedCapture = value;
           if (boundary === 'capture-before-publish') await hold(ready());
         }
@@ -105,8 +107,9 @@ export async function runWorkspaceCrashWorker(args: string[]) {
       await runAuthored(INPUT.projectId, 'workspace.acceptance', async ({ tx, changes }) => {
         const value = `After ${seed}`;
         if (scenario === 'node-metadata') await tx.update(BookNodeTable).set({ title: value }).where(eq(BookNodeTable.id, 'node'));
+        else if (scenario === 'library-change') await tx.update(LibraryItemTable).set({ title: value }).where(eq(LibraryItemTable.id, 'library'));
         else await tx.update(BookElementTable).set({ name: value }).where(eq(BookElementTable.id, 'element'));
-        changes.add({ action: 'field.set', target: { family: 'entity', kind: scenario === 'node-metadata' ? 'node' : 'element', id: scenario === 'node-metadata' ? 'node' : 'element', incarnation: 0 }, payload: { field: scenario === 'node-metadata' ? 'title' : 'name', value } });
+        changes.add({ action: 'field.set', target: { family: 'entity', kind: scenario === 'node-metadata' ? 'node' : scenario === 'library-change' ? 'library-item' : 'element', id: scenario === 'node-metadata' ? 'node' : scenario === 'library-change' ? 'library' : 'element', incarnation: 0 }, payload: { field: scenario === 'collection-change' ? 'name' : 'title', value } });
       });
       stage = 'refresh';
       queue.requestChanges();
@@ -120,6 +123,7 @@ export async function runWorkspaceCrashWorker(args: string[]) {
     const changed = boundary !== 'authored-before-commit';
     assert.equal(published!.data.bookNodes[0]!.title, changed && scenario === 'node-metadata' ? `After ${seed}` : 'Before');
     assert.equal(published!.data.bookElements[0]!.name, changed && scenario === 'collection-change' ? `After ${seed}` : 'Before');
+    assert.equal(published!.data.libraryItems[0]!.title, changed && scenario === 'library-change' ? `After ${seed}` : 'Before');
     const full = (await captureWorkspaceProjection(INPUT))!;
     assert.deepEqual(published!.data, full.data);
     assert.equal(databaseHash(gateway), baselineHash);

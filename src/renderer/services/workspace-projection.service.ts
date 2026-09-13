@@ -27,6 +27,7 @@ import {
 } from '../store/data-store';
 
 import { readWorkspaceProjectionChanges, readWorkspaceProjectionCoverage, type WorkspaceProjectionCoverage } from './workspace-projection-coverage';
+import { readWorkspaceLibrary } from './workspace-projection-library';
 import { readWorkspaceElements } from './workspace-projection-elements';
 import { WORKSPACE_PROJECTION_COLLECTIONS, type WorkspaceProjectionCollection } from './workspace-projection-sources';
 
@@ -40,6 +41,7 @@ export interface WorkspaceProjectionCapture {
   readCollections: readonly WorkspaceProjectionCollection[];
   nodeRead: 'all' | 'changed' | 'reuse';
   elementRead: 'all' | 'changed' | 'reuse';
+  libraryRead: 'all' | 'changed' | 'reuse';
 }
 
 /**
@@ -109,7 +111,7 @@ export async function captureWorkspaceProjection(input: {
       bookElementCategories,
       trashedCategories,
       projectAssets,
-      libraryItems,
+      { libraryItems, libraryRead },
       comments,
       commentActions,
       entityRelationTypes,
@@ -129,7 +131,9 @@ export async function captureWorkspaceProjection(input: {
       select('categories', () => categoryRepo.findAll(), base?.bookElementCategories),
       select('categories', () => categoryRepo.findTrashed(), []),
       select('assets', () => createProjectAssetSqliteRepository(input.projectId, tx).findAll(), base?.projectAssets),
-      select('library', () => createLibraryItemSqliteRepository(input.projectId, tx).findAll(), base?.libraryItems),
+      needs('library')
+        ? readWorkspaceLibrary(createLibraryItemSqliteRepository(input.projectId, tx), base?.libraryItems, changes?.libraryIds)
+        : Promise.resolve({ libraryItems: base!.libraryItems, libraryRead: 'reuse' as const }),
       select('comments', () => createCommentRepository(input.projectId, tx).findAll(), base?.comments),
       select('comment-actions', () => createCommentActionRepository(input.projectId, tx).findAll(), base?.commentActions),
       select('relation-types', () => createEntityRelationTypeRepository(input.projectId, tx).list(), base?.entityRelationTypes),
@@ -188,6 +192,7 @@ export async function captureWorkspaceProjection(input: {
       readCollections: [...reads],
       nodeRead,
       elementRead,
+      libraryRead,
       data: {
         storylines,
         storylineNodeMapping,

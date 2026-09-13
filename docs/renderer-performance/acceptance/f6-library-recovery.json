@@ -1,0 +1,662 @@
+{
+  "schemaVersion": 1,
+  "kind": "workspace_projection_process_recovery",
+  "status": "passed",
+  "generatedAt": "2026-09-13T17:04:02.569Z",
+  "source": {
+    "commit": "9491618555d5b0f93a4303916cc85b940088bb2d",
+    "fingerprint": "913d73077d02f096dd2f0a672e63434ee49fce64b9430c298a8d8a770a1d2eb9",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "fixture": {
+    "provenance": "synthetic content only",
+    "sources": "library metadata and prose-bearing library row; isolated second project",
+    "database": "file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite",
+    "identity": "synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged"
+  },
+  "cases": [
+    {
+      "scenario": "library-change",
+      "boundary": "authored-before-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "library-change",
+        "seed": 1,
+        "baselineHash": "cf2d936fb2e2546fe81901b4e48bf80ffa6da933da09f41d53ba0e51dd2ed1ab",
+        "databaseHash": "fd2bee9252cf8a14e25b9e526ab6b9ab4aaff60c0e094f5b952a7633fb805d19",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "cf2d936fb2e2546fe81901b4e48bf80ffa6da933da09f41d53ba0e51dd2ed1ab",
+          "projectionHash": "35c99b055b9d1edeec341d2cea25a0631462f117c56f34e65d2c5c4b2110ecc7",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "cf2d936fb2e2546fe81901b4e48bf80ffa6da933da09f41d53ba0e51dd2ed1ab",
+          "projectionHash": "35c99b055b9d1edeec341d2cea25a0631462f117c56f34e65d2c5c4b2110ecc7",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "authored-before-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-before-commit",
+        "scenario": "library-change",
+        "seed": 2,
+        "baselineHash": "992c97e6184cbce4779fc2179adde037d22368df36c8321b7d5f6fea7ebd7114",
+        "databaseHash": "c8afb33f4e2f4ba6e79eb39eef4d22f174b839e767da9632f300e42ad60ecac2",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "992c97e6184cbce4779fc2179adde037d22368df36c8321b7d5f6fea7ebd7114",
+          "projectionHash": "35c99b055b9d1edeec341d2cea25a0631462f117c56f34e65d2c5c4b2110ecc7",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-before-commit",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "992c97e6184cbce4779fc2179adde037d22368df36c8321b7d5f6fea7ebd7114",
+          "projectionHash": "35c99b055b9d1edeec341d2cea25a0631462f117c56f34e65d2c5c4b2110ecc7",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "authored-after-commit",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "library-change",
+        "seed": 1,
+        "baselineHash": "5eb39c15be8e1867d601bfb5073b0063a4dfed07b99afa11d03a402bae56e502",
+        "databaseHash": "1d04a9d0221baedec237a5ce8787299e590f6b4a408ad1bd5b2cacdcf92ac4c8",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "1d04a9d0221baedec237a5ce8787299e590f6b4a408ad1bd5b2cacdcf92ac4c8",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "1d04a9d0221baedec237a5ce8787299e590f6b4a408ad1bd5b2cacdcf92ac4c8",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "authored-after-commit",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "authored-after-commit",
+        "scenario": "library-change",
+        "seed": 2,
+        "baselineHash": "18bf5f8d1ee7bbd5f0b62e0ea00a0133b5704e26bbab6148ccbc9b3192132353",
+        "databaseHash": "4d5527d2acdce8156f226f53db19b9f8f1057bb7ca72e9754a8e341e986655f6",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4d5527d2acdce8156f226f53db19b9f8f1057bb7ca72e9754a8e341e986655f6",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "authored-after-commit",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4d5527d2acdce8156f226f53db19b9f8f1057bb7ca72e9754a8e341e986655f6",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "queue-waiting",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "library-change",
+        "seed": 1,
+        "baselineHash": "5a6510c7bb69e96e0b2d47057292a765e9376f3c78d1470392c1a27b2ff09023",
+        "databaseHash": "1f84cec20ef8a0d7c493852fcb4833c5a64a872b1752cdf942851e30524e10fd",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "1f84cec20ef8a0d7c493852fcb4833c5a64a872b1752cdf942851e30524e10fd",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "1f84cec20ef8a0d7c493852fcb4833c5a64a872b1752cdf942851e30524e10fd",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "queue-waiting",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "queue-waiting",
+        "scenario": "library-change",
+        "seed": 2,
+        "baselineHash": "c08b3b339146b7387cd2d49e74187f5632822b42a3a535b9760d815324baa368",
+        "databaseHash": "4172e7e487c3e62b5072d564e336fe2f9e387439ad162353aa86126704144aa8",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4172e7e487c3e62b5072d564e336fe2f9e387439ad162353aa86126704144aa8",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "queue-waiting",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4172e7e487c3e62b5072d564e336fe2f9e387439ad162353aa86126704144aa8",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "capture-before-publish",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "library-change",
+        "seed": 1,
+        "baselineHash": "982d977007fb5a14e6f9f0e99aecdd25aea5ed594dc4b8554d920ac0e9c12c70",
+        "databaseHash": "4b186b055a778860b40d72390f2ff41bcbc193bf6f21a02c208555758c10ae16",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "4b186b055a778860b40d72390f2ff41bcbc193bf6f21a02c208555758c10ae16",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "4b186b055a778860b40d72390f2ff41bcbc193bf6f21a02c208555758c10ae16",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "capture-before-publish",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "capture-before-publish",
+        "scenario": "library-change",
+        "seed": 2,
+        "baselineHash": "9145a337f201c939d77c64f108755e7a965b32328fe07ba6129f92f1a325e170",
+        "databaseHash": "4c66d96bbe1d082c6223ebf0a40a21e4929299ee28f26ba1a617514545fb4868",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4c66d96bbe1d082c6223ebf0a40a21e4929299ee28f26ba1a617514545fb4868",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "capture-before-publish",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "4c66d96bbe1d082c6223ebf0a40a21e4929299ee28f26ba1a617514545fb4868",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "published",
+      "seed": 1,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "library-change",
+        "seed": 1,
+        "baselineHash": "4c0514418e3aebd8b3ae4567b7766edd2b1e722b94125fbbbc3522685623c57d",
+        "databaseHash": "d65f731cc9641a100841741f0229fb52a13b4567ce8e46260c61d2ca26e196c4",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "d65f731cc9641a100841741f0229fb52a13b4567ce8e46260c61d2ca26e196c4",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "library-change",
+          "seed": 1,
+          "databaseHash": "d65f731cc9641a100841741f0229fb52a13b4567ce8e46260c61d2ca26e196c4",
+          "projectionHash": "2c50caf1009546ae08c043751e45d8661bba796f9b29c942c732d049bbe0950b",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "library-change",
+      "boundary": "published",
+      "seed": 2,
+      "kill": {
+        "ready": true,
+        "boundary": "published",
+        "scenario": "library-change",
+        "seed": 2,
+        "baselineHash": "439b3f2782513f64e9b2ca9aaff716fab75976eff98044fb7016c1d7efeb0439",
+        "databaseHash": "eb2ff19c6a7ab9ab07400a22fa8397f4e1601ba80e5fdc7ea46b39241ca4ffeb",
+        "captureMode": "changes",
+        "nodeRead": "reuse",
+        "elementRead": "reuse",
+        "libraryRead": "changed",
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "eb2ff19c6a7ab9ab07400a22fa8397f4e1601ba80e5fdc7ea46b39241ca4ffeb",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "recovered": true,
+          "boundary": "published",
+          "scenario": "library-change",
+          "seed": 2,
+          "databaseHash": "eb2ff19c6a7ab9ab07400a22fa8397f4e1601ba80e5fdc7ea46b39241ca4ffeb",
+          "projectionHash": "4b304be8ce741009b2a7f1129c156a53935c8a6cec730269058ceeb8fdd86be2",
+          "captureMode": "full",
+          "checks": [
+            "fixture-oracle",
+            "uncached-full-capture",
+            "persistent-state-unchanged",
+            "project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "processRecovery": "passed",
+    "nativeGateway": "not-run",
+    "powerLoss": "not-run",
+    "performance": "not-measured"
+  },
+  "limitations": [
+    "The warm actual refresh queue is interrupted after an authored transaction, while waiting, after a covered capture and after publication. Every cold restart captures the complete workspace and does not reuse an in-memory cursor.",
+    "Node SQLite uses the product renderer gateway adapter. Native migration recovery is tested separately; this does not exercise a Tauri renderer restart or physical device.",
+    "SIGKILL does not simulate OS crash, disk failure or power loss. No latency or device acceptance is claimed.",
+    "All persistent rows, including author journal, projection cursors and the other project, must remain byte-for-byte unchanged by recovery. The projection is compared with an independent full capture and a fixture field oracle."
+  ]
+}

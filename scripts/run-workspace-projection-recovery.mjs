@@ -9,9 +9,10 @@ import { workspaceEvidenceFingerprint } from './workspace-projection-evidence.mj
 const root = fileURLToPath(new URL('..', import.meta.url));
 const worker = fileURLToPath(new URL('./workspace-projection-crash-worker.mjs', import.meta.url));
 const boundaries = ['authored-before-commit', 'authored-after-commit', 'queue-waiting', 'capture-before-publish', 'published'];
-const scenarios = ['node-metadata', 'collection-change'];
+const libraryOnly = process.argv.includes('--library');
+const scenarios = libraryOnly ? ['library-change'] : ['node-metadata', 'collection-change'];
 const checks = ['fixture-oracle', 'uncached-full-capture', 'persistent-state-unchanged', 'project-isolation', 'integrity', 'foreign-keys'];
-const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9) ?? 'docs/renderer-performance/acceptance/f6-workspace-recovery.json';
+const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9) ?? (libraryOnly ? 'docs/renderer-performance/acceptance/f6-library-recovery.json' : 'docs/renderer-performance/acceptance/f6-workspace-recovery.json');
 const seeds = 2;
 const smoke = process.argv.includes('--smoke');
 const boundariesFor = () => boundaries;
@@ -88,6 +89,7 @@ function validate(report) {
       assert.equal(entry.kill.captureMode, 'changes');
       assert.equal(entry.kill.nodeRead, entry.scenario === 'node-metadata' ? 'changed' : 'reuse');
       assert.equal(entry.kill.elementRead, entry.scenario === 'collection-change' ? 'changed' : 'reuse');
+      if (libraryOnly) assert.equal(entry.kill.libraryRead, 'changed');
     }
     assert.equal(entry.restarts.length, 2);
     for (const restart of entry.restarts) {
@@ -104,8 +106,8 @@ function validate(report) {
 if (process.argv.includes('--check')) {
   const report = JSON.parse(await readFile(output, 'utf8'));
   validate(report);
-  assert.equal(report.source.fingerprint, workspaceEvidenceFingerprint(root), 'Workspace recovery evidence is stale; regenerate it.');
-  console.log('Workspace process recovery: 20 SIGKILL cases and 40 independent restarts match source. Native renderer recovery and power-loss acceptance remain pending.');
+  if (!process.argv.includes('--historical')) assert.equal(report.source.fingerprint, workspaceEvidenceFingerprint(root), 'Workspace recovery evidence is stale; regenerate it.');
+  console.log(`Workspace recovery contract: ${expectedCases.length} SIGKILL cases and ${expectedCases.length * 2} restarts. ${process.argv.includes('--historical') ? 'Historical evidence; current source was not asserted.' : 'Source fingerprint matches.'} Native renderer recovery and power-loss acceptance remain pending.`);
 } else {
   assert.notEqual(process.platform, 'win32', 'This acceptance requires POSIX SIGKILL.');
   const directory = await mkdtemp(path.join(tmpdir(), 'drifting-workspace-recovery-'));
@@ -113,7 +115,7 @@ if (process.argv.includes('--check')) {
   const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const cases = [];
   try {
-    for (const scenario of smoke ? ['node-metadata'] : scenarios) for (const boundary of boundariesFor(scenario)) for (let seed = 1; seed <= (smoke ? 1 : seeds); seed += 1) {
+    for (const scenario of smoke ? scenarios.slice(0, 1) : scenarios) for (const boundary of boundariesFor(scenario)) for (let seed = 1; seed <= (smoke ? 1 : seeds); seed += 1) {
       const database = path.join(directory, `${scenario}-${boundary}-${seed}.db`);
       const args = [database, boundary, scenario, String(seed)];
       const kill = await start(['write', ...args], true);
@@ -131,7 +133,7 @@ if (process.argv.includes('--check')) {
         schemaVersion: 1, kind: 'workspace_projection_process_recovery', status: 'passed', generatedAt: new Date().toISOString(),
         source: { commit: sourceCommit, fingerprint, dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()) },
         environment: { platform: process.platform, node: process.version, sqlite: process.versions.sqlite },
-        fixture: { provenance: 'synthetic content only', sources: 'node metadata and prose-bearing element collection; isolated second project', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged' },
+        fixture: { provenance: 'synthetic content only', sources: libraryOnly ? 'library metadata and prose-bearing library row; isolated second project' : 'node metadata and prose-bearing element collection; isolated second project', database: 'file-backed WAL/FULL, complete product migrations, renderer gateway adapter over Node SQLite', identity: 'synthetic installation identity and clock injected into the actual authored transaction runner; production journal and reducer validation unchanged' },
         cases,
         acceptance: { processRecovery: 'passed', nativeGateway: 'not-run', powerLoss: 'not-run', performance: 'not-measured' },
         limitations: [

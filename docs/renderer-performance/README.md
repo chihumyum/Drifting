@@ -3747,3 +3747,39 @@ retains its actual pre-commit SHA and measured source fingerprint. Native
 windows, physical input and fixed-device budgets were not run, in accordance
 with the current headless-only execution scope. F2's full stress/device gates
 remain open; no end-to-end speedup is inferred from these operation counts.
+
+
+## F6 — Library rows from durable coverage
+
+[Library projection reads](library-reads.md) now use the existing immutable
+workspace journal to select up to 128 changed identities. A skinny SQLite ID
+query supplies the complete order, including timestamp ties; the merge keeps
+unchanged body-bearing row objects. Identity/lifecycle changes, oversized
+batches or missing coverage fall back to the complete collection. No migration,
+second prose owner or new persisted cache was added.
+
+`acceptance/f6-library-reads.json` executes the same probe against the clean
+`94916185` checkout and the changed source. It contains 53 passing checks and two
+sizes with one excluded warmup and five samples. For the 1,025-item fixture, a
+single edit reads one complete library row instead of 1,025; median serialized
+gateway bytes drop from 8,640,876 to 21,875. Queries increase from four to five,
+and all ID rows are still sorted/read/merged. Every covered result matches a
+separate full capture. The instrumented Node median drops from 31.12 to 3.48 ms;
+it is not native IPC, whole-app or device timing evidence.
+
+`acceptance/f6-library-recovery.json` adds ten real SIGKILL cases and twenty
+independent restarts through the authored transaction and actual refresh queue.
+Every restart matches the fixture and full-capture oracle, leaves persistent
+rows unchanged and passes project isolation, integrity and foreign-key checks.
+Eleven contract tests reject missing evidence, full-body reads, excess queries
+or transfers, inconsistent restarts and unsupported native/power-loss claims.
+Historical-only validation is explicit; ordinary `--check` still requires the
+current source fingerprint. Both new reports matched the final source at
+collection and retain their actual pre-commit SHA/fingerprint.
+
+All six required repository checks and the architecture command passed:
+2,822 tests passed with one existing skip across 424 files; lint has zero errors
+and 30 existing warnings. The ordinary production build contains 42 JS assets
+and no acceptance probes. Work stayed headless. Initial full-library costs,
+remaining collections, overall performance and native/device recovery gates
+remain open; F6 is not marked complete.
