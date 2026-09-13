@@ -58,7 +58,8 @@
             "docs/renderer-performance/acceptance/f3-selection-capture.json",
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
             "docs/renderer-performance/acceptance/f2-shelf-stats.json",
-            "docs/renderer-performance/acceptance/f2-link-target-state-browser.json"
+            "docs/renderer-performance/acceptance/f2-link-target-state-browser.json",
+            "docs/renderer-performance/acceptance/f3-link-matching.json"
           ],
           "status": "partial"
         },
@@ -242,7 +243,8 @@
             "docs/renderer-performance/acceptance/f3-inline-targets.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
+            "docs/renderer-performance/acceptance/f3-link-matching-browser.json"
           ],
           "status": "partial"
         },
@@ -267,12 +269,14 @@
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
-            "docs/renderer-performance/acceptance/f3-editor-link-events-browser.json"
+            "docs/renderer-performance/acceptance/f3-editor-link-events-browser.json",
+            "docs/renderer-performance/acceptance/f3-link-matching.json",
+            "docs/renderer-performance/acceptance/f3-link-matching-browser.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "editor_interactions_and_copilot_lifetimes_native_verified_project_routed_link_events_headless_verified_full_review_and_device_budgets_pending"
+      "implementationStatus": "editor_interactions_and_copilot_lifetimes_native_verified_project_routed_literal_linking_headless_verified_full_review_and_device_budgets_pending"
     },
     {
       "id": "F4",

@@ -483,58 +483,6 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Walk the whole editor document and stamp the entityLink mark on every run of
- * text matching any of `target.names`, pointing at the given entity. Used to
- * retroactively link prose written BEFORE the entity existed — the autoDetect
- * plugin above only fires on freshly-typed text, so earlier blocks would stay
- * unlinked otherwise.
- *
- * Verbatim case-sensitive match, mirroring autoDetect so both paths agree on
- * what links. Idempotent: a text run already linked to this exact target is
- * skipped, so re-running (or overlapping with autoDetect) is safe. Dispatched
- * with `addToHistory: false` so retro-linking isn't an undo step.
- */
-export function linkEntityInDoc(
-  editor: Editor,
-  target: { kind: EntityKind; id: string; names: string[] },
-): void {
-  const markType = editor.schema.marks.entityLink;
-  if (!markType) return;
-  const names = Array.from(new Set(target.names.map((n) => n.trim()).filter(Boolean)));
-  if (names.length === 0) return;
-
-  const tr = editor.state.tr;
-  let modified = false;
-
-  editor.state.doc.descendants((node, pos) => {
-    if (!node.isText || !node.text) return;
-    // A PM text node is a single uniform mark run, so one check covers it all:
-    // if it already links to this target, every match inside is already linked.
-    const alreadyLinked = node.marks.some(
-      (mark) =>
-        mark.type === markType &&
-        mark.attrs.targetKind === target.kind &&
-        mark.attrs.targetId === target.id,
-    );
-    if (alreadyLinked) return;
-    const text = node.text;
-    for (const name of names) {
-      const regex = new RegExp(escapeRegExp(name), 'g');
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(text)) !== null) {
-        const from = pos + m.index;
-        tr.addMark(
-          from,
-          from + name.length,
-          markType.create({ targetKind: target.kind, targetId: target.id, targetBlockId: null }),
-        );
-        modified = true;
-      }
-    }
-  });
-
-  if (!modified) return;
-  tr.setMeta('addToHistory', false);
-  editor.view.dispatch(tr);
-}
+// Keep the existing extension import surface while document linking owns its
+// matching and transaction lifecycle independently.
+export { linkEntityInDoc } from '../retroactive-entity-links';

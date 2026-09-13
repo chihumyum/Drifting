@@ -25,11 +25,12 @@ type Report = {
   agentPanel: { streaming: { composer: number } };
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
+  retroactiveLinkMatching?: { checks: { passed: boolean }[]; modes: string[] };
   retroactiveEntityLinks?: { remainingListeners: number; groups: { current: { foreign: { calls: number }; linkedOwnEditors: number } }[]; checks: { passed: boolean }[] };
   entityTargetState?: { profiles: { indexedRowReads: number; repeatedRowReads: number }[]; checks: { passed: boolean }[] };
   workspaceGeneration?: { profiles: { comments: { targets: number }; metrics: { names: number }; checks: { changedGenerationReleasesRecords: boolean }; incoherentCommits: number }[] };
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f3-editor-link-events-browser.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f3-link-matching-browser.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -44,6 +45,12 @@ function validate(report: Report, flags = ['--deterministic']) {
 describe('ordinary CI renderer evidence', () => {
   it('accepts complete current behavior coverage without requiring historical report provenance', () => {
     expect(validate(fixture()).status).toBe(0);
+  });
+  it('rejects missing or failed real-editor literal matching evidence', () => {
+    const missing = fixture(); delete missing.retroactiveLinkMatching;
+    const failed = fixture(); failed.retroactiveLinkMatching!.checks[0].passed = false;
+    const noYjs = fixture(); noYjs.retroactiveLinkMatching!.modes.pop();
+    for (const report of [missing, failed, noYjs]) expect(validate(report).status).not.toBe(0);
   });
   it('rejects missing, cross-project or detached retroactive-link evidence', () => {
     const missing = fixture(); delete missing.retroactiveEntityLinks;

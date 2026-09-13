@@ -61,5 +61,7 @@ The generator checks the current source fingerprint while collecting; the
 report keeps its actual pre-commit SHA. Later historical contract validation
 does not certify current-source timing. This batch does not measure native
 windows, physical input, SQLite restart or device performance. Matching-project
-editors still scan their documents, and regex construction within those scans
-is unchanged; no whole-app speedup or full F3 completion is claimed.
+editors still scanned their documents and constructed regexes within those scans
+at this milestone. The subsequent [literal matching change](link-matching.md)
+removes those allocations while preserving traversal. Neither result claims a
+whole-app speedup or full F3 completion.

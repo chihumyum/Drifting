@@ -38,7 +38,7 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
-        if (id.endsWith('/lib/extensions/entity-link.ts')) {
+        if (id.endsWith('/lib/retroactive-entity-links.ts')) {
           const anchors = [
             ['  const names = Array.from(new Set(target.names.map((n) => n.trim()).filter(Boolean)));', 'calls'],
             ['    const alreadyLinked = node.marks.some(', 'textNodes'],

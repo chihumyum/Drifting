@@ -1,0 +1,687 @@
+{
+  "schemaVersion": 1,
+  "kind": "retroactive_entity_link_comparison",
+  "status": "measured",
+  "generatedAt": "2026-09-13T17:35:15.979Z",
+  "source": {
+    "commit": "dd785f8228652cba58a9da4ed88dfa00a1c301be",
+    "fingerprint": "0a865b5505d388f9af1db7036634ee0dc653fd024cd492ed5766a6d3bf9dcced",
+    "baselineCommit": "dd785f8228652cba58a9da4ed88dfa00a1c301be",
+    "baselineSourceHash": "58475edf2c6f030fc6846cbde2bbfa066d5aac369bfc4d216dc4e19865198784",
+    "baselineFunctionHash": "abc85513c329e886b3fd62bd2d3f3073bbe81cab3e8140d82fe84d4fed84f33a"
+  },
+  "environment": {
+    "node": "v24.4.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "cpu": "Apple M3 Pro",
+    "totalMemoryBytes": 38654705664
+  },
+  "behavior": [
+    {
+      "id": "literal-0",
+      "passed": true
+    },
+    {
+      "id": "literal-1",
+      "passed": true
+    },
+    {
+      "id": "literal-2",
+      "passed": true
+    },
+    {
+      "id": "literal-3",
+      "passed": true
+    },
+    {
+      "id": "literal-4",
+      "passed": true
+    },
+    {
+      "id": "literal-5",
+      "passed": true
+    },
+    {
+      "id": "literal-6",
+      "passed": true
+    },
+    {
+      "id": "format-and-existing-targets",
+      "passed": true
+    },
+    {
+      "id": "seeded-0",
+      "passed": true
+    },
+    {
+      "id": "seeded-1",
+      "passed": true
+    },
+    {
+      "id": "seeded-2",
+      "passed": true
+    },
+    {
+      "id": "seeded-3",
+      "passed": true
+    },
+    {
+      "id": "seeded-4",
+      "passed": true
+    },
+    {
+      "id": "seeded-5",
+      "passed": true
+    },
+    {
+      "id": "seeded-6",
+      "passed": true
+    },
+    {
+      "id": "seeded-7",
+      "passed": true
+    },
+    {
+      "id": "seeded-8",
+      "passed": true
+    },
+    {
+      "id": "seeded-9",
+      "passed": true
+    },
+    {
+      "id": "seeded-10",
+      "passed": true
+    },
+    {
+      "id": "seeded-11",
+      "passed": true
+    },
+    {
+      "id": "seeded-12",
+      "passed": true
+    },
+    {
+      "id": "seeded-13",
+      "passed": true
+    },
+    {
+      "id": "seeded-14",
+      "passed": true
+    },
+    {
+      "id": "seeded-15",
+      "passed": true
+    },
+    {
+      "id": "seeded-16",
+      "passed": true
+    },
+    {
+      "id": "seeded-17",
+      "passed": true
+    },
+    {
+      "id": "seeded-18",
+      "passed": true
+    },
+    {
+      "id": "seeded-19",
+      "passed": true
+    },
+    {
+      "id": "seeded-20",
+      "passed": true
+    },
+    {
+      "id": "seeded-21",
+      "passed": true
+    },
+    {
+      "id": "seeded-22",
+      "passed": true
+    },
+    {
+      "id": "seeded-23",
+      "passed": true
+    },
+    {
+      "id": "seeded-24",
+      "passed": true
+    },
+    {
+      "id": "seeded-25",
+      "passed": true
+    },
+    {
+      "id": "seeded-26",
+      "passed": true
+    },
+    {
+      "id": "seeded-27",
+      "passed": true
+    },
+    {
+      "id": "seeded-28",
+      "passed": true
+    },
+    {
+      "id": "seeded-29",
+      "passed": true
+    },
+    {
+      "id": "seeded-30",
+      "passed": true
+    },
+    {
+      "id": "seeded-31",
+      "passed": true
+    },
+    {
+      "id": "seeded-32",
+      "passed": true
+    },
+    {
+      "id": "seeded-33",
+      "passed": true
+    },
+    {
+      "id": "seeded-34",
+      "passed": true
+    },
+    {
+      "id": "seeded-35",
+      "passed": true
+    },
+    {
+      "id": "seeded-36",
+      "passed": true
+    },
+    {
+      "id": "seeded-37",
+      "passed": true
+    },
+    {
+      "id": "seeded-38",
+      "passed": true
+    },
+    {
+      "id": "seeded-39",
+      "passed": true
+    },
+    {
+      "id": "seeded-40",
+      "passed": true
+    },
+    {
+      "id": "seeded-41",
+      "passed": true
+    },
+    {
+      "id": "seeded-42",
+      "passed": true
+    },
+    {
+      "id": "seeded-43",
+      "passed": true
+    },
+    {
+      "id": "seeded-44",
+      "passed": true
+    },
+    {
+      "id": "seeded-45",
+      "passed": true
+    },
+    {
+      "id": "seeded-46",
+      "passed": true
+    },
+    {
+      "id": "seeded-47",
+      "passed": true
+    },
+    {
+      "id": "seeded-48",
+      "passed": true
+    },
+    {
+      "id": "seeded-49",
+      "passed": true
+    },
+    {
+      "id": "seeded-50",
+      "passed": true
+    },
+    {
+      "id": "seeded-51",
+      "passed": true
+    },
+    {
+      "id": "seeded-52",
+      "passed": true
+    },
+    {
+      "id": "seeded-53",
+      "passed": true
+    },
+    {
+      "id": "seeded-54",
+      "passed": true
+    },
+    {
+      "id": "seeded-55",
+      "passed": true
+    },
+    {
+      "id": "seeded-56",
+      "passed": true
+    },
+    {
+      "id": "seeded-57",
+      "passed": true
+    },
+    {
+      "id": "seeded-58",
+      "passed": true
+    },
+    {
+      "id": "seeded-59",
+      "passed": true
+    },
+    {
+      "id": "seeded-60",
+      "passed": true
+    },
+    {
+      "id": "seeded-61",
+      "passed": true
+    },
+    {
+      "id": "seeded-62",
+      "passed": true
+    },
+    {
+      "id": "seeded-63",
+      "passed": true
+    }
+  ],
+  "profiles": [
+    {
+      "characters": 5000,
+      "editors": 1,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "379f586148b6e689fc5c144eca2ae9857055e930cb1f275b07c65dad5996096b",
+      "baseline": {
+        "counters": {
+          "textNodes": 50,
+          "regexConstructions": 400,
+          "markCreations": 50,
+          "dispatches": 1
+        },
+        "resultHash": "2c09b852ac2df0856b4b0f7c95c7720e2033118522c8976fb0ac4366dfd95e8c",
+        "samplesMs": [
+          0.25037500000001955,
+          0.2201249999999959,
+          0.20700000000005048,
+          0.2536670000000072,
+          0.20179200000001174
+        ],
+        "medianMs": 0.2201249999999959
+      },
+      "current": {
+        "counters": {
+          "textNodes": 50,
+          "regexConstructions": 0,
+          "markCreations": 1,
+          "dispatches": 1
+        },
+        "resultHash": "2c09b852ac2df0856b4b0f7c95c7720e2033118522c8976fb0ac4366dfd95e8c",
+        "samplesMs": [
+          0.15012500000000273,
+          0.13329200000003993,
+          0.11083300000001373,
+          0.11716599999999744,
+          0.1273750000000291
+        ],
+        "medianMs": 0.1273750000000291
+      }
+    },
+    {
+      "characters": 5000,
+      "editors": 5,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "379f586148b6e689fc5c144eca2ae9857055e930cb1f275b07c65dad5996096b",
+      "baseline": {
+        "counters": {
+          "textNodes": 250,
+          "regexConstructions": 2000,
+          "markCreations": 250,
+          "dispatches": 5
+        },
+        "resultHash": "97313883b55cc55519bb087eee83561d560288e3aa111d318b6cb182a644a28b",
+        "samplesMs": [
+          0.9303330000000187,
+          1.1174170000000458,
+          0.9739159999999742,
+          3.36345799999998,
+          0.9242920000000368
+        ],
+        "medianMs": 0.9739159999999742
+      },
+      "current": {
+        "counters": {
+          "textNodes": 250,
+          "regexConstructions": 0,
+          "markCreations": 5,
+          "dispatches": 5
+        },
+        "resultHash": "97313883b55cc55519bb087eee83561d560288e3aa111d318b6cb182a644a28b",
+        "samplesMs": [
+          0.6294170000000463,
+          0.636792000000014,
+          0.5649999999999977,
+          0.6404999999999745,
+          0.5515839999999912
+        ],
+        "medianMs": 0.6294170000000463
+      }
+    },
+    {
+      "characters": 5000,
+      "editors": 20,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "379f586148b6e689fc5c144eca2ae9857055e930cb1f275b07c65dad5996096b",
+      "baseline": {
+        "counters": {
+          "textNodes": 1000,
+          "regexConstructions": 8000,
+          "markCreations": 1000,
+          "dispatches": 20
+        },
+        "resultHash": "679d021764b4b480cd65a3309f52f26d438859ea821469448ceb226761226ada",
+        "samplesMs": [
+          4.978375000000028,
+          7.248625000000004,
+          3.779042000000004,
+          8.695832999999993,
+          3.428250000000048
+        ],
+        "medianMs": 4.978375000000028
+      },
+      "current": {
+        "counters": {
+          "textNodes": 1000,
+          "regexConstructions": 0,
+          "markCreations": 20,
+          "dispatches": 20
+        },
+        "resultHash": "679d021764b4b480cd65a3309f52f26d438859ea821469448ceb226761226ada",
+        "samplesMs": [
+          1.8489590000000362,
+          2.1523750000000064,
+          1.9980830000000083,
+          1.9689159999999788,
+          1.9529169999999567
+        ],
+        "medianMs": 1.9689159999999788
+      }
+    },
+    {
+      "characters": 20000,
+      "editors": 1,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "d7c57c40b10b1f1578e94f94d5966da582f407cee40cc4d053723b75885a034f",
+      "baseline": {
+        "counters": {
+          "textNodes": 200,
+          "regexConstructions": 1600,
+          "markCreations": 200,
+          "dispatches": 1
+        },
+        "resultHash": "58aa5893fe4f283cb071d72943d0795672518e378bdd316fdc691f7fc639f587",
+        "samplesMs": [
+          0.8633750000000191,
+          0.8481249999999818,
+          2.4392500000000155,
+          0.8666249999999991,
+          0.9243749999999977
+        ],
+        "medianMs": 0.8666249999999991
+      },
+      "current": {
+        "counters": {
+          "textNodes": 200,
+          "regexConstructions": 0,
+          "markCreations": 1,
+          "dispatches": 1
+        },
+        "resultHash": "58aa5893fe4f283cb071d72943d0795672518e378bdd316fdc691f7fc639f587",
+        "samplesMs": [
+          0.5317919999999958,
+          0.5099580000000401,
+          0.5694169999999872,
+          0.5600000000000023,
+          0.5967079999999783
+        ],
+        "medianMs": 0.5600000000000023
+      }
+    },
+    {
+      "characters": 20000,
+      "editors": 5,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "d7c57c40b10b1f1578e94f94d5966da582f407cee40cc4d053723b75885a034f",
+      "baseline": {
+        "counters": {
+          "textNodes": 1000,
+          "regexConstructions": 8000,
+          "markCreations": 1000,
+          "dispatches": 5
+        },
+        "resultHash": "8f750bf138af136fe2ecace4d8d4eaebb0bdf83bed35f0ee50f3b0588a664226",
+        "samplesMs": [
+          9.634625000000028,
+          4.4720420000000445,
+          4.240624999999966,
+          16.64904100000001,
+          3.992457999999999
+        ],
+        "medianMs": 4.4720420000000445
+      },
+      "current": {
+        "counters": {
+          "textNodes": 1000,
+          "regexConstructions": 0,
+          "markCreations": 5,
+          "dispatches": 5
+        },
+        "resultHash": "8f750bf138af136fe2ecace4d8d4eaebb0bdf83bed35f0ee50f3b0588a664226",
+        "samplesMs": [
+          2.779542000000049,
+          2.8429590000000076,
+          2.74670900000001,
+          11.486749999999972,
+          2.6999170000000277
+        ],
+        "medianMs": 2.779542000000049
+      }
+    },
+    {
+      "characters": 20000,
+      "editors": 20,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "d7c57c40b10b1f1578e94f94d5966da582f407cee40cc4d053723b75885a034f",
+      "baseline": {
+        "counters": {
+          "textNodes": 4000,
+          "regexConstructions": 32000,
+          "markCreations": 4000,
+          "dispatches": 20
+        },
+        "resultHash": "e12a087fb611ed73fa015974755e056169dd867846d09086f78535e83a7b785a",
+        "samplesMs": [
+          21.569708000000105,
+          15.514833000000067,
+          21.53520900000001,
+          16.427791999999954,
+          40.23737500000004
+        ],
+        "medianMs": 21.53520900000001
+      },
+      "current": {
+        "counters": {
+          "textNodes": 4000,
+          "regexConstructions": 0,
+          "markCreations": 20,
+          "dispatches": 20
+        },
+        "resultHash": "e12a087fb611ed73fa015974755e056169dd867846d09086f78535e83a7b785a",
+        "samplesMs": [
+          10.089417000000026,
+          16.256667000000107,
+          13.31841600000007,
+          18.692833000000064,
+          10.304665999999997
+        ],
+        "medianMs": 13.31841600000007
+      }
+    },
+    {
+      "characters": 50000,
+      "editors": 1,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "365cb18b955cbd8d510348ab81957a8b534b93843d9d31071b2f91e673c7c7ee",
+      "baseline": {
+        "counters": {
+          "textNodes": 500,
+          "regexConstructions": 4000,
+          "markCreations": 500,
+          "dispatches": 1
+        },
+        "resultHash": "d0b5f3739fc88bcbff373767a842de48eb6c5add49bd4658590badebf5be4732",
+        "samplesMs": [
+          7.129167000000052,
+          2.932290999999964,
+          3.255625000000009,
+          9.423625000000015,
+          3.2141249999999673
+        ],
+        "medianMs": 3.255625000000009
+      },
+      "current": {
+        "counters": {
+          "textNodes": 500,
+          "regexConstructions": 0,
+          "markCreations": 1,
+          "dispatches": 1
+        },
+        "resultHash": "d0b5f3739fc88bcbff373767a842de48eb6c5add49bd4658590badebf5be4732",
+        "samplesMs": [
+          2.1097080000000688,
+          2.1505829999999833,
+          2.3185829999999896,
+          2.5894160000000284,
+          2.6158329999999523
+        ],
+        "medianMs": 2.3185829999999896
+      }
+    },
+    {
+      "characters": 50000,
+      "editors": 5,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "365cb18b955cbd8d510348ab81957a8b534b93843d9d31071b2f91e673c7c7ee",
+      "baseline": {
+        "counters": {
+          "textNodes": 2500,
+          "regexConstructions": 20000,
+          "markCreations": 2500,
+          "dispatches": 5
+        },
+        "resultHash": "b5303a555e044b6a6d7bc2c5264c9d9866d0bc0f386485e92cdade04600850bc",
+        "samplesMs": [
+          14.485207999999943,
+          31.777207999999973,
+          14.235708999999929,
+          21.163458999999875,
+          14.359874999999874
+        ],
+        "medianMs": 14.485207999999943
+      },
+      "current": {
+        "counters": {
+          "textNodes": 2500,
+          "regexConstructions": 0,
+          "markCreations": 5,
+          "dispatches": 5
+        },
+        "resultHash": "b5303a555e044b6a6d7bc2c5264c9d9866d0bc0f386485e92cdade04600850bc",
+        "samplesMs": [
+          16.29879100000005,
+          10.965790999999967,
+          11.507583000000068,
+          15.895082999999886,
+          16.511957999999822
+        ],
+        "medianMs": 15.895082999999886
+      }
+    },
+    {
+      "characters": 50000,
+      "editors": 20,
+      "aliases": 8,
+      "warmups": 1,
+      "fixtureHash": "365cb18b955cbd8d510348ab81957a8b534b93843d9d31071b2f91e673c7c7ee",
+      "baseline": {
+        "counters": {
+          "textNodes": 10000,
+          "regexConstructions": 80000,
+          "markCreations": 10000,
+          "dispatches": 20
+        },
+        "resultHash": "ea0b5662b8ba9a1d39ec2dea1b6b032bd0a557c9d7189f20569c3c65a2fa23e6",
+        "samplesMs": [
+          80.33095800000001,
+          78.68762500000003,
+          72.44262499999991,
+          66.97691699999996,
+          81.92675000000008
+        ],
+        "medianMs": 78.68762500000003
+      },
+      "current": {
+        "counters": {
+          "textNodes": 10000,
+          "regexConstructions": 0,
+          "markCreations": 20,
+          "dispatches": 20
+        },
+        "resultHash": "ea0b5662b8ba9a1d39ec2dea1b6b032bd0a557c9d7189f20569c3c65a2fa23e6",
+        "samplesMs": [
+          55.06229199999984,
+          54.57891700000005,
+          50.18212500000004,
+          58.58641699999998,
+          49.26670800000011
+        ],
+        "medianMs": 54.57891700000005
+      }
+    }
+  ],
+  "nativeAcceptance": false,
+  "limitations": [
+    "Node with real immutable ProseMirror documents and synthetic editor-state holders; no DOM, native window or physical input.",
+    "Exact historical linking function compared with the current implementation; counters are separate from one warmup and five alternating timing samples.",
+    "Every sample still scans all matching-project documents and all aliases; no whole-app, device budget, SQLite restart or Yjs durability claim is derived from these timings."
+  ]
+}

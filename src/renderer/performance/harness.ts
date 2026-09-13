@@ -1,3 +1,4 @@
+import { runRetroactiveLinkMatchingScenarios } from './retroactive-link-matching-scenarios';
 import { runRetroactiveEntityLinkScenarios } from './retroactive-entity-link-scenarios';
 import { runEntityLinkTargetStateScenarios } from './entity-link-target-state-scenarios';
 import { runStoryGraphUnplacedScenarios } from './story-graph-unplaced-scenarios';
@@ -132,6 +133,7 @@ async function run() {
     entityLinkOwnership: await runEntityLinkOwnershipScenarios(),
     entityTargetState: runEntityLinkTargetStateScenarios(),
     retroactiveEntityLinks: await runRetroactiveEntityLinkScenarios(),
+    retroactiveLinkMatching: await runRetroactiveLinkMatchingScenarios(),
     agentEventProcessing: await runAgentEventScenarios(),
     agentTranscript: await runAgentTranscriptScenarios(),
     agentBackground: await runAgentBackgroundScenarios(),

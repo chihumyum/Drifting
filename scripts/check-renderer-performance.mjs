@@ -58,7 +58,7 @@ if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
-    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'retroactiveEntityLinks', 'agentEventProcessing',
+    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'retroactiveEntityLinks', 'retroactiveLinkMatching', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
@@ -142,6 +142,14 @@ if (report.entityTargetState) {
   assert.equal(scenario.mountedEditors, 2); assert.equal(scenario.hiddenEditors, 1);
   assert.equal(scenario.checks.length, 25);
   assert.equal(new Set(scenario.checks.map(check => check.id)).size, 25);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  assert(scenario.limitations.length > 0);
+}
+if (report.retroactiveLinkMatching) {
+  const scenario = report.retroactiveLinkMatching;
+  assert.equal(scenario.implementation, 'literal-doc-linking');
+  assert.deepEqual(scenario.modes, ['json', 'yjs']);
+  assert.equal(scenario.checks.length, 19); assert.equal(new Set(scenario.checks.map(check => check.id)).size, 19);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
   assert(scenario.limitations.length > 0);
 }

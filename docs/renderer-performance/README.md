@@ -3816,3 +3816,39 @@ production build contains 42 JavaScript assets and no acceptance probes.
 This batch is entirely headless. Other auto-detection and editing commands,
 matching-project full-document scan cost, full Review interactions and native
 input/device budgets remain outside this result. F3 remains `in_progress`.
+
+## F3n — Literal document linking without repeated allocations
+
+[Retroactive document matching](link-matching.md) now lives outside the typing
+and display extension. Its public export and transaction behavior remain the
+same. Literal UTF-16 searches replace escaped regex construction inside every
+text-node/name pair, and one lazily created immutable mark is shared within a
+single document operation. Names and marks are not retained between calls.
+
+`acceptance/f3-link-matching.json` compares the exact historical function from
+`dd785f82` with the new operation. All 72 fixed/seeded cases preserve document
+JSON, ordered steps, selection, history metadata and repeat behavior. Nine
+profiles cover 5,000/20,000/50,000 characters and 1/5/20 editors with eight names.
+For twenty 50,000-character editors, regex constructions fall from 80,000 to
+zero, and mark creations from 10,000 to 20; all 10,000 text-node visits and 20
+dispatches remain. The measured Node median is 78.688→54.579 ms; the five-editor
+50,000-character profile is slower, 14.485→15.895 ms. Full timings are retained
+and are not an app latency or fixed-device claim.
+
+`acceptance/f3-link-matching-browser.json` adds 19 real Tiptap/ProseMirror/Yjs
+checks: overlapping aliases, Unicode and punctuation, unchanged prose, no new
+undo item, idempotency, undo/redo around surrounding input, hidden-view updates,
+independent replay and subsequent peer changes. The previous 126 project-routing
+checks and all other deterministic renderer contracts also pass. Twelve unit
+tests and ten report-contract tests check explicit semantics, allocations,
+source identity and rejection of incomplete or overstated evidence. Ordinary
+historical validation works without the baseline Git object; measurement still
+requires and verifies the exact historical source bytes.
+
+The reports matched final source fingerprints before commit and retain their
+actual pre-commit SHA. All six required repository checks and architecture
+checks passed: 2,851 tests passed with one existing skip across 427 files; lint
+has zero errors and 30 existing warnings. The ordinary production build has 42
+JavaScript assets and excludes acceptance probes. Everything ran headlessly.
+Full-document and alias traversal, full Review interactions, native input and
+device budgets remain open; F3 is still `in_progress`.
