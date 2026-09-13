@@ -6,7 +6,7 @@ import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { EditChapterStorylineModal } from '../../components/modals/EditChapterStorylineModal';
 import { GlobalSearchModal } from '../../components/search/GlobalSearchModal';
 import { DeferredStoryGraphView as DesktopStoryGraphView, DeferredElementGraphView as DesktopSuperElementView } from './views/DeferredSuperViews';
-import { DesktopSuperMemoMaterialView } from './views/DesktopSuperMemoMaterialView';
+import { DeferredMemoMaterialView as DesktopSuperMemoMaterialView } from './views/DeferredSuperViews';
 
 type DesktopSuperView = 'none' | 'element' | 'graph' | 'memo-material';
 

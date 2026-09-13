@@ -3532,3 +3532,78 @@ build contains 32 JavaScript assets and excludes the tab acceptance scenario and
 counters. `acceptance/f2-top-tabs-browser.json` passed the ordinary deterministic
 renderer contracts. All three generated reports retain the actual pre-commit
 parent SHA and measured source fingerprints; none is relabelled after commit.
+
+
+## F7e — Defer the TODO and library workbench
+
+Desktop and mobile now reach `DesktopSuperMemoMaterialView` through one shared
+code resource. The immediate super-view shell owns loading, Back/Escape, retry
+and focus transfer. The workbench has no graph UI prerequisite and creates no
+Drift Panel animation owner. Its component state is still created by the active
+view under the existing project owner; only successful code is cached globally.
+The last-view trigger and in-view selector use the existing bounded intent queue.
+
+`acceptance/f7-memo-deferred.json` compares the real production main entry at
+`96795513` with this source under the same observation transform. Initial static
+JavaScript falls from 4,956,107 to 4,937,159 bytes (18,948 bytes, about 18.5 KiB).
+The emitted workbench entry is 22,584 bytes. It is not requested, parsed or
+evaluated before access; its static dependencies and CSS are already available
+in the immediate shell. Shared sidebar components still load for their original
+consumers. These are module-loading measurements, not a native startup-time gain.
+
+Actual desktop and mobile-host workbench bodies pass 12 checks each: initial
+absence, local failure, fresh-key retry of the same file, Back during a held
+request, retained synthetic Tiptap/Yjs draft, cached reopen without fallback,
+material display, search filtering, compose-dialog Escape, project replacement,
+Back, and absence of graph requests. A separate held-load project switch verifies
+current-project rows and focus transfer. Failed speculative loading stays
+invisible and a real first click fetches successfully without another retry click.
+Development entry loading also passes with the dependency scanner restricted to
+the acceptance page. Fixtures contain synthetic text only; writes and physical
+IME/touch are outside this browser scenario.
+
+The validator has 15 mutation cases that reject hidden eager work, unowned cold
+dependencies/CSS, missing mobile coverage, stale project rows, lost focus/editor,
+failed cancellation/preloading, ineffective retry keys and unmeasured native or
+startup claims. An AST boundary also prevents either desktop or mobile barrels
+from reintroducing static imports of any of the three super-view bodies.
+
+```bash
+node scripts/run-renderer-deferred-memo.mjs
+node scripts/run-renderer-deferred-memo.mjs --check
+pnpm perf:renderer:graphs --preload --report=docs/renderer-performance/acceptance/f7-graphs-after-memo.json
+pnpm exec vitest run src/renderer/architecture/deferred-memo.acceptance.test.ts src/renderer/architecture/renderer-boundaries.test.ts src/renderer/lib/deferred-module.test.ts src/renderer/lib/deferred-preloader.test.ts
+```
+
+A fresh native build independently passed `acceptance/f7-memo-native.json`:
+`Drifting Acceptance 6b9c89c0b28a.app`, binary SHA-256
+`7dfed5ed43a000de282963e6e7cf9acde638d60aea8acac79d35baa85c1b439b`.
+An acceptance-only evaluation counter confirms zero evaluations before demand,
+one on actual packaged-resource opening, and still one on cached reopen. The
+same run preserves editor/Yjs and project runtime through both memo visits,
+graph/settings overlays, 20 tabs, split views, hidden saves and project switching.
+All 12 first-process checks and the restart prose check passed, with two real
+Cmd+Q exits at code zero. Independent SQLite/Yjs replay confirms one intentional
+chapter change, 52 unchanged chapter hashes, and integrity/foreign-key checks.
+This is an unsigned packaged Debug app with a production renderer and synthetic
+data, not release-device startup timing, physical IME/touch, or an OS-level
+network-disconnection/upgrade test.
+
+```bash
+pnpm perf:renderer:native --memo --report=docs/renderer-performance/acceptance/f7-memo-native.json
+pnpm perf:renderer:native --memo --report=docs/renderer-performance/acceptance/f7-memo-native.json --check
+```
+
+`acceptance/f7-graphs-after-memo.json` also passes both graph shells and all six
+existing preload scenarios, with 69 targeted tests. The ordinary deterministic
+renderer report is `acceptance/f7-memo-browser.json`. All six repository checks
+passed: 2,747 full-suite tests passed with one existing skip across 415 files;
+lint has no errors and 30 existing warnings. The ordinary production build has
+42 JavaScript assets and excludes acceptance fixtures and counters. Script-only
+follow-up changes register the new virtual entry in the isolated performance
+runner and restrict graph development dependency scanning to its own fixture;
+the affected runners and lint pass after those corrections.
+
+The four reports retain their actual pre-commit SHA and measured fingerprints.
+F7 remains in progress: other heavy entries, full native offline/upgrade recovery,
+physical input and the fixed-device startup/first-use budgets remain separate.

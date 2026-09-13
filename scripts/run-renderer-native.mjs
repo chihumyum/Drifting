@@ -21,7 +21,8 @@ const selectionMemory = contextMenus || process.argv.includes('--selection');
 const markers = selectionMemory || process.argv.includes('--markers');
 const outline = markers || process.argv.includes('--outline');
 const typewriter = outline || process.argv.includes('--typewriter');
-const editorSessions = typewriter || process.argv.includes('--sessions');
+const memoLoading = process.argv.includes('--memo');
+const editorSessions = memoLoading || typewriter || process.argv.includes('--sessions');
 const harnessFiles = ['scripts/run-renderer-native.mjs', 'scripts/renderer-native-fixture.ts', 'scripts/renderer-native-db.ts', 'scripts/renderer-native-ui.ts', 'scripts/renderer-native-graph-contract.mjs'];
 const sourcePaths = ['src', 'src-tauri', 'drizzle', 'packages', 'patches', 'vite-plugins', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'index.html', 'tailwind.config.js', 'postcss.config.js'];
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
@@ -35,6 +36,9 @@ function validate(report) {
   for (const run of report.runs) { assert.equal(run.status, 'passed'); assert.equal(run.exitCode, 0); assert.equal(run.uncaughtErrors, 0); }
   for (const name of ['twentyTabsIdentityAndUndo', 'overlaysPreserveRuntimeAndEditor', 'splitDocumentIdentity', 'closedTabsReleaseLiveDocuments', 'projectSwitchAndSqliteRestore']) assert.equal(report.runs[0].checks[name], true, name);
   assert.equal(report.runs[1].checks.restartProse, true);
+  if (memoLoading) {
+    for (const name of ['memoInitiallyDeferred', 'memoColdOpen', 'memoCachedReopen']) assert.equal(report.runs[0].checks[name], true, name);
+  }
   if (editorSessions) {
     for (const name of ['hiddenSessionSavedWithoutOutlinePublish', 'hiddenOutlinePrepared', 'plainProseKeepsOutlineStable', 'closedSessionBindingsReleased']) assert.equal(report.runs[0].checks[name], true, name);
     assert(report.runs[0].sessionEvents.length > 40);
@@ -211,7 +215,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, graph: fixture.graph ?? null, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel, agentHistory, agentTranscript }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, graph: fixture.graph ?? null, memoLoading, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel, agentHistory, agentTranscript }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${mobileAgentPanel} && id.endsWith('/workspace/MobileAgentTranscript.tsx')) {
@@ -221,6 +225,9 @@ export default (env) => mergeConfig(base(env), {
         code = code.replace(from, "'../../../performance/mobile-agent-output-services'");
       }
       return code;
+    }
+    if (${memoLoading} && id.endsWith('/shells/desktop/views/DesktopSuperMemoMaterialView.tsx')) {
+      return 'globalThis.__DRIFTING_NATIVE_MEMO_EVALUATIONS__ = (globalThis.__DRIFTING_NATIVE_MEMO_EVALUATIONS__ ?? 0) + 1;\\n' + code;
     }
     if (${editorSessions} && id.endsWith('/features/editor/entity-editor-session.ts')) {
       for (const [anchor, event] of [
@@ -329,6 +336,7 @@ export default (env) => mergeConfig(base(env), {
   assert(statSync(binary).mtimeMs >= buildStarted, 'Refusing an old native binary');
   const artifact = { bundleName: path.basename(bundle), identifier, version: plistValue('CFBundleShortVersionString'), sha256: sha256(readFileSync(binary)), modifiedAt: statSync(binary).mtime.toISOString(), build: 'packaged-debug-native-production-renderer', signed: false,
     instrumentation: ['acceptance-only renderer import', 'ProjectRuntimeProvider lifecycle effect', 'isolated native keychain service', 'isolated app identifier and deep-link scheme', 'loopback report CSP'] };
+  if (memoLoading) artifact.instrumentation.push('memo material entry evaluation counter');
   if (editorSessions) artifact.instrumentation.push('editor session attach/detach/persist/outline observations');
   if (typewriter) artifact.instrumentation.push('typewriter resume/pause/measure/frame/dispose counts');
   if (outline) artifact.instrumentation.push('outline viewport resume/pause/measure/anchor/frame/dispose counts');

@@ -1,4 +1,4 @@
-import { useGraphPreloadIntent } from '../../features/graph/deferred-graph-modules';
+import { useSuperViewPreloadIntent } from '../../features/graph/deferred-graph-modules';
 import { Home } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,7 @@ export function WorkspaceNavigationButtons() {
   const projectTabs = useUiStore((state) => state.tabsByProject[projectId]);
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const lastActiveSuperView = useUiStore((state) => state.lastActiveSuperView);
-  const preloadSuperView = useGraphPreloadIntent(lastActiveSuperView ?? 'element');
+  const preloadSuperView = useSuperViewPreloadIntent(lastActiveSuperView ?? 'element');
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
 
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);

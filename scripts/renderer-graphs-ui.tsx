@@ -12,6 +12,7 @@ import { WorkspaceNavigationProvider } from '../src/renderer/features/workspace/
 import { SuperViewNavigationProvider } from '../src/renderer/components/SuperViewNavigationContext';
 import { SuperViewRelationUiProvider } from '../src/renderer/features/graph/SuperViewRelationUiContext';
 import { MobileSuperViewHost } from '../src/renderer/shells/mobile/workspace/MobileSuperViewHost';
+import { SuperMemoMaterialView } from '../src/renderer/views/SuperViews/SuperMemoMaterialView';
 import { StoryGraphView } from '../src/renderer/views/StoryGraphView';
 import { SuperElementView } from '../src/renderer/views/SuperViews/SuperElementView';
 import { createSyntheticWorkspaceProjection } from '../src/renderer/performance/fixture';
@@ -34,6 +35,14 @@ function publish(projectId: string) {
     title: `${projectId} chapter ${index}`, ...(index === 0 ? { kind: 'drift' as const, bookOrder: null, narrativeOrder: null } : {}),
   }));
   fixture.bookElements = fixture.bookElements.map((element, index) => ({ ...element, name: `${projectId} element ${index}` }));
+  if (new URLSearchParams(location.search).has('memo')) {
+    fixture.libraryItems = ['alpha', 'beta'].map((name, index) => ({
+      id: `synthetic-material-${index}`, projectId, kind: 'text', title: `${projectId} ${name}`,
+      bodyJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: `${name} synthetic text` }] }] }),
+      assetId: null, externalUrl: null, previewImageUrl: null, notesJson: null, orderKey: index,
+      createdAt: '2026-09-12T00:00:00Z', updatedAt: '2026-09-12T00:00:00Z',
+    }));
+  }
   const type = genericAssociationRelationType(projectId, '2026-09-12T00:00:00.000Z');
   fixture.entityRelationTypes = [type];
   fixture.entityRelations = [[1, 2], [0, 1]].map(([from, to], index) => ({
@@ -81,12 +90,12 @@ export function Fixture() {
         <Draft />
         {preload && (route.pathname === '/settings' ? <MobileSettingsView /> : <WorkspaceNavigationButtons />)}
         {mobile ? <MobileSuperViewHost active={active === 'none' ? null : active} onActiveChange={(next) => setActive(next ?? 'none')} returnPointCaptured />
-          : <>{active === 'graph' && <StoryGraphView />}{active === 'element' && <SuperElementView />}</>}
+          : <>{active === 'graph' && <StoryGraphView />}{active === 'element' && <SuperElementView />}{active === 'memo-material' && <SuperMemoMaterialView />}</>}
       </SuperViewNavigationProvider>
     </SuperViewRelationUiProvider>
   </WorkspaceNavigationProvider>;
 }
 publish('synthetic-a');
-useUiStore.setState({ activeSuperView: 'none', lastActiveSuperView: 'graph' });
+useUiStore.setState({ activeSuperView: 'none', lastActiveSuperView: new URLSearchParams(location.search).has('memo') ? 'memo-material' : 'graph' });
 Object.assign(window, { __GRAPHS_UI__: api });
 createRoot(document.getElementById('root')!).render(<MemoryRouter><Fixture /></MemoryRouter>);

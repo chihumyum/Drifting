@@ -1,0 +1,1371 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_deferred_graphs",
+  "status": "passed",
+  "mode": "deferred",
+  "generatedAt": "2026-09-13T15:06:45.899Z",
+  "source": {
+    "commit": "96795513615124cab9ea8c09315516bf698ab1b0",
+    "fingerprint": "2d249a1dc7c0f91579c76f5ad1007a3700450391d6993d4ebe4ff6bc779555f5",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "browser": "Chrome/153.0.8010.36"
+  },
+  "initialJsBytes": 4937159,
+  "chunks": [
+    {
+      "file": "assets/react-vendor-DguZUK0D.js",
+      "bytes": 50500,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/tiptap-BXvzS1eE.js",
+      "bytes": 399910,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-FT2w8O2N.js",
+      "bytes": 1220794,
+      "entry": true,
+      "facade": "index.html",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/SettingsPrimitives-CFQDKSsp.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/relation-edge-popover-CTbK7MNt.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/useComment-CcIUhVd1.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/Modal-C1aD85dX.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/persistence-lifecycle-CrLlBgQ_.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/RelationTypeField-B9nfM85T.js",
+        "assets/LabelMono-XufG0Wq1.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/loader-circle-CX_duzal.js",
+        "assets/graph-view-C-x9gDIA.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/snapshot-history.service-BA6yve4Y.js"
+      ],
+      "css": [
+        "assets/index-3Rs8WWWx.css"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/graph-ui-Deb_TNP1.js",
+      "bytes": 24151,
+      "entry": true,
+      "facade": "src/renderer/features/graph/graph-ui-components.ts",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/relation-edge-popover-CTbK7MNt.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/useComment-CcIUhVd1.js"
+      ],
+      "css": [],
+      "targets": [
+        "shared"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/relation-edge-popover-CTbK7MNt.js",
+      "bytes": 175690,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/useComment-CcIUhVd1.js"
+      ],
+      "css": [
+        "assets/relation-edge-popover-BkWJLGpG.css"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/settings-panels-IMV7AL7D.js",
+      "bytes": 173972,
+      "entry": true,
+      "facade": "src/renderer/features/settings/settings-panels.ts",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/SettingsPrimitives-CFQDKSsp.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/persistence-lifecycle-CrLlBgQ_.js",
+        "assets/loader-circle-CX_duzal.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/active-editor-DC_px_c1.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/SettingsPrimitives-CFQDKSsp.js",
+      "bytes": 426822,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/persistence-lifecycle-CrLlBgQ_.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/SegmentedControl-CCuEbWNv.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/agent-activity-store-B78QabKN.js",
+      "bytes": 1485810,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/tiptap-BXvzS1eE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/story-graph-C7iFDbVQ.js",
+      "bytes": 32650,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/graph-view-C-x9gDIA.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/RelationTypeField-B9nfM85T.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/yjs-prose-command-CaVfAwas.js"
+      ],
+      "css": [],
+      "targets": [
+        "story"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/graph-view-C-x9gDIA.js",
+      "bytes": 20550,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useBookElement-DSpZS_nv.js"
+      ],
+      "css": [
+        "assets/graph-view-CA35WYBF.css"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/SegmentedControl-CCuEbWNv.js",
+      "bytes": 493,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/element-graph-BlijyL1D.js",
+      "bytes": 38204,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopSuperElementView.tsx",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/RelationTypeField-B9nfM85T.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/Modal-C1aD85dX.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/yjs-prose-command-CaVfAwas.js"
+      ],
+      "css": [],
+      "targets": [
+        "element"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/RelationTypeField-B9nfM85T.js",
+      "bytes": 30700,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/chapter-prose-BPboWGz4.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/useBookElement-DSpZS_nv.js",
+      "bytes": 33169,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/chapter-prose-BPboWGz4.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/chapter-prose-BPboWGz4.js",
+      "bytes": 200668,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/yjs-prose-command-CaVfAwas.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/memo-material-Csg8BDxt.js",
+      "bytes": 22532,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/LabelMono-XufG0Wq1.js",
+        "assets/useComment-CcIUhVd1.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/Modal-C1aD85dX.js",
+        "assets/loader-circle-CX_duzal.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/LabelMono-XufG0Wq1.js",
+      "bytes": 52743,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/Modal-C1aD85dX.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/loader-circle-CX_duzal.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/useComment-CcIUhVd1.js",
+      "bytes": 8589,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/loader-circle-CX_duzal.js",
+      "bytes": 153,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/comment-DIUyfbvr.js",
+      "bytes": 6035,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/Modal-C1aD85dX.js",
+      "bytes": 1798,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/GhostIconButton-D0jKXEuD.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/GhostIconButton-D0jKXEuD.js",
+      "bytes": 807,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+      "bytes": 37933,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/runtime-_xkvSRG4.js"
+      ],
+      "css": [
+        "assets/DesktopSuperViewHeader-B5ck_PkS.css"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/useRelationTypePresentation-D4mSos4s.js",
+      "bytes": 30260,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/runtime-_xkvSRG4.js",
+      "bytes": 1525,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/confirmation-store-Cq5hvptC.js",
+      "bytes": 691663,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/persistence-lifecycle-CrLlBgQ_.js",
+      "bytes": 1636,
+      "entry": false,
+      "facade": "src/renderer/lib/persistence-lifecycle.ts",
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/active-editor-DC_px_c1.js",
+      "bytes": 413,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/snapshot-history.service-BA6yve4Y.js",
+      "bytes": 6027,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/pdf-runtime-Dsq98h1n.js",
+      "bytes": 489688,
+      "entry": false,
+      "facade": "src/renderer/lib/pdf-runtime.ts",
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/yjs-prose-command-CaVfAwas.js",
+      "bytes": 29363,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/confirmation-store-Cq5hvptC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-DaDtxNnw.js",
+      "bytes": 3685,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/y-prosemirror-DN-wRrM1.js",
+      "bytes": 5072,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D35Zzh6R.js",
+      "bytes": 312532,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/imported-history-BSZeSUFc.js",
+      "bytes": 1566,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/imported-history.ts",
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/comment-DIUyfbvr.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/seed-CH1avCy7.js",
+      "bytes": 3404,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/seed.ts",
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/comment-DIUyfbvr.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/repository-FdZgRI-t.js",
+      "bytes": 23108,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/agent-activity-store-B78QabKN.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/markdown-Cq1qnmPn.js",
+      "bytes": 1414,
+      "entry": false,
+      "facade": "src/renderer/services/import/markdown.ts",
+      "imports": [
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/snapshot-history.service-BA6yve4Y.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-Db_CxIip.js",
+      "bytes": 405465,
+      "entry": false,
+      "facade": "src/renderer/services/import/docx.ts",
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/index-FT2w8O2N.js",
+        "assets/jszip.min-DdNwJInE.js",
+        "assets/tiptap-BXvzS1eE.js",
+        "assets/yjs-prose-command-CaVfAwas.js",
+        "assets/SettingsPrimitives-CFQDKSsp.js",
+        "assets/confirmation-store-Cq5hvptC.js",
+        "assets/persistence-lifecycle-CrLlBgQ_.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/snapshot-history.service-BA6yve4Y.js",
+        "assets/runtime-_xkvSRG4.js",
+        "assets/repository-FdZgRI-t.js",
+        "assets/agent-activity-store-B78QabKN.js",
+        "assets/chapter-prose-BPboWGz4.js",
+        "assets/comment-DIUyfbvr.js",
+        "assets/SegmentedControl-CCuEbWNv.js",
+        "assets/relation-edge-popover-CTbK7MNt.js",
+        "assets/useBookElement-DSpZS_nv.js",
+        "assets/useRelationTypePresentation-D4mSos4s.js",
+        "assets/GhostIconButton-D0jKXEuD.js",
+        "assets/useComment-CcIUhVd1.js",
+        "assets/Modal-C1aD85dX.js",
+        "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+        "assets/RelationTypeField-B9nfM85T.js",
+        "assets/LabelMono-XufG0Wq1.js",
+        "assets/loader-circle-CX_duzal.js",
+        "assets/graph-view-C-x9gDIA.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-BwKXEFhF.js",
+      "bytes": 508,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js",
+        "assets/jszip.min-DdNwJInE.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-DdNwJInE.js",
+      "bytes": 96734,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-DguZUK0D.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    }
+  ],
+  "initial": {
+    "evaluated": [],
+    "parsed": [
+      "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+      "assets/GhostIconButton-D0jKXEuD.js",
+      "assets/LabelMono-XufG0Wq1.js",
+      "assets/Modal-C1aD85dX.js",
+      "assets/RelationTypeField-B9nfM85T.js",
+      "assets/SegmentedControl-CCuEbWNv.js",
+      "assets/SettingsPrimitives-CFQDKSsp.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/agent-activity-store-B78QabKN.js",
+      "assets/chapter-prose-BPboWGz4.js",
+      "assets/comment-DIUyfbvr.js",
+      "assets/confirmation-store-Cq5hvptC.js",
+      "assets/graph-view-C-x9gDIA.js",
+      "assets/index-FT2w8O2N.js",
+      "assets/loader-circle-CX_duzal.js",
+      "assets/persistence-lifecycle-CrLlBgQ_.js",
+      "assets/react-vendor-DguZUK0D.js",
+      "assets/relation-edge-popover-CTbK7MNt.js",
+      "assets/repository-FdZgRI-t.js",
+      "assets/runtime-_xkvSRG4.js",
+      "assets/snapshot-history.service-BA6yve4Y.js",
+      "assets/tiptap-BXvzS1eE.js",
+      "assets/useBookElement-DSpZS_nv.js",
+      "assets/useComment-CcIUhVd1.js",
+      "assets/useRelationTypePresentation-D4mSos4s.js",
+      "assets/yjs-prose-command-CaVfAwas.js"
+    ],
+    "requested": [
+      "",
+      "assets/DesktopSuperViewHeader-B5ck_PkS.css",
+      "assets/DesktopSuperViewHeader-BQ1T5nqt.js",
+      "assets/GhostIconButton-D0jKXEuD.js",
+      "assets/LabelMono-XufG0Wq1.js",
+      "assets/Modal-C1aD85dX.js",
+      "assets/RelationTypeField-B9nfM85T.js",
+      "assets/SegmentedControl-CCuEbWNv.js",
+      "assets/SettingsPrimitives-CFQDKSsp.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/agent-activity-store-B78QabKN.js",
+      "assets/chapter-prose-BPboWGz4.js",
+      "assets/comment-DIUyfbvr.js",
+      "assets/confirmation-store-Cq5hvptC.js",
+      "assets/graph-view-C-x9gDIA.js",
+      "assets/graph-view-CA35WYBF.css",
+      "assets/index-3Rs8WWWx.css",
+      "assets/index-FT2w8O2N.js",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/loader-circle-CX_duzal.js",
+      "assets/persistence-lifecycle-CrLlBgQ_.js",
+      "assets/react-vendor-DguZUK0D.js",
+      "assets/relation-edge-popover-BkWJLGpG.css",
+      "assets/relation-edge-popover-CTbK7MNt.js",
+      "assets/repository-FdZgRI-t.js",
+      "assets/runtime-_xkvSRG4.js",
+      "assets/snapshot-history.service-BA6yve4Y.js",
+      "assets/tiptap-BXvzS1eE.js",
+      "assets/useBookElement-DSpZS_nv.js",
+      "assets/useComment-CcIUhVd1.js",
+      "assets/useRelationTypePresentation-D4mSos4s.js",
+      "assets/yjs-prose-command-CaVfAwas.js"
+    ]
+  },
+  "ui": [
+    {
+      "shell": "desktop",
+      "initiallyDeferred": true,
+      "sharedRetry": true,
+      "storyRetry": true,
+      "elementRetry": true,
+      "switchWhileLoading": true,
+      "lateResultIgnored": true,
+      "focusTransferred": true,
+      "editorPreserved": true,
+      "projectIsolated": true,
+      "cachedReopen": true,
+      "graphRendered": true,
+      "modeChanged": true,
+      "mobileBackAccepted": true,
+      "driftPanelBackAccepted": true,
+      "requests": [
+        {
+          "kind": "shared",
+          "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+        },
+        {
+          "kind": "shared",
+          "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=2"
+        },
+        {
+          "kind": "story",
+          "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+        },
+        {
+          "kind": "story",
+          "url": "/assets/story-graph-BAagkact.js?graph-attempt=2"
+        },
+        {
+          "kind": "element",
+          "url": "/assets/element-graph-B-rP4evb.js?graph-attempt=1"
+        },
+        {
+          "kind": "element",
+          "url": "/assets/element-graph-B-rP4evb.js?graph-attempt=2"
+        }
+      ]
+    },
+    {
+      "shell": "mobile-host",
+      "initiallyDeferred": true,
+      "sharedRetry": true,
+      "storyRetry": true,
+      "elementRetry": true,
+      "switchWhileLoading": true,
+      "lateResultIgnored": true,
+      "focusTransferred": true,
+      "editorPreserved": true,
+      "projectIsolated": true,
+      "cachedReopen": true,
+      "graphRendered": true,
+      "modeChanged": true,
+      "mobileBackAccepted": true,
+      "driftPanelBackAccepted": true,
+      "requests": [
+        {
+          "kind": "shared",
+          "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+        },
+        {
+          "kind": "shared",
+          "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=2"
+        },
+        {
+          "kind": "story",
+          "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+        },
+        {
+          "kind": "story",
+          "url": "/assets/story-graph-BAagkact.js?graph-attempt=2"
+        },
+        {
+          "kind": "element",
+          "url": "/assets/element-graph-B-rP4evb.js?graph-attempt=1"
+        },
+        {
+          "kind": "element",
+          "url": "/assets/element-graph-B-rP4evb.js?graph-attempt=2"
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "name": "renderer ownership boundaries keeps super view bodies and shared graph UI behind their owned deferred entries",
+      "status": "passed",
+      "durationMs": 658.7944580000001
+    },
+    {
+      "name": "renderer ownership boundaries keeps settings code behind its deferred entry while Trash stays independently reachable",
+      "status": "passed",
+      "durationMs": 525.4237919999998
+    },
+    {
+      "name": "renderer ownership boundaries requires explicit workspace fields or selectors in product consumers",
+      "status": "passed",
+      "durationMs": 260.0472500000001
+    },
+    {
+      "name": "renderer ownership boundaries keeps shared features independent from the desktop shell and desktop navigation store",
+      "status": "passed",
+      "durationMs": 6.026583999999957
+    },
+    {
+      "name": "renderer ownership boundaries keeps mobile shell code independent from desktop shell and desktop navigation state",
+      "status": "passed",
+      "durationMs": 3.748833999999988
+    },
+    {
+      "name": "renderer ownership boundaries keeps the app entry small and delegates project UI to DesktopAppShell",
+      "status": "passed",
+      "durationMs": 0.6673330000000988
+    },
+    {
+      "name": "renderer ownership boundaries contains child-route subscriptions inside the desktop navigation boundary",
+      "status": "passed",
+      "durationMs": 0.37320800000020427
+    },
+    {
+      "name": "renderer ownership boundaries keeps compatibility barrels thin after feature extraction",
+      "status": "passed",
+      "durationMs": 0.8514579999998659
+    },
+    {
+      "name": "Super View Escape stack returns the most recently opened active layer",
+      "status": "passed",
+      "durationMs": 1.783125000000041
+    },
+    {
+      "name": "Super View Escape stack ignores a newer layer after it becomes inactive",
+      "status": "passed",
+      "durationMs": 0.269834000000003
+    },
+    {
+      "name": "Super View Escape stack returns null at the Super View root",
+      "status": "passed",
+      "durationMs": 0.257000000000005
+    },
+    {
+      "name": "Super View Escape stack dispatches exactly one child action and does not exit the root",
+      "status": "passed",
+      "durationMs": 0.7447500000000105
+    },
+    {
+      "name": "Super View Escape stack returns to the previous editor surface from the root",
+      "status": "passed",
+      "durationMs": 0.2204590000000053
+    },
+    {
+      "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
+      "status": "passed",
+      "durationMs": 1.957374999999999
+    },
+    {
+      "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
+      "status": "passed",
+      "durationMs": 0.26850000000000307
+    },
+    {
+      "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
+      "status": "passed",
+      "durationMs": 0.1892919999999947
+    },
+    {
+      "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
+      "status": "passed",
+      "durationMs": 0.22512500000000557
+    },
+    {
+      "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
+      "status": "passed",
+      "durationMs": 0.19375000000000853
+    },
+    {
+      "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
+      "status": "passed",
+      "durationMs": 0.0795840000000112
+    },
+    {
+      "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
+      "status": "passed",
+      "durationMs": 0.15937500000001137
+    },
+    {
+      "name": "bounded deferred preloading waits for intent scheduling, keeps only the latest queued entry and cancels before start",
+      "status": "passed",
+      "durationMs": 1.5522499999999866
+    },
+    {
+      "name": "bounded deferred preloading allows one active speculative load and one queued successor, without blocking foreground demand",
+      "status": "passed",
+      "durationMs": 0.2575420000000008
+    },
+    {
+      "name": "bounded deferred preloading starts the queued preload only after the active import settles",
+      "status": "passed",
+      "durationMs": 0.1734170000000006
+    },
+    {
+      "name": "bounded deferred preloading lets a canceled control release its queued successor without canceling another owner",
+      "status": "passed",
+      "durationMs": 0.10220800000001873
+    },
+    {
+      "name": "bounded deferred preloading attempts each resource speculatively once, leaves failed demand alone and permits explicit retry",
+      "status": "passed",
+      "durationMs": 0.7966250000000059
+    },
+    {
+      "name": "bounded deferred preloading rechecks eligibility after waiting, including a queued task behind an active import",
+      "status": "passed",
+      "durationMs": 0.45541699999998286
+    },
+    {
+      "name": "chapter lane pointer lifecycle arms before movement and commits one valid drop exactly once",
+      "status": "passed",
+      "durationMs": 8.156000000000006
+    },
+    {
+      "name": "chapter lane pointer lifecycle performs zero writes for early pan, invalid target, cancel, pinch, and explicit cancel",
+      "status": "passed",
+      "durationMs": 1.1500000000000057
+    },
+    {
+      "name": "chapter lane pointer lifecycle opens the shared menu after a stationary hold without starting or writing",
+      "status": "passed",
+      "durationMs": 0.4058330000000012
+    },
+    {
+      "name": "chapter lane drag preserves the exact grabbed point for narrow holding chips and full cards",
+      "status": "passed",
+      "durationMs": 0.880500000000012
+    },
+    {
+      "name": "chapter lane drag accepts every real and synthetic lane for both placed and unplaced chapters",
+      "status": "passed",
+      "durationMs": 0.16541699999999082
+    },
+    {
+      "name": "chapter lane drag delegates membership and order to one atomic move command",
+      "status": "passed",
+      "durationMs": 1.1760830000000055
+    },
+    {
+      "name": "chapter lane drag persists a continuous book-axis coordinate without slot conversion",
+      "status": "passed",
+      "durationMs": 0.1756249999999966
+    },
+    {
+      "name": "chapter lane drag clears primary and memberships before placing into the unaffiliated lane",
+      "status": "passed",
+      "durationMs": 0.15587500000000887
+    },
+    {
+      "name": "chapter lane drag commits one valid pointer drop exactly once and ignores invalid completion",
+      "status": "passed",
+      "durationMs": 0.18087499999998613
+    },
+    {
+      "name": "graph endpoint measurement measures unique DOM identities once, including aliases and self edges",
+      "status": "passed",
+      "durationMs": 3.5152920000000165
+    },
+    {
+      "name": "graph endpoint measurement does not retain measurements across frames or measure a dangling edge",
+      "status": "passed",
+      "durationMs": 0.8707090000000051
+    },
+    {
+      "name": "graph endpoint measurement skips equal output but invalidates geometry, styles, identity, order and removal",
+      "status": "passed",
+      "durationMs": 0.45583299999998417
+    },
+    {
+      "name": "graph endpoint measurement projects drift to element links in either direction before resolving visible DOM",
+      "status": "passed",
+      "durationMs": 0.38195799999999736
+    },
+    {
+      "name": "graph geometry frame scheduler coalesces event bursts with animation frames and stops at the finite deadline",
+      "status": "passed",
+      "durationMs": 1.289041999999995
+    },
+    {
+      "name": "graph geometry frame scheduler measures once after a suspended animation frame resumes beyond the deadline",
+      "status": "passed",
+      "durationMs": 0.13945799999999053
+    },
+    {
+      "name": "graph geometry frame scheduler cancels scheduled work and rejects later invalidations after disposal",
+      "status": "passed",
+      "durationMs": 0.19191599999999198
+    },
+    {
+      "name": "mobile Planning gesture ownership separates tap, arm, drag, menu, early pan, pinch, and cancellation",
+      "status": "passed",
+      "durationMs": 1.0077089999999913
+    },
+    {
+      "name": "mobile Planning gesture ownership gives background movement to pan and a second pointer to pinch",
+      "status": "passed",
+      "durationMs": 0.11437499999999545
+    },
+    {
+      "name": "mobile Planning gesture ownership autoscrolls proportionally, stops centrally, and clamps at both ends",
+      "status": "passed",
+      "durationMs": 0.17087499999999523
+    },
+    {
+      "name": "Story Graph drift presentation lifetime keeps published snapshots stable and shifts only the crossed slots",
+      "status": "passed",
+      "durationMs": 2.5333750000000066
+    },
+    {
+      "name": "Story Graph drift presentation lifetime clears immediately on close/cancel, ignores late hover and permits a new lifetime",
+      "status": "passed",
+      "durationMs": 0.27470800000000395
+    },
+    {
+      "name": "Story Graph drift presentation lifetime notifies exactly the changed slots across forward, reverse, source replacement and cancellation",
+      "status": "passed",
+      "durationMs": 22.154875000000004
+    },
+    {
+      "name": "Story Graph drift presentation lifetime keeps adjacent hover notifications local in 5000 cards and bounds far targets to subscribed slots",
+      "status": "passed",
+      "durationMs": 6.2183749999999804
+    },
+    {
+      "name": "Story Graph drift read model classifies either drift endpoint, keeps direction/order and excludes hidden/ordinary edges",
+      "status": "passed",
+      "durationMs": 1.1225000000000023
+    },
+    {
+      "name": "Story Graph drift read model preserves override, source-storyline, target-storyline and accent precedence",
+      "status": "passed",
+      "durationMs": 0.2111670000000032
+    },
+    {
+      "name": "Super Element world edge projection preserves order, labels, colors, direction and target insets in either orientation",
+      "status": "passed",
+      "durationMs": 1.7226249999999936
+    },
+    {
+      "name": "Super Element world edge projection excludes hidden, unsupported, missing-position and either-endpoint drift relations",
+      "status": "passed",
+      "durationMs": 0.22649999999998727
+    },
+    {
+      "name": "Super Element world edge projection rebuilds labels for replacement snapshots and retains first-match and fallback labels",
+      "status": "passed",
+      "durationMs": 0.23295799999999645
+    },
+    {
+      "name": "Super Element viewport edge projection invalidates labels and endpoint metadata even if all positions are unchanged",
+      "status": "passed",
+      "durationMs": 0.2456250000000182
+    },
+    {
+      "name": "Super Element viewport edge projection aligns top-sticky nodes without double-counting the band world offset",
+      "status": "passed",
+      "durationMs": 0.19983299999995552
+    },
+    {
+      "name": "Super Element viewport edge projection aligns the bottom-sticky and naturally visible band in both endpoint directions",
+      "status": "passed",
+      "durationMs": 0.12566600000002381
+    },
+    {
+      "name": "Super Element viewport edge projection keeps non-sticky node endpoints at the natural position when only focus is enabled",
+      "status": "passed",
+      "durationMs": 0.11166599999995697
+    },
+    {
+      "name": "Super Element viewport edge projection filters element cards outside the viewport or behind the sticky band, retaining touching boundaries",
+      "status": "passed",
+      "durationMs": 0.5555840000000103
+    },
+    {
+      "name": "Super Element viewport edge projection matches the band transform for a band taller than the viewport and fractional zoom",
+      "status": "passed",
+      "durationMs": 0.14945799999998144
+    },
+    {
+      "name": "Super View canvas pinch keeps the authored world point under a moving midpoint",
+      "status": "passed",
+      "durationMs": 0.9266669999999806
+    },
+    {
+      "name": "Super View canvas pinch clamps scale without losing midpoint anchoring",
+      "status": "passed",
+      "durationMs": 0.13141600000000153
+    },
+    {
+      "name": "super-view relation menu model only treats relations whose two endpoints can render on Element as canvas instances",
+      "status": "passed",
+      "durationMs": 0.9244160000000079
+    },
+    {
+      "name": "super-view relation menu model orders used Element types before available types and folds off-canvas types",
+      "status": "passed",
+      "durationMs": 0.6637920000000008
+    },
+    {
+      "name": "super-view relation menu model uses node-to-node as the renderable Story Graph contract",
+      "status": "passed",
+      "durationMs": 0.13112500000001148
+    },
+    {
+      "name": "timeline preview publication publishes only the latest marker and act coordinates once per frame, without mutating an earlier snapshot",
+      "status": "passed",
+      "durationMs": 2.052500000000009
+    },
+    {
+      "name": "timeline preview publication clears immediately before a display frame and does not resurrect a cancelled drag",
+      "status": "passed",
+      "durationMs": 0.2093330000000151
+    },
+    {
+      "name": "timeline preview publication retains another active marker, releases after the last subscriber, and allows StrictMode resubscription",
+      "status": "passed",
+      "durationMs": 0.22845799999998917
+    },
+    {
+      "name": "timeline preview publication keeps independently mounted timelines isolated",
+      "status": "passed",
+      "durationMs": 0.1027080000000069
+    }
+  ],
+  "devGraphs": "passed",
+  "preloading": {
+    "scenarios": [
+      {
+        "id": "idle-and-abandoned-intent",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "idleDoesNotLoad": true,
+          "hoverFocusAndTouchCancel": true,
+          "syntheticVisibilityCancels": true,
+          "noFeatureMount": true
+        },
+        "requests": []
+      },
+      {
+        "id": "warm-first-open",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "editedDuringPreload": true,
+          "noFeatureMountBeforeClick": true,
+          "onlySelectedCode": true,
+          "firstOpenWithoutFallback": true
+        },
+        "clickToObservedGraphMs": 14,
+        "requests": [
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+          },
+          {
+            "kind": "story",
+            "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+          }
+        ]
+      },
+      {
+        "id": "failed-preload-first-demand",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "invisibleFailure": true,
+          "firstDemandNeedsNoRetryClick": true,
+          "freshFetchKey": true,
+          "bodyFetchedOnce": true
+        },
+        "requests": [
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+          },
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=2"
+          },
+          {
+            "kind": "story",
+            "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+          }
+        ]
+      },
+      {
+        "id": "queued-intent-cancellation",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "queueWaited": true,
+          "canceledBeforeStart": true,
+          "lateImportDidNotNavigate": true
+        },
+        "requests": [
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+          },
+          {
+            "kind": "story",
+            "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+          }
+        ]
+      },
+      {
+        "id": "foreground-bypasses-preload",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "demandBypassedOtherPreload": true,
+          "settingsLoadedOnce": true,
+          "lateGraphDidNotMount": true
+        },
+        "requests": [
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+          },
+          {
+            "kind": "settings",
+            "url": "/assets/settings-panels-CL5r_4GQ.js?settings-attempt=1"
+          },
+          {
+            "kind": "story",
+            "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+          }
+        ]
+      },
+      {
+        "id": "save-data-skips-speculation",
+        "status": "passed",
+        "editorPreserved": true,
+        "checks": {
+          "noSpeculation": true,
+          "demandStillWorks": true
+        },
+        "requests": [
+          {
+            "kind": "shared",
+            "url": "/assets/graph-ui-CwQO05z3.js?graph-attempt=1"
+          },
+          {
+            "kind": "story",
+            "url": "/assets/story-graph-BAagkact.js?graph-attempt=1"
+          }
+        ]
+      }
+    ],
+    "native": "not-run",
+    "firstUseBudget": "not-run",
+    "limitations": [
+      "Synthetic Tiptap/Yjs, actual workspace entry and mobile settings controls. No ChapterEditor or ProjectRuntimeProvider.",
+      "Hover/focus/touch cancellation uses browser input; visibility and connection policy inputs are synthetic. No physical touch or native lifecycle acceptance.",
+      "Observed click time includes automation observation latency and is diagnostic only. No F0 p95 or full-app startup budget is inferred."
+    ]
+  },
+  "acceptance": {
+    "productionModuleLoading": "passed",
+    "mountedGraphs": "passed",
+    "native": "not-run",
+    "fullAppPerformance": "not-run"
+  },
+  "limitations": [
+    "The main-entry measurement builds actual production main.tsx/config with three module evaluation counters. No native bridge or author database is available; app readiness and native startup latency are not measured.",
+    "Mounted acceptance uses actual graph bodies, wrappers, stores, shared relation provider, mobile host, and a synthetic workspace navigation provider. The draft is a real Tiptap/Yjs instance but is not the production ChapterEditor or ProjectRuntimeProvider.",
+    "Actual network requests for shared graph UI, story graph and element graph are each failed and retried with fresh query keys. Every emitted entry static dependency must be in the initial HTML closure. No native offline/upgrade consistency or module-evaluation failure recovery is claimed.",
+    "The mobile host runs at a 390x844 browser viewport without native platform metadata. Typed Back events and host focus are tested; native gesture modes, Android hardware Back, physical IME and full project lifecycle remain untested.",
+    "Graph display/mode switching and synthetic project isolation are verified. Native SQLite mutations, all graph editing/popover actions and p95 performance budgets are not part of this report."
+  ]
+}

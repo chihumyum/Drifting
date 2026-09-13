@@ -164,10 +164,11 @@ try {
         return { code, map: null };
       },
     }, react(), ...[
+      ['virtual:memo-material', 'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx', 'memo-material', 'loadMemoMaterial', 'view-attempt'],
       ['virtual:graph-ui', 'src/renderer/features/graph/graph-ui-components.ts', 'graph-ui', 'loadGraphUi'],
       ['virtual:story-graph', 'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx', 'story-graph', 'loadStoryGraph'],
       ['virtual:element-graph', 'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx', 'element-graph', 'loadElementGraph'],
-    ].map(([id, entry, name, exportName]) => deferredEntryPlugin({ id, entry, name, exportName, attemptParam: 'graph-attempt' }))],
+    ].map(([id, entry, name, exportName, attemptParam = 'graph-attempt']) => deferredEntryPlugin({ id, entry, name, exportName, attemptParam }))],
     resolve: { alias: { '@': path.join(root, 'src') } },
     build: { outDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-performance.html') } },
   });

@@ -1,6 +1,7 @@
 import { loadStoryGraph } from 'virtual:story-graph';
 import { loadElementGraph } from 'virtual:element-graph';
 import { loadGraphUi } from 'virtual:graph-ui';
+import { loadMemoMaterial } from 'virtual:memo-material';
 import { useDeferredModuleIntent } from '../../hooks/useDeferredModuleIntent';
 import { createDeferredModule } from '../../lib/deferred-module';
 
@@ -16,6 +17,10 @@ export const superViewModules = {
   element: createDeferredModule(async () => ({ graphUi: await graphUi(), View: (await loadElementGraph()).DesktopSuperElementView })),
 };
 
-export function useGraphPreloadIntent(view: string | null) {
-  return useDeferredModuleIntent(view === 'graph' || view === 'element' ? superViewModules[view] : undefined);
+// The library workbench shares navigation, but needs no graph UI or canvas.
+export const memoMaterialModule = createDeferredModule(async () => (await loadMemoMaterial()).DesktopSuperMemoMaterialView);
+
+export function useSuperViewPreloadIntent(view: string | null) {
+  return useDeferredModuleIntent(view === 'memo-material' ? memoMaterialModule
+    : view === 'graph' || view === 'element' ? superViewModules[view] : undefined);
 }

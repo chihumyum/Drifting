@@ -26,6 +26,7 @@ import { runMobileAgentPanelScenarios } from '../src/renderer/performance/mobile
 
 declare const __DRIFTING_NATIVE_ACCEPTANCE__: {
   endpoint: string; token: string;
+  memoLoading: boolean;
   editorSessions: boolean;
   typewriter: boolean;
   outline: boolean;
@@ -730,6 +731,23 @@ async function run() {
     }
     await progress('graph-and-settings');
     const lifecycleBefore = JSON.stringify(lifecycle);
+    if (config.memoLoading) {
+      const evaluations = () => (globalThis as typeof globalThis & { __DRIFTING_NATIVE_MEMO_EVALUATIONS__?: number }).__DRIFTING_NATIVE_MEMO_EVALUATIONS__ ?? 0;
+      ensure(evaluations() === 0, 'Native memo workbench was eagerly evaluated');
+      checks.memoInitiallyDeferred = true;
+      useUiStore.getState().setActiveSuperView('memo-material');
+      await waitFor(() => document.querySelector('.super-mm-overlay .smm-library-toolbar'), 'actual deferred native memo workbench');
+      ensure(evaluations() === 1 && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Native memo load replaced Yjs or re-evaluated code');
+      checks.memoColdOpen = true;
+      document.querySelector<HTMLButtonElement>('.super-mm-overlay .super-view-head__back')!.click();
+      await waitFor(() => !document.querySelector('.super-mm-overlay'), 'native memo close');
+      useUiStore.getState().setActiveSuperView('memo-material');
+      await waitFor(() => document.querySelector('.super-mm-overlay'), 'native cached memo reopen');
+      ensure(evaluations() === 1 && JSON.stringify(lifecycle) === lifecycleBefore, 'Native cached memo reopened the runtime or code');
+      checks.memoCachedReopen = true;
+      document.querySelector<HTMLButtonElement>('.super-mm-overlay .super-view-head__back')!.click();
+      await waitFor(() => !document.querySelector('.super-mm-overlay'), 'native cached memo close');
+    }
     useUiStore.getState().setActiveSuperView('graph');
     await waitFor(() => document.querySelector('.graph-overlay'), 'actual lazy story graph');
     if (config.graph) {

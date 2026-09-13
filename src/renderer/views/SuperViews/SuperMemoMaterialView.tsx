@@ -1,1 +1,1 @@
-export { DesktopSuperMemoMaterialView as SuperMemoMaterialView } from '../../shells/desktop/views/DesktopSuperMemoMaterialView';
+export { DeferredMemoMaterialView as SuperMemoMaterialView } from '../../shells/desktop/views/DeferredSuperViews';

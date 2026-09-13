@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { useDriftPanelAnim } from '../../../hooks/useDriftPanelAnim';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
-import { superViewModules } from '../../../features/graph/deferred-graph-modules';
+import { memoMaterialModule, superViewModules } from '../../../features/graph/deferred-graph-modules';
+import type { createDeferredModule } from '../../../lib/deferred-module';
 // These shells/styles are immediate, including while feature code is loading.
 import '../../../../styles/graph-view.css';
 import '../../../../styles/drift-panel.css';
@@ -27,9 +28,10 @@ function PendingSuperView({ failed, retry }: { failed: boolean; retry: () => voi
   );
 }
 
-function DeferredSuperView({ view }: { view: keyof typeof superViewModules }) {
-  const resource = superViewModules[view];
-  const driftPanel = useDriftPanelAnim();
+function DeferredSuperView<T>({ resource, render }: {
+  resource: ReturnType<typeof createDeferredModule<T>>;
+  render: (value: T) => ReactNode;
+}) {
   const state = useSyncExternalStore(resource.subscribe, resource.getSnapshot);
   const hostRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef(false);
@@ -53,11 +55,20 @@ function DeferredSuperView({ view }: { view: keyof typeof superViewModules }) {
         }
       }}
     >
-      {ready ? <ready.View graphUi={ready.graphUi} driftPanel={driftPanel} />
+      {ready ? render(ready)
         : <PendingSuperView failed={state.status === 'error'} retry={resource.load} />}
     </div>
   );
 }
 
-export function DeferredStoryGraphView() { return <DeferredSuperView view="graph" />; }
-export function DeferredElementGraphView() { return <DeferredSuperView view="element" />; }
+function DeferredGraphView({ view }: { view: keyof typeof superViewModules }) {
+  const driftPanel = useDriftPanelAnim();
+  return <DeferredSuperView resource={superViewModules[view]}
+    render={({ View, graphUi }) => <View graphUi={graphUi} driftPanel={driftPanel} />} />;
+}
+
+export function DeferredStoryGraphView() { return <DeferredGraphView view="graph" />; }
+export function DeferredElementGraphView() { return <DeferredGraphView view="element" />; }
+export function DeferredMemoMaterialView() {
+  return <DeferredSuperView resource={memoMaterialModule} render={(View) => <View />} />;
+}

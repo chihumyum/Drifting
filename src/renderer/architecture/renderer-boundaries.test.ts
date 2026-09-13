@@ -24,10 +24,11 @@ function sourceFiles(relativeDirectory: string): string[] {
 }
 
 describe('renderer ownership boundaries', () => {
-  it('keeps graph bodies and shared graph UI behind their owned deferred entries', () => {
+  it('keeps super view bodies and shared graph UI behind their owned deferred entries', () => {
     const deferred = [
       'shells/desktop/views/DesktopStoryGraphView',
       'shells/desktop/views/DesktopSuperElementView',
+      'shells/desktop/views/DesktopSuperMemoMaterialView',
       'features/graph/graph-ui-components',
     ].map((relative) => path.join(rendererRoot, relative));
     for (const file of sourceFiles('')) {

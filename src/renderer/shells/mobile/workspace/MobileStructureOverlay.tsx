@@ -1,4 +1,4 @@
-import { useGraphPreloadIntent } from '../../../features/graph/deferred-graph-modules';
+import { useSuperViewPreloadIntent } from '../../../features/graph/deferred-graph-modules';
 import { GitBranch, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,8 +30,8 @@ export function MobileStructureOverlay({
   onOpenSuperView: (view: MobileSuperViewId) => void;
 }) {
   const { t } = useTranslation();
-  const graphIntent = useGraphPreloadIntent(tab === 'chapters' ? 'graph' : null);
-  const elementIntent = useGraphPreloadIntent(tab === 'elements' ? 'element' : null);
+  const graphIntent = useSuperViewPreloadIntent(tab === 'chapters' ? 'graph' : null);
+  const elementIntent = useSuperViewPreloadIntent(tab === 'elements' ? 'element' : null);
   const titles: Record<MobileTabBarTab, [string, string]> = {
     chapters: ['§', t('leftSidebar.tabs.chapters')],
     elements: ['◆', t('leftSidebar.tabs.elements')],

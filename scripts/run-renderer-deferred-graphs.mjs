@@ -225,7 +225,7 @@ try {
       await client.close(); clients.delete(client);
     }
     await stopServer();
-    development = await createServer({ root, configFile: path.join(root, 'vite.renderer.config.ts'), envDir: false, logLevel: 'warn', server: { host: '127.0.0.1', port: 0, open: false } });
+    development = await createServer({ root, configFile: path.join(root, 'vite.renderer.config.ts'), envDir: false, logLevel: 'warn', optimizeDeps: { entries: ['scripts/renderer-graphs-ui.html'] }, server: { host: '127.0.0.1', port: 0, open: false } });
     await development.listen();
     const devPage = await page();
     await devPage.navigate(`${development.resolvedUrls.local[0]}scripts/renderer-graphs-ui.html`);
