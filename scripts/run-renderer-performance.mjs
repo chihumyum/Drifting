@@ -38,6 +38,18 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/lib/extensions/entity-link.ts')) {
+          const anchors = [
+            ['function computeDanglingDecorations(doc: PMNode): DecorationSet {', 'entityLinkPresentationWork.danglingScans++;'],
+            ['  doc.descendants((node, pos) => {', 'entityLinkPresentationWork.textNodes += node.isText ? 1 : 0;'],
+            ['  const links = root.querySelectorAll<HTMLElement>(', 'entityLinkPresentationWork.colorScans++;'],
+          ];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Entity link presentation instrumentation drifted: ${anchor}`);
+            code = anchor.startsWith('  const links') ? code.replace(anchor, counter + '\n' + anchor) : code.replace(anchor, anchor + ' ' + counter);
+          }
+          return { code: `import { entityLinkPresentationWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/lib/retroactive-entity-links.ts')) {
           const anchors = [
             ['  const names = Array.from(new Set(target.names.map((n) => n.trim()).filter(Boolean)));', 'calls'],

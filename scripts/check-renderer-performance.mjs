@@ -58,7 +58,7 @@ if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
-    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'retroactiveEntityLinks', 'retroactiveLinkMatching', 'agentEventProcessing',
+    'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'entityLinkPresentation', 'retroactiveEntityLinks', 'retroactiveLinkMatching', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
@@ -142,6 +142,28 @@ if (report.entityTargetState) {
   assert.equal(scenario.mountedEditors, 2); assert.equal(scenario.hiddenEditors, 1);
   assert.equal(scenario.checks.length, 25);
   assert.equal(new Set(scenario.checks.map(check => check.id)).size, 25);
+  for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
+  assert(scenario.limitations.length > 0);
+}
+if (report.entityLinkPresentation) {
+  const scenario = report.entityLinkPresentation;
+  assert.equal(scenario.implementation, 'shared-inputs-visible-link-presentation');
+  assert.deepEqual(scenario.profiles.map(row => row.editors), [1, 5, 20]);
+  const counts = (scans, colors = scans) => ({ danglingScans: scans, textNodes: scans * 100, colorScans: colors });
+  for (const row of scenario.profiles) {
+    assert.equal(row.paragraphs, 100); assert.equal(row.updates, 100);
+    assert.deepEqual(row.baseline.rename, counts(row.editors * 100));
+    assert.deepEqual(row.baseline.colors, { ...counts(row.editors * 100), versions: row.editors * 100 });
+    assert.deepEqual(row.baseline.laterTransaction, counts(0, row.editors - 1));
+    assert.deepEqual(row.baseline.interaction, counts(row.editors * 100));
+    assert.deepEqual(row.baseline.deletion, counts(row.editors));
+    assert.deepEqual(row.current.rename, counts(0));
+    assert.deepEqual(row.current.colors, { ...counts(0, 100), versions: 100 });
+    assert.deepEqual(row.current.laterTransaction, counts(0)); assert.deepEqual(row.current.interaction, counts(0));
+    assert.deepEqual(row.current.deletion, counts(1));
+  }
+  assert.equal(scenario.lifecycleCycles, 100);
+  assert.equal(scenario.checks.length, 40); assert.equal(new Set(scenario.checks.map(check => check.id)).size, 40);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
   assert(scenario.limitations.length > 0);
 }

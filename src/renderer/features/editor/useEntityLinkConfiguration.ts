@@ -1,58 +1,49 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
-import { useDataStore } from '../../store/data-store';
-import { resolveEntityLinkTargetState } from '../../lib/entity-link-target-state';
-import { useSettingsStore } from '../../store/settings-store';
-import { buildEntityLinkColorSignature, resolveEntityLinkTargetColor } from '../../lib/entity-link-appearance';
-import { configureEntityLinkAutoDetect, entityLinkConfig, EntityLinkDanglingPluginKey, type EntityLinkAutoDetectConfig } from '../../lib/extensions/entity-link';
+import loglevel from 'loglevel';
+import { configureEntityLinkAutoDetect, refreshEntityLinkPresentation, setEntityLinkPresentationNeeded, type EntityLinkAutoDetectConfig } from '../../lib/extensions/entity-link';
+import { entityLinkPresentationRegistry } from './entity-link-presentation-registry';
 
-/** Per-view auto-detection and shared appearance are separate configuration domains. */
-export function useEntityLinkConfiguration(editor: Editor | null, { autoDetectTargets, autoDetectEnabled }: EntityLinkAutoDetectConfig): void {
-  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
-  const entityLinkColorMode = useSettingsStore((state) => state.entityLinkColorMode);
-  const entityLinkKindColors = useSettingsStore((state) => state.entityLinkKindColors);
-  const trashedEntityIds = useDataStore((state) => state.trashedEntityIds);
-  const entityLinkColorSignature = useDataStore((state) =>
-    buildEntityLinkColorSignature(state, entityLinkColorMode, entityLinkKindColors),
-  );
+/** Auto-detection belongs to the view; shared display inputs have one subscriber. */
+export function useEntityLinkConfiguration(editor: Editor | null, { autoDetectTargets, autoDetectEnabled }: EntityLinkAutoDetectConfig,
+  { canonicalReady = true, presentationNeeded = true } = {}): boolean {
+  const owner = useMemo(() => ({ editor, canonicalReady }), [editor, canonicalReady]);
+  const needed = useRef(presentationNeeded);
+  const prepare = useRef<((needed: boolean) => void) | null>(null);
+  const [readiness, setReadiness] = useState<{ owner: typeof owner; needed: boolean; ready: boolean } | null>(null);
   useLayoutEffect(() => {
-    if (editor) configureEntityLinkAutoDetect(editor, { autoDetectTargets, autoDetectEnabled });
+    if (editor && !editor.isDestroyed) configureEntityLinkAutoDetect(editor, { autoDetectTargets, autoDetectEnabled });
   }, [editor, autoDetectTargets, autoDetectEnabled]);
-
-  useEffect(() => {
-    entityLinkConfig.interactionEnabled = entityLinkInteractive;
-    // Read the store live at resolve/click time so a link whose target was just
-    // deleted (its mark still embedded in this doc's content) is treated as
-    // non-alive: dimmed if the target sits in the trash (recoverable), stripped
-    // if it's gone for good — and never opens a phantom "untitled" editor.
-    entityLinkConfig.resolveTargetState = (kind, id) =>
-      resolveEntityLinkTargetState(useDataStore.getState(), kind, id);
-    entityLinkConfig.resolveTargetColor = (kind, id) => {
-      const state = useDataStore.getState();
-      return resolveEntityLinkTargetColor(
-        kind,
-        id,
-        state,
-        entityLinkColorMode,
-        entityLinkKindColors,
-      );
+  useLayoutEffect(() => { needed.current = presentationNeeded; }, [presentationNeeded]);
+  useLayoutEffect(() => {
+    const { editor, canonicalReady } = owner;
+    if (!editor || editor.isDestroyed || !canonicalReady) return;
+    let disposed = false;
+    const refresh = (targetsChanged: boolean) => {
+      if (disposed || editor.isDestroyed) return;
+      try {
+        refreshEntityLinkPresentation(editor, targetsChanged);
+        setReadiness(current => current?.owner === owner && current.needed === needed.current && current.ready
+          ? current : { owner, needed: needed.current, ready: true });
+      } catch (error) {
+        setReadiness({ owner, needed: needed.current, ready: false });
+        loglevel.getLogger('EntityLinkPresentation').warn('Failed to refresh entity link display:', error);
+      }
     };
-    entityLinkConfig.targetColorVersion += 1;
-    // The known-entity / trashed set just changed (e.g. an element was deleted,
-    // trashed, or restored while this doc is open). Nudge the dangling-link
-    // plugin to re-walk so links re-style immediately. A meta-only transaction
-    // adds no steps and never enters history.
-    if (editor && !editor.isDestroyed) {
-      editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
-    }
-  }, [
-    autoDetectTargets,
-    entityLinkColorSignature,
-    entityLinkColorMode,
-    entityLinkKindColors,
-    entityLinkInteractive,
-    trashedEntityIds,
-    editor,
-  ]);
-
+    const setNeeded = (value: boolean) => {
+      if (disposed || editor.isDestroyed) return;
+      setEntityLinkPresentationNeeded(editor, value); refresh(false);
+    };
+    setEntityLinkPresentationNeeded(editor, needed.current);
+    const off = entityLinkPresentationRegistry.attach(change => refresh(change.targetsChanged));
+    prepare.current = setNeeded;
+    return () => {
+      disposed = true; off(); prepare.current = null;
+      if (!editor.isDestroyed) setEntityLinkPresentationNeeded(editor, false);
+    };
+  }, [owner]);
+  useLayoutEffect(() => { prepare.current?.(presentationNeeded); }, [presentationNeeded]);
+  // An incoming render must wait for layout preparation, including hidden Yjs
+  // updates. Neither a previously ready hidden snapshot nor another editor fits.
+  return canonicalReady && (!presentationNeeded || Boolean(readiness?.owner === owner && readiness.needed && readiness.ready));
 }

@@ -1,0 +1,5065 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_performance_run",
+  "generatedAt": "2026-09-13T18:01:31.469Z",
+  "status": "measured",
+  "source": {
+    "commit": "248ca3cb55e998681f186647c7559c7747f6c5ee",
+    "rendererFingerprint": "c82c7671509b0936cfc7a11451f2d972a91a644696ed34ff985a44f30b5a5ea0",
+    "fingerprintVersion": 2,
+    "dirty": true,
+    "build": "vite-production-isolated-harness"
+  },
+  "scenarios": [
+    {
+      "id": "editor-5000-0",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 5000,
+        "links": 0,
+        "entities": 100,
+        "hash": "c4783eae75173dd42984ef6330c269298fe68962d893706afd65e8512e6398a5"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.20000004768371582,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.2999999523162842,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582
+        ],
+        "median": 0.20000004768371582,
+        "p95": 0.2999999523162842
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          2.399999976158142,
+          16.899999976158142,
+          16.600000023841858,
+          16.600000023841858,
+          16.59999990463257,
+          16.700000047683716,
+          16.600000023841858,
+          16.600000023841858,
+          16.100000023841858,
+          16.699999928474426,
+          17.100000023841858,
+          16.700000047683716,
+          16.699999928474426,
+          16.600000023841858,
+          16.600000023841858,
+          16.699999928474426,
+          16.799999952316284,
+          16.700000047683716,
+          16.699999928474426,
+          16.699999928474426,
+          16.700000047683716,
+          16.600000023841858,
+          16.699999928474426,
+          16.200000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.600000023841858,
+          16.59999990463257,
+          16.600000023841858,
+          16.600000023841858,
+          16.699999928474426,
+          16.09999990463257,
+          16.700000047683716,
+          16.600000023841858,
+          16.600000023841858,
+          16.600000023841858,
+          16.699999928474426,
+          16.799999952316284,
+          16.300000071525574,
+          16.699999928474426,
+          16.699999928474426,
+          16.700000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.700000047683716,
+          16.799999952316284,
+          16.700000047683716,
+          16.700000047683716,
+          16.699999928474426,
+          16.699999928474426,
+          16.600000023841858,
+          16.600000023841858,
+          16.700000047683716,
+          16.200000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          17,
+          16.899999976158142,
+          16.699999928474426,
+          16.399999976158142
+        ],
+        "median": 16.699999928474426,
+        "p95": 16.899999976158142
+      },
+      "finalCharacters": 5170,
+      "finalLinks": 0
+    },
+    {
+      "id": "editor-20000-100",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 20000,
+        "links": 100,
+        "entities": 1000,
+        "hash": "cff3bdfe95ecb86ba1dd3528cb8a3dee5ccb08e45fa0582a4a71e03e7ef13067"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.10000002384185791,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.3999999761581421,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.8999999761581421,
+          0.20000004768371582,
+          0.30000007152557373,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.30000007152557373,
+          0.19999992847442627,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.30000007152557373
+        ],
+        "median": 0.20000004768371582,
+        "p95": 0.30000007152557373
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          14,
+          16.699999928474426,
+          16.700000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.700000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.300000071525574,
+          16.699999928474426,
+          17.100000023841858,
+          16.800000071525574,
+          16.699999928474426,
+          16,
+          16.800000071525574,
+          17.199999928474426,
+          16.699999928474426,
+          16.700000047683716,
+          16.100000023841858,
+          16.600000023841858,
+          16.700000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.700000047683716,
+          16.699999928474426,
+          16.799999952316284,
+          16.700000047683716,
+          16,
+          16.200000047683716,
+          16.700000047683716,
+          17.299999952316284,
+          16.600000023841858,
+          16.800000071525574,
+          16.199999928474426,
+          16.600000023841858,
+          17.100000023841858,
+          16.40000009536743,
+          16.600000023841858,
+          16.200000047683716,
+          16.699999928474426,
+          16.600000023841858,
+          16.700000047683716,
+          16.699999928474426,
+          16.200000047683716,
+          16.700000047683716,
+          17.399999976158142,
+          16.600000023841858,
+          16.700000047683716,
+          16.399999976158142,
+          16.799999952316284,
+          17.200000047683716,
+          16.799999952316284,
+          16.600000023841858,
+          16.700000047683716,
+          16.699999928474426,
+          17.200000047683716,
+          16.700000047683716,
+          16.399999976158142,
+          16.200000047683716,
+          17.300000071525574
+        ],
+        "median": 16.699999928474426,
+        "p95": 17.200000047683716
+      },
+      "finalCharacters": 20170,
+      "finalLinks": 100
+    },
+    {
+      "id": "editor-50000-500",
+      "fixture": {
+        "seed": 20260912,
+        "characters": 50000,
+        "links": 500,
+        "entities": 5000,
+        "hash": "b69239e2ab8b549b88e0b1e24a7261480b10c8a025bfb40a360f11e839f26854"
+      },
+      "warmupOperations": 10,
+      "countedOperations": 100,
+      "timingOperations": 60,
+      "counts": {
+        "fullLinkQueries": 0,
+        "colorResolutions": 0,
+        "styleWrites": 0
+      },
+      "transactionMs": {
+        "samples": [
+          0.20000004768371582,
+          0.5,
+          0.2999999523162842,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.30000007152557373,
+          0.3999999761581421,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.3999999761581421,
+          0.40000009536743164,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.30000007152557373,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.40000009536743164,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.19999992847442627,
+          0.30000007152557373,
+          0.2999999523162842,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.2999999523162842,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.2999999523162842,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.3999999761581421
+        ],
+        "median": 0.2999999523162842,
+        "p95": 0.40000009536743164
+      },
+      "transactionToAnimationFrameMs": {
+        "samples": [
+          7.600000023841858,
+          16.100000023841858,
+          17.200000047683716,
+          16.90000009536743,
+          17.09999990463257,
+          17.199999928474426,
+          16.600000023841858,
+          17.199999928474426,
+          17.399999976158142,
+          16.700000047683716,
+          16.199999928474426,
+          16.700000047683716,
+          17.200000047683716,
+          16.699999928474426,
+          16.600000023841858,
+          16.100000023841858,
+          16.799999952316284,
+          16.700000047683716,
+          17.300000071525574,
+          16.699999928474426,
+          15.900000095367432,
+          17.200000047683716,
+          17.299999952316284,
+          16.699999928474426,
+          16.700000047683716,
+          16.100000023841858,
+          17.100000023841858,
+          17.200000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.100000023841858,
+          16,
+          17.199999928474426,
+          16.299999952316284,
+          16.799999952316284,
+          15.799999952316284,
+          16.800000071525574,
+          17.100000023841858,
+          16.600000023841858,
+          16.800000071525574,
+          16.199999928474426,
+          16.600000023841858,
+          16.700000047683716,
+          16.699999928474426,
+          16.700000047683716,
+          16.700000047683716,
+          16.699999928474426,
+          17.199999928474426,
+          16.700000047683716,
+          16.699999928474426,
+          16.100000023841858,
+          16.800000071525574,
+          17.199999928474426,
+          16.700000047683716,
+          16.5,
+          16.199999928474426,
+          16.700000047683716,
+          17.200000047683716,
+          16.699999928474426,
+          16.799999952316284
+        ],
+        "median": 16.700000047683716,
+        "p95": 17.200000047683716
+      },
+      "finalCharacters": 50170,
+      "finalLinks": 500
+    }
+  ],
+  "behaviorChecks": [
+    {
+      "id": "initial-mark-color",
+      "passed": true
+    },
+    {
+      "id": "external-appearance-refresh",
+      "passed": true
+    },
+    {
+      "id": "appearance-does-not-write-prose",
+      "passed": true
+    },
+    {
+      "id": "new-mark-uses-current-color",
+      "passed": true
+    },
+    {
+      "id": "undo-removes-added-mark",
+      "passed": true
+    },
+    {
+      "id": "redo-restyles-restored-mark",
+      "passed": true
+    },
+    {
+      "id": "changed-mark-attrs-replace-dom",
+      "passed": true
+    },
+    {
+      "id": "html-paste-uses-current-color",
+      "passed": true
+    },
+    {
+      "id": "prose-mode-clears-existing-colors",
+      "passed": true
+    },
+    {
+      "id": "appearance-restores-existing-colors",
+      "passed": true
+    },
+    {
+      "id": "remote-yjs-mark-color",
+      "passed": true
+    },
+    {
+      "id": "remote-yjs-prose-converges",
+      "passed": true
+    },
+    {
+      "id": "colors-not-persisted-in-mark-attrs",
+      "passed": true
+    }
+  ],
+  "reactSubscriptions": [
+    {
+      "consumers": 1,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 100,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 1,
+        "fields": 1
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    },
+    {
+      "consumers": 5,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 500,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 5,
+        "fields": 5
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    },
+    {
+      "consumers": 20,
+      "operations": 100,
+      "unrelated": {
+        "wholeStore": 2000,
+        "fields": 0
+      },
+      "related": {
+        "wholeStore": 20,
+        "fields": 20
+      },
+      "atomicSnapshot": true,
+      "dynamicFieldKeys": true
+    }
+  ],
+  "semanticSubscriptions": {
+    "consumers": 20,
+    "nodes": 100,
+    "elements": 1000,
+    "metricUpdates": 100,
+    "metrics": {
+      "collection": 2000,
+      "names": 0,
+      "colors": 0
+    },
+    "rename": {
+      "collection": 20,
+      "names": 20,
+      "colors": 0
+    },
+    "appearance": {
+      "collection": 0,
+      "names": 0,
+      "colors": 20
+    }
+  },
+  "workspaceGeneration": {
+    "build": "production-React-isolated-Chromium",
+    "profiles": [
+      {
+        "consumers": 1,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 100,
+          "records": 100
+        },
+        "rename": {
+          "names": 1,
+          "targets": 1,
+          "colors": 0,
+          "fields": 1,
+          "records": 1
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 1,
+          "fields": 1,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 1,
+          "targets": 1,
+          "colors": 0,
+          "fields": 1,
+          "records": 1
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      },
+      {
+        "consumers": 5,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 500,
+          "records": 500
+        },
+        "rename": {
+          "names": 5,
+          "targets": 5,
+          "colors": 0,
+          "fields": 5,
+          "records": 5
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 5,
+          "fields": 5,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 5,
+          "targets": 5,
+          "colors": 0,
+          "fields": 5,
+          "records": 5
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      },
+      {
+        "consumers": 20,
+        "nodes": 100,
+        "elements": 20,
+        "refreshes": 100,
+        "comments": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "metrics": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 2000,
+          "records": 2000
+        },
+        "rename": {
+          "names": 20,
+          "targets": 20,
+          "colors": 0,
+          "fields": 20,
+          "records": 20
+        },
+        "membership": {
+          "names": 0,
+          "targets": 0,
+          "colors": 20,
+          "fields": 20,
+          "records": 0
+        },
+        "generationChange": {
+          "names": 20,
+          "targets": 20,
+          "colors": 0,
+          "fields": 20,
+          "records": 20
+        },
+        "failure": {
+          "names": 0,
+          "targets": 0,
+          "colors": 0,
+          "fields": 0,
+          "records": 0
+        },
+        "checks": {
+          "pendingRenameStable": true,
+          "pendingGenerationStable": true,
+          "changedGenerationReleasesRecords": true,
+          "changedGenerationReleasesNames": true,
+          "failedRefreshRetainsNames": true,
+          "staleRejected": true,
+          "staleABARejected": true,
+          "missingClearsNames": true,
+          "coherentSnapshots": true,
+          "unmountedDoesNotRender": true
+        },
+        "coherentCommits": 109,
+        "incoherentCommits": 0
+      }
+    ],
+    "boundary": "Complete synthetic capture-shaped publications, real Zustand hooks, shared name/color selectors and per-editor target construction. Full provider, SQLite, native input and device timing budgets are not measured here."
+  },
+  "agentDecorations": {
+    "consumers": 20,
+    "unrelatedUpdates": 100,
+    "unrelated": {
+      "legacy": 2000,
+      "scoped": 0
+    },
+    "checks": [
+      {
+        "id": "unrelated-store-updates-do-not-dispatch",
+        "passed": true
+      },
+      {
+        "id": "empty-review-input-does-not-dispatch",
+        "passed": true
+      },
+      {
+        "id": "hidden-yjs-update-is-retained",
+        "passed": true
+      },
+      {
+        "id": "hidden-review-work-is-deferred",
+        "passed": true
+      },
+      {
+        "id": "prepare-flushes-mask-before-ready",
+        "passed": true
+      },
+      {
+        "id": "mask-hides-remote-prose",
+        "passed": true
+      },
+      {
+        "id": "guard-to-durable-projection-keeps-mask",
+        "passed": true
+      },
+      {
+        "id": "review-does-not-change-prose-or-selection",
+        "passed": true
+      },
+      {
+        "id": "undo-history-survives-decoration-updates",
+        "passed": true
+      },
+      {
+        "id": "failure-fixture-starts-visible",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-is-not-ready",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-is-hidden",
+        "passed": true
+      },
+      {
+        "id": "failed-projection-can-retry",
+        "passed": true
+      },
+      {
+        "id": "only-injected-failure-was-reported",
+        "passed": true
+      },
+      {
+        "id": "dispose-releases-listeners-without-destroying-documents",
+        "passed": true
+      }
+    ],
+    "activeSubscriptionsAfterDispose": 0
+  },
+  "decorationReadiness": {
+    "preparedBeforeReveal": true,
+    "unfocusedVisiblePaneHasPresentation": true,
+    "unfocusedPaneOwnsCommands": false
+  },
+  "entityLinkOwnership": {
+    "groups": [
+      {
+        "editors": 1,
+        "correctEditors": 1
+      },
+      {
+        "editors": 5,
+        "correctEditors": 5
+      },
+      {
+        "editors": 20,
+        "correctEditors": 20
+      }
+    ],
+    "checks": [
+      {
+        "id": "1:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "1:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "1:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "1:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "1:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "1:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "1:destroy-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "5:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "5:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "5:1:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:2:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:3:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:4:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "5:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "5:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "5:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "5:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "5:destroy-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "20:all-editors-retain-self-exclusion",
+        "passed": true
+      },
+      {
+        "id": "20:live-config-update-preserves-editor",
+        "passed": true
+      },
+      {
+        "id": "20:1:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:2:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:3:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:4:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:5:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:6:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:7:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:8:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:9:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:10:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:11:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:12:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:13:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:14:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:15:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:16:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:17:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:18:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:19:other-view-config-unchanged",
+        "passed": true
+      },
+      {
+        "id": "20:element:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "20:patch:self-or-parent-excluded",
+        "passed": true
+      },
+      {
+        "id": "20:disable-cancels-pending-work",
+        "passed": true
+      },
+      {
+        "id": "20:reenable-flushes-current-context",
+        "passed": true
+      },
+      {
+        "id": "20:destroy-cancels-pending-work",
+        "passed": true
+      }
+    ]
+  },
+  "entityTargetState": {
+    "implementation": "shared-snapshot-id-index",
+    "profiles": [
+      {
+        "entitiesPerKind": 100,
+        "consumers": 1,
+        "linksPerConsumer": 500,
+        "lookups": 500,
+        "linearRowReads": 50000,
+        "indexedRowReads": 400,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 100,
+        "consumers": 5,
+        "linksPerConsumer": 500,
+        "lookups": 2500,
+        "linearRowReads": 250000,
+        "indexedRowReads": 400,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 100,
+        "consumers": 20,
+        "linksPerConsumer": 500,
+        "lookups": 10000,
+        "linearRowReads": 1000000,
+        "indexedRowReads": 400,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 1000,
+        "consumers": 1,
+        "linksPerConsumer": 500,
+        "lookups": 500,
+        "linearRowReads": 500000,
+        "indexedRowReads": 4000,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 1000,
+        "consumers": 5,
+        "linksPerConsumer": 500,
+        "lookups": 2500,
+        "linearRowReads": 2500000,
+        "indexedRowReads": 4000,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 1000,
+        "consumers": 20,
+        "linksPerConsumer": 500,
+        "lookups": 10000,
+        "linearRowReads": 10000000,
+        "indexedRowReads": 4000,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 5000,
+        "consumers": 1,
+        "linksPerConsumer": 500,
+        "lookups": 500,
+        "linearRowReads": 2500000,
+        "indexedRowReads": 20000,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 5000,
+        "consumers": 5,
+        "linksPerConsumer": 500,
+        "lookups": 2500,
+        "linearRowReads": 12500000,
+        "indexedRowReads": 20000,
+        "repeatedRowReads": 0
+      },
+      {
+        "entitiesPerKind": 5000,
+        "consumers": 20,
+        "linksPerConsumer": 500,
+        "lookups": 10000,
+        "linearRowReads": 50000000,
+        "indexedRowReads": 20000,
+        "repeatedRowReads": 0
+      }
+    ],
+    "checks": [
+      {
+        "id": "100:1:equivalent",
+        "passed": true
+      },
+      {
+        "id": "100:1:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "100:5:equivalent",
+        "passed": true
+      },
+      {
+        "id": "100:5:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "100:20:equivalent",
+        "passed": true
+      },
+      {
+        "id": "100:20:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "1000:1:equivalent",
+        "passed": true
+      },
+      {
+        "id": "1000:1:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "1000:5:equivalent",
+        "passed": true
+      },
+      {
+        "id": "1000:5:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "1000:20:equivalent",
+        "passed": true
+      },
+      {
+        "id": "1000:20:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "5000:1:equivalent",
+        "passed": true
+      },
+      {
+        "id": "5000:1:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "5000:5:equivalent",
+        "passed": true
+      },
+      {
+        "id": "5000:5:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "5000:20:equivalent",
+        "passed": true
+      },
+      {
+        "id": "5000:20:bounded-index",
+        "passed": true
+      },
+      {
+        "id": "mounted-visible-and-hidden-alive",
+        "passed": true
+      },
+      {
+        "id": "soft-delete-updates-both-editors",
+        "passed": true
+      },
+      {
+        "id": "hard-delete-updates-both-editors",
+        "passed": true
+      },
+      {
+        "id": "restoration-updates-both-editors",
+        "passed": true
+      },
+      {
+        "id": "replacement-project-drops-old-target",
+        "passed": true
+      },
+      {
+        "id": "return-to-project-restores-current-target",
+        "passed": true
+      },
+      {
+        "id": "configuration-preserves-editor-and-prose",
+        "passed": true
+      }
+    ],
+    "mountedEditors": 2,
+    "hiddenEditors": 1,
+    "limitations": [
+      "ID getter reads measure lookup work, not total document walks or user latency.",
+      "First access is linear per collection snapshot; retained indexes share weak keys with other consumers.",
+      "Headless Tiptap/React only; native focus, physical input and device budgets are not measured."
+    ]
+  },
+  "entityLinkPresentation": {
+    "implementation": "shared-inputs-visible-link-presentation",
+    "profiles": [
+      {
+        "editors": 1,
+        "paragraphs": 100,
+        "updates": 100,
+        "baseline": {
+          "rename": {
+            "danglingScans": 100,
+            "textNodes": 10000,
+            "colorScans": 100
+          },
+          "colors": {
+            "danglingScans": 100,
+            "textNodes": 10000,
+            "colorScans": 100,
+            "versions": 100
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "interaction": {
+            "danglingScans": 100,
+            "textNodes": 10000,
+            "colorScans": 100
+          },
+          "deletion": {
+            "danglingScans": 1,
+            "textNodes": 100,
+            "colorScans": 1
+          }
+        },
+        "current": {
+          "rename": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "colors": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 100,
+            "versions": 100
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "interaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "deletion": {
+            "danglingScans": 1,
+            "textNodes": 100,
+            "colorScans": 1
+          }
+        }
+      },
+      {
+        "editors": 5,
+        "paragraphs": 100,
+        "updates": 100,
+        "baseline": {
+          "rename": {
+            "danglingScans": 500,
+            "textNodes": 50000,
+            "colorScans": 500
+          },
+          "colors": {
+            "danglingScans": 500,
+            "textNodes": 50000,
+            "colorScans": 500,
+            "versions": 500
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 4
+          },
+          "interaction": {
+            "danglingScans": 500,
+            "textNodes": 50000,
+            "colorScans": 500
+          },
+          "deletion": {
+            "danglingScans": 5,
+            "textNodes": 500,
+            "colorScans": 5
+          }
+        },
+        "current": {
+          "rename": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "colors": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 100,
+            "versions": 100
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "interaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "deletion": {
+            "danglingScans": 1,
+            "textNodes": 100,
+            "colorScans": 1
+          }
+        }
+      },
+      {
+        "editors": 20,
+        "paragraphs": 100,
+        "updates": 100,
+        "baseline": {
+          "rename": {
+            "danglingScans": 2000,
+            "textNodes": 200000,
+            "colorScans": 2000
+          },
+          "colors": {
+            "danglingScans": 2000,
+            "textNodes": 200000,
+            "colorScans": 2000,
+            "versions": 2000
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 19
+          },
+          "interaction": {
+            "danglingScans": 2000,
+            "textNodes": 200000,
+            "colorScans": 2000
+          },
+          "deletion": {
+            "danglingScans": 20,
+            "textNodes": 2000,
+            "colorScans": 20
+          }
+        },
+        "current": {
+          "rename": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "colors": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 100,
+            "versions": 100
+          },
+          "laterTransaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "interaction": {
+            "danglingScans": 0,
+            "textNodes": 0,
+            "colorScans": 0
+          },
+          "deletion": {
+            "danglingScans": 1,
+            "textNodes": 100,
+            "colorScans": 1
+          }
+        }
+      }
+    ],
+    "checks": [
+      {
+        "id": "1:reference:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "1:reference:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "1:current:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "1:current:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "1:rename-is-not-display-work",
+        "passed": true
+      },
+      {
+        "id": "1:color-only-visible-with-one-version",
+        "passed": true
+      },
+      {
+        "id": "1:interaction-and-later-transaction-do-no-work",
+        "passed": true
+      },
+      {
+        "id": "5:reference:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "5:reference:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "5:current:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "5:current:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "5:hidden-display-deferred",
+        "passed": true
+      },
+      {
+        "id": "5:prepared-before-display",
+        "passed": true
+      },
+      {
+        "id": "5:rename-is-not-display-work",
+        "passed": true
+      },
+      {
+        "id": "5:color-only-visible-with-one-version",
+        "passed": true
+      },
+      {
+        "id": "5:interaction-and-later-transaction-do-no-work",
+        "passed": true
+      },
+      {
+        "id": "20:reference:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "20:reference:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "20:current:no-prose-write",
+        "passed": true
+      },
+      {
+        "id": "20:current:visible-deletion",
+        "passed": true
+      },
+      {
+        "id": "20:hidden-display-deferred",
+        "passed": true
+      },
+      {
+        "id": "20:prepared-before-display",
+        "passed": true
+      },
+      {
+        "id": "20:rename-is-not-display-work",
+        "passed": true
+      },
+      {
+        "id": "20:color-only-visible-with-one-version",
+        "passed": true
+      },
+      {
+        "id": "20:interaction-and-later-transaction-do-no-work",
+        "passed": true
+      },
+      {
+        "id": "yjs:only-visible-deletion-scans",
+        "passed": true
+      },
+      {
+        "id": "yjs:hidden-update-does-no-batch-display-work",
+        "passed": true
+      },
+      {
+        "id": "yjs:preparing-render-is-not-prematurely-ready",
+        "passed": true
+      },
+      {
+        "id": "yjs:preparation-flushes-once",
+        "passed": true
+      },
+      {
+        "id": "yjs:display-preserves-canonical-document",
+        "passed": true
+      },
+      {
+        "id": "yjs:author-undo-still-works",
+        "passed": true
+      },
+      {
+        "id": "yjs:independent-replay-keeps-prose-and-marks",
+        "passed": true
+      },
+      {
+        "id": "failed-preparation-stays-unready",
+        "passed": true
+      },
+      {
+        "id": "failed-preparation-retries-current-state",
+        "passed": true
+      },
+      {
+        "id": "canonical-rebind-waits-for-new-layout-owner",
+        "passed": true
+      },
+      {
+        "id": "hidden-automatic-linking-remains-live",
+        "passed": true
+      },
+      {
+        "id": "hidden-automatic-linking-does-not-flush-display",
+        "passed": true
+      },
+      {
+        "id": "closed-owners-receive-no-work",
+        "passed": true
+      },
+      {
+        "id": "repeated-teardown-leaves-no-work",
+        "passed": true
+      },
+      {
+        "id": "sessions-retain-editors-and-yjs",
+        "passed": true
+      }
+    ],
+    "lifecycleCycles": 100,
+    "limitations": [
+      "Reference hook reproduces 248ca3cb invalidation wiring in the same headless build; this is not historical app timing.",
+      "Hidden editors defer full color/liveness scans; initial plugin construction and per-mark rendering still run, and document/automatic linking/persistence owners are retained.",
+      "Real Tiptap/React and in-process Yjs only; native focus, physical input, SQLite restart, retained heap and fixed-device budgets are not measured."
+    ]
+  },
+  "retroactiveEntityLinks": {
+    "implementation": "project-routed-canonical-owner",
+    "groups": [
+      {
+        "editors": 1,
+        "paragraphs": 40,
+        "legacy": {
+          "listeners": 1,
+          "calls": 1,
+          "textNodes": 40,
+          "crossProjectLinkedEditors": 1
+        },
+        "current": {
+          "listeners": 1,
+          "foreign": {
+            "calls": 0,
+            "textNodes": 0
+          },
+          "own": {
+            "calls": 1,
+            "textNodes": 40
+          },
+          "unchangedForeignEditors": 1,
+          "linkedOwnEditors": 1
+        }
+      },
+      {
+        "editors": 5,
+        "paragraphs": 40,
+        "legacy": {
+          "listeners": 5,
+          "calls": 5,
+          "textNodes": 200,
+          "crossProjectLinkedEditors": 5
+        },
+        "current": {
+          "listeners": 1,
+          "foreign": {
+            "calls": 0,
+            "textNodes": 0
+          },
+          "own": {
+            "calls": 5,
+            "textNodes": 200
+          },
+          "unchangedForeignEditors": 5,
+          "linkedOwnEditors": 5
+        }
+      },
+      {
+        "editors": 20,
+        "paragraphs": 40,
+        "legacy": {
+          "listeners": 20,
+          "calls": 20,
+          "textNodes": 800,
+          "crossProjectLinkedEditors": 20
+        },
+        "current": {
+          "listeners": 1,
+          "foreign": {
+            "calls": 0,
+            "textNodes": 0
+          },
+          "own": {
+            "calls": 20,
+            "textNodes": 800
+          },
+          "unchangedForeignEditors": 20,
+          "linkedOwnEditors": 20
+        }
+      }
+    ],
+    "checks": [
+      {
+        "id": "starts-without-global-listeners",
+        "passed": true
+      },
+      {
+        "id": "1:legacy-reproduces-foreign-write",
+        "passed": true
+      },
+      {
+        "id": "1:foreign-event-does-no-work",
+        "passed": true
+      },
+      {
+        "id": "1:own-hidden-editors-still-link",
+        "passed": true
+      },
+      {
+        "id": "1:owners-detached",
+        "passed": true
+      },
+      {
+        "id": "5:legacy-reproduces-foreign-write",
+        "passed": true
+      },
+      {
+        "id": "5:foreign-event-does-no-work",
+        "passed": true
+      },
+      {
+        "id": "5:own-hidden-editors-still-link",
+        "passed": true
+      },
+      {
+        "id": "5:owners-detached",
+        "passed": true
+      },
+      {
+        "id": "20:legacy-reproduces-foreign-write",
+        "passed": true
+      },
+      {
+        "id": "20:foreign-event-does-no-work",
+        "passed": true
+      },
+      {
+        "id": "20:own-hidden-editors-still-link",
+        "passed": true
+      },
+      {
+        "id": "20:owners-detached",
+        "passed": true
+      },
+      {
+        "id": "excluded-disabled-unready-destroyed-do-not-scan",
+        "passed": true
+      },
+      {
+        "id": "self-link-excluded",
+        "passed": true
+      },
+      {
+        "id": "parent-link-excluded",
+        "passed": true
+      },
+      {
+        "id": "disabled-link-excluded",
+        "passed": true
+      },
+      {
+        "id": "noncanonical-link-excluded",
+        "passed": true
+      },
+      {
+        "id": "canonical-ready-can-link",
+        "passed": true
+      },
+      {
+        "id": "layout-rebind-rejects-old-project",
+        "passed": true
+      },
+      {
+        "id": "layout-rebind-links-current-project",
+        "passed": true
+      },
+      {
+        "id": "retiring-canonical-owner-detaches",
+        "passed": true
+      },
+      {
+        "id": "shared-yjs-visible-and-hidden-linked",
+        "passed": true
+      },
+      {
+        "id": "shared-yjs-prose-and-instances-preserved",
+        "passed": true
+      },
+      {
+        "id": "shared-yjs-mark-is-canonical",
+        "passed": true
+      },
+      {
+        "id": "cycle-0:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-1:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-2:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-3:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-4:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-5:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-6:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-7:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-8:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-9:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-10:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-11:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-12:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-13:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-14:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-15:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-16:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-17:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-18:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-19:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-20:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-21:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-22:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-23:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-24:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-25:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-26:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-27:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-28:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-29:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-30:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-31:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-32:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-33:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-34:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-35:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-36:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-37:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-38:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-39:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-40:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-41:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-42:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-43:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-44:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-45:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-46:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-47:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-48:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-49:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-50:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-51:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-52:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-53:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-54:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-55:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-56:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-57:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-58:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-59:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-60:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-61:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-62:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-63:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-64:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-65:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-66:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-67:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-68:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-69:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-70:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-71:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-72:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-73:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-74:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-75:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-76:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-77:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-78:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-79:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-80:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-81:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-82:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-83:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-84:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-85:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-86:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-87:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-88:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-89:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-90:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-91:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-92:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-93:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-94:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-95:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-96:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-97:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-98:single-listener",
+        "passed": true
+      },
+      {
+        "id": "cycle-99:single-listener",
+        "passed": true
+      },
+      {
+        "id": "repeated-close-leaves-no-listener-or-work",
+        "passed": true
+      }
+    ],
+    "lifecycleCycles": 100,
+    "remainingListeners": 0,
+    "limitations": [
+      "Reference listener reproduces the pre-change routing behavior in the same headless build; this is not historical whole-app timing.",
+      "Same-project canonical editors, including hidden Yjs views, still scan and link their own documents. Full scan and regex work within matching editors is unchanged.",
+      "No native window, physical input, persistence restart or device budget is measured here."
+    ]
+  },
+  "retroactiveLinkMatching": {
+    "implementation": "literal-doc-linking",
+    "checks": [
+      {
+        "id": "json:literal-overlap-unicode-and-punctuation",
+        "passed": true
+      },
+      {
+        "id": "json:prose-preserved",
+        "passed": true
+      },
+      {
+        "id": "json:link-not-an-undo-item",
+        "passed": true
+      },
+      {
+        "id": "json:repeat-is-idempotent",
+        "passed": true
+      },
+      {
+        "id": "json:undo-later-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "json:undo-earlier-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "json:redo-author-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "json:editor-instance-retained",
+        "passed": true
+      },
+      {
+        "id": "yjs:literal-overlap-unicode-and-punctuation",
+        "passed": true
+      },
+      {
+        "id": "yjs:prose-preserved",
+        "passed": true
+      },
+      {
+        "id": "yjs:link-not-an-undo-item",
+        "passed": true
+      },
+      {
+        "id": "yjs:repeat-is-idempotent",
+        "passed": true
+      },
+      {
+        "id": "yjs:undo-later-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "yjs:undo-earlier-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "yjs:redo-author-keeps-links",
+        "passed": true
+      },
+      {
+        "id": "yjs:editor-instance-retained",
+        "passed": true
+      },
+      {
+        "id": "yjs:hidden-view-receives-marks",
+        "passed": true
+      },
+      {
+        "id": "yjs:independent-replay-keeps-marks",
+        "passed": true
+      },
+      {
+        "id": "yjs:remote-update-converges",
+        "passed": true
+      }
+    ],
+    "modes": [
+      "json",
+      "yjs"
+    ],
+    "limitations": [
+      "Headless actual Tiptap editors, local history and in-process Yjs updates; no native input or SQLite restart.",
+      "Full document traversal and independent alias searches remain; operation/timing comparison is recorded separately."
+    ]
+  },
+  "agentEventProcessing": {
+    "implementation": "private-membership-index",
+    "repetitions": 3,
+    "scenarios": [
+      {
+        "eventCount": 1000,
+        "fixtureHash": "7e393cdb834988428b5587dd7732f0552459977fa9ce42aa8c61b3a386514733",
+        "samplesMs": [
+          3.799999952316284,
+          2.6999999284744263,
+          2.799999952316284
+        ],
+        "medianMs": 2.799999952316284,
+        "notifications": 1000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 1000
+      },
+      {
+        "eventCount": 3000,
+        "fixtureHash": "76ac30bba031e9f07d9297fb0a711708e2137c805fa1c70200c30aca20358f47",
+        "samplesMs": [
+          8.5,
+          7.699999928474426,
+          8
+        ],
+        "medianMs": 8,
+        "notifications": 3000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 3000
+      },
+      {
+        "eventCount": 6000,
+        "fixtureHash": "c343f8ec07ca872e1e38eb4c24cd1fb3c2eb4fd1d53f554c616674548e8fcd08",
+        "samplesMs": [
+          17.100000023841858,
+          18.09999990463257,
+          27.899999976158142
+        ],
+        "medianMs": 18.09999990463257,
+        "notifications": 6000,
+        "duplicateNotifications": 0,
+        "finalCharacters": 6000
+      }
+    ],
+    "boundary": "Real chat-store consumer; synthetic text events only; no React view, model, SQLite, terminal persistence or native UI."
+  },
+  "agentTranscript": {
+    "projections": [
+      {
+        "implementation": "array-reference",
+        "historyMessages": 300,
+        "fixtureHash": "1c2d87cfe2235405d37e648f2f71e675222df1c20d37c8fd5642ca70aacfe13c",
+        "eventCount": 6000,
+        "samplesMs": [
+          0.8999999761581421,
+          1.399999976158142,
+          0.5
+        ],
+        "medianMs": 0.8999999761581421,
+        "work": [
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 1806000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 1806000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 1806000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      },
+      {
+        "implementation": "persistent-tree",
+        "historyMessages": 300,
+        "fixtureHash": "1c2d87cfe2235405d37e648f2f71e675222df1c20d37c8fd5642ca70aacfe13c",
+        "eventCount": 6000,
+        "samplesMs": [
+          1.100000023841858,
+          0.7999999523162842,
+          0.8000000715255737
+        ],
+        "medianMs": 0.8000000715255737,
+        "work": [
+          {
+            "copiedTreeNodes": 12000,
+            "copiedTreeSlots": 138000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 12000,
+            "copiedTreeSlots": 138000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 12000,
+            "copiedTreeSlots": 138000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      },
+      {
+        "implementation": "array-reference",
+        "historyMessages": 3000,
+        "fixtureHash": "f1a854ace153dc1795d4e680325e6301d5397429285b99ba2775c3aec0e52e1f",
+        "eventCount": 6000,
+        "samplesMs": [
+          4.399999976158142,
+          3.6999999284744263,
+          4.700000047683716
+        ],
+        "medianMs": 4.399999976158142,
+        "work": [
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 18006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 18006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 18006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      },
+      {
+        "implementation": "persistent-tree",
+        "historyMessages": 3000,
+        "fixtureHash": "f1a854ace153dc1795d4e680325e6301d5397429285b99ba2775c3aec0e52e1f",
+        "eventCount": 6000,
+        "samplesMs": [
+          0.7999999523162842,
+          0.8999999761581421,
+          0.8999999761581421
+        ],
+        "medianMs": 0.8999999761581421,
+        "work": [
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 348000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 348000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 348000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      },
+      {
+        "implementation": "array-reference",
+        "historyMessages": 30000,
+        "fixtureHash": "7ace92c0a4856e58105da84fdb9bb399cf9449300914170f3587db156ef41b20",
+        "eventCount": 6000,
+        "samplesMs": [
+          22.699999928474426,
+          28.399999976158142,
+          21.600000023841858
+        ],
+        "medianMs": 22.699999928474426,
+        "work": [
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 180006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 180006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 0,
+            "copiedTreeSlots": 0,
+            "copiedArraySlots": 180006000,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      },
+      {
+        "implementation": "persistent-tree",
+        "historyMessages": 30000,
+        "fixtureHash": "7ace92c0a4856e58105da84fdb9bb399cf9449300914170f3587db156ef41b20",
+        "eventCount": 6000,
+        "samplesMs": [
+          0.6999999284744263,
+          0.8999999761581421,
+          0.7999999523162842
+        ],
+        "medianMs": 0.7999999523162842,
+        "work": [
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 342000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 342000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          },
+          {
+            "copiedTreeNodes": 18000,
+            "copiedTreeSlots": 342000,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 0,
+            "flattenedMessages": 0
+          }
+        ]
+      }
+    ],
+    "ingress": [
+      {
+        "historyMessages": 300,
+        "fixtureHash": "1c2d87cfe2235405d37e648f2f71e675222df1c20d37c8fd5642ca70aacfe13c",
+        "eventCount": 6000,
+        "elapsedMs": 19.5,
+        "eventWork": {
+          "copiedTreeNodes": 12000,
+          "copiedTreeSlots": 138000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "beforeFrame": 0,
+        "afterFrame": 1,
+        "frameWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 301
+        },
+        "checks": {
+          "canonicalCurrentBeforeFrame": true,
+          "originalSnapshotUnchanged": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true
+        }
+      },
+      {
+        "historyMessages": 3000,
+        "fixtureHash": "f1a854ace153dc1795d4e680325e6301d5397429285b99ba2775c3aec0e52e1f",
+        "eventCount": 6000,
+        "elapsedMs": 23.300000071525574,
+        "eventWork": {
+          "copiedTreeNodes": 18000,
+          "copiedTreeSlots": 348000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "beforeFrame": 0,
+        "afterFrame": 1,
+        "frameWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 3001
+        },
+        "checks": {
+          "canonicalCurrentBeforeFrame": true,
+          "originalSnapshotUnchanged": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true
+        }
+      },
+      {
+        "historyMessages": 30000,
+        "fixtureHash": "7ace92c0a4856e58105da84fdb9bb399cf9449300914170f3587db156ef41b20",
+        "eventCount": 6000,
+        "elapsedMs": 17.59999990463257,
+        "eventWork": {
+          "copiedTreeNodes": 18000,
+          "copiedTreeSlots": 342000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "beforeFrame": 0,
+        "afterFrame": 1,
+        "frameWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 30001
+        },
+        "checks": {
+          "canonicalCurrentBeforeFrame": true,
+          "originalSnapshotUnchanged": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true
+        }
+      }
+    ],
+    "boundary": "Synthetic canonical text traces. Array and tree use the same event fold; real store/dedup/display tested separately. No model, SQLite or native input; timing includes allocation counters."
+  },
+  "agentBackground": {
+    "measurements": [
+      {
+        "historyMessages": 300,
+        "fixtureHash": "b630d10a38ab39f0b1c2321d985db0b230184d8b8f04a5b220476e3a177fb56b",
+        "eventCount": 6000,
+        "elapsedMs": 17.700000047683716,
+        "ingressWork": {
+          "copiedTreeNodes": 12000,
+          "copiedTreeSlots": 138000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "scheduled": {
+          "frames": 0,
+          "timers": 1,
+          "timerDelays": [
+            50
+          ]
+        },
+        "beforeTimer": 0,
+        "afterTimer": 1,
+        "timerWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 301
+        },
+        "checks": {
+          "canonicalCurrentBeforeTimer": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true,
+          "originalSnapshotUnchanged": true,
+          "foregroundFlushesTail": true,
+          "disposedResources": true
+        }
+      },
+      {
+        "historyMessages": 3000,
+        "fixtureHash": "f7aa6edc78ea17b5a451030aef198ae5f988bbc660bb3aeba79cdda64e212ba8",
+        "eventCount": 6000,
+        "elapsedMs": 17,
+        "ingressWork": {
+          "copiedTreeNodes": 18000,
+          "copiedTreeSlots": 348000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "scheduled": {
+          "frames": 0,
+          "timers": 1,
+          "timerDelays": [
+            50
+          ]
+        },
+        "beforeTimer": 0,
+        "afterTimer": 1,
+        "timerWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 3001
+        },
+        "checks": {
+          "canonicalCurrentBeforeTimer": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true,
+          "originalSnapshotUnchanged": true,
+          "foregroundFlushesTail": true,
+          "disposedResources": true
+        }
+      },
+      {
+        "historyMessages": 30000,
+        "fixtureHash": "e6e15cf96eb4136224292fbf725640c8edf65bd50da8f2ad0d52805a89da939a",
+        "eventCount": 6000,
+        "elapsedMs": 18.799999952316284,
+        "ingressWork": {
+          "copiedTreeNodes": 18000,
+          "copiedTreeSlots": 342000,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "duplicateWork": {
+          "copiedTreeNodes": 0,
+          "copiedTreeSlots": 0,
+          "copiedArraySlots": 0,
+          "flatMaterializations": 0,
+          "flattenedMessages": 0
+        },
+        "scheduled": {
+          "frames": 0,
+          "timers": 1,
+          "timerDelays": [
+            50
+          ]
+        },
+        "beforeTimer": 0,
+        "afterTimer": 1,
+        "timerWork": {
+          "flatMaterializations": 1,
+          "flattenedMessages": 30001
+        },
+        "checks": {
+          "canonicalCurrentBeforeTimer": true,
+          "completeDisplay": true,
+          "duplicatesPreserveSnapshot": true,
+          "originalSnapshotUnchanged": true,
+          "foregroundFlushesTail": true,
+          "disposedResources": true
+        }
+      }
+    ],
+    "boundary": "Real store, journal consumer and display projection in Chromium; synthetic text and controlled hidden/timer ports. No OS background timer latency, SQLite, model or native input."
+  },
+  "agentRecovery": {
+    "measurements": [
+      {
+        "turns": 100,
+        "events": 2700,
+        "messages": 404,
+        "fixtureHash": "8eeaceedbe6deb11502a3324476e0a762aee82833bf166b488667bc35c1a2480",
+        "samplesMs": [
+          8.5,
+          5.100000023841858,
+          5.200000047683716
+        ],
+        "medianMs": 5.200000047683716,
+        "work": [
+          {
+            "copiedTreeNodes": 4636,
+            "copiedTreeSlots": 54154,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 404,
+            "groupedMessageVisits": 200,
+            "promptMessageVisits": 100,
+            "recoveredTurnVisits": 100,
+            "visibleUserCandidates": 102
+          },
+          {
+            "copiedTreeNodes": 4636,
+            "copiedTreeSlots": 54154,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 404,
+            "groupedMessageVisits": 200,
+            "promptMessageVisits": 100,
+            "recoveredTurnVisits": 100,
+            "visibleUserCandidates": 102
+          },
+          {
+            "copiedTreeNodes": 4636,
+            "copiedTreeSlots": 54154,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 404,
+            "groupedMessageVisits": 200,
+            "promptMessageVisits": 100,
+            "recoveredTurnVisits": 100,
+            "visibleUserCandidates": 102
+          }
+        ],
+        "checks": {
+          "independentDisplay": true,
+          "representedEvents": true,
+          "terminalAndContext": true,
+          "immutableInput": true,
+          "singleSnapshotRead": true
+        }
+      },
+      {
+        "turns": 500,
+        "events": 13500,
+        "messages": 2020,
+        "fixtureHash": "2feaa05a58c1c387847e1d124b3010dccfd77542de57d0e88e303a1bc435b9f3",
+        "samplesMs": [
+          22.5,
+          20.399999976158142,
+          18.899999976158142
+        ],
+        "medianMs": 20.399999976158142,
+        "work": [
+          {
+            "copiedTreeNodes": 29804,
+            "copiedTreeSlots": 398646,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 2020,
+            "groupedMessageVisits": 1000,
+            "promptMessageVisits": 500,
+            "recoveredTurnVisits": 500,
+            "visibleUserCandidates": 510
+          },
+          {
+            "copiedTreeNodes": 29804,
+            "copiedTreeSlots": 398646,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 2020,
+            "groupedMessageVisits": 1000,
+            "promptMessageVisits": 500,
+            "recoveredTurnVisits": 500,
+            "visibleUserCandidates": 510
+          },
+          {
+            "copiedTreeNodes": 29804,
+            "copiedTreeSlots": 398646,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 2020,
+            "groupedMessageVisits": 1000,
+            "promptMessageVisits": 500,
+            "recoveredTurnVisits": 500,
+            "visibleUserCandidates": 510
+          }
+        ],
+        "checks": {
+          "independentDisplay": true,
+          "representedEvents": true,
+          "terminalAndContext": true,
+          "immutableInput": true,
+          "singleSnapshotRead": true
+        }
+      },
+      {
+        "turns": 1500,
+        "events": 40500,
+        "messages": 6060,
+        "fixtureHash": "e503b4ad845b5fa0e5388be91fab320df9eb3c3d9f81f32cc4bf57d2b6777092",
+        "samplesMs": [
+          90.89999997615814,
+          57.700000047683716,
+          55.700000047683716
+        ],
+        "medianMs": 57.700000047683716,
+        "work": [
+          {
+            "copiedTreeNodes": 101924,
+            "copiedTreeSlots": 1279380,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 6060,
+            "groupedMessageVisits": 3000,
+            "promptMessageVisits": 1500,
+            "recoveredTurnVisits": 1500,
+            "visibleUserCandidates": 1530
+          },
+          {
+            "copiedTreeNodes": 101924,
+            "copiedTreeSlots": 1279380,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 6060,
+            "groupedMessageVisits": 3000,
+            "promptMessageVisits": 1500,
+            "recoveredTurnVisits": 1500,
+            "visibleUserCandidates": 1530
+          },
+          {
+            "copiedTreeNodes": 101924,
+            "copiedTreeSlots": 1279380,
+            "copiedArraySlots": 0,
+            "flatMaterializations": 1,
+            "flattenedMessages": 6060,
+            "groupedMessageVisits": 3000,
+            "promptMessageVisits": 1500,
+            "recoveredTurnVisits": 1500,
+            "visibleUserCandidates": 1530
+          }
+        ],
+        "checks": {
+          "independentDisplay": true,
+          "representedEvents": true,
+          "terminalAndContext": true,
+          "immutableInput": true,
+          "singleSnapshotRead": true
+        }
+      }
+    ],
+    "boundary": "Synthetic complete text/thinking turns with preflight retries. Full strict recovery and display projection; repository returns an in-memory snapshot. No SQLite IO, checkpoints, tools, crash injection or fixed-device timing acceptance."
+  },
+  "agentJournal": {
+    "cycles": 100,
+    "checks": [
+      {
+        "id": "one-connection-and-no-late-work-after-100-disposals",
+        "passed": true
+      },
+      {
+        "id": "foreign-project-kind-and-conflicting-route-rejected",
+        "passed": true
+      },
+      {
+        "id": "registered-turn-routes-without-visible-conversation",
+        "passed": true
+      },
+      {
+        "id": "duplicate-keeps-state-and-effects",
+        "passed": true
+      },
+      {
+        "id": "released-mapping-allows-explicit-sibling-route",
+        "passed": true
+      },
+      {
+        "id": "background-project-does-not-pulse-visible-activity",
+        "passed": true
+      },
+      {
+        "id": "accepted-terminal-finishes-effects-during-disposal",
+        "passed": true
+      },
+      {
+        "id": "terminal-persistence-sees-final-array",
+        "passed": true
+      },
+      {
+        "id": "unavailable-connection-is-retryable",
+        "passed": true
+      },
+      {
+        "id": "failed-connection-callback-cannot-enter-new-generation",
+        "passed": true
+      },
+      {
+        "id": "retried-connection-receives-new-events",
+        "passed": true
+      },
+      {
+        "id": "second-subscription-failure-releases-journal",
+        "passed": true
+      },
+      {
+        "id": "second-subscription-failure-can-retry",
+        "passed": true
+      },
+      {
+        "id": "disposal-during-journal-connection-cleans-returned-listener",
+        "passed": true
+      },
+      {
+        "id": "disposal-during-changes-connection-cleans-both-listeners",
+        "passed": true
+      }
+    ],
+    "boundary": "Real journal-consumer factory with synthetic synchronous store, transport and effect ports. No SQLite IO, model execution, heap measurement or physical device acceptance."
+  },
+  "agentDisplay": {
+    "consumers": 20,
+    "streamEvents": 100,
+    "burst": {
+      "immediate": 2000,
+      "batched": 0
+    },
+    "displayCommitsAfterFrame": 20,
+    "checks": [
+      {
+        "id": "one-canonical-subscriber",
+        "passed": true
+      },
+      {
+        "id": "canonical-text-current-before-display-frame",
+        "passed": true
+      },
+      {
+        "id": "burst-notifications-coalesced",
+        "passed": true
+      },
+      {
+        "id": "one-display-commit-per-consumer",
+        "passed": true
+      },
+      {
+        "id": "actual-message-markdown-renders-latest-text",
+        "passed": true
+      },
+      {
+        "id": "permission-flushes-tail-synchronously",
+        "passed": true
+      },
+      {
+        "id": "cancellation-flushes-tail-synchronously",
+        "passed": true
+      },
+      {
+        "id": "non-stream-boundary-flushes-final-tail",
+        "passed": true
+      }
+    ],
+    "boundary": "Real React hook, chat-store ingress and MessageView rendering; synthetic burst. Full panel scrolling, native UI and durable terminal writes remain separate."
+  },
+  "agentPanel": {
+    "checks": [
+      "full authenticated desktop panel mounts all 300 historical messages",
+      "asynchronous authentication mounts history at the bottom",
+      "stream display updates only the transcript and newest message",
+      "streaming preserves composer DOM focus draft and selection",
+      "streaming preserves historical message DOM",
+      "streaming follows the latest displayed text at bottom",
+      "canonical journal contains every streamed delta",
+      "composer draft updates do not render the transcript or historical messages",
+      "reading history keeps scroll and selected text during a new tail",
+      "scrolling away exposes latest control",
+      "latest control reengages bottom follow",
+      "history is an anchored portal outside the panel",
+      "selecting the already active conversation reengages follow",
+      "completed tool detail remains expanded across subsequent streaming",
+      "session usage footer retains the tool count",
+      "permission boundary displays pending card and full tail immediately",
+      "cancellation control disables steering without erasing the draft",
+      "panel remount reads current canonical stream and retains draft",
+      "panel remount positions the current transcript at bottom",
+      "conversation switch synchronously replaces the old transcript",
+      "background sibling events do not render the active panel or transcript",
+      "returning to a running conversation includes its background tail and resets follow",
+      "conversation ownership prevents expanded details leaking to another session",
+      "repeated panel closure releases its authentication listener"
+    ],
+    "historyMessages": 300,
+    "displayBatches": 20,
+    "streamEvents": 400,
+    "streaming": {
+      "panel": 0,
+      "composer": 0,
+      "message": 20,
+      "transcript": 20
+    },
+    "drafting": {
+      "panel": 20,
+      "composer": 20,
+      "message": 0,
+      "transcript": 0
+    },
+    "initialBottom": true,
+    "returningBottom": true,
+    "cycles": 100,
+    "remainingAuthListeners": 0,
+    "scope": "Actual desktop panel and composer, production React, canonical synthetic journal and no persistence/model calls. Desktop Chromium scroll and selection; mobile and native acceptance remain separate."
+  },
+  "agentHistory": {
+    "implementation": "stable-message-blocks",
+    "measure": true,
+    "measurements": [
+      {
+        "surface": "desktop",
+        "historyMessages": 300,
+        "fixtureHash": "6e0baecabf8e114160558c6f4f12833bc736d06c7f9c762875fb3eac294717c5",
+        "displayUpdates": 20,
+        "rowElements": 900,
+        "updateMs": [
+          0.6000000238418579,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.19999992847442627,
+          0.20000004768371582,
+          0.20000004768371582
+        ],
+        "medianMs": 0.19999992847442627,
+        "p95Ms": 0.20000004768371582,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "desktop",
+        "historyMessages": 3000,
+        "fixtureHash": "f80e7a08512d547a4c983853a385fd1a0e1b454268e2f3c8d4905fc3d5b6f746",
+        "displayUpdates": 20,
+        "rowElements": 1140,
+        "updateMs": [
+          2.100000023841858,
+          1.899999976158142,
+          2.4000000953674316,
+          2,
+          2.0999999046325684,
+          1.8000000715255737,
+          2.399999976158142,
+          2.399999976158142,
+          2.3000000715255737,
+          2.1999999284744263,
+          2.700000047683716,
+          2.299999952316284,
+          2.100000023841858,
+          1.899999976158142,
+          1.7000000476837158,
+          1.7999999523162842,
+          2.3000000715255737,
+          1.6999999284744263,
+          2,
+          1.600000023841858
+        ],
+        "medianMs": 2.100000023841858,
+        "p95Ms": 2.4000000953674316,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "historyMessages": 300,
+        "fixtureHash": "6e0baecabf8e114160558c6f4f12833bc736d06c7f9c762875fb3eac294717c5",
+        "displayUpdates": 20,
+        "rowElements": 900,
+        "updateMs": [
+          0.3999999761581421,
+          0.20000004768371582,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.09999990463256836,
+          0.20000004768371582,
+          0.2999999523162842,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.10000002384185791,
+          0.09999990463256836,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.20000004768371582,
+          0.19999992847442627
+        ],
+        "medianMs": 0.19999992847442627,
+        "p95Ms": 0.2999999523162842,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "historyMessages": 3000,
+        "fixtureHash": "f80e7a08512d547a4c983853a385fd1a0e1b454268e2f3c8d4905fc3d5b6f746",
+        "displayUpdates": 20,
+        "rowElements": 1140,
+        "updateMs": [
+          4.600000023841858,
+          4.699999928474426,
+          4.100000023841858,
+          2.700000047683716,
+          3.5999999046325684,
+          3.4000000953674316,
+          3.0999999046325684,
+          3.100000023841858,
+          3.899999976158142,
+          4.700000047683716,
+          3,
+          3.399999976158142,
+          3.899999976158142,
+          3.700000047683716,
+          3.899999976158142,
+          3.299999952316284,
+          3.5,
+          3.100000023841858,
+          3.600000023841858,
+          4.700000047683716
+        ],
+        "medianMs": 3.600000023841858,
+        "p95Ms": 4.700000047683716,
+        "checks": [
+          {
+            "id": "all-history-stays-mounted",
+            "passed": true
+          },
+          {
+            "id": "historical-dom-and-selection-retained",
+            "passed": true
+          },
+          {
+            "id": "tool-detail-dom-and-expansion-retained",
+            "passed": true
+          },
+          {
+            "id": "latest-text-complete",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "boundary": "Actual desktop/mobile transcripts with every historical DOM row retained; synchronous full display commits. Source arrays prepared outside timing; no canonical journal ingestion, model, persistence or native input."
+  },
+  "mobileAgentPanel": {
+    "checks": [
+      "sidebar: actual panel mounts history, output actions and composer",
+      "sidebar: streaming updates only the transcript and latest row",
+      "sidebar: streaming retains composer focus draft and selection",
+      "sidebar: canonical transcript contains every delta",
+      "sidebar: drafting does not reconcile the transcript or its rows",
+      "sidebar: reading history keeps its scroll position",
+      "sidebar: latest control appears",
+      "sidebar: latest control returns to bottom",
+      "sidebar: retired output results do not publish into or navigate a different session",
+      "sidebar: repeated pending action starts one local write",
+      "sidebar: current inspiration result publishes and opens the created drift",
+      "sidebar: todo uses the original message project and block anchor",
+      "sidebar: current todo result releases action controls",
+      "sidebar: copy captures the exact selected output",
+      "sidebar: completed copy feedback belongs to its message",
+      "sidebar: current failure is visible and permits retry",
+      "sidebar: retired failure does not appear in the incoming conversation",
+      "sidebar: returning to the same conversation does not revive a closed action owner",
+      "sidebar: old message completion cannot release or label its replacement action",
+      "sidebar: replacement action completes independently",
+      "sidebar: actor rebind clears pending feedback and ignores its old completion",
+      "sidebar: incoming actor can own the next action on the same message",
+      "sidebar: unmounted panel cannot publish or navigate after an existing write finishes",
+      "sidebar: project guard suppresses results even before the surface unmounts",
+      "sidebar: background streaming leaves the incoming transcript unchanged",
+      "sidebar: repeated unmount releases the auth subscription",
+      "paper: actual panel mounts history, output actions and composer",
+      "paper: streaming updates only the transcript and latest row",
+      "paper: streaming retains composer focus draft and selection",
+      "paper: canonical transcript contains every delta",
+      "paper: drafting does not reconcile the transcript or its rows",
+      "paper: reading history keeps its scroll position",
+      "paper: latest control appears",
+      "paper: latest control returns to bottom",
+      "paper: retired output results do not publish into or navigate a different session",
+      "paper: repeated pending action starts one local write",
+      "paper: current inspiration result publishes and opens the created drift",
+      "paper: todo uses the original message project and block anchor",
+      "paper: current todo result releases action controls",
+      "paper: copy captures the exact selected output",
+      "paper: completed copy feedback belongs to its message",
+      "paper: current failure is visible and permits retry",
+      "paper: retired failure does not appear in the incoming conversation",
+      "paper: returning to the same conversation does not revive a closed action owner",
+      "paper: old message completion cannot release or label its replacement action",
+      "paper: replacement action completes independently",
+      "paper: actor rebind clears pending feedback and ignores its old completion",
+      "paper: incoming actor can own the next action on the same message",
+      "paper: unmounted panel cannot publish or navigate after an existing write finishes",
+      "paper: project guard suppresses results even before the surface unmounts",
+      "paper: background streaming leaves the incoming transcript unchanged",
+      "paper: repeated unmount releases the auth subscription"
+    ],
+    "measurements": [
+      {
+        "mode": "sidebar",
+        "streaming": {
+          "panel": 0,
+          "composer": 0,
+          "message": 20,
+          "transcript": 20
+        },
+        "drafting": {
+          "panel": 20,
+          "composer": 20,
+          "message": 0,
+          "transcript": 0
+        },
+        "background": {
+          "panel": 0,
+          "composer": 0,
+          "message": 0,
+          "transcript": 0
+        },
+        "messageRows": 20,
+        "lateFeedbackCrossedSession": false,
+        "lateNavigation": 0,
+        "duplicateWrites": 1,
+        "cycles": 100
+      },
+      {
+        "mode": "paper",
+        "streaming": {
+          "panel": 0,
+          "composer": 0,
+          "message": 20,
+          "transcript": 20
+        },
+        "drafting": {
+          "panel": 20,
+          "composer": 20,
+          "message": 0,
+          "transcript": 0
+        },
+        "background": {
+          "panel": 0,
+          "composer": 0,
+          "message": 0,
+          "transcript": 0
+        },
+        "messageRows": 20,
+        "lateFeedbackCrossedSession": false,
+        "lateNavigation": 0,
+        "duplicateWrites": 1,
+        "cycles": 100
+      }
+    ],
+    "historyMessages": 300,
+    "displayBatches": 20,
+    "streamEventsPerMode": 400,
+    "verifyRenders": true,
+    "scope": "Actual mobile sidebar and paper dock components at 390px with synthetic journal and deferred write ports. Host engine is recorded by the runner. No real clipboard, SQLite writes, model, touch device or keyboard viewport acceptance."
+  },
+  "graphProjection": {
+    "implementation": "shared-id-index",
+    "results": [
+      {
+        "elements": 100,
+        "nodes": 20,
+        "relations": 300,
+        "fixtureHash": "d040d9aaabda744470de62452520842406431eebfcec19eca29e7dd947c29c42",
+        "firstProjectionIdReads": 120,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 300,
+        "samplesMs": [
+          0.19999992847442627,
+          0.10000002384185791,
+          0.10000002384185791,
+          0.10000002384185791,
+          0
+        ],
+        "medianMs": 0.10000002384185791
+      },
+      {
+        "elements": 1000,
+        "nodes": 200,
+        "relations": 3000,
+        "fixtureHash": "3cd5872a31187274bd2226d6a895eec5144fc745dd5202f3a65f6e65b371391f",
+        "firstProjectionIdReads": 1200,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 3000,
+        "samplesMs": [
+          0.6000000238418579,
+          0.3999999761581421,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "medianMs": 0.5
+      },
+      {
+        "elements": 5000,
+        "nodes": 1000,
+        "relations": 15000,
+        "fixtureHash": "7f1c221270787c84dc9853d638b95755acd33d9408bdfb2264e3cda4822bb111",
+        "firstProjectionIdReads": 6000,
+        "repeatedProjectionIdReads": 0,
+        "viewportProjectionIdReads": 0,
+        "worldProjectionMatchesFixture": true,
+        "projectedEdges": 15000,
+        "samplesMs": [
+          2.799999952316284,
+          1.899999976158142,
+          2.1999999284744263,
+          2.5999999046325684,
+          2.3000000715255737
+        ],
+        "medianMs": 2.3000000715255737
+      }
+    ],
+    "boundary": "Actual Super Element world projection and three viewport modes. Synthetic getter counters; world timing uses warm inputs with counting disabled. Fixture output equivalence checked independently. No full graph UI/native acceptance."
+  },
+  "superElementCards": {
+    "measurements": [
+      {
+        "elements": 100,
+        "categories": 8,
+        "chapters": 20,
+        "fixtureHash": "372be69a3d918b84b7ead9a2af8439cfd14367723c49ad58fe04053b2c6ae23b",
+        "focusToggles": 20,
+        "wheelEvents": 100,
+        "focusMs": 7.200000047683716,
+        "focusWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "wheelWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "focusModeReturned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "elementPairUsesLatestSource": true,
+          "chapterPairUsesLatestSource": true,
+          "renameUpdatesCard": true,
+          "categoryNavigation": true
+        }
+      },
+      {
+        "elements": 1000,
+        "categories": 8,
+        "chapters": 20,
+        "fixtureHash": "82d1489be054d52664f59121f5a255e036ed774bcbe77f7c30e2625eade55b5e",
+        "focusToggles": 20,
+        "wheelEvents": 100,
+        "focusMs": 3,
+        "focusWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "wheelWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "focusModeReturned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "elementPairUsesLatestSource": true,
+          "chapterPairUsesLatestSource": true,
+          "renameUpdatesCard": true,
+          "categoryNavigation": true
+        }
+      },
+      {
+        "elements": 5000,
+        "categories": 8,
+        "chapters": 20,
+        "fixtureHash": "bf12031b1c96ecde52f41bc7c311be84d576dcfcda42fb9503c0455132ef0592",
+        "focusToggles": 20,
+        "wheelEvents": 100,
+        "focusMs": 5.5,
+        "focusWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "wheelWork": {
+          "categories": 0,
+          "elements": 0,
+          "bands": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "focusModeReturned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "elementPairUsesLatestSource": true,
+          "chapterPairUsesLatestSource": true,
+          "renameUpdatesCard": true,
+          "categoryNavigation": true
+        }
+      }
+    ],
+    "boundary": "Full DesktopSuperElementView, production card DOM and gesture handlers; synthetic workspace/navigation. Render invocation counters, not React commit duration or native input. No persisted relation writes."
+  },
+  "storyGraphCards": {
+    "measurements": [
+      {
+        "chapters": 100,
+        "storylines": 8,
+        "lanes": 9,
+        "fixtureHash": "5c84db0cf62cbee3879799b0193000a201f646894c92f664ffa4e9602dfa36d6",
+        "drawerToggles": 20,
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "mountWork": {
+          "lanes": 9,
+          "tiles": 100,
+          "groupingVisits": 100
+        },
+        "drawerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "popoverWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "pointerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "primaryLaneMembership": true,
+          "drawerReturned": true,
+          "popoverCycles": true,
+          "cancelledDragCleaned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "latestPair": true,
+          "renamedCard": true,
+          "reassignedPrimaryLane": true,
+          "contextMenuUsesCurrentNode": true,
+          "doubleClickNavigation": true
+        }
+      },
+      {
+        "chapters": 1000,
+        "storylines": 24,
+        "lanes": 25,
+        "fixtureHash": "1d8c0922926ce9f92af1a9cf6413eb5ea14e466e8560f33805e9eca65ea0f9fc",
+        "drawerToggles": 20,
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "mountWork": {
+          "lanes": 25,
+          "tiles": 1000,
+          "groupingVisits": 1000
+        },
+        "drawerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "popoverWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "pointerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "primaryLaneMembership": true,
+          "drawerReturned": true,
+          "popoverCycles": true,
+          "cancelledDragCleaned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "latestPair": true,
+          "renamedCard": true,
+          "reassignedPrimaryLane": true,
+          "contextMenuUsesCurrentNode": true,
+          "doubleClickNavigation": true
+        }
+      },
+      {
+        "chapters": 5000,
+        "storylines": 50,
+        "lanes": 51,
+        "fixtureHash": "925202e308d0d581b3b78a83e1b1571e76f84323527aa94205454e2e9a55707d",
+        "drawerToggles": 20,
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "mountWork": {
+          "lanes": 51,
+          "tiles": 5000,
+          "groupingVisits": 5000
+        },
+        "drawerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "popoverWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "pointerWork": {
+          "lanes": 0,
+          "tiles": 0,
+          "groupingVisits": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "primaryLaneMembership": true,
+          "drawerReturned": true,
+          "popoverCycles": true,
+          "cancelledDragCleaned": true,
+          "shiftSelectsSource": true,
+          "shiftClearsSource": true,
+          "latestPair": true,
+          "renamedCard": true,
+          "reassignedPrimaryLane": true,
+          "contextMenuUsesCurrentNode": true,
+          "doubleClickNavigation": true
+        }
+      }
+    ],
+    "boundary": "Full Story Graph with owned deferred entries, production lanes, popovers and pointer cancellation. Synthetic navigation/data; no completed drop or persisted relation write. Work counts, not input latency."
+  },
+  "storyGraphUnplaced": {
+    "measurements": [
+      {
+        "chapters": 100,
+        "fixtureHash": "1579754ec19cda0a246cdcf4e988e587179b5f670ed0e1f4551a5828a5733e63",
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "initialWork": {
+          "shell": 1,
+          "chips": 0
+        },
+        "closedWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "mountWork": {
+          "shell": 1,
+          "chips": 100
+        },
+        "openWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "checks": {
+          "closedPopoverCycles": true,
+          "orderedChapters": true,
+          "bodyPortal": true,
+          "primaryAndUnassignedColors": true,
+          "openPopoverCycles": true,
+          "unchangedDom": true,
+          "currentTitleAndPrimary": true,
+          "currentStorylineColor": true,
+          "cancelledDrag": true,
+          "escapeCloses": true,
+          "emptyState": true,
+          "reopenCurrentData": true
+        }
+      },
+      {
+        "chapters": 1000,
+        "fixtureHash": "54e2d88b1a23ed93c5d74d35ef875a3e2cacbbbf1e402d2eaf325844dee2afa8",
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "initialWork": {
+          "shell": 1,
+          "chips": 0
+        },
+        "closedWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "mountWork": {
+          "shell": 1,
+          "chips": 1000
+        },
+        "openWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "checks": {
+          "closedPopoverCycles": true,
+          "orderedChapters": true,
+          "bodyPortal": true,
+          "primaryAndUnassignedColors": true,
+          "openPopoverCycles": true,
+          "unchangedDom": true,
+          "currentTitleAndPrimary": true,
+          "currentStorylineColor": true,
+          "cancelledDrag": true,
+          "escapeCloses": true,
+          "emptyState": true,
+          "reopenCurrentData": true
+        }
+      },
+      {
+        "chapters": 5000,
+        "fixtureHash": "9ba613efbd177ac7bdcace6b400439f6e3956c74e10bd4affbb63e9abf166b9c",
+        "popoverCycles": 10,
+        "pointerMoves": 100,
+        "initialWork": {
+          "shell": 1,
+          "chips": 0
+        },
+        "closedWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "mountWork": {
+          "shell": 1,
+          "chips": 5000
+        },
+        "openWork": {
+          "shell": 20,
+          "chips": 0
+        },
+        "checks": {
+          "closedPopoverCycles": true,
+          "orderedChapters": true,
+          "bodyPortal": true,
+          "primaryAndUnassignedColors": true,
+          "openPopoverCycles": true,
+          "unchangedDom": true,
+          "currentTitleAndPrimary": true,
+          "currentStorylineColor": true,
+          "cancelledDrag": true,
+          "escapeCloses": true,
+          "emptyState": true,
+          "reopenCurrentData": true
+        }
+      }
+    ],
+    "boundary": "Actual Story Graph and body-portaled unplaced chapter tree, current data/color and pointer cancellation. Synthetic DOM input/data; no completed drop, persistence, physical input or device latency."
+  },
+  "graphDriftCards": {
+    "implementation": "slot-subscriptions",
+    "measurements": [
+      {
+        "view": "graph",
+        "drifts": 100,
+        "fixtureHash": "c0ab001327efbdfb4bd3c91af1297ebf175d46cc85623e0f391cf29e57ed27e8",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 20,
+        "closedWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 3,
+          "storyCards": 100,
+          "storyWrappers": 100,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "popoverWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "hoverWork": {
+          "storyShell": 0,
+          "storyCards": 19,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": true,
+          "visualDropSettles": true,
+          "reverseAndCrossSource": true,
+          "sourceSlotInvalidation": true,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      },
+      {
+        "view": "graph",
+        "drifts": 1000,
+        "fixtureHash": "0e796209229c33ed0fc4c22bcadda363a04b0ea8b7cb1cfb431642846f5f0f1b",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 20,
+        "closedWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 3,
+          "storyCards": 1000,
+          "storyWrappers": 1000,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "popoverWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "hoverWork": {
+          "storyShell": 0,
+          "storyCards": 19,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": true,
+          "visualDropSettles": true,
+          "reverseAndCrossSource": true,
+          "sourceSlotInvalidation": true,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      },
+      {
+        "view": "graph",
+        "drifts": 5000,
+        "fixtureHash": "a494e3074192a9c023c7303409f7f02e61f242f46f774a07c5e13c868dc06dd0",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 20,
+        "closedWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 3,
+          "storyCards": 5000,
+          "storyWrappers": 5000,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "popoverWork": {
+          "storyShell": 20,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "hoverWork": {
+          "storyShell": 0,
+          "storyCards": 19,
+          "storyWrappers": 0,
+          "elementShell": 0,
+          "elementCards": 0
+        },
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": true,
+          "visualDropSettles": true,
+          "reverseAndCrossSource": true,
+          "sourceSlotInvalidation": true,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      },
+      {
+        "view": "element",
+        "drifts": 100,
+        "fixtureHash": "a96f6d23e381762aa04007db599c2cfe530b46b8111f49b3d19a4a93958dc4bc",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 0,
+        "closedWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 3,
+          "elementCards": 100
+        },
+        "popoverWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "hoverWork": null,
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": null,
+          "visualDropSettles": null,
+          "reverseAndCrossSource": null,
+          "sourceSlotInvalidation": null,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      },
+      {
+        "view": "element",
+        "drifts": 1000,
+        "fixtureHash": "4c8be8f2ffe1c7631935a2064058774d39279282f8e74d44878fb5748b098eb4",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 0,
+        "closedWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 3,
+          "elementCards": 1000
+        },
+        "popoverWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "hoverWork": null,
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": null,
+          "visualDropSettles": null,
+          "reverseAndCrossSource": null,
+          "sourceSlotInvalidation": null,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      },
+      {
+        "view": "element",
+        "drifts": 5000,
+        "fixtureHash": "c4fd6043c2d360da03d169b642233354f1f17ea73cd38c2537bbd2352a88c602",
+        "closedToggles": 20,
+        "popoverCycles": 10,
+        "hoverEvents": 0,
+        "closedWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "mountWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 3,
+          "elementCards": 5000
+        },
+        "popoverWork": {
+          "storyShell": 0,
+          "storyCards": 0,
+          "storyWrappers": 0,
+          "elementShell": 20,
+          "elementCards": 0
+        },
+        "hoverWork": null,
+        "checks": {
+          "allCardsRetained": true,
+          "popoverCycles": true,
+          "restingStyle": true,
+          "specialEdges": true,
+          "dragShiftAndCancel": null,
+          "visualDropSettles": null,
+          "reverseAndCrossSource": null,
+          "sourceSlotInvalidation": null,
+          "latestPair": true,
+          "currentContextMenu": true,
+          "renamedCard": true,
+          "closeAndReopen": true
+        }
+      }
+    ],
+    "boundary": "Actual graph shells, card trees and drift edges; synthetic DOM events/navigation/data. Counts distinguish leaf content from wrapper mapping. No marker or relation persistence and no physical drag acceptance."
+  },
+  "graphGeometry": {
+    "implementation": "unique-endpoint-overlay-state",
+    "profiles": [
+      {
+        "edges": 100,
+        "uniqueEndpoints": 20,
+        "layoutReads": 20,
+        "projectedEdges": 100
+      },
+      {
+        "edges": 1000,
+        "uniqueEndpoints": 100,
+        "layoutReads": 100,
+        "projectedEdges": 1000
+      },
+      {
+        "edges": 5000,
+        "uniqueEndpoints": 500,
+        "layoutReads": 500,
+        "projectedEdges": 5000
+      }
+    ],
+    "ownership": {
+      "cards": 20,
+      "events": 100,
+      "cardCommits": 0,
+      "geometryRenderPasses": 0,
+      "geometryLabelReads": 0,
+      "layoutReads": 100
+    },
+    "moved": {
+      "cardCommits": 0,
+      "geometryRenderPasses": 1,
+      "geometryLabelReads": 1000,
+      "layoutReads": 100
+    },
+    "checks": [
+      {
+        "id": "actual-drift-svg-renders-all-edges",
+        "passed": true
+      },
+      {
+        "id": "labels-and-direction-markers-preserved",
+        "passed": true
+      },
+      {
+        "id": "entry-measurement-stops",
+        "passed": true
+      },
+      {
+        "id": "burst-defers-layout-reads",
+        "passed": true
+      },
+      {
+        "id": "unchanged-burst-one-read-per-endpoint-no-card-commits-or-line-render",
+        "passed": true
+      },
+      {
+        "id": "moved-geometry-only-renders-line-layer",
+        "passed": true
+      },
+      {
+        "id": "pan-ref-skips-measurement-and-react",
+        "passed": true
+      },
+      {
+        "id": "pan-end-keeps-stale-lines-hidden",
+        "passed": true
+      },
+      {
+        "id": "pan-end-reveals-fresh-committed-lines",
+        "passed": true
+      },
+      {
+        "id": "edge-hit-target-preserves-selection-anchor",
+        "passed": true
+      },
+      {
+        "id": "filtered-card-removes-only-dangling-lines",
+        "passed": true
+      },
+      {
+        "id": "unmount-releases-listeners-and-observers",
+        "passed": true
+      },
+      {
+        "id": "unmount-cancels-pending-measurements",
+        "passed": true
+      }
+    ],
+    "boundary": "Actual DOM measurement, production SuperElementDriftEdges, real animation frames and synthetic sibling cards. Full graph shell/card components, native gestures and device acceptance are separate."
+  },
+  "graphOverlays": {
+    "viewport": {
+      "unchanged": {
+        "cardCommits": 0,
+        "lineRenders": 0
+      },
+      "resized": {
+        "cardCommits": 0,
+        "lineRenders": 1
+      },
+      "checks": [
+        {
+          "id": "sticky-node-matches-real-band-dom",
+          "passed": true
+        },
+        {
+          "id": "focused-edge-retains-width-and-tooltip",
+          "passed": true
+        },
+        {
+          "id": "equal-viewport-output-does-not-render-cards-or-lines",
+          "passed": true
+        },
+        {
+          "id": "container-resize-keeps-band-and-svg-aligned",
+          "passed": true
+        },
+        {
+          "id": "pan-transforms-without-line-or-card-render",
+          "passed": true
+        },
+        {
+          "id": "viewport-pan-end-keeps-old-lines-hidden",
+          "passed": true
+        },
+        {
+          "id": "viewport-pan-end-reveals-aligned-lines",
+          "passed": true
+        },
+        {
+          "id": "label-only-change-reaches-tooltip",
+          "passed": true
+        },
+        {
+          "id": "viewport-hit-target-retains-selection",
+          "passed": true
+        },
+        {
+          "id": "viewport-unmount-removes-layer",
+          "passed": true
+        }
+      ]
+    },
+    "story": {
+      "unchanged": {
+        "cardCommits": 0,
+        "lineRenders": 0,
+        "layoutReads": 100
+      },
+      "moved": {
+        "cardCommits": 0,
+        "lineRenders": 1,
+        "layoutReads": 100
+      },
+      "checks": [
+        {
+          "id": "story-svg-preserves-edge-count-style-and-arrows",
+          "passed": true
+        },
+        {
+          "id": "story-layer-is-visible-after-measurement",
+          "passed": true
+        },
+        {
+          "id": "story-animation-window-stops",
+          "passed": true
+        },
+        {
+          "id": "story-scroll-burst-defers-reads",
+          "passed": true
+        },
+        {
+          "id": "story-scroll-burst-one-read-per-endpoint-no-render",
+          "passed": true
+        },
+        {
+          "id": "story-movement-only-renders-lines",
+          "passed": true
+        },
+        {
+          "id": "story-hit-target-preserves-anchor",
+          "passed": true
+        },
+        {
+          "id": "story-bound-filter-removes-dangling-lines",
+          "passed": true
+        },
+        {
+          "id": "story-unmount-cancels-reads",
+          "passed": true
+        }
+      ]
+    },
+    "boundary": "Production viewport/Story Graph line components, visibility CSS and Super Element transform hook with synthetic cards and real DOM/ResizeObserver. Full project shell, native gestures and device acceptance remain separate."
+  },
+  "timeline": {
+    "leaders": {
+      "implementation": "shared-id-index",
+      "profiles": [
+        {
+          "chapters": 100,
+          "firstIdReads": 100,
+          "repeatedIdReads": 0,
+          "leaders": 100,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "medianMs": 0
+        },
+        {
+          "chapters": 1000,
+          "firstIdReads": 1000,
+          "repeatedIdReads": 0,
+          "leaders": 1000,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            0.20000004768371582,
+            0.19999992847442627,
+            0.2999999523162842,
+            0.20000004768371582,
+            0.19999992847442627
+          ],
+          "medianMs": 0.20000004768371582
+        },
+        {
+          "chapters": 5000,
+          "firstIdReads": 5000,
+          "repeatedIdReads": 0,
+          "leaders": 5000,
+          "pathsMatchFixture": true,
+          "samplesMs": [
+            0.5,
+            0.8000000715255737,
+            0.7000000476837158,
+            0.7999999523162842,
+            0.7999999523162842
+          ],
+          "medianMs": 0.7999999523162842
+        }
+      ]
+    },
+    "marker": {
+      "implementation": "local-pin-and-guide-preview",
+      "groups": [
+        {
+          "variant": "bottom",
+          "cards": 20,
+          "moves": 100,
+          "dragCardCommits": 0,
+          "frameNotifications": 1,
+          "writes": [
+            11.4,
+            11.575
+          ],
+          "checks": [
+            {
+              "id": "pointer-burst-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "one-frame-publishes-latest-guide",
+              "passed": true
+            },
+            {
+              "id": "pin-line-hides-during-drag",
+              "passed": true
+            },
+            {
+              "id": "rail-and-lane-guides-align",
+              "passed": true
+            },
+            {
+              "id": "display-frame-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-commits-continuous-coordinate",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-clears-preview-immediately",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-before-frame-keeps-exact-final-coordinate",
+              "passed": true
+            },
+            {
+              "id": "ended-preview-does-not-reappear",
+              "passed": true
+            },
+            {
+              "id": "foreign-pointer-cannot-cancel-active-drag",
+              "passed": true
+            },
+            {
+              "id": "cancel-clears-without-write",
+              "passed": true
+            },
+            {
+              "id": "window-blur-cancels-without-write",
+              "passed": true
+            },
+            {
+              "id": "pin-unmount-cancels-pending-drag-and-listeners",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "variant": "graph",
+          "cards": 20,
+          "moves": 100,
+          "dragCardCommits": 0,
+          "frameNotifications": 1,
+          "writes": [
+            11.4,
+            11.575
+          ],
+          "checks": [
+            {
+              "id": "pointer-burst-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "one-frame-publishes-latest-guide",
+              "passed": true
+            },
+            {
+              "id": "pin-line-hides-during-drag",
+              "passed": true
+            },
+            {
+              "id": "display-frame-does-not-render-cards",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-commits-continuous-coordinate",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-clears-preview-immediately",
+              "passed": true
+            },
+            {
+              "id": "pointer-up-before-frame-keeps-exact-final-coordinate",
+              "passed": true
+            },
+            {
+              "id": "ended-preview-does-not-reappear",
+              "passed": true
+            },
+            {
+              "id": "foreign-pointer-cannot-cancel-active-drag",
+              "passed": true
+            },
+            {
+              "id": "cancel-clears-without-write",
+              "passed": true
+            },
+            {
+              "id": "window-blur-cancels-without-write",
+              "passed": true
+            },
+            {
+              "id": "pin-unmount-cancels-pending-drag-and-listeners",
+              "passed": true
+            }
+          ]
+        }
+      ]
+    },
+    "act": {
+      "cards": 20,
+      "moves": 100,
+      "dragCardCommits": 0,
+      "frameNotifications": 1,
+      "writes": [
+        11.4,
+        11.575
+      ],
+      "checks": [
+        {
+          "id": "act-pointer-burst-does-not-render-cards",
+          "passed": true
+        },
+        {
+          "id": "act-guide-coalesces-and-keeps-host-offset",
+          "passed": true
+        },
+        {
+          "id": "act-commits-continuous-coordinate",
+          "passed": true
+        },
+        {
+          "id": "act-commit-does-not-wait-for-frame",
+          "passed": true
+        },
+        {
+          "id": "act-cancel-clears-without-write",
+          "passed": true
+        },
+        {
+          "id": "act-unmount-cancels-without-write",
+          "passed": true
+        }
+      ]
+    },
+    "boundary": "Actual mobile leader projection, shared TimelinePin/ActRail and guide components; synthetic sparse entries/cards and pointer events. Full Timeline UI, native touch and durable database writes are separate."
+  },
+  "workspaceProjection": {
+    "membership": {
+      "implementation": "linear-membership-sets",
+      "profiles": [
+        {
+          "nodes": 100,
+          "links": 200,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "1ee75975b5437f51a3dc0e039304895cb3d73606ec5c59303f9de047ea2a7d85",
+          "samplesMs": [
+            0,
+            0,
+            0.10000002384185791,
+            0,
+            0
+          ],
+          "medianMs": 0
+        },
+        {
+          "nodes": 1000,
+          "links": 2000,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "a60d749d6e593a396ea3d2cc641d433f5440d35c584c6b182a528b10666504d8",
+          "samplesMs": [
+            0.2999999523162842,
+            0.19999992847442627,
+            0.20000004768371582,
+            0.20000004768371582,
+            0.2999999523162842
+          ],
+          "medianMs": 0.20000004768371582
+        },
+        {
+          "nodes": 5000,
+          "links": 10000,
+          "scannedSlots": 0,
+          "matchesFixture": true,
+          "fixtureHash": "a8910b0e68fd4a1c61ea421808c57c27450aecec38c07930b4d81942b89a30d5",
+          "samplesMs": [
+            1.5,
+            1.5,
+            1.5,
+            1.600000023841858,
+            1.5
+          ],
+          "medianMs": 1.5
+        }
+      ]
+    },
+    "publication": {
+      "implementation": "share-capture-values",
+      "profiles": [
+        {
+          "nodes": 100,
+          "elements": 20,
+          "reusedNodeRecords": 100,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "570e33cd0b1d6dca1ebb0714f4a01f364b328e66711775820ffaf4f71bcf5598",
+          "samplesMs": [
+            0.30000007152557373,
+            0.2999999523162842,
+            0.30000007152557373,
+            0.30000007152557373,
+            0.2999999523162842
+          ],
+          "medianMs": 0.30000007152557373
+        },
+        {
+          "nodes": 1000,
+          "elements": 200,
+          "reusedNodeRecords": 1000,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "f725188a5ac087c42b2b5be9237fcf8db533627d37ed3dd6c9fdee57e36a9ae1",
+          "samplesMs": [
+            2.1999999284744263,
+            1.600000023841858,
+            1.600000023841858,
+            1.600000023841858,
+            1.600000023841858
+          ],
+          "medianMs": 1.600000023841858
+        },
+        {
+          "nodes": 5000,
+          "elements": 1000,
+          "reusedNodeRecords": 5000,
+          "stableCollections": 16,
+          "slices": 17,
+          "fixtureHash": "6a81221d2e5bd6a78b9cc422b6514320fbf4c04f30f4bdccd3baddbb91710e67",
+          "samplesMs": [
+            3.700000047683716,
+            3.200000047683716,
+            3.100000023841858,
+            3.700000047683716,
+            3.5
+          ],
+          "medianMs": 3.5
+        }
+      ]
+    },
+    "subscriptions": {
+      "consumers": 20,
+      "refreshes": 100,
+      "unrelated": {
+        "fields": 0,
+        "records": 0
+      },
+      "rename": {
+        "fields": 20,
+        "records": 1
+      }
+    },
+    "boundary": "Production membership derivation and workspace commit with complete synthetic capture-shaped data and real Zustand/React subscribers. SQLite read count, reference parsing, full provider and native recovery are not measured here."
+  },
+  "editorContextMenus": {
+    "groups": [
+      {
+        "editors": 1,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 214,
+        "removals": 214,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 5,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 20,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      }
+    ],
+    "collaborativeFormats": {
+      "checks": [
+        "heading and generated trailing block enter one Yjs undo item",
+        "format undo restores exact content and block identities",
+        "format redo restores exact content and block identities",
+        "split creates unique identities in one undo item",
+        "split undo restores original block",
+        "split redo restores assigned block identities",
+        "explicitly excluded write assigns IDs without entering history"
+      ],
+      "scope": "Real Yjs, Collaboration, StarterKit trailing node and BlockId; synthetic DOM actions."
+    },
+    "initialSessionFocus": {
+      "checks": [
+        "initialization cannot blur a subsequently focused editor",
+        "inactive initialization cannot clear another editor selection"
+      ]
+    },
+    "scope": "Actual DOM and Tiptap editors in isolated Chromium; no React shell, native input, or memory/latency budget inferred."
+  },
+  "editorSuggestions": {
+    "groups": [
+      {
+        "editors": 1,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 211,
+        "subscriptions": 4,
+        "releases": 4,
+        "maxSubscriptions": 2,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "destroy releases all owned gates and portals"
+        ]
+      },
+      {
+        "editors": 5,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 214,
+        "subscriptions": 12,
+        "releases": 12,
+        "maxSubscriptions": 10,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "retiring another editor preserves the current popup",
+          "destroy releases all owned gates and portals"
+        ]
+      },
+      {
+        "editors": 20,
+        "cyclesPerMenu": 100,
+        "itemBuilds": 214,
+        "subscriptions": 42,
+        "releases": 42,
+        "maxSubscriptions": 40,
+        "remainingSubscriptions": 0,
+        "checks": [
+          "inactive canonical gates build no items or portals",
+          "slash: 100 hide/return cycles reject stale actions",
+          "slash: blur closes without editing prose",
+          "slash: Escape closes without consuming the trigger",
+          "slash: readonly closes the portal",
+          "slash: detached rows cannot invoke the refreshed query",
+          "slash: current action consumes its live trigger once",
+          "mention: 100 hide/return cycles reject stale actions",
+          "mention: blur closes without editing prose",
+          "mention: Escape closes without consuming the trigger",
+          "mention: readonly closes the portal",
+          "mention: detached rows cannot invoke the refreshed query",
+          "mention: current action consumes its live trigger once",
+          "recreated plugin views retain command ownership",
+          "hidden authoritative transactions do not build suggestion items",
+          "retiring another editor preserves the current popup",
+          "destroy releases all owned gates and portals"
+        ]
+      }
+    ],
+    "asyncCreation": [
+      {
+        "action": "complete",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "link-mark",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "hidden-return",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "blur",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "selection",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "query",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "query-undo",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "same-text-replacement",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "appended-replacement",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "readonly-return",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "destroy",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "escape",
+        "creations": 1,
+        "passed": true
+      },
+      {
+        "action": "cancel",
+        "creations": 1,
+        "passed": true
+      }
+    ],
+    "template": {
+      "blurClosesAndRejectsStaleActions": true
+    },
+    "scope": "Real Tiptap plugins and DOM in active isolated Chromium; synthetic actions, no native input or performance budget inferred."
+  },
+  "inlineCopilot": {
+    "checks": [
+      "unmount releases the global invocation and its retained prose",
+      "return does not revive the previous invocation",
+      "fixed popover portals outside transformed and clipped editor parents",
+      "current invocation remains mounted",
+      "matching node in another project creates no duplicate portal",
+      "unrelated owner cleanup preserves the current invocation and portal",
+      "available action: copilotInline.actions.ask",
+      "first controlled stream starts",
+      "available action: copilotInline.actions.ask",
+      "replacement aborts only the old stream and preserves new context",
+      "obsolete stream cannot clear the new conversation busy state",
+      "current stream completes normally",
+      "available action: copilotInline.actions.chapterSummary",
+      "available action: copilotInline.actions.chapterSummary",
+      "chapter summary calls are controlled without database writes",
+      "old summary completion cannot change a new invocation",
+      "current summary completion remains visible",
+      "available action: copilotInline.actions.inlineCursor",
+      "controlled inline edit starts",
+      "unmount aborts inline edit and cannot revive a late preview",
+      "available action: copilotInline.actions.inlineSelection",
+      "available action: copilotInline.actions.accept ↵",
+      "current edit applies through the real editor and releases its invocation",
+      "current edit remains one undoable prose change",
+      "available action: copilotInline.actions.inlineSelection",
+      "available action: copilotInline.actions.accept ↵",
+      "actual popover reports target conflict without altering author text",
+      "conflict feedback cannot retry the invalid captured target",
+      "available action: copilotInline.actions.close",
+      "conflict dismissal releases captured context",
+      "author change survives rejected apply and remains undoable",
+      "Escape releases current context and portal",
+      "readonly transition releases the invocation",
+      "editable return does not revive the old invocation",
+      "source mismatch remains invisible and cannot clear another project context",
+      "100 hide and return cycles leave no invocation, portal or prose changes",
+      "editor destruction releases its invocation and portal",
+      "all owned window keyboard listeners are released",
+      "owned span transaction tracking releases on success, conflict and destruction"
+    ],
+    "conflictFeedback": true,
+    "spanTrackers": {
+      "additions": 3,
+      "removals": 3,
+      "remaining": 0,
+      "peak": 1
+    },
+    "cycles": 100,
+    "listeners": {
+      "additions": 119,
+      "removals": 119,
+      "remaining": 0,
+      "peak": 1
+    },
+    "services": {
+      "edits": 3,
+      "asks": 2,
+      "summaries": 2
+    },
+    "scope": "Actual production React popover and Tiptap in isolated Chromium; deferred service doubles, no external model requests, database writes or native input. StrictMode development effect replay is not inferred from this production build."
+  },
+  "inlineEditApply": {
+    "checks": [
+      "changed span cannot be overwritten by an old proposal",
+      "formatting added to the span is preserved on conflict",
+      "span follows its original block after an identical prefix insertion",
+      "repeated text before the span cannot steal its mapped target",
+      "same-text replacement permanently invalidates the original span",
+      "undo to original content cannot revive an invalidated span",
+      "appended same-text replacement also invalidates the span",
+      "detached span tracking cannot apply an old result",
+      "whitespace changes remain a real conflict",
+      "invalid span rejects without a transaction",
+      "span cannot cross into another block",
+      "current span writes model output as literal prose",
+      "following author input has its own undo operation",
+      "current span undo preserves immediately preceding author input",
+      "unrelated later prose does not invalidate a current span",
+      "missing block rejects the whole proposal without partial application",
+      "one changed target rejects every proposed block",
+      "block source includes formatting in its precondition",
+      "duplicate target identities cannot be applied twice",
+      "the complete authored target is checked even when one block has no proposed change",
+      "current block proposal commits every target together",
+      "multi-block edit is one undo operation with original identities",
+      "stable block identities allow an unrelated prefix insertion",
+      "a current unchanged result is a prose no-op",
+      "readonly editor cannot accept a proposal",
+      "destroyed editor rejects without accessing its view"
+    ],
+    "collaborativeHistory": {
+      "separateUndoItems": 3,
+      "exactOriginalRestored": true,
+      "mappedCollaborativeSpan": true,
+      "sameTextPeerReplacementRejected": true,
+      "yjsObservers": {
+        "additions": 2,
+        "removals": 2,
+        "remaining": 0
+      }
+    },
+    "scope": "Real ProseMirror/Tiptap/Yjs proposals and transactions in isolated Chromium; exact target conflicts, literal text and undo. No provider request or native input."
+  },
+  "copilotRuns": {
+    "checks": [
+      "context preparation is controlled",
+      "unmount during context preparation does not start an orphaned capability",
+      "out-of-order context completion cannot replace the latest capability",
+      "replacement aborts detection before waiting for new context",
+      "late aborted detection cannot write or cancel its replacement",
+      "manual task replacement ends each started task exactly once",
+      "unmount aborts an active detector and suppresses its late suggestions",
+      "readonly return cannot revive a retired invocation",
+      "settings rebind invalidates the previous effect context preparation",
+      "project replacement invalidates pending old-project context",
+      "incoming project owns the current capability",
+      "current suggestions retain their authored anchor and write normally",
+      "already-started persistence finishes without launching remaining writes after closure",
+      "summary remains owned after its detector completes",
+      "unmount aborts the outstanding summary",
+      "late old summary completion cannot release a new owner summary lock",
+      "current summary completion permits the next summary",
+      "closed owners release every manual command listener",
+      "editor destruction aborts outstanding detection before late persistence",
+      "task IDs do not repeat after remount or settings rebind",
+      "every announced task has exactly one terminal event"
+    ],
+    "cycles": 100,
+    "detections": 11,
+    "writes": 2,
+    "summaries": 3,
+    "remainingManualListeners": 0,
+    "scope": "Actual React hook and Tiptap editor with deferred synthetic services; no model or SQLite calls."
+  },
+  "subscriptions": {
+    "operations": 100,
+    "allStoreNotifications": 100,
+    "chapterSliceChanges": 0
+  },
+  "environment": {
+    "documentFocused": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "viewport": [
+      1280,
+      813
+    ],
+    "devicePixelRatio": 1,
+    "platform": "darwin",
+    "release": "25.6.0",
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "node": "v24.4.0",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "runnerImage": null,
+    "runnerImageVersion": null
+  },
+  "validationMode": "deterministic-ci",
+  "limitations": [
+    "Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.",
+    "Animation-frame callback is not a compositor paint measurement.",
+    "Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.",
+    "Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN."
+  ]
+}

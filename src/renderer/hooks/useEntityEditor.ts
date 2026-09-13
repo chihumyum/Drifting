@@ -858,10 +858,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => { suggestionGate.setEditor(null); };
   }, [suggestionGate, editor, canonicalReady, editable, projectId, sourceKind, sourceId, isVisible, isCommandActive]);
 
-  useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled });
+  const linksReady = useEntityLinkConfiguration(editor, { autoDetectTargets, autoDetectEnabled: autoElementLinkEnabled }, {
+    canonicalReady, presentationNeeded: isVisible || isPreparing,
+  });
 
   const decorationsReady = useAgentEditorDecorations(editor, sourceKind, sourceId, isVisible || isPreparing);
-  const ready = canonicalReady && sessionReady && decorationsReady;
+  const ready = canonicalReady && sessionReady && decorationsReady && linksReady;
 
   useRetroactiveEntityLinks(editor, { projectId, sourceKind, sourceId, parentElementId, canonicalReady });
 

@@ -54,7 +54,9 @@ describe('desktop editor continuity acceptance', () => {
     expect(entityEditor).toContain('content: initialContent');
     expect(entityEditor).not.toContain('loadDocWithoutHistory');
     expect(entityEditor).toContain('collaboration?.options.document === ydoc');
-    expect(entityEditor).toContain('const ready = canonicalReady && sessionReady && decorationsReady;');
+    expect(entityEditor).toContain('const ready = canonicalReady && sessionReady && decorationsReady && linksReady;');
+    expect(entityEditor).toContain('const linksReady = useEntityLinkConfiguration(editor,');
+    expect(entityEditor).toContain('canonicalReady, presentationNeeded: isVisible || isPreparing,');
     expect(source('src/renderer/hooks/useEntityYjsDoc.ts')).toContain(
       'const enabled = Boolean(userId && projectId && entityId)',
     );

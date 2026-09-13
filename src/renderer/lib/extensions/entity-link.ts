@@ -153,6 +153,34 @@ function computeDanglingDecorations(doc: PMNode): DecorationSet {
   return DecorationSet.create(doc, decorations);
 }
 
+interface EntityLinkPresentationState {
+  needed: boolean;
+  targetsDirty: boolean;
+  appliedColorVersion: number;
+}
+const presentationStates = new WeakMap<EditorView, EntityLinkPresentationState>();
+
+/** Only batch display work is suspended. Auto-detection and document updates continue. */
+export function setEntityLinkPresentationNeeded(editor: Editor, needed: boolean): void {
+  const state = presentationStates.get(editor.view);
+  if (state) state.needed = needed;
+}
+
+/** Synchronously flush display work before a retained surface is revealed. */
+export function refreshEntityLinkPresentation(editor: Editor, targetsChanged: boolean): void {
+  const state = presentationStates.get(editor.view);
+  if (!state) throw new Error('Entity link presentation plugin is missing');
+  state.targetsDirty ||= targetsChanged;
+  if (!state.needed) return;
+  if (state.targetsDirty || state.appliedColorVersion !== entityLinkConfig.targetColorVersion) {
+    const tr = editor.state.tr.setMeta('addToHistory', false);
+    if (state.targetsDirty) tr.setMeta(EntityLinkDanglingPluginKey, true);
+    else tr.setMeta('entityLinkAppearance', true);
+    editor.view.dispatch(tr);
+    state.targetsDirty = false;
+  }
+}
+
 // ---- Auto-detect (debounced) ------------------------------------------------
 
 // Trailing-debounce window before auto-linking freshly-typed entity names. Keeps
@@ -392,7 +420,8 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         // doc, so a plain whole-doc scan finds it regardless of how it was typed.)
         view(editorView) {
           applyEntityLinkTargetColors(editorView.dom);
-          let appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
+          const presentation = { needed: true, targetsDirty: false, appliedColorVersion: entityLinkConfig.targetColorVersion };
+          presentationStates.set(editorView, presentation);
           autoDetectStates.set(editorView, { timer: null, config: initialAutoDetectConfig });
           return {
             update(view, prevState) {
@@ -401,9 +430,10 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
               // scan when their external appearance changes; ordinary typing
               // must not repeatedly traverse and restyle the whole document.
               const docChanged = view.state.doc !== prevState.doc;
-              if (appliedTargetColorVersion !== entityLinkConfig.targetColorVersion) {
+              if (docChanged && !presentation.needed) presentation.targetsDirty = true;
+              if (presentation.needed && presentation.appliedColorVersion !== entityLinkConfig.targetColorVersion) {
                 applyEntityLinkTargetColors(view.dom);
-                appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
+                presentation.appliedColorVersion = entityLinkConfig.targetColorVersion;
               }
               // React only to doc changes — cheap identity check (PM mints a new
               // doc node on any change); skip selection-only updates.
@@ -416,6 +446,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
               const st = autoDetectStates.get(editorView);
               if (st?.timer) clearTimeout(st.timer);
               autoDetectStates.delete(editorView);
+              presentationStates.delete(editorView);
             },
           };
         },

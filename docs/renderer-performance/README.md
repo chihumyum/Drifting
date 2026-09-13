@@ -3852,3 +3852,46 @@ has zero errors and 30 existing warnings. The ordinary production build has 42
 JavaScript assets and excludes acceptance probes. Everything ran headlessly.
 Full-document and alias traversal, full Review interactions, native input and
 device budgets remain open; F3 is still `in_progress`.
+
+## F3o — Shared link presentation and hidden-view preparation
+
+[Entity-link display inputs](link-presentation.md) now have one workspace and
+one settings subscription while editors are attached. Target membership/trash,
+colors and click preferences are separate invalidation domains. The registry
+increments the shared color version once per appearance change and releases its
+snapshot/subscriptions with its last owner. Each canonical view retains its
+own automatic-link configuration and display preparation state.
+
+Hidden views defer full color and dangling-link scans while retaining live
+Yjs, document updates, automatic linking and undo. Preparing a retained surface
+flushes current display state synchronously before the combined canonical,
+session, Review and link-display readiness gate permits reveal. A failed
+refresh stays unready and dirty until a successful retry; canonical rebinding
+cannot reuse the previous owner's ready snapshot.
+
+`acceptance/f3-link-presentation-browser.json` compares the previous hook wiring
+from `248ca3cb` with the real current hook in the same headless build. Profiles
+use 1/5/20 editors, 100 linked paragraphs per editor, 5,000 nodes and 5,000 elements.
+For twenty editors, 100 rename/target-map changes and 100 interaction toggles
+each drop from 2,000 full liveness scans (200,000 text-node visits) to zero.
+One hundred color changes drop from 2,000 full color scans to 100 and no longer
+scan liveness. The shared version changes 100 times instead of 2,000. An
+unrelated following transaction no longer incurs nineteen extra color scans.
+Deletion scans one visible view; returning hidden views flush once before ready.
+
+All 40 behavior checks pass, including hidden Yjs updates and automatic linking,
+undo, independent CRDT replay, layout readiness, canonical retirement/rebinding,
+failure/retry and one hundred attach/detach cycles. Seven registry unit tests
+verify one subscription per store, semantic filtering, reentrancy and cleanup.
+The ordinary CI report contract rejects missing or regressed work/behavior
+coverage, and the desktop continuity source contract requires all four readiness
+gates. This remains headless component/operation evidence: initial plugin
+construction, per-mark rendering, retained heap, full App/device budgets and
+physical/native input are not established by this batch. F3 remains open.
+
+The generated report matched the final source fingerprint before commit and
+retains its actual pre-commit SHA. All six required repository commands and the
+architecture command passed. Full Vitest: 2,859 passed, one existing skip,
+428 files. Lint: zero errors and 30 existing warnings. The ordinary production
+build has 42 JavaScript assets and no acceptance probes. No native windows were
+launched; the remaining F3 and device gates are not marked complete.
