@@ -6,7 +6,7 @@ import type { WorkspaceTarget } from '../features/workspace/navigation/workspace
 import { SuperViewNavigationProvider } from '../components/SuperViewNavigationContext';
 import { SuperViewRelationUiProvider } from '../features/graph/SuperViewRelationUiContext';
 import { superViewModules } from '../features/graph/deferred-graph-modules';
-import { SuperElementCardFixture } from './super-element-card-fixture';
+import { GraphCardFixture } from './graph-card-fixture';
 import { createSyntheticWorkspaceProjection } from './fixture';
 import { useDataStore } from '../store/data-store';
 import { genericAssociationRelationType } from '../domain/entity-relation-type';
@@ -48,7 +48,7 @@ export async function runSuperElementCardScenarios() {
       try {
         flushSync(() => root.render(<MemoryRouter><WorkspaceNavigationProvider navigator={navigator}>
           <SuperViewRelationUiProvider projectId={projectId}><SuperViewNavigationProvider value={{ active: 'element', setActive: () => { closed++; } }}>
-            <SuperElementCardFixture {...graph.value} />
+            <GraphCardFixture {...graph.value} />
           </SuperViewNavigationProvider></SuperViewRelationUiProvider>
         </WorkspaceNavigationProvider></MemoryRouter>));
         await pause(700);

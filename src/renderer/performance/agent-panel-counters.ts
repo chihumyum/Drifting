@@ -11,3 +11,5 @@ export function resetAgentTranscriptWork() { for (const key of Object.keys(agent
 
 export const agentRecoveryWork = { groupedMessageVisits: 0, promptMessageVisits: 0, recoveredTurnVisits: 0, visibleUserCandidates: 0 };
 export const superElementCardWork = { categories: 0, elements: 0, bands: 0 };
+
+export const storyGraphCardWork = { lanes: 0, tiles: 0, groupingVisits: 0 };

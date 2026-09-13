@@ -38,6 +38,16 @@ try {
     plugins: [{
       name: 'isolated-inline-copilot-services', enforce: 'pre',
       transform(code, id) {
+        if (id.endsWith('/StoryGraphLaneRow.tsx') || id.endsWith('/story-graph-layout.ts')) {
+          const anchors = id.endsWith('/StoryGraphLaneRow.tsx')
+            ? [['}: StoryGraphLaneRowProps) {', 'lanes'], ['const status = node.writingStatus;', 'tiles']]
+            : [['for (const node of nodes) {', 'groupingVisits']];
+          for (const [anchor, counter] of anchors) {
+            if (code.split(anchor).length !== 2) throw new Error(`Story Graph instrumentation drifted: ${anchor}`);
+            code = code.replace(anchor, anchor + ` storyGraphCardWork.${counter}++;`);
+          }
+          return { code: `import { storyGraphCardWork } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n` + code, map: null };
+        }
         if (id.endsWith('/SuperElementCategoryBox.tsx') || id.endsWith('/SuperElementChapterBand.tsx')) {
           const anchors = id.endsWith('/SuperElementCategoryBox.tsx')
             ? [['}: CategoryBoxProps) {', 'categories'], ['const isLinkSource = linkSourceElementId === element.id;', 'elements']]

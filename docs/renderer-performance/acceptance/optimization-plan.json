@@ -359,7 +359,9 @@
             "docs/renderer-performance/acceptance/f5-timeline-baseline.json",
             "docs/renderer-performance/acceptance/f5-timeline.json",
             "docs/renderer-performance/acceptance/f5-cards-baseline.json",
-            "docs/renderer-performance/acceptance/f5-cards.json"
+            "docs/renderer-performance/acceptance/f5-cards.json",
+            "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-story-cards.json"
           ],
           "status": "partial"
         },
@@ -384,7 +386,10 @@
             "docs/renderer-performance/acceptance/f5-timeline.json",
             "docs/renderer-performance/acceptance/f5-cards-baseline.json",
             "docs/renderer-performance/acceptance/f5-cards.json",
-            "docs/renderer-performance/acceptance/f5-cards-native.json"
+            "docs/renderer-performance/acceptance/f5-cards-native.json",
+            "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-story-cards.json",
+            "docs/renderer-performance/acceptance/f5-story-cards-native.json"
           ],
           "status": "partial"
         },
@@ -400,12 +405,14 @@
             "docs/renderer-performance/acceptance/f5-timeline-baseline.json",
             "docs/renderer-performance/acceptance/f5-timeline.json",
             "docs/renderer-performance/acceptance/f5-cards-baseline.json",
-            "docs/renderer-performance/acceptance/f5-cards.json"
+            "docs/renderer-performance/acceptance/f5-cards.json",
+            "docs/renderer-performance/acceptance/f5-story-cards-baseline.json",
+            "docs/renderer-performance/acceptance/f5-story-cards.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "super_element_stable_card_tree_geometry_and_timeline_preview_isolated_story_graph_cards_and_device_budgets_pending"
+      "implementationStatus": "super_element_and_story_graph_lane_cards_stable_geometry_and_timeline_preview_isolated_remaining_cards_gestures_and_device_budgets_pending"
     },
     {
       "id": "F6",

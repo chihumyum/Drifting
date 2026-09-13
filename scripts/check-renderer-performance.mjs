@@ -59,7 +59,7 @@ if (deterministic) {
   // execute every current contract and may not pass by omitting its section.
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'agentEventProcessing',
-    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'graphGeometry', 'graphOverlays', 'timeline',
+    'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'graphGeometry', 'graphOverlays', 'timeline',
     'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
@@ -225,6 +225,21 @@ if (report.agentBackground) {
     assert.deepEqual(item.timerWork, { flatMaterializations: 1, flattenedMessages: item.historyMessages + 1 });
     assert.deepEqual(item.checks, { canonicalCurrentBeforeTimer: true, completeDisplay: true, duplicatesPreserveSnapshot: true,
       originalSnapshotUnchanged: true, foregroundFlushesTail: true, disposedResources: true });
+  }
+}
+if (report.storyGraphCards) {
+  const baseline = read(path.join(directory, 'f5-story-cards-baseline.json')).storyGraphCards;
+  assert.deepEqual(report.storyGraphCards.measurements.map(item => [item.chapters, item.storylines]), [[100, 8], [1000, 24], [5000, 50]]);
+  for (const [index, item] of report.storyGraphCards.measurements.entries()) {
+    assert.equal(item.fixtureHash, baseline.measurements[index].fixtureHash);
+    assert.equal(item.lanes, item.storylines + 1); assert.equal(item.drawerToggles, 20); assert.equal(item.popoverCycles, 10); assert.equal(item.pointerMoves, 100);
+    assert.deepEqual(item.mountWork, { lanes: item.lanes, tiles: item.chapters, groupingVisits: item.chapters }, 'Story Graph initial grouping must visit each chapter once and instrument each card.');
+    for (const work of [item.drawerWork, item.popoverWork, item.pointerWork]) {
+      assert.deepEqual(work, { lanes: 0, tiles: 0, groupingVisits: 0 }, 'Story Graph transient state rebuilt unchanged lanes or regrouped chapters.');
+    }
+    assert.deepEqual(item.checks, { allCardsRetained: true, primaryLaneMembership: true, drawerReturned: true, popoverCycles: true,
+      cancelledDragCleaned: true, shiftSelectsSource: true, shiftClearsSource: true, latestPair: true, renamedCard: true,
+      reassignedPrimaryLane: true, contextMenuUsesCurrentNode: true, doubleClickNavigation: true });
   }
 }
 if (report.superElementCards) {

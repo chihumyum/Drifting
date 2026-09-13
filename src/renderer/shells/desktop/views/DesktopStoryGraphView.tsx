@@ -1,3 +1,5 @@
+import { GRAPH_CONFIG, EMPTY_POSITIONED_NODES, groupPositionedNodesByRow, type PositionedNode, type StoryGraphLane } from '../../../features/graph/story-graph-layout';
+import { StoryGraphLaneRow, type StoryGraphLaneRowProps } from '../../../features/graph/StoryGraphLaneRow';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { projectStoryGraphDriftEdges } from '../../../features/graph/story-graph-drift-model';
 import { useTranslation } from 'react-i18next';
@@ -77,52 +79,11 @@ type StoryGraphViewMode = 'book' | 'narrative';
 
 const VIEW_STORAGE_KEY = 'graph-view-mode';
 
-const GRAPH_CONFIG = {
-  // Wider grid units than BottomTimeline — fullscreen has room to breathe.
-  GRID_UNIT: 32,
-  // Tile width in grid units; same convention as BottomTimeline.
-  TILE_WIDTH_UNITS: 4,
-  // Bigger tiles than Phase 3: StoryGraphView is intended to grow into the
-  // primary editing surface for inter-node relationship graphs, so each
-  // tile needs room to host more attribute UI later.
-  TILE_HEIGHT: 96,
-  // Default storyline row height. Generous so the gaps between rows can
-  // host relationship edges + inline UI without the layout feeling
-  // cramped. Per-storyline overrides via TRACK_OVERRIDES below grow the
-  // row dynamically (e.g. when the user expands a storyline to author
-  // its relationship graph).
-  TRACK_HEIGHT: 160,
-  // Per-storyline track-height overrides keyed by storyline id. Reserved
-  // for the future "expand this row to author relationships" affordance;
-  // an empty record now means every row uses TRACK_HEIGHT.
-  RAIL_WIDTH: 158,
-  AXIS_HEIGHT: 32,
-  FULL_BOOK_LANE_HEIGHT: 32,
-  CANVAS_PADDING_X: 24,
-  // Runway (grid units) the canvas extends past the furthest chapter / marker
-  // / act, so pins can be dragged and acts planned beyond the last chapter.
-  RUNWAY_UNITS: 8,
-  // Trailing pixel pad so the right-most pin's label (which flows to the RIGHT
-  // of the pin) isn't clipped at the canvas edge.
-  LABEL_PAD: 220,
-};
-
 function readPersistedView(): StoryGraphViewMode {
   if (typeof localStorage === 'undefined') return 'book';
   const v = localStorage.getItem(VIEW_STORAGE_KEY);
   return v === 'narrative' ? 'narrative' : 'book';
 }
-
-// BookNode is a discriminated union; `extends` doesn't accept unions, so we
-// use an intersection. PositionedNode keeps either variant intact and adds
-// the StoryGraphView's per-node layout fields on top.
-type PositionedNode = BookNode & {
-  storyline: Storyline | null;
-  storylines: Storyline[];
-  rowIndex: number;
-  x: number; // tile left, in canvas pixels (already includes padding)
-  y: number; // track center, in canvas pixels
-};
 
 // Slot width used to compute the live shift when dragging drift cards.
 // Card flex-basis 168 + gap 10. Module-scoped because the cards are
@@ -488,8 +449,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     return placedNodes.filter((n) => !primaryStorylineId(n));
   }, [storylines.length, placedNodes, primaryStorylineId]);
 
-  type Lane = { id: string; name: string; color: string; synthetic: boolean };
-  const lanesToRender = useMemo<Lane[]>(() => {
+  const lanesToRender = useMemo<StoryGraphLane[]>(() => {
     if (storylines.length === 0) {
       return [
         {
@@ -500,7 +460,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         },
       ];
     }
-    const real: Lane[] = storylines.map((s) => ({
+    const real: StoryGraphLane[] = storylines.map((s) => ({
       id: s.id,
       name: s.name || 'Untitled',
       color: s.color || 'hsl(var(--story-4))',
@@ -605,6 +565,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     nodeStorylines,
     orderToX,
   ]);
+
+  const positionedNodesByRow = useMemo(() => groupPositionedNodesByRow(positionedNodes), [positionedNodes]);
 
   // ---- Cross-storyline trails ----
   // Same semantic as BottomTimeline: a node on its main storyline appears
@@ -916,7 +878,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     return type ? presentRelationType(type).name : t('relationTypes.missing');
   }, [relationTypeById, presentRelationType, t]);
 
-  const startGraphChapterPointerDrag = (
+  const startGraphChapterPointerDrag = useCallback((
     event: React.PointerEvent<HTMLElement>,
     node: BookNode,
     options: { fromDrawer?: boolean } = {},
@@ -977,7 +939,76 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         }, 0);
       },
     });
-  };
+  }, [positionToOrder, primaryStorylineId, orderField, moveChapterOnTimeline]);
+
+  const handleChapterPointerDown = useCallback<StoryGraphLaneRowProps['onNodePointerDown']>((event, node) => {
+    if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);
+  }, [mobileLinkMode, startGraphChapterPointerDrag]);
+  const handleChapterContextMenu = useCallback<StoryGraphLaneRowProps['onNodeContextMenu']>((e, node) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      kind: 'node',
+      x: e.clientX + 2,
+      y: e.clientY - 2,
+      nodeId: node.id,
+      nodeTitle: node.title,
+      nodeSummary: node.summary,
+      nodeStorylines: node.storylines,
+      hasNarrativeOrder: typeof node.narrativeOrder === 'number',
+      mainStorylineId: node.storyline?.id ?? null,
+    });
+  }, []);
+  const handleChapterClick = useCallback<StoryGraphLaneRowProps['onNodeClick']>((e, node) => {
+    if (suppressChapterClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressChapterClickRef.current = false;
+      return;
+    }
+    if (e.shiftKey) {
+      setLinkSource((prev) => (prev === node.id ? null : node.id));
+      return;
+    }
+    if (mobileLinkMode) {
+      if (!linkSource || linkSource === node.id) {
+        setLinkSource((prev) => (prev === node.id ? null : node.id));
+      } else {
+        setNewEdgePair({ source: linkSource, target: node.id });
+        setNewEdgeTypeId(null);
+        setNewEdgeReversed(false);
+        setNewEdgeCreatingType(false);
+        setLinkSource(null);
+        setMobileLinkMode(false);
+      }
+      return;
+    }
+    if (linkSource && linkSource !== node.id) {
+      setNewEdgePair({ source: linkSource, target: node.id });
+      setNewEdgeTypeId(null);
+      setNewEdgeReversed(false);
+      setNewEdgeCreatingType(false);
+      setLinkSource(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    setPopover({
+      nodeId: node.id,
+      anchor: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+  }, [mobileLinkMode, linkSource]);
+  const handleChapterDoubleClick = useCallback<StoryGraphLaneRowProps['onNodeDoubleClick']>((node) => {
+    openEntity({ entityType: 'node', id: node.id }, { preview: false });
+    close();
+  }, [openEntity, close]);
+  const handleLaneContextMenu = useCallback<StoryGraphLaneRowProps['onLaneContextMenu']>((event, storylineId) => {
+    setContextMenu({ kind: 'storyline', x: event.clientX + 2, y: event.clientY - 2, storylineId });
+  }, []);
 
   // Map a mouse Y (in scroll-content coordinates) to the lane whose row
   // contains it. Returns null when above the axis or below the last row.
@@ -1427,183 +1458,25 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               track cell with tiles]. The vertical scroll naturally moves
               both halves together because they share the same scroll
               container. */}
-          {lanesToRender.map((lane, rowIdx) => {
-            const laneNodes =
-              lane.id === DEFAULT_LANE_ID
-                ? placedNodes
-                : lane.id === UNAFFILIATED_LANE_ID
-                  ? unaffiliatedChapters
-                  : (sortedNodesByStoryline.get(lane.id) ?? []);
-            const tilesInLane = positionedNodes.filter((n) => n.rowIndex === rowIdx);
-            return (
-              <div
-                key={lane.id}
-                data-storyline-row={lane.id}
-                className={`graph-lane-row${lane.synthetic ? ' is-synthetic' : ''}`}
-                style={
-                  {
-                    height: GRAPH_CONFIG.TRACK_HEIGHT,
-                    ['--track-color' as string]: lane.color,
-                  } as React.CSSProperties
-                }
-              >
-                <div
-                  className="graph-rail-cell"
-                  style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
-                  onContextMenu={(e) => {
-                    if (lane.synthetic) {
-                      e.preventDefault();
-                      return;
-                    }
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setContextMenu({
-                      kind: 'storyline',
-                      x: e.clientX + 2,
-                      y: e.clientY - 2,
-                      storylineId: lane.id,
-                    });
-                  }}
-                >
-                  <div className="graph-rail__name">
-                    <span className="graph-rail__name-dot" style={{ background: lane.color }} />
-                    <span>{lane.name}</span>
-                  </div>
-                  <div className="graph-rail__meta">
-                    {t('storyGraph.lane.chapterCount', { count: laneNodes.length })}
-                  </div>
-                </div>
-                <div
-                  data-node-container
-                  className="graph-track-cell"
-                  style={{ width: canvasContentWidth }}
-                >
-                  {tilesInLane.map((node) => {
-                    const status = node.writingStatus;
-                    const isDiscarded = status === 'discarded';
-                    const isDraft = !isDiscarded && status !== 'finished';
-                    const color = node.storyline?.color || 'hsl(var(--story-4))';
-                    const isLinkSource = linkSource === node.id;
-                    return (
-                      <div
-                        key={node.id}
-                        ref={(el) => {
-                          if (el) tileRefs.current.set(node.id, el);
-                          else tileRefs.current.delete(node.id);
-                        }}
-                        className={[
-                          'graph-tile',
-                          isDraft ? 'is-draft' : '',
-                          isDiscarded ? 'is-discarded' : '',
-                          isLinkSource ? 'is-link-source' : '',
-                          isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        onPointerDown={(event) => {
-                          if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setContextMenu({
-                            kind: 'node',
-                            x: e.clientX + 2,
-                            y: e.clientY - 2,
-                            nodeId: node.id,
-                            nodeTitle: node.title,
-                            nodeSummary: node.summary,
-                            nodeStorylines: node.storylines,
-                            hasNarrativeOrder: typeof node.narrativeOrder === 'number',
-                            mainStorylineId: node.storyline?.id ?? null,
-                          });
-                        }}
-                        onClick={(e) => {
-                          if (suppressChapterClickRef.current) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            suppressChapterClickRef.current = false;
-                            return;
-                          }
-                          if (e.shiftKey) {
-                            setLinkSource((prev) => (prev === node.id ? null : node.id));
-                            return;
-                          }
-                          if (mobileLinkMode) {
-                            if (!linkSource || linkSource === node.id) {
-                              setLinkSource((prev) => (prev === node.id ? null : node.id));
-                            } else {
-                              setNewEdgePair({ source: linkSource, target: node.id });
-                              setNewEdgeTypeId(null);
-                              setNewEdgeReversed(false);
-                              setNewEdgeCreatingType(false);
-                              setLinkSource(null);
-                              setMobileLinkMode(false);
-                            }
-                            return;
-                          }
-                          if (linkSource && linkSource !== node.id) {
-                            setNewEdgePair({ source: linkSource, target: node.id });
-                            setNewEdgeTypeId(null);
-                            setNewEdgeReversed(false);
-                            setNewEdgeCreatingType(false);
-                            setLinkSource(null);
-                            return;
-                          }
-                          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                          setPopover({
-                            nodeId: node.id,
-                            anchor: {
-                              left: rect.left,
-                              top: rect.top,
-                              width: rect.width,
-                              height: rect.height,
-                            },
-                          });
-                        }}
-                        onDoubleClick={() => {
-                          openEntity({ entityType: 'node', id: node.id }, { preview: false });
-                          close();
-                        }}
-                        style={
-                          {
-                            left: node.x,
-                            // Tile sits flush with the bottom of its lane:
-                            // top = TRACK_HEIGHT − TILE_HEIGHT. Leaves the
-                            // upper half empty so the dotted reading line
-                            // at the lane's vertical center traces along
-                            // the tile's upper edge (book-mode look).
-                            top: GRAPH_CONFIG.TRACK_HEIGHT - GRAPH_CONFIG.TILE_HEIGHT,
-                            width: GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT,
-                            height: GRAPH_CONFIG.TILE_HEIGHT,
-                            ['--tile-color' as string]: color,
-                          } as React.CSSProperties
-                        }
-                        title={
-                          canonicalWordCount(node) == null
-                            ? t('storyGraph.node.titleCounting', {
-                                title: node.title || t('common.untitled'),
-                              })
-                            : t('storyGraph.node.titleWithWords', {
-                                title: node.title || t('common.untitled'),
-                                count: canonicalWordCount(node),
-                              })
-                        }
-                      >
-                        <div className="graph-tile__num">
-                          § {String(node.bookOrder).padStart(2, '0')}
-                        </div>
-                        <div className="graph-tile__title">
-                          {node.title || t('common.untitled')}
-                        </div>
-                        {node.summary && <div className="graph-tile__summary">{node.summary}</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {lanesToRender.map((lane, rowIdx) => (
+            <StoryGraphLaneRow
+              key={lane.id}
+              lane={lane}
+              nodes={positionedNodesByRow.get(rowIdx) ?? EMPTY_POSITIONED_NODES}
+              chapterCount={lane.id === DEFAULT_LANE_ID ? placedNodes.length
+                : lane.id === UNAFFILIATED_LANE_ID ? unaffiliatedChapters.length
+                  : (sortedNodesByStoryline.get(lane.id)?.length ?? 0)}
+              canvasContentWidth={canvasContentWidth}
+              tileRefs={tileRefs}
+              linkSource={linkSource}
+              isNodeEdgeSelected={isNodeEdgeSelected}
+              onNodePointerDown={handleChapterPointerDown}
+              onNodeContextMenu={handleChapterContextMenu}
+              onNodeClick={handleChapterClick}
+              onNodeDoubleClick={handleChapterDoubleClick}
+              onLaneContextMenu={handleLaneContextMenu}
+            />
+          ))}
 
           {/* Cross-storyline trails + user-authored relation edges.
               Absolute SVG overlay; positioned at left=RAIL_WIDTH so its

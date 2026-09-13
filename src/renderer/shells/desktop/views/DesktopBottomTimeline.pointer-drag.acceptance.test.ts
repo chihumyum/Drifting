@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const bottomTimeline = readFileSync(new URL('./DesktopBottomTimeline.tsx', import.meta.url), 'utf8');
 const storyGraph = readFileSync(new URL('./DesktopStoryGraphView.tsx', import.meta.url), 'utf8');
+const storyGraphLane = readFileSync(
+  new URL('../../../features/graph/StoryGraphLaneRow.tsx', import.meta.url),
+  'utf8',
+);
 const sharedDrag = readFileSync(
   new URL('../../../features/graph/chapter-lane-drag.ts', import.meta.url),
   'utf8',
@@ -33,11 +37,14 @@ describe('desktop chapter pointer drag acceptance', () => {
 
   it('uses the same pointer path for holding chips and Storyline Graph tiles', () => {
     expect(bottomTimeline).toContain('{ fromDrawer: true }');
-    expect(storyGraph).toContain('const startGraphChapterPointerDrag = (');
+    expect(storyGraph).toContain('const startGraphChapterPointerDrag = useCallback((');
     expect(storyGraph).toContain('startChapterLanePointerDrag({');
     expect(storyGraph).toContain('resolveChapterLanePointerTarget({');
-    expect(storyGraph).toContain('data-storyline-row={lane.id}');
-    expect(storyGraph).toContain('data-node-container');
+    expect(storyGraphLane).toContain('data-storyline-row={lane.id}');
+    expect(storyGraphLane).toContain('data-node-container');
+    expect(storyGraphLane).toContain('onPointerDown={(event) => onNodePointerDown(event, node)}');
+    expect(storyGraph).toContain('onNodePointerDown={handleChapterPointerDown}');
+    expect(storyGraph).toContain("const handleChapterPointerDown = useCallback<StoryGraphLaneRowProps['onNodePointerDown']>");
     expect(storyGraph).toContain('onPointerDown={(event) => {');
     expect(storyGraph).toContain(
       'if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);',

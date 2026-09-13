@@ -1,3 +1,4 @@
+import { runStoryGraphCardScenarios } from './story-graph-card-scenarios';
 import { runAgentTranscriptScenarios } from './agent-transcript-scenarios';
 import { runAgentBackgroundScenarios } from './agent-background-scenarios';
 import { runSuperElementCardScenarios } from './super-element-card-scenarios';
@@ -134,6 +135,7 @@ async function run() {
     mobileAgentPanel: await runMobileAgentPanelScenarios(),
     graphProjection: await runGraphProjectionScenarios(),
     superElementCards: await runSuperElementCardScenarios(),
+    storyGraphCards: await runStoryGraphCardScenarios(),
     graphGeometry: await runGraphGeometryScenarios(),
     graphOverlays: await runGraphOverlayScenarios(),
     timeline: await runTimelineScenarios(),

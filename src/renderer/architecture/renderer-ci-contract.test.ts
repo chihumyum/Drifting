@@ -17,13 +17,14 @@ type Report = {
   agentBackground: { measurements: { ingressWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
   agentJournal: { checks: { passed: boolean }[] };
+  storyGraphCards: { measurements: { mountWork: { groupingVisits: number }; popoverWork: { tiles: number }; checks: { reassignedPrimaryLane: boolean } }[] };
   superElementCards: { measurements: { focusWork: { elements: number }; wheelWork: { bands: number }; checks: { chapterPairUsesLatestSource: boolean } }[] };
   agentHistory: { measurements: { rowElements: number }[] };
   agentPanel: { streaming: { composer: number } };
   mobileAgentPanel: { measurements: { lateNavigation: number }[] };
   editorSuggestions?: unknown;
 };
-const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f5-cards.json'), 'utf8')) as Report;
+const fixture = () => JSON.parse(readFileSync(path.join(root, 'docs/renderer-performance/acceptance/f5-story-cards.json'), 'utf8')) as Report;
 function validate(report: Report, flags = ['--deterministic']) {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-contract-'));
   try {
@@ -61,7 +62,10 @@ describe('ordinary CI renderer evidence', () => {
     const cards = fixture(); cards.superElementCards.measurements[2].focusWork.elements = 100000;
     const bands = fixture(); bands.superElementCards.measurements[2].wheelWork.bands = 1;
     const staleCard = fixture(); staleCard.superElementCards.measurements[0].checks.chapterPairUsesLatestSource = false;
-    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard]) expect(validate(report).status).not.toBe(0);
+    const storyGrouping = fixture(); storyGrouping.storyGraphCards.measurements[2].mountWork.groupingVisits = 255000;
+    const storyTiles = fixture(); storyTiles.storyGraphCards.measurements[2].popoverWork.tiles = 100000;
+    const storyLane = fixture(); storyLane.storyGraphCards.measurements[0].checks.reassignedPrimaryLane = false;
+    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane]) expect(validate(report).status).not.toBe(0);
   });
   it('keeps wall-clock budgets out of ordinary CI while preserving measurement validation', () => {
     const report = fixture();
