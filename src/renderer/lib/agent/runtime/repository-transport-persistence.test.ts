@@ -18,6 +18,7 @@ import {
   createAgentRuntimeCheckpointContextV4,
   hashAgentRuntimeCheckpointPayload,
 } from './recovery';
+import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import type { AgentModelMessage } from './types';
 
 const NOW = '2026-07-30T00:00:00.000Z';
@@ -120,6 +121,10 @@ function fakeRepository(): FakeRepository {
         updatedAt: at,
       };
     }),
+    interruptSessionWithEvents: vi.fn(async (id: string, at: string, events: Parameters<AgentRuntimePersistenceRepository['appendEvent']>[0][]) => {
+      for (const event of events) await repository.appendEvent(event);
+      await repository.interruptSession(id, at);
+    }),
     loadRecoverySnapshot: vi.fn(async () => {
       order.push('recover');
       return structuredClone(state);
@@ -179,7 +184,7 @@ function fakeRepository(): FakeRepository {
 }
 
 describe('repository Agent transport persistence adapter', () => {
-  it('lists recovered wait points and safely cancels them without approving a lost execution stack', async () => {
+  it.each(['commit', 'write-effect-error', 'aborted-after-write-effects'] as const)('settles a recovered wait without approving a lost stack: %s', async (outcome) => {
     const fake = fakeRepository();
     const route = {
       kind: 'chat' as const,
@@ -282,8 +287,14 @@ describe('repository Agent transport persistence adapter', () => {
       startedAt: null,
       completedAt: null,
     }];
+    const controller = new AbortController();
+    const interruptSessionWrites = vi.fn(async () => {
+      if (outcome === 'write-effect-error') throw new Error('Synthetic write-effect interruption failure');
+      if (outcome === 'aborted-after-write-effects') controller.abort();
+    });
     const persistence = createRepositoryAgentTransportPersistence({
       repository: fake.repository,
+      writeEffects: { interruptSessionWrites } as unknown as AgentRuntimeWriteEffectRepository,
       resolveToolAccess: () => 'write',
     });
 
@@ -298,12 +309,23 @@ describe('repository Agent transport persistence adapter', () => {
       }),
     })]);
 
-    await persistence.cancelPendingControl!({
+    const cancellation = persistence.cancelPendingControl!({
       sessionId: 'session-1',
       turnId: 'turn-crashed',
       requestId: 'permission-1',
       reason: 'cancel after restart',
-    });
+    }, controller.signal);
+    if (outcome !== 'commit') {
+      await expect(cancellation).rejects.toThrow();
+      expect(fake.appended).toEqual([]);
+      expect(fake.repository.interruptSessionWithEvents).not.toHaveBeenCalled();
+      expect(fake.state.session.status).toBe('running');
+      return;
+    }
+    await cancellation;
+    expect(interruptSessionWrites).toHaveBeenCalledOnce();
+    expect(fake.repository.interruptSessionWithEvents).toHaveBeenCalledOnce();
+    expect(interruptSessionWrites.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(fake.repository.interruptSessionWithEvents).mock.invocationCallOrder[0]);
 
     expect(fake.appended.slice(-3).map((row) => row.eventType)).toEqual([
       'permission_resolved',

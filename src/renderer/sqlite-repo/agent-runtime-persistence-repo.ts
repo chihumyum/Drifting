@@ -172,6 +172,12 @@ export interface AgentRuntimePersistenceRepository {
   commitTurn(input: CommitAgentRuntimeTurnInput): Promise<IdempotentPersistenceOutcome>;
   /** Marks in-flight state once after an unclean renderer/process restart. */
   interruptSession(sessionId: string, interruptedAt: string): Promise<void>;
+  /** Commits recovered-control journal entries and interruption as one unit. */
+  interruptSessionWithEvents(
+    sessionId: string,
+    interruptedAt: string,
+    events: readonly PersistedAgentRuntimeEvent[],
+  ): Promise<void>;
 
   loadRecoverySnapshot(sessionId: string): Promise<AgentRuntimeRecoverySnapshot | null>;
 }
@@ -1344,6 +1350,24 @@ export function createAgentRuntimePersistenceRepository(
         void getSession(sessionId).then((session) => { if (session?.conversationId) events.emit('agent:conversation-committed', { projectId: session.projectId }); }).catch(() => {});
         return outcome;
       });
+    },
+
+    async interruptSessionWithEvents(sessionId, interruptedAt, events) {
+      await dbProvider().transaction(async (tx) => {
+        const transactional = createAgentRuntimePersistenceRepository(tx);
+        for (const event of events) {
+          if (event.sessionId !== sessionId) {
+            throw new AgentRuntimePersistenceConflictError(
+              'EVENT_SESSION_MISMATCH',
+              'Interruption events must belong to the interrupted session.',
+            );
+          }
+          // Reuse sequence, identity and replay checks inside the outer
+          // transaction. Nested repository transactions use savepoints.
+          await transactional.appendEvent(event);
+        }
+        await transactional.interruptSession(sessionId, interruptedAt);
+      }, { behavior: 'immediate' });
     },
 
     async interruptSession(sessionId, interruptedAt) {

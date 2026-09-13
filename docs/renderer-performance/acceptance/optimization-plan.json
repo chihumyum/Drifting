@@ -281,7 +281,9 @@
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
             "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
             "docs/renderer-performance/acceptance/f4-conversation-navigation.json",
-            "docs/renderer-performance/acceptance/f4-conversation-removal.json"
+            "docs/renderer-performance/acceptance/f4-conversation-removal.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery-browser.json"
           ],
           "status": "partial"
         },
@@ -315,7 +317,9 @@
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
             "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
             "docs/renderer-performance/acceptance/f4-conversation-navigation.json",
-            "docs/renderer-performance/acceptance/f4-conversation-removal.json"
+            "docs/renderer-performance/acceptance/f4-conversation-removal.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery-browser.json"
           ],
           "status": "passed"
         },
@@ -348,12 +352,14 @@
             "docs/renderer-performance/acceptance/f4-send-preparation.json",
             "docs/renderer-performance/acceptance/f4-send-preparation-browser.json",
             "docs/renderer-performance/acceptance/f4-conversation-navigation.json",
-            "docs/renderer-performance/acceptance/f4-conversation-removal.json"
+            "docs/renderer-performance/acceptance/f4-conversation-removal.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery.json",
+            "docs/renderer-performance/acceptance/f4-control-recovery-browser.json"
           ],
           "status": "partial"
         }
       ],
-      "implementationStatus": "app_owned_journal_navigation_hydration_send_and_committed_removal_bounded_live_recovery_hidden_display_coalescing_sqlite_and_settings_lifetimes_verified_remaining_runtime_recovery_compaction_and_device_budgets_pending"
+      "implementationStatus": "app_owned_journal_navigation_hydration_send_and_committed_removal_atomic_recovered_control_cancellation_sqlite_sigkill_verified_remaining_tool_resume_compaction_and_device_budgets_pending"
     },
     {
       "id": "F5",

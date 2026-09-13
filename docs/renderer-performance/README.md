@@ -3150,3 +3150,79 @@ process-termination cases and 40 independent restarts pass, including unchanged
 persistent-state hashes, full-capture reconstruction, project isolation, integrity
 and foreign keys. This remains renderer-process recovery; native gateway crash
 and power-loss acceptance are not inferred.
+
+## F4n — Atomic cancellation of recovered Agent controls
+
+Cancelling a wait left by an earlier process previously committed permission
+resolution, cancellation, tool result and session interruption separately. The
+same real-runtime probe on baseline `348581a9` reproduces two incomplete durable
+states: the permission decision survives without cancellation settlement, or a
+user wait loses its pending control while its tool and turn still report running.
+Neither state should be presented as a completed cancellation.
+
+The persistence adapter now collects the existing cancellation events, then the
+repository commits them together with session, turn, message and tool interruption
+in one IMMEDIATE transaction. It reuses event identity, sequence and replay checks
+through nested savepoints. A failure in any event, final lifecycle update or root
+commit rolls back the entire settlement. The provider-neutral protocol, published
+migrations and event/status vocabulary are unchanged.
+
+Existing write-effect interruption still runs first, in its own transaction,
+using the existing conservative classification. A failure or abort there leaves
+the recovered control available. This batch does not make previously started
+write effects atomic with the new cancellation transaction, approve a lost tool
+stack, resume a tool, or retry a real mutation. Already-running writes retain their
+`uncertain` classification. Ordinary live cancellation retains its existing path.
+
+```bash
+pnpm agent:control:recovery --baseline=348581a9
+pnpm agent:control:recovery --check
+```
+
+`acceptance/f4-control-recovery.json` is generated from the actual
+LocalGeneralAgentTransport, runtime, journal relay, Zustand chat store, repositories
+and strict recovery codec. A scripted provider requests either an unapproved write
+(permission wait) or a synthetic read tool that waits for user input. Temporary
+SQLite files use all product migrations, WAL and FULL synchronization. The initial
+wait is produced by actual runtime execution and is then terminated with SIGKILL;
+the second process opens the conversation and invokes the store's recovered-control
+cancellation command. It is killed only after the selected real SQL statement or
+root commit has been observed.
+
+| Wait kind | Cancellation cut points | Seeds | Cases |
+| --- | --- | --- | --- |
+| Permission | permission resolution, cancellation event, tool result, session interruption, before root commit, after root commit | 2 | 12 |
+| User input | cancellation event, tool result, session interruption, before root commit, after root commit | 2 | 10 |
+
+The 22 current cases contain 44 actual process kills and 44 independent read-only
+restarts. Every pre-commit cut recovers the same whole-database hash and complete
+request provenance; every committed cut recovers the full cancellation journal,
+interrupted lifecycle and no pending control. Actual transaction IDs witness that
+all cancellation rows share one root transaction, and the commit marker belongs
+to that transaction. Each pair of fresh restarts has equal database and transcript
+hashes, zero provider/tool executions, unchanged foreign-project data, successful
+SQLite integrity and no foreign-key violations. Two additional baseline cases
+use byte-identical workers and reproduce both partial-cancellation states.
+
+Eight real product-SQLite tests also verify retry after injected failures, sequence
+and session rejection without a partial prefix, exact replay idempotency, caller
+transaction rollback, preservation of unrelated prose and conservative write state.
+Adapter tests cover failure/abort before settlement. Report mutation tests reject
+missing cuts, ordinary exits presented as kills, split transactions, premature
+commit, partial database changes, lost controls, tool replay, missing restarts and
+mismatched baseline workers. The four targeted suites pass 34 checks.
+
+This evidence covers owned Node process termination and headless store recovery.
+It does not establish native Rust gateway or OS crash behavior, power-loss safety,
+React/native control interaction, provider network cancellation, full write-tool
+resumption, checkpoint compaction, large mixed histories or device performance
+budgets. F4 remains in progress, with F4-01/04 still partial.
+
+Final isolated validation passes 2,650 tests with one existing skip, typecheck,
+CI/public boundary checks and all 19 Agent capability checks. Lint has zero errors
+and 33 existing warnings. `acceptance/f4-control-recovery-browser.json` passes the
+current-source and ordinary deterministic renderer checks. The explicit local-only
+production renderer build succeeds with 32 JS chunks and excludes the crash worker.
+Hosted CI has not run; this goal includes local commits and no push. The separate
+pending native graph acceptance is preserved outside this commit and remains
+unverified while the Mac is locked.

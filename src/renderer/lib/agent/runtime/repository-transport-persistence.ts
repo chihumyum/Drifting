@@ -1,5 +1,6 @@
 import type {
   AgentRuntimeRecoverySnapshot,
+  PersistedAgentRuntimeEvent,
   PersistedAgentRuntimeMessage,
   PersistedAgentRuntimeSession,
   PersistedAgentRuntimeToolCall,
@@ -631,9 +632,10 @@ export function createRepositoryAgentTransportPersistence(
       const at = new Date().toISOString();
       let seq = journalState.lastSeq;
       const route = routeFromSession(recovered.snapshot.session);
-      const append = async (event: AgentRuntimeEvent): Promise<void> => {
+      const cancellationEvents: PersistedAgentRuntimeEvent[] = [];
+      const append = (event: AgentRuntimeEvent): void => {
         seq += 1;
-        await repository.appendEvent({
+        cancellationEvents.push({
           eventId: `${input.turnId}:${String(seq).padStart(8, '0')}`,
           sessionId: input.sessionId,
           turnId: input.turnId,
@@ -646,7 +648,7 @@ export function createRepositoryAgentTransportPersistence(
         });
       };
       if (pending.permissionRequest) {
-        await append({
+        append({
           type: 'permission_resolved',
           resolution: {
             requestId: pending.permissionRequest.requestId,
@@ -669,11 +671,11 @@ export function createRepositoryAgentTransportPersistence(
           'The pending Agent control has no request provenance.',
         );
       }
-      await append({
+      append({
         type: 'cancellation_requested',
         reason: input.reason ?? 'Recovered control cancelled by user.',
       });
-      await append({
+      append({
         type: 'tool_result',
         callId: request.callId,
         name:
@@ -686,11 +688,14 @@ export function createRepositoryAgentTransportPersistence(
         errorCode: 'RECOVERED_CONTROL_CANCELLED',
       });
       throwIfAborted(signal);
+      // Conservatively classify any earlier write effects first. A failure
+      // here must leave the recovered control available to cancel again.
       await options.writeEffects?.interruptSessionWrites(
         input.sessionId,
         at,
       );
-      await repository.interruptSession(input.sessionId, at);
+      throwIfAborted(signal);
+      await repository.interruptSessionWithEvents(input.sessionId, at, cancellationEvents);
       throwIfAborted(signal);
     },
   };

@@ -1,0 +1,4465 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent_recovered_control_cancellation",
+  "status": "passed",
+  "generatedAt": "2026-09-13T12:43:52.917Z",
+  "source": {
+    "commit": "348581a9b0757235d3c1b26ca5e602a1a6190d27",
+    "fingerprint": "a1154a80acc9a8d2a4b84cae88c253221a097322e0f4fbe14e965237658554b7"
+  },
+  "workerSha256": "4efc067eb06044a3f2dfd2a83694c64326a2d7efdf293bf5a7a0e015cff521c0",
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "sqlite": "3.50.2"
+  },
+  "fixture": {
+    "provenance": "synthetic-only",
+    "composition": "real LocalGeneralAgentTransport, runtime, journal relay, Zustand chat store, SQLite repositories and strict recovery",
+    "waits": "scripted model requests an unapproved write or a synthetic read tool waiting for user input; neither produces side effects"
+  },
+  "cases": [
+    {
+      "kind": "permission",
+      "cut": "permission_resolved",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "permission_resolved",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "a70b5859070b4917a4fda68f56df3658971d1f7a4c563660db106be6077006bb",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "permission_resolved",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "a70b5859070b4917a4fda68f56df3658971d1f7a4c563660db106be6077006bb",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved"
+          ],
+          "transactionIds": [
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "permission_resolved",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "a70b5859070b4917a4fda68f56df3658971d1f7a4c563660db106be6077006bb",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "e4c8de7e8881750556d63a01cfb76ea3799f1f6b291dff2012c01d5ed3a1f1d1",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "permission_resolved",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "a70b5859070b4917a4fda68f56df3658971d1f7a4c563660db106be6077006bb",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "e4c8de7e8881750556d63a01cfb76ea3799f1f6b291dff2012c01d5ed3a1f1d1",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "permission_resolved",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "permission_resolved",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "1492c6ef63f3886ef2e50ebdbafccd329e044b41c5980e18e198ecab95cb9cff",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "permission_resolved",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "1492c6ef63f3886ef2e50ebdbafccd329e044b41c5980e18e198ecab95cb9cff",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved"
+          ],
+          "transactionIds": [
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "permission_resolved",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "1492c6ef63f3886ef2e50ebdbafccd329e044b41c5980e18e198ecab95cb9cff",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ea042a3d786bf644fa6bcdaebe375837cdf96ce92966cbffb3de8c61ea321d72",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "permission_resolved",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "1492c6ef63f3886ef2e50ebdbafccd329e044b41c5980e18e198ecab95cb9cff",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ea042a3d786bf644fa6bcdaebe375837cdf96ce92966cbffb3de8c61ea321d72",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "cancellation_requested",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "cancellation_requested",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "56a2c894f0011c45f030c4987b44afce1f24a11c35b3fd842f7fbc3e6a6d76b0",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "cancellation_requested",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "56a2c894f0011c45f030c4987b44afce1f24a11c35b3fd842f7fbc3e6a6d76b0",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested"
+          ],
+          "transactionIds": [
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "56a2c894f0011c45f030c4987b44afce1f24a11c35b3fd842f7fbc3e6a6d76b0",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "a4649eb1d413a9de6f1b32aae41a38e24db372ba2076537ab46a599daf892249",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "56a2c894f0011c45f030c4987b44afce1f24a11c35b3fd842f7fbc3e6a6d76b0",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "a4649eb1d413a9de6f1b32aae41a38e24db372ba2076537ab46a599daf892249",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "cancellation_requested",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "cancellation_requested",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "d95b4373c7b8a2d9f2281f34f4025bff2bdd347f7ce679b1438eb43502b71c15",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "cancellation_requested",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "d95b4373c7b8a2d9f2281f34f4025bff2bdd347f7ce679b1438eb43502b71c15",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested"
+          ],
+          "transactionIds": [
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "d95b4373c7b8a2d9f2281f34f4025bff2bdd347f7ce679b1438eb43502b71c15",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "603e8ac6f5a672688981aa66e9b83c42b9474e24dd6b7c3f608a15222cde4094",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "d95b4373c7b8a2d9f2281f34f4025bff2bdd347f7ce679b1438eb43502b71c15",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "603e8ac6f5a672688981aa66e9b83c42b9474e24dd6b7c3f608a15222cde4094",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "tool_result",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "tool_result",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "4f141f8bffb1d9f9307c346e5dd273db8c823bc6e1f76840b4ce8ffc763e995d",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "tool_result",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "4f141f8bffb1d9f9307c346e5dd273db8c823bc6e1f76840b4ce8ffc763e995d",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "tool_result",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "4f141f8bffb1d9f9307c346e5dd273db8c823bc6e1f76840b4ce8ffc763e995d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "93339a552e764809628b745871b9a6b3b6978f40fb0a16c9b1b4c7acef7aff2b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "tool_result",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "4f141f8bffb1d9f9307c346e5dd273db8c823bc6e1f76840b4ce8ffc763e995d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "93339a552e764809628b745871b9a6b3b6978f40fb0a16c9b1b4c7acef7aff2b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "tool_result",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "tool_result",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "2e6715b20da8788d96f3308dcec034c0ba37613683ee04fb820a6ea2bcb05d04",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "tool_result",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "2e6715b20da8788d96f3308dcec034c0ba37613683ee04fb820a6ea2bcb05d04",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "tool_result",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "2e6715b20da8788d96f3308dcec034c0ba37613683ee04fb820a6ea2bcb05d04",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "71407055ef6acd9f17c7058e05a2cc57fb1de66bbca3dde15fcd64026453a77a",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "tool_result",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "2e6715b20da8788d96f3308dcec034c0ba37613683ee04fb820a6ea2bcb05d04",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "71407055ef6acd9f17c7058e05a2cc57fb1de66bbca3dde15fcd64026453a77a",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "session-interrupted",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "session-interrupted",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "e376aa8b73d86a992467b392efaa750e94c5c0e314809f8df21e86d33e96ce13",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "session-interrupted",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "e376aa8b73d86a992467b392efaa750e94c5c0e314809f8df21e86d33e96ce13",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "session-interrupted",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "e376aa8b73d86a992467b392efaa750e94c5c0e314809f8df21e86d33e96ce13",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "615af428a21fe20a9018f4f3a597d08ec7d919e6684061c8420fe1715ee470bc",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "session-interrupted",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "e376aa8b73d86a992467b392efaa750e94c5c0e314809f8df21e86d33e96ce13",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "615af428a21fe20a9018f4f3a597d08ec7d919e6684061c8420fe1715ee470bc",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "session-interrupted",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "session-interrupted",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "ac73da808705a17b31541a9e949436c5e5f8ff4dd1c3ddf5c9cd70e58d690680",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "session-interrupted",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "ac73da808705a17b31541a9e949436c5e5f8ff4dd1c3ddf5c9cd70e58d690680",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "session-interrupted",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "ac73da808705a17b31541a9e949436c5e5f8ff4dd1c3ddf5c9cd70e58d690680",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "15118eef274451578d640abd3b9931184af1235b5461965c61b7fe59e20258c5",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "session-interrupted",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "ac73da808705a17b31541a9e949436c5e5f8ff4dd1c3ddf5c9cd70e58d690680",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "15118eef274451578d640abd3b9931184af1235b5461965c61b7fe59e20258c5",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "before-commit",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "before-commit",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "500e0aac6066b30558114e056667e0234245b750e7d94bb1dd34ec306dbd5548",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "before-commit",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "500e0aac6066b30558114e056667e0234245b750e7d94bb1dd34ec306dbd5548",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "500e0aac6066b30558114e056667e0234245b750e7d94bb1dd34ec306dbd5548",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ed6f3dc2004b121ca52f17170ce45c75341389d7496c9d37db116acfd2404bb4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "500e0aac6066b30558114e056667e0234245b750e7d94bb1dd34ec306dbd5548",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ed6f3dc2004b121ca52f17170ce45c75341389d7496c9d37db116acfd2404bb4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "before-commit",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "before-commit",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "5d7cd2b8158ce72f8f7497ef220411769771bc275457c188a4b57bf78e4d5ee0",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "before-commit",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "5d7cd2b8158ce72f8f7497ef220411769771bc275457c188a4b57bf78e4d5ee0",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "5d7cd2b8158ce72f8f7497ef220411769771bc275457c188a4b57bf78e4d5ee0",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "60ffe49efd1d506613b903118005334fa5d75a4b1d380b868ac6051bff61e83d",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "5d7cd2b8158ce72f8f7497ef220411769771bc275457c188a4b57bf78e4d5ee0",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "60ffe49efd1d506613b903118005334fa5d75a4b1d380b868ac6051bff61e83d",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "requested",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "committed",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "committed",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "6b659dfb9af48344e8154c2ddb39bc91a7bf14744d0ec364bafe71694400da05",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "committed",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "6b659dfb9af48344e8154c2ddb39bc91a7bf14744d0ec364bafe71694400da05",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": [
+            "5"
+          ]
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "7700bd9fe19ff2f60cffd598d744ada0b6d853caaf219dd7d35ff2e5d6bd19f7",
+          "pending": null,
+          "transcriptHash": "0aa33b242acbd1176cfe50868f8af5581abe86ec39d792ca00b063cffde058f4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested",
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "7700bd9fe19ff2f60cffd598d744ada0b6d853caaf219dd7d35ff2e5d6bd19f7",
+          "pending": null,
+          "transcriptHash": "0aa33b242acbd1176cfe50868f8af5581abe86ec39d792ca00b063cffde058f4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested",
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "permission",
+      "cut": "committed",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "permission",
+        "cut": "committed",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "toolName": "synthetic_control_tool",
+            "access": "write",
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "revision": null,
+            "allowedScopes": [
+              "once"
+            ]
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "9b37917e9a79732b4a5255b2a18de45782f39d5f14c226f428e96fc991f1f7e8",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "permission",
+        "cut": "committed",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "9b37917e9a79732b4a5255b2a18de45782f39d5f14c226f428e96fc991f1f7e8",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_permission",
+          "permissionRequest": {
+            "access": "write",
+            "allowedScopes": [
+              "once"
+            ],
+            "arguments": {},
+            "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "callId": "synthetic-call",
+            "requestId": "synthetic-control-turn:synthetic-call:permission",
+            "revision": null,
+            "sessionId": "synthetic-control-session",
+            "toolName": "synthetic_control_tool",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": [
+            "5"
+          ]
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "20f744aca4a5210678e30cd2f2d27be6180bf1488ed7800e636e65d67cb54232",
+          "pending": null,
+          "transcriptHash": "466bd13304818aae741f293bac9265e8838db311a9e52072f7ec03d1bc11153e",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested",
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "permission",
+          "cut": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "20f744aca4a5210678e30cd2f2d27be6180bf1488ed7800e636e65d67cb54232",
+          "pending": null,
+          "transcriptHash": "466bd13304818aae741f293bac9265e8838db311a9e52072f7ec03d1bc11153e",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "permission_requested",
+            "permission_resolved",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "cancellation_requested",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "cancellation_requested",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "9c1fc5b9f6f9913b737ce11a966367251993ba9237c9175277711fd795bd2b1d",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "cancellation_requested",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "9c1fc5b9f6f9913b737ce11a966367251993ba9237c9175277711fd795bd2b1d",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested"
+          ],
+          "transactionIds": [
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "9c1fc5b9f6f9913b737ce11a966367251993ba9237c9175277711fd795bd2b1d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "6a9fe406c440380d67f90cd38b0eb22dc6cae95505dde120723f14ce5d79b5d1",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "9c1fc5b9f6f9913b737ce11a966367251993ba9237c9175277711fd795bd2b1d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "6a9fe406c440380d67f90cd38b0eb22dc6cae95505dde120723f14ce5d79b5d1",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "cancellation_requested",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "cancellation_requested",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "1db8224b6048a5446b440d440e74b1b3d6e247d8b78163e07868f30278ffe6cb",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "cancellation_requested",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "1db8224b6048a5446b440d440e74b1b3d6e247d8b78163e07868f30278ffe6cb",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested"
+          ],
+          "transactionIds": [
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "cancellation_requested",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "1db8224b6048a5446b440d440e74b1b3d6e247d8b78163e07868f30278ffe6cb",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ca10565a45af18a07d9c6649d7097781f3f5d18319d6d9428ff5d039654c798b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "cancellation_requested",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "1db8224b6048a5446b440d440e74b1b3d6e247d8b78163e07868f30278ffe6cb",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "ca10565a45af18a07d9c6649d7097781f3f5d18319d6d9428ff5d039654c798b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "tool_result",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "tool_result",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "3fa4b2eaee418a8c548ad34759b6059c83709b4fb788591a9a6d663628e47931",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "tool_result",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "3fa4b2eaee418a8c548ad34759b6059c83709b4fb788591a9a6d663628e47931",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "transactionIds": [
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "3fa4b2eaee418a8c548ad34759b6059c83709b4fb788591a9a6d663628e47931",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "a91bb03c972d523ed36d032832bcc52a746b5657f66a282f6161e2c7214183dd",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "3fa4b2eaee418a8c548ad34759b6059c83709b4fb788591a9a6d663628e47931",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "a91bb03c972d523ed36d032832bcc52a746b5657f66a282f6161e2c7214183dd",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "tool_result",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "tool_result",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "ac53c6e6e5bc8f706393764384bf727cc158273d4d9116208e51b900f24b1e3d",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "tool_result",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "ac53c6e6e5bc8f706393764384bf727cc158273d4d9116208e51b900f24b1e3d",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "transactionIds": [
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "ac53c6e6e5bc8f706393764384bf727cc158273d4d9116208e51b900f24b1e3d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "37563a549f030f80faf1b4b84bd0cbdea61dd898aa0640449b1f12e21300ce4b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "ac53c6e6e5bc8f706393764384bf727cc158273d4d9116208e51b900f24b1e3d",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "37563a549f030f80faf1b4b84bd0cbdea61dd898aa0640449b1f12e21300ce4b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "session-interrupted",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "session-interrupted",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "01f073b78def86e0d4822cce46e83b1f8d2a2a4603bee8faeac38b8d9811d733",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "session-interrupted",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "01f073b78def86e0d4822cce46e83b1f8d2a2a4603bee8faeac38b8d9811d733",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "session-interrupted",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "01f073b78def86e0d4822cce46e83b1f8d2a2a4603bee8faeac38b8d9811d733",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "d6ac0dbcdf177e10504335f33030461655e1f7296f09e30d79c1c6a8da61ebd0",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "session-interrupted",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "01f073b78def86e0d4822cce46e83b1f8d2a2a4603bee8faeac38b8d9811d733",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "d6ac0dbcdf177e10504335f33030461655e1f7296f09e30d79c1c6a8da61ebd0",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "session-interrupted",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "session-interrupted",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "d5fba20f5e81809b6cf845b91cb5525a33a80f8db69d9d7306e386601f45afcf",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "session-interrupted",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "d5fba20f5e81809b6cf845b91cb5525a33a80f8db69d9d7306e386601f45afcf",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "session-interrupted",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "d5fba20f5e81809b6cf845b91cb5525a33a80f8db69d9d7306e386601f45afcf",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "0c51d649c900f60548ff2453d15cc29b070ec492501bae8115fd9f2d31aa52c4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "session-interrupted",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "d5fba20f5e81809b6cf845b91cb5525a33a80f8db69d9d7306e386601f45afcf",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "0c51d649c900f60548ff2453d15cc29b070ec492501bae8115fd9f2d31aa52c4",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "before-commit",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "before-commit",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "c9706b44208e8574cb3b3a9ff74ab1a12b22825f4bc24818640e051824a5ec52",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "before-commit",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "c9706b44208e8574cb3b3a9ff74ab1a12b22825f4bc24818640e051824a5ec52",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "c9706b44208e8574cb3b3a9ff74ab1a12b22825f4bc24818640e051824a5ec52",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "c2f3a6faa277d3e8d125da7d1ccdc5087220e8308885df37a6fe57c6a1042f74",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "before-commit",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "c9706b44208e8574cb3b3a9ff74ab1a12b22825f4bc24818640e051824a5ec52",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "c2f3a6faa277d3e8d125da7d1ccdc5087220e8308885df37a6fe57c6a1042f74",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "before-commit",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "before-commit",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "4b0d6dde09ebab2d012b3d4518f1a3a24efd5e94219ac22326be692b874d2635",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "before-commit",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "4b0d6dde09ebab2d012b3d4518f1a3a24efd5e94219ac22326be692b874d2635",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": []
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "4b0d6dde09ebab2d012b3d4518f1a3a24efd5e94219ac22326be692b874d2635",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "655d4ce0075901da1040d08884833c5bd1f6d898080f61f72d8744d475536191",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "before-commit",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "4b0d6dde09ebab2d012b3d4518f1a3a24efd5e94219ac22326be692b874d2635",
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 2",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "transcriptHash": "655d4ce0075901da1040d08884833c5bd1f6d898080f61f72d8744d475536191",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested"
+          ],
+          "sessionStatus": "running",
+          "turnStatus": "running",
+          "toolStatus": "running",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "committed",
+      "seed": 1,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "committed",
+        "seed": 1,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "6242037d37f1943e2634ebc836c5df6900e6fc60d5ef52a94904e764760f3b3a",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "committed",
+        "seed": 1,
+        "ready": true,
+        "beforeHash": "6242037d37f1943e2634ebc836c5df6900e6fc60d5ef52a94904e764760f3b3a",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 1",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": [
+            "5"
+          ]
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "ba0d16b13911240a417a3f57ef9eb01cb1b49c0d71cc7659f085e4ad8ca8d9bb",
+          "pending": null,
+          "transcriptHash": "e41fcd22f08628389742dc27d6d0a2bf14be714d76830e80bf3c02534274f4ee",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "committed",
+          "seed": 1,
+          "recovered": true,
+          "databaseHash": "ba0d16b13911240a417a3f57ef9eb01cb1b49c0d71cc7659f085e4ad8ca8d9bb",
+          "pending": null,
+          "transcriptHash": "e41fcd22f08628389742dc27d6d0a2bf14be714d76830e80bf3c02534274f4ee",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "user",
+      "cut": "committed",
+      "seed": 2,
+      "initialKill": {
+        "mode": "seed",
+        "kind": "user",
+        "cut": "committed",
+        "seed": 2,
+        "ready": true,
+        "pending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2"
+          },
+          "requiresContinuation": false
+        },
+        "databaseHash": "3f9a87573904b93c59c0d36770f8da380e22fd1647d237dd11d1b26a4d0186cf",
+        "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+        "modelCalls": 1,
+        "toolCalls": 1,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "cancelKill": {
+        "mode": "cancel",
+        "kind": "user",
+        "cut": "committed",
+        "seed": 2,
+        "ready": true,
+        "beforeHash": "3f9a87573904b93c59c0d36770f8da380e22fd1647d237dd11d1b26a4d0186cf",
+        "beforePending": {
+          "sessionId": "synthetic-control-session",
+          "turnId": "synthetic-control-turn",
+          "status": "waiting_user",
+          "userInputRequest": {
+            "callId": "synthetic-call",
+            "prompt": "Synthetic choice 2",
+            "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn"
+          },
+          "requiresContinuation": true
+        },
+        "observed": {
+          "writes": [
+            "cancellation_requested",
+            "tool_result",
+            "session-interrupted"
+          ],
+          "transactionIds": [
+            "5",
+            "5",
+            "5"
+          ],
+          "committedTransactionIds": [
+            "5"
+          ]
+        },
+        "modelCalls": 0,
+        "toolCalls": 0,
+        "exit": {
+          "code": null,
+          "signal": "SIGKILL"
+        }
+      },
+      "restarts": [
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "f08be2c8b1fc27f93614107f84d38177c21d8c460dd15e7977a23d0f89d39671",
+          "pending": null,
+          "transcriptHash": "be4e89ce7f0242e9c4c3cbbb3c603bdb22d5753f0bcce5a9ac8c3a705bd3fe46",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        },
+        {
+          "mode": "recover",
+          "kind": "user",
+          "cut": "committed",
+          "seed": 2,
+          "recovered": true,
+          "databaseHash": "f08be2c8b1fc27f93614107f84d38177c21d8c460dd15e7977a23d0f89d39671",
+          "pending": null,
+          "transcriptHash": "be4e89ce7f0242e9c4c3cbbb3c603bdb22d5753f0bcce5a9ac8c3a705bd3fe46",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "events": [
+            "turn_started",
+            "model_iteration_started",
+            "context_planned",
+            "tool_call_started",
+            "tool_args_delta",
+            "tool_call_ready",
+            "model_usage",
+            "model_iteration_completed",
+            "tool_execution_started",
+            "user_input_requested",
+            "cancellation_requested",
+            "tool_result"
+          ],
+          "sessionStatus": "interrupted",
+          "turnStatus": "interrupted",
+          "toolStatus": "interrupted",
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "checks": [
+            "read-only-hydration",
+            "no-provider-or-tool-replay",
+            "foreign-project-isolation",
+            "integrity",
+            "foreign-keys"
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null
+          }
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "commit": "348581a9b0757235d3c1b26ca5e602a1a6190d27",
+    "workerSha256": "4efc067eb06044a3f2dfd2a83694c64326a2d7efdf293bf5a7a0e015cff521c0",
+    "cases": [
+      {
+        "kind": "permission",
+        "cut": "cancellation_requested",
+        "seed": 1,
+        "initialKill": {
+          "mode": "seed",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "ready": true,
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn",
+              "callId": "synthetic-call",
+              "toolName": "synthetic_control_tool",
+              "access": "write",
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "revision": null,
+              "allowedScopes": [
+                "once"
+              ]
+            },
+            "requiresContinuation": false
+          },
+          "databaseHash": "e910edd7d9b9d8eaf9fdb1d73fb164b88d5937ee97bf9de6d36b09727a56e15d",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "exit": {
+            "code": null,
+            "signal": "SIGKILL"
+          }
+        },
+        "cancelKill": {
+          "mode": "cancel",
+          "kind": "permission",
+          "cut": "cancellation_requested",
+          "seed": 1,
+          "ready": true,
+          "beforeHash": "e910edd7d9b9d8eaf9fdb1d73fb164b88d5937ee97bf9de6d36b09727a56e15d",
+          "beforePending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_permission",
+            "permissionRequest": {
+              "access": "write",
+              "allowedScopes": [
+                "once"
+              ],
+              "arguments": {},
+              "argumentsHash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "callId": "synthetic-call",
+              "requestId": "synthetic-control-turn:synthetic-call:permission",
+              "revision": null,
+              "sessionId": "synthetic-control-session",
+              "toolName": "synthetic_control_tool",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "observed": {
+            "writes": [
+              "permission_resolved",
+              "cancellation_requested"
+            ],
+            "transactionIds": [
+              "4",
+              "5"
+            ],
+            "committedTransactionIds": [
+              "4"
+            ]
+          },
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "exit": {
+            "code": null,
+            "signal": "SIGKILL"
+          }
+        },
+        "restarts": [
+          {
+            "mode": "recover",
+            "kind": "permission",
+            "cut": "cancellation_requested",
+            "seed": 1,
+            "recovered": true,
+            "databaseHash": "f7efc796015e0f28f007ec2d59b894c73b35a1c746037f32ca1c8db02bd9d9ad",
+            "pending": null,
+            "transcriptHash": "9152fe71f9d1fa009a8bebd57020b8ad6cd8ec535c51ce4d55fe9011151df6f4",
+            "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+            "events": [
+              "turn_started",
+              "model_iteration_started",
+              "context_planned",
+              "tool_call_started",
+              "tool_args_delta",
+              "tool_call_ready",
+              "model_usage",
+              "model_iteration_completed",
+              "permission_requested",
+              "permission_resolved"
+            ],
+            "sessionStatus": "running",
+            "turnStatus": "running",
+            "toolStatus": "requested",
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "checks": [
+              "read-only-hydration",
+              "no-provider-or-tool-replay",
+              "foreign-project-isolation",
+              "integrity",
+              "foreign-keys"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "mode": "recover",
+            "kind": "permission",
+            "cut": "cancellation_requested",
+            "seed": 1,
+            "recovered": true,
+            "databaseHash": "f7efc796015e0f28f007ec2d59b894c73b35a1c746037f32ca1c8db02bd9d9ad",
+            "pending": null,
+            "transcriptHash": "9152fe71f9d1fa009a8bebd57020b8ad6cd8ec535c51ce4d55fe9011151df6f4",
+            "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+            "events": [
+              "turn_started",
+              "model_iteration_started",
+              "context_planned",
+              "tool_call_started",
+              "tool_args_delta",
+              "tool_call_ready",
+              "model_usage",
+              "model_iteration_completed",
+              "permission_requested",
+              "permission_resolved"
+            ],
+            "sessionStatus": "running",
+            "turnStatus": "running",
+            "toolStatus": "requested",
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "checks": [
+              "read-only-hydration",
+              "no-provider-or-tool-replay",
+              "foreign-project-isolation",
+              "integrity",
+              "foreign-keys"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ]
+      },
+      {
+        "kind": "user",
+        "cut": "tool_result",
+        "seed": 1,
+        "initialKill": {
+          "mode": "seed",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 1,
+          "ready": true,
+          "pending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn",
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1"
+            },
+            "requiresContinuation": false
+          },
+          "databaseHash": "691906db8bd754423153a44de57a39325cbc9eb0ffe504af7493e4d3c8265a1b",
+          "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+          "modelCalls": 1,
+          "toolCalls": 1,
+          "exit": {
+            "code": null,
+            "signal": "SIGKILL"
+          }
+        },
+        "cancelKill": {
+          "mode": "cancel",
+          "kind": "user",
+          "cut": "tool_result",
+          "seed": 1,
+          "ready": true,
+          "beforeHash": "691906db8bd754423153a44de57a39325cbc9eb0ffe504af7493e4d3c8265a1b",
+          "beforePending": {
+            "sessionId": "synthetic-control-session",
+            "turnId": "synthetic-control-turn",
+            "status": "waiting_user",
+            "userInputRequest": {
+              "callId": "synthetic-call",
+              "prompt": "Synthetic choice 1",
+              "requestId": "synthetic-control-turn:synthetic-call:user-input:1",
+              "sessionId": "synthetic-control-session",
+              "turnId": "synthetic-control-turn"
+            },
+            "requiresContinuation": true
+          },
+          "observed": {
+            "writes": [
+              "cancellation_requested",
+              "tool_result"
+            ],
+            "transactionIds": [
+              "4",
+              "5"
+            ],
+            "committedTransactionIds": [
+              "4"
+            ]
+          },
+          "modelCalls": 0,
+          "toolCalls": 0,
+          "exit": {
+            "code": null,
+            "signal": "SIGKILL"
+          }
+        },
+        "restarts": [
+          {
+            "mode": "recover",
+            "kind": "user",
+            "cut": "tool_result",
+            "seed": 1,
+            "recovered": true,
+            "databaseHash": "5439f96cc5a3bc8421c514af24e9ab7cfd4c298a852e6e9e7fd580ed2cc6d9e1",
+            "pending": null,
+            "transcriptHash": "d520d23ca64975b9bc078f90be3547dfdfbb07b9d5eb367fb9c24412b9fe9222",
+            "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+            "events": [
+              "turn_started",
+              "model_iteration_started",
+              "context_planned",
+              "tool_call_started",
+              "tool_args_delta",
+              "tool_call_ready",
+              "model_usage",
+              "model_iteration_completed",
+              "tool_execution_started",
+              "user_input_requested",
+              "cancellation_requested"
+            ],
+            "sessionStatus": "running",
+            "turnStatus": "running",
+            "toolStatus": "running",
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "checks": [
+              "read-only-hydration",
+              "no-provider-or-tool-replay",
+              "foreign-project-isolation",
+              "integrity",
+              "foreign-keys"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          },
+          {
+            "mode": "recover",
+            "kind": "user",
+            "cut": "tool_result",
+            "seed": 1,
+            "recovered": true,
+            "databaseHash": "5439f96cc5a3bc8421c514af24e9ab7cfd4c298a852e6e9e7fd580ed2cc6d9e1",
+            "pending": null,
+            "transcriptHash": "d520d23ca64975b9bc078f90be3547dfdfbb07b9d5eb367fb9c24412b9fe9222",
+            "foreignHash": "e79254ef7c4d9541b9321ff8cee96515cc3cc810c0eb59878a484a29e2cc5656",
+            "events": [
+              "turn_started",
+              "model_iteration_started",
+              "context_planned",
+              "tool_call_started",
+              "tool_args_delta",
+              "tool_call_ready",
+              "model_usage",
+              "model_iteration_completed",
+              "tool_execution_started",
+              "user_input_requested",
+              "cancellation_requested"
+            ],
+            "sessionStatus": "running",
+            "turnStatus": "running",
+            "toolStatus": "running",
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "checks": [
+              "read-only-hydration",
+              "no-provider-or-tool-replay",
+              "foreign-project-isolation",
+              "integrity",
+              "foreign-keys"
+            ],
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "acceptance": {
+    "processRecovery": "passed",
+    "runtimeAndStore": "production",
+    "sqlite": "file-backed-product-schema-WAL-FULL",
+    "provider": "scripted",
+    "permissionWriteExecution": "not-started",
+    "userTool": "synthetic-read-wait",
+    "native": "not-run",
+    "powerLoss": "not-run",
+    "performance": "not-measured"
+  },
+  "limitations": [
+    "SIGKILL ends an owned Node process; native Rust gateway, OS crash, disk failure and power loss are not tested.",
+    "Existing write-effect interruption precedes the atomic control settlement. No new tool execution is approved or resumed, and previously started real writes remain a separate recovery scope.",
+    "React/native controls, provider network traffic, checkpoint compaction, long mixed traces and device performance budgets are not evaluated."
+  ]
+}
