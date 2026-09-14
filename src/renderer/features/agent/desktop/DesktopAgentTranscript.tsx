@@ -1,6 +1,7 @@
 import { forwardRef, memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAgentMessageBlocks, type AgentMessageBlock } from '../useAgentMessageBlocks';
+import { useAgentTranscriptSummary } from '../useAgentTranscriptSummary';
 import { useAgentChatTranscript } from '../useAgentChatMessages';
 import { selectAutomaticContinuation, selectAgentTaskContinuationReason, selectControlStatus, selectPendingControl, selectRunning, useAgentChatStore } from '../../../store/agent-chat-store';
 import { useAgentActivityStore } from '../../../store/agent-activity-store';
@@ -65,22 +66,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
 
   // Session totals — summed across the conversation's per-turn usage rows (which
   // persist in the transcript), plus a tool-call count. Drives the footer.
-  const sessionUsage = useMemo(() => {
-    let inTok = 0;
-    let outTok = 0;
-    let cost = 0;
-    let tools = 0;
-    for (const m of messages) {
-      if (m.kind === 'usage') {
-        inTok += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
-        outTok += m.outputTokens;
-        cost += m.costUsd;
-      } else if (m.kind === 'tool') {
-        tools += 1;
-      }
-    }
-    return { inTok, outTok, cost, tools };
-  }, [messages]);
+  const sessionUsage = useAgentTranscriptSummary(messageBlocks).usage;
 
   // Entities the agent created/edited this turn → clickable "本轮改动" links.
   const { open: openEntity } = useWorkspaceNavigator();

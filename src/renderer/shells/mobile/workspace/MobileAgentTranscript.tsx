@@ -4,6 +4,7 @@ import { v7 as uuidv7 } from 'uuid';
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
 import { createPlainCommentDoc } from '../../../domain/comment';
 import { useAgentMessageBlocks, type AgentMessageBlock } from '../../../features/agent/useAgentMessageBlocks';
+import { useAgentTranscriptSummary } from '../../../features/agent/useAgentTranscriptSummary';
 import { useAgentChatTranscript } from '../../../features/agent/useAgentChatMessages';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX } from '../../../features/agent/AgentMessageViews';
@@ -72,6 +73,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
   const { t } = useTranslation();
   const messages = useAgentChatTranscript();
   const messageBlocks = useAgentMessageBlocks(messages);
+  const summary = useAgentTranscriptSummary(messageBlocks);
   const running = useAgentChatStore(selectRunning);
   const starting = useAgentChatStore(state => state.starting);
   const pendingControl = useAgentChatStore(selectPendingControl);
@@ -82,7 +84,9 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
   const { createNode } = useBookNode({ projectId, userId });
   const { createComment } = useComment({ projectId, userId });
   const { open } = useWorkspaceNavigator();
-  const evidence = useMemo(() => collectMobileAgentEvidence(messages), [messages]);
+  // Tool targets resolve against current workspace state on each display update.
+  // Only immutable message classification is cached, not entity IDs or results.
+  const evidence = useMemo(() => messages.length ? collectMobileAgentEvidence(summary.successfulTools) : [], [messages, summary]);
   const [actionState, setActionState] = useState<Record<number, OutputFeedback>>({});
   const owner = useMemo<OutputOwner>(() => ({ projectId, conversationId, userId, alive: false, pending: new Map() }), [projectId, conversationId, userId]);
   useLayoutEffect(() => {

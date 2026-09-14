@@ -4016,3 +4016,22 @@ conversation-sync contract check. Physical/native-window, live-provider and
 fixed-device gates remain unrun.
 F4-01/04 remain partial, and F4 stays in progress. Every validation in this batch
 ran headlessly, including Rust library/database tests.
+
+## F4q — Message block usage and tool summaries
+
+[Transcript summaries](transcript-summary.md) now own desktop usage and mobile
+tool-row classification. Unchanged blocks reuse facts and matching incoming
+totals; changed usage preserves the original ordered arithmetic. Workspace
+entity targets are resolved again at the existing display boundary.
+
+The exact `44bdb498` baseline comparison contains six actual-view profiles and
+16 unit checks. At 10,000 historical messages and 20 tail updates, desktop usage
+candidates fall from 200,020 to 20 and mobile evidence candidates from 200,020
+to 1,960. Each view adds 340 classification visits and 3,140 summary-block
+visits; full DOM and eligible tool resolution remain. Sixty browser behavior
+checks include unchanged usage rendering and current evidence navigation.
+The generated summary and combined regression reports retain real source
+fingerprints. Eleven evidence-contract cases guard the recorded boundaries.
+
+The required checks pass with 2,967 tests and one existing skip across 437
+files. Validation is headless; no simulator or physical acceptance is claimed.

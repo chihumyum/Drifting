@@ -44,7 +44,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     const context = source('lib/agent/turn-context.ts');
 
     expect(agent).toContain('<ContextChips refs={turnContext} />');
-    expect(transcript).toContain('collectMobileAgentEvidence(messages)');
+    expect(transcript).toContain('collectMobileAgentEvidence(summary.successfulTools)');
+    expect(transcript).toContain('[messages, summary]');
     expect(transcript).toContain('openMobileAgentEvidence(item');
     expect(transcript).toContain("type OutputAction = 'copy' | 'inspiration' | 'todo'");
     expect(transcript).toContain("kind: 'drift'");
