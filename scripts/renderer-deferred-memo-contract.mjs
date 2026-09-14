@@ -1,3 +1,4 @@
+import { featureLoadingClosure } from './renderer-feature-loading-closure.mjs';
 import assert from 'node:assert/strict';
 export const memoChecks = ['initiallyDeferred', 'failedLocally', 'retryNewKey', 'canceledOpenStaysClosed', 'editorPreserved', 'cachedReopen', 'actualMaterials', 'queryFilters', 'composeEscapeKeepsView', 'projectIsolated', 'backAccepted', 'noGraphRequested'];
 export function validateDeferredMemoEvidence(report) {
@@ -13,8 +14,8 @@ export function validateDeferredMemoEvidence(report) {
     assert.equal(data.initialJsBytes, data.chunks.filter(c => c.initial).reduce((sum, c) => sum + c.bytes, 0));
     for (const name of ['graph', 'element', 'shared']) assert.equal(data.initial.evaluated.includes(name), false);
     if (!expected) {
-      for (const imported of memo[0].imports) assert(data.chunks.some(c => c.file === imported && c.initial), `Cold dependency: ${imported}`);
-      const initialCss = new Set(data.chunks.filter(c => c.initial).flatMap(c => c.css));
+      for (const imported of memo[0].imports) assert(featureLoadingClosure(data.chunks).files.has(imported), `Cold dependency: ${imported}`);
+      const initialCss = featureLoadingClosure(data.chunks).css;
       for (const css of memo[0].css) assert(initialCss.has(css), `Unloaded CSS: ${css}`);
     }
   }

@@ -7,22 +7,10 @@ import { FullScreenStatus } from './components/FullScreenStatus';
 import { LoginPage } from '../views/LoginPage';
 import { RegisterPage } from '../views/RegisterPage';
 import { ProjectPickerView } from '../views/ProjectPickerView';
-import { ProjectDashboard } from '../views/ProjectDashboard';
-import { EditorShell } from '../views/EditorShell';
-import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
 import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
-import { MobileAppShell } from '../shells/mobile/MobileAppShell';
-import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
-import { DesktopStandaloneSettingsView } from '../features/settings/desktop/DesktopStandaloneSettingsView';
 import { getPlatformRuntime } from '../platform/runtime';
-import {
-  DesktopAllChaptersEditorRoute,
-  DesktopCategoryEditorRoute,
-  DesktopElementEditorRoute,
-  DesktopNodeEditorRoute,
-  DesktopStorylineEditorRoute,
-} from '../features/editor/desktop/DesktopEditorRoutes';
+import { DeferredProjectRoute } from './DeferredProjectRoute';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -100,7 +88,7 @@ export function AppRoutes() {
         path="/settings"
         element={
           <ProtectedRoute>
-            {isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />}
+            <DeferredProjectRoute view="settings" />
           </ProtectedRoute>
         }
       />
@@ -108,16 +96,14 @@ export function AppRoutes() {
         path="/project/:projectId"
         element={
           <ProtectedRoute>
-            {isMobileShell ? <MobileAppShell /> : <DesktopAppShell />}
+            <DeferredProjectRoute view="workspace" />
           </ProtectedRoute>
         }
       >
         <Route
           index
           element={
-            <EditorShell view="project-home">
-              <ProjectDashboard />
-            </EditorShell>
+            <DeferredProjectRoute view="home" />
           }
         />
         <Route path="home" element={<Navigate to=".." replace />} />
@@ -126,41 +112,31 @@ export function AppRoutes() {
         <Route
           path="editor/all"
           element={
-            <EditorShell view="all-chapters-editor">
-              <DesktopAllChaptersEditorRoute />
-            </EditorShell>
+            <DeferredProjectRoute view="allChapters" />
           }
         />
         <Route
           path="editor/:nodeId"
           element={
-            <EditorShell view="node-editor">
-              <DesktopNodeEditorRoute />
-            </EditorShell>
+            <DeferredProjectRoute view="node" />
           }
         />
         <Route
           path="editor/storyline/:storylineId"
           element={
-            <EditorShell view="storyline-editor">
-              <DesktopStorylineEditorRoute />
-            </EditorShell>
+            <DeferredProjectRoute view="storyline" />
           }
         />
         <Route
           path="element/:elementId"
           element={
-            <EditorShell view="element-editor">
-              <DesktopElementEditorRoute />
-            </EditorShell>
+            <DeferredProjectRoute view="element" />
           }
         />
         <Route
           path="category/:categoryId"
           element={
-            <EditorShell view="category-editor">
-              <DesktopCategoryEditorRoute />
-            </EditorShell>
+            <DeferredProjectRoute view="category" />
           }
         />
       </Route>

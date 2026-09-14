@@ -1,6 +1,9 @@
 # Renderer performance work and evidence
 
 The [implementation plan](optimization-plan.md) remains the scope authority.
+The 2026-09-14 [code delivery and manual acceptance handoff](code-delivery.md) records
+the completed coding scope under the maintainer's latest headless-only instruction;
+phase-level device and budget acceptance remains separate.
 F0 is **in progress**: the first input-path baseline is available; app-wide,
 Full Agent panels, graph, reference, multi-tab memory and native/device measurements remain
 NOT RUN. This initial input baseline permits the bounded F1 input-path work;
@@ -4035,3 +4038,19 @@ fingerprints. Eleven evidence-contract cases guard the recorded boundaries.
 
 The required checks pass with 2,967 tests and one existing skip across 437
 files. Validation is headless; no simulator or physical acceptance is claimed.
+
+
+## F7g — Project and standalone settings route code
+
+The project shell, dashboard and editor routes now share an on-demand code gate.
+Standalone settings crosses the same gate so its existing retry entry only consumes
+ready shared dependencies. Shelf intent no longer preloads those settings dependencies.
+AppEffects, ProjectRuntime ownership and the editor ready barrier retain their owners.
+
+[Production route evidence](acceptance/f7-project-routes.json) records 11 headless
+loading/ownership checks and a static initial JS reduction from 4,409,079 to 2,362,731
+bytes (46.4%). [Settings regression](acceptance/f7-settings-after-routes.json) and the
+[final deterministic combination](acceptance/code-delivery-regression.json) accompany it.
+See [route loading](project-route-loading.md) for first-load reload retry semantics and
+measurement limits, and [code delivery](code-delivery.md) for the original-plan audit
+and maintainer acceptance checklist. No simulator, native window or device was used.

@@ -109,7 +109,8 @@ describe('renderer ownership boundaries', () => {
   it('keeps the app entry small and delegates project UI to DesktopAppShell', () => {
     const app = source('App.tsx');
     expect(app.split('\n').length).toBeLessThanOrEqual(120);
-    expect(source('app/AppRoutes.tsx')).toContain('<DesktopAppShell />');
+    expect(source('app/AppRoutes.tsx')).toContain('<DeferredProjectRoute view="workspace" />');
+    expect(source('app/project-route-components.tsx')).toContain('<DesktopAppShell />');
     expect(source('shells/desktop/DesktopAppShell.tsx')).toContain(
       '<DesktopWorkspaceNavigationBoundary',
     );

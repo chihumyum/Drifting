@@ -61,7 +61,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const settingsBackRef = useRef<HTMLButtonElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [activeSettingsPage, setActiveSettingsPage] = useState<UserMenuSettingsPage | null>(null);
-  const settingsIntent = useSettingsPreloadIntent(open && activeSettingsPage === null);
+  const settingsIntent = useSettingsPreloadIntent(scope === 'project' && open && activeSettingsPage === null);
 
   useEffect(() => {
     if (!open) setActiveSettingsPage(null);

@@ -1,7 +1,8 @@
+import { featureLoadingClosure } from './renderer-feature-loading-closure.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ const output = path.resolve(root, reportArg ?? `docs/renderer-performance/accept
 const fingerprint = (source) => createHash('sha256').update(referenceEvidenceFingerprint(source))
   .update(readFileSync(path.join(source, 'vite.renderer.config.ts')))
   .update(readFileSync(fileURLToPath(import.meta.url)))
+  .update(readFileSync(new URL('./renderer-feature-loading-closure.mjs', import.meta.url)))
   .update(readFileSync(new URL('./renderer-settings-ui.tsx', import.meta.url)))
   .update(readFileSync(new URL('./renderer-settings-ui.html', import.meta.url)))
   .update(readFileSync(path.join(root, 'vite-plugins/deferred-settings.ts')))
@@ -129,9 +131,10 @@ try {
   if (!baseline) {
     const entry = chunks.find((c) => c.facade === 'src/renderer/features/settings/settings-panels.ts');
     assert(entry && !entry.initial);
-    for (const dependency of entry.imports) assert(initialFiles.has(dependency), `Settings retry has a cold static dependency: ${dependency}`);
+    for (const dependency of entry.imports) assert(featureLoadingClosure(chunks).files.has(dependency), `Settings retry has a cold static dependency: ${dependency}`);
   }
   if (!baseline) {
+    mkdirSync(path.join(root, '.local-data/renderer-performance'), { recursive: true });
     const uiDir = path.join(temporary, 'ui');
     await build({ root, configFile: path.join(root, 'vite.renderer.config.ts'), logLevel: 'warn', build: { outDir: uiDir, emptyOutDir: true, rollupOptions: { input: path.join(root, 'scripts/renderer-settings-ui.html') } } });
     origin = await serve(uiDir);

@@ -19,7 +19,8 @@ describe('Mobile V2 M1 platform and appearance foundation', () => {
     expect(runtime).toContain('screenWidth: window.screen.width');
     expect(runtime).toContain('document.documentElement.dataset.shellMode = next.shellMode');
     expect(routes).toContain('getPlatformRuntime().isMobileShell');
-    expect(routes).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
+    expect(routes).toContain('<DeferredProjectRoute view="workspace" />');
+    expect(source('src/renderer/app/project-route-components.tsx')).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
     expect(app).toContain('if (!getPlatformRuntime().isMobile) return;');
   });
 

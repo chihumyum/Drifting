@@ -22,7 +22,7 @@ describe('mobile standalone routes', () => {
     expect(routes).toContain(
       'isMobileShell ? <MobileProjectShelfView /> : <ProjectPickerView />',
     );
-    expect(routes).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
+    expect(rendererSource('app/project-route-components.tsx')).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
     const mobileShelf = rendererSource('shells/mobile/standalone/MobileProjectShelfView.tsx');
     expect(mobileShelf).toContain('<ProjectPickerView presentation="mobile" />');
     const mobileWorkspace = rendererSource('shells/mobile/MobileAppShell.tsx');
@@ -274,7 +274,8 @@ describe('mobile standalone routes', () => {
 
   it('routes mobile settings outside project runtime and gates hosted account sections', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain(
+    expect(routes).toContain('<DeferredProjectRoute view="settings" />');
+    expect(rendererSource('app/project-route-components.tsx')).toContain(
       'isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
     );
     const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');

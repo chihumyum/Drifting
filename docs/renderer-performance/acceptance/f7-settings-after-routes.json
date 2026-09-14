@@ -1,0 +1,1443 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_deferred_settings",
+  "status": "passed",
+  "mode": "deferred",
+  "generatedAt": "2026-09-14T03:57:52.566Z",
+  "source": {
+    "commit": "c290c9981e8255055624adccf669fd4515c2647f",
+    "fingerprint": "79ac08f020763aa126668ca57ba2de965609f27ce4648c1e0bd71345022c845e",
+    "dirty": true
+  },
+  "environment": {
+    "platform": "darwin",
+    "node": "v24.4.0",
+    "browser": "Chrome/153.0.8010.36"
+  },
+  "initialJsBytes": 2361555,
+  "chunks": [
+    {
+      "file": "assets/react-vendor-XVUY1fw_.js",
+      "bytes": 50500,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/tiptap-BjXAcc7q.js",
+      "bytes": 399910,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/index-BDky7XsI.js",
+      "bytes": 371485,
+      "entry": true,
+      "facade": "index.html",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/hosted-settings-policy-BgppfcFC.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/copilot-surface-DOn_wAGv.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/persistence-lifecycle-C6ZQjsTr.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/layout-grid-BofrkD0j.js",
+        "assets/plus-B39mF7fJ.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/types-BRMYK13e.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/graph-ui-Cue0a6OT.js",
+      "bytes": 24341,
+      "entry": true,
+      "facade": "src/renderer/features/graph/graph-ui-components.ts",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/relation-edge-popover-Bd1ci1O5.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/types-BRMYK13e.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/copilot-surface-DOn_wAGv.js",
+        "assets/useComment-BcH821jW.js",
+        "assets/copilot-suggestion-BNrVjyQM.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/copilot-surface-DOn_wAGv.js",
+      "bytes": 4886,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/types-BRMYK13e.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/settings-panels-Cv85hYh0.js",
+      "bytes": 174588,
+      "entry": true,
+      "facade": "src/renderer/features/settings/settings-panels.ts",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/shortcuts-BLmXhZmg.js",
+        "assets/hosted-settings-policy-BgppfcFC.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/types-BRMYK13e.js",
+        "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/persistence-lifecycle-C6ZQjsTr.js",
+        "assets/loader-circle-CGX_fltl.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/SegmentedControl-3rzXdnLJ.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/active-editor-DC_px_c1.js"
+      ],
+      "targets": [
+        "AccountSettingsPanel",
+        "SubscriptionSettingsPanel",
+        "PreferenceSettingsPanels",
+        "IntelligenceSettingsPanels",
+        "AgentSettingsPanel",
+        "ControlSettingsPanels"
+      ],
+      "initial": false
+    },
+    {
+      "file": "assets/hosted-settings-policy-BgppfcFC.js",
+      "bytes": 384555,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/persistence-lifecycle-C6ZQjsTr.js",
+        "assets/runtime-V7tsIIZZ.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/durable-context-memory-CB1IfQVk.js",
+      "bytes": 172880,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/types-BRMYK13e.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/comment-D5K1xh0y.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/google-provider-C6NCmW5P.js",
+      "bytes": 375858,
+      "entry": true,
+      "facade": "src/renderer/lib/ai/client/providers/google-runtime.ts",
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/types-BRMYK13e.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/openai-providers-ckpcI8B6.js",
+      "bytes": 160996,
+      "entry": true,
+      "facade": "src/renderer/lib/ai/client/providers/openai-compatible-runtime.ts",
+      "imports": [
+        "assets/types-BRMYK13e.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/types-BRMYK13e.js",
+      "bytes": 112,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/story-graph-CRJUSm_1.js",
+      "bytes": 32750,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/graph-view-CY7PhS5Z.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/RelationTypeField-DJXPF0mt.js",
+        "assets/SegmentedControl-3rzXdnLJ.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/layout-grid-BofrkD0j.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/element-graph-D1hlUfC3.js",
+      "bytes": 38297,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopSuperElementView.tsx",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/RelationTypeField-DJXPF0mt.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/layout-grid-BofrkD0j.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/layout-grid-BofrkD0j.js",
+      "bytes": 360,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/feature-access-FUzbu1Cz.js",
+      "bytes": 183955,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/memo-material-BiF0ULPU.js",
+      "bytes": 22684,
+      "entry": true,
+      "facade": "src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/scroll-to-block-SiKsQ9Y7.js",
+        "assets/useComment-BcH821jW.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/plus-B39mF7fJ.js",
+        "assets/loader-circle-CGX_fltl.js",
+        "assets/copilot-suggestion-BNrVjyQM.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/plus-B39mF7fJ.js",
+      "bytes": 167,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/copilot-suggestion-BNrVjyQM.js",
+      "bytes": 260,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/comment-D5K1xh0y.js",
+      "bytes": 6176,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/Modal-B3nz1GEz.js",
+      "bytes": 1798,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/GhostIconButton-BkD0_JM9.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/GhostIconButton-BkD0_JM9.js",
+      "bytes": 807,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/FilterChip-McaC65-L.js",
+      "bytes": 6632,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/useProjectNavigation-DT16h1ds.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/useProjectNavigation-DT16h1ds.js",
+      "bytes": 23337,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/runtime-V7tsIIZZ.js",
+      "bytes": 1525,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/confirmation-store-BEoOYXNB.js",
+      "bytes": 691654,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/persistence-lifecycle-C6ZQjsTr.js",
+      "bytes": 1641,
+      "entry": false,
+      "facade": "src/renderer/lib/persistence-lifecycle.ts",
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/active-editor-DC_px_c1.js",
+      "bytes": 413,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/snapshot-history.service-DBmUtljp.js",
+      "bytes": 6027,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/pdf-runtime-Dsq98h1n.js",
+      "bytes": 489688,
+      "entry": false,
+      "facade": "src/renderer/lib/pdf-runtime.ts",
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/yjs-prose-command-CwGdlvez.js",
+      "bytes": 29365,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/project-route-components-CjflFcth.js",
+      "bytes": 852133,
+      "entry": false,
+      "facade": "src/renderer/app/project-route-components.tsx",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/hosted-settings-policy-BgppfcFC.js",
+        "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+        "assets/index-BDky7XsI.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/RelationTypeField-DJXPF0mt.js",
+        "assets/relation-edge-popover-Bd1ci1O5.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/useComment-BcH821jW.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/scroll-to-block-SiKsQ9Y7.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/loader-circle-CGX_fltl.js",
+        "assets/plus-B39mF7fJ.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/shortcuts-BLmXhZmg.js",
+        "assets/graph-view-CY7PhS5Z.js",
+        "assets/SegmentedControl-3rzXdnLJ.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/persistence-lifecycle-C6ZQjsTr.js",
+        "assets/types-BRMYK13e.js",
+        "assets/copilot-surface-DOn_wAGv.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/layout-grid-BofrkD0j.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/relation-edge-popover-Bd1ci1O5.js",
+      "bytes": 174239,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/types-BRMYK13e.js",
+        "assets/copilot-surface-DOn_wAGv.js",
+        "assets/useComment-BcH821jW.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/shortcuts-BLmXhZmg.js",
+      "bytes": 42665,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/SegmentedControl-3rzXdnLJ.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/runtime-V7tsIIZZ.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/useDriftingAgentRuntime-B-hOkKkn.js",
+      "bytes": 777188,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/types-BRMYK13e.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/tiptap-BjXAcc7q.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/graph-view-CY7PhS5Z.js",
+      "bytes": 20539,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/SuperViewShell-C_2t7Dl3.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/SegmentedControl-3rzXdnLJ.js",
+      "bytes": 493,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/RelationTypeField-DJXPF0mt.js",
+      "bytes": 30569,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/useBookNode-6xBA-hRi.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/layout-grid-BofrkD0j.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/useBookNode-6xBA-hRi.js",
+      "bytes": 33266,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/element-category-repo-BBgqBqX4.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/element-category-repo-BBgqBqX4.js",
+      "bytes": 16970,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/scroll-to-block-SiKsQ9Y7.js",
+      "bytes": 53003,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/SuperViewShell-C_2t7Dl3.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/plus-B39mF7fJ.js",
+        "assets/loader-circle-CGX_fltl.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/useComment-BcH821jW.js",
+      "bytes": 8397,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/loader-circle-CGX_fltl.js",
+      "bytes": 153,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/SuperViewShell-C_2t7Dl3.js",
+      "bytes": 31536,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/useRelationTypePresentation-OMJGPpbu.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/useProjectNavigation-DT16h1ds.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/useRelationTypePresentation-OMJGPpbu.js",
+      "bytes": 6952,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/imported-history-WeX6a4pI.js",
+      "bytes": 1602,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/imported-history.ts",
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/types-BRMYK13e.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/comment-D5K1xh0y.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/seed-BS3LTmiC.js",
+      "bytes": 3436,
+      "entry": false,
+      "facade": "src/renderer/sync/agent-chat/seed.ts",
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/types-BRMYK13e.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/comment-D5K1xh0y.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/repository-DeECJjNp.js",
+      "bytes": 23110,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/durable-context-memory-CB1IfQVk.js"
+      ],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/y-prosemirror-DYg_ip99.js",
+      "bytes": 5072,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/react-vendor-XVUY1fw_.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-BF_Vmv9i.js",
+      "bytes": 508,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/jszip.min-Cj137S96.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-DFzUDIH2.js",
+      "bytes": 3684,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/tiptap-BjXAcc7q.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/index-D35Zzh6R.js",
+      "bytes": 312532,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/markdown-B4362Wwo.js",
+      "bytes": 1415,
+      "entry": false,
+      "facade": "src/renderer/services/import/markdown.ts",
+      "imports": [
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/snapshot-history.service-DBmUtljp.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-CzXhHabf.js",
+      "bytes": 405327,
+      "entry": false,
+      "facade": "src/renderer/services/import/docx.ts",
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js",
+        "assets/index-BDky7XsI.js",
+        "assets/jszip.min-Cj137S96.js",
+        "assets/tiptap-BjXAcc7q.js",
+        "assets/yjs-prose-command-CwGdlvez.js",
+        "assets/hosted-settings-policy-BgppfcFC.js",
+        "assets/confirmation-store-BEoOYXNB.js",
+        "assets/persistence-lifecycle-C6ZQjsTr.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/snapshot-history.service-DBmUtljp.js",
+        "assets/runtime-V7tsIIZZ.js",
+        "assets/feature-access-FUzbu1Cz.js",
+        "assets/durable-context-memory-CB1IfQVk.js",
+        "assets/types-BRMYK13e.js",
+        "assets/comment-D5K1xh0y.js",
+        "assets/copilot-surface-DOn_wAGv.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/GhostIconButton-BkD0_JM9.js",
+        "assets/Modal-B3nz1GEz.js",
+        "assets/useProjectNavigation-DT16h1ds.js",
+        "assets/repository-DeECJjNp.js",
+        "assets/FilterChip-McaC65-L.js",
+        "assets/layout-grid-BofrkD0j.js",
+        "assets/plus-B39mF7fJ.js"
+      ],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/jszip.min-Cj137S96.js",
+      "bytes": 96734,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/react-vendor-XVUY1fw_.js"
+      ],
+      "targets": [],
+      "initial": false
+    }
+  ],
+  "initial": {
+    "evaluated": [],
+    "parsed": [
+      "assets/FilterChip-McaC65-L.js",
+      "assets/GhostIconButton-BkD0_JM9.js",
+      "assets/Modal-B3nz1GEz.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/comment-D5K1xh0y.js",
+      "assets/confirmation-store-BEoOYXNB.js",
+      "assets/copilot-suggestion-BNrVjyQM.js",
+      "assets/copilot-surface-DOn_wAGv.js",
+      "assets/durable-context-memory-CB1IfQVk.js",
+      "assets/feature-access-FUzbu1Cz.js",
+      "assets/hosted-settings-policy-BgppfcFC.js",
+      "assets/index-BDky7XsI.js",
+      "assets/layout-grid-BofrkD0j.js",
+      "assets/persistence-lifecycle-C6ZQjsTr.js",
+      "assets/plus-B39mF7fJ.js",
+      "assets/react-vendor-XVUY1fw_.js",
+      "assets/repository-DeECJjNp.js",
+      "assets/runtime-V7tsIIZZ.js",
+      "assets/snapshot-history.service-DBmUtljp.js",
+      "assets/tiptap-BjXAcc7q.js",
+      "assets/types-BRMYK13e.js",
+      "assets/useProjectNavigation-DT16h1ds.js",
+      "assets/yjs-prose-command-CwGdlvez.js"
+    ],
+    "requested": [
+      "",
+      "assets/FilterChip-McaC65-L.js",
+      "assets/GhostIconButton-BkD0_JM9.js",
+      "assets/Modal-B3nz1GEz.js",
+      "assets/active-editor-DC_px_c1.js",
+      "assets/comment-D5K1xh0y.js",
+      "assets/confirmation-store-BEoOYXNB.js",
+      "assets/copilot-suggestion-BNrVjyQM.js",
+      "assets/copilot-surface-DOn_wAGv.js",
+      "assets/copilot-surface-MWKgomOB.css",
+      "assets/durable-context-memory-CB1IfQVk.js",
+      "assets/feature-access-FUzbu1Cz.js",
+      "assets/hosted-settings-policy-BgppfcFC.js",
+      "assets/index-BDky7XsI.js",
+      "assets/index-Cr9m0goq.css",
+      "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+      "assets/layout-grid-BofrkD0j.js",
+      "assets/persistence-lifecycle-C6ZQjsTr.js",
+      "assets/plus-B39mF7fJ.js",
+      "assets/react-vendor-XVUY1fw_.js",
+      "assets/repository-DeECJjNp.js",
+      "assets/runtime-V7tsIIZZ.js",
+      "assets/snapshot-history.service-DBmUtljp.js",
+      "assets/tiptap-BjXAcc7q.js",
+      "assets/types-BRMYK13e.js",
+      "assets/useProjectNavigation-DT16h1ds.js",
+      "assets/yjs-prose-command-CwGdlvez.js"
+    ]
+  },
+  "ui": [
+    {
+      "modalClosedDuringLoad": true,
+      "platformShell": "desktop",
+      "initiallyDeferred": true,
+      "failedLocally": true,
+      "retryRecovered": true,
+      "headerPreserved": true,
+      "navigationDuringLoad": true,
+      "closeDuringLoad": true,
+      "cachedReopen": true,
+      "realPreferenceChanged": true,
+      "sentinelPreserved": true,
+      "blockedRequests": 1,
+      "retryRequests": 2,
+      "requestUrls": [
+        "/assets/settings-panels-BOUP7nTp.js?settings-attempt=1",
+        "/assets/settings-panels-BOUP7nTp.js?settings-attempt=2",
+        "/assets/settings-panels-l5lqB6-r.js"
+      ]
+    },
+    {
+      "modalClosedDuringLoad": null,
+      "platformShell": "mobile",
+      "initiallyDeferred": true,
+      "failedLocally": true,
+      "retryRecovered": true,
+      "headerPreserved": true,
+      "navigationDuringLoad": true,
+      "closeDuringLoad": true,
+      "cachedReopen": true,
+      "realPreferenceChanged": true,
+      "sentinelPreserved": true,
+      "blockedRequests": 1,
+      "retryRequests": 2,
+      "requestUrls": [
+        "/assets/settings-panels-BOUP7nTp.js?settings-attempt=1",
+        "/assets/settings-panels-BOUP7nTp.js?settings-attempt=2",
+        "/assets/settings-panels-l5lqB6-r.js"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "name": "mobile standalone routes selects the mobile auth presentation from native platform metadata",
+      "status": "passed",
+      "durationMs": 0.9257500000000078
+    },
+    {
+      "name": "mobile standalone routes selects the mobile project shelf and the independent mobile workspace shell",
+      "status": "passed",
+      "durationMs": 0.4468749999999915
+    },
+    {
+      "name": "mobile standalone routes keeps the M3 paper workspace, unified bar and touch ownership in the mobile shell",
+      "status": "passed",
+      "durationMs": 3.662125000000003
+    },
+    {
+      "name": "mobile standalone routes keeps all three Super View destinations directly reachable in the mobile header",
+      "status": "passed",
+      "durationMs": 0.5235830000000021
+    },
+    {
+      "name": "mobile standalone routes keeps mobile auth in the mobile shell path and reuses the auth flow",
+      "status": "passed",
+      "durationMs": 0.11079200000000355
+    },
+    {
+      "name": "mobile standalone routes owns safe area, dynamic viewport, touch targets and mobile input sizing",
+      "status": "passed",
+      "durationMs": 0.09720800000000906
+    },
+    {
+      "name": "mobile standalone routes gives the mobile shelf a single-column touch-first surface",
+      "status": "passed",
+      "durationMs": 0.11724999999999852
+    },
+    {
+      "name": "mobile standalone routes routes mobile settings outside project runtime and gates hosted account sections",
+      "status": "passed",
+      "durationMs": 0.2328329999999994
+    },
+    {
+      "name": "mobile standalone routes opens settings beside the right-sidebar close action and returns to the source paper",
+      "status": "passed",
+      "durationMs": 0.628666999999993
+    },
+    {
+      "name": "mobile standalone routes gives mobile settings safe areas, stacked content and touch-sized controls",
+      "status": "passed",
+      "durationMs": 0.15587499999999466
+    },
+    {
+      "name": "mobile standalone routes keeps shared and custom overlays inside the native mobile viewport",
+      "status": "passed",
+      "durationMs": 0.6490830000000045
+    },
+    {
+      "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
+      "status": "passed",
+      "durationMs": 1.7088749999999777
+    },
+    {
+      "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
+      "status": "passed",
+      "durationMs": 0.3006669999999758
+    },
+    {
+      "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
+      "status": "passed",
+      "durationMs": 0.19762500000001637
+    },
+    {
+      "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
+      "status": "passed",
+      "durationMs": 0.2384580000000085
+    },
+    {
+      "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
+      "status": "passed",
+      "durationMs": 0.1847919999999874
+    },
+    {
+      "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
+      "status": "passed",
+      "durationMs": 0.08466699999999605
+    },
+    {
+      "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
+      "status": "passed",
+      "durationMs": 0.1576249999999959
+    },
+    {
+      "name": "settings usage history mutation ownership does not mark spend rows deleted optimistically or on failure",
+      "status": "passed",
+      "durationMs": 1.619166000000007
+    },
+    {
+      "name": "settings usage history mutation ownership reloads committed usage without losing historical spend and ignores an older query",
+      "status": "passed",
+      "durationMs": 0.25445799999999963
+    },
+    {
+      "name": "settings usage history mutation ownership cancels a confirmation after project change and after an A to B to A rebinding",
+      "status": "passed",
+      "durationMs": 0.26320900000001757
+    },
+    {
+      "name": "settings usage history mutation ownership passes the viewed project explicitly and does not reload a new view after old deletion completes",
+      "status": "passed",
+      "durationMs": 0.3849999999999909
+    },
+    {
+      "name": "settings usage history mutation ownership does not execute or publish pending work after closing or disposal",
+      "status": "passed",
+      "durationMs": 0.17541700000001015
+    },
+    {
+      "name": "Google Drive Settings presentation enables connection only when OAuth, Drive transport, and opaque staging are ready",
+      "status": "passed",
+      "durationMs": 1.346082999999993
+    },
+    {
+      "name": "Google Drive Settings presentation maps account-mismatch to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.226208999999983
+    },
+    {
+      "name": "Google Drive Settings presentation maps needs-reauth to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.07929200000000947
+    },
+    {
+      "name": "Google Drive Settings presentation maps permission-denied to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06379200000000651
+    },
+    {
+      "name": "Google Drive Settings presentation maps offline to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.05820800000000759
+    },
+    {
+      "name": "Google Drive Settings presentation maps rate-limited to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.05158299999999372
+    },
+    {
+      "name": "Google Drive Settings presentation maps quota-exceeded to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.05529099999998266
+    },
+    {
+      "name": "Google Drive Settings presentation maps blocked-update to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06087499999998158
+    },
+    {
+      "name": "Google Drive Settings presentation maps remote-corrupt to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.06974999999999909
+    },
+    {
+      "name": "Google Drive Settings presentation maps configuration-required to an actionable, localized issue",
+      "status": "passed",
+      "durationMs": 0.07995900000000233
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code cancelled as cancelled",
+      "status": "passed",
+      "durationMs": 0.06779199999999719
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code offline as offline",
+      "status": "passed",
+      "durationMs": 0.050416999999981726
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code needs-reauth as reauthorize",
+      "status": "passed",
+      "durationMs": 0.04149999999998499
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code permission-denied as permission",
+      "status": "passed",
+      "durationMs": 0.03608400000001666
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code rate-limited as rate-limited",
+      "status": "passed",
+      "durationMs": 0.03674999999998363
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code quota-exceeded as quota",
+      "status": "passed",
+      "durationMs": 0.03916599999999448
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code transient as retry",
+      "status": "passed",
+      "durationMs": 0.03691699999998832
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-cursor as retry",
+      "status": "passed",
+      "durationMs": 0.03562500000001023
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-page-token as data-integrity",
+      "status": "passed",
+      "durationMs": 0.034041000000001986
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code invalid-request as data-integrity",
+      "status": "passed",
+      "durationMs": 0.044124999999979764
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code local-object-invalid as data-integrity",
+      "status": "passed",
+      "durationMs": 0.18512499999999932
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code remote-object-missing as data-integrity",
+      "status": "passed",
+      "durationMs": 0.056250000000005684
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code immutable-conflict as data-integrity",
+      "status": "passed",
+      "durationMs": 0.03587500000000432
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code remote-corrupt as data-integrity",
+      "status": "passed",
+      "durationMs": 0.030291000000005397
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code configuration-required as configuration",
+      "status": "passed",
+      "durationMs": 0.03012499999999818
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code account-mismatch as account-mismatch",
+      "status": "passed",
+      "durationMs": 0.027457999999995764
+    },
+    {
+      "name": "Google Drive Settings presentation preserves native contract code unsupported-platform as configuration",
+      "status": "passed",
+      "durationMs": 0.02841700000001879
+    },
+    {
+      "name": "Google Drive Settings presentation never projects an arbitrary error message or unsafe reason code",
+      "status": "passed",
+      "durationMs": 0.10258400000000734
+    },
+    {
+      "name": "hosted settings boundary defaults public builds to local settings while preserving the hosted seam",
+      "status": "passed",
+      "durationMs": 1.002332999999993
+    },
+    {
+      "name": "hosted settings boundary gates both desktop and standalone-mobile account panels before mounting them",
+      "status": "passed",
+      "durationMs": 0.28308300000000486
+    },
+    {
+      "name": "hosted settings boundary does not mount hosted telemetry controls in local-only Privacy settings",
+      "status": "passed",
+      "durationMs": 0.19566699999998605
+    },
+    {
+      "name": "hosted settings boundary does not mount the project-scoped import action in standalone mobile settings",
+      "status": "passed",
+      "durationMs": 0.21116599999999153
+    },
+    {
+      "name": "hosted settings boundary records a local-first onboarding contract without trial or hosted-storage claims",
+      "status": "passed",
+      "durationMs": 2.7590000000000146
+    },
+    {
+      "name": "hosted settings boundary does not promise active cloud sync in always-visible local preferences",
+      "status": "passed",
+      "durationMs": 1.2523750000000007
+    },
+    {
+      "name": "hosted settings boundary removes account, plan and sign-out presentation from the local user menu",
+      "status": "passed",
+      "durationMs": 0.30579199999999673
+    },
+    {
+      "name": "hosted settings boundary omits inert help, update and Finder actions instead of rendering dead controls",
+      "status": "passed",
+      "durationMs": 1.4148329999999874
+    },
+    {
+      "name": "hosted settings boundary keeps the public production CSP free of an implicit hosted-service origin",
+      "status": "passed",
+      "durationMs": 0.2067079999999919
+    },
+    {
+      "name": "hosted settings boundary keeps the durable hosted-service document aligned with the UI contract",
+      "status": "passed",
+      "durationMs": 0.2352910000000179
+    },
+    {
+      "name": "mobile Editor Settings presentation reuses desktop preference state and the same live editor variables",
+      "status": "passed",
+      "durationMs": 1.1762910000000062
+    },
+    {
+      "name": "mobile Editor Settings presentation removes desktop rail geometry and keeps the phone preview horizontal",
+      "status": "passed",
+      "durationMs": 0.27120800000000145
+    },
+    {
+      "name": "mobile Editor Settings presentation makes typography controls full-width and touch-sized without changing desktop CSS",
+      "status": "passed",
+      "durationMs": 0.30083299999999724
+    },
+    {
+      "name": "mobile Editor Settings presentation records the live preview and physical-device acceptance boundary",
+      "status": "passed",
+      "durationMs": 0.30495899999999665
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary reuses the provider-neutral product controls without mounting project import",
+      "status": "passed",
+      "durationMs": 1.088957999999991
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary reauthorizes the same account and resumes the owned disconnect in one action",
+      "status": "passed",
+      "durationMs": 0.2303749999999951
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary fails closed until every native seam is available",
+      "status": "passed",
+      "durationMs": 0.18441699999999628
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary renders localized actions and sanitized codes instead of native error messages",
+      "status": "passed",
+      "durationMs": 3.5217499999999973
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps compact Settings portrait-safe, touch-sized, and hardware-Back owned",
+      "status": "passed",
+      "durationMs": 0.25062500000001364
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps production configuration local and the renderer credential contract opaque",
+      "status": "passed",
+      "durationMs": 0.17774999999998897
+    },
+    {
+      "name": "Mobile V2 Google Drive Settings release boundary keeps the real-account hard gate machine-complete and privacy-strict",
+      "status": "passed",
+      "durationMs": 2.349500000000006
+    },
+    {
+      "name": "personal-cloud Settings boundary routes the trusted-cloud controls through the sanitized product command layer",
+      "status": "passed",
+      "durationMs": 1.6652499999999861
+    },
+    {
+      "name": "personal-cloud Settings boundary gates connection on the complete native OAuth, transport, and staging boundary",
+      "status": "passed",
+      "durationMs": 0.30083300000001145
+    },
+    {
+      "name": "personal-cloud Settings boundary localizes account, SDK-state, permission, network, and integrity failures",
+      "status": "passed",
+      "durationMs": 0.3360839999999996
+    },
+    {
+      "name": "personal-cloud Settings boundary has no recovery-code, QR, biometric, or recovery-confirmation surface",
+      "status": "passed",
+      "durationMs": 0.35949999999999704
+    },
+    {
+      "name": "personal-cloud Settings boundary requires an explicit second action before App-wide disconnect",
+      "status": "passed",
+      "durationMs": 0.36666599999998084
+    },
+    {
+      "name": "personal-cloud Settings boundary keeps connect and disconnect visibly busy instead of only disabling controls",
+      "status": "passed",
+      "durationMs": 4.221916999999991
+    },
+    {
+      "name": "personal-cloud Settings boundary closes the same-frame double-tap window before native cloud operations start",
+      "status": "passed",
+      "durationMs": 0.27054099999998016
+    },
+    {
+      "name": "personal-cloud Settings boundary grants only the native dialog message permission used by desktop UI",
+      "status": "passed",
+      "durationMs": 0.47341699999998355
+    },
+    {
+      "name": "personal-cloud Settings boundary uses Google sign-in for both connection and automatic project discovery",
+      "status": "passed",
+      "durationMs": 1.4260830000000055
+    },
+    {
+      "name": "personal-cloud Settings boundary names projects publicly and states that Google is inside the trust boundary",
+      "status": "passed",
+      "durationMs": 1.6468749999999943
+    },
+    {
+      "name": "personal-cloud Settings boundary separates durable authority attention from the last runtime cycle failure",
+      "status": "passed",
+      "durationMs": 1.5695830000000228
+    },
+    {
+      "name": "desktop settings section navigation jumps directly while preserving scroll-spy for manual scrolling",
+      "status": "passed",
+      "durationMs": 3.411916000000005
+    },
+    {
+      "name": "desktop standalone settings lets a project-less user open Google sign-in and sync controls from the shelf menu",
+      "status": "passed",
+      "durationMs": 1.1885840000000059
+    }
+  ],
+  "devSettings": "passed",
+  "acceptance": {
+    "productionModuleLoading": "passed",
+    "mountedStandaloneSettings": "passed",
+    "native": "not-run",
+    "fullAppPerformance": "not-run"
+  },
+  "limitations": [
+    "Production main.tsx and Vite config are unchanged by the graph observer except for six panel evaluation counters. The browser has no native bridge or author data; app readiness and startup latency are not measured.",
+    "Mounted UI acceptance uses actual desktop/mobile standalone settings and real dynamically fetched panel code in a separate synthetic MemoryRouter fixture. The sentinel is a textarea and effect counter, not a ProjectRuntimeProvider or prose editor.",
+    "Real browser module fetch is failed once, retried at the same emitted file with a fresh module-map query, and delayed while navigating/closing. Panel rendering after retry and real local preference persistence are checked. This is not failed module evaluation, missing upgrade assets, native offline loading or device input acceptance.",
+    "Full project settings panels, deep-link scroll in the complete modal, hardware Back and native/physical interaction still require project/device acceptance. No private database or account is loaded."
+  ]
+}

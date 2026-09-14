@@ -15,7 +15,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const baselineCommit = '96795513615124cab9ea8c09315516bf698ab1b0';
 const reportFile = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9)
   ?? 'docs/renderer-performance/acceptance/f7-memo-deferred.json');
-const harnessFiles = ['scripts/run-renderer-deferred-memo.mjs', 'scripts/renderer-deferred-memo-contract.mjs',
+const harnessFiles = ['scripts/renderer-feature-loading-closure.mjs', 'scripts/run-renderer-deferred-memo.mjs', 'scripts/renderer-deferred-memo-contract.mjs',
   'scripts/renderer-graphs-ui.tsx', 'scripts/renderer-graphs-ui.html'];
 const configFiles = ['vite.renderer.config.ts', 'vite-plugins/deferred-entry.ts', 'vite-plugins/deferred-settings.ts', 'vite-plugins/deferred-super-views.ts'];
 const fingerprint = source => createHash('sha256').update(referenceEvidenceFingerprint(source))
@@ -221,7 +221,7 @@ try {
       'Production main entry is measured with module evaluation counters, emitted import closure and Chromium parsed/requested script events. No native bridge or author database, app readiness or native startup timing is measured.',
       'Mounted UI uses production view bodies, deferred wrappers, navigation controls, stores and mobile host with synthetic workspace data and a real Tiptap/Yjs draft; it is not the full ProjectRuntime or ChapterEditor.',
       'Real failed fetch, explicit retry, close while loading, cached reopen, search, compose Escape and project replacement are checked. Database writes, asset editing, physical touch and IME are not exercised.',
-      'Entry retries fetch the same build file with a fresh query key. Static dependencies and CSS must already belong to the initial shell; module evaluation errors and native offline/upgrade consistency are separate gates.',
+      'Entry retries fetch the same build file with a fresh query key. Static dependencies and CSS must already belong to the initial shell or completed route-code gate; module evaluation errors and native offline/upgrade consistency are separate gates.',
     ] };
   validateDeferredMemoEvidence(report); writeFileSync(reportFile, JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify({ before: before.initialJsBytes, after: after.initialJsBytes, ui, preload }, null, 2));

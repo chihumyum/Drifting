@@ -34,7 +34,7 @@ describe('Project Home cross-platform acceptance', () => {
     const routes = read('src/renderer/app/AppRoutes.tsx');
     const main = read('src/renderer/components/editor/EditorMainArea.tsx');
     const navigation = read('src/renderer/components/topBars/WorkspaceNavigationButtons.tsx');
-    expect(routes).toContain('<EditorShell view="project-home">');
+    expect(read('src/renderer/app/project-route-components.tsx')).toContain('<EditorShell view="project-home">');
     expect(routes).toContain('<Route path="home" element={<Navigate to=".." replace />} />');
     expect(routes).toContain('<Route path="new" element={null} />');
     expect(main).not.toContain('<EmptyEditorState');

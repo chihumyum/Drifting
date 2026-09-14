@@ -1,3 +1,4 @@
+import { featureLoadingClosure } from './renderer-feature-loading-closure.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
@@ -22,6 +23,7 @@ const output = path.resolve(root, reportArg ?? `docs/renderer-performance/accept
 const fingerprint = (source) => createHash('sha256').update(referenceEvidenceFingerprint(source))
   .update(readFileSync(path.join(source, 'vite.renderer.config.ts')))
   .update(readFileSync(fileURLToPath(import.meta.url)))
+  .update(readFileSync(new URL('./renderer-feature-loading-closure.mjs', import.meta.url)))
   .update(readFileSync(new URL('./renderer-preload-acceptance.mjs', import.meta.url)))
   .update(readFileSync(new URL('./renderer-graphs-ui.tsx', import.meta.url)))
   .update(readFileSync(new URL('./renderer-graphs-ui.html', import.meta.url)))
@@ -134,13 +136,13 @@ try {
   await production.navigate(origin);
   const initial = { evaluated: await production.evaluate('globalThis.__GRAPH_EVALUATIONS__ ?? []'), parsed: [...parsed].sort(), requested: [...requested].sort() };
   await stopServer();
-  const initialCss = new Set(chunks.filter(c => c.initial).flatMap(c => c.css));
+  const initialCss = featureLoadingClosure(chunks).css;
   const ui = []; let devGraphs = 'not-run'; let preloading = null;
   if (!baseline) {
     for (const suffix of ['DesktopStoryGraphView.tsx', 'DesktopSuperElementView.tsx', 'graph-ui-components.ts']) {
       const entry = chunks.find(c => c.facade?.endsWith('/' + suffix));
       assert(entry && !entry.initial);
-      for (const dependency of entry.imports) assert(initialFiles.has(dependency), `Cold dependency bypasses graph loading owner: ${dependency}`);
+      for (const dependency of entry.imports) assert(featureLoadingClosure(chunks).files.has(dependency), `Cold dependency bypasses graph loading owner: ${dependency}`);
       for (const css of entry.css) assert(initialCss.has(css), `Graph CSS is not loaded by the shell: ${css}`);
     }
   }

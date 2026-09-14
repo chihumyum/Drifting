@@ -609,7 +609,9 @@
             "docs/renderer-performance/acceptance/f7-memo-deferred.json",
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
             "docs/renderer-performance/acceptance/f7-memo-browser.json",
-            "docs/renderer-performance/acceptance/f7-ai-providers.json"
+            "docs/renderer-performance/acceptance/f7-ai-providers.json",
+            "docs/renderer-performance/acceptance/f7-project-routes.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-routes.json"
           ],
           "status": "partial"
         },
@@ -628,7 +630,9 @@
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
             "docs/renderer-performance/acceptance/f7-memo-browser.json",
             "docs/renderer-performance/acceptance/f7-memo-native.json",
-            "docs/renderer-performance/acceptance/f7-ai-providers.json"
+            "docs/renderer-performance/acceptance/f7-ai-providers.json",
+            "docs/renderer-performance/acceptance/f7-project-routes.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-routes.json"
           ],
           "status": "partial"
         },
@@ -646,7 +650,9 @@
             "docs/renderer-performance/acceptance/f7-graphs-after-memo.json",
             "docs/renderer-performance/acceptance/f7-memo-browser.json",
             "docs/renderer-performance/acceptance/f7-memo-native.json",
-            "docs/renderer-performance/acceptance/f7-ai-providers.json"
+            "docs/renderer-performance/acceptance/f7-ai-providers.json",
+            "docs/renderer-performance/acceptance/f7-project-routes.json",
+            "docs/renderer-performance/acceptance/f7-settings-after-routes.json"
           ],
           "status": "partial"
         },
@@ -656,7 +662,7 @@
           "evidence": []
         }
       ],
-      "implementationStatus": "pdf_zip_settings_graphs_memo_ai_provider_code_and_bounded_intent_preloading_implemented_browser_recovery_verified_other_entries_and_full_app_budgets_pending"
+      "implementationStatus": "planned_loading_boundaries_including_project_and_standalone_settings_routes_implemented_headless_verified_full_app_and_device_budgets_pending"
     },
     {
       "id": "F8",
@@ -688,7 +694,8 @@
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
             "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
-            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json",
+            "docs/renderer-performance/acceptance/code-delivery-regression.json"
           ],
           "status": "partial"
         },
@@ -697,7 +704,8 @@
           "requirement": "确定性性能约束纳入 CI，设备性能结果有固定环境、容差和复跑规则",
           "evidence": [
             "docs/renderer-performance/acceptance/f8-ci-contracts.json",
-            "docs/renderer-performance/acceptance/f3-copilot-runs.json"
+            "docs/renderer-performance/acceptance/f3-copilot-runs.json",
+            "docs/renderer-performance/acceptance/code-delivery-regression.json"
           ],
           "status": "partial"
         },
@@ -718,7 +726,8 @@
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
             "docs/renderer-performance/acceptance/f4-desktop-composition-native.json",
             "docs/renderer-performance/acceptance/f4-mobile-panel-native.json",
-            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json",
+            "docs/renderer-performance/acceptance/code-delivery-regression.json"
           ],
           "status": "partial"
         },
@@ -733,12 +742,22 @@
             "docs/renderer-performance/acceptance/f3-markers-native.json",
             "docs/renderer-performance/acceptance/f3-inline-copilot-native.json",
             "docs/renderer-performance/acceptance/f3-copilot-runs-native.json",
-            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json"
+            "docs/renderer-performance/acceptance/f5-graph-interactions-native.json",
+            "docs/renderer-performance/acceptance/code-delivery-regression.json"
           ],
           "status": "partial"
         }
       ],
       "implementationStatus": "native_control_and_editor_interactions_restart_verified_deterministic_ci_gate_locally_validated_hosted_run_budgets_stress_and_device_matrix_pending"
     }
-  ]
+  ],
+  "deliveryScope": {
+    "date": "2026-09-14",
+    "status": "code_delivered_pending_manual_acceptance",
+    "instruction": "Complete the determined remaining code changes and basic correctness/headless metrics; simulator, native-window and device acceptance is assigned to the maintainer.",
+    "document": "docs/renderer-performance/code-delivery.md",
+    "phaseAcceptanceUnchanged": true,
+    "manualAcceptance": "not-run",
+    "fixedDeviceBudgets": "not-measured"
+  }
 }

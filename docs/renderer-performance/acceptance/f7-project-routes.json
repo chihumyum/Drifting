@@ -1,0 +1,2000 @@
+{
+  "kind": "renderer_deferred_project_routes",
+  "status": "passed",
+  "generatedAt": "2026-09-14T03:57:38.900Z",
+  "before": {
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "source": {
+      "commit": "c290c9981e8255055624adccf669fd4515c2647f",
+      "fingerprint": "4f12cc2fc4247e177bbed5c583b974c23c8f3a9079b2ddb7241b96e5d2c1f61a"
+    },
+    "chunks": [
+      {
+        "file": "assets/react-vendor-DQqNtW2N.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 50667,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/tiptap-Bido2Apj.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 399910,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-DDiYXZdb.js",
+        "htmlEntry": true,
+        "facade": null,
+        "bytes": 1225142,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/update-service-mQKdM9o_.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/relation-edge-popover-Da0zZ-bg.js",
+          "assets/RelationTypeField-DZkQ9aCF.js",
+          "assets/LabelMono-74eW-Jsq.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/useComment-DpxjZ23e.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/loader-circle-B4JcncMj.js",
+          "assets/Modal-BPA1n-vO.js",
+          "assets/graph-view-SRb9my4j.js",
+          "assets/SegmentedControl-DppL5qjr.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/persistence-lifecycle-DG8QwENP.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [
+          "assets/index-CRSezo5s.css"
+        ],
+        "targets": [
+          "dashboard",
+          "desktopShell",
+          "mobileShell",
+          "editorRoutes"
+        ],
+        "initial": true
+      },
+      {
+        "file": "assets/graph-ui-DK4YdAB6.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 24110,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/relation-edge-popover-Da0zZ-bg.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/types-BRMYK13e.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/useComment-DpxjZ23e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/relation-edge-popover-Da0zZ-bg.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 178613,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/types-BRMYK13e.js",
+          "assets/useComment-DpxjZ23e.js"
+        ],
+        "css": [
+          "assets/relation-edge-popover-BkWJLGpG.css"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/settings-panels-BBsk_25b.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 174002,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/update-service-mQKdM9o_.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/persistence-lifecycle-DG8QwENP.js",
+          "assets/loader-circle-B4JcncMj.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/SegmentedControl-DppL5qjr.js",
+          "assets/active-editor-DC_px_c1.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/update-service-mQKdM9o_.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 427237,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/SegmentedControl-DppL5qjr.js",
+          "assets/persistence-lifecycle-DG8QwENP.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/copilot-route-Qlx76efU.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 949382,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/types-BRMYK13e.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/tiptap-Bido2Apj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/google-provider-DCauxy3r.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 375858,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/openai-providers-ckpcI8B6.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 160996,
+        "imports": [
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/types-BRMYK13e.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 112,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/story-graph-jaOJdqAW.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 32597,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/graph-view-SRb9my4j.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/RelationTypeField-DZkQ9aCF.js",
+          "assets/SegmentedControl-DppL5qjr.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/yjs-prose-command-DEeMPq-L.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/graph-view-SRb9my4j.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 20553,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/useBookElement-Dpiut7JC.js"
+        ],
+        "css": [
+          "assets/graph-view-CA35WYBF.css"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/SegmentedControl-DppL5qjr.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 493,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/element-graph-aFLvwTRq.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 38141,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/RelationTypeField-DZkQ9aCF.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/Modal-BPA1n-vO.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/yjs-prose-command-DEeMPq-L.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/RelationTypeField-DZkQ9aCF.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 30705,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/chapter-prose-Dke_vb5g.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useBookElement-Dpiut7JC.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 33161,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/chapter-prose-Dke_vb5g.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/chapter-prose-Dke_vb5g.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 200668,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/yjs-prose-command-DEeMPq-L.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/memo-material-Db3XxMVH.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 22524,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/LabelMono-74eW-Jsq.js",
+          "assets/useComment-DpxjZ23e.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/Modal-BPA1n-vO.js",
+          "assets/loader-circle-B4JcncMj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/LabelMono-74eW-Jsq.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 52986,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/Modal-BPA1n-vO.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/loader-circle-B4JcncMj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useComment-DpxjZ23e.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 8586,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/loader-circle-B4JcncMj.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 156,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/comment-CiydN9Gb.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6181,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/Modal-BPA1n-vO.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1789,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/Button-BRMSJLqF.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/Button-BRMSJLqF.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 805,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 37927,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/runtime-DADFY2zp.js"
+        ],
+        "css": [
+          "assets/DesktopSuperViewHeader-B5ck_PkS.css"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useRelationTypePresentation-C0ArMfcr.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 30265,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/runtime-DADFY2zp.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1528,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/native-asset-pipeline-BFMyiIIW.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 691665,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/persistence-lifecycle-DG8QwENP.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1640,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/active-editor-DC_px_c1.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 413,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/snapshot-history.service-jCop20_V.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6023,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-CEmEeQRu.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 3686,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/y-prosemirror-CkUlvOkT.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 5077,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/react-vendor-DQqNtW2N.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/pdf-runtime-Dsq98h1n.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 489688,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/yjs-prose-command-DEeMPq-L.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 29365,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-D35Zzh6R.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 312532,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/markdown-f-4s2tNO.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1417,
+        "imports": [
+          "assets/tiptap-Bido2Apj.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/snapshot-history.service-jCop20_V.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/docx-DBg7W2vi.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 405476,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/index-DDiYXZdb.js",
+          "assets/jszip.min-CkDWd0uH.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/runtime-DADFY2zp.js",
+          "assets/update-service-mQKdM9o_.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/types-BRMYK13e.js",
+          "assets/SegmentedControl-DppL5qjr.js",
+          "assets/persistence-lifecycle-DG8QwENP.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/useRelationTypePresentation-C0ArMfcr.js",
+          "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+          "assets/relation-edge-popover-Da0zZ-bg.js",
+          "assets/useBookElement-Dpiut7JC.js",
+          "assets/Button-BRMSJLqF.js",
+          "assets/useComment-DpxjZ23e.js",
+          "assets/RelationTypeField-DZkQ9aCF.js",
+          "assets/LabelMono-74eW-Jsq.js",
+          "assets/Modal-BPA1n-vO.js",
+          "assets/loader-circle-B4JcncMj.js",
+          "assets/graph-view-SRb9my4j.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/imported-history-BWgVhImM.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1596,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/seed-En4WbSxr.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 3430,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/repository-3U6IGmhI.js",
+          "assets/copilot-route-Qlx76efU.js",
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/tiptap-Bido2Apj.js",
+          "assets/chapter-prose-Dke_vb5g.js",
+          "assets/snapshot-history.service-jCop20_V.js",
+          "assets/yjs-prose-command-DEeMPq-L.js",
+          "assets/comment-CiydN9Gb.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/repository-3U6IGmhI.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 23107,
+        "imports": [
+          "assets/native-asset-pipeline-BFMyiIIW.js",
+          "assets/copilot-route-Qlx76efU.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/jszip.min-przNt0v8.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 508,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js",
+          "assets/jszip.min-CkDWd0uH.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-CkDWd0uH.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 96734,
+        "imports": [
+          "assets/react-vendor-DQqNtW2N.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      }
+    ],
+    "initial": {
+      "requested": [
+        "",
+        "assets/Button-BRMSJLqF.js",
+        "assets/DesktopSuperViewHeader-B5ck_PkS.css",
+        "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+        "assets/LabelMono-74eW-Jsq.js",
+        "assets/Modal-BPA1n-vO.js",
+        "assets/RelationTypeField-DZkQ9aCF.js",
+        "assets/SegmentedControl-DppL5qjr.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/chapter-prose-Dke_vb5g.js",
+        "assets/comment-CiydN9Gb.js",
+        "assets/copilot-route-Qlx76efU.js",
+        "assets/graph-view-CA35WYBF.css",
+        "assets/graph-view-SRb9my4j.js",
+        "assets/index-CRSezo5s.css",
+        "assets/index-DDiYXZdb.js",
+        "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+        "assets/loader-circle-B4JcncMj.js",
+        "assets/native-asset-pipeline-BFMyiIIW.js",
+        "assets/persistence-lifecycle-DG8QwENP.js",
+        "assets/react-vendor-DQqNtW2N.js",
+        "assets/relation-edge-popover-BkWJLGpG.css",
+        "assets/relation-edge-popover-Da0zZ-bg.js",
+        "assets/repository-3U6IGmhI.js",
+        "assets/runtime-DADFY2zp.js",
+        "assets/snapshot-history.service-jCop20_V.js",
+        "assets/tiptap-Bido2Apj.js",
+        "assets/types-BRMYK13e.js",
+        "assets/update-service-mQKdM9o_.js",
+        "assets/useBookElement-Dpiut7JC.js",
+        "assets/useComment-DpxjZ23e.js",
+        "assets/useRelationTypePresentation-C0ArMfcr.js",
+        "assets/yjs-prose-command-DEeMPq-L.js",
+        "favicon.ico"
+      ],
+      "parsed": [
+        "",
+        "assets/Button-BRMSJLqF.js",
+        "assets/DesktopSuperViewHeader-CwBnzAGd.js",
+        "assets/LabelMono-74eW-Jsq.js",
+        "assets/Modal-BPA1n-vO.js",
+        "assets/RelationTypeField-DZkQ9aCF.js",
+        "assets/SegmentedControl-DppL5qjr.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/chapter-prose-Dke_vb5g.js",
+        "assets/comment-CiydN9Gb.js",
+        "assets/copilot-route-Qlx76efU.js",
+        "assets/graph-view-SRb9my4j.js",
+        "assets/index-DDiYXZdb.js",
+        "assets/loader-circle-B4JcncMj.js",
+        "assets/native-asset-pipeline-BFMyiIIW.js",
+        "assets/persistence-lifecycle-DG8QwENP.js",
+        "assets/react-vendor-DQqNtW2N.js",
+        "assets/relation-edge-popover-Da0zZ-bg.js",
+        "assets/repository-3U6IGmhI.js",
+        "assets/runtime-DADFY2zp.js",
+        "assets/snapshot-history.service-jCop20_V.js",
+        "assets/tiptap-Bido2Apj.js",
+        "assets/types-BRMYK13e.js",
+        "assets/update-service-mQKdM9o_.js",
+        "assets/useBookElement-Dpiut7JC.js",
+        "assets/useComment-DpxjZ23e.js",
+        "assets/useRelationTypePresentation-C0ArMfcr.js",
+        "assets/yjs-prose-command-DEeMPq-L.js"
+      ],
+      "evaluated": [
+        "dashboard",
+        "desktopShell",
+        "mobileShell",
+        "editorRoutes"
+      ]
+    },
+    "initialJsBytes": 4409079,
+    "checks": {},
+    "failures": []
+  },
+  "after": {
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.36",
+      "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.10"
+    },
+    "source": {
+      "commit": "c290c9981e8255055624adccf669fd4515c2647f",
+      "fingerprint": "c1c0e5096f250d1377bf7d56352aff6bba78a6cf340a6f1f2e594e3293ee34cc"
+    },
+    "chunks": [
+      {
+        "file": "assets/react-vendor-Hjib4pl9.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 50667,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/tiptap-DlV_V_He.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 399910,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/index-C4GsY4jw.js",
+        "htmlEntry": true,
+        "facade": null,
+        "bytes": 372478,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/layout-grid-Cq1zthcc.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [
+          "assets/index-C2C66Rco.css"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/graph-ui-CNwqNxIM.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 24340,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/relation-edge-popover-CU6emYup.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/useComment-CiTKHNjs.js",
+          "assets/copilot-suggestion-BNrVjyQM.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/run-structured-IgPR9e8B.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 4886,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [
+          "assets/run-structured-MWKgomOB.css"
+        ],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/settings-panels-B7c-bWC5.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 174140,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/shortcuts-ClxOpCZx.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/types-BRMYK13e.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/loader-circle-CfVbT8GG.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/active-editor-DC_px_c1.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/update-service-DJNcB1Iz.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 384567,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/runtime-CyUiiUIc.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/durable-context-memory-nk8YRs38.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 172879,
+        "imports": [
+          "assets/types-BRMYK13e.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/comment-C_rIzolH.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/google-provider-Bu4vEISD.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 375858,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/openai-providers-ckpcI8B6.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 160996,
+        "imports": [
+          "assets/types-BRMYK13e.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/types-BRMYK13e.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 112,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/story-graph-BYx2O_Sf.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 32750,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/graph-view-bPF2QxAP.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/RelationTypeField-BiPW2Kxf.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/layout-grid-Cq1zthcc.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/element-graph--kxOEOGI.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 38297,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/RelationTypeField-BiPW2Kxf.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/layout-grid-Cq1zthcc.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/layout-grid-Cq1zthcc.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 360,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/storyline-repo-CdV3x1iC.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 183950,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/memo-material-ZR4puDbM.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 22683,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/scroll-to-block-C0sG8E1c.js",
+          "assets/useComment-CiTKHNjs.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/loader-circle-CfVbT8GG.js",
+          "assets/copilot-suggestion-BNrVjyQM.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/plus-DAqpxjBQ.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 167,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/copilot-suggestion-BNrVjyQM.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 260,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/comment-C_rIzolH.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6177,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/Modal-BFaevq5U.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1798,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/GhostIconButton-gznJ84bO.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/GhostIconButton-gznJ84bO.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 813,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/FilterChip-CHNa3Yg4.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6632,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/useProjectNavigation-DxkiC_Mv.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 23335,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/runtime-CyUiiUIc.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1525,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/confirmation-store-B4EifPsT.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 691665,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/persistence-lifecycle-BFoQ9jte.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1642,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/active-editor-DC_px_c1.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 413,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/snapshot-history.service-BL0OggMz.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6023,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/project-route-components-CHHNqd_o.js",
+        "htmlEntry": false,
+        "facade": "src/renderer/app/project-route-components.tsx",
+        "bytes": 852491,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/index-C4GsY4jw.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/RelationTypeField-BiPW2Kxf.js",
+          "assets/relation-edge-popover-CU6emYup.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/useComment-CiTKHNjs.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/scroll-to-block-C0sG8E1c.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/loader-circle-CfVbT8GG.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/shortcuts-ClxOpCZx.js",
+          "assets/graph-view-bPF2QxAP.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/types-BRMYK13e.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/layout-grid-Cq1zthcc.js",
+          "assets/repository-BI2nqkoS.js"
+        ],
+        "css": [
+          "assets/project-route-components-CbQ38MT0.css"
+        ],
+        "targets": [
+          "dashboard",
+          "desktopShell",
+          "mobileShell",
+          "editorRoutes"
+        ],
+        "initial": false
+      },
+      {
+        "file": "assets/relation-edge-popover-CU6emYup.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 174234,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/types-BRMYK13e.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/useComment-CiTKHNjs.js"
+        ],
+        "css": [
+          "assets/relation-edge-popover-CQPEgBEu.css"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/shortcuts-ClxOpCZx.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 42662,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/runtime-CyUiiUIc.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 777182,
+        "imports": [
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/types-BRMYK13e.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/tiptap-DlV_V_He.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/graph-view-bPF2QxAP.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 20539,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/SuperViewShell-CSAf3j4U.js"
+        ],
+        "css": [
+          "assets/graph-view-CduqS6Tq.css"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/SegmentedControl-DLwolx4U.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 493,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/RelationTypeField-BiPW2Kxf.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 30566,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/layout-grid-Cq1zthcc.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/useBookNode-DK7elbUB.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 33255,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/element-category-repo-BkPDix8U.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 16968,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/scroll-to-block-C0sG8E1c.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 53001,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/loader-circle-CfVbT8GG.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/useComment-CiTKHNjs.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 8390,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/loader-circle-CfVbT8GG.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 153,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/SuperViewShell-CSAf3j4U.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 31530,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js"
+        ],
+        "css": [
+          "assets/SuperViewShell-B5ck_PkS.css"
+        ],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/useRelationTypePresentation-eDcgU8VA.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 6955,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/pdf-runtime-Dsq98h1n.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 489688,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/yjs-prose-command-BbaQF2oe.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 29365,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/confirmation-store-B4EifPsT.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/imported-history-BynKpRUw.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1603,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/types-BRMYK13e.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/comment-C_rIzolH.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/seed-BWn9g6X6.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 3438,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/types-BRMYK13e.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/comment-C_rIzolH.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/repository-BI2nqkoS.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 23107,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/durable-context-memory-nk8YRs38.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": true
+      },
+      {
+        "file": "assets/y-prosemirror-CXCXGp5t.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 5072,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/react-vendor-Hjib4pl9.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-2jpytgvo.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 508,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/jszip.min-DZTmTivq.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/index-DzD29aG1.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 3679,
+        "imports": [
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/tiptap-DlV_V_He.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/index-D35Zzh6R.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 312532,
+        "imports": [],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/markdown-DcRtTGfz.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 1415,
+        "imports": [
+          "assets/tiptap-DlV_V_He.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/snapshot-history.service-BL0OggMz.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/docx-Cjz2JHgF.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 405318,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/index-C4GsY4jw.js",
+          "assets/jszip.min-DZTmTivq.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/yjs-prose-command-BbaQF2oe.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/types-BRMYK13e.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/layout-grid-Cq1zthcc.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/repository-BI2nqkoS.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      },
+      {
+        "file": "assets/jszip.min-DZTmTivq.js",
+        "htmlEntry": false,
+        "facade": null,
+        "bytes": 96734,
+        "imports": [
+          "assets/react-vendor-Hjib4pl9.js"
+        ],
+        "css": [],
+        "targets": [],
+        "initial": false
+      }
+    ],
+    "initial": {
+      "requested": [
+        "",
+        "assets/FilterChip-CHNa3Yg4.js",
+        "assets/GhostIconButton-gznJ84bO.js",
+        "assets/Modal-BFaevq5U.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/comment-C_rIzolH.js",
+        "assets/confirmation-store-B4EifPsT.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/durable-context-memory-nk8YRs38.js",
+        "assets/index-C2C66Rco.css",
+        "assets/index-C4GsY4jw.js",
+        "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+        "assets/layout-grid-Cq1zthcc.js",
+        "assets/persistence-lifecycle-BFoQ9jte.js",
+        "assets/plus-DAqpxjBQ.js",
+        "assets/react-vendor-Hjib4pl9.js",
+        "assets/repository-BI2nqkoS.js",
+        "assets/run-structured-IgPR9e8B.js",
+        "assets/run-structured-MWKgomOB.css",
+        "assets/runtime-CyUiiUIc.js",
+        "assets/snapshot-history.service-BL0OggMz.js",
+        "assets/storyline-repo-CdV3x1iC.js",
+        "assets/tiptap-DlV_V_He.js",
+        "assets/types-BRMYK13e.js",
+        "assets/update-service-DJNcB1Iz.js",
+        "assets/useProjectNavigation-DxkiC_Mv.js",
+        "assets/yjs-prose-command-BbaQF2oe.js",
+        "favicon.ico"
+      ],
+      "parsed": [
+        "",
+        "assets/FilterChip-CHNa3Yg4.js",
+        "assets/GhostIconButton-gznJ84bO.js",
+        "assets/Modal-BFaevq5U.js",
+        "assets/active-editor-DC_px_c1.js",
+        "assets/comment-C_rIzolH.js",
+        "assets/confirmation-store-B4EifPsT.js",
+        "assets/copilot-suggestion-BNrVjyQM.js",
+        "assets/durable-context-memory-nk8YRs38.js",
+        "assets/index-C4GsY4jw.js",
+        "assets/layout-grid-Cq1zthcc.js",
+        "assets/persistence-lifecycle-BFoQ9jte.js",
+        "assets/plus-DAqpxjBQ.js",
+        "assets/react-vendor-Hjib4pl9.js",
+        "assets/repository-BI2nqkoS.js",
+        "assets/run-structured-IgPR9e8B.js",
+        "assets/runtime-CyUiiUIc.js",
+        "assets/snapshot-history.service-BL0OggMz.js",
+        "assets/storyline-repo-CdV3x1iC.js",
+        "assets/tiptap-DlV_V_He.js",
+        "assets/types-BRMYK13e.js",
+        "assets/update-service-DJNcB1Iz.js",
+        "assets/useProjectNavigation-DxkiC_Mv.js",
+        "assets/yjs-prose-command-BbaQF2oe.js"
+      ],
+      "evaluated": []
+    },
+    "initialJsBytes": 2362731,
+    "checks": {
+      "coldUntilDemand": true,
+      "backAfterFailure": true,
+      "sharedJsFailure": true,
+      "reloadRetry": true,
+      "cssFailure": true,
+      "loadingBack": true,
+      "lateProjectOwner": true,
+      "routeTable": true,
+      "draftContinuity": true,
+      "cachedReopen": true,
+      "standaloneSettings": true
+    },
+    "failures": [
+      {
+        "kind": "shared-js",
+        "file": "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+        "workspacesBeforeRetry": 0,
+        "afterRetryProject": "synthetic-a",
+        "requestedAfterRetry": [
+          "",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/RelationTypeField-BiPW2Kxf.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/SuperViewShell-B5ck_PkS.css",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/graph-view-CduqS6Tq.css",
+          "assets/graph-view-bPF2QxAP.js",
+          "assets/index-C2C66Rco.css",
+          "assets/index-C4GsY4jw.js",
+          "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+          "assets/layout-grid-Cq1zthcc.js",
+          "assets/loader-circle-CfVbT8GG.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/project-route-components-CHHNqd_o.js",
+          "assets/project-route-components-CbQ38MT0.css",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/relation-edge-popover-CQPEgBEu.css",
+          "assets/relation-edge-popover-CU6emYup.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/run-structured-MWKgomOB.css",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/scroll-to-block-C0sG8E1c.js",
+          "assets/shortcuts-ClxOpCZx.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/types-BRMYK13e.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/useComment-CiTKHNjs.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/yjs-prose-command-BbaQF2oe.js"
+        ]
+      },
+      {
+        "kind": "css",
+        "file": "assets/project-route-components-CbQ38MT0.css",
+        "workspacesBeforeRetry": 0,
+        "afterRetryProject": "synthetic-a",
+        "requestedAfterRetry": [
+          "",
+          "assets/FilterChip-CHNa3Yg4.js",
+          "assets/GhostIconButton-gznJ84bO.js",
+          "assets/Modal-BFaevq5U.js",
+          "assets/RelationTypeField-BiPW2Kxf.js",
+          "assets/SegmentedControl-DLwolx4U.js",
+          "assets/SuperViewShell-B5ck_PkS.css",
+          "assets/SuperViewShell-CSAf3j4U.js",
+          "assets/active-editor-DC_px_c1.js",
+          "assets/comment-C_rIzolH.js",
+          "assets/confirmation-store-B4EifPsT.js",
+          "assets/copilot-suggestion-BNrVjyQM.js",
+          "assets/durable-context-memory-nk8YRs38.js",
+          "assets/element-category-repo-BkPDix8U.js",
+          "assets/graph-view-CduqS6Tq.css",
+          "assets/graph-view-bPF2QxAP.js",
+          "assets/index-C2C66Rco.css",
+          "assets/index-C4GsY4jw.js",
+          "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+          "assets/layout-grid-Cq1zthcc.js",
+          "assets/loader-circle-CfVbT8GG.js",
+          "assets/persistence-lifecycle-BFoQ9jte.js",
+          "assets/plus-DAqpxjBQ.js",
+          "assets/project-route-components-CHHNqd_o.js",
+          "assets/project-route-components-CbQ38MT0.css",
+          "assets/react-vendor-Hjib4pl9.js",
+          "assets/relation-edge-popover-CQPEgBEu.css",
+          "assets/relation-edge-popover-CU6emYup.js",
+          "assets/repository-BI2nqkoS.js",
+          "assets/run-structured-IgPR9e8B.js",
+          "assets/run-structured-MWKgomOB.css",
+          "assets/runtime-CyUiiUIc.js",
+          "assets/scroll-to-block-C0sG8E1c.js",
+          "assets/shortcuts-ClxOpCZx.js",
+          "assets/snapshot-history.service-BL0OggMz.js",
+          "assets/storyline-repo-CdV3x1iC.js",
+          "assets/tiptap-DlV_V_He.js",
+          "assets/types-BRMYK13e.js",
+          "assets/update-service-DJNcB1Iz.js",
+          "assets/useBookNode-DK7elbUB.js",
+          "assets/useComment-CiTKHNjs.js",
+          "assets/useDriftingAgentRuntime-zbaNXAkO.js",
+          "assets/useProjectNavigation-DxkiC_Mv.js",
+          "assets/useRelationTypePresentation-eDcgU8VA.js",
+          "assets/yjs-prose-command-BbaQF2oe.js"
+        ]
+      }
+    ]
+  },
+  "acceptance": {
+    "productionModuleLoading": "passed",
+    "syntheticRouteOwnership": "passed",
+    "nativeOrDevice": "not-run",
+    "wholeAppStartup": "not-measured",
+    "fixedDeviceBudgets": "not-measured"
+  },
+  "limitations": [
+    "Actual production imports/configuration are retained with evaluation counters. A test-only bootstrap renders real AppRoutes with synthetic shelf/workspace/editor leaves, without native bootstrap, author data or accounts. This is route ownership and resource-loading evidence, not complete workspace correctness.",
+    "Initial JS bytes are the uncompressed static dependency closure of equivalently instrumented builds. Requests, parse events and evaluations are measured separately. No native startup, input-to-paint, heap or fixed-device budget is claimed.",
+    "Shared JS and CSS failures happen before any workspace mounts. Explicit Retry reloads the current document and URL to clear browser module/dependency failures. Ready code stays cached for the renderer lifetime; nested navigation does not reload or replace the synthetic parent draft DOM.",
+    "Simulator, native window, physical input, real workspace recovery and full-app manual acceptance were intentionally not run under the maintainer instruction."
+  ]
+}
