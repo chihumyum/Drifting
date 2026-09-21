@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error The executable Node launcher intentionally lives outside the renderer TS graph.
 import * as desktopLauncher from '../../../scripts/run-desktop-tauri.mjs';
@@ -11,6 +11,7 @@ const {
   createDesktopTauriConfigOverride,
   createDesktopTauriEnvironment,
   describeDesktopOauthConfiguration,
+  prepareDesktopSigning,
 } = desktopLauncher;
 
 const temporaryDirectories: string[] = [];
@@ -30,6 +31,36 @@ afterEach(() => {
 });
 
 describe('desktop Tauri environment', () => {
+  it('checks and pins the selected development identity before starting the native toolchain', () => {
+    const environment: Record<string, string> = {};
+    const resolveIdentity = vi.fn(() => 'synthetic-verified-identity');
+    expect(prepareDesktopSigning({ command: 'dev', platform: 'darwin', environment, resolveIdentity })).toBe('synthetic-verified-identity');
+    expect(environment.DRIFTING_MACOS_DEV_SIGNING_IDENTITY).toBe('synthetic-verified-identity');
+    expect(resolveIdentity).toHaveBeenCalledOnce();
+  });
+
+  it('gives a new contributor actionable instructions while keeping signing failures closed', () => {
+    const resolveIdentity = () => { throw new Error('No Apple Development identity found'); };
+    expect(() => prepareDesktopSigning({ command: 'dev', platform: 'darwin', environment: {}, resolveIdentity }))
+      .toThrow(/No Apple Development identity found[\s\S]*Xcode Settings[\s\S]*pnpm dev:check[\s\S]*contributor-quick-start/);
+  });
+
+  it('does not require a development certificate for non-macOS, help or configured distribution builds', () => {
+    const resolveIdentity = vi.fn(() => { throw new Error('must not resolve'); });
+    for (const config of [
+      { command: 'dev', platform: 'linux', environment: {} },
+      { command: 'dev', platform: 'darwin', environment: {}, arguments: ['--help'] },
+      { command: 'build', platform: 'darwin', environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'synthetic-public-key' } },
+    ]) expect(prepareDesktopSigning({ ...config, resolveIdentity })).toBeUndefined();
+    expect(resolveIdentity).not.toHaveBeenCalled();
+  });
+
+  it('still verifies local and debug bundles and honors an explicitly selected identity', () => {
+    const environment = { DRIFTING_MACOS_DEV_SIGNING_IDENTITY: 'requested', DRIFTING_UPDATER_PUBLIC_KEY: 'synthetic-public-key' };
+    const resolveIdentity = vi.fn(() => 'verified');
+    expect(prepareDesktopSigning({ command: 'build', arguments: ['--debug'], platform: 'darwin', environment, resolveIdentity })).toBe('verified');
+    expect(resolveIdentity).toHaveBeenCalledWith({ requestedIdentity: 'requested' });
+  });
   it('loads native Google OAuth build values from the ignored root env file', () => {
     const environment = createDesktopTauriEnvironment({
       baseEnvironment: {},

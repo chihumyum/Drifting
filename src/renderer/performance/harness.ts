@@ -1,4 +1,5 @@
 import { runEntityLinkPresentationScenarios } from './entity-link-presentation-scenarios';
+import { runDocumentImportScenarios } from './document-import-scenarios';
 import { runRetroactiveLinkMatchingScenarios } from './retroactive-link-matching-scenarios';
 import { runRetroactiveEntityLinkScenarios } from './retroactive-entity-link-scenarios';
 import { runEntityLinkTargetStateScenarios } from './entity-link-target-state-scenarios';
@@ -125,6 +126,7 @@ async function run() {
   } finally { unsubscribe(); }
   return {
     scenarios,
+    documentImports: await runDocumentImportScenarios(),
     behaviorChecks: runEntityLinkScenarios(),
     reactSubscriptions: runSubscriptionScenarios(),
     semanticSubscriptions: runSemanticSubscriptionScenario(),

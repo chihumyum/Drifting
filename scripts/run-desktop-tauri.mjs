@@ -84,6 +84,26 @@ export function describeDesktopOauthConfiguration(environment) {
   });
 }
 
+/** Check before Cargo/Vite starts, so a new contributor sees setup guidance
+ * without first compiling the native host. The runner rechecks before launch. */
+export function prepareDesktopSigning({ command, arguments: tauriArguments = [], environment,
+  platform = process.platform, resolveIdentity = resolveMacosDevSigningIdentity }) {
+  if (platform !== 'darwin' || tauriArguments.includes('--help') || tauriArguments.includes('-h')) return undefined;
+  const debug = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
+  const localBuild = command === 'build' && (debug || !environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim());
+  if (command !== 'dev' && !localBuild) return undefined;
+  try {
+    const identity = resolveIdentity({ requestedIdentity: environment.DRIFTING_MACOS_DEV_SIGNING_IDENTITY });
+    if (command === 'dev') environment.DRIFTING_MACOS_DEV_SIGNING_IDENTITY = identity;
+    return identity;
+  } catch (error) {
+    throw new Error(`${error.message}\n\nmacOS setup: open Xcode Settings > Apple Accounts, select your own team,\n`
+      + 'then Manage Certificates > + > Apple Development. Keep its private key on this Mac.\n'
+      + 'Run pnpm dev:check after setup. For missing/revoked certificates or OCSP failures,\n'
+      + 'see docs/contributor-quick-start.md. No maintainer certificate or service account is required.');
+  }
+}
+
 export function createDesktopTauriConfigOverride({
   command,
   arguments: tauriArguments = [],
@@ -129,16 +149,7 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });
   const configuration = describeDesktopOauthConfiguration(environment);
-  const debugBuild = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
-  const updaterPublicKeyConfigured = Boolean(environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim());
-  const macosSigningIdentity =
-    command === 'build' &&
-    process.platform === 'darwin' &&
-    (debugBuild || !updaterPublicKeyConfigured)
-      ? resolveMacosDevSigningIdentity({
-          requestedIdentity: environment.DRIFTING_MACOS_DEV_SIGNING_IDENTITY,
-        })
-      : undefined;
+  const macosSigningIdentity = prepareDesktopSigning({ command, arguments: tauriArguments, environment });
   const tauriConfigOverride = createDesktopTauriConfigOverride({
     command,
     arguments: tauriArguments,

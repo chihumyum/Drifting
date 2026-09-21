@@ -53,6 +53,8 @@ if (process.argv.includes('--current')) {
   assert.equal(report.source.fingerprintVersion, rendererFingerprintVersion, 'current source fingerprint version required');
   assert.equal(report.source.commit, execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), 'report is from another commit');
   assert.equal(report.source.rendererFingerprint, rendererSourceFingerprint(root), 'report is from another source tree');
+  assert(report.documentImports?.checks && Object.keys(report.documentImports.checks).length === 6, 'current evidence must include document import regression');
+  assert(Object.values(report.documentImports.checks).every(value => value === true), 'document import regression failed');
 }
 if (deterministic) {
   // Historical reports may legitimately predate a scenario. Ordinary CI must

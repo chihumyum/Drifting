@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_lifecycle_run",
+  "generatedAt": "2026-09-21T06:12:21.499Z",
+  "source": {
+    "commit": "fc29aa3813afca3947c2a14c3e5d918b31362e77",
+    "rendererFingerprint": "5664fd58695fdbe7df64056ccf68e184fc2ff3f75062efba2a977b322a526364",
+    "fingerprintVersion": 2,
+    "dirty": true
+  },
+  "status": "passed",
+  "checks": {
+    "duplicateKeyNegativeControl": true,
+    "resourcesReturnToBaselineEveryCycle": true,
+    "postGcDomBounded": true,
+    "postGcHeapBounded": true
+  },
+  "negativeControl": {
+    "detected": true,
+    "error": "Error: Planner orphan DOM after chapter switch"
+  },
+  "cyclesPerSurface": 100,
+  "warmupCyclesPerSurface": 10,
+  "agentHistoryMessages": 300,
+  "resources": {
+    "baseline": {
+      "globalListeners": 0,
+      "timeouts": 0,
+      "intervals": 0,
+      "animationFrames": 0,
+      "resizeObservers": 0,
+      "mutationObservers": 0,
+      "agentSubscriptions": 0,
+      "hostElements": 0
+    },
+    "final": {
+      "globalListeners": 0,
+      "timeouts": 0,
+      "intervals": 0,
+      "animationFrames": 0,
+      "resizeObservers": 0,
+      "mutationObservers": 0,
+      "agentSubscriptions": 0,
+      "hostElements": 0
+    }
+  },
+  "samples": [
+    {
+      "cycles": 0,
+      "documents": 1,
+      "nodes": 19,
+      "jsEventListeners": 141,
+      "usedSize": 6334360,
+      "totalSize": 7258112,
+      "embedderHeapUsedSize": 841184,
+      "backingStorageSize": 1236830
+    },
+    {
+      "cycles": 25,
+      "documents": 1,
+      "nodes": 19,
+      "jsEventListeners": 141,
+      "usedSize": 6720392,
+      "totalSize": 7782400,
+      "embedderHeapUsedSize": 873472,
+      "backingStorageSize": 1236830
+    },
+    {
+      "cycles": 50,
+      "documents": 1,
+      "nodes": 19,
+      "jsEventListeners": 141,
+      "usedSize": 6919404,
+      "totalSize": 7782400,
+      "embedderHeapUsedSize": 800120,
+      "backingStorageSize": 1236830
+    },
+    {
+      "cycles": 75,
+      "documents": 1,
+      "nodes": 19,
+      "jsEventListeners": 141,
+      "usedSize": 7039220,
+      "totalSize": 8044544,
+      "embedderHeapUsedSize": 716560,
+      "backingStorageSize": 1236830
+    },
+    {
+      "cycles": 100,
+      "documents": 1,
+      "nodes": 19,
+      "jsEventListeners": 141,
+      "usedSize": 7134728,
+      "totalSize": 8044544,
+      "embedderHeapUsedSize": 531232,
+      "backingStorageSize": 1236830
+    }
+  ],
+  "environment": {
+    "platform": "darwin",
+    "node": "v22.23.1",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.52",
+      "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.13"
+    }
+  },
+  "limitations": [
+    "Production React in isolated headless Chromium with synthetic data and persistence callbacks.",
+    "Real PlotPlannerDock and transcript components; controlled NodeEditor sibling fixture reads its key from source.",
+    "Real editor session/active editor ownership and graph geometry hook; not whole-app routing, Yjs durability, native windows, simulator or device acceptance.",
+    "Global listeners, pending timers/frames, observers and Agent store subscriptions must return to their warmed baseline after every surface unmount.",
+    "Post-GC DOM growth guard: 40 nodes and 10 listeners; heap growth guard: 8 MiB. These bounded checks do not prove absence of every possible leak."
+  ]
+}

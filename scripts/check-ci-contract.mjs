@@ -34,6 +34,7 @@ requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u,
 for (const command of [
   'pnpm ci:contract:check',
   'pnpm public:check',
+  'pnpm security:dependencies',
   'pnpm lint',
   'pnpm typecheck',
   'pnpm agent:capabilities:check',

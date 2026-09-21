@@ -41,10 +41,14 @@ Prerequisites:
 
 - Node.js 22.23.1 or newer and `pnpm` 10.17.1
 - Rust 1.88 or newer, plus the platform prerequisites from the Tauri 2 documentation
+- For macOS desktop development: full Xcode and your own Apple Development
+  certificate with its private key. Follow the [contributor setup](docs/contributor-quick-start.md)
+  before launching; no maintainer certificate or service account is required.
 - Xcode for iOS, or Android Studio/SDK for Android
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+pnpm dev:check
 pnpm dev
 ```
 
@@ -56,11 +60,11 @@ Desktop `pnpm dev` and local desktop build commands load the repository's ignore
 Explicit shell or CI environment values take precedence, and the launcher reports
 only whether OAuth is configured—not the client ID or installed-app secret value.
 
-On macOS, `pnpm dev` signs the Cargo debug executable with the newest available
+On macOS, `pnpm dev` checks signing before starting Cargo/Vite, then signs the debug executable with the newest available
 Apple Development identity whose certificate passes a required OCSP revocation
 check. The runner selects the certificate by its exact SHA-1 fingerprint and fails
 closed rather than launching an ad-hoc or revoked build. Run
-`pnpm macos:dev-signing:check` before development to verify the runner and local
+`pnpm dev:check` before development to verify the runner and local
 certificate. `DRIFTING_MACOS_DEV_SIGNING_IDENTITY` may pin a specific certificate
 fingerprint or exact identity label through the shell or ignored `.env.local`; a
 pinned certificate must pass the same revocation check.

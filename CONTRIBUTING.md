@@ -3,6 +3,9 @@
 Thank you for improving Drifting. Open an issue before a large architectural
 change so maintainers and contributors can agree on scope.
 
+Start with the [contributor quick start](docs/contributor-quick-start.md), including
+macOS certificate setup and the certificate-free code-checking workflow.
+
 ## License agreement
 
 By submitting a pull request, you confirm that you have read and agree to
@@ -49,6 +52,7 @@ also start a duplicate ordinary CI run.
 pnpm install --frozen-lockfile
 pnpm ci:contract:check
 pnpm public:check
+pnpm security:dependencies
 pnpm lint
 pnpm typecheck
 pnpm test

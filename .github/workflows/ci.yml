@@ -35,6 +35,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm ci:contract:check
       - run: pnpm public:check
+      - run: pnpm security:dependencies
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm agent:conversation-sync:check

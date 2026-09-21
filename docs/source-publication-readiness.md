@@ -8,13 +8,90 @@ gates.
 
 ## Current decision
 
-Status as of 2026-08-19: **publication intentionally deferred by the
-maintainer**.
+Status as of 2026-09-21: **source-publication preparation refreshed; maintainer
+manual acceptance and the explicit visibility-change decision remain pending**.
 
 The canonical repository remains private. Do not change its visibility until
 the maintainer explicitly asks to publish it. Do not open a pull request solely
 to prepare or perform publication; the maintainer's repository-role bypass is
 intentionally retained for direct administration of `main`.
+
+## 2026-09-21 preparation
+
+This change completes the scoped security, contributor-onboarding and publication
+record work. No native window, simulator, physical device, signed installer or
+real-account acceptance is claimed. The repository remains private.
+
+- All Tiptap editor packages move together from 3.30.1 to 3.30.5, including the
+  optional React menu peers. The independent patched y-tiptap package is retained.
+- Vitest moves to 4.1.11; locked XML and YAML dependencies move to
+  `@xmldom/xmldom 0.8.15` and `js-yaml 4.3.2`. Scoped overrides prevent the affected
+  transitive parser versions and keep Tiptap's optional peers aligned.
+- `pnpm security:dependencies` audits production **and development** npm
+  dependencies. Ordinary CI and the Alpha release validation fail on high or
+  critical npm findings; advisory-service failure also fails the command.
+- The headless renderer suite exercises actual DOCX, Markdown and text import,
+  Unicode/format retention, corrupt-DOCX rejection and imported-editor undo/redo.
+  Existing editor, Agent and graph behavior/resource checks run against the new
+  dependency tree.
+- The [contributor quick start](contributor-quick-start.md) explains setup from a
+  clean clone, an author's own Xcode development certificate, and certificate-free
+  source checks. `pnpm dev:check` checks the local signing setup. Desktop launch
+  now reports missing/revoked certificates before starting Cargo/Vite, retaining
+  revocation checks and revalidation immediately before executable launch.
+
+Generated security and repository-setting evidence:
+[source-publication-preparation.json](renderer-performance/acceptance/source-publication-preparation.json).
+Reproduce it with:
+
+Install `gitleaks` and authenticate GitHub CLI (`gh`) with read access to this
+repository's settings first. The macOS preflight also needs the contributor's
+own development certificate described above.
+
+```bash
+pnpm public:evidence --github --output=docs/renderer-performance/acceptance/source-publication-preparation.json
+```
+
+The generator audits both npm scopes, scans the publishable working tree and all
+locally reachable Git history with redacted gitleaks, checks Git integrity and
+public/release contracts, and reads GitHub settings without mutating them. It
+records a source fingerprint and the parent commit when run on an uncommitted
+candidate; it never rewrites that identity to a future commit. The report is a
+preparation snapshot, not a visibility-change or binary-release acceptance.
+
+The configuration review found private `main`, an active ruleset requiring
+`client` and `native`, ordinary deletion/force-push protection with the existing
+administrator bypass, read-only Actions tokens, and no ability for Actions to
+approve PRs. No repository Actions secrets, variables, environments, webhooks,
+issues/PRs, releases or deployments were present. Dependabot alerts are enabled;
+automatic security-fix PRs remain disabled. The predecessor remains private and
+archived. Private vulnerability reporting is unavailable while private and must
+be enabled immediately after publication.
+
+### Remaining Rust advisory
+
+The earlier accepted `GHSA-wrw7-89jp-8q8g` decision remains in force. The locked
+tree still reaches `glib 0.18.5` through `gtk 0.18.2`/`tauri 2.11.5` for Linux;
+the macOS arm64 dependency tree does not include it. Keep the alert open and
+revisit before supporting Linux or changing that dependency line. This is an
+unsupported-target risk decision, not a proof that Linux callers cannot reach
+the affected API. npm audit does not cover Rust dependencies.
+
+### Handoff
+
+Local validation passed: 2,989 tests (one skipped), typecheck, lint (no errors),
+production renderer build, all six document-import checks, and 100 lifecycle
+cycles per surface. Both production and development npm audit scopes reported
+zero findings. Signing validation was a certificate/runner preflight only.
+
+Read the [headless dependency regression](renderer-performance/acceptance/source-publication-regression.json)
+and [resource-release regression](renderer-performance/acceptance/source-publication-lifecycle.json)
+alongside the current commit's GitHub CI result. Human acceptance remains in
+[desktop RC](qa/desktop-alpha-release-candidate.md) and
+[two-Mac Drive](qa/google-drive-desktop-alpha-acceptance.md). After that review,
+freeze the intended publication SHA and repeat the preflight below before an
+explicit visibility change. Source visibility and installer distribution remain
+separate decisions.
 
 ## 2026-08-19 preparation snapshot
 
