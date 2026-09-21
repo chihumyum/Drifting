@@ -70,6 +70,8 @@ jobs:
     name: client / renderer contracts
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      DRIFTING_PERF_CHROME: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -78,14 +80,20 @@ jobs:
       - run: corepack enable
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
+      - name: Verify headless browser binary
+        run: '"$DRIFTING_PERF_CHROME" --version'
       - name: Check current renderer behavior and operation counts
         run: pnpm perf:renderer --ci --output=.local-data/renderer-performance/ci.json
+      - name: Check renderer resource release
+        run: pnpm perf:renderer:lifecycle --output=.local-data/renderer-performance/lifecycle.json
       - name: Retain renderer evidence and failure diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: renderer-contracts-${{ github.sha }}
-          path: .local-data/renderer-performance/ci.json
+          path: |
+            .local-data/renderer-performance/ci.json
+            .local-data/renderer-performance/lifecycle.json
           include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn

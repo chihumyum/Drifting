@@ -91,6 +91,15 @@ describe('desktop editor continuity acceptance', () => {
       'setLoadedNodeContent({ nodeId: targetNodeId, content: null, loadError: true });',
     );
     expect(proseBody).toContain('<div className="editor-body" key={nodeId}>');
+    // The plot planner dock is the prose body's sibling. If it shared the
+    // body's `nodeId` key, React would orphan the dock's DOM on close instead
+    // of unmounting it, and every reopen would stack another dock.
+    const plannerDock = visibleNode.slice(
+      visibleNode.indexOf('<PlotPlannerDock'),
+      visibleNode.indexOf('<div className="editor-body"'),
+    );
+    expect(plannerDock).toContain('key={`plot-planner:${nodeId}`}');
+    expect(plannerDock).not.toContain('key={nodeId}');
     expect(proseBody.indexOf('isActiveNodeReady && !isActiveNodeLoadError ? (')).toBeLessThan(
       proseBody.indexOf('<ChapterEditor'),
     );

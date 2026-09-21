@@ -26,6 +26,8 @@ requireMatch(
 );
 requireMatch(ci, /pnpm exec vitest run --shard="\$TEST_SHARD"/u, 'CI must run sharded Vitest');
 requireMatch(ci, /pnpm perf:renderer --ci --output=\.local-data\/renderer-performance\/ci\.json/u, 'CI must generate and validate current deterministic renderer evidence');
+requireMatch(ci, /DRIFTING_PERF_CHROME: \/usr\/bin\/google-chrome/u, 'renderer CI must select the installed Chrome executable explicitly');
+requireMatch(ci, /pnpm perf:renderer:lifecycle --output=\.local-data\/renderer-performance\/lifecycle\.json/u, 'CI must check renderer resource release');
 requireMatch(ci, /test "\$RENDERER_RESULT" = success/u, 'client must require renderer success');
 requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u, 'renderer gate must read the renderer job result');
 

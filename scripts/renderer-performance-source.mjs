@@ -10,7 +10,8 @@ export function rendererSourceFingerprint(root) {
   const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--',
     'src', 'packages', 'patches', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
     'scripts/run-renderer-performance.mjs', 'scripts/check-renderer-performance.mjs',
-    'scripts/renderer-performance-source.mjs', 'scripts/renderer-performance.html',
+    'scripts/renderer-headless-browser.mjs', 'scripts/renderer-performance-source.mjs', 'scripts/renderer-performance.html',
+    'scripts/run-renderer-lifecycle.mjs', 'scripts/renderer-lifecycle.html',
     'vite-plugins/deferred-entry.ts',
   ], { cwd: root, encoding: 'utf8' }).split('\0').filter(file => file && existsSync(path.join(root, file)));
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');

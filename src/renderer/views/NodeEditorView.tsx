@@ -774,7 +774,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               seeds its own grid only after that node's content row is ready. */}
           {plotPlannerOpen && isActiveNodeReady && (
             <PlotPlannerDock
-              key={nodeId}
+              key={`plot-planner:${nodeId}`}
               nodeId={nodeId}
               initialJson={bookContent?.plotGridJson ?? '{}'}
               onPersist={handlePlotGridPersist}

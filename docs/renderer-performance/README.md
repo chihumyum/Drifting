@@ -1,5 +1,8 @@
 # Renderer performance work and evidence
 
+The 2026-09-21 [headless follow-up](headless-followup.md) covers browser startup/cleanup,
+the Plot Planner sibling-key regression and repeated renderer resource-release checks.
+
 The [implementation plan](optimization-plan.md) remains the scope authority.
 The 2026-09-14 [code delivery and manual acceptance handoff](code-delivery.md) records
 the completed coding scope under the maintainer's latest headless-only instruction;
