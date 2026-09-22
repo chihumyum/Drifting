@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "kind": "source_publication_preparation",
-  "generatedAt": "2026-09-21T06:13:53.317Z",
+  "generatedAt": "2026-09-22T18:24:11.364Z",
   "source": {
-    "commit": "fc29aa3813afca3947c2a14c3e5d918b31362e77",
+    "commit": "68f1afce9389a4775c58c8ccaba3d524634e8993",
     "dirty": true,
-    "fingerprint": "716c0524fd507fcd538d645c40c587ec241eb3138c45c9b6fd61601c73eff1af",
+    "fingerprint": "9f6dca71fb10c50193e856df4e38d7d075215ee9a074d02275c45ea3adb6d4c4",
     "fingerprintScope": "src, src-tauri, packages, patches, scripts, .github, package.json and pnpm files"
   },
   "status": "automated-preparation-passed",
@@ -64,7 +64,7 @@
     "reachableHistory": {
       "passed": true,
       "findings": 0,
-      "commits": 900
+      "commits": 901
     }
   },
   "gitIntegrity": "passed",
@@ -146,7 +146,12 @@
     "severity": "moderate",
     "decision": "Keep alert open; existing accepted Linux GTK3 transitive risk. See docs/source-publication-readiness.md."
   },
-  "manualAcceptance": "NOT RUN; native, simulator, physical-device, signed artifact and real-account acceptance remain with the maintainer",
+  "manualAcceptance": "Not performed by this generator. See docs/qa/native-acceptance-2026-09-23.md for scoped native/device observations and remaining gaps.",
+  "nativeAcceptanceReference": {
+    "path": "docs/qa/native-acceptance-2026-09-23.md",
+    "sha256": "49778d35432f325f7647f28d7feb6d0d077222198d51cb52c06b25d8f6acd5af",
+    "scope": "Human-readable observations; not an automated all-platform acceptance result"
+  },
   "publication": "Repository visibility unchanged; publication requires a separate maintainer decision",
   "limitations": [
     "Secret scanners do not establish absence of all confidential material.",

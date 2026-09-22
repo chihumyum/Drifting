@@ -1,0 +1,9 @@
+#!/bin/sh
+# Xcode 27 defaults to swiftbuild, which ignores swift-rs 1.0.7's iOS
+# cross-compilation flags. Keep SwiftPM's native backend for these builds.
+# Opt in with PATH="$PWD/scripts/apple-toolchain:$PATH"; xcrun avoids recursion.
+if [ "$1" = "build" ]; then
+  shift
+  exec /usr/bin/xcrun swift build --build-system native "$@"
+fi
+exec /usr/bin/xcrun swift "$@"

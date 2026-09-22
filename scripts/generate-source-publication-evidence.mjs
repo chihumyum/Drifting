@@ -76,7 +76,10 @@ try {
     allDependencies, productionDependencies, secrets, gitIntegrity: 'passed', sourceBoundaries: 'passed', releaseContract: 'passed', localDevelopmentSigning, github,
     remainingRustAdvisory: { id: 'GHSA-wrw7-89jp-8q8g', package: 'glib', version: '0.18.5', severity: 'moderate',
       decision: 'Keep alert open; existing accepted Linux GTK3 transitive risk. See docs/source-publication-readiness.md.' },
-    manualAcceptance: 'NOT RUN; native, simulator, physical-device, signed artifact and real-account acceptance remain with the maintainer',
+    manualAcceptance: 'Not performed by this generator. See docs/qa/native-acceptance-2026-09-23.md for scoped native/device observations and remaining gaps.',
+    nativeAcceptanceReference: { path: 'docs/qa/native-acceptance-2026-09-23.md',
+      sha256: hash(readFileSync('docs/qa/native-acceptance-2026-09-23.md')),
+      scope: 'Human-readable observations; not an automated all-platform acceptance result' },
     publication: 'Repository visibility unchanged; publication requires a separate maintainer decision',
     limitations: ['Secret scanners do not establish absence of all confidential material.', 'npm audit does not cover Rust; the documented GTK3 advisory is reviewed separately.',
       'GitHub settings are a read-only snapshot; recheck on the publication SHA and after visibility changes.'] };

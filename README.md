@@ -44,7 +44,7 @@ Prerequisites:
 - For macOS desktop development: full Xcode and your own Apple Development
   certificate with its private key. Follow the [contributor setup](docs/contributor-quick-start.md)
   before launching; no maintainer certificate or service account is required.
-- Xcode for iOS, or Android Studio/SDK for Android
+- Xcode for iOS 15+, or Android Studio/SDK for Android
 
 ```bash
 pnpm install --frozen-lockfile

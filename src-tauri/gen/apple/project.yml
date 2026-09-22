@@ -2,7 +2,7 @@ name: drifting
 options:
   bundleIdPrefix: cc.drifting.client
   deploymentTarget:
-    iOS: 14.0
+    iOS: 15.0
 fileGroups: [../../src]
 configs:
   debug: debug
@@ -51,6 +51,13 @@ targets:
         GIDClientID: $(DRIFTING_GOOGLE_IOS_CLIENT_ID)
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
+        # tao currently gates scene lifecycle registration on this boolean.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: TaoScene
+                UISceneDelegateClassName: TaoSceneDelegate
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

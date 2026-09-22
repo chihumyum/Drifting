@@ -7,6 +7,10 @@ versions they ship.
 
 Directly bundled or copied material includes:
 
+The vendored [tao 0.35.3](src-tauri/vendor/tao/VENDORED.md) source retains its
+[Apache-2.0 license](src-tauri/vendor/tao/LICENSE). It contains only the upstream
+tao#1245 iOS scene lifetime backport; it is not relicensed under Drifting's AGPL.
+
 | Component                                                | Use                                                        | License    | Copyright / source                                                              |
 | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
 | Inter Tight variable font                                | Bundled UI font through `@fontsource-variable/inter-tight` | OFL-1.1    | Copyright 2022 The Inter Project Authors; <https://github.com/rsms/inter-tight> |

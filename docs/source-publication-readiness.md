@@ -8,13 +8,30 @@ gates.
 
 ## Current decision
 
-Status as of 2026-09-21: **source-publication preparation refreshed; maintainer
-manual acceptance and the explicit visibility-change decision remain pending**.
+Status as of 2026-09-23: **source-publication preparation and scoped native smoke
+checks refreshed; full binary acceptance and the explicit visibility-change
+decision remain pending**.
 
 The canonical repository remains private. Do not change its visibility until
 the maintainer explicitly asks to publish it. Do not open a pull request solely
 to prepare or perform publication; the maintainer's repository-role bypass is
 intentionally retained for direct administration of `main`.
+
+## 2026-09-23 native follow-up
+
+The [native acceptance report](qa/native-acceptance-2026-09-23.md) records fresh
+desktop window checks, actual iPhone interaction and the simulator tooling
+blocker. This change sets the iOS source-build minimum to 15.0, fixes the iOS 27
+scene-adoption launch crash, and narrowly backports the upstream scene lifetime
+fix. Simulator build/install passed; simulator interaction and complete native
+keyboard/device/account acceptance did not.
+
+Source may be published with the documented Desktop Alpha / experimental mobile
+scope once the intended commit's CI and publication preflight pass and the
+maintainer explicitly requests visibility change. The remaining signed binary,
+real-account and device acceptance gates do not prevent accurately documented
+source publication. No repository visibility or distribution action is performed
+by this follow-up.
 
 ## 2026-09-21 preparation
 

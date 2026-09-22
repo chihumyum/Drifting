@@ -1,5 +1,9 @@
 # Mobile device acceptance runbook
 
+最低支持版本为 **iOS 15.0**。Tauri、Xcode、XcodeGen 与 CocoaPods 配置保持一致，
+由 `pnpm public:check` 检查；iOS 14 不在支持和验收范围内。记录实际运行的系统版本，
+较新设备通过不代表已在所有 iOS 15+ 版本上完成验收。
+
 ## Two development entry points
 
 在仓库根目录运行：
@@ -68,6 +72,27 @@ Yjs、资源、Keychain 或授权状态。只安装不启动时追加 `--no-laun
 由维护者明确在设备上卸载 App；该破坏性步骤不属于此脚本。
 
 ## First-time setup
+
+### Xcode 27 compatibility
+
+The iOS scene manifest and the narrowly backported `tao` lifetime fix are both
+required when building against the iOS 27 SDK. Keep the manifest in the checked-in
+Info.plist and XcodeGen spec in sync. The current tao backend requires
+`UIApplicationSupportsMultipleScenes: true` to register its scene delegate;
+this is not an acceptance claim for iPad multiwindow. See
+[`vendor/tao/VENDORED.md`](../src-tauri/vendor/tao/VENDORED.md).
+
+Xcode 27 changes SwiftPM's default backend. Until `swift-rs` supports it, opt into
+the checked-in compatibility wrapper for iOS builds, including simulator builds:
+
+```bash
+export PATH="$PWD/scripts/apple-toolchain:$PATH"
+pnpm mobile:ios:device:debug -- --device <device-id> --no-launch
+```
+
+The wrapper uses Apple's SwiftPM `native` backend; it does not modify Xcode or
+the SDK. Launch the installed app normally after installation. This setting is
+local to the shell and can be omitted with toolchains that do not need it.
 
 公共前置条件：在仓库根目录完成 `pnpm install`，Rust target 和 Tauri mobile target 已安装。本仓库的
 iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命令。

@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 const errors = [];
 const rootPackage = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -56,6 +58,45 @@ const appleXcodeProject = readFileSync(
   'utf8',
 );
 const appleSigningConfig = readFileSync('src-tauri/gen/apple/GoogleOAuth.xcconfig', 'utf8');
+const iosConfig = JSON.parse(readFileSync('src-tauri/tauri.ios.conf.json', 'utf8'));
+const iosDeploymentTargets = [...appleXcodeProject.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/gu)];
+requireCondition(
+  iosConfig.bundle?.iOS?.minimumSystemVersion === '15.0' &&
+    iosDeploymentTargets.length === 2 &&
+    iosDeploymentTargets.every((match) => match[1] === '15.0') &&
+    /^    iOS: 15\.0$/mu.test(readFileSync('src-tauri/gen/apple/project.yml', 'utf8')) &&
+    /^platform :ios, '15\.0'$/mu.test(readFileSync('src-tauri/gen/apple/Podfile', 'utf8')),
+  'Tauri, Xcode, XcodeGen and CocoaPods must agree on the iOS 15.0 minimum',
+);
+const iosInfoPlist = readFileSync('src-tauri/gen/apple/drifting_iOS/Info.plist', 'utf8');
+const iosProjectSpec = readFileSync('src-tauri/gen/apple/project.yml', 'utf8');
+requireCondition(
+  /<key>UIApplicationSceneManifest<\/key>/u.test(iosInfoPlist) &&
+    /<key>UIApplicationSupportsMultipleScenes<\/key>\s*<true\/>/u.test(iosInfoPlist) &&
+    /<key>UISceneDelegateClassName<\/key>\s*<string>TaoSceneDelegate<\/string>/u.test(iosInfoPlist) &&
+    iosProjectSpec.includes('UIApplicationSupportsMultipleScenes: true') &&
+    iosProjectSpec.includes('UISceneDelegateClassName: TaoSceneDelegate'),
+  'iOS scene lifecycle must be declared in both the shipped plist and XcodeGen spec',
+);
+// Normalize the single reviewed backport and compare the entire vendored crate
+// with the published 0.35.3 source (excluding Cargo's marker/lock and our note).
+const taoRoot = 'src-tauri/vendor/tao';
+const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+const taoFiles = readdirSync(taoRoot, { recursive: true })
+  .filter((file) => statSync(path.join(taoRoot, file)).isFile() && file !== 'VENDORED.md')
+  .sort();
+const taoView = readFileSync(`${taoRoot}/src/platform_impl/ios/view.rs`, 'utf8');
+const taoDigest = sha256(taoFiles.map((file) => {
+  const content = file === 'src/platform_impl/ios/view.rs'
+    ? taoView.replace('Retained::autorelease_ptr(config) as _', 'Retained::as_ptr(&config) as _')
+    : readFileSync(path.join(taoRoot, file));
+  return `${file}\0${sha256(content)}`;
+}).join('\n'));
+requireCondition(
+  taoView.includes('Retained::autorelease_ptr(config) as _') &&
+    taoDigest === '36f157d57516188982417ca8765895340fbd48961eb55410924dc0340b851026',
+  'vendored tao must match published 0.35.3 plus only the reviewed iOS scene lifetime fix',
+);
 requireCondition(
   !/DEVELOPMENT_TEAM\s*=\s*"?[A-Za-z0-9]/u.test(appleXcodeProject),
   'public Xcode project must not hardcode an Apple development team',

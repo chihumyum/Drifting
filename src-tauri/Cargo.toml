@@ -69,3 +69,8 @@ tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
 tempfile = "3.14.0"
+
+# Backport only tauri-apps/tao#1245 to the published 0.35.3 source.
+# See vendor/tao/VENDORED.md for provenance and removal criteria.
+[patch.crates-io]
+tao = { path = "vendor/tao" }
