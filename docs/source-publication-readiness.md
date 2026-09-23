@@ -1,21 +1,60 @@
 # Source publication readiness
 
-This document records the current source-publication decision, the work already
-completed, and the exact checks to repeat before changing the canonical GitHub
-repository from private to public. It covers publication of the source
-repository only. Desktop and mobile binary distribution has separate release
-gates.
+This document records source publication, its verification evidence, and the
+pre-publication runbook retained for reference. It covers the source repository
+only. Desktop and mobile binary distribution has separate release gates.
 
 ## Current decision
 
-Status as of 2026-09-23: **the maintainer has explicitly authorized source
-publication as an early-development project; publication preflight is in progress**.
+Status as of 2026-09-23: **[chihumyum/Drifting](https://github.com/chihumyum/Drifting)
+is public as an early-development project, following explicit maintainer authorization**.
 
-The approved scope is the canonical client repository and its sanitized history,
-with a short README that describes ongoing development rather than feature or
-stability claims. This does not authorize a binary release, an announcement, or
-publication of the private predecessor/service repository. The maintainer's
-repository-role bypass is retained for direct administration of `main`.
+The published scope is the canonical client repository and its sanitized history.
+The short README describes ongoing development without feature-completeness or
+stability claims. Binary releases retain their separate acceptance gates. The
+maintainer's repository-role bypass remains available for direct administration
+of `main`.
+
+## 2026-09-23 publication record
+
+- Visibility changed to public at **2026-09-23 05:06:56 UTC** (13:06:56 in
+  Asia/Shanghai). The frozen publication commit was
+  `c3eda869a64e04c48c1dcd6a7a03491b1aaa1030`; the clean local checkout,
+  `origin/main`, and remote `main` all resolved to that SHA. Only `main` was
+  advertised; there were no tags.
+- [Exact-commit CI](https://github.com/chihumyum/Drifting/actions/runs/35820432272)
+  passed all six jobs. The first attempt hit a Chromium startup timeout before
+  application checks; the failed job and its aggregate passed on retry with no
+  code or assertion changes. Local validation passed 2,989 tests (one skipped),
+  typecheck, lint, documentation navigation, and the CI contract.
+- The clean-commit preflight and post-publication snapshot both passed. Gitleaks
+  reported zero findings in the publishable tree and all 904 reachable commits;
+  Git integrity and public/release boundaries passed. Production and development
+  npm audits reported zero findings. The documented Linux GTK3 advisory
+  `GHSA-wrw7-89jp-8q8g` remains open under the existing accepted-risk decision.
+- Anonymous requests verified the repository, default branch, source tree and
+  commit history. The publicly served README and license at the frozen SHA
+  matched the local files byte for byte.
+- Private vulnerability reporting was enabled immediately after publication and
+  verified enabled. The active `Protect main (admins bypass)` ruleset, required
+  `client`/`native` checks, deletion/force-push protections and administrator
+  bypass were preserved. Actions retain read-only tokens and cannot approve PRs.
+  Dependabot alerts remain enabled; automatic security-fix PRs remain disabled.
+- Repository Actions secrets, variables, environments and webhooks remain empty.
+  The predecessor remains private and archived. This operation created no binary
+  release, tag or announcement.
+
+The generated [post-publication verification snapshot](renderer-performance/acceptance/source-publication-verification.json)
+records the frozen source fingerprint, scans and public GitHub settings. Recreate
+a read-only snapshot with:
+
+```bash
+pnpm public:evidence --github --output=.local-data/source-publication/current.json
+```
+
+The root README links to the documentation index; capability and acceptance
+checks validate the index's detailed-document links without requiring a feature
+catalog on the project homepage.
 
 ## 2026-09-23 native follow-up
 
@@ -37,7 +76,8 @@ by this follow-up.
 
 This change completes the scoped security, contributor-onboarding and publication
 record work. No native window, simulator, physical device, signed installer or
-real-account acceptance is claimed. The repository remains private.
+real-account acceptance was claimed. The repository remained private at that
+preparation snapshot.
 
 - All Tiptap editor packages move together from 3.30.1 to 3.30.5, including the
   optional React menu peers. The independent patched y-tiptap package is retained.
@@ -216,7 +256,8 @@ workflows, and ordinary CI keeps read-only contents permission.
 
 ## Publication preflight
 
-Run this checklist on the exact commit intended to become public.
+This is the pre-publication runbook retained for reference. The completed
+publication and its exact-commit evidence are recorded above.
 
 ### Repository and history
 

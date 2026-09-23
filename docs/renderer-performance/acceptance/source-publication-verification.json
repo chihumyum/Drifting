@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "kind": "source_publication_preparation",
+  "generatedAt": "2026-09-23T05:07:40.337Z",
+  "source": {
+    "commit": "c3eda869a64e04c48c1dcd6a7a03491b1aaa1030",
+    "dirty": false,
+    "fingerprint": "631c5cbd81da1193fa15f9a3f3161973fb96e75fb5853109eac86bc6e8cb414a",
+    "fingerprintScope": "src, src-tauri, packages, patches, scripts, .github, package.json and pnpm files"
+  },
+  "status": "automated-preparation-passed",
+  "versions": {
+    "@tiptap/core": [
+      "3.30.5"
+    ],
+    "@tiptap/pm": [
+      "3.30.5"
+    ],
+    "@tiptap/react": [
+      "3.30.5"
+    ],
+    "@tiptap/extension-bubble-menu": [
+      "3.30.5"
+    ],
+    "@tiptap/extension-floating-menu": [
+      "3.30.5"
+    ],
+    "@xmldom/xmldom": [
+      "0.8.15"
+    ],
+    "vitest": [
+      "4.1.11"
+    ],
+    "js-yaml": [
+      "4.3.2"
+    ]
+  },
+  "allDependencies": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "advisories": []
+  },
+  "productionDependencies": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "advisories": []
+  },
+  "secrets": {
+    "tool": "8.30.1",
+    "currentTree": {
+      "passed": true,
+      "findings": 0
+    },
+    "reachableHistory": {
+      "passed": true,
+      "findings": 0,
+      "commits": 904
+    }
+  },
+  "gitIntegrity": "passed",
+  "sourceBoundaries": "passed",
+  "releaseContract": "passed",
+  "localDevelopmentSigning": {
+    "status": "passed",
+    "scope": "Certificate/runner preflight only; native app was not launched"
+  },
+  "github": {
+    "repository": "chihumyum/Drifting",
+    "visibility": "PUBLIC",
+    "archived": false,
+    "defaultBranch": "main",
+    "actions": {
+      "default_workflow_permissions": "read",
+      "can_approve_pull_request_reviews": false
+    },
+    "rulesets": [
+      {
+        "bypass_actors": [
+          {
+            "actor_id": 5,
+            "actor_type": "RepositoryRole",
+            "bypass_mode": "always"
+          }
+        ],
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "~DEFAULT_BRANCH"
+            ]
+          }
+        },
+        "enforcement": "active",
+        "name": "Protect main (admins bypass)",
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "parameters": {
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "client",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "native",
+                  "integration_id": 15368
+                }
+              ],
+              "strict_required_status_checks_policy": true
+            },
+            "type": "required_status_checks"
+          }
+        ]
+      }
+    ],
+    "repositorySecretCount": 0,
+    "repositoryVariableCount": 0,
+    "environmentCount": 0,
+    "webhookCount": 0,
+    "automaticSecurityFixes": {
+      "enabled": false,
+      "paused": false
+    },
+    "privateVulnerabilityReporting": {
+      "enabled": true
+    }
+  },
+  "remainingRustAdvisory": {
+    "id": "GHSA-wrw7-89jp-8q8g",
+    "package": "glib",
+    "version": "0.18.5",
+    "severity": "moderate",
+    "decision": "Keep alert open; existing accepted Linux GTK3 transitive risk. See docs/source-publication-readiness.md."
+  },
+  "manualAcceptance": "Not performed by this generator. See docs/qa/native-acceptance-2026-09-23.md for scoped native/device observations and remaining gaps.",
+  "nativeAcceptanceReference": {
+    "path": "docs/qa/native-acceptance-2026-09-23.md",
+    "sha256": "49778d35432f325f7647f28d7feb6d0d077222198d51cb52c06b25d8f6acd5af",
+    "scope": "Human-readable observations; not an automated all-platform acceptance result"
+  },
+  "publication": "Read-only snapshot; this generator does not change repository visibility or authorize binary releases",
+  "limitations": [
+    "Secret scanners do not establish absence of all confidential material.",
+    "npm audit does not cover Rust; the documented GTK3 advisory is reviewed separately.",
+    "GitHub settings are a read-only snapshot; recheck on the publication SHA and after visibility changes."
+  ]
+}
