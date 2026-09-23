@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "kind": "source_publication_preparation",
-  "generatedAt": "2026-09-22T18:24:11.364Z",
+  "generatedAt": "2026-09-23T04:49:12.222Z",
   "source": {
-    "commit": "68f1afce9389a4775c58c8ccaba3d524634e8993",
+    "commit": "b1be3c39aa3232203e63d61702a1da36c288e9bb",
     "dirty": true,
-    "fingerprint": "9f6dca71fb10c50193e856df4e38d7d075215ee9a074d02275c45ea3adb6d4c4",
+    "fingerprint": "5187dbcb457a66e227bb24ab11e5a1da38f4aefab0ef908fc9409a99d7b6b807",
     "fingerprintScope": "src, src-tauri, packages, patches, scripts, .github, package.json and pnpm files"
   },
   "status": "automated-preparation-passed",
@@ -64,7 +64,7 @@
     "reachableHistory": {
       "passed": true,
       "findings": 0,
-      "commits": 901
+      "commits": 902
     }
   },
   "gitIntegrity": "passed",
@@ -152,7 +152,7 @@
     "sha256": "49778d35432f325f7647f28d7feb6d0d077222198d51cb52c06b25d8f6acd5af",
     "scope": "Human-readable observations; not an automated all-platform acceptance result"
   },
-  "publication": "Repository visibility unchanged; publication requires a separate maintainer decision",
+  "publication": "Read-only snapshot; this generator does not change repository visibility or authorize binary releases",
   "limitations": [
     "Secret scanners do not establish absence of all confidential material.",
     "npm audit does not cover Rust; the documented GTK3 advisory is reviewed separately.",

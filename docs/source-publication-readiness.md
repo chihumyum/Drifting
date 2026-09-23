@@ -8,14 +8,14 @@ gates.
 
 ## Current decision
 
-Status as of 2026-09-23: **source-publication preparation and scoped native smoke
-checks refreshed; full binary acceptance and the explicit visibility-change
-decision remain pending**.
+Status as of 2026-09-23: **the maintainer has explicitly authorized source
+publication as an early-development project; publication preflight is in progress**.
 
-The canonical repository remains private. Do not change its visibility until
-the maintainer explicitly asks to publish it. Do not open a pull request solely
-to prepare or perform publication; the maintainer's repository-role bypass is
-intentionally retained for direct administration of `main`.
+The approved scope is the canonical client repository and its sanitized history,
+with a short README that describes ongoing development rather than feature or
+stability claims. This does not authorize a binary release, an announcement, or
+publication of the private predecessor/service repository. The maintainer's
+repository-role bypass is retained for direct administration of `main`.
 
 ## 2026-09-23 native follow-up
 

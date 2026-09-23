@@ -80,7 +80,7 @@ try {
     nativeAcceptanceReference: { path: 'docs/qa/native-acceptance-2026-09-23.md',
       sha256: hash(readFileSync('docs/qa/native-acceptance-2026-09-23.md')),
       scope: 'Human-readable observations; not an automated all-platform acceptance result' },
-    publication: 'Repository visibility unchanged; publication requires a separate maintainer decision',
+    publication: 'Read-only snapshot; this generator does not change repository visibility or authorize binary releases',
     limitations: ['Secret scanners do not establish absence of all confidential material.', 'npm audit does not cover Rust; the documented GTK3 advisory is reviewed separately.',
       'GitHub settings are a read-only snapshot; recheck on the publication SHA and after visibility changes.'] };
   mkdirSync(path.dirname(output), { recursive: true }); writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
