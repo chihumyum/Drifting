@@ -774,10 +774,12 @@ describe('workspace surface language acceptance', () => {
 
   it('records the shipped mobile product path without claiming touch readiness', () => {
     const readme = source('README.md');
+    const docsIndex = source('docs/README.md');
     const mobileDoc = source('docs/mobile-ui-foundation.md');
     const css = source('src/styles/index.css');
 
-    expect(readme).toContain('docs/mobile-ui-foundation.md');
+    expect(readme).toContain('docs/README.md');
+    expect(docsIndex).toContain('mobile-ui-foundation.md');
     expect(mobileDoc).toContain('Drifting has a distinct mobile product path');
     expect(mobileDoc).toContain('Opening a project mounts `MobileAppShell`');
     expect(mobileDoc).toContain('Only the active paper mounts a full editor');

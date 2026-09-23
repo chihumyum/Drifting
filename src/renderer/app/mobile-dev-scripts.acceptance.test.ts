@@ -50,13 +50,15 @@ describe('mobile dev scripts', () => {
   it('exposes the Tauri device host through Vite and records manual acceptance', () => {
     const vite = source('vite.renderer.config.ts');
     const readme = source('README.md');
+    const docsIndex = source('docs/README.md');
     const runbook = source('docs/mobile-device-acceptance.md');
 
     expect(vite).toContain('process.env.TAURI_DEV_HOST');
     expect(vite).toContain('host: tauriDevHost || false');
     expect(vite).toContain("process.env.DRIFTING_VITE_PORT ?? '5173'");
     expect(vite).toContain('clientPort: devPort');
-    expect(readme).toContain('docs/mobile-device-acceptance.md');
+    expect(readme).toContain('docs/README.md');
+    expect(docsIndex).toContain('mobile-device-acceptance.md');
     expect(runbook).toContain('pnpm mobile:ios:dev');
     expect(runbook).toContain('pnpm mobile:android:dev');
     expect(runbook).toContain('pnpm mobile:ios:device:debug -- --device');

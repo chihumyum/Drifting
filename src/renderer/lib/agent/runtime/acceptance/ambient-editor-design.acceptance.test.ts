@@ -63,7 +63,7 @@ describe('Ambient Editor frozen design boundary', () => {
     const agentGuidance = read('AGENTS.md');
 
     expect(docsIndex).toContain('ambient-editor/README.md');
-    expect(productReadme).toContain('docs/ambient-editor/README.md');
+    expect(productReadme).toContain('docs/README.md');
     expect(agentGuidance).toContain('docs/ambient-editor/README.md');
     expect(agentGuidance).toContain('shared renderer-owned Agent Runtime');
     expect(currentStatus).toContain('Approved future Ambient design — not shipped');

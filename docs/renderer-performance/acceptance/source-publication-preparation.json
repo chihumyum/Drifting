@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "kind": "source_publication_preparation",
-  "generatedAt": "2026-09-23T04:49:12.222Z",
+  "generatedAt": "2026-09-23T04:54:55.995Z",
   "source": {
-    "commit": "b1be3c39aa3232203e63d61702a1da36c288e9bb",
+    "commit": "d95fa6865409805c38518b9546a4693d2a762116",
     "dirty": true,
-    "fingerprint": "5187dbcb457a66e227bb24ab11e5a1da38f4aefab0ef908fc9409a99d7b6b807",
+    "fingerprint": "631c5cbd81da1193fa15f9a3f3161973fb96e75fb5853109eac86bc6e8cb414a",
     "fingerprintScope": "src, src-tauri, packages, patches, scripts, .github, package.json and pnpm files"
   },
   "status": "automated-preparation-passed",
@@ -64,7 +64,7 @@
     "reachableHistory": {
       "passed": true,
       "findings": 0,
-      "commits": 902
+      "commits": 903
     }
   },
   "gitIntegrity": "passed",

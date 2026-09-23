@@ -23,6 +23,10 @@ const documentationRequirements = [
   },
   {
     path: path.join(coreDirectory, 'README.md'),
+    required: ['docs/README.md'],
+  },
+  {
+    path: path.join(coreDirectory, 'docs/README.md'),
     required: ['agent-capabilities.md', 'CURRENT_STATUS.md', 'ROADMAP.md'],
   },
   {
