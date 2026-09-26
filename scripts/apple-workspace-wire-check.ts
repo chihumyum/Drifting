@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import * as Y from 'yjs';
 
 import { defaultProjectKvList } from '../src/renderer/domain/kv';
@@ -31,12 +31,13 @@ interface WorkspaceWire {
   chapters: Chapter[];
   changes: { encodedBase64: string; mutationCount: number }[];
   fieldClocks?: Record<string, string | number>[];
+  moves?: { changeSetIndex: number; chapterId: string; beforeChapterId: string | null; chapters: { id: string; bookOrder: number }[] }[];
 }
 
-async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
+async function verify(fixturePath: string, scenario: 'creation' | 'rename' | 'reorder') {
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as WorkspaceWire;
   assert.equal(fixture.schemaVersion, 1);
-  assert.equal(fixture.chapters.length, 2);
+  assert.equal(fixture.chapters.length, scenario === 'reorder' ? 3 : 2);
   assert.equal(fixture.changes.length, scenario === 'creation' ? 3 : 7);
   const changes = await Promise.all(fixture.changes.map(async row => {
     const bytes = new Uint8Array(Buffer.from(row.encodedBase64, 'base64'));
@@ -57,7 +58,8 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
     await db.insert(ProjectTable).values({ id: fixture.project.id, userId: 'workspace-wire-receiver', name: 'Import placeholder', createdAt: nowIso, updatedAt: nowIso });
     await db.insert(SyncGenerationTable).values({ syncGenerationId: first.syncGenerationId, projectId: first.projectId, projectSyncId: first.projectSyncId, createdAt: nowIso, updatedAt: nowIso });
     const cases = [];
-    for (const changeSet of changes) {
+    let orderTransitions = 0;
+    for (const [index, changeSet] of changes.entries()) {
       const result = await db.transaction(tx => applyVerifiedRemoteChangeSetInTransaction(tx, {
         changeSet,
         identity: { installationId: 'workspace-wire-receiver', createWriterIdentity: () => ({ writerId: 'workspace-wire-receiver', writerEpoch: 'epoch-1' }) },
@@ -73,6 +75,21 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
           assert(doc.getXmlFragment('default').length > 0, 'A new chapter needs an editable paragraph');
         } finally { doc.destroy(); }
       }
+      const move = fixture.moves?.find(step => step.changeSetIndex === index);
+      if (move) {
+        assert.equal(changeSet.mutations.length, 1, 'Reorder must only author the moved chapter coordinate');
+        const [mutation] = changeSet.mutations;
+        assert.equal(mutation?.action, 'field.set');
+        assert.equal(mutation?.target.id, move.chapterId);
+        const order = await db.select({ id: BookNodeTable.id, bookOrder: BookNodeTable.bookOrder })
+          .from(BookNodeTable).where(eq(BookNodeTable.projectId, fixture.project.id))
+          .orderBy(asc(BookNodeTable.bookOrder), asc(BookNodeTable.id));
+        assert.deepEqual(order, move.chapters, 'Production replay must match each committed native order');
+        const position = order.findIndex(chapter => chapter.id === move.chapterId);
+        assert(position >= 0);
+        assert.equal(order[position + 1]?.id ?? null, move.beforeChapterId);
+        orderTransitions += 1;
+      }
       cases.push({ changeSetId: changeSet.changeSetId, mutationCount: changeSet.mutations.length, envelopeSha256: sha256(encodeSyncChangeSetV1(changeSet)), status: 'passed' });
     }
     const [project] = await db.select().from(ProjectTable).where(eq(ProjectTable.id, fixture.project.id));
@@ -85,7 +102,7 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
     assert.equal(relations[0]?.systemKey, 'generic-association');
     assert.equal(relations[0]?.locked, true);
     const chapters = await db.select().from(BookNodeTable).where(eq(BookNodeTable.projectId, fixture.project.id));
-    assert.equal(chapters.length, 2);
+    assert.equal(chapters.length, fixture.chapters.length);
     for (const expected of fixture.chapters) {
       const actual = chapters.find(chapter => chapter.id === expected.id);
       assert(actual);
@@ -101,8 +118,8 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
       assert.equal(updates.length, 1);
     }
     let fieldClocks = 0;
-    if (scenario === 'rename') {
-      assert(fixture.fieldClocks, 'Rename fixture must export actual SQLite field clocks');
+    if (scenario !== 'creation') {
+      assert(fixture.fieldClocks, 'Metadata fixture must export actual SQLite field clocks');
       const actual = (await db.select().from(SyncFieldClockTable)).map(row => ({
         sync_generation_id: row.syncGenerationId, target_kind: row.targetKind, target_id: row.targetId,
         incarnation: row.incarnation, field_key: row.fieldKey, hlc_wall_ms: row.hlcWallMs,
@@ -113,9 +130,10 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
       const order = (a: Record<string, string | number>, b: Record<string, string | number>) => key(a).localeCompare(key(b));
       assert.deepEqual(actual.sort(order), fixture.fieldClocks.sort(order), 'Rust and production renderer field clocks differ');
       fieldClocks = actual.length;
-      assert.equal(fieldClocks, 4);
+      assert.equal(fieldClocks, scenario === 'rename' ? 4 : 5);
     }
-    return { status: 'passed', cases, projectDefaults: facts.length, chapters: chapters.length, fieldClocks };
+    assert.equal(orderTransitions, scenario === 'reorder' ? 3 : 0);
+    return { status: 'passed', cases, projectDefaults: facts.length, chapters: chapters.length, fieldClocks, orderTransitions };
   } finally {
     invalidateSqliteReducerStateCache();
     await gateway.close();
@@ -124,9 +142,10 @@ async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
 async function main() {
   const creation = await verify(input, 'creation');
   const rename = await verify(path.join(path.dirname(input), 'workspace-rename-wire.json'), 'rename');
-  writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, ...creation, rename,
-    scope: 'Actual Rust creation and repeated rename journals decoded and materialized by production renderer on fresh file-backed databases, including exact field clocks; no live synchronization or UI claim',
+  const reorder = await verify(path.join(path.dirname(input), 'workspace-reorder-wire.json'), 'reorder');
+  writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, ...creation, rename, reorder,
+    scope: 'Actual Rust creation, rename and reorder journals decoded and materialized by production renderer on fresh file-backed databases, including exact field clocks and each ordered chapter list; no live synchronization or UI claim',
   }, null, 2)}\n`);
-  console.log(JSON.stringify({ status: 'passed', creationChanges: creation.cases.length, renameChanges: rename.cases.length, renameFieldClocks: rename.fieldClocks }));
+  console.log(JSON.stringify({ status: 'passed', creationChanges: creation.cases.length, renameChanges: rename.cases.length, reorderChanges: reorder.cases.length, orderTransitions: reorder.orderTransitions }));
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

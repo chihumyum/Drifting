@@ -66,11 +66,13 @@ repeatedly running the same failing path without fixing it. Targeted native UI i
 remain available. A default passing report does not imply desktop XCTest passed.
 
 The two applications now open a separate local workspace with project and chapter
-lists, creation, rename, native editing, explicit save and reopen. Both call the shared
+lists, creation, rename, chapter up/down, native editing, explicit save and reopen. Both call the shared
 Rust workspace service for domain defaults, transactions and canonical journals.
-Rename updates metadata and authored field clocks while retaining the current
-document, selection and prose history. Its current acceptance status is recorded
-in the [local writing slice](workspace.md), with source-matched native evidence.
+Rename and reordering retain the current document, selection and prose history.
+Ordering submits a destination chapter ID; the core updates only the moved
+chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
+The [local writing slice](workspace.md) records source-matched creation, rename
+and reorder acceptance, with native platform dimensions kept separate.
 The workspace database is `apple-native-lab/apple-native-workspace.db`; the older
 fixed fixture and `native-lab.db` remain test harnesses for the editor binding.
 No production library import or selection is exposed, and neither application
@@ -79,7 +81,7 @@ until the remaining migration and distribution gates pass.
 
 Prose uses a shared Rust document owner, one ordered Swift queue across views, local-origin
 undo, original-comment highlights, atomic authored updates/comment anchors/sync
-journal and replay-covered SQLite checkpoints. Project and chapter creation and rename use shared domain commands. Remote
+journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. Remote
 delivery remains a fixture-only seam. Read [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
 The workspace host currently has one editor per window; shared multi-view

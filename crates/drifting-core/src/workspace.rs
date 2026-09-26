@@ -547,6 +547,116 @@ impl<'a> WorkspaceStore<'a> {
         })
     }
 
+    /// Move one chapter on the existing continuous reading axis. Act boundaries
+    /// and other chapter coordinates remain fixed; this is not a spread/reindex.
+    /// Equal or exhausted numeric gaps require a separate placement choice.
+    pub fn move_chapter(
+        &self,
+        context: &AuthoredProseContext,
+        chapter_id: &str,
+        before_chapter_id: Option<&str>,
+    ) -> Result<Vec<WorkspaceChapter>, String> {
+        validate_context(context)?;
+        if !opaque(chapter_id) || before_chapter_id.is_some_and(|id| !opaque(id)) {
+            return Err("Invalid chapter move identity".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let chapters = self.chapters(Some(tx), &context.project_id)?;
+            let source_index = chapters
+                .iter()
+                .position(|chapter| chapter.id == chapter_id)
+                .ok_or("Moving chapter is not available in this project")?;
+            if before_chapter_id.is_some_and(|id| !chapters.iter().any(|chapter| chapter.id == id))
+            {
+                return Err("Destination chapter is not available in this project".into());
+            }
+            let source = &chapters[source_index];
+            let incarnation = AuthoredProseJournal::new(self.gateway, self.client)
+                .current_incarnation(
+                    tx,
+                    &context.project_id,
+                    &context.project_sync_id,
+                    &context.sync_generation_id,
+                    &source.document_id,
+                )?;
+            if before_chapter_id == Some(chapter_id) {
+                return Ok(chapters);
+            }
+            let remaining: Vec<_> = chapters
+                .iter()
+                .filter(|chapter| chapter.id != chapter_id)
+                .collect();
+            let destination = match before_chapter_id {
+                Some(id) => remaining
+                    .iter()
+                    .position(|chapter| chapter.id == id)
+                    .ok_or("Destination chapter disappeared")?,
+                None => remaining.len(),
+            };
+            // Removing the chapter makes its immediate successor occupy the
+            // same index. No clock or timestamp should change for this request.
+            if destination == source_index {
+                return Ok(chapters);
+            }
+            let left = destination
+                .checked_sub(1)
+                .map(|index| remaining[index].book_order);
+            let right = remaining.get(destination).map(|chapter| chapter.book_order);
+            let next = match (left, right) {
+                (Some(left), Some(right)) => {
+                    // Halves avoid overflow across opposite-signed extremes;
+                    // the usual formula retains precision within one sign.
+                    if left.is_sign_negative() != right.is_sign_negative() {
+                        left / 2.0 + right / 2.0
+                    } else {
+                        left + (right - left) / 2.0
+                    }
+                }
+                (None, Some(right)) => right - 5.0,
+                (Some(left), None) => left + 5.0,
+                (None, None) => return Ok(chapters),
+            };
+            if !next.is_finite()
+                || left.is_some_and(|left| !left.is_finite() || next <= left)
+                || right.is_some_and(|right| !right.is_finite() || next >= right)
+            {
+                return Err(
+                    "Chapter move has no representable numeric gap; choose another position".into(),
+                );
+            }
+            self.execute(
+                tx,
+                r#"
+                UPDATE book_node SET book_order=?,updated_at=CASE
+                    WHEN julianday(updated_at) IS NULL OR julianday(?)>julianday(updated_at) THEN ?
+                    ELSE strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds')
+                END WHERE id=? AND project_id=?
+                "#,
+                vec![
+                    V::Real(next),
+                    text(&context.now_iso),
+                    text(&context.now_iso),
+                    text(chapter_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::field(
+                    "node",
+                    chapter_id,
+                    incarnation,
+                    "bookOrder",
+                    json!(next),
+                )],
+                None,
+            )?;
+            self.chapters(Some(tx), &context.project_id)
+        })
+    }
+
     fn unique_chapter_title(
         &self,
         tx: u64,

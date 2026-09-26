@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T09:00:58.258Z",
+  "generatedAt": "2026-09-26T09:33:58.222Z",
   "status": "passed",
   "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
   "source": {
-    "commit": "15e298bab0c1f0428641b1523ba0ee0e660bd336",
+    "commit": "5a6042002ec84d76eb3ce12a4097a2764abab62d",
     "dirty": true,
-    "runtimeFingerprint": "c6cbf67f644c6531cb372e903d0a78f2e3eb54d021673e115b4dbbc701eafcf4"
+    "runtimeFingerprint": "3eb7e29ad61110aa8be92e33f63f88a736bb246eb0e353056f7d0da2facc2a47"
   },
   "checks": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 69
+      "passed": 72
     },
     {
       "name": "prose-durability",
@@ -27,7 +27,7 @@
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 25
+      "passed": 27
     },
     {
       "name": "macos-build",
@@ -56,7 +56,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project/chapter creation and rename, prose edit and history retained after rename, save/reopen, two-chapter isolation and renamed metadata after process restart",
+      "operation": "project/chapter creation and rename, chapter reorder, prose edit and history retained after rename/reorder, save/reopen, two-chapter isolation, names and chapter order after process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",
@@ -84,7 +84,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project/chapter creation and rename, prose edit and history retained after rename, save/reopen, two-chapter isolation and renamed metadata after process restart",
+      "operation": "project/chapter creation and rename, chapter reorder, prose edit and history retained after rename/reorder, save/reopen, two-chapter isolation, names and chapter order after process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",

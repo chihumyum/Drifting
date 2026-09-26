@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var createChapterButton: NSButton!
     private var renameProjectButton: NSButton!
     private var renameChapterButton: NSButton!
+    private var moveUpButton: NSButton!
+    private var moveDownButton: NSButton!
     private var saveButton: NSButton!
     private var reopenButton: NSButton!
 
@@ -82,12 +84,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         createChapterButton = button("新建章节", id: "create-chapter", action: #selector(createChapter))
         renameProjectButton = button("重命名", id: "rename-project", action: #selector(renameProject))
         renameChapterButton = button("重命名", id: "rename-chapter", action: #selector(renameChapter))
+        moveUpButton = button("上移", id: "move-chapter-up", action: #selector(moveChapterUp))
+        moveDownButton = button("下移", id: "move-chapter-down", action: #selector(moveChapterDown))
         let projectActions = NSStackView(views: [createProjectButton, renameProjectButton])
         let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
+        let orderActions = NSStackView(views: [moveUpButton, moveDownButton])
         let projectScroll = table(projectTable, id: "project-list")
         let chapterScroll = table(chapterTable, id: "chapter-list")
         let sidebar = NSStackView(views: [heading("项目"), projectActions, projectScroll, projectEmpty,
-            heading("章节"), chapterActions, chapterScroll, chapterEmpty])
+            heading("章节"), chapterActions, orderActions, chapterScroll, chapterEmpty])
         sidebar.orientation = .vertical
         sidebar.alignment = .leading
         sidebar.spacing = 10
@@ -221,6 +226,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         createChapterButton.isEnabled = ready && selectedProject != nil
         renameProjectButton.isEnabled = ready && selectedProject != nil
         renameChapterButton.isEnabled = ready && chapters.indices.contains(chapterTable.selectedRow)
+        let chapterIndex = chapterTable.selectedRow
+        moveUpButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex > 0
+        moveDownButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex + 1 < chapters.count
         saveButton.isEnabled = ready && documentView != nil
         reopenButton.isEnabled = ready && documentView != nil
     }
@@ -412,6 +420,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard let project = currentProject, let chapter = currentChapter else { return }
         currentTitle.stringValue = "\(project.name) / \(chapter.title)"
         window.title = "\(chapter.title) — Drifting Native Lab"
+    }
+
+    @objc private func moveChapterUp() { moveChapter(up: true) }
+    @objc private func moveChapterDown() { moveChapter(up: false) }
+
+    private func moveChapter(up: Bool) {
+        guard canLeaveDocument(), let project = selectedProject else { return }
+        let index = chapterTable.selectedRow
+        guard chapters.indices.contains(index), up ? index > 0 : index + 1 < chapters.count else { return }
+        let chapter = chapters[index]
+        // Only choose a destination identity. Fractional order and journal
+        // effects are calculated by the shared command, not by this view.
+        let before = up ? chapters[index - 1].id : (index + 2 < chapters.count ? chapters[index + 2].id : nil)
+        status.stringValue = "正在保存章节顺序…"
+        setLoading(true)
+        workspace.moveChapter(projectID: project.id, chapterID: chapter.id, beforeChapterID: before) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            switch result {
+            case .success(let chapters):
+                self.chapters = chapters
+                self.updatingSelection = true
+                self.chapterTable.reloadData()
+                if let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
+                    self.chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                }
+                self.updatingSelection = false
+                self.updateControls()
+                self.status.stringValue = "章节顺序已保存"
+            case .failure(let error): self.status.stringValue = error.localizedDescription
+            }
+        }
     }
 
     @objc private func createProject() {

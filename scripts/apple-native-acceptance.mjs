@@ -54,7 +54,7 @@ function ui(label, scheme, destination, rustTarget) {
     && summary.failedTests === 0 && summary.skippedTests === 0, 'Native cases must execute and pass');
   Object.assign(report.checks.at(-1), { passed: summary.passedTests, failed: summary.failedTests,
     operation: binding ? 'stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases'
-      : 'project/chapter creation and rename, prose edit and history retained after rename, save/reopen, two-chapter isolation and renamed metadata after process restart',
+      : 'project/chapter creation and rename, chapter reorder, prose edit and history retained after rename/reorder, save/reopen, two-chapter isolation, names and chapter order after process restart',
     platforms: summary.devicesAndConfigurations.map(item => ({ platform: item.device.platform, osVersion: item.device.osVersion, model: item.device.modelName })) });
 }
 try {

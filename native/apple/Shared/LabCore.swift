@@ -323,7 +323,7 @@ final class LabWorkspaceCore {
 
     func renameProject(projectID: String, name: String,
                        completion: @escaping (Result<WorkspaceProject, Error>) -> Void) {
-        rename("workspaceRenameProject", fields: ["projectId": projectID, "name": name], completion: completion)
+        updateMetadata("workspaceRenameProject", fields: ["projectId": projectID, "name": name], completion: completion)
     }
 
     func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
@@ -339,14 +339,20 @@ final class LabWorkspaceCore {
 
     func renameChapter(projectID: String, chapterID: String, title: String,
                        completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
-        rename("workspaceRenameChapter", fields: ["projectId": projectID, "chapterId": chapterID, "title": title], completion: completion)
+        updateMetadata("workspaceRenameChapter", fields: ["projectId": projectID, "chapterId": chapterID, "title": title], completion: completion)
     }
 
-    private func rename<Payload: Decodable>(_ operation: String, fields: [String: Any],
-                                            completion: @escaping (Result<Payload, Error>) -> Void) {
+    func moveChapter(projectID: String, chapterID: String, beforeChapterID: String?,
+                     completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
+        updateMetadata("workspaceMoveChapter", fields: ["projectId": projectID, "chapterId": chapterID,
+            "beforeChapterId": beforeChapterID.map { $0 as Any } ?? NSNull()], completion: completion)
+    }
+
+    private func updateMetadata<Payload: Decodable>(_ operation: String, fields: [String: Any],
+                                                    completion: @escaping (Result<Payload, Error>) -> Void) {
         precondition(Thread.isMainThread)
         guard !switchingDocument, currentDocument?.hasPendingDocumentWork != true else {
-            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再重命名")))
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再操作")))
             return
         }
         // Metadata changes deliberately retain the current document and store.

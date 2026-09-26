@@ -522,3 +522,174 @@ fn workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner() {
     );
     fixture.close();
 }
+
+fn chapter_ids(chapters: &Value) -> Vec<&str> {
+    chapters
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|chapter| chapter["id"].as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn workspace_move_preserves_selected_document_history_and_cold_order() {
+    let mut fixture = Fixture::new();
+    let opened = fixture.open(0);
+    let handle = opened["handle"].as_u64().unwrap();
+    let edited = insert(handle, "移动中的正文🙂");
+    success(
+        json!({"operation":"documentSelect","handle":handle,"selection":{
+            "viewId":"moving-editor","epoch":1,"revision":edited["projection"]["revision"],
+            "range":{"location":6,"length":2}
+        }}),
+    );
+    let before = state(handle);
+    let exported = success(json!({"operation":"documentExport","handle":handle}));
+    for anchor in [None, Some(fixture.chapters[1].as_str()), None] {
+        let moved = success(
+            json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+            "projectId":fixture.project,"chapterId":fixture.chapters[0],"beforeChapterId":anchor}),
+        );
+        let expected = if anchor.is_none() {
+            vec![fixture.chapters[1].as_str(), fixture.chapters[0].as_str()]
+        } else {
+            vec![fixture.chapters[0].as_str(), fixture.chapters[1].as_str()]
+        };
+        assert_eq!(chapter_ids(&moved), expected);
+        assert_eq!(state(handle), before);
+        assert_eq!(
+            success(json!({"operation":"documentExport","handle":handle})),
+            exported
+        );
+    }
+    assert_eq!(
+        insert(handle, "续写")["projection"]["text"],
+        "续写移动中的正文🙂"
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        "移动中的正文🙂"
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        ""
+    );
+    success(json!({"operation":"documentRedo","handle":handle}));
+    assert_eq!(
+        success(json!({"operation":"documentRedo","handle":handle}))["projection"]["text"],
+        "续写移动中的正文🙂"
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,"projectId":fixture.project}),
+    );
+    assert_eq!(
+        chapter_ids(&chapters),
+        vec![fixture.chapters[1].as_str(), fixture.chapters[0].as_str()]
+    );
+    let reopened = fixture.open(0);
+    assert_eq!(
+        reopened["document"]["projection"]["text"],
+        "续写移动中的正文🙂"
+    );
+    assert_eq!(
+        reopened["document"]["projection"]["blocks"][0]["id"],
+        opened["document"]["projection"]["blocks"][0]["id"]
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner() {
+    let fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(handle, "不可丢失🙂");
+    let other_project = success(
+        json!({"operation":"workspaceCreateProject","handle":fixture.workspace,
+        "name":"合成的其他项目"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let other_chapter = success(
+        json!({"operation":"workspaceCreateChapter","handle":fixture.workspace,
+        "projectId":other_project,"title":"其他项目章节"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let before = state(handle);
+    let before_chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,
+        "projectId":fixture.project}),
+    );
+    let database = gateway(handle);
+    let sql = [
+        "SELECT * FROM sync_order_register ORDER BY sync_generation_id,list_kind,owner_id,entity_id",
+        "SELECT * FROM sync_field_clock ORDER BY sync_generation_id,target_kind,target_id,incarnation,field_key",
+        "SELECT * FROM sync_generation_writer_state ORDER BY sync_generation_id,writer_id",
+        "SELECT change_set_id,encoded_bytes FROM sync_change_set ORDER BY change_set_id",
+        "SELECT id,book_order,updated_at FROM book_node ORDER BY id",
+    ];
+    let read_metadata = || {
+        sql.iter()
+            .map(|query| {
+                database
+                    .query((*query).into(), vec![], None, CLIENT.into())
+                    .unwrap()
+                    .rows
+            })
+            .collect::<Vec<_>>()
+    };
+    let metadata = read_metadata();
+    execute(&database, "CREATE TRIGGER fail_workspace_move BEFORE INSERT ON sync_change_set BEGIN SELECT RAISE(ABORT, 'synthetic move journal failure'); END");
+    assert!(rejected(
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[0],"beforeChapterId":null})
+    )
+    .contains("synthetic move journal failure"));
+    execute(&database, "DROP TRIGGER fail_workspace_move");
+    assert_eq!(read_metadata(), metadata);
+    assert_eq!(state(handle), before);
+    for request in [
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+            "projectId":fixture.project,"chapterId":fixture.chapters[0],"beforeChapterId":"missing-chapter"}),
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+            "projectId":fixture.project,"chapterId":fixture.chapters[0],"beforeChapterId":other_chapter}),
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+            "projectId":other_project,"chapterId":fixture.chapters[0],"beforeChapterId":null}),
+    ] {
+        rejected(request);
+        assert_eq!(read_metadata(), metadata);
+        assert_eq!(state(handle), before);
+        assert_eq!(
+            success(
+                json!({"operation":"workspaceChapters","handle":fixture.workspace,
+            "projectId":fixture.project})
+            ),
+            before_chapters
+        );
+    }
+    let moved = success(
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[0],"beforeChapterId":null}),
+    );
+    assert_eq!(
+        chapter_ids(&moved),
+        vec![fixture.chapters[1].as_str(), fixture.chapters[0].as_str()]
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        ""
+    );
+    assert_eq!(
+        success(json!({"operation":"documentRedo","handle":handle}))["projection"]["text"],
+        "不可丢失🙂"
+    );
+    fixture.close();
+}

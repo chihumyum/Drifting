@@ -76,6 +76,33 @@ final class ProjectPersistenceUITests: XCTestCase {
         #endif
     }
 
+    private func moveChapter(_ app: XCUIApplication, up: Bool) {
+        #if os(macOS)
+        press(app.buttons[up ? "move-chapter-up" : "move-chapter-down"])
+        #else
+        press(app.buttons["chapter-order"])
+        press(app.buttons.matching(identifier: up ? "move-chapter-up" : "move-chapter-down").firstMatch)
+        #endif
+        let status = "章节顺序已保存"
+        expectation(for: NSPredicate(format: "label == %@ OR value == %@", status, status),
+                    evaluatedWith: app.staticTexts["workspace-status"])
+        waitForExpectations(timeout: 15)
+    }
+
+    private func chapterOrder(_ app: XCUIApplication, titles: [String]) {
+        let table = app.tables["chapter-list"]
+        XCTAssertTrue(table.waitForExistence(timeout: 15))
+        for (index, title) in titles.enumerated() {
+            #if os(macOS)
+            let row = table.rows.element(boundBy: index).staticTexts.firstMatch
+            #else
+            let row = table.cells.element(boundBy: index)
+            #endif
+            expectation(for: NSPredicate(format: "label == %@ OR value == %@", title, title), evaluatedWith: row)
+            waitForExpectations(timeout: 15)
+        }
+    }
+
     private func finishInput(_ app: XCUIApplication) {
         #if !os(macOS)
         press(app.buttons["finish-prose"])
@@ -147,13 +174,26 @@ final class ProjectPersistenceUITests: XCTestCase {
         XCTAssertFalse((prose.value as? String ?? "").contains("Alpha prose"))
         press(prose); prose.typeText("Beta prose"); finishInput(app)
         let second = try XCTUnwrap(prose.value as? String)
+        moveChapter(app, up: true)
+        currentChapter(app, title: "Chapter B"); equalText(app, second)
+        press(app.buttons["undo-prose"]); saved(app)
+        XCTAssertNotEqual(prose.value as? String, second)
+        press(app.buttons["redo-prose"]); saved(app); equalText(app, second)
+        moveChapter(app, up: false)
+        moveChapter(app, up: true)
         #if !os(macOS)
         press(app.buttons["back-to-chapters"])
         #endif
+        chapterOrder(app, titles: ["Chapter B", "Chapter A"])
         selectRow(app, title: "Chapter A"); currentChapter(app, title: "Chapter A"); saved(app); equalText(app, first)
         #if !os(macOS)
         press(app.buttons["back-to-chapters"])
         #endif
+        selectRow(app, title: "Chapter B"); currentChapter(app, title: "Chapter B"); saved(app); equalText(app, second)
+        app.terminate()
+        app.launch()
+        selectRow(app, title: name)
+        chapterOrder(app, titles: ["Chapter B", "Chapter A"])
         selectRow(app, title: "Chapter B"); currentChapter(app, title: "Chapter B"); saved(app); equalText(app, second)
         app.terminate()
     }

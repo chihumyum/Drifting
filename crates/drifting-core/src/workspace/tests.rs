@@ -349,3 +349,6 @@ fn workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes(
 
 #[path = "rename_tests.rs"]
 mod rename_tests;
+
+#[path = "reorder_tests.rs"]
+mod reorder_tests;

@@ -230,10 +230,16 @@ final class ChaptersViewController: UITableViewController {
             self.setLoading(false)
             switch result {
             case .success(let core):
-                let editor = ChapterEditorViewController(workspace: self.workspace, core: core, project: self.project, chapter: chapter)
+                let editor = ChapterEditorViewController(workspace: self.workspace, core: core,
+                    project: self.project, chapter: chapter, chapters: self.chapters)
                 editor.onChapterRenamed = { [weak self] updated in
                     guard let self else { return }
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
+                    self.refreshList()
+                }
+                editor.onChapterOrderChanged = { [weak self] chapters in
+                    guard let self else { return }
+                    self.chapters = chapters
                     self.refreshList()
                 }
                 self.navigationController?.pushViewController(editor, animated: true)
@@ -291,20 +297,25 @@ final class ChapterEditorViewController: UIViewController {
     private var core: LabCore
     private let project: WorkspaceProject
     private var chapter: WorkspaceChapter
+    private var chapters: [WorkspaceChapter]
     var onChapterRenamed: ((WorkspaceChapter) -> Void)?
+    var onChapterOrderChanged: (([WorkspaceChapter]) -> Void)?
     private var documentView: NativeDocumentView!
     private let editorHost = UIView()
     private let status = UILabel()
     private let heading = UILabel()
     private let saveButton = UIButton(type: .system)
     private let reopenButton = UIButton(type: .system)
+    private var orderButton: UIBarButtonItem!
     private var loading = false
 
-    init(workspace: LabWorkspaceCore, core: LabCore, project: WorkspaceProject, chapter: WorkspaceChapter) {
+    init(workspace: LabWorkspaceCore, core: LabCore, project: WorkspaceProject,
+         chapter: WorkspaceChapter, chapters: [WorkspaceChapter]) {
         self.workspace = workspace
         self.core = core
         self.project = project
         self.chapter = chapter
+        self.chapters = chapters
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -317,7 +328,10 @@ final class ChapterEditorViewController: UIViewController {
         navigationItem.leftBarButtonItem = back
         let rename = UIBarButtonItem(title: "重命名", style: .plain, target: self, action: #selector(renameChapter))
         rename.accessibilityIdentifier = "rename-chapter"
-        navigationItem.rightBarButtonItem = rename
+        orderButton = UIBarButtonItem(title: "排序", image: nil, primaryAction: nil, menu: UIMenu(children: []))
+        orderButton.accessibilityIdentifier = "chapter-order"
+        navigationItem.rightBarButtonItems = [rename, orderButton]
+        updateOrderMenu()
         heading.text = chapter.title
         heading.font = .preferredFont(forTextStyle: .title2)
         heading.adjustsFontForContentSizeCategory = true
@@ -384,7 +398,8 @@ final class ChapterEditorViewController: UIViewController {
         saveButton.isEnabled = ready
         reopenButton.isEnabled = ready
         navigationItem.leftBarButtonItem?.isEnabled = ready
-        navigationItem.rightBarButtonItem?.isEnabled = ready
+        navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = ready }
+        orderButton.isEnabled = ready && chapters.count > 1
     }
     private func canLeaveDocument() -> Bool {
         guard !loading else { return false }
@@ -417,11 +432,49 @@ final class ChapterEditorViewController: UIViewController {
                 switch result {
                 case .success(let chapter):
                     self.chapter = chapter
+                    if let index = self.chapters.firstIndex(where: { $0.id == chapter.id }) { self.chapters[index] = chapter }
                     self.heading.text = chapter.title
                     self.onChapterRenamed?(chapter)
                     self.status.text = "章节标题已保存"
                 case .failure(let error): self.status.text = error.localizedDescription
                 }
+            }
+        }
+    }
+    private func updateOrderMenu() {
+        let index = chapters.firstIndex(where: { $0.id == chapter.id })
+        let up = UIAction(title: "上移", image: UIImage(systemName: "arrow.up")) { [weak self] _ in
+            self?.moveChapter(up: true)
+        }
+        let down = UIAction(title: "下移", image: UIImage(systemName: "arrow.down")) { [weak self] _ in
+            self?.moveChapter(up: false)
+        }
+        up.accessibilityIdentifier = "move-chapter-up"
+        down.accessibilityIdentifier = "move-chapter-down"
+        if index == nil || index == 0 { up.attributes = .disabled }
+        if index == nil || index == chapters.count - 1 { down.attributes = .disabled }
+        orderButton.menu = UIMenu(children: [up, down])
+    }
+
+    private func moveChapter(up: Bool) {
+        guard canLeaveDocument(), let index = chapters.firstIndex(where: { $0.id == chapter.id }),
+              up ? index > 0 : index + 1 < chapters.count else { return }
+        view.endEditing(true)
+        guard canLeaveDocument() else { return }
+        let before = up ? chapters[index - 1].id : (index + 2 < chapters.count ? chapters[index + 2].id : nil)
+        status.text = "正在保存章节顺序…"
+        setLoading(true)
+        workspace.moveChapter(projectID: project.id, chapterID: chapter.id, beforeChapterID: before) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            switch result {
+            case .success(let chapters):
+                self.chapters = chapters
+                self.onChapterOrderChanged?(chapters)
+                self.updateOrderMenu()
+                self.updateControls()
+                self.status.text = "章节顺序已保存"
+            case .failure(let error): self.status.text = error.localizedDescription
             }
         }
     }

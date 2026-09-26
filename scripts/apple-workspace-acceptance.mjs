@@ -31,6 +31,9 @@ const requiredCases = {
     'workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens',
     'workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation',
     'workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries',
+    'workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order',
+    'workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write',
+    'workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation',
   ],
   'bridge-workspace': [
     'workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen',
@@ -40,11 +43,13 @@ const requiredCases = {
     'workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope',
     'workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata',
     'workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner',
+    'workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order',
+    'workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner',
   ],
 };
 const boundaries = {
   source: 'shared Rust workspace and bridge commands; actual renderer decoder and domain materializer',
-  integration: 'temporary file-backed SQLite creation and rename, no-op and receipt rollback, unchanged prose/history, current field clocks, chapter isolation and cold reopen',
+  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, unchanged prose/history, current field clocks, chapter isolation and cold reopen',
   nativeUI: 'separate native acceptance report', physicalDevice: 'not-run', physicalIME: 'not-run',
   realAccount: 'not-run', signedDistribution: 'not-run', fullRemoteSync: 'not-certified', performance: 'deferred',
 };
@@ -73,6 +78,12 @@ function verify(report) {
   assert.equal(report.renderer.rename.projectDefaults, 6);
   assert.equal(report.renderer.rename.chapters, 2);
   assert.equal(report.renderer.rename.fieldClocks, 4);
+  assert.equal(report.renderer.reorder.status, 'passed');
+  assert.equal(report.renderer.reorder.cases.length, 7);
+  assert.equal(report.renderer.reorder.projectDefaults, 6);
+  assert.equal(report.renderer.reorder.chapters, 3);
+  assert.equal(report.renderer.reorder.fieldClocks, 5);
+  assert.equal(report.renderer.reorder.orderTransitions, 3);
   assert.equal(report.strictTypeScript, 'passed');
 }
 if (process.argv.includes('--check')) {
@@ -114,10 +125,10 @@ if (process.argv.includes('--check')) {
   const report = { schemaVersion: 1, kind: 'native_local_writing_workspace', status: 'passed',
     source: { files: before, fingerprint: sha(JSON.stringify(before)) }, suites,
     renderer: json(`${directory}/renderer.json`), strictTypeScript: 'passed', boundaries,
-    rawEvidence: ['source-before.json', 'core-workspace.log', 'bridge-workspace.log', 'workspace-wire.json', 'workspace-rename-wire.json', 'renderer.json', 'renderer.log', 'typecheck.log']
+    rawEvidence: ['source-before.json', 'core-workspace.log', 'bridge-workspace.log', 'workspace-wire.json', 'workspace-rename-wire.json', 'workspace-reorder-wire.json', 'renderer.json', 'renderer.log', 'typecheck.log']
       .map(name => ({ path: `${directory}/${name}`, sha256: sha(readFileSync(`${directory}/${name}`)) })),
   };
   verify(report);
   writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
-  console.log(JSON.stringify({ status: 'passed', suites: suites.map(({ name, passed }) => ({ name, passed })), rendererChanges: report.renderer.cases.length, renameChanges: report.renderer.rename.cases.length, rawEvidence: directory }));
+  console.log(JSON.stringify({ status: 'passed', suites: suites.map(({ name, passed }) => ({ name, passed })), rendererChanges: report.renderer.cases.length, renameChanges: report.renderer.rename.cases.length, reorderChanges: report.renderer.reorder.cases.length, rawEvidence: directory }));
 }
