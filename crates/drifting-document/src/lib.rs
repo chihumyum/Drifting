@@ -54,7 +54,11 @@ mod undo_policy;
 mod undo_policy_tests;
 mod wire;
 pub use comments::{CommentAnchorRecord, CommentAnchorView};
-pub use native::{NativeBlock, NativeProjection, NativeRange, NativeReplacement, NativeRun};
+pub use native::{
+    NativeBlock, NativeOutlineItem, NativeProjection, NativeRange, NativeReplacement, NativeRun,
+};
+#[cfg(test)]
+mod outline_tests;
 pub use selections::{NativeSelectionRequest, NativeSelectionView};
 use serde_json::{json, Map, Value};
 pub use structure::{NativeEditMap, NativeMappedPoint};

@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T09:57:16.372Z",
+  "generatedAt": "2026-09-26T10:34:17.320Z",
   "status": "passed",
   "source": {
-    "commit": "5bc7a9f853495eea3be8daa0ed04087210f2eeae",
+    "commit": "be701d92c7a362a44bec8d64346fc4219e125230",
     "dirty": true,
-    "fingerprint": "45756231827f64aa8e3872974ba60083cf5bb95d87971944336573da28d715b9"
+    "fingerprint": "afb99efe43624c2e8aef4f4274eb80814728935f1436c2ac53374102b81f3ba5"
   },
   "libraries": {
     "yjs": "13.6.32",
@@ -45,6 +45,11 @@
     }
   ],
   "cases": [
+    {
+      "name": "native outline matches renderer hierarchy and current UTF-16 ranges",
+      "status": "passed",
+      "scope": "actual renderer extractOutline/nestHeadings, stable IDs, five-level semantics, no synthesized missing levels, updated ranges, history and reopening"
+    },
     {
       "name": "native formatting exchanges real marks and heading structure with Yjs",
       "status": "passed",
@@ -226,9 +231,17 @@
     "exclusionReason": "Seven upstream trace/dataset tests need assets absent from the published crate; not claimed as passed."
   },
   "unitTests": {
-    "passed": 138,
+    "passed": 140,
     "failed": 0,
     "requiredCases": [
+      {
+        "name": "outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent",
+        "status": "passed"
+      },
+      {
+        "name": "outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay",
+        "status": "passed"
+      },
       {
         "name": "formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit",
         "status": "passed"

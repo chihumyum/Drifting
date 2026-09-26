@@ -23,6 +23,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Milestones and acceptance](milestones.md)
 - [Local project and chapter writing slice](workspace.md)
 - [Native editor formatting](formatting.md)
+- [Whole-book outline navigation](outline.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -72,6 +73,8 @@ Rust workspace service for domain defaults, transactions and canonical journals.
 Rename and reordering retain the current document, selection and prose history.
 Both editors expose selection bold/italic and paragraph/heading 1–3 through the
 same Rust document transactions; see the bounded [formatting contract](formatting.md).
+The [whole-book outline](outline.md) reads shared act/chapter order and live
+scene/beat/note headings, with lazy expansion and navigation by stable identity.
 Ordering submits a destination chapter ID; the core updates only the moved
 chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
 The [local writing slice](workspace.md) records source-matched creation, rename

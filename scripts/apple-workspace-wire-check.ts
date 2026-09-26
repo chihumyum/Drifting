@@ -6,6 +6,7 @@ import { asc, eq } from 'drizzle-orm';
 import * as Y from 'yjs';
 
 import { defaultProjectKvList } from '../src/renderer/domain/kv';
+import { deriveActSegments, type BookAct } from '../src/renderer/domain/book-act';
 import { ProductFileBackedSqliteGateway } from '../src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import {
   BookNodeTable, EntityKvEntryTable, EntityRelationTypeTable, NodeStorylineLinkTable, ProjectTable,
@@ -143,9 +144,34 @@ async function main() {
   const creation = await verify(input, 'creation');
   const rename = await verify(path.join(path.dirname(input), 'workspace-rename-wire.json'), 'rename');
   const reorder = await verify(path.join(path.dirname(input), 'workspace-reorder-wire.json'), 'reorder');
-  writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, ...creation, rename, reorder,
+  const outline = verifyOutline();
+  writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, ...creation, rename, reorder, outline,
     scope: 'Actual Rust creation, rename and reorder journals decoded and materialized by production renderer on fresh file-backed databases, including exact field clocks and each ordered chapter list; no live synchronization or UI claim',
   }, null, 2)}\n`);
   console.log(JSON.stringify({ status: 'passed', creationChanges: creation.cases.length, renameChanges: rename.cases.length, reorderChanges: reorder.cases.length, orderTransitions: reorder.orderTransitions }));
+}
+
+function verifyOutline() {
+  const fixture = JSON.parse(readFileSync(path.join(path.dirname(input), 'workspace-outline.json'), 'utf8')) as {
+    schemaVersion: number;
+    scenarios: { name: string; acts: BookAct[]; chapters: { id: string; title: string; bookOrder: number }[];
+      rows: { kind: string; id: string; title: string; actId: string | null }[] }[];
+  };
+  assert.equal(fixture.schemaVersion, 1);
+  assert(fixture.scenarios.length >= 2);
+  const cases = fixture.scenarios.map(({ name, acts, chapters, rows }) => {
+    const ordered = [...chapters].sort((a, b) => a.bookOrder - b.bookOrder || Buffer.compare(Buffer.from(a.id), Buffer.from(b.id)));
+    const segments = deriveActSegments(acts, ordered);
+    const assigned = new Set(segments.flatMap(segment => segment.chapters.map(chapter => chapter.id)));
+    const chapterRow = (chapter: typeof chapters[number], actId: string | null) => ({ kind: 'chapter', id: chapter.id, title: chapter.title, actId });
+    const expected = ordered.filter(chapter => !assigned.has(chapter.id)).map(chapter => chapterRow(chapter, null));
+    for (const segment of segments) {
+      expected.push({ kind: 'act', id: segment.act.id, title: segment.act.name, actId: null });
+      expected.push(...segment.chapters.map(chapter => chapterRow(chapter, segment.act.id)));
+    }
+    assert.deepEqual(rows, expected, `Native outline differs from production act boundaries: ${name}`);
+    return { name, status: 'passed', acts: acts.length, chapters: chapters.length };
+  });
+  return { status: 'passed', cases };
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

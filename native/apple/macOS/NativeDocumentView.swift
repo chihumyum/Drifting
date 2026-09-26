@@ -134,6 +134,20 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    @discardableResult
+    func reveal(blockId: String) -> Bool {
+        guard binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
+              let projection = binding.store.projection,
+              let item = projection.outline.first(where: { $0.blockId == blockId }) else { return false }
+        // Resolve the identity again here; a panel's earlier range may be stale.
+        let range = NSRange(location: item.range.location, length: 0)
+        textView.setSelectedRange(range)
+        binding.selectionChanged(range, text: projection.text, marked: false)
+        textView.scrollRangeToVisible(item.range.nsRange)
+        window?.makeFirstResponder(textView)
+        return true
+    }
+
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard !textView.hasMarkedText() else { styledProjection = nil; return }
         rendering = true

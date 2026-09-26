@@ -125,6 +125,23 @@ final class ProjectPersistenceUITests: XCTestCase {
         waitForExpectations(timeout: 15)
     }
 
+    private func navigateOutline(_ app: XCUIApplication, chapter: String, heading: String) {
+        press(app.buttons["show-outline"])
+        XCTAssertTrue(app.tables["book-outline-list"].waitForExistence(timeout: 15))
+        press(app.buttons.matching(NSPredicate(format: "label == %@", "展开 " + chapter)).firstMatch)
+        #if os(macOS)
+        press(app.staticTexts[heading].firstMatch)
+        #else
+        press(app.cells.matching(NSPredicate(format: "label == %@", heading)).firstMatch)
+        #endif
+        // A chapter label may update before its editor is ready. Completion
+        // also requires the navigation panel to close after resolving the ID.
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.tables["book-outline-list"])
+        waitForExpectations(timeout: 15)
+        currentChapter(app, title: chapter)
+        saved(app)
+    }
+
     func testCreateWriteUndoReopenAndProcessRestart() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -152,6 +169,8 @@ final class ProjectPersistenceUITests: XCTestCase {
         XCTAssertNotEqual(undone, after)
         press(app.buttons["redo-prose"]); saved(app); equalText(app, after)
         heading2(app, select: true); saved(app); equalText(app, after)
+        navigateOutline(app, chapter: renamedChapter, heading: "拍 · Native writing")
+        heading2(app, select: false); equalText(app, after)
         press(app.buttons["save-document"]); saved(app)
         press(app.buttons["reopen-document"])
         let reopened = "已从磁盘重新打开，正文自动保存"
@@ -166,6 +185,8 @@ final class ProjectPersistenceUITests: XCTestCase {
         currentChapter(app, title: renamedChapter)
         saved(app); equalText(app, after)
         heading2(app, select: false)
+        navigateOutline(app, chapter: renamedChapter, heading: "拍 · Native writing")
+        equalText(app, after)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Native writing workflow after process restart"
         attachment.lifetime = .keepAlways
@@ -203,10 +224,13 @@ final class ProjectPersistenceUITests: XCTestCase {
         #endif
         chapterOrder(app, titles: ["Chapter B", "Chapter A"])
         selectRow(app, title: "Chapter A"); currentChapter(app, title: "Chapter A"); saved(app); equalText(app, first)
+        heading2(app, select: true); saved(app)
         #if !os(macOS)
         press(app.buttons["back-to-chapters"])
         #endif
         selectRow(app, title: "Chapter B"); currentChapter(app, title: "Chapter B"); saved(app); equalText(app, second)
+        navigateOutline(app, chapter: "Chapter A", heading: "拍 · Alpha prose")
+        equalText(app, first); heading2(app, select: false)
         app.terminate()
         app.launch()
         selectRow(app, title: name)

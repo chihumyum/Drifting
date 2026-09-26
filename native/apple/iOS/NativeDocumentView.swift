@@ -217,6 +217,17 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    @discardableResult
+    func reveal(blockId: String) -> Bool {
+        guard binding.canEdit, !binding.hasPendingWork, textView.markedTextRange == nil,
+              let projection = binding.store.projection,
+              let item = projection.outline.first(where: { $0.blockId == blockId }) else { return false }
+        let range = NSRange(location: item.range.location, length: 0)
+        textView.selectedRange = range
+        binding.selectionChanged(range, text: projection.text, marked: false)
+        textView.scrollRangeToVisible(item.range.nsRange)
+        return true
+    }
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard textView.markedTextRange == nil else { return }
         rendering = true

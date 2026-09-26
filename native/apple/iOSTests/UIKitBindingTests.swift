@@ -73,6 +73,39 @@ final class UIKitBindingTests: XCTestCase {
         super.tearDown()
     }
 
+    func testOutlineRevealUsesCurrentRangesWithoutEditingHistory() async throws {
+        try await prepare()
+        let original = try await read().projection
+        let paragraph = try XCTUnwrap(original.blocks.first { $0.id == "fixture-paragraph" })
+        view.binding.format(.heading2, range: NSRange(location: paragraph.range.location, length: 0))
+        try await settle("outline heading")
+        var projection = try await read().projection
+        XCTAssertEqual(projection.outline.map(\.blockId), ["fixture-heading", "fixture-paragraph"])
+        XCTAssertEqual(projection.outline[1].parentId, "fixture-heading")
+        text.selectedRange = NSRange(location: 0, length: 0)
+        text.insertText("前言 👩🏽‍🚀 "); try await settle("outline prefix")
+        let before = try await read().projection
+        let target = try XCTUnwrap(before.outline.first { $0.blockId == "fixture-paragraph" })
+        XCTAssertGreaterThan(target.range.location, paragraph.range.location)
+        XCTAssertTrue(view.reveal(blockId: target.blockId))
+        try await eventually("outline selection") { self.view.binding.selectionIsAnchored }
+        XCTAssertEqual(text.selectedRange, NSRange(location: target.range.location, length: 0))
+        projection = try await read().projection
+        XCTAssertEqual(projection.revision, before.revision)
+        XCTAssertEqual(projection.text, before.text)
+        XCTAssertFalse(view.reveal(blockId: "missing-synthetic-heading"))
+        try await history(); XCTAssertEqual(text.text, original.text)
+        let _: LabState = try await result { core.reopen(completion: $0) }
+        view.binding.load(); try await settle("outline reopen")
+        XCTAssertTrue(view.reveal(blockId: "fixture-paragraph"))
+        XCTAssertEqual(text.selectedRange.location, paragraph.range.location)
+        text.selectedRange = NSRange(location: 0, length: 0)
+        text.setMarkedText("zhong", selectedRange: NSRange(location: 5, length: 0))
+        XCTAssertFalse(view.reveal(blockId: "fixture-paragraph"))
+        text.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        text.unmarkText(); try await settle("outline composition guard")
+    }
+
     func testSelectionFormattingHeadingStylesHistoryAndReopen() async throws {
         try await prepare()
         let original = try await read().projection

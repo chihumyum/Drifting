@@ -1,5 +1,7 @@
 //! Synthetic file-backed workspace acceptance through the public C ABI.
 use super::*;
+#[path = "workspace_outline_tests.rs"]
+mod outline;
 
 fn call(request: Value) -> Value {
     let input = CString::new(request.to_string()).unwrap();

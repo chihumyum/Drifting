@@ -16,7 +16,7 @@ function sources() {
     .filter(name => name && existsSync(name) && (
       /^(?:crates\/|vendor\/yrs\/|drizzle\/|native\/apple\/|src\/renderer\/sync\/|src\/renderer\/sqlite-repo\/|src\/renderer\/schema\/)/u.test(name)
       || ['scripts/apple-workspace-acceptance.mjs', 'scripts/apple-workspace-wire-check.ts',
-        'src/renderer/domain/kv.ts', 'src/renderer/lib/db.ts',
+        'src/renderer/domain/kv.ts', 'src/renderer/domain/book-act.ts', 'src/renderer/lib/db.ts',
         'src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts',
         'package.json', 'pnpm-lock.yaml'].includes(name)
     )).sort();
@@ -24,6 +24,9 @@ function sources() {
 }
 const requiredCases = {
   'core-workspace': [
+    'workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes',
+    'workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project',
+    'workspace::outline::tests::workspace_outline_preserves_empty_acts_and_rejects_nonfinite_boundary',
     'workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed',
     'workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles',
     'workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer',
@@ -36,6 +39,8 @@ const requiredCases = {
     'workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation',
   ],
   'bridge-workspace': [
+    'workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch',
+    'workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database',
     'workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks',
     'workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once',
     'workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen',
@@ -51,7 +56,7 @@ const requiredCases = {
 };
 const boundaries = {
   source: 'shared Rust workspace and bridge commands; actual renderer decoder and domain materializer',
-  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen',
+  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement',
   nativeUI: 'separate native acceptance report', physicalDevice: 'not-run', physicalIME: 'not-run',
   realAccount: 'not-run', signedDistribution: 'not-run', fullRemoteSync: 'not-certified', performance: 'deferred',
 };
@@ -86,6 +91,9 @@ function verify(report) {
   assert.equal(report.renderer.reorder.chapters, 3);
   assert.equal(report.renderer.reorder.fieldClocks, 5);
   assert.equal(report.renderer.reorder.orderTransitions, 3);
+  assert.equal(report.renderer.outline.status, 'passed');
+  assert(report.renderer.outline.cases.length >= 2);
+  assert(report.renderer.outline.cases.every(test => test.status === 'passed'));
   assert.equal(report.strictTypeScript, 'passed');
 }
 if (process.argv.includes('--check')) {
@@ -127,7 +135,7 @@ if (process.argv.includes('--check')) {
   const report = { schemaVersion: 1, kind: 'native_local_writing_workspace', status: 'passed',
     source: { files: before, fingerprint: sha(JSON.stringify(before)) }, suites,
     renderer: json(`${directory}/renderer.json`), strictTypeScript: 'passed', boundaries,
-    rawEvidence: ['source-before.json', 'core-workspace.log', 'bridge-workspace.log', 'workspace-wire.json', 'workspace-rename-wire.json', 'workspace-reorder-wire.json', 'renderer.json', 'renderer.log', 'typecheck.log']
+    rawEvidence: ['source-before.json', 'core-workspace.log', 'bridge-workspace.log', 'workspace-wire.json', 'workspace-rename-wire.json', 'workspace-reorder-wire.json', 'workspace-outline.json', 'renderer.json', 'renderer.log', 'typecheck.log']
       .map(name => ({ path: `${directory}/${name}`, sha256: sha(readFileSync(`${directory}/${name}`)) })),
   };
   verify(report);

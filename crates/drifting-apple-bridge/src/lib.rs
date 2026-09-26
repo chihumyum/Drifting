@@ -290,6 +290,18 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
     },
+    WorkspaceOutline {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
+    WorkspaceChapterOutline {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
     WorkspaceCreateChapter {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -905,6 +917,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceChapters { .. }
+        | Request::WorkspaceOutline { .. }
+        | Request::WorkspaceChapterOutline { .. }
         | Request::WorkspaceCreateChapter { .. }
         | Request::WorkspaceOpenChapter { .. }
         | Request::WorkspaceReopenChapter { .. }

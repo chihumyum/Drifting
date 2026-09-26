@@ -26,9 +26,9 @@ architecture. Existing correctness fixes and their evidence remain in place.
 | P2a | Headless Yjs/Yrs harness | Incremental, concurrent, reordered and duplicate updates converge without schema/metadata loss | Complete for declared headless scope, including redone-offset, sparse-replay and undo deletion-filter fixes; see source-matched generated evidence |
 | P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
-| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename and chapter before-ID move accepted through shared commands and canonical journals; remaining domain commands open |
+| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename and before-ID move accepted; read-only act/chapter outline and scoped heading queries added; remaining domain commands open |
 | P4 | Sync and Agent over native prose | Minimal in-process runtime, guarded writes/reviews, offline/reconnect/restart; accounts separately tested | Not started |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: creation, rename, chapter up/down, editing and save/reopen accepted; outline, tabs/split, search and sync remain open |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation integrated; tabs/split, search and sync remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
 | P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Initial project/chapter/editor slice passes iPhone/iPad simulator workflows; auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
@@ -82,24 +82,24 @@ commands retain the same document owner, selection and local history. Ordering
 writes only the moved chapter's scalar `bookOrder`, timestamp and field clock,
 without moving fixed act boundaries or globally reindexing.
 
-The current [formatting batch](formatting.md) adds selection bold/italic and
-real paragraph/heading 1–3 through shared Rust transactions. Each command has one
-undo unit, including multi-paragraph selections. Both native hosts retain their
-selection, share persisted structure and style headings by level. Container
-unwrapping and block indentation remain separate workflow work.
+[Selection and heading formatting](formatting.md) was accepted in `be701d92`.
+The [whole-book outline batch](outline.md) is accepted for local navigation:
+shared act/chapter reads and authoritative scene/beat/note headings. Both native hosts expand
+chapter outlines on demand and navigate by current block identity. Other-chapter
+reads preserve the active editor and its history; cross-chapter navigation uses
+the existing guarded transition before revealing the heading.
 
 Source-matched [document](acceptance/p2a-document.json),
 [workspace](acceptance/p3a-workspace.json), [binding](acceptance/p2b-binding.json)
 and [native](acceptance/p2b-native.json) reports own exact counts and outcomes.
-The formatting slice passes both platforms' 14 hosted binding tests and two
-simulator UI workflows; Mac, simulator and unsigned device builds pass. Fresh
-Mac CUA confirms formatting, history and cold recovery separately from XCTest.
 Completed batches are documented, accepted and committed before starting the
 next feature, without pushing.
 
-Next connect the native outline, preserving act/chapter/scene/beat/note semantics.
-Deletion, full workspace parity, sync and Agent remain further batches. No
-performance measurement or extra historical migration matrix is a prerequisite.
+Next connect native chapter tabs and split editing to the shared document owners,
+retaining each chapter's selection/history and guarding close/switch on pending
+input. Act editing, deletion, full workspace parity, search, sync and Agent remain
+further batches. No performance measurement or extra historical migration matrix
+is a prerequisite.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

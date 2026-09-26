@@ -32,11 +32,22 @@ pub struct NativeBlock {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NativeOutlineItem {
+    pub block_id: String,
+    pub level: u8,
+    pub text: String,
+    pub parent_id: Option<String>,
+    pub range: NativeRange,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NativeProjection {
     /// A session-local optimistic concurrency token, not a persisted revision.
     pub revision: u64,
     pub text: String,
     pub blocks: Vec<NativeBlock>,
+    pub outline: Vec<NativeOutlineItem>,
     pub can_undo: bool,
     pub can_redo: bool,
     pub comments: Vec<CommentAnchorView>,
@@ -70,6 +81,7 @@ impl DocumentSession {
             revision: self.revision,
             text: String::new(),
             blocks: Vec::new(),
+            outline: Vec::new(),
             can_undo: self.undo.can_undo(),
             can_redo: self.undo.can_redo(),
             comments: Vec::new(),
@@ -90,6 +102,22 @@ impl DocumentSession {
                 .id
                 .as_ref()
                 .is_some_and(|id| !id.is_empty() && counts.get(id) == Some(&1));
+        }
+        // The XML walk collected text while it was already available. Filter
+        // ambiguous IDs before nesting, so neither an invalid heading nor a
+        // display-only placeholder can become a navigation target or parent.
+        view.outline
+            .retain(|item| counts.get(&item.block_id) == Some(&1));
+        let mut parents: Vec<(u8, String)> = Vec::new();
+        for item in &mut view.outline {
+            while parents
+                .last()
+                .is_some_and(|(level, _)| *level >= item.level)
+            {
+                parents.pop();
+            }
+            item.parent_id = parents.last().map(|(_, id)| id.clone());
+            parents.push((item.level, item.block_id.clone()));
         }
         view.comments = self.comment_views(&view);
         view.selections = self.selection_views(&view);
@@ -313,6 +341,27 @@ fn project_native<T: ReadTxn>(
             }
         }
         block.range.length = content.encode_utf16().count() as u32;
+        if block.editable && block.kind == "heading" {
+            let title = content.trim_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}');
+            if let (Some(id), Some(level)) = (
+                block.id.as_ref().filter(|id| !id.is_empty()),
+                block
+                    .attributes
+                    .get("level")
+                    .and_then(Value::as_f64)
+                    .filter(|level| matches!(*level, 1.0 | 2.0 | 3.0)),
+            ) {
+                if !title.is_empty() {
+                    view.outline.push(NativeOutlineItem {
+                        block_id: id.clone(),
+                        level: level as u8,
+                        text: title.into(),
+                        parent_id: None,
+                        range: block.range.clone(),
+                    });
+                }
+            }
+        }
         view.text.push_str(&content);
         view.blocks.push(block);
     }

@@ -15,6 +15,8 @@ const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9)
   ?? 'docs/apple-native/acceptance/p2a-document.json';
 const logDirectory = '.local-data/apple-native/document';
 const requiredUnitTests = [
+  'outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent',
+  'outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay',
   'formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit',
   'formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen',
   'formatting_tests::native_format_paragraph_clears_selected_marks_and_level_but_keeps_links',
@@ -54,6 +56,7 @@ const sources = [...new Set(run('git', ['ls-files', '--cached', '--others', '--e
   .filter(file => file && existsSync(file) && (file.startsWith('crates/drifting-document/') || file.startsWith('vendor/yrs/') || [
     'scripts/check-yrs-vendor.mjs', 'scripts/generate-yrs-provenance.mjs', 'scripts/apple-yrs-diagnostic.mjs',
     'scripts/apple-document-acceptance.mjs', 'scripts/apple-structure-oracle.ts', 'scripts/apple-quote-history-oracle.ts', 'scripts/apple-comment-oracle.ts', 'scripts/generate-apple-fixtures.mjs',
+    'scripts/apple-outline-oracle.ts', 'src/renderer/lib/outline.ts', 'src/renderer/components/editor/outline-rail-model.ts',
     'src/renderer/domain/comment.ts', 'src/renderer/domain/entity-kinds.ts',
     'src/renderer/components/editor/chapter-static-html.ts', 'src/renderer/lib/extensions/block-id.ts',
     'src/renderer/lib/extensions/paragraph-indent.ts', 'src/renderer/lib/extensions/entity-link.ts',
@@ -82,7 +85,8 @@ if (process.argv.includes('--check')) {
   const previous = JSON.parse(readFileSync(output));
   assert.equal(previous.status, 'passed', 'P2a document acceptance must pass');
   assert(previous.cases.some(entry => entry.name === 'native formatting exchanges real marks and heading structure with Yjs' && entry.status === 'passed'));
-  assert(previous.unitTests?.passed >= 138 && previous.unitTests.failed === 0, 'Document unit tests must execute');
+  assert(previous.cases.some(entry => entry.name === 'native outline matches renderer hierarchy and current UTF-16 ranges' && entry.status === 'passed'));
+  assert(previous.unitTests?.passed >= 140 && previous.unitTests.failed === 0, 'Document unit tests must execute');
   assert.deepEqual(previous.unitTests.requiredCases, requiredUnitTests.map(name => ({ name, status: 'passed' })));
   assert.equal(previous.relocationAliasAcceptance?.status, 'passed', 'Original-prefix routing must pass');
   assert.equal(previous.relocationAliasAcceptance.scenarios.length, 2, 'Both supported quote shapes must execute');
@@ -191,7 +195,7 @@ try {
   const testLog = run('cargo', ['test', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked']);
   writeFileSync(`${logDirectory}/rust-tests.log`, testLog);
   const testCount = [...testLog.matchAll(/test result: ok\. (\d+) passed;/g)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert(testCount >= 138, 'Document, comment, selection and sparse-replay unit tests must actually execute');
+  assert(testCount >= 140, 'Document, comment, selection and sparse-replay unit tests must actually execute');
   for (const name of requiredUnitTests) assert(testLog.includes(`test ${name} ... ok`), `Missing document regression: ${name}`);
   report.unitTests = { passed: testCount, failed: 0, requiredCases: requiredUnitTests.map(name => ({ name, status: 'passed' })) };
   run('cargo', ['build', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked', '--example', 'document_protocol']);
@@ -205,6 +209,60 @@ try {
   });
   processHandle.on('error', error => { const waiting = pending; pending = null; waiting?.reject(error); });
   processHandle.on('exit', code => { const waiting = pending; pending = null; waiting?.reject(new Error(`Rust process exited ${code}: ${errors}`)); });
+
+  await check('native outline matches renderer hierarchy and current UTF-16 ranges', async () => {
+    const peer = jsDoc(90201, null);
+    for (const [id, level, value] of [
+      ['outline-prefix', 0, '开场 👩🏽‍🚀'], ['outline-scene', 1, '  同名场景  '],
+      ['outline-note', 3, '注 👩🏽‍🚀'], ['outline-beat', 2, '拍'],
+      ['outline-child', 3, '注'], ['outline-empty', 2, '   '],
+      ['outline-next', 1, '同名场景'],
+    ]) {
+      const block = new Y.XmlElement(level ? 'heading' : 'paragraph');
+      block.setAttribute('id', id);
+      if (level) block.setAttribute('level', level);
+      block.insert(0, [new Y.XmlText(value)]);
+      peer.getXmlFragment('default').push([block]);
+    }
+    await open('outline-native', 90202, Y.encodeStateAsUpdate(peer));
+    const comparisons = [];
+    async function compare(name) {
+      const projection = await request('outline-native', 'projection');
+      const current = await exportToJS('outline-native');
+      assert(projection.outline.length > 0);
+      for (const item of projection.outline) {
+        const block = projection.blocks.find(block => block.id === item.blockId);
+        assert(block, 'Outline target must have a current block identity');
+        assert.deepEqual(item.range, block.range);
+        assert.equal(projection.text.slice(item.range.location, item.range.location + item.range.length).trim(), item.text);
+      }
+      comparisons.push({ name, semantic: semantic(current), native: projection.outline.map(({ blockId, level, text, parentId }) => ({ blockId, level, text, parentId })) });
+      current.destroy();
+      return projection;
+    }
+    const initial = await compare('initial skipped level, blank and repeated headings');
+    const block = initial.blocks.find(block => block.id === 'outline-note');
+    await request('outline-native', 'formatNative', { edit: { revision: initial.revision,
+      range: { location: block.range.location, length: 0 }, action: 'heading2' } });
+    await compare('native heading level change');
+    await request('outline-native', 'undo');
+    assert.deepEqual((await request('outline-native', 'projection')).outline, initial.outline);
+    await request('outline-native', 'redo');
+    // Receive the new structure before editing an unaffected prefix paragraph.
+    Y.applyUpdate(peer, decoded(await request('outline-native', 'export')));
+    const vector = Y.encodeStateVector(peer);
+    jsEdit(peer, { operation: 'insert', block: 'outline-prefix', offset: 0, text: '新的前言 𠮷 ' });
+    await request('outline-native', 'apply', { update: encoded(Y.encodeStateAsUpdate(peer, vector)) });
+    const shifted = await compare('peer prefix insertion shifts current navigation ranges');
+    assert(shifted.outline[0].range.location > initial.outline[0].range.location);
+    await open('outline-reopened', 90203, decoded(await request('outline-native', 'export')));
+    assert.deepEqual((await request('outline-reopened', 'projection')).outline, shifted.outline);
+    const oracleInput = `${logDirectory}/outline-comparison.json`;
+    writeFileSync(oracleInput, JSON.stringify(comparisons, null, 2) + '\n');
+    const oracle = JSON.parse(run('pnpm', ['exec', 'tsx', 'scripts/apple-outline-oracle.ts', oracleInput]).trim());
+    assert.equal(oracle.status, 'passed'); assert.equal(oracle.cases.length, 3);
+    peer.destroy();
+  }, { scope: 'actual renderer extractOutline/nestHeadings, stable IDs, five-level semantics, no synthesized missing levels, updated ranges, history and reopening' });
 
   await check('native formatting exchanges real marks and heading structure with Yjs', async () => {
     const peer = jsDoc(90101, null);

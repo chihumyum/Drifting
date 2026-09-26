@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var moveDownButton: NSButton!
     private var saveButton: NSButton!
     private var reopenButton: NSButton!
+    private var outlineButton: NSButton!
+    private var outlinePanel: NSPanel?
+    private var outlineController: BookOutlineViewController?
+    private var pendingReveal: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -111,7 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         currentTitle.setAccessibilityIdentifier("current-chapter")
         saveButton = button("保存", id: "save-document", action: #selector(saveDocument))
         reopenButton = button("重新打开", id: "reopen-document", action: #selector(reopenDocument))
-        let actions = NSStackView(views: [saveButton, reopenButton])
+        outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -236,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         moveDownButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex + 1 < chapters.count
         saveButton.isEnabled = ready && documentView != nil
         reopenButton.isEnabled = ready && documentView != nil
+        outlineButton.isEnabled = ready && selectedProject != nil
     }
 
     private func canLeaveDocument() -> Bool {
@@ -265,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     private func selectProject(_ project: WorkspaceProject) {
         guard canLeaveDocument() else { return }
+        closeOutline()
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -293,16 +300,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
-    private func openChapter(_ chapter: WorkspaceChapter, project: WorkspaceProject) {
+    private func openChapter(_ chapter: WorkspaceChapter, project: WorkspaceProject, revealBlockID: String? = nil) {
         guard canLeaveDocument() else { return }
         setLoading(true)
         workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
-            self?.receiveDocument(result, chapter: chapter, project: project, message: "正文自动保存")
+            self?.receiveDocument(result, chapter: chapter, project: project, message: "正文自动保存", revealBlockID: revealBlockID)
         }
     }
 
     private func receiveDocument(_ result: Result<LabCore, Error>, chapter: WorkspaceChapter,
-                                 project: WorkspaceProject, message: String) {
+                                 project: WorkspaceProject, message: String, revealBlockID: String? = nil) {
         switch result {
         case .success(let core):
             // The bridge has atomically selected the new owner. Detach the old
@@ -315,6 +322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             documentView = view
             currentChapter = chapter
             currentProject = project
+            pendingReveal = revealBlockID
             currentTitle.stringValue = "\(project.name) / \(chapter.title)"
             window.title = "\(chapter.title) — Drifting Native Lab"
             emptyEditor.isHidden = true
@@ -326,19 +334,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 view.topAnchor.constraint(equalTo: editorHost.topAnchor),
                 view.bottomAnchor.constraint(equalTo: editorHost.bottomAnchor),
             ])
-            view.onActivity = { [weak self] _ in self?.updateControls() }
+            view.onActivity = { [weak self] busy in self?.documentActivity(busy) }
+            updatingSelection = true
+            if let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
+                chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            }
+            updatingSelection = false
             setLoading(false)
             status.stringValue = message
+            if revealBlockID == nil { closeOutline() }
             view.binding.load()
         case .failure(let error):
             setLoading(false)
             status.stringValue = error.localizedDescription
+            outlineController?.model.showStatus(error.localizedDescription)
             updatingSelection = true
             if let currentChapter, let index = chapters.firstIndex(where: { $0.id == currentChapter.id }) {
                 chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             } else { chapterTable.deselectAll(nil) }
             updatingSelection = false
         }
+    }
+
+    private func documentActivity(_ busy: Bool) {
+        updateControls()
+        // Mounting can emit idle before the first load begins. Keep the target
+        // until the new owner has supplied and rendered an editable projection.
+        guard !busy, let documentView, documentView.binding.canEdit,
+              let projection = documentView.binding.store.projection,
+              let chapter = currentChapter else { return }
+        if outlineController?.model.projectID == currentProject?.id {
+            outlineController?.model.updateActive(chapterID: chapter.id, outline: projection.outline)
+        }
+        if let blockID = pendingReveal {
+            pendingReveal = nil
+            if documentView.reveal(blockId: blockID) { closeOutline() }
+            else { outlineController?.model.showStatus("标题已变化，请重新选择大纲位置。") }
+        }
+    }
+
+    @objc private func showOutline() {
+        guard canLeaveDocument(), let project = selectedProject else { return }
+        if let outlinePanel, outlinePanel.isVisible { outlinePanel.makeKeyAndOrderFront(nil); return }
+        closeOutline()
+        let model = WorkspaceOutlineModel(workspace: workspace, projectID: project.id)
+        if currentProject?.id == project.id, let chapter = currentChapter,
+           let projection = documentView?.binding.store.projection {
+            model.updateActive(chapterID: chapter.id, outline: projection.outline)
+        }
+        let controller = BookOutlineViewController(model: model)
+        let panel = BookOutlinePanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 570),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 整书大纲"
+        panel.minSize = NSSize(width: 300, height: 320)
+        panel.isReleasedWhenClosed = false
+        panel.contentViewController = controller
+        outlinePanel = panel; outlineController = controller
+        panel.onClose = { [weak self] in self?.outlinePanel = nil; self?.outlineController = nil }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onClose = { [weak self] in self?.closeOutline() }
+        controller.onNavigate = { [weak self] entry, blockID in
+            guard let self, self.canLeaveDocument() else { return }
+            if self.currentProject?.id == project.id, self.currentChapter?.id == entry.id {
+                if let blockID, self.documentView?.reveal(blockId: blockID) != true {
+                    model.showStatus("标题已变化，请重新选择大纲位置。")
+                } else { self.closeOutline(); self.window.makeKeyAndOrderFront(nil) }
+                return
+            }
+            self.openChapter(WorkspaceChapter(id: entry.id, title: entry.title), project: project, revealBlockID: blockID)
+        }
+        window.addChildWindow(panel, ordered: .above)
+        panel.center(); panel.makeKeyAndOrderFront(nil)
+        model.load()
+    }
+
+    private func closeOutline() {
+        let panel = outlinePanel
+        outlinePanel = nil; outlineController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
     private func askName(project: Bool, currentName: String? = nil, completion: @escaping (String) -> Void) {
@@ -375,6 +448,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.setLoading(false)
                 switch result {
                 case .success(let updated):
+                    self.closeOutline()
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     if self.currentProject?.id == updated.id { self.currentProject = updated }
@@ -404,6 +478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.setLoading(false)
                 switch result {
                 case .success(let updated):
+                    self.closeOutline()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
                     if self.currentChapter?.id == updated.id { self.currentChapter = updated }
                     self.updatingSelection = true
@@ -445,6 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self.setLoading(false)
             switch result {
             case .success(let chapters):
+                self.closeOutline()
                 self.chapters = chapters
                 self.updatingSelection = true
                 self.chapterTable.reloadData()
@@ -491,6 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.setLoading(false)
                 switch result {
                 case .success(let chapter):
+                    self.closeOutline()
                     self.chapters.append(chapter)
                     self.chapterEmpty.isHidden = true
                     self.updatingSelection = true
@@ -519,7 +596,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool { canLeaveDocument() }
-    func windowWillClose(_ notification: Notification) { documentView?.binding.detach() }
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        closeOutline()
+        documentView?.binding.detach()
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         canLeaveDocument() ? .terminateNow : .terminateCancel
     }

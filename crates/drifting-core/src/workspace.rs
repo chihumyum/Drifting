@@ -2,6 +2,8 @@
 //! canonical journal and reducer metadata commit together. Hosts supply IDs and
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
 mod journal;
+mod outline;
+pub use outline::WorkspaceOutlineRow;
 #[cfg(test)]
 mod tests;
 

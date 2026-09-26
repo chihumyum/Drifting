@@ -52,6 +52,11 @@ final class ProjectViewController: UITableViewController {
     private let status = UILabel()
     private let empty = UILabel()
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setToolbarHidden(true, animated: animated)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "项目"
@@ -158,6 +163,10 @@ final class ChaptersViewController: UITableViewController {
         super.init(style: .plain)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setToolbarHidden(false, animated: animated)
+    }
     override func viewDidLoad() {
         super.viewDidLoad()
         title = project.name
@@ -184,6 +193,9 @@ final class ChaptersViewController: UITableViewController {
         let back = UIBarButtonItem(title: "项目", style: .plain, target: self, action: #selector(backToProjects))
         back.accessibilityIdentifier = "back-to-projects"
         navigationItem.leftBarButtonItem = back
+        let outline = UIBarButtonItem(title: "整书大纲", style: .plain, target: self, action: #selector(showOutline))
+        outline.accessibilityIdentifier = "show-outline"
+        toolbarItems = [UIBarButtonItem(systemItem: .flexibleSpace), outline, UIBarButtonItem(systemItem: .flexibleSpace)]
         setLoading(true)
         status.text = "正在读取章节…"
         workspace.chapters(projectID: project.id) { [weak self] result in
@@ -203,6 +215,7 @@ final class ChaptersViewController: UITableViewController {
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = !value }
         navigationItem.leftBarButtonItem?.isEnabled = !value
         tableView.isUserInteractionEnabled = !value
+        toolbarItems?.forEach { $0.isEnabled = !value }
     }
     private func refreshList() {
         tableView.backgroundView = chapters.isEmpty ? empty : nil
@@ -223,7 +236,7 @@ final class ChaptersViewController: UITableViewController {
         guard !loading else { return }
         openChapter(chapters[indexPath.row])
     }
-    private func openChapter(_ chapter: WorkspaceChapter) {
+    private func openChapter(_ chapter: WorkspaceChapter, revealBlockID: String? = nil) {
         setLoading(true)
         workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
             guard let self else { return }
@@ -231,7 +244,7 @@ final class ChaptersViewController: UITableViewController {
             switch result {
             case .success(let core):
                 let editor = ChapterEditorViewController(workspace: self.workspace, core: core,
-                    project: self.project, chapter: chapter, chapters: self.chapters)
+                    project: self.project, chapter: chapter, chapters: self.chapters, revealBlockID: revealBlockID)
                 editor.onChapterRenamed = { [weak self] updated in
                     guard let self else { return }
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
@@ -246,6 +259,20 @@ final class ChaptersViewController: UITableViewController {
             case .failure(let error): self.status.text = error.localizedDescription
             }
         }
+    }
+    @objc private func showOutline() {
+        guard !loading else { return }
+        let model = WorkspaceOutlineModel(workspace: workspace, projectID: project.id)
+        let controller = BookOutlineViewController(model: model)
+        controller.canNavigate = { [weak self] in self?.loading == false }
+        controller.onNavigate = { [weak self, weak controller] entry, blockID in
+            guard let self, !self.loading else { return }
+            controller?.dismiss(animated: true) {
+                self.openChapter(WorkspaceChapter(id: entry.id, title: entry.title), revealBlockID: blockID)
+            }
+        }
+        present(UINavigationController(rootViewController: controller), animated: true)
+        model.load()
     }
     @objc private func createChapter() {
         guard !loading else { return }
@@ -306,16 +333,20 @@ final class ChapterEditorViewController: UIViewController {
     private let heading = UILabel()
     private let saveButton = UIButton(type: .system)
     private let reopenButton = UIButton(type: .system)
+    private let outlineButton = UIButton(type: .system)
+    private weak var outlineController: BookOutlineViewController?
+    private var pendingReveal: String?
     private var orderButton: UIBarButtonItem!
     private var loading = false
 
     init(workspace: LabWorkspaceCore, core: LabCore, project: WorkspaceProject,
-         chapter: WorkspaceChapter, chapters: [WorkspaceChapter]) {
+         chapter: WorkspaceChapter, chapters: [WorkspaceChapter], revealBlockID: String? = nil) {
         self.workspace = workspace
         self.core = core
         self.project = project
         self.chapter = chapter
         self.chapters = chapters
+        pendingReveal = revealBlockID
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -343,7 +374,10 @@ final class ChapterEditorViewController: UIViewController {
         reopenButton.setTitle("重新打开", for: .normal)
         reopenButton.accessibilityIdentifier = "reopen-document"
         reopenButton.addTarget(self, action: #selector(reopenDocument), for: .touchUpInside)
-        let actions = UIStackView(arrangedSubviews: [saveButton, reopenButton])
+        outlineButton.setTitle("整书大纲", for: .normal)
+        outlineButton.accessibilityIdentifier = "show-outline"
+        outlineButton.addTarget(self, action: #selector(showOutline), for: .touchUpInside)
+        let actions = UIStackView(arrangedSubviews: [saveButton, reopenButton, outlineButton])
         actions.distribution = .fillEqually
         status.text = "正文自动保存"
         status.numberOfLines = 0
@@ -369,6 +403,7 @@ final class ChapterEditorViewController: UIViewController {
         // Interactive pop bypasses the draft guard; chapter navigation uses the
         // explicit button until a cancellable interactive transition is owned.
         navigationController?.interactivePopGestureRecognizer?.isEnabled = false
+        navigationController?.setToolbarHidden(true, animated: animated)
     }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
@@ -382,6 +417,7 @@ final class ChapterEditorViewController: UIViewController {
         self.core = core
         let document = NativeDocumentView(core: core)
         documentView = document
+        document.isUserInteractionEnabled = !loading
         document.translatesAutoresizingMaskIntoConstraints = false
         editorHost.addSubview(document)
         NSLayoutConstraint.activate([
@@ -390,13 +426,14 @@ final class ChapterEditorViewController: UIViewController {
             document.topAnchor.constraint(equalTo: editorHost.topAnchor),
             document.bottomAnchor.constraint(equalTo: editorHost.bottomAnchor),
         ])
-        document.onActivity = { [weak self] _ in self?.updateControls() }
+        document.onActivity = { [weak self] busy in self?.documentActivity(busy) }
         document.binding.load()
     }
     private func updateControls() {
         let ready = !loading && documentView?.binding.hasPendingWork != true
         saveButton.isEnabled = ready
         reopenButton.isEnabled = ready
+        outlineButton.isEnabled = ready
         navigationItem.leftBarButtonItem?.isEnabled = ready
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = ready }
         orderButton.isEnabled = ready && chapters.count > 1
@@ -413,6 +450,64 @@ final class ChapterEditorViewController: UIViewController {
         loading = value
         documentView?.isUserInteractionEnabled = !value
         updateControls()
+    }
+    private func documentActivity(_ busy: Bool) {
+        updateControls()
+        guard !busy, let documentView, documentView.binding.canEdit,
+              let projection = documentView.binding.store.projection else { return }
+        outlineController?.model.updateActive(chapterID: chapter.id, outline: projection.outline)
+        if let blockID = pendingReveal {
+            pendingReveal = nil
+            if !documentView.reveal(blockId: blockID) { status.text = "标题已变化，请重新选择大纲位置。" }
+        }
+    }
+
+    @objc private func showOutline() {
+        guard canLeaveDocument() else { return }
+        view.endEditing(true)
+        guard canLeaveDocument() else { return }
+        let model = WorkspaceOutlineModel(workspace: workspace, projectID: project.id)
+        if let projection = documentView.binding.store.projection {
+            model.updateActive(chapterID: chapter.id, outline: projection.outline)
+        }
+        let controller = BookOutlineViewController(model: model)
+        outlineController = controller
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onNavigate = { [weak self, weak controller] entry, blockID in
+            guard let self, self.canLeaveDocument() else { return }
+            if entry.id == self.chapter.id {
+                controller?.dismiss(animated: true) {
+                    if let blockID, !self.documentView.reveal(blockId: blockID) {
+                        self.status.text = "标题已变化，请重新选择大纲位置。"
+                    }
+                    self.outlineController = nil
+                }
+                return
+            }
+            self.setLoading(true)
+            self.workspace.openChapter(projectID: self.project.id, chapterID: entry.id) { [weak self, weak controller] result in
+                guard let self else { return }
+                switch result {
+                case .success(let core):
+                    // The bridge has replaced the handle. Mount immediately;
+                    // dismissal animation must never re-enable the old owner.
+                    self.outlineController = nil
+                    self.chapter = WorkspaceChapter(id: entry.id, title: entry.title)
+                    self.heading.text = entry.title
+                    self.pendingReveal = blockID
+                    self.mountDocument(core)
+                    self.updateOrderMenu()
+                    self.setLoading(false)
+                    self.status.text = "正文自动保存"
+                    controller?.dismiss(animated: true)
+                case .failure(let error):
+                    self.setLoading(false)
+                    model.showStatus(error.localizedDescription)
+                }
+            }
+        }
+        present(UINavigationController(rootViewController: controller), animated: true)
+        model.load()
     }
     @objc private func saveDocument() {
         guard canLeaveDocument() else { return }

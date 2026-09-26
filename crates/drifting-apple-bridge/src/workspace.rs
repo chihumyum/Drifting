@@ -95,6 +95,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceChapters { .. }
+            | Request::WorkspaceOutline { .. }
+            | Request::WorkspaceChapterOutline { .. }
             | Request::WorkspaceCreateChapter { .. }
             | Request::WorkspaceOpenChapter { .. }
             | Request::WorkspaceReopenChapter { .. }
@@ -214,6 +216,54 @@ pub(super) fn dispatch(
                 .ok_or("Unknown or closed workspace")?;
             workspace.project(project_id)?;
             json!(WorkspaceStore::new(&workspace.gateway, CLIENT).list_chapters(project_id)?)
+        }
+        Request::WorkspaceOutline { handle, project_id } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT).outline(project_id)?)
+        }
+        Request::WorkspaceChapterOutline {
+            handle,
+            project_id,
+            chapter_id,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            workspace.project(project_id)?;
+            let scope = WorkspaceStore::new(&workspace.gateway, CLIENT)
+                .chapter_scope(project_id, chapter_id)?;
+            if let Some(current) = workspace
+                .document_handle
+                .and_then(|id| documents.get(&id))
+                .filter(|owner| {
+                    owner.owner.scope.project_id == *project_id
+                        && owner.owner.chapter_id == *chapter_id
+                })
+            {
+                if current.owner.scope != scope {
+                    return Err(
+                        "Selected chapter scope changed; reopen before reading its outline".into(),
+                    );
+                }
+                json!(current.document.native_projection()?.outline)
+            } else {
+                // This constructor validates scope and loads snapshot + tail
+                // in one read transaction. It neither saves nor compacts, and
+                // rejects tails requiring a durable repair instead of hiding
+                // them behind a stale cached outline. The active owner stays put.
+                let reader =
+                    DurableDocument::open_with_scope(workspace.gateway.clone(), CLIENT, scope)?;
+                if reader.has_pending() {
+                    return Err(
+                        "Chapter outline is unavailable while prose dependencies are unresolved"
+                            .into(),
+                    );
+                }
+                json!(reader.native_projection()?.outline)
+            }
         }
         Request::WorkspaceCreateChapter {
             handle,

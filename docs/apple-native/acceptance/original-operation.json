@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "9141b95051d895efd5791135f10b115827fae8f83128b4927eff866bb60ee022",
+    "fingerprint": "84ac767956a36ea4b1312e93ef9f9de1b1e9ef59249b6628665cbc94e0ed7d6b",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -84,11 +84,19 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "ced02b54c643735f1e974e9d563f269065639c1662f90719a788f4bbeff35e67"
+        "sha256": "9306336f6954bb1bdf0b3c6728242b4793dbad160345141602bb844588a16d3b"
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
         "sha256": "9630cd38543d9fa99aefeb12b0656ef1ff08221305d0dd25910663aeca48b003"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/outline.rs",
+        "sha256": "cd289809f55fe2d298470149688d707d54cd164a95c322f5a915509df957d610"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/outline/tests.rs",
+        "sha256": "1d045038a60246bb4a0a6d42b6f847bf9a3967189fdfba6631d18defdddb99fa"
       },
       {
         "path": "crates/drifting-core/src/workspace/rename_tests.rs",
@@ -196,7 +204,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "a1b2b5655af6186d1d0fee0bc4da14cbf4a246eefc28b6517fa818bbdb59ed66"
+        "sha256": "fe90455fb13a32e9e23dc0cf8db8dad370de31c2bc476198a0c581be1f2b085d"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -204,7 +212,7 @@
       },
       {
         "path": "crates/drifting-document/src/native.rs",
-        "sha256": "3bb77c7cae96e062365eec218f69da1f6738772445a7346c12b5c9f48471801e"
+        "sha256": "ca8a1864d4e22af078212349919b5e046d5bdf9b8f000c4b239b0eb0df9571bd"
       },
       {
         "path": "crates/drifting-document/src/native_command.rs",
@@ -213,6 +221,10 @@
       {
         "path": "crates/drifting-document/src/native_command_tests.rs",
         "sha256": "a459a4c24b292d6c885eb3eaec238ef88c08d6ff85fd424e057548359d2b2f73"
+      },
+      {
+        "path": "crates/drifting-document/src/outline_tests.rs",
+        "sha256": "6ebaf5c9da9920453bc93e7c649d300fef9edbc31af1891a11f999af30aef123"
       },
       {
         "path": "crates/drifting-document/src/relocation_alias.rs",
@@ -344,7 +356,7 @@
       },
       {
         "path": "scripts/apple-original-operation-acceptance.mjs",
-        "sha256": "a046e2f4b4b987d10b528e171e3fe0219bf6eb185c565f0cc5919d0ffb60c007"
+        "sha256": "c477ff73aa2d777689b8290ea14e45edbd970c1271e38b9076497406fd2ba240"
       },
       {
         "path": "scripts/apple-original-operation-oracle.ts",
@@ -736,7 +748,7 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "passed": 72,
+    "passed": 75,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -774,7 +786,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "9f503e10520abec4c4100c72d2e427cccb98262a376efa01a4ce2f3f16c96e44"
+    "logSha256": "9391a63dce3a3dd4f5d6ebba478db0ff60bd8088141d1a6d49219fc2e835228a"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

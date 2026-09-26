@@ -282,6 +282,12 @@ struct WorkspaceChapter: Decodable {
     let id: String
     let title: String
 }
+struct WorkspaceOutlineEntry: Decodable {
+    let kind: String
+    let id: String
+    let title: String
+    let actId: String?
+}
 
 private struct WorkspaceState: Decodable {
     let handle: UInt64
@@ -335,6 +341,17 @@ final class LabWorkspaceCore {
 
     func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
         perform(completion) { try self.request("workspaceChapters", fields: ["projectId": projectID]) }
+    }
+
+    func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
+        perform(completion) { try self.request("workspaceOutline", fields: ["projectId": projectID]) }
+    }
+
+    func chapterOutline(projectID: String, chapterID: String,
+                        completion: @escaping (Result<[NativeOutlineItem], Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceChapterOutline", fields: ["projectId": projectID, "chapterId": chapterID])
+        }
     }
 
     func createChapter(projectID: String, title: String,

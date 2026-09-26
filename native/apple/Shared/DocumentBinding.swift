@@ -9,7 +9,7 @@ enum NativeText {
     }
 }
 
-struct NativeRange: Decodable {
+struct NativeRange: Decodable, Equatable {
     var location: Int
     var length: Int
     var nsRange: NSRange { NSRange(location: location, length: length) }
@@ -86,6 +86,21 @@ struct NativeProjection: Decodable {
     let selections: [NativeSelection]
     let canUndo: Bool
     let canRedo: Bool
+    // Optimistic text projections deliberately omit navigation ranges. The
+    // outline panel keeps its last authoritative list while input is pending.
+    var outline: [NativeOutlineItem] = []
+}
+struct NativeOutlineItem: Decodable, Equatable {
+    let blockId: String
+    let level: Int
+    let text: String
+    let parentId: String?
+    let range: NativeRange
+
+    var label: String {
+        let kind = level == 1 ? "场" : (level == 2 ? "拍" : "注")
+        return "\(kind) · \(text)"
+    }
 }
 struct NativeSelection: Decodable {
     let viewId: String
