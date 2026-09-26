@@ -346,3 +346,6 @@ fn workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes(
     assert!(store.create_chapter(&c, chapter("b", "B", None)).is_err());
     assert!(store.list_projects("local-user").unwrap().is_empty());
 }
+
+#[path = "rename_tests.rs"]
+mod rename_tests;

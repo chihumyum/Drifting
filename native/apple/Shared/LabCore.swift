@@ -321,6 +321,11 @@ final class LabWorkspaceCore {
         perform(completion) { try self.request("workspaceCreateProject", fields: ["name": name]) }
     }
 
+    func renameProject(projectID: String, name: String,
+                       completion: @escaping (Result<WorkspaceProject, Error>) -> Void) {
+        rename("workspaceRenameProject", fields: ["projectId": projectID, "name": name], completion: completion)
+    }
+
     func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
         perform(completion) { try self.request("workspaceChapters", fields: ["projectId": projectID]) }
     }
@@ -330,6 +335,22 @@ final class LabWorkspaceCore {
         perform(completion) {
             try self.request("workspaceCreateChapter", fields: ["projectId": projectID, "title": title])
         }
+    }
+
+    func renameChapter(projectID: String, chapterID: String, title: String,
+                       completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
+        rename("workspaceRenameChapter", fields: ["projectId": projectID, "chapterId": chapterID, "title": title], completion: completion)
+    }
+
+    private func rename<Payload: Decodable>(_ operation: String, fields: [String: Any],
+                                            completion: @escaping (Result<Payload, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !switchingDocument, currentDocument?.hasPendingDocumentWork != true else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再重命名")))
+            return
+        }
+        // Metadata changes deliberately retain the current document and store.
+        perform(completion) { try self.request(operation, fields: fields) }
     }
 
     func openChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {

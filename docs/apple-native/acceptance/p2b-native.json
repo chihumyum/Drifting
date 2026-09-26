@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T08:40:59.611Z",
+  "generatedAt": "2026-09-26T09:00:58.258Z",
   "status": "passed",
   "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
   "source": {
-    "commit": "d983ec6f72531b8a6681bb4818ea5ac11d80c7e0",
+    "commit": "15e298bab0c1f0428641b1523ba0ee0e660bd336",
     "dirty": true,
-    "runtimeFingerprint": "66c24c6171ebc92a0e6b927de9bf982d91fca1edd1e897d14c90e7e82223b234"
+    "runtimeFingerprint": "c6cbf67f644c6531cb372e903d0a78f2e3eb54d021673e115b4dbbc701eafcf4"
   },
   "checks": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 66
+      "passed": 69
     },
     {
       "name": "prose-durability",
@@ -27,7 +27,7 @@
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 23
+      "passed": 25
     },
     {
       "name": "macos-build",
@@ -56,7 +56,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project/chapter creation, prose edit and history, save/reopen, two-chapter isolation and process restart",
+      "operation": "project/chapter creation and rename, prose edit and history retained after rename, save/reopen, two-chapter isolation and renamed metadata after process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",
@@ -84,7 +84,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project/chapter creation, prose edit and history, save/reopen, two-chapter isolation and process restart",
+      "operation": "project/chapter creation and rename, prose edit and history retained after rename, save/reopen, two-chapter isolation and renamed metadata after process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",

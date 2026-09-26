@@ -91,6 +91,8 @@ pub(super) fn dispatch(
         Request::WorkspaceOpen { .. }
             | Request::WorkspaceProjects { .. }
             | Request::WorkspaceCreateProject { .. }
+            | Request::WorkspaceRenameProject { .. }
+            | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceCreateChapter { .. }
             | Request::WorkspaceOpenChapter { .. }
@@ -156,6 +158,36 @@ pub(super) fn dispatch(
                 },
             )?;
             json!(created)
+        }
+        Request::WorkspaceRenameProject {
+            handle,
+            project_id,
+            name,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT)
+                .rename_project(&workspace.context(&project)?, name)?)
+        }
+        Request::WorkspaceRenameChapter {
+            handle,
+            project_id,
+            chapter_id,
+            title,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(
+                WorkspaceStore::new(&workspace.gateway, CLIENT).rename_chapter(
+                    &workspace.context(&project)?,
+                    chapter_id,
+                    title
+                )?
+            )
         }
         Request::WorkspaceChapters { handle, project_id } => {
             let workspace = workspaces

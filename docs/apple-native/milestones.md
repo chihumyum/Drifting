@@ -26,9 +26,9 @@ architecture. Existing correctness fixes and their evidence remain in place.
 | P2a | Headless Yjs/Yrs harness | Incremental, concurrent, reordered and duplicate updates converge without schema/metadata loss | Complete for declared headless scope, including redone-offset, sparse-replay and undo deletion-filter fixes; see source-matched generated evidence |
 | P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
-| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, atomic journals and first writing slice accepted; remaining domain commands open |
+| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation and first writing slice accepted; rename implemented with atomic field clocks and renderer comparison; remaining domain commands open |
 | P4 | Sync and Agent over native prose | Minimal in-process runtime, guarded writes/reviews, offline/reconnect/restart; accounts separately tested | Not started |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: project/chapter/editor creation and save/reopen slice accepted; outline, tabs/split, search and sync remain open |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: project/chapter creation, rename, editing and save/reopen slice accepted; outline, tabs/split, search and sync remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
 | P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Initial project/chapter/editor slice passes iPhone/iPad simulator workflows; auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
@@ -76,19 +76,26 @@ not personal paths, machine IDs, manuscripts, accounts or signing identities.
 
 ## Current functional slice and next batch
 
-The [local writing slice](workspace.md) is accepted for its declared scope:
-create projects and chapters, edit independent prose, local history, save, switch
-and cold reopen. Shared Rust commands write the real defaults, canonical journals
-and seed; AppKit/UIKit now expose those operations. Generated source, file-backed
-and native simulator evidence accompany the same change. The preceding editor
-foundation was committed as `d983ec6f`; completed functional batches continue to
-be committed after their checks, without pushing.
+The [local writing slice](workspace.md) covers project/chapter creation, independent
+prose, local history, save, switch and cold reopen, accepted in `15e298ba` after
+the editor foundation in `d983ec6f`. It now also implements project/chapter rename
+through shared Rust commands and native controls. Rename preserves the current
+document owner, prose and history while atomically updating names, canonical
+journals and authored field clocks. Shared-core workspace/full-library checks
+pass 8/69 cases, bridge checks pass 7/25, and the renderer comparison passes
+3 creation and 7 rename change sets with 4 matching field clocks. The two UI
+scenarios now cover rename, subsequent undo/redo and cold recovery of new names.
+Both iPhone and iPad pass those two scenarios and 13 hosted binding cases;
+macOS, simulator and unsigned device builds pass. Targeted rebuilt-Mac CUA
+confirms rename, retained history and disk reopen separately from desktop XCTest.
+Completed batches are committed after their checks, without pushing.
 
-Next implement shared project/chapter rename commands and their native controls.
-Preserve name rules, active scope, authored field clocks, transaction failure and
-cold-reopen behavior. Keep the next acceptance bounded to these operations.
-Outline, other domain commands, sync and Agent remain subsequent feature work.
-No performance measurement or extra historical migration matrix is a prerequisite.
+Next implement shared chapter reordering and its minimum desktop/mobile entry
+points. Preserve the five act/chapter/scene/beat/note levels and existing order
+semantics; keep acceptance bounded to order changes, transaction/journal effects
+and reload. Delete, the complete outline, other domain commands, sync and Agent
+remain subsequent feature work. No performance measurement or extra historical
+migration matrix is a prerequisite.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

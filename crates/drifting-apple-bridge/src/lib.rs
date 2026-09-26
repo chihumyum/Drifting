@@ -1,5 +1,6 @@
 //! Versioned Apple C ABI. The fixture lab remains separate from the minimal
-//! local workspace/project/chapter surface. Both reuse the shared prose owner.
+//! local workspace/project/chapter surface, including metadata changes. Both
+//! reuse the shared prose owner; metadata commands never replace the editor.
 mod workspace;
 #[cfg(test)]
 mod workspace_tests;
@@ -260,6 +261,20 @@ enum Request {
     WorkspaceCreateProject {
         handle: u64,
         name: String,
+    },
+    WorkspaceRenameProject {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        name: String,
+    },
+    WorkspaceRenameChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+        title: String,
     },
     WorkspaceChapters {
         handle: u64,
@@ -857,6 +872,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         Request::WorkspaceOpen { .. }
         | Request::WorkspaceProjects { .. }
         | Request::WorkspaceCreateProject { .. }
+        | Request::WorkspaceRenameProject { .. }
+        | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceCreateChapter { .. }
         | Request::WorkspaceOpenChapter { .. }

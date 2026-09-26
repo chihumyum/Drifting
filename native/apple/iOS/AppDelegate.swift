@@ -21,19 +21,24 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-private func requestName(from controller: UIViewController, project: Bool, completion: @escaping (String) -> Void) {
-    let alert = UIAlertController(title: project ? "新建项目" : "新建章节",
+private func requestName(from controller: UIViewController, project: Bool, currentName: String? = nil,
+                         completion: @escaping (String) -> Void) {
+    let renaming = currentName != nil
+    let kind = project ? "project" : "chapter"
+    let title = renaming ? (project ? "重命名项目" : "重命名章节") : (project ? "新建项目" : "新建章节")
+    let alert = UIAlertController(title: title,
         message: project ? "给你的写作项目起个名字。" : "输入章节标题。", preferredStyle: .alert)
     alert.addTextField { field in
         field.placeholder = project ? "项目名称" : "章节标题"
-        field.accessibilityIdentifier = project ? "new-project-name" : "new-chapter-name"
+        field.text = currentName
+        field.accessibilityIdentifier = "\(renaming ? "rename" : "new")-\(kind)-name"
         field.clearButtonMode = .whileEditing
     }
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    let create = UIAlertAction(title: "创建", style: .default) { _ in
+    let create = UIAlertAction(title: renaming ? "保存" : "创建", style: .default) { _ in
         completion((alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     }
-    create.accessibilityIdentifier = project ? "confirm-create-project" : "confirm-create-chapter"
+    create.accessibilityIdentifier = "confirm-\(renaming ? "rename" : "create")-\(kind)"
     alert.addAction(create)
     controller.present(alert, animated: true)
 }
@@ -108,7 +113,13 @@ final class ProjectViewController: UITableViewController {
         showProject(projects[indexPath.row])
     }
     private func showProject(_ project: WorkspaceProject) {
-        navigationController?.pushViewController(ChaptersViewController(workspace: workspace, project: project), animated: true)
+        let chapters = ChaptersViewController(workspace: workspace, project: project)
+        chapters.onProjectRenamed = { [weak self] updated in
+            guard let self else { return }
+            if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
+            self.refreshList()
+        }
+        navigationController?.pushViewController(chapters, animated: true)
     }
     @objc private func createProject() {
         guard !loading else { return }
@@ -134,7 +145,8 @@ final class ProjectViewController: UITableViewController {
 
 final class ChaptersViewController: UITableViewController {
     private let workspace: LabWorkspaceCore
-    private let project: WorkspaceProject
+    private var project: WorkspaceProject
+    var onProjectRenamed: ((WorkspaceProject) -> Void)?
     private var chapters: [WorkspaceChapter] = []
     private var loading = false
     private let status = UILabel()
@@ -166,7 +178,9 @@ final class ChaptersViewController: UITableViewController {
         empty.accessibilityIdentifier = "chapter-empty"
         let create = UIBarButtonItem(title: "新建章节", style: .plain, target: self, action: #selector(createChapter))
         create.accessibilityIdentifier = "create-chapter"
-        navigationItem.rightBarButtonItem = create
+        let rename = UIBarButtonItem(title: "重命名", style: .plain, target: self, action: #selector(renameProject))
+        rename.accessibilityIdentifier = "rename-project"
+        navigationItem.rightBarButtonItems = [create, rename]
         let back = UIBarButtonItem(title: "项目", style: .plain, target: self, action: #selector(backToProjects))
         back.accessibilityIdentifier = "back-to-projects"
         navigationItem.leftBarButtonItem = back
@@ -186,7 +200,7 @@ final class ChaptersViewController: UITableViewController {
     }
     private func setLoading(_ value: Bool) {
         loading = value
-        navigationItem.rightBarButtonItem?.isEnabled = !value
+        navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = !value }
         navigationItem.leftBarButtonItem?.isEnabled = !value
         tableView.isUserInteractionEnabled = !value
     }
@@ -217,6 +231,11 @@ final class ChaptersViewController: UITableViewController {
             switch result {
             case .success(let core):
                 let editor = ChapterEditorViewController(workspace: self.workspace, core: core, project: self.project, chapter: chapter)
+                editor.onChapterRenamed = { [weak self] updated in
+                    guard let self else { return }
+                    if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
+                    self.refreshList()
+                }
                 self.navigationController?.pushViewController(editor, animated: true)
             case .failure(let error): self.status.text = error.localizedDescription
             }
@@ -241,6 +260,26 @@ final class ChaptersViewController: UITableViewController {
             }
         }
     }
+    @objc private func renameProject() {
+        guard !loading else { return }
+        requestName(from: self, project: true, currentName: project.name) { [weak self] name in
+            guard let self, !self.loading else { return }
+            guard !name.isEmpty else { self.status.text = "名称不能为空，请重新输入。"; return }
+            self.setLoading(true)
+            self.workspace.renameProject(projectID: self.project.id, name: name) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let project):
+                    self.project = project
+                    self.title = project.name
+                    self.onProjectRenamed?(project)
+                    self.status.text = "项目名称已保存"
+                case .failure(let error): self.status.text = error.localizedDescription
+                }
+            }
+        }
+    }
     @objc private func backToProjects() {
         guard !loading else { return }
         navigationController?.popViewController(animated: true)
@@ -251,10 +290,12 @@ final class ChapterEditorViewController: UIViewController {
     private let workspace: LabWorkspaceCore
     private var core: LabCore
     private let project: WorkspaceProject
-    private let chapter: WorkspaceChapter
+    private var chapter: WorkspaceChapter
+    var onChapterRenamed: ((WorkspaceChapter) -> Void)?
     private var documentView: NativeDocumentView!
     private let editorHost = UIView()
     private let status = UILabel()
+    private let heading = UILabel()
     private let saveButton = UIButton(type: .system)
     private let reopenButton = UIButton(type: .system)
     private var loading = false
@@ -274,7 +315,9 @@ final class ChapterEditorViewController: UIViewController {
         let back = UIBarButtonItem(title: "章节", style: .plain, target: self, action: #selector(backToChapters))
         back.accessibilityIdentifier = "back-to-chapters"
         navigationItem.leftBarButtonItem = back
-        let heading = UILabel()
+        let rename = UIBarButtonItem(title: "重命名", style: .plain, target: self, action: #selector(renameChapter))
+        rename.accessibilityIdentifier = "rename-chapter"
+        navigationItem.rightBarButtonItem = rename
         heading.text = chapter.title
         heading.font = .preferredFont(forTextStyle: .title2)
         heading.adjustsFontForContentSizeCategory = true
@@ -341,6 +384,7 @@ final class ChapterEditorViewController: UIViewController {
         saveButton.isEnabled = ready
         reopenButton.isEnabled = ready
         navigationItem.leftBarButtonItem?.isEnabled = ready
+        navigationItem.rightBarButtonItem?.isEnabled = ready
     }
     private func canLeaveDocument() -> Bool {
         guard !loading else { return false }
@@ -360,6 +404,26 @@ final class ChapterEditorViewController: UIViewController {
         view.endEditing(true)
         guard canLeaveDocument() else { return }
         documentView.binding.retrySave()
+    }
+    @objc private func renameChapter() {
+        guard canLeaveDocument() else { return }
+        requestName(from: self, project: false, currentName: chapter.title) { [weak self] title in
+            guard let self, self.canLeaveDocument() else { return }
+            guard !title.isEmpty else { self.status.text = "标题不能为空，请重新输入。"; return }
+            self.setLoading(true)
+            self.workspace.renameChapter(projectID: self.project.id, chapterID: self.chapter.id, title: title) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let chapter):
+                    self.chapter = chapter
+                    self.heading.text = chapter.title
+                    self.onChapterRenamed?(chapter)
+                    self.status.text = "章节标题已保存"
+                case .failure(let error): self.status.text = error.localizedDescription
+                }
+            }
+        }
     }
     @objc private func reopenDocument() {
         guard canLeaveDocument() else { return }

@@ -42,6 +42,25 @@ final class ProjectPersistenceUITests: XCTestCase {
         saved(app)
     }
 
+    private func rename(_ app: XCUIApplication, project: Bool, from oldName: String, to name: String) {
+        let kind = project ? "project" : "chapter"
+        press(app.buttons["rename-" + kind])
+        let field = app.textFields["rename-" + kind + "-name"]
+        press(field)
+        XCTAssertEqual(field.value as? String, oldName)
+        #if os(macOS)
+        field.typeKey("a", modifierFlags: .command)
+        #else
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count))
+        #endif
+        field.typeText(name)
+        press(app.buttons.matching(identifier: "confirm-rename-" + kind).firstMatch)
+        let status = project ? "项目名称已保存" : "章节标题已保存"
+        expectation(for: NSPredicate(format: "label == %@ OR value == %@", status, status),
+                    evaluatedWith: app.staticTexts["workspace-status"])
+        waitForExpectations(timeout: 15)
+    }
+
     private func currentChapter(_ app: XCUIApplication, title: String) {
         expectation(for: NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", title, title),
                     evaluatedWith: app.staticTexts["current-chapter"])
@@ -70,7 +89,10 @@ final class ProjectPersistenceUITests: XCTestCase {
         app.launch()
         let name = "Workspace " + UUID().uuidString.prefix(8)
         let chapter = "First chapter"
+        let renamedProject = name + " renamed"
+        let renamedChapter = "Renamed chapter"
         createProject(app, name: name)
+        rename(app, project: true, from: name, to: renamedProject)
         createChapter(app, title: chapter)
         let prose = app.textViews["document-text"]
         let before = try XCTUnwrap(prose.value as? String)
@@ -80,6 +102,9 @@ final class ProjectPersistenceUITests: XCTestCase {
         let after = try XCTUnwrap(prose.value as? String)
         XCTAssertTrue(after.contains("Native writing"))
         XCTAssertNotEqual(after, before)
+        rename(app, project: false, from: chapter, to: renamedChapter)
+        currentChapter(app, title: renamedChapter)
+        equalText(app, after)
         press(app.buttons["undo-prose"]); saved(app)
         let undone = try XCTUnwrap(prose.value as? String)
         XCTAssertNotEqual(undone, after)
@@ -93,9 +118,9 @@ final class ProjectPersistenceUITests: XCTestCase {
         saved(app); equalText(app, after)
         app.terminate()
         app.launch()
-        selectRow(app, title: name)
-        selectRow(app, title: chapter)
-        currentChapter(app, title: chapter)
+        selectRow(app, title: renamedProject)
+        selectRow(app, title: renamedChapter)
+        currentChapter(app, title: renamedChapter)
         saved(app); equalText(app, after)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Native writing workflow after process restart"

@@ -34,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private let emptyEditor = NSTextField(wrappingLabelWithString: "新建或选择一个章节，开始写作。\n正文会自动保存。")
     private var createProjectButton: NSButton!
     private var createChapterButton: NSButton!
+    private var renameProjectButton: NSButton!
+    private var renameChapterButton: NSButton!
     private var saveButton: NSButton!
     private var reopenButton: NSButton!
 
@@ -78,10 +80,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func buildWorkspace() {
         createProjectButton = button("新建项目", id: "create-project", action: #selector(createProject))
         createChapterButton = button("新建章节", id: "create-chapter", action: #selector(createChapter))
+        renameProjectButton = button("重命名", id: "rename-project", action: #selector(renameProject))
+        renameChapterButton = button("重命名", id: "rename-chapter", action: #selector(renameChapter))
+        let projectActions = NSStackView(views: [createProjectButton, renameProjectButton])
+        let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
         let projectScroll = table(projectTable, id: "project-list")
         let chapterScroll = table(chapterTable, id: "chapter-list")
-        let sidebar = NSStackView(views: [heading("项目"), createProjectButton, projectScroll, projectEmpty,
-            heading("章节"), createChapterButton, chapterScroll, chapterEmpty])
+        let sidebar = NSStackView(views: [heading("项目"), projectActions, projectScroll, projectEmpty,
+            heading("章节"), chapterActions, chapterScroll, chapterEmpty])
         sidebar.orientation = .vertical
         sidebar.alignment = .leading
         sidebar.spacing = 10
@@ -213,6 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let ready = !loading && documentView?.binding.hasPendingWork != true
         createProjectButton.isEnabled = ready
         createChapterButton.isEnabled = ready && selectedProject != nil
+        renameProjectButton.isEnabled = ready && selectedProject != nil
+        renameChapterButton.isEnabled = ready && chapters.indices.contains(chapterTable.selectedRow)
         saveButton.isEnabled = ready && documentView != nil
         reopenButton.isEnabled = ready && documentView != nil
     }
@@ -320,25 +328,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
-    private func askName(project: Bool, completion: @escaping (String) -> Void) {
+    private func askName(project: Bool, currentName: String? = nil, completion: @escaping (String) -> Void) {
         guard canLeaveDocument() else { return }
         let alert = NSAlert()
-        alert.messageText = project ? "新建项目" : "新建章节"
+        let renaming = currentName != nil
+        let kind = project ? "project" : "chapter"
+        alert.messageText = renaming ? (project ? "重命名项目" : "重命名章节") : (project ? "新建项目" : "新建章节")
         alert.informativeText = project ? "给你的写作项目起个名字。" : "输入章节标题。"
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 28))
+        field.stringValue = currentName ?? ""
         field.placeholderString = project ? "项目名称" : "章节标题"
-        field.setAccessibilityIdentifier(project ? "new-project-name" : "new-chapter-name")
+        field.setAccessibilityIdentifier("\(renaming ? "rename" : "new")-\(kind)-name")
         alert.accessoryView = field
-        let confirm = alert.addButton(withTitle: "创建")
-        confirm.setAccessibilityIdentifier(project ? "confirm-create-project" : "confirm-create-chapter")
+        let confirm = alert.addButton(withTitle: renaming ? "保存" : "创建")
+        confirm.setAccessibilityIdentifier("confirm-\(renaming ? "rename" : "create")-\(kind)")
         alert.addButton(withTitle: "取消")
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { self.status.stringValue = "名称不能为空，请重新创建。"; return }
+            guard !name.isEmpty else { self.status.stringValue = "名称不能为空，请重新输入。"; return }
             completion(name)
         }
         alert.window.makeFirstResponder(field)
+    }
+
+    @objc private func renameProject() {
+        guard let project = selectedProject else { return }
+        askName(project: true, currentName: project.name) { [weak self] name in
+            guard let self, self.canLeaveDocument() else { return }
+            self.setLoading(true)
+            self.workspace.renameProject(projectID: project.id, name: name) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let updated):
+                    if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
+                    self.selectedProject = updated
+                    if self.currentProject?.id == updated.id { self.currentProject = updated }
+                    self.updatingSelection = true
+                    self.projectTable.reloadData()
+                    if let index = self.projects.firstIndex(where: { $0.id == updated.id }) {
+                        self.projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    }
+                    self.updatingSelection = false
+                    self.updateControls()
+                    self.updateCurrentTitle()
+                    self.status.stringValue = "项目名称已保存"
+                case .failure(let error): self.status.stringValue = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    @objc private func renameChapter() {
+        guard let project = selectedProject, chapters.indices.contains(chapterTable.selectedRow) else { return }
+        let chapter = chapters[chapterTable.selectedRow]
+        askName(project: false, currentName: chapter.title) { [weak self] title in
+            guard let self, self.canLeaveDocument() else { return }
+            self.setLoading(true)
+            self.workspace.renameChapter(projectID: project.id, chapterID: chapter.id, title: title) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let updated):
+                    if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
+                    if self.currentChapter?.id == updated.id { self.currentChapter = updated }
+                    self.updatingSelection = true
+                    self.chapterTable.reloadData()
+                    if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) {
+                        self.chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    }
+                    self.updatingSelection = false
+                    self.updateControls()
+                    self.updateCurrentTitle()
+                    self.status.stringValue = "章节标题已保存"
+                case .failure(let error): self.status.stringValue = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func updateCurrentTitle() {
+        guard let project = currentProject, let chapter = currentChapter else { return }
+        currentTitle.stringValue = "\(project.name) / \(chapter.title)"
+        window.title = "\(chapter.title) — Drifting Native Lab"
     }
 
     @objc private func createProject() {

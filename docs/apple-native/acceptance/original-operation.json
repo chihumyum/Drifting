@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "133b325d848cac6cb29e8ff3816c969fb7dc57f765ca5443005a7a5e56c19a4b",
+    "fingerprint": "ac16f377d760ab794dd7e8b687fdd15ef21eb7e94811bebd1fd446e7e6fc0280",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -84,15 +84,19 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "b2adcb0839dd444b7bc3b561499c7a5cdb61cd078d42f8bc769127c29872d3f2"
+        "sha256": "813a40e57e55129731ae1159728496dbe130a66d276f5ac03f61aa3ff0ab11d9"
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "fd5ae83b0e08a34a0dfa64f2063c5cc4bdd35048be481089af068a90760672d2"
+        "sha256": "9630cd38543d9fa99aefeb12b0656ef1ff08221305d0dd25910663aeca48b003"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/rename_tests.rs",
+        "sha256": "e06250cecd6b55777e9e22a5afc144ed15feb3d2f5239d0bb2ac38dd23959121"
       },
       {
         "path": "crates/drifting-core/src/workspace/tests.rs",
-        "sha256": "4d3d382d7828751f58f9a9d6f74a760283385267205413ed1c54c49ab2e810ae"
+        "sha256": "61a0c0efbc0a4e7fa7fe8d01714465a692739fc4b8c1d7910f9129f06b873746"
       },
       {
         "path": "crates/drifting-core/tests/fixtures/event-order.json",
@@ -328,7 +332,7 @@
       },
       {
         "path": "scripts/apple-original-operation-acceptance.mjs",
-        "sha256": "aa89192041cff24c0bbfd6f23edb61248cc29c3eb3947aec2a3bc5ea4fac142d"
+        "sha256": "d2e4164e7a973ef222bb42dc93bdb3e8ffd6235b382c83bd501c8d9c2d86a2f4"
       },
       {
         "path": "scripts/apple-original-operation-oracle.ts",
@@ -720,7 +724,7 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "passed": 66,
+    "passed": 69,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -758,7 +762,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "a545cc5706cf91b94b6fd7cec25ce86e7ec1734e787cc206a519e4e124c13bff"
+    "logSha256": "903a951928bd0c46377d2fb920a9133fb6fc0fca1f114fa7b663cd4744196543"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

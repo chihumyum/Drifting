@@ -1,4 +1,4 @@
-//! Shared project/chapter creation for native hosts. Domain rows, initial prose,
+//! Shared project/chapter creation and naming for native hosts. Domain rows, initial prose,
 //! canonical journal and reducer metadata commit together. Hosts supply IDs and
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
 mod journal;
@@ -353,22 +353,7 @@ impl<'a> WorkspaceStore<'a> {
         );
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
-            let existing = self.query(
-                Some(tx),
-                "SELECT title FROM book_node WHERE project_id=? AND deleted_at IS NULL",
-                vec![text(&context.project_id)],
-            )?;
-            let taken: HashSet<String> = existing.iter()
-                .map(|row| string(row, 0).map(|title| js_trim(&title).to_lowercase()))
-                .collect::<Result<_, _>>()?;
-            let base = js_trim(&input.title);
-            let base = if base.is_empty() { "Untitled" } else { base };
-            let mut title = base.to_string();
-            let mut suffix = 2_u64;
-            while taken.contains(&title.to_lowercase()) {
-                title = format!("{base} {suffix}");
-                suffix += 1;
-            }
+            let title = self.unique_chapter_title(tx, &context.project_id, &input.title, None)?;
             let book_order = match input.book_order {
                 Some(value) => value,
                 None => self.chapters(Some(tx), &context.project_id)?.iter()
@@ -432,9 +417,168 @@ impl<'a> WorkspaceStore<'a> {
         })
     }
 
-    fn guard_project(&self, tx: u64, c: &AuthoredProseContext) -> Result<(), String> {
+    /// Rename the current live project. An identical name is a durable no-op.
+    pub fn rename_project(
+        &self,
+        context: &AuthoredProseContext,
+        name: &str,
+    ) -> Result<WorkspaceProject, String> {
+        validate_context(context)?;
+        if js_trim(name).is_empty() {
+            return Err("Project name must not be empty".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            let incarnation = self.guard_project(tx, context)?;
+            let rows = self.query(
+                Some(tx),
+                r#"
+                SELECT p.id,p.name,p.summary,p.user_id,p.created_at,p.updated_at,
+                       g.project_sync_id,g.sync_generation_id
+                FROM project p JOIN sync_generation g ON g.project_id=p.id
+                WHERE p.id=? AND g.sync_generation_id=?
+                "#,
+                vec![text(&context.project_id), text(&context.sync_generation_id)],
+            )?;
+            let mut project = project_from_row(rows.first().ok_or("Project does not exist")?)?;
+            if project.name == name {
+                return Ok(project);
+            }
+            self.execute(
+                tx,
+                "UPDATE project SET name=?,updated_at=? WHERE id=?",
+                vec![
+                    text(name),
+                    text(&context.now_iso),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::field(
+                    "project",
+                    &context.project_id,
+                    incarnation,
+                    "name",
+                    json!(name),
+                )],
+                None,
+            )?;
+            project.name = name.into();
+            project.updated_at = context.now_iso.clone();
+            Ok(project)
+        })
+    }
+
+    /// Chapter names share the renderer's project-wide, case-insensitive
+    /// namespace with drift nodes; the renamed chapter itself is excluded.
+    pub fn rename_chapter(
+        &self,
+        context: &AuthoredProseContext,
+        chapter_id: &str,
+        requested_title: &str,
+    ) -> Result<WorkspaceChapter, String> {
+        validate_context(context)?;
+        if !opaque(chapter_id) {
+            return Err("Invalid chapter identity".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let mut chapter = self
+                .chapters(Some(tx), &context.project_id)?
+                .into_iter()
+                .find(|chapter| chapter.id == chapter_id)
+                .ok_or("Chapter is not available in this project")?;
+            let incarnation = AuthoredProseJournal::new(self.gateway, self.client)
+                .current_incarnation(
+                    tx,
+                    &context.project_id,
+                    &context.project_sync_id,
+                    &context.sync_generation_id,
+                    &chapter.document_id,
+                )?;
+            let title = self.unique_chapter_title(
+                tx,
+                &context.project_id,
+                requested_title,
+                Some(chapter_id),
+            )?;
+            if chapter.title == title {
+                return Ok(chapter);
+            }
+            // Match nextNodeUpdatedAt: a real rename always advances the node's
+            // optimistic concurrency timestamp even within the same millisecond.
+            self.execute(
+                tx,
+                r#"
+                UPDATE book_node SET title=?,updated_at=CASE
+                    WHEN julianday(updated_at) IS NULL OR julianday(?)>julianday(updated_at) THEN ?
+                    ELSE strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds')
+                END WHERE id=? AND project_id=?
+                "#,
+                vec![
+                    text(&title),
+                    text(&context.now_iso),
+                    text(&context.now_iso),
+                    text(chapter_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::field(
+                    "node",
+                    chapter_id,
+                    incarnation,
+                    "title",
+                    json!(title),
+                )],
+                None,
+            )?;
+            let rows = self.query(
+                Some(tx),
+                "SELECT updated_at FROM book_node WHERE id=?",
+                vec![text(chapter_id)],
+            )?;
+            chapter.title = title;
+            chapter.updated_at = string(rows.first().ok_or("Chapter disappeared")?, 0)?;
+            Ok(chapter)
+        })
+    }
+
+    fn unique_chapter_title(
+        &self,
+        tx: u64,
+        project_id: &str,
+        requested: &str,
+        exclude_id: Option<&str>,
+    ) -> Result<String, String> {
+        let rows = self.query(
+            Some(tx),
+            "SELECT id,title FROM book_node WHERE project_id=? AND deleted_at IS NULL",
+            vec![text(project_id)],
+        )?;
+        let mut taken = HashSet::new();
+        for row in rows {
+            if exclude_id != Some(string(&row, 0)?.as_str()) {
+                taken.insert(js_trim(&string(&row, 1)?).to_lowercase());
+            }
+        }
+        let base = js_trim(requested);
+        let base = if base.is_empty() { "Untitled" } else { base };
+        let mut title = base.to_string();
+        let mut suffix = 2_u64;
+        while taken.contains(&title.to_lowercase()) {
+            title = format!("{base} {suffix}");
+            suffix += 1;
+        }
+        Ok(title)
+    }
+
+    fn guard_project(&self, tx: u64, c: &AuthoredProseContext) -> Result<u64, String> {
         let found=self.query(Some(tx),r#"
-            SELECT 1 FROM project p JOIN sync_generation g ON g.project_id=p.id
+            SELECT COALESCE(l.incarnation,0) FROM project p JOIN sync_generation g ON g.project_id=p.id
             LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
                 AND l.entity_kind='project' AND l.entity_id=p.id
             WHERE p.id=? AND g.sync_generation_id=? AND g.project_sync_id=? AND g.status='active'
@@ -444,7 +588,14 @@ impl<'a> WorkspaceStore<'a> {
         if found.len() != 1 {
             return Err("Project and active generation identity do not match".into());
         }
-        Ok(())
+        match &found[0][0] {
+            V::Integer(value) => value
+                .parse::<u64>()
+                .ok()
+                .filter(|n| *n <= MAX_SAFE)
+                .ok_or_else(|| "Invalid project incarnation".into()),
+            _ => Err("Invalid project incarnation".into()),
+        }
     }
 }
 fn project_from_row(r: &Vec<V>) -> Result<WorkspaceProject, String> {

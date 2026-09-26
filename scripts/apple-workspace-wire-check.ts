@@ -9,7 +9,7 @@ import { defaultProjectKvList } from '../src/renderer/domain/kv';
 import { ProductFileBackedSqliteGateway } from '../src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import {
   BookNodeTable, EntityKvEntryTable, EntityRelationTypeTable, NodeStorylineLinkTable, ProjectTable,
-  SyncGenerationTable, yjsUpdates,
+  SyncFieldClockTable, SyncGenerationTable, yjsUpdates,
 } from '../src/renderer/schema/drizzle';
 import { decodeSyncChangeSetV1, encodeSyncChangeSetV1 } from '../src/renderer/sync/protocol/change-set';
 import { parseYjsUpdatePayload } from '../src/renderer/sync/protocol/yjs-update-payload';
@@ -30,13 +30,14 @@ interface WorkspaceWire {
   project: { id: string; name: string };
   chapters: Chapter[];
   changes: { encodedBase64: string; mutationCount: number }[];
+  fieldClocks?: Record<string, string | number>[];
 }
 
-async function main() {
-  const fixture = JSON.parse(readFileSync(input, 'utf8')) as WorkspaceWire;
+async function verify(fixturePath: string, scenario: 'creation' | 'rename') {
+  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as WorkspaceWire;
   assert.equal(fixture.schemaVersion, 1);
   assert.equal(fixture.chapters.length, 2);
-  assert.equal(fixture.changes.length, 3);
+  assert.equal(fixture.changes.length, scenario === 'creation' ? 3 : 7);
   const changes = await Promise.all(fixture.changes.map(async row => {
     const bytes = new Uint8Array(Buffer.from(row.encodedBase64, 'base64'));
     const decoded = await decodeSyncChangeSetV1(bytes);
@@ -48,7 +49,7 @@ async function main() {
   }));
   const first = changes[0]!;
   const nowIso = '2026-09-26T00:00:00.000Z';
-  const gateway = new ProductFileBackedSqliteGateway(path.join(path.dirname(output), 'workspace-receiver.db'));
+  const gateway = new ProductFileBackedSqliteGateway(path.join(path.dirname(output), `workspace-${scenario}-receiver.db`));
   const db = gateway.client();
   try {
     // The remote import establishes a local project/catalog identity before
@@ -64,7 +65,7 @@ async function main() {
         kernel: productionSyncDomainMaterializationKernel,
       }));
       assert.equal(result.status, 'applied');
-      assert.deepEqual(result.conflicts, [], 'Creation journal must materialize without suppressed facts');
+      assert.deepEqual(result.conflicts, [], 'Workspace journal must materialize without suppressed facts');
       for (const mutation of changeSet.mutations.filter(mutation => mutation.action === 'yjs.update')) {
         const doc = new Y.Doc();
         try {
@@ -99,11 +100,33 @@ async function main() {
       const updates = await db.select().from(yjsUpdates).where(eq(yjsUpdates.docId, expected.documentId));
       assert.equal(updates.length, 1);
     }
-    writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, status: 'passed', cases, projectDefaults: facts.length, chapters: chapters.length, scope: 'Actual Rust creation journals decoded and materialized by production renderer on a fresh file-backed database; no live synchronization or UI claim' }, null, 2)}\n`);
-    console.log(JSON.stringify({ status: 'passed', changes: cases.length, projectDefaults: facts.length, chapters: chapters.length }));
+    let fieldClocks = 0;
+    if (scenario === 'rename') {
+      assert(fixture.fieldClocks, 'Rename fixture must export actual SQLite field clocks');
+      const actual = (await db.select().from(SyncFieldClockTable)).map(row => ({
+        sync_generation_id: row.syncGenerationId, target_kind: row.targetKind, target_id: row.targetId,
+        incarnation: row.incarnation, field_key: row.fieldKey, hlc_wall_ms: row.hlcWallMs,
+        hlc_counter: row.hlcCounter, writer_id: row.writerId, writer_epoch: row.writerEpoch,
+        device_seq: row.deviceSeq, change_set_id: row.changeSetId, mutation_index: row.mutationIndex,
+      }));
+      const key = (row: Record<string, string | number>) => JSON.stringify([row.target_kind, row.target_id, row.incarnation, row.field_key]);
+      const order = (a: Record<string, string | number>, b: Record<string, string | number>) => key(a).localeCompare(key(b));
+      assert.deepEqual(actual.sort(order), fixture.fieldClocks.sort(order), 'Rust and production renderer field clocks differ');
+      fieldClocks = actual.length;
+      assert.equal(fieldClocks, 4);
+    }
+    return { status: 'passed', cases, projectDefaults: facts.length, chapters: chapters.length, fieldClocks };
   } finally {
     invalidateSqliteReducerStateCache();
     await gateway.close();
   }
+}
+async function main() {
+  const creation = await verify(input, 'creation');
+  const rename = await verify(path.join(path.dirname(input), 'workspace-rename-wire.json'), 'rename');
+  writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, ...creation, rename,
+    scope: 'Actual Rust creation and repeated rename journals decoded and materialized by production renderer on fresh file-backed databases, including exact field clocks; no live synchronization or UI claim',
+  }, null, 2)}\n`);
+  console.log(JSON.stringify({ status: 'passed', creationChanges: creation.cases.length, renameChanges: rename.cases.length, renameFieldClocks: rename.fieldClocks }));
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

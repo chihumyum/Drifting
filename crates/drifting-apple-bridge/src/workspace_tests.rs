@@ -361,3 +361,164 @@ fn workspace_comment_anchors_use_selected_project_and_chapter_scope() {
     );
     fixture.close();
 }
+
+#[test]
+fn workspace_rename_preserves_selected_document_history_and_cold_metadata() {
+    let mut fixture = Fixture::new();
+    let opened = fixture.open(0);
+    let handle = opened["handle"].as_u64().unwrap();
+    let edited = insert(handle, "已有正文🙂");
+    success(
+        json!({"operation":"documentSelect","handle":handle,"selection":{
+            "viewId":"selected-editor","epoch":1,"revision":edited["projection"]["revision"],
+            "range":{"location":4,"length":2}
+        }}),
+    );
+    let before = state(handle);
+    let exported = success(json!({"operation":"documentExport","handle":handle}));
+    let renamed_project = success(json!({
+        "operation":"workspaceRenameProject","handle":fixture.workspace,
+        "projectId":fixture.project,"name":"潮汐写作🙂"
+    }));
+    assert_eq!(renamed_project["id"], fixture.project);
+    assert_eq!(renamed_project["name"], "潮汐写作🙂");
+    let renamed_chapter = success(json!({
+        "operation":"workspaceRenameChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[0],"title":"启航👩🏽‍🚀"
+    }));
+    assert_eq!(renamed_chapter["id"], fixture.chapters[0]);
+    assert_eq!(renamed_chapter["title"], "启航👩🏽‍🚀");
+    // Metadata commands must leave the same handle, projection, selection and
+    // CRDT bytes intact, including the existing local undo stack.
+    assert_eq!(state(handle), before);
+    assert_eq!(
+        success(json!({"operation":"documentExport","handle":handle})),
+        exported
+    );
+    assert_eq!(
+        insert(handle, "续写")["projection"]["text"],
+        "续写已有正文🙂"
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        "已有正文🙂"
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        ""
+    );
+    success(json!({"operation":"documentRedo","handle":handle}));
+    assert_eq!(
+        success(json!({"operation":"documentRedo","handle":handle}))["projection"]["text"],
+        "续写已有正文🙂"
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let projects = success(json!({"operation":"workspaceProjects","handle":fixture.workspace}));
+    assert_eq!(projects[0]["name"], "潮汐写作🙂");
+    let chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,"projectId":fixture.project}),
+    );
+    assert_eq!(chapters[0]["title"], "启航👩🏽‍🚀");
+    assert_eq!(chapters[1]["title"], "归航");
+    let reopened = fixture.open(0);
+    assert_eq!(reopened["document"]["projection"]["text"], "续写已有正文🙂");
+    assert_eq!(
+        reopened["document"]["projection"]["blocks"][0]["id"],
+        opened["document"]["projection"]["blocks"][0]["id"]
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner() {
+    let fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(handle, "保留草稿🙂");
+    let other_project = success(json!({"operation":"workspaceCreateProject",
+        "handle":fixture.workspace,"name":"另一个合成项目"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let before = state(handle);
+    let projects_before =
+        success(json!({"operation":"workspaceProjects","handle":fixture.workspace}));
+    let chapters_before = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,"projectId":fixture.project}),
+    );
+    let database = gateway(handle);
+    let read_journal =
+        || {
+            database.query(
+        "SELECT change_set_id, encoded_bytes FROM sync_change_set ORDER BY change_set_id".into(),
+        vec![], None, CLIENT.into(),
+    ).unwrap().rows
+        };
+    let read_clock =
+        || {
+            database.query(
+        "SELECT * FROM sync_generation_writer_state ORDER BY sync_generation_id, writer_id".into(),
+        vec![], None, CLIENT.into(),
+    ).unwrap().rows
+        };
+    let journal_before = read_journal();
+    let clock_before = read_clock();
+    execute(&database, "CREATE TRIGGER fail_workspace_rename BEFORE INSERT ON sync_change_set BEGIN SELECT RAISE(ABORT, 'synthetic rename journal failure'); END");
+    for request in [
+        json!({"operation":"workspaceRenameProject","handle":fixture.workspace,"projectId":fixture.project,"name":"不应提交项目"}),
+        json!({"operation":"workspaceRenameChapter","handle":fixture.workspace,"projectId":fixture.project,"chapterId":fixture.chapters[0],"title":"不应提交章节"}),
+    ] {
+        assert!(rejected(request).contains("synthetic rename journal failure"));
+        assert_eq!(state(handle), before);
+        assert_eq!(
+            success(json!({"operation":"workspaceProjects","handle":fixture.workspace})),
+            projects_before
+        );
+        assert_eq!(
+            success(
+                json!({"operation":"workspaceChapters","handle":fixture.workspace,"projectId":fixture.project})
+            ),
+            chapters_before
+        );
+        assert_eq!(read_journal(), journal_before);
+        assert_eq!(read_clock(), clock_before);
+    }
+    execute(&database, "DROP TRIGGER fail_workspace_rename");
+    rejected(
+        json!({"operation":"workspaceRenameChapter","handle":fixture.workspace,
+        "projectId":other_project,"chapterId":fixture.chapters[0],"title":"错误项目作用域"}),
+    );
+    rejected(
+        json!({"operation":"workspaceRenameProject","handle":fixture.workspace,
+        "projectId":"missing-project","name":"不存在的项目"}),
+    );
+    assert_eq!(read_journal(), journal_before);
+    assert_eq!(read_clock(), clock_before);
+    assert_eq!(state(handle), before);
+    assert_eq!(
+        success(json!({"operation":"workspaceProjects","handle":fixture.workspace})),
+        projects_before
+    );
+    assert_eq!(
+        success(
+            json!({"operation":"workspaceChapters","handle":fixture.workspace,"projectId":fixture.project})
+        ),
+        chapters_before
+    );
+    success(
+        json!({"operation":"workspaceRenameChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[0],"title":"恢复后重命名"}),
+    );
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":handle}))["projection"]["text"],
+        ""
+    );
+    assert_eq!(
+        success(json!({"operation":"documentRedo","handle":handle}))["projection"]["text"],
+        "保留草稿🙂"
+    );
+    fixture.close();
+}

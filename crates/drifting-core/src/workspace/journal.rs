@@ -10,6 +10,7 @@ pub(super) struct Mutation {
     family: &'static str,
     kind: &'static str,
     id: String,
+    incarnation: u64,
     action: &'static str,
     payload: Value,
     update: Option<Vec<u8>>,
@@ -29,8 +30,26 @@ impl Mutation {
             family,
             kind,
             id: id.into(),
+            incarnation: 0,
             action,
             payload,
+            update: None,
+        }
+    }
+    pub(super) fn field(
+        kind: &'static str,
+        id: &str,
+        incarnation: u64,
+        field: &str,
+        value: Value,
+    ) -> Self {
+        Self {
+            family: "entity",
+            kind,
+            id: id.into(),
+            incarnation,
+            action: "field.set",
+            payload: json!({"field": field, "value": value}),
             update: None,
         }
     }
@@ -39,6 +58,7 @@ impl Mutation {
             family: "yjs",
             kind: "prose-document",
             id: id.into(),
+            incarnation: 0,
             action: "yjs.update",
             payload: Value::Null,
             update: Some(update.to_vec()),
@@ -61,7 +81,7 @@ impl Mutation {
                     ("family", Text(self.family)),
                     ("kind", Text(self.kind)),
                     ("id", Text(&self.id)),
-                    ("incarnation", Uint(0)),
+                    ("incarnation", Uint(self.incarnation)),
                 ]),
             ),
             ("action", Text(self.action)),
@@ -151,8 +171,8 @@ impl WorkspaceStore<'_> {
             self.execute(tx,r#"
                 INSERT INTO sync_mutation(change_set_id,mutation_index,target_family,target_kind,target_id,
                     incarnation,action,payload_version,payload_cbor,payload_sha256)
-                VALUES (?,?,?,?,?,0,?,1,?,?)
-            "#,vec![text(&change_id),integer(index as u64),text(mutation.family),text(mutation.kind),text(&mutation.id),
+                VALUES (?,?,?,?,?,?,?,1,?,?)
+            "#,vec![text(&change_id),integer(index as u64),text(mutation.family),text(mutation.kind),text(&mutation.id),integer(mutation.incarnation),
                 text(mutation.action),V::Blob(payloads[index].clone()),text(&hashes[index])])?;
             let clock = vec![
                 integer(wall),
@@ -169,12 +189,13 @@ impl WorkspaceStore<'_> {
                         text(&context.sync_generation_id),
                         text(mutation.kind),
                         text(&mutation.id),
+                        integer(mutation.incarnation),
                     ];
                     values.extend(clock);
                     self.execute(tx,r#"
                         INSERT INTO sync_entity_lifecycle(sync_generation_id,entity_kind,entity_id,incarnation,state,
                             hlc_wall_ms,hlc_counter,writer_id,writer_epoch,device_seq,change_set_id,mutation_index)
-                        VALUES (?,?,?,0,'live',?,?,?,?,?,?,?)
+                        VALUES (?,?,?,?,'live',?,?,?,?,?,?,?)
                     "#,values)?;
                 }
                 "order.move" => {
@@ -189,13 +210,14 @@ impl WorkspaceStore<'_> {
                         text(mutation.kind),
                         text(scope),
                         text(&mutation.id),
+                        integer(mutation.incarnation),
                         text(position),
                     ];
                     values.extend(clock);
                     self.execute(tx,r#"
                         INSERT INTO sync_order_register(sync_generation_id,list_kind,owner_id,entity_id,incarnation,
                             position_key,hlc_wall_ms,hlc_counter,writer_id,writer_epoch,device_seq,change_set_id,mutation_index)
-                        VALUES (?,?,?,?,0,?,?,?,?,?,?,?,?)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     "#,values)?;
                 }
                 "field.set" => {
@@ -206,13 +228,19 @@ impl WorkspaceStore<'_> {
                         text(&context.sync_generation_id),
                         text(mutation.kind),
                         text(&mutation.id),
+                        integer(mutation.incarnation),
                         text(&format!("field:{field}")),
                     ];
                     values.extend(clock);
                     self.execute(tx,r#"
                         INSERT INTO sync_field_clock(sync_generation_id,target_kind,target_id,incarnation,field_key,
                             hlc_wall_ms,hlc_counter,writer_id,writer_epoch,device_seq,change_set_id,mutation_index)
-                        VALUES (?,?,?,0,?,?,?,?,?,?,?,?)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(sync_generation_id,target_kind,target_id,incarnation,field_key)
+                        DO UPDATE SET hlc_wall_ms=excluded.hlc_wall_ms, hlc_counter=excluded.hlc_counter,
+                            writer_id=excluded.writer_id, writer_epoch=excluded.writer_epoch,
+                            device_seq=excluded.device_seq, change_set_id=excluded.change_set_id,
+                            mutation_index=excluded.mutation_index
                     "#,values)?;
                 }
                 "yjs.update" => {}
@@ -230,10 +258,10 @@ impl WorkspaceStore<'_> {
                 INSERT INTO sync_yjs_materialization_receipt (
                     change_set_id, mutation_index, admission_version, original_envelope_sha256,
                     document_id, incarnation, event_sha256, update_row_id, document_revision, created_at
-                ) VALUES (?, ?, 1, ?, ?, 0, ?, ?, ?, ?)
+                 ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 "#,
                 vec![
-                    text(&change_id), integer(index as u64), text(&envelope_hash), text(&mutation.id),
+                    text(&change_id), integer(index as u64), text(&envelope_hash), text(&mutation.id), integer(mutation.incarnation),
                     text(&crate::materialization_admission::event_hash(update)),
                     integer(appended.update_id), integer(appended.revision), text(&context.now_iso),
                 ],

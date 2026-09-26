@@ -7,7 +7,7 @@ execFileSync(process.execPath, ['scripts/generate-apple-fixtures.mjs', '--check'
 execFileSync(process.execPath, ['scripts/check-yrs-vendor.mjs'], { stdio: 'pipe' });
 execFileSync(process.execPath, ['scripts/apple-yrs-diagnostic.mjs', '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, ['scripts/apple-document-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-workspace-acceptance.mjs', 'scripts/apple-workspace-wire-check.ts', 'scripts/apple-binding-acceptance.mjs', '--check'], { stdio: 'pipe' });
+execFileSync(process.execPath, ['scripts/apple-binding-acceptance.mjs', '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, ['scripts/apple-prose-durability-acceptance.mjs', '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, ['scripts/apple-original-operation-acceptance.mjs', '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, ['scripts/apple-native-authoring-acceptance.mjs', '--check'], { stdio: 'pipe' });

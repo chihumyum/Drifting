@@ -44,7 +44,7 @@ function manifest() {
   ])].sort().map(name => ({ path: name, sha256: sha(read(name)) }));
 }
 const specs = [
-  { name: 'core', crate: 'drifting-core', count: 66, required: [
+  { name: 'core', crate: 'drifting-core', count: 69, required: [
     'original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders',
     'original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes',
     'native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire',
@@ -85,7 +85,7 @@ const specs = [
     'native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input',
     'native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes',
   ] },
-  { name: 'bridge', crate: 'drifting-apple-bridge', count: 23, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
+  { name: 'bridge', crate: 'drifting-apple-bridge', count: 25, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
 ];
 const boundaries = [
   'Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.',
