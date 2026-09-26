@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T13:59:41.060Z",
+  "generatedAt": "2026-09-26T14:31:26.325Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "03c2913609fdb24f11a42b23ef1d6aab83105d67",
+    "commit": "09694c33c6c635d6062e5725810c71675556935c",
     "dirty": true,
-    "fingerprint": "f070aed8aa03903c57f6054395cf8f916defef4ab30ee031398f6c724cc3c4e7"
+    "fingerprint": "44ee53e9b49efa17fae7c7c7697e51f691768ca9392f52134ff39bc0c56a496d"
   },
   "cases": [
     {
@@ -292,6 +292,22 @@
     },
     {
       "name": "AppKit search guards queued and marked input and discards superseded query results",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit canonical remote originals preserve queued Unicode input passive selection and local undo",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit canonical remote originals preserve marked branches through native commit and cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit duplicate and explicit reconciliation refresh every retained chapter without rewriting receipts",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit rejected originals and committed checkpoint failure retain owners drafts and retry through cold reopen",
       "status": "passed"
     }
   ],

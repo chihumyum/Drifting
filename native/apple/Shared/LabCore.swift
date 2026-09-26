@@ -47,7 +47,7 @@ struct NativeCheckpoint: Decodable { let update: String; let stateVector: String
 struct DraftSelection { let viewID: String; let epoch: UInt64; let range: NSRange }
 
 final class LabCore {
-    private let queue = DispatchQueue(label: "cc.drifting.native-lab.core")
+    private let queue: DispatchQueue
     private var handle: UInt64?
     private let directory: URL
     private weak var sharedDocument: DocumentStore?
@@ -76,13 +76,15 @@ final class LabCore {
     }
 
     init(directory: URL? = nil) {
+        queue = DispatchQueue(label: "cc.drifting.native-lab.core")
         closesOwnHandle = true
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "cc.drifting.native-lab")
             .appendingPathComponent("apple-native-lab", isDirectory: true)
     }
 
-    fileprivate init(handle: UInt64, directory: URL) {
+    fileprivate init(handle: UInt64, directory: URL, queue: DispatchQueue) {
+        self.queue = queue
         closesOwnHandle = false
         self.handle = handle
         self.directory = directory
@@ -92,6 +94,14 @@ final class LabCore {
         precondition(Thread.isMainThread)
         isSuspended = value
         sharedDocument?.activity()
+    }
+
+    fileprivate func receiveReconciledState(_ state: LabDocumentState) {
+        precondition(Thread.isMainThread)
+        guard !isClosed else { return }
+        // A chapter without views needs no new store. Its next view will load
+        // the already-reconciled owner; retained drafts keep their existing one.
+        sharedDocument?.receiveReconciledState(state)
     }
 
     fileprivate func invalidate() {
@@ -318,11 +328,26 @@ private struct WorkspaceState: Decodable {
     let projects: [WorkspaceProject]
 }
 
-private struct WorkspaceDocumentReply: Decodable {
+struct WorkspaceDocumentReply: Decodable {
     let handle: UInt64
     let projectId: String
     let chapterId: String
     let document: LabDocumentState
+}
+
+struct RemoteProseOriginal: Codable {
+    let projectId: String
+    let projectSyncId: String
+    let syncGenerationId: String
+    let changeSetId: String
+    let originalEnvelopeSha256: String
+}
+
+struct WorkspaceRemoteProseReply: Decodable {
+    let changeSetId: String
+    let alreadyApplied: Bool
+    let affectedDocuments: [String]
+    let documents: [WorkspaceDocumentReply]
 }
 
 /// Registry of Swift wrappers for Rust's chapter owners. Cache changes belong
@@ -333,6 +358,7 @@ final class LabWorkspaceCore {
     private var handle: UInt64?
     private struct Owner { let handle: UInt64; let core: LabCore }
     private var owners: [ChapterScope: Owner] = [:]
+    private var remoteProseInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
 
@@ -385,6 +411,56 @@ final class LabWorkspaceCore {
         perform(completion) {
             let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hit))
             return try self.request("workspaceResolveSearchHit", fields: ["hit": payload])
+        }
+    }
+
+    /// Completion reports durable acceptance and dispatch to existing stores.
+    /// Queued input and marked drafts can keep individual views on their old
+    /// input basis until DocumentStore's normal refresh can safely adopt it.
+    func receiveProse(original: RemoteProseOriginal, envelope: Data,
+                      completion: @escaping (Result<WorkspaceRemoteProseReply, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("正在切换章节，请稍后重试接收正文"))); return
+        }
+        let fields: [String: Any]
+        do {
+            // Own immutable request values before entering the asynchronous
+            // queue; callers may reuse the original Data after this returns.
+            fields = ["original": try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)),
+                      "envelope": envelope.base64EncodedString()]
+        } catch { completion(.failure(error)); return }
+        remoteProseInFlight += 1
+        perform({ (result: Result<WorkspaceRemoteProseReply, Error>) in
+            if case .success(let reply) = result { self.routeReconciledDocuments(reply.documents) }
+            self.remoteProseInFlight -= 1
+            completion(result)
+        }) {
+            try self.request("workspaceReceiveProse", fields: fields)
+        }
+    }
+
+    func reconcileProse(projectID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("正在切换章节，请稍后重试恢复正文"))); return
+        }
+        remoteProseInFlight += 1
+        perform({ (result: Result<[WorkspaceDocumentReply], Error>) in
+            if case .success(let documents) = result { self.routeReconciledDocuments(documents) }
+            self.remoteProseInFlight -= 1
+            completion(result.map { _ in true })
+        }) {
+            try self.request("workspaceReconcileProse", fields: ["projectId": projectID])
+        }
+    }
+
+    private func routeReconciledDocuments(_ documents: [WorkspaceDocumentReply]) {
+        precondition(Thread.isMainThread)
+        for document in documents {
+            let scope = ChapterScope(projectID: document.projectId, chapterID: document.chapterId)
+            guard let owner = owners[scope], owner.handle == document.handle, !owner.core.isClosed else { continue }
+            owner.core.receiveReconciledState(document.document)
         }
     }
 
@@ -441,7 +517,7 @@ final class LabWorkspaceCore {
                 if let owner = self.owners[scope], owner.handle == reply.handle { return owner.core }
                 // Only a successful explicit reopen invalidates this scope.
                 self.owners[scope]?.core.invalidate()
-                let core = LabCore(handle: reply.handle, directory: self.directory)
+                let core = LabCore(handle: reply.handle, directory: self.directory, queue: self.queue)
                 self.owners[scope] = Owner(handle: reply.handle, core: core)
                 return core
             }
@@ -488,7 +564,7 @@ final class LabWorkspaceCore {
     }
 
     private func beginOwnerChange() -> Bool {
-        guard !isChangingOwners, !hasPendingDocuments else { return false }
+        guard !isChangingOwners, remoteProseInFlight == 0, !hasPendingDocuments else { return false }
         isChangingOwners = true
         owners.values.forEach { $0.core.suspend(true) }
         return true

@@ -91,8 +91,8 @@ until the remaining migration and distribution gates pass.
 Prose uses a shared Rust document owner, one ordered Swift queue across views, local-origin
 undo, original-comment highlights, atomic authored updates/comment anchors/sync
 journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. The [canonical remote prose path](remote-prose-sync.md) now receives complete originals
-and reconciles open Rust owners; Swift delivery and provider orchestration remain
-open. The older raw-update entry point remains a fixture-only seam. Read [the binding contract](document-core.md)
+and reconciles open Rust owners through the workspace-owned Swift queue;
+provider orchestration and the remaining domain reducer are still open. The older raw-update entry point remains a fixture-only seam. Read [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
 The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two
 editor panes; UIKit keeps one visible editor. Views of the same chapter share

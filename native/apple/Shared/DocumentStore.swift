@@ -109,6 +109,27 @@ final class DocumentStore {
         pending.append(.remote(update, encoding)); pump()
     }
 
+    /// A workspace receipt has already reconciled this same Rust owner. Only
+    /// record its state here: queued keystrokes still name their original input
+    /// branches, and refresh() alone may install a new default display basis.
+    func receiveReconciledState(_ value: LabDocumentState) {
+        precondition(Thread.isMainThread)
+        acceptRemoteState(value)
+        pump()
+    }
+
+    private func acceptRemoteState(_ value: LabDocumentState) {
+        let releasedBlock = remoteBlock != nil && value.remoteBlock == nil
+        state = value; needsRefresh = true; reportSave(value)
+        if releasedBlock {
+            for binding in bindings.allObjects where binding.hasUnsubmittedDraft {
+                binding.showStatus(value.saved
+                    ? "远端更新已恢复应用。窗口草稿仍保留，尚未提交。"
+                    : "正文尚未保存：\(value.saveError ?? "未知错误")。窗口草稿仍保留，请重试保存。")
+            }
+        }
+    }
+
     private func pump() {
         guard !sending, state != nil, failure == nil else { activity(); return }
         let nextIndex: Int
@@ -161,15 +182,7 @@ final class DocumentStore {
                 guard let self else { return }
                 switch result {
                 case .success(let value):
-                    let releasedBlock = self.remoteBlock != nil && value.remoteBlock == nil
-                    self.state = value; self.needsRefresh = true; self.reportSave(value)
-                    if releasedBlock {
-                        for binding in self.bindings.allObjects where binding.hasUnsubmittedDraft {
-                            binding.showStatus(value.saved
-                                ? "远端更新已恢复应用。窗口草稿仍保留，尚未提交。"
-                                : "正文尚未保存：\(value.saveError ?? "未知错误")。窗口草稿仍保留，请重试保存。")
-                        }
-                    }
+                    self.acceptRemoteState(value)
                     self.completed(at: nextIndex)
                 case .failure(let error): self.fail(error.localizedDescription)
                 }

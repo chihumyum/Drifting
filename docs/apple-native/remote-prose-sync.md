@@ -2,8 +2,9 @@
 
 P4a adds a shared headless receive path for complete pure-prose originals in
 existing active projects. It is the first synchronization integration batch;
-provider transport, domain metadata application, Swift delivery, accounts and
-full remote structural behavior remain open.
+Both native hosts now use the shared Swift delivery queue. Provider transport,
+domain metadata application, accounts and full remote structural behavior remain
+open.
 
 ## Ownership and transaction
 
@@ -78,13 +79,54 @@ append wall-clock columns are validated as ISO timestamps but excluded from
 exact equality, because the renderer stamps those writes from its own clock.
 Raw synthetic databases and logs remain ignored; the report records their hashes.
 
-These are source and file-backed integration results. Existing native binding
-and simulator regressions are reported separately. This batch provides no
-Swift remote-delivery, physical-device, real-account or signed-distribution
-acceptance. Its injected transaction faults and cold reopen are distinct from
-the separate SIGKILL durability harness and from power-loss evidence. Known
-old-peer alias-deletion and general structural gaps remain uncertified.
+## Native queue and owner delivery
 
-Next wire this receive/reconcile path through the shared native queue and
-workspace state before adding provider orchestration. Do not filter unsupported
-metadata originals to skip ahead in a transport frontier.
+`LabWorkspaceCore.receiveProse` and `reconcileProse` now route verified bridge
+results to existing Swift owners by project/chapter scope and exact Rust handle.
+A chapter without a store is loaded normally when next shown; delivery never
+creates a new editor or revives a closed handle. Duplicate delivery routes every
+returned owner, including inactive tabs and chapters other than the packet's
+original target.
+
+Workspace-owned `LabCore` instances share their workspace's serial ABI queue.
+Requests and main-thread replies retain this order across chapters and remote
+receipts. Immutable original fields and envelope bytes are captured before
+queueing. An in-flight delivery prevents close/reopen owner transitions; it does
+not suspend ordinary typing or marked-text composition. Failed receipt validation
+returns an error without poisoning the input queue.
+
+`DocumentStore` records the returned save/replay state and requests its normal
+refresh. Existing queued jobs still use their original CRDT input branches.
+Only a later authoritative `inputFork` can update the default displayed basis,
+and bindings with marked or failed drafts retain their text, input key and
+selection. Other bindings can display the accepted remote text immediately.
+Save failure after an accepted original remains an existing owner retry state;
+receipt completion must not be interpreted as every view having finished input
+or saved its latest draft.
+
+The [binding report](acceptance/p2b-binding.json) contains four AppKit groups;
+the [native report](acceptance/p2b-native.json) records four hosted UIKit tests
+on each selected simulator, alongside existing regressions. Their shared test
+support reads real native-authored canonical originals from a separate synthetic
+replica made from a closed database baseline. No test-only receive flag or raw
+Yjs replacement stands in for the new receipt path.
+
+The four native groups cover queued Unicode input and local-only undo; marked
+commit/cancellation and retained failed input; all-owner duplicate/explicit
+reconciliation; and wrong scope, receipt rollback, post-COMMIT checkpoint failure,
+retry and cold reopen. The UIKit failed-input state is explicitly injected after
+real UITextInput creates the draft; this tests retention rather than certifying
+a new way to generate an input failure. To create a stale Swift view cache,
+the hidden-owner case uses an existing lower-level native edit that commits
+without notifying `DocumentStore`. The earlier Rust group independently proves
+remote COMMIT with a missing live notification; these are separate layer-specific
+checks, not interchangeable claims.
+
+These are source, file-backed integration and programmatic native input results.
+There is no physical-device, real-account or signed-distribution acceptance.
+Injected transaction faults and cold reopen remain distinct from the separate
+SIGKILL durability harness and from power-loss evidence. Known old-peer
+alias-deletion and general structural gaps remain uncertified.
+
+Next integrate provider orchestration and the remaining domain reducer. Do not
+filter unsupported metadata originals to skip ahead in a transport frontier.

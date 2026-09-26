@@ -76,7 +76,7 @@ targets:
   DriftingNativeIOSBindingTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [iOSTests]
+    sources: [iOSTests, TestSupport]
     dependencies:
       - target: DriftingNativeIOS
     settings:
