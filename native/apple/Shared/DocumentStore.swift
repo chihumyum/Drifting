@@ -28,6 +28,18 @@ final class DocumentStore {
     private var needsRefresh = false
     private var failure: String?
     private var failedInputs: [String: String] = [:]
+    /// Entity links (workspace bodies only). A pass runs when this owner is
+    /// idle: at once after it opens or when names change, and `entityLinkDelay`
+    /// after committed local input settles. It is never an undo step and never
+    /// counts as pending input, so navigation and typing are not held for it;
+    /// later commands queue behind it on the same serial core queue.
+    static var entityLinkDelay: TimeInterval = 0.5
+    private var linkNow = false
+    private var linkAfterInput = false
+    private var linkTimer: DispatchWorkItem?
+    private(set) var isLinking = false
+    /// A link pass is requested, waiting for its delay or in flight.
+    var hasScheduledLinks: Bool { linkNow || linkAfterInput || isLinking }
     var remoteBlock: NativeRemoteBlock? { state?.remoteBlock }
     var remoteBlockStatus: String? {
         remoteBlock.map { "远端更新已保存，但尚未应用：\($0.userMessage)。正文提交已暂停；窗口中的输入仍保留，尚未提交的内容请先复制以便恢复。" }
@@ -39,7 +51,11 @@ final class DocumentStore {
     var canEdit: Bool { !core.isSuspended && !core.isClosed && state != nil && failure == nil && state?.saved == true && remoteBlock == nil }
     var viewCount: Int { bindings.allObjects.count }
 
-    init(core: LabCore) { self.core = core }
+    init(core: LabCore) {
+        self.core = core
+        // Link once the first projection of a newly opened body settles.
+        linkNow = core.linksEntities
+    }
     func attach(_ binding: DocumentBinding) {
         precondition(Thread.isMainThread)
         bindings.add(binding)
@@ -66,6 +82,7 @@ final class DocumentStore {
         inputs[key] = current; sequences[key] = 0
         pending.append(.fork(key, source))
         origin.useInput(key)
+        cancelLinkTimer()
         pump()
         return source
     }
@@ -96,6 +113,8 @@ final class DocumentStore {
         } ? selection : nil
         pending.append(.replace(key, sequence, change, anchored)); inputs[key] = next
         if key == defaultKey { projection = next }
+        // Typing restarts the debounce; the pass waits until input settles.
+        if core.linksEntities { linkAfterInput = true; cancelLinkTimer() }
         for binding in bindings.allObjects where binding.inputKey == key {
             binding.receive(next, changes: [change], authoritative: false)
         }
@@ -145,7 +164,7 @@ final class DocumentStore {
             nextIndex = 0
         }
         guard pending.indices.contains(nextIndex) else {
-            if needsRefresh { refresh() } else { cleanup(); activity() }
+            if needsRefresh { refresh() } else { cleanup(); linkWhenIdle(); activity() }
             return
         }
         let next = pending[nextIndex]
@@ -251,7 +270,10 @@ final class DocumentStore {
         core.document(redo ? "documentRedo" : "documentUndo") { [weak self] result in
             guard let self else { return }; self.sending = false
             switch result {
-            case .success(let value): self.state = value; self.needsRefresh = true; self.reportSave(value); self.pump()
+            case .success(let value):
+                // Restored text is linked again once it settles, like typing.
+                if self.core.linksEntities { self.linkAfterInput = true; self.cancelLinkTimer() }
+                self.state = value; self.needsRefresh = true; self.reportSave(value); self.pump()
             case .failure(let error):
                 if let lab = error as? LabError, case .historyUnavailable = lab {
                     // The core rejected before mutation. Keep the same input
@@ -374,6 +396,62 @@ final class DocumentStore {
         }
     }
     private func fail(_ message: String) { sending = false; failure = message; status(message); activity() }
+
+    // MARK: Entity links
+
+    /// Retroactive linking after element or chapter names change: link as
+    /// soon as this owner is idle. Composition, queued input, failed drafts,
+    /// save failures and remote blocks defer it; nothing is interrupted.
+    func requestEntityLinks() {
+        guard core.linksEntities, !core.isClosed else { return }
+        linkNow = true
+        linkWhenIdle()
+    }
+
+    /// The owner change that suspended this store finished. Adopt a link
+    /// reply that arrived meanwhile and resume any deferred pass.
+    func resumed() {
+        if !sending, needsRefresh || !pending.isEmpty { pump() } else { linkWhenIdle(); activity() }
+    }
+
+    private var isIdleForLinks: Bool {
+        !sending && pending.isEmpty && !needsRefresh && !hasPendingWork && canEdit && !core.isSuspended
+    }
+
+    private func cancelLinkTimer() { linkTimer?.cancel(); linkTimer = nil }
+
+    private func linkWhenIdle() {
+        guard core.linksEntities, !core.isClosed, !isLinking, linkNow || linkAfterInput, isIdleForLinks else { return }
+        if linkNow { cancelLinkTimer(); sendLinks(); return }
+        guard linkTimer == nil else { return }
+        // The pass runs only if input stayed settled for the whole delay;
+        // otherwise the next idle moment starts the delay again.
+        let timer = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.linkTimer = nil
+            if self.isIdleForLinks { self.linkNow = true; self.linkWhenIdle() }
+        }
+        linkTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.entityLinkDelay, execute: timer)
+    }
+
+    private func sendLinks() {
+        linkNow = false; linkAfterInput = false; isLinking = true
+        core.linkEntities { [weak self] result in
+            guard let self else { return }
+            self.isLinking = false
+            guard !self.core.isClosed else { return }
+            // Rust linked nothing, or refused before mutation: a background
+            // pass never fails the owner; the next change requests another.
+            if case .success(let reply) = result, reply.linked > 0 {
+                // The core queue ran this pass before any later command, so
+                // its state precedes every reply still outstanding.
+                self.state = reply.state; self.needsRefresh = true; self.reportSave(reply.state)
+                for binding in self.bindings.allObjects { binding.onEntityLinks?() }
+            }
+            if self.sending { self.activity() } else { self.pump() }
+        }
+    }
 }
 
 extension NativeTextChange {

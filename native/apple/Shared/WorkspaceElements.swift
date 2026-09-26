@@ -65,6 +65,50 @@ struct WorkspaceElementReply<Value: Decodable>: Decodable {
     let library: WorkspaceElementLibrary
 }
 
+/// Chapters whose prose links one element, in book order. `first` is in that
+/// chapter's projection UTF-16 coordinates when it was read.
+struct WorkspaceElementBacklinks: Decodable, Equatable {
+    struct Chapter: Decodable, Equatable {
+        let chapterId: String
+        let chapterTitle: String
+        /// Linked runs, and the distinct blocks that hold them.
+        let spans: Int
+        let blocks: Int
+        let first: NativeRange
+    }
+    /// A chapter whose prose could not be read, e.g. with unresolved sync
+    /// dependencies. It is listed so a missing count is not mistaken for none.
+    struct Unavailable: Decodable, Equatable {
+        let chapterId: String
+        let chapterTitle: String
+    }
+    let elementId: String
+    let chapters: [Chapter]
+    let unavailable: [Unavailable]
+}
+
+extension EntityLinkDirectory {
+    /// Live and trashed elements and chapters of one project. An element's
+    /// colour is its live category's; a detached element keeps the default.
+    init(library: WorkspaceElementLibrary, chapters: [WorkspaceChapter], trashedChapters: [WorkspaceChapter]) {
+        let categories = Dictionary(library.categories.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        func target(_ element: WorkspaceElement, trashed: Bool) -> EntityLinkTarget {
+            let category = element.categoryId.flatMap { categories[$0] }
+            return EntityLinkTarget(kind: .element, id: element.id, name: element.name, trashed: trashed,
+                colorHex: category?.color, category: category?.name, aliases: element.aliases, summary: element.summary)
+        }
+        self.init(targets: library.trashedElements.map { target($0, trashed: true) }
+            + library.elements.map { target($0, trashed: false) }
+            + trashedChapters.map { EntityLinkTarget(kind: .chapter, id: $0.id, name: $0.title, trashed: true) }
+            + chapters.map { EntityLinkTarget(kind: .chapter, id: $0.id, name: $0.title) })
+    }
+
+    /// What linking reads from the library: live names and aliases.
+    static func linkNames(_ library: WorkspaceElementLibrary) -> [[String]] {
+        library.elements.sorted { $0.id < $1.id }.map { [$0.id, $0.name] + $0.aliases }
+    }
+}
+
 /// Present fields are written; an explicit nil inside `groupName` or
 /// `categoryID` clears it. Absent fields stay unchanged.
 struct WorkspaceElementChanges {

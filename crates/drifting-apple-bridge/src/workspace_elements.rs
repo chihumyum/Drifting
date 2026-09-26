@@ -51,6 +51,9 @@ pub(crate) enum ElementCommand {
     RestoreCategory {
         category_id: String,
     },
+    Backlinks {
+        element_id: String,
+    },
     TrashElement {
         element_id: String,
     },
@@ -212,6 +215,9 @@ impl WorkspaceSession {
                     element_id,
                 )?)
             }
+            ElementCommand::Backlinks { element_id } => {
+                return self.element_backlinks(documents, project_id, element_id);
+            }
             ElementCommand::OpenElement { element_id, reopen } => {
                 return self.open_element(documents, project_id, element_id, *reopen);
             }
@@ -239,6 +245,53 @@ impl WorkspaceSession {
                 "trashedCategories": store.trashed_element_categories(project_id)?,
             },
         }))
+    }
+
+    /// Chapters whose prose links this element, in book order, read from
+    /// live owners or a cold durable read; unreadable chapters are reported.
+    fn element_backlinks(
+        &self,
+        documents: &HashMap<u64, LabSession>,
+        project_id: &str,
+        element_id: &str,
+    ) -> Result<Value, String> {
+        let store = WorkspaceStore::new(&self.gateway, CLIENT);
+        let mut chapters = Vec::new();
+        let mut unavailable = Vec::new();
+        for chapter in store.list_chapters(project_id)? {
+            let read = (|| -> Result<Vec<drifting_document::EntityLinkSpan>, String> {
+                let scope = store.chapter_scope(project_id, &chapter.id)?;
+                let key = (project_id.to_owned(), chapter.id.clone());
+                if let Some(owner) = self.documents.get(&key).and_then(|h| documents.get(h)) {
+                    return owner.document.entity_link_spans();
+                }
+                let reader = DurableDocument::open_with_scope(self.gateway.clone(), CLIENT, scope)?;
+                if reader.has_pending() {
+                    return Err("Chapter prose dependencies are unresolved".into());
+                }
+                reader.entity_link_spans()
+            })();
+            match read {
+                Ok(spans) => {
+                    let spans: Vec<_> = spans
+                        .into_iter()
+                        .filter(|span| span.kind == "element" && span.id == element_id)
+                        .collect();
+                    if let Some(first) = spans.first() {
+                        let mut blocks: Vec<_> =
+                            spans.iter().map(|span| span.block_id.clone()).collect();
+                        blocks.dedup();
+                        chapters.push(
+                            json!({"chapterId": chapter.id, "chapterTitle": chapter.title,
+                            "spans": spans.len(), "blocks": blocks.len(), "first": first.range}),
+                        );
+                    }
+                }
+                Err(_) => unavailable
+                    .push(json!({"chapterId": chapter.id, "chapterTitle": chapter.title})),
+            }
+        }
+        Ok(json!({"elementId": element_id, "chapters": chapters, "unavailable": unavailable}))
     }
 
     fn open_element(

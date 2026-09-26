@@ -11,6 +11,7 @@ yrs = { version = "=0.28.0", path = "../../vendor/yrs", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.25", features = ["v7"] }
+sha2 = "0.10.8"
 
 [dev-dependencies]
 base64 = "0.22"

@@ -1,11 +1,93 @@
 {
   "schemaVersion": 1,
-  "kind": "native_original_operation_verification",
+  "kind": "native_entity_links",
   "status": "passed",
-  "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "07e2989580db9ba3ab9490feabcc8493fb8472688a1bb5bb6bd982f4b0feb448",
     "files": [
+      {
+        "path": "crates/drifting-apple-bridge/Cargo.lock",
+        "sha256": "0cf05b508b115007aa59a6af389c30b8a6108cf30b8fb2dd3071e1b57ad3e4ab"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/Cargo.toml",
+        "sha256": "87512d9110d50eae9e67a9459fb1f78532c8bd98eedc50074836273e3512607e"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/document_comments.rs",
+        "sha256": "409a90df32fa0a0cc9f85acb4cc1c8d0146250a9836e97c1296718a9340b60b7"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/document_links.rs",
+        "sha256": "eb10c255c75a0fef17bab9da6eaa3db385a0f3c7f0435edf640122f7a345f4d8"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/lib.rs",
+        "sha256": "9c565811ac2c020270c98c7a538c97a1e1084e1bd394627ee7acbf2de2d00021"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace.rs",
+        "sha256": "8df0fcdec99b985f9f3b0e80a961778add0577d54837458897e1b8d3b49dc227"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_act_tests.rs",
+        "sha256": "6a51647d48cbba3316f74935d317a74472f3b73a7fc18c84d851dcfaf51f1117"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_comment_tests.rs",
+        "sha256": "85bb7da2896439eaff612bcc83a402aaffcb7db8f52c04c550a5fc0311fa4d67"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_element_tests.rs",
+        "sha256": "dc88ee484e43bcc2fe0e1e9f983dd08451839f1eff13e7a798b82d1cf77219bc"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_elements.rs",
+        "sha256": "4e6ce51332fcf68342fc6f8975900a20c40133a4184786dd524ed3df054fb4d4"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_link_tests.rs",
+        "sha256": "3919a93e441562a4293eef98aa7bb37522f6715cb05d03527e4e1f3d492726d5"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_outline_tests.rs",
+        "sha256": "db4d9499768d2b6719b5b70573244460ba9436650a7196152614411d81ef2f76"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_remote_changes_tests.rs",
+        "sha256": "e8330a9cbd8f6d9e8531020935981dc369086110561ca203f84cca83c006ba51"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_remote_prose.rs",
+        "sha256": "d90d08a216439f38c95fc54305992e56849f46b58b70a21c16ba0e734aecfc30"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_remote_prose_tests.rs",
+        "sha256": "25e83fc49f7fafb1f26eb63e1f747f1c0322793ee62afedc227f215308a8ea41"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_search.rs",
+        "sha256": "fd8f15404cc37873862d55218e2ccea607ce8d2e45435303e7d63ade926d8fec"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_search_tests.rs",
+        "sha256": "4adba3195d1b2bbab256a8c56b67ce77fb515a9ff60bb93ab6b37d474fb6e4e7"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_tabs_tests.rs",
+        "sha256": "a883f7ddfc3fd56af067fb2f19ea98fded6d395ea26ee46174ef2ef821c8dfef"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_tests.rs",
+        "sha256": "8abc42bc30b5a05eafd660d660004a4db93ed7fac5dbb2765427c2e8948e8f01"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_trash.rs",
+        "sha256": "40dd9b9393de2874c53a0d0955b4170fad6365ab3b5da2222730c4eb9ff0993e"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_trash_tests.rs",
+        "sha256": "8c0d4d5403a8c573029f4fe161b85470319c8079b9603147fe09f8c9f9f12a89"
+      },
       {
         "path": "crates/drifting-core/Cargo.lock",
         "sha256": "6e0aa90238c8373efea555cebf3f33a7083fa971b8585140989c8164f787e520"
@@ -367,172 +449,140 @@
         "sha256": "c8ee1dda396a82cb83ceeedbf5817f7797ea2284f1569857d82d77a7911800bf"
       },
       {
-        "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "e26257845d1c299b2ab647c682cfab5506d8aa44182982db0e2ea412f28ff397"
+        "path": "crates/drifting-prose/Cargo.lock",
+        "sha256": "abbc3f22b656663c86a618b02e9d9d62fb0d46e7a9c637c59ec2a7734ce50314"
       },
       {
-        "path": "drizzle/0000_local_first_baseline.sql",
-        "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
+        "path": "crates/drifting-prose/Cargo.toml",
+        "sha256": "e9575f23e6057370f33f73b007283f0a58fb0a9303cbcd8cd036813296f4df98"
       },
       {
-        "path": "drizzle/0001_agent_chat_sync.sql",
-        "sha256": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0"
+        "path": "crates/drifting-prose/examples/durability-worker.rs",
+        "sha256": "99a97f7b21fe544279188c0734ef772c7bdad70919f5f6ecceffc28239c61836"
       },
       {
-        "path": "drizzle/0002_workspace_projection_journal.sql",
-        "sha256": "35ea9b635f4f5d671335684c109275444d406fb2715301dcb667703ab2304b90"
+        "path": "crates/drifting-prose/examples/durability/native_delete.rs",
+        "sha256": "06e411ea65cc8cd9452c0d82374bb373df18b4ee390a6b0707741091d6a5f06e"
       },
       {
-        "path": "drizzle/0003_agent_checkpoint_anchors.sql",
-        "sha256": "b61e084d2af4244ded43dd2ad05242a4a0e846d7150a2bd8c46caeeb38e76341"
+        "path": "crates/drifting-prose/examples/scale-fixture.rs",
+        "sha256": "e2c829199832535c7ce8919594f718d6fba308888927671ed99500bb7dbad7f4"
       },
       {
-        "path": "drizzle/0004_yjs_materialization_admission.sql",
-        "sha256": "865ebe4a9c9855cafad7780f33ba185bdfaa3d86db4ed32ec0562933bbfb0a05"
+        "path": "crates/drifting-prose/src/lib.rs",
+        "sha256": "0c60a7d37961af028233fe78266c65da9ba278f91f9599b420faf8963c550ccc"
       },
       {
-        "path": "drizzle/meta/0000_snapshot.json",
-        "sha256": "525d14cb83a2e870355ab62d3d6bf2e52a93a98cc8d6119832c02731e8c8c248"
+        "path": "crates/drifting-prose/src/native_source.rs",
+        "sha256": "63214b4e08438041c35d78ec50db0e4d83db46d81f58bc11c1b409f6f6b02f21"
       },
       {
-        "path": "drizzle/meta/0001_snapshot.json",
-        "sha256": "4e6cab7e7e48925e3d2dca0e0de557dd6d399cd3d87456a064a724858c58b608"
+        "path": "crates/drifting-prose/src/remote_sync.rs",
+        "sha256": "eb53c03a8a86cc7c439285135ac6385e9405514c6b2f6c42be42c279cac5caed"
       },
       {
-        "path": "drizzle/meta/0002_snapshot.json",
-        "sha256": "bf157f0d181cccef22c5a44721b2319ecc89f4d57bb116a2b0aeba1dcea93459"
+        "path": "crates/drifting-prose/src/workspace.rs",
+        "sha256": "37049a08c5cc8bb1f5dc447870e0638803cefe76a02fe6b4d609a6a1b5dc4b83"
       },
       {
-        "path": "drizzle/meta/0003_snapshot.json",
-        "sha256": "a9edf2dd08bf6dadcb3d96a3341fc4dc983f3a4e5e9aea9be8c019fdb78adda1"
+        "path": "crates/drifting-prose/tests/durability.rs",
+        "sha256": "72c40268879e6e315f3b4cbfe0d1264b0234df7e6fddccb63b6c59bedda7783f"
       },
       {
-        "path": "drizzle/meta/0004_snapshot.json",
-        "sha256": "ff8aa3ce4481e71d806aee5a2d0548fb0c2c6777623f9bdb70b794c7be26dda7"
+        "path": "crates/drifting-prose/tests/durability/native_persistence.rs",
+        "sha256": "f3ad65f29a53ad2e43151433a2faa5bf455d5682b5e312113f114cd4aeb2c1fe"
       },
       {
-        "path": "drizzle/meta/_journal.json",
-        "sha256": "d111a6fa2faa8b2791571f305fe160909a1e3b0728b3a8d0f36f9d808ae7b6d3"
+        "path": "crates/drifting-prose/tests/fixtures/remote-sync.json",
+        "sha256": "37b4862be6be50c0cca2685f9962f58ce93b6de8799a35df49be6aae09e88900"
+      },
+      {
+        "path": "crates/drifting-prose/tests/remote_sync.rs",
+        "sha256": "f56119a5fbedb7a0a7f97d3ef9d02adf49038effb0e41a1c5107f66cbe49314f"
       },
       {
         "path": "package.json",
         "sha256": "f94e8fd5d6b4840f6c4e4c467c2f2f66c1fc288f42d14f371ae6aad0d4800490"
       },
       {
+        "path": "patches/@tiptap__y-tiptap@3.0.8.patch",
+        "sha256": "84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2"
+      },
+      {
         "path": "pnpm-lock.yaml",
         "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
       },
       {
-        "path": "scripts/apple-native-event-order-oracle.ts",
-        "sha256": "d47766dd3f61d3e649b557eedcfbdc279b5dedf53dce569fe8dd8f788fb2766f"
+        "path": "pnpm-workspace.yaml",
+        "sha256": "ad0755e0697005848e090f72f37b37027cceddb668183b3370f14ca0e6a7faf4"
       },
       {
-        "path": "scripts/apple-native-journal-oracle.ts",
-        "sha256": "8db85d89640b94c31fcf73653bde14f2f86540b3b2f094620744480b34e3a4df"
+        "path": "scripts/apple-workspace-link-acceptance.mjs",
+        "sha256": "2d57078d96929cd3fd7e605dd0939f480fb24168714d923ba291f65fd81628d1"
       },
       {
-        "path": "scripts/apple-original-body-archive-oracle.ts",
-        "sha256": "4a071e8034bbb32eaddc3cb8499314470f7b47530ba26c1acd0a4ca5235c4d2f"
+        "path": "scripts/apple-workspace-link-check.ts",
+        "sha256": "3ac1f19a83a8d5360d4c4c8c0235128414bc4887d29836eeb9d416c9d121f2f1"
       },
       {
-        "path": "scripts/apple-original-operation-acceptance.mjs",
-        "sha256": "bcbc9f0459d6170ae84dbc9ebf63d3e1111cf36f1a42f5dc0931d0569fa49c51"
+        "path": "src/renderer/components/editor/chapter-static-html.ts",
+        "sha256": "5cb3d77aeef39dea54f1dba2b5c5deb2a92108f2ec41097b5052fa2f552731c8"
       },
       {
-        "path": "scripts/apple-original-operation-oracle.ts",
-        "sha256": "5fb69a6e1599728f059b448b2085ee751e2846528b9556946be9483d8d37ce89"
+        "path": "src/renderer/deferred-settings.d.ts",
+        "sha256": "3583b63493873ddcde579ff536a56aac856f42284e1ac544f445cdfda2a55c1f"
       },
       {
-        "path": "src/renderer/lib/yjs-persistence-origin.ts",
-        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+        "path": "src/renderer/deferred-super-views.d.ts",
+        "sha256": "9c37ebafe653c74e05702f02c2083a3ead694e5d697980a3f1b4acd0e7a9f8b2"
       },
       {
-        "path": "src/renderer/services/yjs-transaction-evidence.ts",
-        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
+        "path": "src/renderer/domain/entity-kinds.ts",
+        "sha256": "67ed43e3352f06131f4a4b73232a1f80afa701166b1ff1d4911a09ea856e8565"
       },
       {
-        "path": "src/renderer/sync/protocol/asset.test.ts",
-        "sha256": "2040144cccd1089bb5f347f44cbbf6b442c3749bf046c8fbadc03d0d254c9dfa"
+        "path": "src/renderer/global.d.ts",
+        "sha256": "6c05b59c8e1802fff5f1087ed42ab3b7a71d82ed973962b853fc8f42f1784cfb"
       },
       {
-        "path": "src/renderer/sync/protocol/asset.ts",
-        "sha256": "02ca95278b8ff33f3d2541deb62254911140a9b061e6f0e771b2a9ba14d677e3"
+        "path": "src/renderer/hooks/useEntityEditor.ts",
+        "sha256": "c45eb374c1224f384119fced8c9cd6b5840d1a3aba63389b0268f4184162e55b"
       },
       {
-        "path": "src/renderer/sync/protocol/canonical-cbor.ts",
-        "sha256": "e47cde3592daa3740ed8b5c7ab47173053509a887d0175b2053e44b4b9d7ff63"
+        "path": "src/renderer/lib/entity-link-names.ts",
+        "sha256": "d483ad9c68c3642265be7cca018d6b79d8da03b7bc838a4301cca61289f98ae7"
       },
       {
-        "path": "src/renderer/sync/protocol/change-set.ts",
-        "sha256": "b04005c646928683a10d3e3195bba939d24d2526fd066840324313e2da497f24"
+        "path": "src/renderer/lib/extensions/block-id.ts",
+        "sha256": "25af725dda6b1d663328ee80d713c8326663efe67d2267f83fdc1312c807a38e"
       },
       {
-        "path": "src/renderer/sync/protocol/domain-manifest-schema.ts",
-        "sha256": "d5f0290e33b71fd0be8ae07a47e5a5e0a10170d7826347217f3cbfb5dfc68cab"
+        "path": "src/renderer/lib/extensions/entity-link.ts",
+        "sha256": "34686301e0d75c5fd6d97e518d2cb3c227eae9859af300d9eaa3020b04de92ac"
       },
       {
-        "path": "src/renderer/sync/protocol/domain-manifest.test.ts",
-        "sha256": "3d186ee9b7539233072be4ea479cbefd7b63e672006e2f5636e3fc9226960c2b"
+        "path": "src/renderer/lib/extensions/paragraph-indent.ts",
+        "sha256": "55cdb75682917e13fe24bfb0fd27c00d08cc67cecb0d2e0168a0dbafe498059e"
       },
       {
-        "path": "src/renderer/sync/protocol/domain-manifest.ts",
-        "sha256": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766"
+        "path": "src/renderer/lib/retroactive-entity-links.ts",
+        "sha256": "cfe37519b9462dc5f1701520f30335da3b24ad5ab6c40a2466cc55344f9d05a2"
       },
       {
-        "path": "src/renderer/sync/protocol/fixtures/protocol-v1.golden.json",
-        "sha256": "b94c77cdaf1ce5f858c8b43452f30f426838915425b303fb153c964080557491"
+        "path": "src/renderer/services/reference-index-repository.ts",
+        "sha256": "fa799c06630bf01dfa2e9181bfc8a1d93b4dbc0831cff5839d56b8bb6a8b8b72"
       },
       {
-        "path": "src/renderer/sync/protocol/fixtures/v1-fixtures.ts",
-        "sha256": "3123e18ed04fb71f8bf0884aee2ff1ab6ef7deb3b70208d70fe42544dd2dd917"
+        "path": "src/renderer/services/reference-projection.service.ts",
+        "sha256": "b062ffb02dbb63b0dad0cc95b6ecc958ab7f7e8467e13d36a1cb4dd7050ffe82"
       },
       {
-        "path": "src/renderer/sync/protocol/index.ts",
-        "sha256": "200a7e9280dbd2e03db48ab237573843f3e43633076ca128a7d3e082b6563fdb"
+        "path": "src/renderer/vite-env.d.ts",
+        "sha256": "9a7a0f23a9aa8743b69c544f4c9d8ee2739637533484f2b9809274fa06596e50"
       },
       {
-        "path": "src/renderer/sync/protocol/order.ts",
-        "sha256": "5fe8f55e28c526fc0714c536f9c316813440c4428d29536a2770ecb9b3014a31"
-      },
-      {
-        "path": "src/renderer/sync/protocol/primitives.ts",
-        "sha256": "80405edc5dd7a99ad6d91e0eb29ad58ededc843d1b1c1eb6753905b85b825be8"
-      },
-      {
-        "path": "src/renderer/sync/protocol/protocol.test.ts",
-        "sha256": "3bea0800c7b38cdaecc09d23085c14574828c625da384eb682122e3e9e71379d"
-      },
-      {
-        "path": "src/renderer/sync/protocol/provider.ts",
-        "sha256": "1c60123b664585b4abd9f18ca10a566ff9f3475f27408e9605aaf11c5d476794"
-      },
-      {
-        "path": "src/renderer/sync/protocol/segment.ts",
-        "sha256": "e724e98063be4215d707774e00d3b8f0dd7d899ec09c4e42d3320fabcb53c56a"
-      },
-      {
-        "path": "src/renderer/sync/protocol/snapshot.ts",
-        "sha256": "e2089f61827df5f06d47232d11e4408334500e2bb0aed3679fede3660c799b58"
-      },
-      {
-        "path": "src/renderer/sync/protocol/validation.ts",
-        "sha256": "992c10215764d660390a5da11cc4c69546eb01a2a6e50417d107673249134ecb"
-      },
-      {
-        "path": "src/renderer/sync/protocol/versioned-codec.ts",
-        "sha256": "168cc9ab673da9c582ef47729d5c90fb00c24b195688a22660137ed79a0f4276"
-      },
-      {
-        "path": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
-        "sha256": "8c7b9258f15cfaa0c3e9ffff8fb61949c46c0518ac2d24ab223cfa1e3ba16a67"
-      },
-      {
-        "path": "src/renderer/sync/protocol/yjs-update-payload.ts",
-        "sha256": "d80221fadc09556e4a60effd65089631055da2d4db3dbf36bd04bcbc051c5b93"
-      },
-      {
-        "path": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
-        "sha256": "ec8c6c4b743749d82fe39f57d40887a99c1985a4cd0af42979c9cecadf2955ad"
+        "path": "tsconfig.json",
+        "sha256": "101d8d82f8b277474bc5e8625446ed86072256cfdd9ecd475558bf61d19bc01a"
       },
       {
         "path": "vendor/yrs/Cargo.lock",
@@ -806,101 +856,309 @@
         "path": "vendor/yrs/src/utils/mod.rs",
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
-    ]
+    ],
+    "fingerprint": "2076236961d751cab422dffab344eb9934ef3f0ed650ac52a6cd59f6bae112a5"
   },
-  "fixtureCases": {
-    "validEnvelopes": 8,
-    "invalidEnvelopes": 49,
-    "canonicalValues": 52,
-    "strictEventByteCases": 1,
-    "bodyArchive": {
-      "originals": 4,
-      "mutations": 5,
-      "targetBodies": 3
+  "toolchain": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)"
+  },
+  "suites": [
+    {
+      "name": "document-entity-links",
+      "passed": 4,
+      "failed": 0,
+      "cases": [
+        "entity_link_tests::entity_link_detection_matches_the_renderer_matcher",
+        "entity_link_tests::entity_link_key_matches_y_tiptap_overlapping_mark_hash",
+        "entity_link_tests::link_entities_waits_for_drafts_and_uses_renderer_name_collisions",
+        "entity_link_tests::link_entities_is_idempotent_not_undoable_and_keeps_other_targets"
+      ],
+      "logSha256": "da4ae474b7ccab31873b773097ebfb71dae29476db966d3a42f80fcd6743dfc1"
     },
-    "eventOrder": {
-      "accepted": 11,
-      "rejected": 21
+    {
+      "name": "bridge-entity-links",
+      "passed": 1,
+      "failed": 0,
+      "cases": [
+        "workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks"
+      ],
+      "logSha256": "376ab0485a24d8e8764e35df9c39ca025bbe16e17c0376991e969b2abe96532b"
+    }
+  ],
+  "renderer": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "inputSha256": "3904da4e3888e3718c738d7091fc696a69c26b10ca53e8331cdcde1803cad468",
+    "schema": {
+      "source": "getStaticChapterSchema",
+      "nodes": [
+        "blockquote",
+        "doc",
+        "hardBreak",
+        "heading",
+        "horizontalRule",
+        "paragraph",
+        "text"
+      ],
+      "marks": [
+        "bold",
+        "entityLink",
+        "italic",
+        "link",
+        "strike",
+        "underline"
+      ]
     },
-    "journalEvidence": {
-      "cases": 3
+    "editor": {
+      "extensions": [
+        "paragraph",
+        "link",
+        "collaboration",
+        "editable",
+        "clipboardTextSerializer",
+        "commands",
+        "focusEvents",
+        "keymap",
+        "tabindex",
+        "drop",
+        "paste",
+        "delete",
+        "textDirection",
+        "starterKit",
+        "bold",
+        "blockquote",
+        "doc",
+        "dropCursor",
+        "gapCursor",
+        "hardBreak",
+        "heading",
+        "horizontalRule",
+        "italic",
+        "strike",
+        "text",
+        "trailingNode",
+        "underline",
+        "textAlign",
+        "blockId",
+        "paragraphIndent",
+        "entityLink"
+      ],
+      "omittedExtensions": [
+        "placeholder",
+        "agentDiffDecoration",
+        "entityMentionSuggestion",
+        "slashMenu"
+      ]
+    },
+    "documents": [
+      {
+        "name": "chapter-0",
+        "sourceKind": "node",
+        "stateSha256": "a1628be371900016cbdf3a2b676a35c2a86642bbf04569cf567305830491c097",
+        "textSha256": "04bf587ab5d700e0f95c8146cf8c790e44e6a2f0797aca20d842d6e26d6cae79",
+        "blocks": 2,
+        "linkKeys": 3,
+        "links": [
+          [
+            0,
+            0,
+            2,
+            "林凯",
+            "element:林凯"
+          ],
+          [
+            0,
+            3,
+            5,
+            "北塔",
+            "element:北塔"
+          ],
+          [
+            1,
+            0,
+            2,
+            "阿凯",
+            "element:林凯"
+          ],
+          [
+            1,
+            4,
+            6,
+            "归航",
+            "node:归航"
+          ],
+          [
+            1,
+            8,
+            10,
+            "林凯",
+            "element:林凯"
+          ]
+        ],
+        "decode": "passed",
+        "yjsAttributes": "passed",
+        "pureDetector": "passed",
+        "selfSpansWithoutExclusion": 0,
+        "autoDetect": {
+          "status": "passed",
+          "transactions": 1,
+          "yjsUpdates": 1,
+          "undoSteps": 0
+        },
+        "convergence": {
+          "status": "passed",
+          "yjsUpdates": 0
+        }
+      },
+      {
+        "name": "chapter-1",
+        "sourceKind": "node",
+        "stateSha256": "064863c51c94b98bc798091e4013dcf5d6e0916133893c45af8fbcd3be5c4a5e",
+        "textSha256": "27805edcae5e758a8280f0a48a575bb3ef1c4d1a14c8c2736b975ca1fd4de67f",
+        "blocks": 1,
+        "linkKeys": 1,
+        "links": [
+          [
+            0,
+            0,
+            2,
+            "林凯",
+            "element:林凯"
+          ]
+        ],
+        "decode": "passed",
+        "yjsAttributes": "passed",
+        "pureDetector": "passed",
+        "selfSpansWithoutExclusion": 0,
+        "autoDetect": {
+          "status": "passed",
+          "transactions": 1,
+          "yjsUpdates": 1,
+          "undoSteps": 0
+        },
+        "convergence": {
+          "status": "passed",
+          "yjsUpdates": 0
+        }
+      },
+      {
+        "name": "element-body",
+        "sourceKind": "element",
+        "stateSha256": "9b38dd195ec4e6c7ee93250a78b2723e1ed2072dcfe1ae5501fb87036a348f37",
+        "textSha256": "9057aa97dac1833ab97d8229c0542ae2583e0f6c311d78f242495b9fd1168171",
+        "blocks": 1,
+        "linkKeys": 1,
+        "links": [
+          [
+            0,
+            4,
+            6,
+            "北塔",
+            "element:北塔"
+          ]
+        ],
+        "decode": "passed",
+        "yjsAttributes": "passed",
+        "pureDetector": "passed",
+        "selfSpansWithoutExclusion": 1,
+        "autoDetect": {
+          "status": "passed",
+          "transactions": 1,
+          "yjsUpdates": 1,
+          "undoSteps": 0
+        },
+        "convergence": {
+          "status": "passed",
+          "yjsUpdates": 0
+        }
+      }
+    ],
+    "backlinks": {
+      "element": "element:林凯",
+      "status": "passed",
+      "chapters": [
+        {
+          "chapter": "node:初航",
+          "spans": 3,
+          "blocks": 2,
+          "first": {
+            "location": 0,
+            "length": 2
+          }
+        },
+        {
+          "chapter": "node:归航",
+          "spans": 1,
+          "blocks": 1,
+          "first": {
+            "location": 0,
+            "length": 2
+          }
+        }
+      ]
     }
   },
-  "tests": {
-    "rustToolchain": "1.88.0",
-    "listed": 99,
-    "passed": 99,
-    "failed": 0,
-    "ignored": 0,
-    "requiredCases": [
-      "original_operation::tests::original_operation_accepts_real_ts_envelopes_and_returns_all_exact_materialized_rows",
-      "original_operation::tests::original_operation_rejects_ts_binding_schema_hash_versions_and_unclassified_event_corpus",
-      "original_operation::tests::original_operation_complete_canonical_value_model_matches_production_cborg",
-      "original_operation::tests::original_operation_bounds_envelope_before_decode_and_owns_selected_bytes",
-      "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
-      "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
-      "original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders",
-      "original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes",
-      "original_operation_store::tests::original_store_reads_actual_single_and_multi_operation_without_side_effects",
-      "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
-      "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
-      "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
-      "original_operation_store::tests::original_store_reads_one_wal_snapshot_while_another_connection_commits",
-      "original_operation_store::tests::original_store_refuses_oversize_envelope_and_row_blobs_before_copying_them",
-      "original_operation_store::tests::original_store_refuses_rehashed_companion_insert_with_published_guards_intact",
-      "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
-      "original_operation_store::tests::original_store_requires_an_actual_matching_apply_receipt",
-      "original_operation_store::tests::original_store_leaves_callers_work_intact_after_success_and_failure",
-      "original_operation_store::tests::original_store_limits_corrupt_text_cells_before_gateway_allocation",
-      "original_body_archive::tests::archive_generic_envelope_layer_does_not_claim_standalone_deletion_intent",
-      "original_body_archive::tests::archive_collects_real_seed_insert_delete_originals_and_reopens_without_intent_for_bodies",
-      "original_body_archive::tests::archive_canonical_discovery_rejects_hidden_target_and_unselected_row_tampering",
-      "original_body_archive::tests::archive_requires_applied_receipt_original_bytes_scope_and_known_references",
-      "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
-      "original_body_archive::tests::archive_bounds_reads_before_copy_and_leaves_caller_transaction_intact",
-      "native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire",
-      "native_journal_rejects_exact_event_and_schema_mismatches_without_advancing_writer_or_revision",
-      "native_journal_nested_evidence_rejection_and_receipt_failure_rollback_preserve_outer_work",
-      "native_journal_limits_optional_evidence_before_large_encoding_and_keeps_default_append_unchanged",
-      "materialization_admission::tests::materialization_native_journal_records_actual_append_and_survives_prune_cold",
-      "materialization_admission::tests::materialization_native_admission_failure_rolls_back_writer_revision_and_journal",
-      "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
-      "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
+  "strictTypeScript": "passed",
+  "boundaries": {
+    "source": "Real native documentLinkEntities and workspaceElements backlinks commands over a synthetic file-backed workspace: two chapters and one element body linked through the C ABI; chapter 1 is closed and read cold for backlinks.",
+    "agreedGroups": [
+      "Every native entityLink decodes through y-prosemirror JSON and the y-tiptap editor decoder under the production chapter schema with exactly {targetKind,targetId,targetBlockId:null}, and y-tiptap serializes the decoded marks to the identical Yjs text deltas, so each key is the overlapping-mark key entityLink--hashOfJSON(mark.toJSON()).",
+      "With every entityLink stripped, the production chapter editor extensions bound through Collaboration to a y-tiptap Y.Doc run the real EntityLink auto-detect (flushPendingAutoDetect) over buildEntityAutoDetectTargets with the chapter-self and own-element exclusions and reproduce the native marks and Yjs text attributes in one addToHistory:false transaction that adds no undo step; the exported detectEntityLinkSpans agrees per text node.",
+      "The production reference projection (yDocToProsemirrorJSON then projectInlineMentionsFromJson, equal to projectInlineMentionsFromDoc) yields the native per-chapter backlink rows: spans, distinct blocks and the first UTF-16 range in projection coordinates.",
+      "The same production editor bound to each native Y.Doc renders the native marks and emits no Yjs update on load or on an auto-detect flush: the renderer does not rewrite native links."
     ],
-    "logSha256": "a58e56110bb956152f62038b8447d29e6f73e4de73bc4d2652192a40d220575b"
+    "headlessEditor": "TipTap Editor with the production chapter extensions (useEntityEditor Yjs mode) mounted on a DOM-free view double: state, TipTap composed dispatch and the prosemirror-view plugin-view lifecycle, an inert view.dom and window drag-listener target. Placeholder, AgentDiffDecoration, EntityMentionSuggestion and the slash menu are omitted: they only decorate or react to input.",
+    "omittedExtensions": [
+      "placeholder",
+      "agentDiffDecoration",
+      "entityMentionSuggestion",
+      "slashMenu"
+    ],
+    "limitations": [
+      "Chapter self-exclusion is applied but not content-exercised (no chapter contains its own title); the element body exercises its own-element exclusion.",
+      "The renderer name map takes every live book node title, including drift nodes, in renderer book order; native takes chapter titles only (kind chapter, book_order then id). The fixture has no drift nodes, so drift titles are neither linked natively nor covered here.",
+      "Native backlinks scan chapters only; the renderer inline-mention index also counts element bodies and other sources as incoming references.",
+      "No name collisions, trashed targets, retroactive linking on element creation or links split by other marks are exported; matcher collisions and draft/composition deferral are document-test evidence.",
+      "Synthetic single-process data; no UI, IME, physical device, cloud account or release acceptance."
+    ]
   },
-  "scope": [
-    "Canonical original envelope and every mutation schema, payload hash and full selected reference",
-    "Exact declared pure-deletion event bytes and causal snapshot syntax; no higher-level command classifier",
-    "One SQLite snapshot for original bytes, matching application receipt and all materialized mutation rows",
-    "Rehashed sibling substitution, missing or extra rows, wrong references and unaccepted originals refuse without writes",
-    "WAL snapshot consistency, caller-owned transaction preservation and bounded SQLite cells",
-    "Canonical originals identify same-scope body events independently of mutable target indices",
-    "Read-only seed, insert and deletion collection verifies generation catalog, original receipts and every sibling row",
-    "Missing required originals, forged target indices, absent receipts and exceeded local collection budgets refuse",
-    "Legal Yjs/Yrs event client orders preserve exact bytes; complete parsing rejects malformed, duplicate and trailing data",
-    "Optional native journal declarations bind exact events to canonical originals and roll back rejected evidence without advancing writer sequence",
-    "The default journal payload remains byte-compatible; actual command capture and scoped owner behavior have a separate authoring report",
-    "Positive materialization receipts bind actual journal appends, survive raw compaction, and remain distinct for equal events in different originals",
-    "Receipt failure rolls back the native append and writer sequence; missing historical admission is never backfilled"
-  ],
-  "limits": {
-    "sourceVisibility": "not-established-by-this-reader",
-    "writerIdentity": "not-authenticated-by-hashes",
-    "liveDeletionAuthority": "not-enabled",
-    "durableAuthorityCommit": "not-implemented",
-    "capabilityRollout": "not-implemented",
-    "retainedCollectionCompleteness": "not-established",
-    "lostOrGarbageCollectedBodyRecovery": "not-implemented",
-    "archiveReadBudgets": {
-      "envelopes": 4096,
-      "aggregateBytes": 67108864,
-      "envelopeBytes": 16777216
+  "rawEvidence": [
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/source-before.json",
+      "sha256": "c1642d232f91f9919d0dfacf82b394f3fdb23149977e834aeb6ba5de06e414f3"
     },
-    "simulator": "not-run-by-this-report",
-    "physicalInput": "not-run",
-    "device": "not-run",
-    "account": "not-run",
-    "distribution": "not-run"
-  }
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/rustc.log",
+      "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/cargo.log",
+      "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/document-entity-links.log",
+      "sha256": "da4ae474b7ccab31873b773097ebfb71dae29476db966d3a42f80fcd6743dfc1"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/bridge-entity-links.log",
+      "sha256": "376ab0485a24d8e8764e35df9c39ca025bbe16e17c0376991e969b2abe96532b"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/entity-links.json",
+      "sha256": "3904da4e3888e3718c738d7091fc696a69c26b10ca53e8331cdcde1803cad468"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/renderer.json",
+      "sha256": "48540bc0eef6c10a2456ee709996a917d2fc8f4915e9ba131cd5ae08a6c44c03"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/renderer.log",
+      "sha256": "dd55ca3b43772ce59fb1ca47a017dc255e26d79f9d605f9e4291c179af5aaa39"
+    },
+    {
+      "path": ".local-data/apple-native/link-acceptance-NDbfXX/typecheck.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  ]
 }

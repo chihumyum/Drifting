@@ -2,6 +2,7 @@
 //! local workspace/project/chapter surface, including metadata changes. Both
 //! reuse the shared prose owner; metadata commands never replace the editor.
 mod document_comments;
+mod document_links;
 mod workspace;
 #[cfg(test)]
 mod workspace_tests;
@@ -505,6 +506,9 @@ enum Request {
         handle: u64,
     },
     DocumentComments {
+        handle: u64,
+    },
+    DocumentLinkEntities {
         handle: u64,
     },
     DocumentCreateComment {
@@ -1043,6 +1047,11 @@ fn dispatch(request: Request) -> Result<Value, String> {
             session.persist();
             session.document_state()
         }
+        Request::DocumentLinkEntities { handle } => document_links::link(
+            sessions
+                .get_mut(&handle)
+                .ok_or("Unknown or closed session")?,
+        ),
         Request::DocumentComments { handle } => {
             document_comments::list(sessions.get(&handle).ok_or("Unknown or closed session")?)
         }

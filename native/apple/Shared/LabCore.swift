@@ -96,6 +96,8 @@ enum LabError: LocalizedError {
 struct NativeInputReply: Decodable { let input: NativeProjection; let state: LabDocumentState }
 struct NativeCheckpoint: Decodable { let update: String; let stateVector: String }
 struct DraftSelection { let viewID: String; let epoch: UInt64; let range: NSRange }
+/// `linked` spans were added; the state is adopted like a format reply.
+struct NativeEntityLinkReply: Decodable { let linked: Int; let state: LabDocumentState }
 
 final class LabCore {
     private let queue: DispatchQueue
@@ -104,6 +106,9 @@ final class LabCore {
     private weak var sharedDocument: DocumentStore?
     private var pendingDocument: DocumentStore?
     private let closesOwnHandle: Bool
+    /// Workspace chapter and element bodies link entity names; the
+    /// standalone lab document has no workspace names to link.
+    let linksEntities: Bool
     private(set) var isSuspended = false
     private(set) var isClosed = false
 
@@ -129,6 +134,7 @@ final class LabCore {
     init(directory: URL? = nil) {
         queue = DispatchQueue(label: "cc.drifting.native-lab.core")
         closesOwnHandle = true
+        linksEntities = false
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "cc.drifting.native-lab")
             .appendingPathComponent("apple-native-lab", isDirectory: true)
@@ -137,6 +143,7 @@ final class LabCore {
     fileprivate init(handle: UInt64, directory: URL, queue: DispatchQueue) {
         self.queue = queue
         closesOwnHandle = false
+        linksEntities = true
         self.handle = handle
         self.directory = directory
     }
@@ -144,7 +151,8 @@ final class LabCore {
     fileprivate func suspend(_ value: Bool) {
         precondition(Thread.isMainThread)
         isSuspended = value
-        sharedDocument?.activity()
+        // A background link reply may have landed during the owner change.
+        if value { sharedDocument?.activity() } else { sharedDocument?.resumed() }
     }
 
     fileprivate func receiveReconciledState(_ state: LabDocumentState) {
@@ -272,6 +280,19 @@ final class LabCore {
     func setCommentResolved(id: String, resolved: Bool, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
         documentValue("documentSetCommentResolved", fields: ["commentId": id, "resolved": resolved]) { (result: Result<WorkspaceCommentReply, Error>) in
             completion(result.map(\.comment))
+        }
+    }
+
+    /// Links every unlinked element name, alias and chapter title in this
+    /// workspace body. Never an undo step; with pending input, a failed save or
+    /// a remote block Rust links nothing and the caller retries later.
+    func linkEntities(completion: @escaping (Result<NativeEntityLinkReply, Error>) -> Void) {
+        perform(completion) {
+            guard let handle = self.handle else { throw LabError.message("请先打开项目") }
+            guard let value: NativeEntityLinkReply = try LabCore.call(["operation": "documentLinkEntities", "handle": handle]) else {
+                throw LabError.message("链接结果没有返回")
+            }
+            return value
         }
     }
 
@@ -673,6 +694,13 @@ final class LabWorkspaceCore {
 
     func closeElement(projectID: String, elementID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
         closeDocument(.element(ElementScope(projectID: projectID, elementID: elementID)), completion: completion)
+    }
+
+    /// Chapters whose prose links the element, read from live owners or cold
+    /// durable state. A read only: no owner, history or journal changes.
+    func elementBacklinks(projectID: String, elementID: String,
+                          completion: @escaping (Result<WorkspaceElementBacklinks, Error>) -> Void) {
+        perform(completion) { try self.elementRequest(projectID, ["action": "backlinks", "elementId": elementID]) }
     }
 
     private func elementRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {

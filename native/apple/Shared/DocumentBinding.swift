@@ -33,6 +33,13 @@ enum NativeFormatAction: String, CaseIterable {
     static let blocks: [NativeFormatAction] = [.paragraph, .heading1, .heading2, .heading3]
 }
 
+/// The target one entity-link mark names. A payload without a kind is an
+/// element, as in the renderer; one without an identity names nothing.
+struct NativeEntityLink: Hashable {
+    let kind: String
+    let id: String
+}
+
 // Only display hints cross into the view. Unrecognized mark payloads remain in
 // Yrs; attributed strings are never used to reconstruct the document.
 struct NativeMarks: Decodable {
@@ -40,19 +47,36 @@ struct NativeMarks: Decodable {
     let italic: Bool
     let entityLink: Bool
     let strike: Bool
+    /// Every link on the run, ordered by mark key; one run may link several
+    /// targets. Empty when `entityLink` carries no readable target.
+    let links: [NativeEntityLink]
     private struct Keys: CodingKey {
         let stringValue: String
         var intValue: Int? { nil }
         init?(stringValue: String) { self.stringValue = stringValue }
         init?(intValue: Int) { return nil }
     }
+    private struct LinkPayload: Decodable {
+        let targetKind: String?
+        let targetId: String?
+    }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: Keys.self)
         // y-prosemirror hashes overlapping mark keys; these are display hints
         // only. The exact keys/payloads stay in the Rust document projection.
-        let names = Set(values.allKeys.map { $0.stringValue.replacingOccurrences(of: "--[a-zA-Z0-9+/=]{8}$", with: "", options: .regularExpression) })
+        func base(_ key: Keys) -> String {
+            key.stringValue.replacingOccurrences(of: "--[a-zA-Z0-9+/=]{8}$", with: "", options: .regularExpression)
+        }
+        let names = Set(values.allKeys.map(base))
         bold = names.contains("bold"); italic = names.contains("italic")
         entityLink = names.contains("entityLink"); strike = names.contains("strike")
+        var links: [NativeEntityLink] = []
+        for key in values.allKeys.filter({ base($0) == "entityLink" }).sorted(by: { $0.stringValue < $1.stringValue }) {
+            guard let payload = try? values.decode(LinkPayload.self, forKey: key), let id = payload.targetId else { continue }
+            let link = NativeEntityLink(kind: payload.targetKind ?? "element", id: id)
+            if !links.contains(link) { links.append(link) }
+        }
+        self.links = links
     }
 }
 struct NativeRun: Decodable { let range: NativeRange; let attributes: NativeMarks }
@@ -189,6 +213,8 @@ final class DocumentBinding {
     var onProjection: ((NativeProjection, [NativeTextChange]) -> Void)?
     var onStatus: ((String) -> Void)?
     var onActivity: ((Bool) -> Void)?
+    /// A background link pass added links to this owner's prose.
+    var onEntityLinks: (() -> Void)?
     var state: LabDocumentState? { store.state }
     var hasUnsubmittedDraft: Bool { composing || failed }
     var hasFailedDraft: Bool { failed }

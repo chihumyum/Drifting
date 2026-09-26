@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T20:05:25.728Z",
+  "generatedAt": "2026-09-26T21:22:49.800Z",
   "status": "passed",
   "source": {
-    "commit": "dcab132856ee7328254076133ea9fc6975b5a560",
+    "commit": "d7056fba396fdba5a2751361c144da0f2bc4e549",
     "dirty": true,
-    "fingerprint": "a71f8ff6ae898e950d2276ab6029b222fad26bd7de0ae6eb054ca2b3219b3d9c"
+    "fingerprint": "8acf1ec4e614cb2386e6ea9486abde735ac5836cba5a5aa8dd15f49e65acde8a"
   },
   "libraries": {
     "yjs": "13.6.32",
@@ -231,7 +231,7 @@
     "exclusionReason": "Seven upstream trace/dataset tests need assets absent from the published crate; not claimed as passed."
   },
   "unitTests": {
-    "passed": 145,
+    "passed": 149,
     "failed": 0,
     "requiredCases": [
       {

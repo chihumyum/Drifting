@@ -22,6 +22,10 @@ struct BindingAcceptance {
     }
     static func main() throws {
         _ = NSApplication.shared
+        if CommandLine.arguments.contains("--entity-links-only") {
+            print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": try entityLinkAcceptance()]), encoding: .utf8)!)
+            return
+        }
         if CommandLine.arguments.contains("--element-facts-only") {
             print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": try elementFactsAcceptance()]), encoding: .utf8)!)
             return
@@ -87,7 +91,8 @@ struct BindingAcceptance {
             return
         }
         let hashedMarks = try JSONDecoder().decode(NativeMarks.self, from: Data("{\"entityLink--1234abcd\":{\"targetId\":\"synthetic\"},\"bold\":{}}".utf8))
-        try require(hashedMarks.entityLink && hashedMarks.bold, "Overlapping Yjs link marks were not rendered")
+        try require(hashedMarks.entityLink && hashedMarks.bold && hashedMarks.links == [NativeEntityLink(kind: "element", id: "synthetic")],
+            "Overlapping Yjs link marks were not rendered")
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: parent) }
         let core = LabCore(directory: parent.appendingPathComponent("apple-native-lab"))
@@ -184,7 +189,7 @@ struct BindingAcceptance {
         try require(reopenedComment.quote == "北塔" && reopenedComment.ranges[0].length == 3, "Redo comment anchor did not survive SQLite reopen")
         let cases = ["queued Unicode edits", "per-event undo and redo", "marked text waits for commit", "composition undo",
             "heading split and queued typing", "SQLite reopen", "AppKit delegate edit", "AppKit marked-text commit and undo",
-            "AppKit Enter, join and structural undo", "AppKit comment highlight, split, history and SQLite reopen"] + (try multiViewAcceptance()) + (try selectionAcceptance()) + (try draftTransportAcceptance()) + (try inputQueueAcceptance()) + (try prefixDeletionQueueAcceptance()) + (try nativeHistoryAcceptance()) + (try partialQuoteHistoryAcceptance()) + (try remoteBlockAcceptance()) + (try remoteRecoveryAcceptance()) + (try relocationAcceptance()) + (try styleAcceptance()) + (try textIdentityAcceptance()) + (try formattingAcceptance()) + (try outlineAcceptance()) + (try workspaceTabsAcceptance()) + (try searchAcceptance()) + (try workspaceRemoteProseAcceptance()) + (try workspaceRemoteChangesAcceptance()) + (try workspaceTrashAcceptance()) + (try actBoundaryAcceptance()) + (try commentAcceptance()) + (try elementLibraryAcceptance()) + (try elementFactsAcceptance())
+            "AppKit Enter, join and structural undo", "AppKit comment highlight, split, history and SQLite reopen"] + (try multiViewAcceptance()) + (try selectionAcceptance()) + (try draftTransportAcceptance()) + (try inputQueueAcceptance()) + (try prefixDeletionQueueAcceptance()) + (try nativeHistoryAcceptance()) + (try partialQuoteHistoryAcceptance()) + (try remoteBlockAcceptance()) + (try remoteRecoveryAcceptance()) + (try relocationAcceptance()) + (try styleAcceptance()) + (try textIdentityAcceptance()) + (try formattingAcceptance()) + (try outlineAcceptance()) + (try workspaceTabsAcceptance()) + (try searchAcceptance()) + (try workspaceRemoteProseAcceptance()) + (try workspaceRemoteChangesAcceptance()) + (try workspaceTrashAcceptance()) + (try actBoundaryAcceptance()) + (try commentAcceptance()) + (try elementLibraryAcceptance()) + (try elementFactsAcceptance()) + (try entityLinkAcceptance())
         print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": cases]), encoding: .utf8)!)
     }
 }

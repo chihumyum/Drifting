@@ -13,6 +13,51 @@ final class ProseTextView: NSTextView {
     var performFormat: ((NativeFormatAction) -> Void)?
     var canPerformComment: (() -> Bool)?
     var performComment: (() -> Void)?
+    /// Opens the first live link target at a character; false when none.
+    var openLink: ((Int) -> Bool)?
+    /// Whether a character carries a link mark.
+    var hasLink: ((Int) -> Bool)?
+    /// The linked character under a resting or moving mouse, or nil.
+    var onHover: ((Int?) -> Void)?
+    private var hoverArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area); hoverArea = area
+    }
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        onHover?(linkIndex(for: event))
+    }
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onHover?(nil)
+    }
+
+    /// ⌘-click on a live link opens its target instead of moving the caret.
+    override func mouseDown(with event: NSEvent) {
+        onHover?(nil)
+        if event.modifierFlags.contains(.command), let index = linkIndex(for: event), openLink?(index) == true { return }
+        super.mouseDown(with: event)
+    }
+
+    /// The linked character under a mouse event, if any. The insertion index
+    /// names the gap nearest the point; the glyph on either side is hit-tested.
+    func linkIndex(for event: NSEvent) -> Int? {
+        guard let window = event.window ?? self.window else { return nil }
+        let point = convert(event.locationInWindow, from: nil)
+        let screen = window.convertPoint(toScreen: event.locationInWindow)
+        let gap = characterIndexForInsertion(at: point)
+        let length = (string as NSString).length
+        for index in [gap, gap - 1] where index >= 0 && index < length && hasLink?(index) == true {
+            let rect = firstRect(forCharacterRange: NSRange(location: index, length: 1), actualRange: nil)
+            if rect.insetBy(dx: -1, dy: -1).contains(screen) { return index }
+        }
+        return nil
+    }
 
     // Standard responder actions also cover text-system key bindings. Never
     // let NSTextView's independent undo stack replay a CRDT-owned operation.
@@ -76,6 +121,24 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Fired when this view renders different comment anchor views.
     var onComments: (() -> Void)?
     var onCommentCreated: ((WorkspaceComment) -> Void)?
+    /// Opens a live link target (⌘-click or 打开「名称」).
+    var onOpenLink: ((EntityLinkTarget) -> Void)?
+    /// A background link pass added links to this owner's prose.
+    var onEntityLinks: (() -> Void)?
+    /// The workspace's elements and chapters. Without one, links keep the
+    /// default style and cannot be opened. A change restyles the prose only.
+    var linkDirectory: EntityLinkDirectory? {
+        didSet { if linkDirectory != oldValue { closeLinkPreview(); restyleLinks() } }
+    }
+    /// Hover delay before a link's preview opens, as in the renderer.
+    static var linkPreviewDelay: TimeInterval = 0.22
+    private var hoverTimer: DispatchWorkItem?
+    private var hoverRange: NSRange?
+    private let linkPreview = NSPopover()
+    /// The target whose preview is open, and its text. Set even when the
+    /// window is not on screen, where no popover can be shown.
+    private(set) var previewedLink: EntityLinkTarget?
+    var linkPreviewText: String? { previewedLink?.preview }
     var isInteractionLocked = false {
         didSet {
             updateEditability()
@@ -114,6 +177,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performFormat = { [weak self] in self?.performFormat($0) }
         textView.canPerformComment = { [weak self] in self?.canAddComment == true }
         textView.performComment = { [weak self] in self?.beginComment() }
+        textView.openLink = { [weak self] in self?.openLink(at: $0) == true }
+        textView.hasLink = { [weak self] in self?.links(at: $0).isEmpty == false }
+        textView.onHover = { [weak self] in self?.hover(at: $0) }
+        linkPreview.behavior = .semitransient
+        linkPreview.animates = false
         scroll.documentView = textView
         undoButton.target = self; undoButton.action = #selector(undoProse)
         redoButton.target = self; redoButton.action = #selector(redoProse)
@@ -155,6 +223,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         ])
         binding.onProjection = { [weak self] in self?.render($0, changes: $1) }
         binding.onStatus = { [weak self] in self?.status.stringValue = $0 }
+        binding.onEntityLinks = { [weak self] in self?.onEntityLinks?() }
         binding.onActivity = { [weak self] busy in
             guard let self else { return }
             self.updateEditability()
@@ -195,6 +264,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard !textView.hasMarkedText() else { styledProjection = nil; return }
+        if !changes.isEmpty { closeLinkPreview() }
         rendering = true
         var selection = textView.selectedRange()
         let scroll = textView.enclosingScrollView?.contentView.bounds.origin
@@ -205,7 +275,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         }
         if let storage = textView.textStorage {
             lastStyleUpdate = DocumentStyle.update(projection, previous: replacedText ? nil : styledProjection,
-                localChange: changes.count == 1 ? changes[0] : nil, to: storage)
+                localChange: changes.count == 1 ? changes[0] : nil, to: storage, links: linkDirectory)
             styledProjection = projection
             onStyleUpdate?(lastStyleUpdate)
         }
@@ -221,6 +291,114 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         rendering = false
         updateFormatControls()
     }
+    // MARK: Entity links
+
+    /// Restyle the displayed prose after the directory changed. Marked text
+    /// keeps its temporary styling; the next render after commit is full.
+    private func restyleLinks() {
+        guard let projection = styledProjection, let storage = textView.textStorage else { return }
+        guard !textView.hasMarkedText(), NativeText.identical(textView.string, projection.text) else { styledProjection = nil; return }
+        DocumentStyle.apply(projection, to: storage, links: linkDirectory)
+        lastStyleUpdate = .full
+        onStyleUpdate?(.full)
+    }
+
+    /// The displayed run holding a UTF-16 index.
+    private func run(at index: Int) -> NativeRun? {
+        guard let projection = styledProjection, NativeText.identical(textView.string, projection.text),
+              let block = projection.blocks.first(where: { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }) else { return nil }
+        return block.runs.first { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }
+    }
+
+    /// The link marks on the displayed character at a UTF-16 index.
+    func links(at index: Int) -> [NativeEntityLink] { run(at: index)?.attributes.links ?? [] }
+
+    /// Resolved targets at a character, live and trashed, in mark order.
+    func linkTargets(at index: Int) -> [EntityLinkTarget] {
+        guard let linkDirectory else { return [] }
+        return links(at: index).compactMap { linkDirectory.target(for: $0).flatMap { $0 } }
+    }
+
+    private func linkRange(at index: Int) -> NSRange? { run(at: index)?.range.nsRange }
+
+    /// Resting on a link opens its preview after `linkPreviewDelay`; leaving
+    /// it closes the preview at once. Composition never shows one.
+    private func hover(at index: Int?) {
+        guard let index, !textView.hasMarkedText(), linkTargets(at: index).first != nil, let range = linkRange(at: index) else {
+            closeLinkPreview(); return
+        }
+        guard range != hoverRange else { return }
+        closeLinkPreview()
+        hoverRange = range
+        let timer = DispatchWorkItem { [weak self] in
+            guard let self, self.hoverRange == range else { return }
+            self.hoverTimer = nil
+            self.showLinkPreview(at: index)
+        }
+        hoverTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.linkPreviewDelay, execute: timer)
+    }
+
+    /// Opens the preview of the first target at a character now: name and
+    /// category, up to three aliases and the summary, or its trash state.
+    @discardableResult
+    func showLinkPreview(at index: Int) -> Bool {
+        guard !textView.hasMarkedText(), let target = linkTargets(at: index).first, let range = linkRange(at: index) else {
+            closeLinkPreview(); return false
+        }
+        hoverTimer?.cancel(); hoverTimer = nil
+        hoverRange = range; previewedLink = target
+        linkPreview.contentViewController = LinkPreviewController(target: target)
+        if let window = textView.window, window.isVisible {
+            let screen = textView.firstRect(forCharacterRange: range, actualRange: nil)
+            let rect = textView.convert(window.convertFromScreen(screen), from: nil)
+            linkPreview.show(relativeTo: rect, of: textView, preferredEdge: .maxY)
+        }
+        return true
+    }
+
+    func closeLinkPreview() {
+        hoverTimer?.cancel(); hoverTimer = nil; hoverRange = nil
+        previewedLink = nil
+        if linkPreview.isShown { linkPreview.performClose(nil) }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { closeLinkPreview() }
+    }
+
+    @discardableResult
+    func openLink(at index: Int) -> Bool {
+        guard !isInteractionLocked, !textView.hasMarkedText(),
+              let target = linkTargets(at: index).first(where: { !$0.trashed }), let onOpenLink else { return false }
+        onOpenLink(target)
+        return true
+    }
+
+    private func linkMenuItems(at index: Int) -> [NSMenuItem] {
+        linkTargets(at: index).map { target in
+            if target.trashed {
+                let item = NSMenuItem(title: "「\(target.name)」已在回收站", action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                item.setAccessibilityIdentifier("context-trashed-link-\(target.id)")
+                return item
+            }
+            let item = NSMenuItem(title: "打开「\(target.name)」", action: #selector(openLinkItem(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = target
+            item.setAccessibilityIdentifier("context-open-link-\(target.id)")
+            return item
+        }
+    }
+
+    @objc private func openLinkItem(_ sender: NSMenuItem) {
+        guard !isInteractionLocked, let chosen = sender.representedObject as? EntityLinkTarget, let linkDirectory else { return }
+        // Resolve again: the target may have been trashed while the menu was open.
+        let current = chosen.kind == .element ? linkDirectory.elements[chosen.id] : linkDirectory.chapters[chosen.id]
+        guard let target = current, !target.trashed else { return }
+        onOpenLink?(target)
+    }
+
     // MARK: Comments
 
     var canAddComment: Bool {
@@ -275,12 +453,15 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
 
     func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
-        guard allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) else { return menu }
-        let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
-        item.target = textView
-        item.setAccessibilityIdentifier("context-add-comment")
-        menu.insertItem(item, at: 0)
-        menu.insertItem(.separator(), at: 1)
+        var leading: [NSMenuItem] = linkMenuItems(at: charIndex)
+        if allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) {
+            let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
+            item.target = textView
+            item.setAccessibilityIdentifier("context-add-comment")
+            leading.append(item)
+        }
+        guard !leading.isEmpty else { return menu }
+        for (offset, item) in (leading + [.separator()]).enumerated() { menu.insertItem(item, at: offset) }
         return menu
     }
 
@@ -290,6 +471,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
     func textDidChange(_ notification: Notification) {
         guard !rendering else { return }
+        closeLinkPreview()
         let text = textView.string, marked = textView.hasMarkedText()
         if marked { styledProjection = nil }
         binding.selectionChanged(textView.selectedRange(), text: text, marked: marked)
@@ -359,4 +541,33 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc func redoProse() { performHistory(redo: true) }
     @objc private func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
     @objc private func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
+}
+
+/// A link's hover preview: the name, then category and aliases, then the
+/// summary. Plain typography on the popover's own background.
+private final class LinkPreviewController: NSViewController {
+    private let target: EntityLinkTarget
+    init(target: EntityLinkTarget) { self.target = target; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func loadView() {
+        let lines = target.preview.components(separatedBy: "\n")
+        let title = NSTextField(labelWithString: lines.first ?? target.name)
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        var views: [NSView] = [title]
+        for (index, line) in lines.dropFirst().enumerated() {
+            let label = NSTextField(wrappingLabelWithString: line)
+            label.font = .systemFont(ofSize: 12)
+            // Aliases read as metadata; the summary as body text.
+            label.textColor = index == 0 && line.hasPrefix("别名") ? .secondaryLabelColor : .labelColor
+            label.maximumNumberOfLines = 4
+            label.preferredMaxLayoutWidth = 260
+            views.append(label)
+        }
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        stack.setAccessibilityIdentifier("entity-link-preview")
+        view = stack
+    }
 }

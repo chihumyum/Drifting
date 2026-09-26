@@ -41,6 +41,7 @@ const evidence = [
   ['act', node('apple-workspace-act-acceptance.mjs')],
   ['comments', node('apple-workspace-comment-acceptance.mjs')],
   ['elements', node('apple-workspace-element-acceptance.mjs')],
+  ['links', node('apple-workspace-link-acceptance.mjs')],
   ['binding', node('apple-binding-acceptance.mjs')],
   ['device-prerequisite', node('apple-device-prerequisite-diagnostic.mjs'), { checkOnly: true }],
 ];

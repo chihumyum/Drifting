@@ -5,6 +5,9 @@ mod capture;
 #[cfg(test)]
 mod comment_tests;
 mod comments;
+#[cfg(test)]
+mod entity_link_tests;
+mod entity_links;
 pub use capture::AuthoredUpdateLog;
 mod concurrent;
 #[cfg(test)]
@@ -58,6 +61,7 @@ mod undo_policy;
 mod undo_policy_tests;
 mod wire;
 pub use comments::{CommentAnchorRecord, CommentAnchorView, NewCommentAnchor};
+pub use entity_links::{EntityLinkSpan, EntityLinkTarget};
 pub use native::{
     NativeBlock, NativeOutlineItem, NativeProjection, NativeRange, NativeReplacement, NativeRun,
 };

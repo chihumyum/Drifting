@@ -34,7 +34,7 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories and elements |
+| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
@@ -56,15 +56,13 @@ architectural redesign.
 | Act boundary editing | `ea5d75f3` | [act boundaries](act-boundaries.md) |
 | Chapter selection comments | `dcab1328` | [chapter comments](chapter-comments.md) |
 | Elements library (设定库) | `5f187170` | [element library](element-library.md) |
-| Element facts, category templates and trash | this batch | [element library](element-library.md) |
+| Element facts, category templates and trash | `d7056fba` | [element library](element-library.md) |
+| Entity links and backlinks | this batch | [entity links](entity-links.md) |
 
 ## Next batch
 
-Entity links: link element names and aliases in chapter prose (typed and
-retroactive), open an element from a link, and show backlinks on the element
-page through a native reference index read from live Yjs. Then storylines and
-drift placement, the asset library (portraits), and the minimal in-process
-Agent runtime.
+Storylines and drift placement (the outline's remaining semantics), then the
+asset library (portraits, materials) and the minimal in-process Agent runtime.
 
 ## Open gates
 

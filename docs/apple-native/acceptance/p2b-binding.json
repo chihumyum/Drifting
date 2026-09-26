@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T20:40:42.742Z",
+  "generatedAt": "2026-09-26T21:19:34.574Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "5f1871704b6a304fdd9cdb4168f829916f9d1ab4",
+    "commit": "d7056fba396fdba5a2751361c144da0f2bc4e549",
     "dirty": true,
-    "fingerprint": "6ceccb2737a037b631174376740601d88e572973893cb92638bcc4885be71388"
+    "fingerprint": "52374615d7535b11858ac47511506116b6d7761bb6f78fdb6688a8a141a4fa49"
   },
   "cases": [
     {
@@ -364,6 +364,18 @@
     },
     {
       "name": "AppKit category trash moves its elements to 未分类 with open element tabs retained and category popups updated, refuses a stale template save and restore does not re-attach",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit typed element names link after the input debounce in the category colour with a delayed hover preview, keep the caret, wait for composition, and one undo reverts only the typed text",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element creation, rename, aliases and chapter rename retro-link open chapters; ⌘-click and 打开 open the target, trashed targets dim, restored targets recolour and missing targets read as prose",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page 被引用 lists open and closed chapters with block and link counts, follows edits and selects the first link only while it is still linked",
       "status": "passed"
     }
   ],

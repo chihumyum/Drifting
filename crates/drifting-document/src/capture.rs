@@ -1,6 +1,6 @@
 //! Exact local transaction bytes for the SQLite/journal owner. A state-vector
 //! diff also includes historical delete sets, so it is not an authored log.
-use super::{DocumentSession, HISTORY_REPAIR, LOCAL};
+use super::{entity_links::ENTITY_LINK, DocumentSession, HISTORY_REPAIR, LOCAL};
 use crate::native_command::{validate_event, CapturedAuthoredUpdate, CommandState};
 use std::sync::{Arc, Mutex};
 
@@ -51,6 +51,8 @@ impl DocumentSession {
         let local: yrs::Origin = LOCAL.into();
         let history = self.undo.as_origin();
         let history_repair: yrs::Origin = HISTORY_REPAIR.into();
+        // Automatic entity links are authored edits but never undo steps.
+        let entity_link: yrs::Origin = ENTITY_LINK.into();
         self.doc
             .observe_update_v1("native-durable-author", move |txn, event| {
                 let mut state = output.lock().unwrap();
@@ -65,7 +67,10 @@ impl DocumentSession {
                     .is_some_and(|command| txn.origin() == Some(&command.origin));
                 let authored = command_origin
                     || txn.origin().is_some_and(|origin| {
-                        origin == &local || origin == &history || origin == &history_repair
+                        origin == &local
+                            || origin == &history
+                            || origin == &history_repair
+                            || origin == &entity_link
                     });
                 if authored {
                     if let Some(command) = &mut state.command {

@@ -38,6 +38,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Chapter trash and restore](chapter-trash.md)
 - [Chapter selection comments](chapter-comments.md)
 - [Elements library](element-library.md)
+- [Entity links and backlinks](entity-links.md)
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
@@ -88,7 +89,7 @@ default report does not imply desktop XCTest passed.
 The Mac lab opens a separate synthetic workspace
 (`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
 creation, rename, ordering, recoverable trash, act boundaries, selection
-comments, an elements library with element pages, a whole-book
+comments, an elements library with element pages and automatic entity links, a whole-book
 outline, chapter tabs with a two-pane split, formatting, project search, native
 editing, save and reopen. Every write goes through shared Rust domain commands,
 transactions and canonical journals; views of one chapter share its document

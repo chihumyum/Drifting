@@ -844,6 +844,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.closeOutline(); self.closeSearch()
                 self.chapters = reply.chapters
                 self.trashedChapters = reply.trashedChapters
+                self.chapterWorkspace.applyChapters(projectID: project.id, chapters: reply.chapters, trashed: reply.trashedChapters)
                 self.refreshChapterList()
                 self.activeChapterChanged()
                 self.status.stringValue = restoring ? "章节已恢复，返回章节列表即可打开。" : "章节已移入回收站，可以随时恢复。"
@@ -894,6 +895,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.showingTrash = false
                     self.chapterTable.setAccessibilityIdentifier("chapter-list")
                     self.chapters.append(chapter)
+                    self.chapterWorkspace.chaptersChanged(projectID: project.id)
                     self.chapterEmpty.isHidden = true
                     self.updatingSelection = true
                     self.chapterTable.reloadData()

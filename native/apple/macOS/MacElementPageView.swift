@@ -1,10 +1,11 @@
 import AppKit
 
-/// One element's page: editable fields and ordered facts above the element's
-/// prose body. Each field commits on end-editing or Return through `onCommit`;
-/// the facts list commits as a whole through `onCommitFacts`. A refusal keeps
-/// the typed text and rows and shows the reason. The body is an ordinary
-/// native editor bound to the element's own document owner.
+/// One element's page: editable fields and ordered facts, then 被引用 (the
+/// chapters that link it), above the element's prose body. Each field commits
+/// on end-editing or Return through `onCommit`; the facts list commits as a
+/// whole through `onCommitFacts`. A refusal keeps the typed text and rows and
+/// shows the reason. The body is an ordinary native editor bound to the
+/// element's own document owner.
 final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     enum Field: CaseIterable { case name, aliases, summary, group, category }
 
@@ -17,6 +18,14 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     let factsEditor = ElementFactsEditor(prefix: "element-fact", emptyText: "还没有字段。可以添加“年龄”“身份”这类要点。")
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
+    let backlinksView = ElementBacklinksView()
+    /// The last backlinks read; nil until the first read completes.
+    private(set) var backlinks: WorkspaceElementBacklinks?
+    private var backlinkGeneration = 0
+    /// Reads this element's backlinks; set by the tab owner.
+    var onLoadBacklinks: ((@escaping (Result<WorkspaceElementBacklinks, Error>) -> Void) -> Void)?
+    /// Opens a listed chapter at its first link.
+    var onOpenBacklink: ((WorkspaceElementBacklinks.Chapter) -> Void)?
     private(set) var element: WorkspaceElement
     private(set) var categories: [WorkspaceElementCategory]
     private(set) var isCommitting = false
@@ -87,7 +96,11 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
-        let stack = NSStackView(views: [header, documentView])
+        backlinksView.onOpen = { [weak self] in self?.onOpenBacklink?($0) }
+        backlinksView.translatesAutoresizingMaskIntoConstraints = false
+        let backlinksRow = NSView()
+        backlinksRow.addSubview(backlinksView)
+        let stack = NSStackView(views: [header, backlinksRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -95,6 +108,11 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            backlinksRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            backlinksView.leadingAnchor.constraint(equalTo: backlinksRow.leadingAnchor, constant: 14),
+            backlinksView.trailingAnchor.constraint(equalTo: backlinksRow.trailingAnchor, constant: -14),
+            backlinksView.topAnchor.constraint(equalTo: backlinksRow.topAnchor, constant: 2),
+            backlinksView.bottomAnchor.constraint(equalTo: backlinksRow.bottomAnchor, constant: -2),
             documentView.widthAnchor.constraint(equalTo: stack.widthAnchor),
             headerStack.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
@@ -315,6 +333,26 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         window.makeFirstResponder(nil)
     }
 
+    /// Reads 被引用 again. Only the newest read is shown; a failure keeps the
+    /// last list visible with a note.
+    func reloadBacklinks() {
+        guard let onLoadBacklinks else { return }
+        backlinkGeneration += 1
+        let generation = backlinkGeneration
+        if backlinks == nil { backlinksView.showMessage("正在读取引用…") }
+        onLoadBacklinks { [weak self] result in
+            guard let self, generation == self.backlinkGeneration else { return }
+            switch result {
+            case .success(let value):
+                self.backlinks = value
+                self.backlinksView.show(value)
+            case .failure:
+                if let backlinks = self.backlinks { self.backlinksView.show(backlinks, note: "引用暂时无法刷新，显示的是上次读取的结果。") }
+                else { self.backlinksView.showMessage("引用暂时无法读取，稍后会自动重试。") }
+            }
+        }
+    }
+
     func focusName() {
         window?.makeFirstResponder(nameField)
         nameField.currentEditor()?.selectAll(nil)
@@ -342,6 +380,108 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         if notification.object as AnyObject? === summaryView { commit(.summary) }
     }
     @objc private func categoryChosen() { onFocus?(); commit(.category) }
+}
+
+/// 被引用: each chapter that links the element as a row, “N 处 · M 次”
+/// (blocks · links), opening the chapter at its first link. Chapters that
+/// could not be read are listed muted. Typography and spacing only.
+final class ElementBacklinksView: NSView {
+    private let title = NSTextField(labelWithString: "被引用")
+    private let rows = NSStackView()
+    private var chapters: [WorkspaceElementBacklinks.Chapter] = []
+    private var current: (backlinks: WorkspaceElementBacklinks, note: String?)?
+    /// Long lists show this many chapters until the author expands them, so
+    /// the body editor stays in view.
+    static let collapsedCount = 6
+    private(set) var expanded = false
+    var onOpen: ((WorkspaceElementBacklinks.Chapter) -> Void)?
+    /// One button per listed chapter, in book order.
+    private(set) var chapterButtons: [NSButton] = []
+    /// Muted rows for chapters that could not be read, and any note.
+    private(set) var mutedLines: [String] = []
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setAccessibilityIdentifier("element-backlinks")
+        title.font = .systemFont(ofSize: 12, weight: .semibold)
+        title.textColor = .secondaryLabelColor
+        rows.orientation = .vertical; rows.alignment = .leading; rows.spacing = 2
+        let stack = NSStackView(views: [title, rows])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    static func countText(_ chapter: WorkspaceElementBacklinks.Chapter) -> String { "\(chapter.blocks) 处 · \(chapter.spans) 次" }
+
+    func showMessage(_ text: String) {
+        clear(); current = nil
+        addMuted(text)
+    }
+
+    func show(_ backlinks: WorkspaceElementBacklinks, note: String? = nil) {
+        if current?.backlinks.elementId != backlinks.elementId { expanded = false }
+        clear(); current = (backlinks, note)
+        chapters = backlinks.chapters
+        title.stringValue = backlinks.chapters.isEmpty ? "被引用" : "被引用 · \(backlinks.chapters.count) 章"
+        if backlinks.chapters.isEmpty && backlinks.unavailable.isEmpty { addMuted("还没有章节引用这个设定。") }
+        let shown = expanded ? backlinks.chapters.count : min(backlinks.chapters.count, Self.collapsedCount)
+        for (index, chapter) in backlinks.chapters.prefix(shown).enumerated() {
+            let button = NSButton(title: "", target: self, action: #selector(open(_:)))
+            button.isBordered = false; button.tag = index
+            button.alignment = .left
+            let text = NSMutableAttributedString(string: chapter.chapterTitle,
+                attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
+            text.append(NSAttributedString(string: "  " + Self.countText(chapter),
+                attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
+            button.attributedTitle = text
+            button.setAccessibilityIdentifier("element-backlink-\(chapter.chapterId)")
+            button.setAccessibilityLabel("\(chapter.chapterTitle)，\(Self.countText(chapter))")
+            button.toolTip = "打开「\(chapter.chapterTitle)」并定位第一处引用"
+            rows.addArrangedSubview(button)
+            chapterButtons.append(button)
+        }
+        if backlinks.chapters.count > Self.collapsedCount {
+            let more = backlinks.chapters.count - Self.collapsedCount
+            let toggle = NSButton(title: expanded ? "收起" : "显示其余 \(more) 章", target: self, action: #selector(toggleExpanded))
+            toggle.isBordered = false
+            toggle.contentTintColor = .secondaryLabelColor
+            toggle.font = .systemFont(ofSize: 12)
+            toggle.setAccessibilityIdentifier("element-backlinks-toggle")
+            rows.addArrangedSubview(toggle)
+        }
+        for missing in backlinks.unavailable { addMuted("\(missing.chapterTitle) · 暂时无法读取") }
+        if let note { addMuted(note) }
+    }
+
+    @objc private func toggleExpanded() {
+        expanded.toggle()
+        if let current { show(current.backlinks, note: current.note) }
+    }
+
+    private func clear() {
+        for row in rows.arrangedSubviews { rows.removeArrangedSubview(row); row.removeFromSuperview() }
+        chapters = []; chapterButtons = []; mutedLines = []
+        title.stringValue = "被引用"
+    }
+
+    private func addMuted(_ text: String) {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        rows.addArrangedSubview(label)
+        mutedLines.append(text)
+    }
+
+    @objc private func open(_ sender: NSButton) {
+        guard chapters.indices.contains(sender.tag) else { return }
+        onOpen?(chapters[sender.tag])
+    }
 }
 
 /// The header's soft wash takes the category colour; no edge accent.

@@ -56,6 +56,23 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var externallyLocked = false
     private var needsInitialSplitLayout = false
     private var elementCategories: [String: [WorkspaceElementCategory]] = [:]
+    /// Per project, what entity links resolve against: the element library
+    /// and the live and trashed chapters. Both come from the workspace store.
+    private struct LinkSources {
+        var library: WorkspaceElementLibrary?
+        var chapters: [WorkspaceChapter]?
+        var trashedChapters: [WorkspaceChapter]?
+    }
+    private var linkSources: [String: LinkSources] = [:]
+    private var loadingLibraries: Set<String> = []
+    private var loadingChapters: Set<String> = []
+    private var chapterRereads: Set<String> = []
+    private var linkDirectories: [String: EntityLinkDirectory] = [:]
+    private var backlinkRefresh: [String: DispatchWorkItem] = [:]
+    /// A backlink row opened a chapter; select its first link once shown.
+    private var pendingLinkReveal: (view: NativeDocumentView, range: NativeRange, elementID: String)?
+    /// Debounce before visible 被引用 sections read again after edits.
+    static var backlinkDelay: TimeInterval = 0.3
     private(set) var activePane = 0
     private(set) var isBusy = false
     var onChange: (() -> Void)?
@@ -207,19 +224,25 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
-                if isNew, tab.page != nil, self.elementCategories[project.id] == nil { self.loadElementLibrary(projectID: project.id) }
+                if isNew { self.ensureLinkSources(projectID: project.id) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
         }
     }
 
-    /// A page opened before any library reply still needs the category list.
-    private func loadElementLibrary(projectID: String) {
-        workspace.elementLibrary(projectID: projectID) { [weak self] result in
-            guard let self, case .success(let library) = result, self.elementCategories[projectID] == nil else { return }
-            self.applyElementLibrary(projectID: projectID, library: library)
+    /// A page opened before any library reply still needs the category
+    /// list, and links need names; chapters are read the same way.
+    private func ensureLinkSources(projectID: String) {
+        if linkSources[projectID]?.library == nil, loadingLibraries.insert(projectID).inserted {
+            workspace.elementLibrary(projectID: projectID) { [weak self] result in
+                guard let self else { return }
+                self.loadingLibraries.remove(projectID)
+                guard case .success(let library) = result, self.linkSources[projectID]?.library == nil else { return }
+                self.applyElementLibrary(projectID: projectID, library: library)
+            }
         }
+        if linkSources[projectID]?.chapters == nil { chaptersChanged(projectID: projectID) }
     }
 
     func split(completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
@@ -368,10 +391,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func rename(chapter: WorkspaceChapter, projectID: String) {
         for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id { tab.target = .chapter(chapter) }
         refreshTabs(); onChange?()
+        chaptersChanged(projectID: projectID)
     }
 
     /// Adopt a project's complete library: element tab titles and page fields
-    /// follow stored names; uncommitted header text is kept.
+    /// follow stored names; uncommitted header text is kept. Links follow
+    /// the new names, colours and trash states; changed names or aliases
+    /// link every open body again (retroactive linking).
     func applyElementLibrary(projectID: String, library: WorkspaceElementLibrary) {
         elementCategories[projectID] = library.categories
         for tab in allTabs where tab.project.id == projectID {
@@ -380,6 +406,129 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.page?.apply(element: stored, categories: library.categories)
         }
         refreshTabs(); onChange?()
+        let previous = linkSources[projectID]?.library
+        linkSources[projectID, default: LinkSources()].library = library
+        updateLinkDirectory(projectID: projectID)
+        if previous.map(EntityLinkDirectory.linkNames) != EntityLinkDirectory.linkNames(library) {
+            requestEntityLinks(projectID: projectID)
+        }
+    }
+
+    // MARK: Entity links
+
+    /// The directory views of this project resolve links against, once both
+    /// the library and the chapter list have been read.
+    func linkDirectory(projectID: String) -> EntityLinkDirectory? { linkDirectories[projectID] }
+
+    /// Re-reads the project's live and trashed chapters, e.g. after a
+    /// chapter was created, renamed, trashed or restored.
+    func chaptersChanged(projectID: String) {
+        // A change during a read is read again afterwards, never dropped.
+        guard loadingChapters.insert(projectID).inserted else { chapterRereads.insert(projectID); return }
+        workspace.chapters(projectID: projectID) { [weak self] live in
+            guard let self else { return }
+            self.workspace.trashedChapters(projectID: projectID) { [weak self] trashed in
+                guard let self else { return }
+                self.loadingChapters.remove(projectID)
+                if case .success(let chapters) = live {
+                    self.applyChapters(projectID: projectID, chapters: chapters, trashed: try? trashed.get())
+                }
+                if self.chapterRereads.remove(projectID) != nil { self.chaptersChanged(projectID: projectID) }
+            }
+        }
+    }
+
+    /// Adopt the project's chapter list. A nil trash keeps the last one
+    /// read. New or changed titles link every open body again.
+    func applyChapters(projectID: String, chapters: [WorkspaceChapter], trashed: [WorkspaceChapter]?) {
+        func titles(_ list: [WorkspaceChapter]) -> [[String]] { list.map { [$0.id, $0.title] }.sorted { $0[0] < $1[0] } }
+        let previous = linkSources[projectID]?.chapters
+        linkSources[projectID, default: LinkSources()].chapters = chapters
+        if let trashed { linkSources[projectID]?.trashedChapters = trashed }
+        updateLinkDirectory(projectID: projectID)
+        if previous.map(titles) != titles(chapters) { requestEntityLinks(projectID: projectID) }
+        scheduleBacklinks(projectID: projectID)
+    }
+
+    private func updateLinkDirectory(projectID: String) {
+        guard let sources = linkSources[projectID], let library = sources.library, let chapters = sources.chapters else { return }
+        let directory = EntityLinkDirectory(library: library, chapters: chapters, trashedChapters: sources.trashedChapters ?? [])
+        guard linkDirectories[projectID] != directory else { return }
+        linkDirectories[projectID] = directory
+        for tab in allTabs where tab.project.id == projectID { tab.view.linkDirectory = directory }
+    }
+
+    /// Every open body of the project links once it is idle. Queued input,
+    /// composition and drafts defer the pass; nothing is interrupted.
+    private func requestEntityLinks(projectID: String) {
+        var seen = Set<ObjectIdentifier>()
+        for tab in allTabs where tab.project.id == projectID {
+            let store = tab.view.binding.store
+            if seen.insert(ObjectIdentifier(store)).inserted { store.requestEntityLinks() }
+        }
+    }
+
+    private func pane(of tab: Tab) -> Int? { panes.firstIndex { $0.tabs.contains { $0 === tab } } }
+
+    /// ⌘-click or 打开「名称」: an element opens as its page tab, a chapter as
+    /// its chapter tab, in the pane that showed the link.
+    private func openLink(_ target: EntityLinkTarget, from tab: Tab) {
+        guard let index = pane(of: tab) else { return }
+        let project = tab.project
+        let done: (Result<NativeDocumentView, Error>) -> Void = { [weak self] result in
+            if case .failure(let error) = result { self?.onError?(error) }
+        }
+        switch target.kind {
+        case .element:
+            guard let element = linkSources[project.id]?.library?.elements.first(where: { $0.id == target.id }) else {
+                onError?(LabError.message("「\(target.name)」已不可用，请刷新设定库。")); return
+            }
+            open(project: project, element: element, in: index, completion: done)
+        case .chapter:
+            open(project: project, chapter: WorkspaceChapter(id: target.id, title: target.name), in: index, completion: done)
+        }
+    }
+
+    /// A 被引用 row: open the chapter in the page's pane and select its first
+    /// link when that range still links the element; otherwise just open it.
+    private func openBacklink(_ chapter: WorkspaceElementBacklinks.Chapter, elementID: String, from tab: Tab) {
+        guard let index = pane(of: tab) else { return }
+        pendingLinkReveal = nil
+        open(project: tab.project, chapter: WorkspaceChapter(id: chapter.chapterId, title: chapter.chapterTitle), in: index) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let view):
+                self.pendingLinkReveal = (view, chapter.first, elementID)
+                self.resolveLinkReveal()
+            case .failure(let error): self.onError?(error)
+            }
+        }
+    }
+
+    private func resolveLinkReveal() {
+        guard let pending = pendingLinkReveal, !isBusy else { return }
+        guard pending.view === activeView else { pendingLinkReveal = nil; return }
+        let binding = pending.view.binding
+        guard binding.canEdit, !binding.hasPendingWork, let projection = binding.store.projection,
+              NativeText.identical(pending.view.textView.string, projection.text) else { return }
+        pendingLinkReveal = nil
+        if projection.links(element: pending.elementID, cover: pending.range) {
+            pending.view.reveal(range: pending.range, revision: projection.revision)
+        }
+    }
+
+    /// Visible element pages of the project read 被引用 again shortly, after
+    /// chapter edits, link passes or chapter list changes settle.
+    private func scheduleBacklinks(projectID: String) {
+        guard panes.contains(where: { $0.active?.page != nil && $0.active?.project.id == projectID }) else { return }
+        backlinkRefresh[projectID]?.cancel()
+        let refresh = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.backlinkRefresh[projectID] = nil
+            for pane in self.panes where pane.active?.project.id == projectID { pane.active?.page?.reloadBacklinks() }
+        }
+        backlinkRefresh[projectID] = refresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.backlinkDelay, execute: refresh)
     }
 
     /// Moves the keyboard to the active element page's name field, e.g. after
@@ -415,7 +564,22 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func connect(_ tab: Tab, pane: Int) {
         tab.view.isInteractionLocked = isBusy || externallyLocked
         tab.view.onFocus = { [weak self] in self?.activate(pane: pane) }
+        tab.view.linkDirectory = linkDirectories[tab.project.id]
+        tab.view.onOpenLink = { [weak self, weak tab] target in
+            if let self, let tab { self.openLink(target, from: tab) }
+        }
+        tab.view.onEntityLinks = { [weak self, weak tab] in
+            if let self, let tab { self.scheduleBacklinks(projectID: tab.project.id) }
+        }
         if let page = tab.page {
+            page.onLoadBacklinks = { [weak self, weak tab] done in
+                guard let self, let tab, let element = tab.element else { done(.failure(LabError.message("设定页面已关闭。"))); return }
+                self.workspace.elementBacklinks(projectID: tab.project.id, elementID: element.id, completion: done)
+            }
+            page.onOpenBacklink = { [weak self, weak tab] chapter in
+                guard let self, let tab, let element = tab.element else { return }
+                self.openBacklink(chapter, elementID: element.id, from: tab)
+            }
             page.onFocus = { [weak self] in self?.activate(pane: pane) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，修改未保存。"))); return }
@@ -437,16 +601,21 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if let self, let view { self.onCommentCreated?(view, comment) }
             }
         }
-        tab.view.onActivity = { [weak self] _ in
+        tab.view.onActivity = { [weak self, weak tab] busy in
             guard let self else { return }
             self.updateTabAvailability()
             self.focusWhenReady()
+            self.resolveLinkReveal()
+            // Settled chapter prose may add or remove references.
+            if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
             self.onActivity?(!self.canNavigate)
         }
     }
     private func disconnect(_ tab: Tab) {
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
+        tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
+        tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {
@@ -533,6 +702,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 view.topAnchor.constraint(equalTo: pane.body.topAnchor), view.bottomAnchor.constraint(equalTo: pane.body.bottomAnchor),
             ])
         }
+        // An element page reads 被引用 each time it is shown.
+        pane.active?.page?.reloadBacklinks()
         refreshTabs()
     }
     private func refreshTabs() {
@@ -564,6 +735,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 pane.tabsBar.addArrangedSubview(NSStackView(views: [select, close]))
             }
         }
+    }
+}
+
+extension NativeProjection {
+    /// Whether every UTF-16 unit of a range is linked to the element.
+    func links(element elementID: String, cover range: NativeRange) -> Bool {
+        let length = (text as NSString).length
+        guard range.location >= 0, range.length > 0, range.location <= length, range.length <= length - range.location else { return false }
+        let link = NativeEntityLink(kind: "element", id: elementID)
+        let covered = blocks.flatMap(\.runs).filter { $0.attributes.links.contains(link) }
+            .reduce(0) { $0 + NSIntersectionRange($1.range.nsRange, range.nsRange).length }
+        return covered == range.length
     }
 }
 

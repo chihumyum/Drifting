@@ -116,12 +116,15 @@ extension BindingAcceptance {
             "AppKit revision and selection-only refresh skips styling"]
     }
 
-    private static func requireStyleReference(_ storage: NSTextStorage, _ projection: NativeProjection, _ context: String) throws {
+    /// Links resolve against `links` as the view's directory does; nil keeps
+    /// the default link style, as views without a workspace directory do.
+    static func requireStyleReference(_ storage: NSTextStorage, _ projection: NativeProjection, _ context: String,
+                                      links: EntityLinkDirectory? = nil) throws {
         let referenceView = NSTextView()
         referenceView.isRichText = false
         referenceView.string = projection.text
         let reference = referenceView.textStorage!
-        DocumentStyle.apply(projection, to: reference)
+        DocumentStyle.apply(projection, to: reference, links: links)
         // Normalize the same lazy CJK/emoji font substitution on both views.
         storage.fixAttributes(in: NSRange(location: 0, length: storage.length))
         reference.fixAttributes(in: NSRange(location: 0, length: reference.length))

@@ -6,6 +6,8 @@ mod acts;
 mod comments;
 #[path = "workspace_element_tests.rs"]
 mod elements;
+#[path = "workspace_link_tests.rs"]
+mod links;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
 #[path = "workspace_remote_changes_tests.rs"]
