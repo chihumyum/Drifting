@@ -17,9 +17,10 @@ for (const file of readdirSync(root, { recursive: true, withFileTypes: true })) 
   const relative = `${file.parentPath}/${file.name}`.slice(root.length + 1);
   assert(allowed.has(relative), `Unrecorded vendored file: ${relative}`);
 }
-assert.equal(patched.size, 4, 'Additional upstream changes need distinct regression and provenance review');
+assert.equal(patched.size, 5, 'Additional upstream changes need distinct regression and provenance review');
+assert(patched.has('src/block_store.rs'));
 assert(patched.has('src/store.rs'));
 assert(patched.has('src/transaction.rs'));
 assert(patched.has('src/undo.rs'));
 assert(patched.has('src/sync/awareness.rs'));
-console.log(`Yrs ${source.version}: ${Object.keys(source.originalFiles).length} upstream files, three correctness patches and one test-only awareness clock patch, MIT license retained.`);
+console.log(`Yrs ${source.version}: ${Object.keys(source.originalFiles).length} upstream files, three correctness patches across four files and one test-only awareness clock patch, MIT license retained.`);

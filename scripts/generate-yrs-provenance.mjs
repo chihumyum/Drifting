@@ -8,7 +8,8 @@ const source = JSON.parse(readFileSync(path));
 const patches = [
   ['src/store.rs', 'Carry ItemSlice.start through each redone link, preserving relative-position offsets after undo'],
   ['src/undo.rs', 'Restore the optional child-before-parent deletion filter for synchronous and asynchronous undo/redo, exposing read-only parent context'],
-  ['src/transaction.rs', 'Replay pending updates when sparse-hole coverage changes without advancing the largest client clock'],
+  ['src/block_store.rs', 'Count integrated blocks that fill a sparse hole, the replay signal used by src/transaction.rs'],
+  ['src/transaction.rs', 'Replay pending updates when a sparse hole is filled without advancing the largest client clock'],
   ['src/sync/awareness.rs', 'Test-only: inject a fixed clock into awareness_summary so peer-local receipt timestamps do not make unchanged assertions timing-dependent'],
 ];
 const hash = file => createHash('sha256').update(readFileSync(`${root}/${file}`)).digest('hex');
@@ -19,4 +20,4 @@ source.patches = patches.map(([path, purpose]) => ({ path, purpose, sha256: hash
 const generated = `${JSON.stringify(source, null, 2)}\n`;
 if (process.argv.includes('--check')) assert.equal(readFileSync(path, 'utf8'), generated);
 else writeFileSync(path, generated);
-console.log('Yrs provenance: three correctness patches and one test-only clock patch; all other upstream files match.');
+console.log('Yrs provenance: three correctness patches across four files and one test-only clock patch; all other upstream files match.');

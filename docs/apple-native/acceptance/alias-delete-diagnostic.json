@@ -2,20 +2,20 @@
   "schemaVersion": 1,
   "kind": "apple_alias_delete_diagnostic",
   "status": "open",
-  "generatedAt": "2026-09-25T20:07:07.923Z",
+  "generatedAt": "2026-09-26T11:58:46.179Z",
   "diagnosticReproduced": true,
   "productDeletionAcceptance": "not-established",
   "source": {
     "generator": "scripts/apple-alias-delete-diagnostic.mjs",
     "generatorSha256": "dd17eb092806a92a9b9c06e091f32a512eae2e9866037ee7b5a28b3e17ea710b",
-    "fingerprint": "b5d5679bae1ec43f58ebe0a0ee9627c09a75fef655a5a2d0c6154368cbe9dca7",
+    "fingerprint": "37a284847681e65da750485840a63cb0aa85e981e3cc0ef36c916e2635e93c5c",
     "yjsVersion": "13.6.32",
     "yrsVersion": "0.28.0"
   },
   "cli": {
     "build": "cargo build --locked --manifest-path crates/drifting-document/Cargo.toml --example document_protocol",
-    "sha256": "ef5ecaa29da4ea71b70a40876ab17bebf17eb335775d643d9805bcab35bb7377",
-    "sourceFingerprint": "b5d5679bae1ec43f58ebe0a0ee9627c09a75fef655a5a2d0c6154368cbe9dca7"
+    "sha256": "13c64d434ede7ee1d18a7e401a20ab0fe5bbc17bda8d2cce5e05a7fecf692d29",
+    "sourceFingerprint": "37a284847681e65da750485840a63cb0aa85e981e3cc0ef36c916e2635e93c5c"
   },
   "scope": {
     "layer": "Actual DocumentSession CLI and ordinary Yjs, synthetic right-survivor partial quote deletion",
@@ -123,37 +123,37 @@
       "variant": "late-only",
       "fullBytesEqual": true,
       "differentialBytesEqual": true,
-      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
-      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+      "fullSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "fullWithOldDeleteSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "differentialSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69",
+      "differentialWithOldDeleteSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69"
     },
     {
       "scope": "coalesced-wire-ambiguity",
       "variant": "base-only",
       "fullBytesEqual": true,
       "differentialBytesEqual": true,
-      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
-      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+      "fullSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "fullWithOldDeleteSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "differentialSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69",
+      "differentialWithOldDeleteSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69"
     },
     {
       "scope": "coalesced-wire-ambiguity",
       "variant": "late-and-base",
       "fullBytesEqual": true,
       "differentialBytesEqual": true,
-      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
-      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
-      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+      "fullSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "fullWithOldDeleteSha256": "7ea9ab8b29423f43ca0ffa44c81fdfd28df581bb88195a1957578d5ddad50593",
+      "differentialSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69",
+      "differentialWithOldDeleteSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69"
     }
   ],
   "compatibilityControls": [
     {
       "scope": "current-normal-incremental-compatibility",
       "name": "same-state-vector-repeat",
-      "inputSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
+      "inputSha256": "1c114d711bf1b1277425579740d8347c8c52f29687139b86667c1ff5c3d41a69",
       "applyAccepted": true,
       "hasPending": false,
       "expected": "保潮航\n远🙂终章",
@@ -165,7 +165,7 @@
     {
       "scope": "current-normal-incremental-compatibility",
       "name": "aware-peer-safe-suffix-differential",
-      "inputSha256": "062108fce8319377de31c333b4d08b23871fe59f3f940ff0200e7dc60731195c",
+      "inputSha256": "3565c15e4633ef5665f8b0ced52c2355688f967fe46290d447a33be60493c55a",
       "applyAccepted": true,
       "hasPending": false,
       "expected": "保潮航\n安远🙂终章",

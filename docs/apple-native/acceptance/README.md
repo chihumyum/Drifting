@@ -143,8 +143,9 @@ state vectors, retained independent roots and absence of pending work all agree
 once every update has arrived. Intermediate eager visibility across unresolved
 same-client holes is not treated as a compatibility requirement.
 
-The recorded `src/transaction.rs` patch retries pending data after changes to
-the sparse skip set, even if the client's largest clock does not advance.
+The recorded `src/transaction.rs` patch retries pending data whenever a block
+fills a sparse skip, counted by the `src/block_store.rs` patch, even if the
+client's largest clock does not advance. Adding a new hole does not retry.
 The diagnostic generator restores every patched file from the verified original
 archive, checks all original file hashes, and retains a baseline failure. All
 100 patched fixed-seed stress runs then passed (300 iterations each). Separate

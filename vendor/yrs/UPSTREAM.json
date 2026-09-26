@@ -85,9 +85,14 @@
       "sha256": "a6359e133b095ec046e62287da0d7cbed6a909b64bd5143fa77bd152f2f45e3d"
     },
     {
+      "path": "src/block_store.rs",
+      "purpose": "Count integrated blocks that fill a sparse hole, the replay signal used by src/transaction.rs",
+      "sha256": "7817525d7fa7ca89632197c3ad350e5037b76f26e4555d400bdfff664e7b176b"
+    },
+    {
       "path": "src/transaction.rs",
-      "purpose": "Replay pending updates when sparse-hole coverage changes without advancing the largest client clock",
-      "sha256": "f297a67b6ea75bb0f11ccf9bc56927ad88d89c76229cd813cbf7f1e4bcc93172"
+      "purpose": "Replay pending updates when a sparse hole is filled without advancing the largest client clock",
+      "sha256": "9442c05d6405e1fe18f1298b6265702910a0bf01b6bae1789d0d21dc41cbebfe"
     },
     {
       "path": "src/sync/awareness.rs",

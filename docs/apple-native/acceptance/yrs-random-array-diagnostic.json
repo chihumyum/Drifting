@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-25T14:00:45.488Z",
+  "generatedAt": "2026-09-26T11:12:11.226Z",
   "kind": "yrs_upstream_random_array_diagnostic",
   "status": "baseline-failure-reproduced-and-patched-stress-passed",
-  "vendorFingerprint": "729997f8ab1d625f3035c57f0a9c5eaa3ead37104d49a0b5522ab00c21f3ac9b",
+  "vendorFingerprint": "5c111de893961c4dba309498204d309625db4c1a044005b0187befe5245b8a3d",
   "generatorFingerprint": "16b9d525d947b49e7897e5af7731d6aa74c41594ed23363ef86117cb51125467",
   "version": "0.28.0",
   "test": "types::array::test::fuzzy_test_300",
@@ -11,8 +11,8 @@
   "baseline": "All patched files restored from the checksum-verified published archive; all original file hashes verified. Only the test seed is fixed in an ignored temporary copy.",
   "interpretation": "The scenario seed is fixed; hash iteration still varies. Baseline failure is retained, and every patched stress attempt must pass. Native deterministic replay tests and Yjs exchange are separate evidence.",
   "limits": "Scoped sparse-hole replay regression only; does not establish full P2, v2 output, physical input, production durability or release readiness.",
-  "attempts": 1,
-  "failure": "thread 'types::array::test::fuzzy_test_300' (27318869) panicked at src/test_utils.rs:467:13:\nassertion `left == right` failed\n  left: None\n right: Some(PendingUpdate { update:  { blocks: BlockSet { clients: {ClientID(0): [(<0#40>, len: 1, origin-l: <0#14>, origin-r: <0#35>: <array>), (<0#41>, len: 4, parent: <0#40>: [1, 2, 3, 4]), skip(45..=130), skip(122..=130), (<0#130>, len: 1, origin-l: <0#106>, origin-r: <0#99>: <map({})>), (<0#131>, len: 2, parent: <0#130>, 'someprop' => deleted(2)), (<0#133>, len: 1, origin-l: <0#132>: [44]), (<0#134>, len: 1, origin-l: <0#15>, origin-r: <0#25>: <map({})>), (<0#135>, len: 2, parent: <0#134>, 'someprop' => deleted(2)), (<0#137>, len: 1, origin-l: <0#136>: [44])]} } }, missing: StateVector({ClientID(0): 142}) })\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--lib`\n",
+  "attempts": 5,
+  "failure": "thread 'types::array::test::fuzzy_test_300' (31210503) panicked at src/test_utils.rs:467:13:\nassertion `left == right` failed\n  left: None\n right: Some(PendingUpdate { update:  { blocks: BlockSet { clients: {ClientID(2): [(<2#136>, len: 1, origin-l: <4#41>, origin-r: <2#97>: <array>), (<2#137>, len: 4, parent: <2#136>: [1, 2, 3, 4])]} } }, missing: StateVector({ClientID(2): 144}) })\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--lib`\n",
   "patchedStress": {
     "passed": 100,
     "failed": 0,
