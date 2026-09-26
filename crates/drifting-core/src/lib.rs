@@ -8,3 +8,5 @@ pub mod prose;
 pub mod prose_journal;
 
 pub mod materialization_admission;
+
+pub mod workspace;

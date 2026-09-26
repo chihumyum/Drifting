@@ -1,5 +1,8 @@
-//! Versioned, fixture-only C ABI for the first Apple migration experiment.
-//! The production command/query surface will be introduced by domain in P3.
+//! Versioned Apple C ABI. The fixture lab remains separate from the minimal
+//! local workspace/project/chapter surface. Both reuse the shared prose owner.
+mod workspace;
+#[cfg(test)]
+mod workspace_tests;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::path::{Path, PathBuf};
@@ -31,10 +34,18 @@ static NEXT_WRITER: AtomicU64 = AtomicU64::new(1);
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 static SESSIONS: OnceLock<Mutex<HashMap<u64, LabSession>>> = OnceLock::new();
 
+struct DocumentOwner {
+    scope: ArchiveScope,
+    chapter_id: String,
+    installation_id: String,
+    workspace: bool,
+}
+
 struct LabSession {
     directory: PathBuf,
     gateway: DatabaseGateway,
     document: DurableDocument,
+    owner: DocumentOwner,
     save_error: Option<String>,
     persisted_comments: HashMap<String, CommentAnchorRecord>,
 }
@@ -47,11 +58,9 @@ impl LabSession {
         ))
         .map_err(|e| e.to_string())?;
         prepare_document(&gateway, &fixture)?;
-        let mut document = DurableDocument::open_for_replay_with_scope(
-            gateway.clone(),
-            CLIENT,
-            lab_scope(&gateway)?,
-        )?;
+        let scope = lab_scope(&gateway)?;
+        let mut document =
+            DurableDocument::open_for_replay_with_scope(gateway.clone(), CLIENT, scope.clone())?;
         seed_comments(&gateway, &fixture)?;
         let comments = load_comments(&gateway)?;
         let persisted_comments = comments
@@ -63,6 +72,12 @@ impl LabSession {
             directory: directory.canonicalize().map_err(|e| e.to_string())?,
             gateway,
             document,
+            owner: DocumentOwner {
+                scope,
+                chapter_id: NODE.into(),
+                installation_id: "native-lab-synthetic-installation".into(),
+                workspace: false,
+            },
             save_error: None,
             persisted_comments,
         };
@@ -70,6 +85,69 @@ impl LabSession {
         // and loaded comment anchors must commit before exposing the owner.
         session.persist_checkpoint()?;
         Ok(session)
+    }
+
+    fn open_chapter(
+        directory: PathBuf,
+        gateway: DatabaseGateway,
+        scope: ArchiveScope,
+        chapter_id: String,
+        installation_id: String,
+    ) -> Result<Self, String> {
+        let mut document =
+            DurableDocument::open_for_replay_with_scope(gateway.clone(), CLIENT, scope.clone())?;
+        let comments = load_comments_for(&gateway, &scope.project_id, &chapter_id)?;
+        let persisted_comments = comment_map(comments.clone());
+        document.set_comment_anchors(comments)?;
+        let mut session = Self {
+            directory,
+            gateway,
+            document,
+            owner: DocumentOwner {
+                scope,
+                chapter_id,
+                installation_id,
+                workspace: true,
+            },
+            save_error: None,
+            persisted_comments,
+        };
+        session.persist_checkpoint()?;
+        Ok(session)
+    }
+
+    fn authored_context(&self) -> Result<AuthoredProseContext, String> {
+        context_for_scope(
+            &self.gateway,
+            &self.owner.scope.project_id,
+            &self.owner.scope.project_sync_id,
+            &self.owner.scope.sync_generation_id,
+            &self.owner.installation_id,
+        )
+    }
+
+    fn prepare_to_release(&mut self) -> Result<(), String> {
+        if self.write_blocked() {
+            return Err(
+                "Unsaved or unapplied prose remains; retry save before switching or closing".into(),
+            );
+        }
+        if self.document.active_drafts() > 0 || self.document.active_input_compositions() > 0 {
+            return Err("An unsubmitted native draft is active; commit or cancel before switching or closing".into());
+        }
+        self.persist();
+        if let Some(block) = self.document.remote_block() {
+            return Err(format!(
+                "Stored remote update {} is unapplied; the live owner is retained: {}",
+                block.update_id, block.reason
+            ));
+        }
+        if let Some(error) = &self.save_error {
+            return Err(format!(
+                "Final checkpoint failed; the live owner is retained: {error}"
+            ));
+        }
+        Ok(())
     }
 
     /// Authored bytes, revision/provenance, immutable journal and comment CAS
@@ -90,16 +168,24 @@ impl LabSession {
     }
 
     fn persist_checkpoint(&mut self) -> Result<(), String> {
-        let context = authored_context(&self.gateway)?;
+        let context = self.authored_context()?;
         let mut committed = false;
         let mut comments = None;
         let baseline = &self.persisted_comments;
+        let owner = &self.owner;
         let result = self.document.persist_authored(
             &context,
             &RevisionSource::User,
             |gateway, tx, document| {
                 let records = document.comment_anchor_records();
-                persist_comment_anchors(gateway, tx, &records, baseline)?;
+                persist_comment_anchors(
+                    gateway,
+                    tx,
+                    &records,
+                    baseline,
+                    &owner.scope.project_id,
+                    &owner.chapter_id,
+                )?;
                 comments = Some(records);
                 Ok(())
             },
@@ -121,7 +207,14 @@ impl LabSession {
             &context.now_iso,
             |gateway, tx, document| {
                 let records = document.comment_anchor_records();
-                persist_comment_anchors(gateway, tx, &records, baseline)?;
+                persist_comment_anchors(
+                    gateway,
+                    tx,
+                    &records,
+                    baseline,
+                    &owner.scope.project_id,
+                    &owner.chapter_id,
+                )?;
                 comments = Some(records);
                 Ok(())
             },
@@ -135,7 +228,7 @@ impl LabSession {
     /// change-set receipts. Uncovered duplicate bytes share one pending row.
     /// Durability precedes semantic validation and live replay.
     fn apply_remote(&mut self, bytes: &[u8], encoding: u8) -> Result<(), String> {
-        let context = authored_context(&self.gateway)?;
+        let context = self.authored_context()?;
         self.document
             .receive_remote(bytes, encoding, &context.now_iso, &mut |_| {})?;
         // persist_authored replays even when there are no authored bytes. Its
@@ -158,6 +251,40 @@ impl LabSession {
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "camelCase", deny_unknown_fields)]
 enum Request {
+    WorkspaceOpen {
+        directory: PathBuf,
+    },
+    WorkspaceProjects {
+        handle: u64,
+    },
+    WorkspaceCreateProject {
+        handle: u64,
+        name: String,
+    },
+    WorkspaceChapters {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
+    WorkspaceCreateChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        title: String,
+    },
+    WorkspaceOpenChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
+    WorkspaceReopenChapter {
+        handle: u64,
+    },
+    WorkspaceClose {
+        handle: u64,
+    },
     Open {
         directory: PathBuf,
     },
@@ -251,6 +378,8 @@ fn persist_comment_anchors(
     tx: u64,
     comments: &[CommentAnchorRecord],
     baseline: &HashMap<String, CommentAnchorRecord>,
+    project_id: &str,
+    chapter_id: &str,
 ) -> Result<(), String> {
     for record in comments {
         let old = baseline
@@ -260,7 +389,7 @@ fn persist_comment_anchors(
             continue;
         }
         let result = gateway.execute("UPDATE comment SET anchor_json = ?, target_block_id = ?, target_block_ids_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND project_id = ? AND target_kind = 'node' AND target_id = ? AND anchor_json = ? AND target_block_id IS ? AND target_block_ids_json = ?".into(),
-            vec![text(&record.anchor_json), nullable_text(record.target_block_id.as_deref()), text(&record.target_block_ids_json), text(&record.id), text(PROJECT), text(NODE), text(&old.anchor_json), nullable_text(old.target_block_id.as_deref()), text(&old.target_block_ids_json)], Some(tx), CLIENT.into())?;
+            vec![text(&record.anchor_json), nullable_text(record.target_block_id.as_deref()), text(&record.target_block_ids_json), text(&record.id), text(project_id), text(chapter_id), text(&old.anchor_json), nullable_text(old.target_block_id.as_deref()), text(&old.target_block_ids_json)], Some(tx), CLIENT.into())?;
         if result.changes != 1 {
             return Err(
                 "Comment anchor changed outside this owner; the checkpoint was not committed"
@@ -303,7 +432,13 @@ fn lab_scope(gateway: &DatabaseGateway) -> Result<ArchiveScope, String> {
     }
 }
 
-fn authored_context(gateway: &DatabaseGateway) -> Result<AuthoredProseContext, String> {
+fn context_for_scope(
+    gateway: &DatabaseGateway,
+    project_id: &str,
+    project_sync_id: &str,
+    sync_generation_id: &str,
+    installation_id: &str,
+) -> Result<AuthoredProseContext, String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?;
@@ -323,10 +458,10 @@ fn authored_context(gateway: &DatabaseGateway) -> Result<AuthoredProseContext, S
         NEXT_WRITER.fetch_add(1, Ordering::Relaxed)
     );
     Ok(AuthoredProseContext {
-        project_id: PROJECT.into(),
-        project_sync_id: PROJECT_SYNC.into(),
-        sync_generation_id: GENERATION.into(),
-        installation_id: "native-lab-synthetic-installation".into(),
+        project_id: project_id.into(),
+        project_sync_id: project_sync_id.into(),
+        sync_generation_id: sync_generation_id.into(),
+        installation_id: installation_id.into(),
         new_writer_id: format!("{token}-writer"),
         new_writer_epoch: format!("{token}-epoch"),
         now_ms: now
@@ -425,7 +560,15 @@ fn seed_comments(gateway: &DatabaseGateway, fixture: &Value) -> Result<(), Strin
 }
 
 fn load_comments(gateway: &DatabaseGateway) -> Result<Vec<CommentAnchorRecord>, String> {
-    let result = gateway.query("SELECT id, anchor_json, target_block_id, target_block_ids_json FROM comment WHERE project_id = ? AND target_kind = 'node' AND target_id = ? ORDER BY id".into(), vec![text(PROJECT),text(NODE)],None,CLIENT.into())?;
+    load_comments_for(gateway, PROJECT, NODE)
+}
+
+fn load_comments_for(
+    gateway: &DatabaseGateway,
+    project_id: &str,
+    chapter_id: &str,
+) -> Result<Vec<CommentAnchorRecord>, String> {
+    let result = gateway.query("SELECT id, anchor_json, target_block_id, target_block_ids_json FROM comment WHERE project_id = ? AND target_kind = 'node' AND target_id = ? ORDER BY id".into(), vec![text(project_id),text(chapter_id)],None,CLIENT.into())?;
     result.rows.into_iter().map(|row| {
         let [DatabaseValue::Text(id),DatabaseValue::Text(anchor),block,DatabaseValue::Text(ids)] = row.as_slice() else {return Err("Invalid synthetic comment row".into());};
         let target_block_id = match block {DatabaseValue::Null => None, DatabaseValue::Text(id) => Some(id.clone()), _ => return Err("Invalid synthetic comment target".into())};
@@ -449,8 +592,8 @@ fn read_project(gateway: &DatabaseGateway, handle: u64) -> Result<Value, String>
     Ok(json!({ "handle": handle, "projectId": id, "name": name }))
 }
 
-fn open_fixture(directory: &Path) -> Result<DatabaseGateway, String> {
-    // This pre-P3 bridge must never attach to the author's ordinary library.
+fn validate_directory(directory: &Path) -> Result<(), String> {
+    // The Apple workspace remains separate from the author's ordinary library.
     if !directory.is_absolute() || directory.file_name().and_then(|v| v.to_str()) != Some(CLIENT) {
         return Err("The lab requires its own absolute apple-native-lab directory".into());
     }
@@ -462,6 +605,11 @@ fn open_fixture(directory: &Path) -> Result<DatabaseGateway, String> {
     {
         return Err("The lab directory must not be a symlink".into());
     }
+    Ok(())
+}
+
+fn open_fixture(directory: &Path) -> Result<DatabaseGateway, String> {
+    validate_directory(directory)?;
     let gateway = DatabaseGateway::new(directory.to_path_buf())?;
     gateway.open(DATABASE.into(), CLIENT.into(), false)?;
     gateway.execute(
@@ -480,10 +628,16 @@ fn dispatch(request: Request) -> Result<Value, String> {
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .map_err(|_| "The lab session registry is unavailable")?;
+    if let Some(value) = workspace::dispatch(&request, &mut sessions)? {
+        return Ok(value);
+    }
     match request {
         Request::Open { directory } => {
             if let Ok(path) = directory.canonicalize() {
-                if sessions.values().any(|session| session.directory == path) {
+                if sessions
+                    .values()
+                    .any(|session| !session.owner.workspace && session.directory == path)
+                {
                     return Err("The synthetic workspace already has a live owner".into());
                 }
             }
@@ -548,7 +702,11 @@ fn dispatch(request: Request) -> Result<Value, String> {
                     "Final checkpoint failed; the live owner is retained: {error}"
                 ));
             }
-            session.gateway.close(CLIENT.into())?;
+            if session.owner.workspace {
+                workspace::document_closed(handle)?;
+            } else {
+                session.gateway.close(CLIENT.into())?;
+            }
             sessions.remove(&handle);
             Ok(Value::Null)
         }
@@ -695,6 +853,16 @@ fn dispatch(request: Request) -> Result<Value, String> {
             }
             session.persist();
             session.document_state()
+        }
+        Request::WorkspaceOpen { .. }
+        | Request::WorkspaceProjects { .. }
+        | Request::WorkspaceCreateProject { .. }
+        | Request::WorkspaceChapters { .. }
+        | Request::WorkspaceCreateChapter { .. }
+        | Request::WorkspaceOpenChapter { .. }
+        | Request::WorkspaceReopenChapter { .. }
+        | Request::WorkspaceClose { .. } => {
+            unreachable!("Workspace requests are dispatched before document requests")
         }
     }
 }

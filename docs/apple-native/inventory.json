@@ -144,7 +144,7 @@
         "single authority for create/delete/link/restore; effects and journal parity"
       ],
       "milestone": "P3",
-      "status": "planned",
+      "status": "in-progress",
       "decisionTask": null
     },
     {
@@ -163,7 +163,7 @@
         "project home, tabs, split, focus, navigation, mounted session ownership"
       ],
       "milestone": "P5/P6",
-      "status": "planned",
+      "status": "in-progress",
       "decisionTask": null
     },
     {

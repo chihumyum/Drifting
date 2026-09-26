@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T07:33:26.737Z",
+  "generatedAt": "2026-09-26T08:40:59.611Z",
   "status": "passed",
   "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
   "source": {
-    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "commit": "d983ec6f72531b8a6681bb4818ea5ac11d80c7e0",
     "dirty": true,
-    "runtimeFingerprint": "b03e130c6dc51057953aefedb04a6e2926a1bf0e9606e137a496a36aa27220f6"
+    "runtimeFingerprint": "66c24c6171ebc92a0e6b927de9bf982d91fca1edd1e897d14c90e7e82223b234"
   },
   "checks": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 61
+      "passed": 66
     },
     {
       "name": "prose-durability",
@@ -27,7 +27,7 @@
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 18
+      "passed": 23
     },
     {
       "name": "macos-build",
@@ -56,7 +56,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project name and prose edit, paragraph split/join, prose undo/redo, original comment status, durable save, close/reopen and process restart",
+      "operation": "project/chapter creation, prose edit and history, save/reopen, two-chapter isolation and process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",
@@ -84,7 +84,7 @@
       "status": "passed",
       "passed": 2,
       "failed": 0,
-      "operation": "project name and prose edit, paragraph split/join, prose undo/redo, original comment status, durable save, close/reopen and process restart",
+      "operation": "project/chapter creation, prose edit and history, save/reopen, two-chapter isolation and process restart",
       "platforms": [
         {
           "platform": "iOS Simulator",

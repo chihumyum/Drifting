@@ -21,6 +21,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Architecture decision](architecture.md)
 - [Capability migration inventory](inventory.json) and [generated coverage](acceptance/inventory.json)
 - [Milestones and acceptance](milestones.md)
+- [Local project and chapter writing slice](workspace.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -36,6 +37,7 @@ snapshot and fail-closed recovery rules apply to every host.
 ```sh
 pnpm apple:check
 pnpm apple:core:test
+pnpm apple:workspace:acceptance
 pnpm apple:document:acceptance
 pnpm apple:authoring:acceptance
 pnpm apple:binding:acceptance
@@ -63,22 +65,22 @@ precise OS trigger is unresolved. The user permits desktop interaction; avoid
 repeatedly running the same failing path without fixing it. Targeted native UI inspection, headless checks and simulator tests
 remain available. A default passing report does not imply desktop XCTest passed.
 
-The two applications edit a synthetic project name and the P2 synthetic prose
-fixture (inline edits, sibling structure and supported blockquote boundaries) in a dedicated
-`apple-native-lab/native-lab.db` database. They call the same Rust gateway that
-Tauri uses. This deliberately small P1 operation does not implement the P3
-project creation/journal/undo business command and must not be exposed as a
-production project operation. The bridge accepts no arbitrary SQL and offers no
-production-library import or selection UI. Neither application accesses Keychain
-or registers the production URL scheme.
+The two applications now open a separate local workspace with project and chapter
+lists, creation, native editing, explicit save and reopen. Both call the shared
+Rust workspace service for domain defaults, transactions and canonical journals.
+The workspace database is `apple-native-lab/apple-native-workspace.db`; the older
+fixed fixture and `native-lab.db` remain test harnesses for the editor binding.
+No production library import or selection is exposed, and neither application
+accesses Keychain or registers the production URL scheme. Use synthetic content
+until the remaining migration and distribution gates pass.
 
 Prose uses a shared Rust document owner, one ordered Swift queue across views, local-origin
 undo, original-comment highlights, atomic authored updates/comment anchors/sync
-journal and replay-covered SQLite checkpoints. The project bootstrap and remote
-delivery remain fixture-only seams. Read [the binding contract](document-core.md)
+journal and replay-covered SQLite checkpoints. Project and chapter creation now use shared domain commands. Remote
+delivery remains a fixture-only seam. Read [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
-The Mac lab offers a second editor window with shared prose/history and separate
-selection/scroll. Local multi-view and overlapping marked-text behavior have programmatic
+The workspace host currently has one editor per window; shared multi-view
+ownership remains covered by the binding harness. Local multi-view and overlapping marked-text behavior have programmatic
 AppKit evidence. Hosted UIKit tests cover its real input entry points, remote
 composition, repeated-character identity, Unicode deletion, focus loss and native
 history routes on iPhone/iPad simulators. AppKit responder actions and menu
@@ -95,7 +97,7 @@ rows are replayed in ID order before snapshot/pruning. The generated
 [process-recovery report](acceptance/p2c-durability.json) records real SIGKILL
 boundaries and two independent restarts per case, separately from native UI
 tests. WAL/NORMAL process recovery is not a power-loss guarantee. Performance,
-production project lifecycle and full remote reducer integration remain open.
+the remaining project lifecycle and full remote reducer integration remain open.
 
 The durable status and next work are in [milestones](milestones.md).
 [Generated P1 evidence](acceptance/p1-native.json) covers the first runnable batch. Generated

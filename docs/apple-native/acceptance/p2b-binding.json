@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T07:32:22.570Z",
+  "generatedAt": "2026-09-26T08:40:31.162Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "commit": "d983ec6f72531b8a6681bb4818ea5ac11d80c7e0",
     "dirty": true,
-    "fingerprint": "3506c5f59d453cb8910dfe519c6298ead7cc7e25d07fa3572de26bd789b1670c"
+    "fingerprint": "db845237052c950dfd7931e4eb7cd82cf986e91c6c9d67c2d7134004c7edeabf"
   },
   "cases": [
     {

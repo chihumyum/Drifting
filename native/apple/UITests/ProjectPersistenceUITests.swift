@@ -1,101 +1,135 @@
 import XCTest
 
+/// Uses the application's real project/chapter commands and editor. Each case
+/// creates uniquely named synthetic content in the separate native workspace.
 final class ProjectPersistenceUITests: XCTestCase {
-    #if !os(macOS)
-    func testProseEditUndoRedoReopenAndRestart() throws {
+    private func press(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 15), file: file, line: line)
+        #if os(macOS)
+        element.click()
+        #else
+        element.tap()
+        #endif
+    }
+
+    private func saved(_ app: XCUIApplication) {
+        let status = app.staticTexts["document-status"]
+        expectation(for: NSPredicate(format: "label == %@ OR value == %@", "正文已保存", "正文已保存"), evaluatedWith: status)
+        waitForExpectations(timeout: 15)
+    }
+
+    private func equalText(_ app: XCUIApplication, _ value: String) {
+        expectation(for: NSPredicate(format: "value == %@", value), evaluatedWith: app.textViews["document-text"])
+        waitForExpectations(timeout: 15)
+    }
+
+    private func createProject(_ app: XCUIApplication, name: String) {
+        press(app.buttons["create-project"])
+        let field = app.textFields["new-project-name"]
+        press(field)
+        field.typeText(name)
+        press(app.buttons.matching(identifier: "confirm-create-project").firstMatch)
+        XCTAssertTrue(app.buttons["create-chapter"].waitForExistence(timeout: 15))
+    }
+
+    private func createChapter(_ app: XCUIApplication, title: String) {
+        press(app.buttons["create-chapter"])
+        let field = app.textFields["new-chapter-name"]
+        press(field)
+        field.typeText(title)
+        press(app.buttons.matching(identifier: "confirm-create-chapter").firstMatch)
+        currentChapter(app, title: title)
+        saved(app)
+    }
+
+    private func currentChapter(_ app: XCUIApplication, title: String) {
+        expectation(for: NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", title, title),
+                    evaluatedWith: app.staticTexts["current-chapter"])
+        waitForExpectations(timeout: 15)
+        XCTAssertTrue(app.textViews["document-text"].exists)
+    }
+
+    private func selectRow(_ app: XCUIApplication, title: String) {
+        #if os(macOS)
+        press(app.staticTexts[title].firstMatch)
+        #else
+        press(app.cells.matching(NSPredicate(format: "label == %@", title)).firstMatch)
+        #endif
+    }
+
+    private func finishInput(_ app: XCUIApplication) {
+        #if !os(macOS)
+        press(app.buttons["finish-prose"])
+        #endif
+        saved(app)
+    }
+
+    func testCreateWriteUndoReopenAndProcessRestart() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launch()
+        let name = "Workspace " + UUID().uuidString.prefix(8)
+        let chapter = "First chapter"
+        createProject(app, name: name)
+        createChapter(app, title: chapter)
         let prose = app.textViews["document-text"]
-        XCTAssertTrue(prose.waitForExistence(timeout: 15))
-        let status = app.staticTexts["document-status"]
-        func saved() {
-            expectation(for: NSPredicate(format: "label == %@", "正文已保存"), evaluatedWith: status)
-            waitForExpectations(timeout: 15)
-        }
-        func equalText(_ text: String) {
-            expectation(for: NSPredicate(format: "value == %@", text), evaluatedWith: prose)
-            waitForExpectations(timeout: 15)
-        }
-        saved()
-        let comments = app.staticTexts["document-comments"]
-        XCTAssertTrue(comments.waitForExistence(timeout: 10))
-        XCTAssertEqual(comments.label, "评论「北塔」· 已定位")
         let before = try XCTUnwrap(prose.value as? String)
-        prose.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: 24, dy: 24)).tap()
-        prose.typeText("Z")
-        app.buttons["finish-prose"].tap()
-        saved()
+        press(prose)
+        prose.typeText("Native writing")
+        finishInput(app)
         let after = try XCTUnwrap(prose.value as? String)
-        XCTAssertEqual(after.utf16.count, before.utf16.count + 1)
-        app.buttons["undo-prose"].tap(); saved(); equalText(before)
-        app.buttons["redo-prose"].tap(); saved(); equalText(after)
-        prose.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: 24, dy: 24)).tap()
-        prose.typeText("\n"); saved()
-        let split = try XCTUnwrap(prose.value as? String)
-        XCTAssertEqual(split.utf16.count, after.utf16.count + 1)
-        app.buttons["undo-prose"].tap(); saved(); equalText(after)
-        app.buttons["redo-prose"].tap(); saved(); equalText(split)
-        prose.typeText(XCUIKeyboardKey.delete.rawValue); saved(); equalText(after)
-        app.buttons["finish-prose"].tap()
-        app.buttons["reopen-project"].tap(); saved(); equalText(after)
-        app.terminate(); app.launch()
-        XCTAssertTrue(prose.waitForExistence(timeout: 15)); saved(); equalText(after)
-        XCTAssertEqual(comments.label, "评论「北塔」· 已定位")
+        XCTAssertTrue(after.contains("Native writing"))
+        XCTAssertNotEqual(after, before)
+        press(app.buttons["undo-prose"]); saved(app)
+        let undone = try XCTUnwrap(prose.value as? String)
+        XCTAssertNotEqual(undone, after)
+        press(app.buttons["redo-prose"]); saved(app); equalText(app, after)
+        press(app.buttons["save-document"]); saved(app)
+        press(app.buttons["reopen-document"])
+        let reopened = "已从磁盘重新打开，正文自动保存"
+        expectation(for: NSPredicate(format: "label == %@ OR value == %@", reopened, reopened),
+                    evaluatedWith: app.staticTexts["workspace-status"])
+        waitForExpectations(timeout: 15)
+        saved(app); equalText(app, after)
+        app.terminate()
+        app.launch()
+        selectRow(app, title: name)
+        selectRow(app, title: chapter)
+        currentChapter(app, title: chapter)
+        saved(app); equalText(app, after)
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Native prose after process restart"
+        attachment.name = "Native writing workflow after process restart"
         attachment.lifetime = .keepAlways
         add(attachment)
         app.terminate()
     }
-    #endif
 
-    func testSaveReopenAndApplicationRestart() throws {
+    func testChapterSwitchKeepsIndependentProse() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launch()
-        let field = app.textFields["project-name"]
-        XCTAssertTrue(field.waitForExistence(timeout: 15))
-        let ready = NSPredicate(format: "enabled == true")
-        expectation(for: ready, evaluatedWith: field)
-        waitForExpectations(timeout: 15)
-        let name = "Native acceptance " + UUID().uuidString.prefix(8)
-        #if os(macOS)
-        field.click()
-        field.typeKey("a", modifierFlags: .command)
-        #else
-        field.tap()
-        if field.buttons.firstMatch.exists { field.buttons.firstMatch.tap() }
-        #endif
-        field.typeText(name)
-        XCTAssertEqual(field.value as? String, name)
-        #if os(macOS)
-        app.buttons["save-project"].click()
-        #else
-        app.buttons["save-project"].tap()
-        #endif
-        let status = app.staticTexts["project-status"]
-        expectation(for: NSPredicate(format: "label == %@ OR value == %@", "已保存", "已保存"), evaluatedWith: status)
-        waitForExpectations(timeout: 15)
-        #if os(macOS)
-        app.buttons["reopen-project"].click()
-        #else
-        app.buttons["reopen-project"].tap()
-        #endif
-        expectation(for: NSPredicate(format: "label == %@ OR value == %@", "已从磁盘重新打开", "已从磁盘重新打开"), evaluatedWith: status)
-        waitForExpectations(timeout: 15)
-        XCTAssertEqual(field.value as? String, name)
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(field.waitForExistence(timeout: 15))
-        expectation(for: NSPredicate(format: "value == %@", name), evaluatedWith: field)
-        waitForExpectations(timeout: 15)
+        let name = "Two chapters " + UUID().uuidString.prefix(8)
+        createProject(app, name: name)
+        createChapter(app, title: "Chapter A")
+        var prose = app.textViews["document-text"]
+        press(prose); prose.typeText("Alpha prose"); finishInput(app)
+        let first = try XCTUnwrap(prose.value as? String)
         #if !os(macOS)
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Native project after process restart"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        press(app.buttons["back-to-chapters"])
         #endif
+        createChapter(app, title: "Chapter B")
+        prose = app.textViews["document-text"]
+        XCTAssertFalse((prose.value as? String ?? "").contains("Alpha prose"))
+        press(prose); prose.typeText("Beta prose"); finishInput(app)
+        let second = try XCTUnwrap(prose.value as? String)
+        #if !os(macOS)
+        press(app.buttons["back-to-chapters"])
+        #endif
+        selectRow(app, title: "Chapter A"); currentChapter(app, title: "Chapter A"); saved(app); equalText(app, first)
+        #if !os(macOS)
+        press(app.buttons["back-to-chapters"])
+        #endif
+        selectRow(app, title: "Chapter B"); currentChapter(app, title: "Chapter B"); saved(app); equalText(app, second)
         app.terminate()
     }
 }

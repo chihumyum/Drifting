@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "apple_checkpoint_mutation_integrity",
   "status": "passed",
-  "generatedAt": "2026-09-26T08:08:28.247Z",
+  "generatedAt": "2026-09-26T08:29:40.558Z",
   "generator": {
     "path": "scripts/apple-checkpoint-provenance-acceptance.mjs",
     "sha256": "6c224a322135467a71bad3db466c71ac0f277c97a053d1806f34011c89838fad"
   },
   "source": {
-    "fingerprint": "6bfeef7d1ee31aa4300867487d70a8d009ec0f5fe7e5eac49ffc39350c46159d",
+    "fingerprint": "af2f68145d08d38bd03728b3acffb40ea75fbfabf9cfe80bc4a2d6563180a70e",
     "files": [
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -56,7 +56,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "5d793fb1261be4747083c6d74bfd058c6831131c6d80d602eb7ad9159d9aee88"
+        "sha256": "a97b2e1cbc44f08f365f5b1798c99fa3729f063c7556fa4efb9a088dcf519f48"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -402,7 +402,7 @@
   ],
   "run": {
     "mode": "ran-three-vitest-suites",
-    "rawSha256": "627b92d9a1ef28d7d6de294465bbca603ef615bbaaeef9413818980c45f910ac",
+    "rawSha256": "e64900c5e7fd1536894960c4d26ed92b475ea88d3720a005a8346fefea0c6688",
     "requiredSuites": [
       {
         "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",

@@ -26,11 +26,11 @@ architecture. Existing correctness fixes and their evidence remain in place.
 | P2a | Headless Yjs/Yrs harness | Incremental, concurrent, reordered and duplicate updates converge without schema/metadata loss | Complete for declared headless scope, including redone-offset, sparse-replay and undo deletion-filter fixes; see source-matched generated evidence |
 | P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
-| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | Not started |
+| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, atomic journals and first writing slice accepted; remaining domain commands open |
 | P4 | Sync and Agent over native prose | Minimal in-process runtime, guarded writes/reviews, offline/reconnect/restart; accounts separately tested | Not started |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | Not started |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: project/chapter/editor creation and save/reopen slice accepted; outline, tabs/split, search and sync remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
-| P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Not started |
+| P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Initial project/chapter/editor slice passes iPhone/iPad simulator workflows; auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
 
 ## Bounded editor gates and functional integration
@@ -74,22 +74,24 @@ minimum OS, Intel build and distribution package. A skipped dimension is
 in ignored local output; checked-in reports contain relative paths and hashes,
 not personal paths, machine IDs, manuscripts, accounts or signing identities.
 
-## Next batch
+## Current functional slice and next batch
 
-Implement a local writing slice using one shared Rust workspace service:
-list/create projects, list/create chapters, open the selected chapter in the
-existing native editor, save and reopen it. The core owns defaults, ordering,
-transactions and the authored journal; AppKit and UIKit call the same commands.
-New chapters receive a stable empty paragraph once at creation. Existing prose
-is restored from its persisted CRDT state, never reseeded from the JSON cache.
-Switching chapters must settle and save the current owner before releasing it.
+The [local writing slice](workspace.md) is accepted for its declared scope:
+create projects and chapters, edit independent prose, local history, save, switch
+and cold reopen. Shared Rust commands write the real defaults, canonical journals
+and seed; AppKit/UIKit now expose those operations. Generated source, file-backed
+and native simulator evidence accompany the same change. The preceding editor
+foundation was committed as `d983ec6f`; completed functional batches continue to
+be committed after their checks, without pushing.
 
-Acceptance is bounded to creation defaults and transaction effects, two chapters
-with independent prose, local edit/undo, failed-save retention and cold reopen.
-Keep the native sandbox identity and synthetic data. Do not add delete/restore,
-full sync, a new workspace framework or batch-performance measurements to this
-first slice. The six known old-peer alias-delete failures stay explicitly open;
-they are not acceptance of this local workflow or grounds to claim full P2.
+Next implement shared project/chapter rename commands and their native controls.
+Preserve name rules, active scope, authored field clocks, transaction failure and
+cold-reopen behavior. Keep the next acceptance bounded to these operations.
+Outline, other domain commands, sync and Agent remain subsequent feature work.
+No performance measurement or extra historical migration matrix is a prerequisite.
+
+The six known old-peer alias-delete failures stay explicitly open; the accepted
+local workflow does not certify full P2 or general remote synchronization.
 
 ## Completed editor foundation and remaining investigations
 

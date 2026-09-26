@@ -50,6 +50,11 @@ final class LabCore {
     private weak var sharedDocument: DocumentStore?
     private var pendingDocument: DocumentStore?
 
+    fileprivate var hasPendingDocumentWork: Bool {
+        precondition(Thread.isMainThread)
+        return sharedDocument?.hasPendingWork == true
+    }
+
     func retainPendingDocument(_ store: DocumentStore, needed: Bool) {
         pendingDocument = needed ? store : nil
     }
@@ -70,7 +75,12 @@ final class LabCore {
             .appendingPathComponent("apple-native-lab", isDirectory: true)
     }
 
-    private static func call<Payload: Decodable>(_ request: [String: Any]) throws -> Payload? {
+    fileprivate init(handle: UInt64, directory: URL) {
+        self.handle = handle
+        self.directory = directory
+    }
+
+    fileprivate static func call<Payload: Decodable>(_ request: [String: Any]) throws -> Payload? {
         let data = try JSONSerialization.data(withJSONObject: request)
         guard let input = String(data: data, encoding: .utf8) else { throw LabError.message("无法编码请求") }
         let pointer = input.withCString { drifting_lab_call($0) }
@@ -84,7 +94,8 @@ final class LabCore {
                reason.hasPrefix("NATIVE_HISTORY_UNAVAILABLE:") {
                 throw LabError.historyUnavailable(reason: reason)
             }
-            if request["operation"] as? String == "open", reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
+            if ["open", "workspaceOpenChapter", "workspaceReopenChapter"].contains(request["operation"] as? String ?? ""),
+               reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
                 throw LabError.pendingRemoteUpdate(reason: reason)
             }
             throw LabError.message(reason)
@@ -251,6 +262,122 @@ final class LabCore {
         // Enqueued operations retain self, so deinit only runs after they finish.
         if let handle {
             queue.async { let _: LabState? = try? LabCore.call(["operation": "close", "handle": handle]) }
+        }
+    }
+}
+
+struct WorkspaceProject: Decodable {
+    let id: String
+    let name: String
+}
+
+struct WorkspaceChapter: Decodable {
+    let id: String
+    let title: String
+}
+
+private struct WorkspaceState: Decodable {
+    let handle: UInt64
+    let projects: [WorkspaceProject]
+}
+
+private struct WorkspaceDocumentReply: Decodable {
+    let handle: UInt64
+    let projectId: String
+    let chapterId: String
+    let document: LabDocumentState
+}
+
+/// Workspace commands and chapter switching belong to Rust. A successful
+/// switch returns a new document owner, never a repurposed Swift store: old
+/// selections, input branches and undo projections cannot cross chapters.
+final class LabWorkspaceCore {
+    private let queue = DispatchQueue(label: "cc.drifting.native-lab.workspace")
+    private let directory: URL
+    private var handle: UInt64?
+    // A list screen may have no editor view. Keep the bridge's current owner
+    // alive until a successful replacement or workspace shutdown.
+    private var currentDocument: LabCore?
+    private var switchingDocument = false
+
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "cc.drifting.native-lab")
+            .appendingPathComponent("apple-native-lab", isDirectory: true)
+    }
+
+    func projects(completion: @escaping (Result<[WorkspaceProject], Error>) -> Void) {
+        perform(completion) {
+            if self.handle != nil { return try self.request("workspaceProjects") }
+            guard let state: WorkspaceState = try LabCore.call([
+                "operation": "workspaceOpen", "directory": self.directory.path,
+            ]) else { throw LabError.message("工作区没有返回") }
+            self.handle = state.handle
+            return state.projects
+        }
+    }
+
+    func createProject(name: String, completion: @escaping (Result<WorkspaceProject, Error>) -> Void) {
+        perform(completion) { try self.request("workspaceCreateProject", fields: ["name": name]) }
+    }
+
+    func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
+        perform(completion) { try self.request("workspaceChapters", fields: ["projectId": projectID]) }
+    }
+
+    func createChapter(projectID: String, title: String,
+                       completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceCreateChapter", fields: ["projectId": projectID, "title": title])
+        }
+    }
+
+    func openChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument("workspaceOpenChapter", fields: ["projectId": projectID, "chapterId": chapterID], completion: completion)
+    }
+
+    func reopenChapter(completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument("workspaceReopenChapter", fields: [:], completion: completion)
+    }
+
+    private func openDocument(_ operation: String, fields: [String: Any],
+                              completion: @escaping (Result<LabCore, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !switchingDocument, currentDocument?.hasPendingDocumentWork != true else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再切换章节")))
+            return
+        }
+        switchingDocument = true
+        perform({ (result: Result<LabCore, Error>) in
+            self.switchingDocument = false
+            if case .success(let core) = result { self.currentDocument = core }
+            completion(result)
+        }) {
+            let opened: WorkspaceDocumentReply = try self.request(operation, fields: fields)
+            return LabCore(handle: opened.handle, directory: self.directory)
+        }
+    }
+
+    private func request<Payload: Decodable>(_ operation: String, fields: [String: Any] = [:]) throws -> Payload {
+        guard let handle else { throw LabError.message("请先打开工作区") }
+        var request = fields
+        request["operation"] = operation
+        request["handle"] = handle
+        guard let result: Payload = try LabCore.call(request) else { throw LabError.message("工作区结果缺失") }
+        return result
+    }
+
+    private func perform<Payload>(_ completion: @escaping (Result<Payload, Error>) -> Void,
+                                  _ operation: @escaping () throws -> Payload) {
+        queue.async {
+            let result = Result { try operation() }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    deinit {
+        if let handle {
+            queue.async { let _: LabState? = try? LabCore.call(["operation": "workspaceClose", "handle": handle]) }
         }
     }
 }

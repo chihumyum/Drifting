@@ -110,6 +110,7 @@
     "public:evidence": "node scripts/generate-source-publication-evidence.mjs",
     "release:check": "node scripts/check-alpha-release.mjs",
     "release:sbom": "node scripts/generate-release-sbom.mjs",
+    "apple:workspace:acceptance": "node scripts/apple-workspace-acceptance.mjs",
     "apple:inventory": "node scripts/check-apple-migration.mjs --write",
     "apple:check": "node scripts/check-apple-migration.mjs",
     "apple:build:macos": "node scripts/apple-native.mjs macos",

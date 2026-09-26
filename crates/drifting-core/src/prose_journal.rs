@@ -3,7 +3,7 @@
 //! A mandatory validator checks the durable CRDT base and incoming update in
 //! the same transaction; the native host supplies Yrs without raising this
 //! crate's Rust 1.88 minimum or moving SQLite ownership out of the gateway.
-mod encoding;
+pub(crate) mod encoding;
 #[cfg(test)]
 mod tests;
 pub use encoding::EncodedProseChange;
@@ -76,13 +76,13 @@ fn read_uint(row: &[V], column: usize) -> Result<u64, String> {
         _ => Err("Invalid persisted journal integer".into()),
     }
 }
-fn opaque(value: &str) -> bool {
+pub(crate) fn opaque(value: &str) -> bool {
     !value.is_empty()
         // The production TypeBox validator checks JavaScript string.length.
         && value.encode_utf16().count() <= 255
         && !value.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}')
 }
-fn token(value: &str) -> bool {
+pub(crate) fn token(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && value.as_bytes()[0].is_ascii_alphanumeric()
@@ -445,7 +445,7 @@ impl<'a> AuthoredProseJournal<'a> {
         }
     }
 
-    fn reserve_writer(
+    pub(crate) fn reserve_writer(
         &self,
         tx: u64,
         context: &AuthoredProseContext,

@@ -1,5 +1,5 @@
-//! Fixed-shape RFC 8949 deterministic CBOR for the existing yjs.update wire.
-//! This is intentionally not a general decoder or an alternative sync schema.
+//! RFC 8949 deterministic CBOR primitives shared by fixed native journal writers.
+//! The existing yjs.update envelope retains its exact wire bytes.
 use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,7 +25,10 @@ pub struct ChangeIdentity<'a> {
     pub incarnation: u64,
 }
 
-enum Cbor<'a> {
+pub(crate) enum Cbor<'a> {
+    Null,
+    Bool(bool),
+    Number(f64),
     Uint(u64),
     Text(&'a str),
     Bytes(&'a [u8]),
@@ -52,6 +55,22 @@ fn head(bytes: &mut Vec<u8>, major: u8, value: u64) {
 impl Cbor<'_> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
+            Self::Null => bytes.push(0xf6),
+            Self::Bool(value) => bytes.push(if *value { 0xf5 } else { 0xf4 }),
+            Self::Number(value) => {
+                let header = if value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_991.0 {
+                    if *value >= 0.0 {
+                        ciborium_ll::Header::Positive(*value as u64)
+                    } else {
+                        ciborium_ll::Header::Negative((-1.0 - *value) as u64)
+                    }
+                } else {
+                    ciborium_ll::Header::Float(*value)
+                };
+                ciborium_ll::Encoder::from(bytes)
+                    .push(header)
+                    .expect("Vec writer is infallible");
+            }
             Self::Uint(value) => head(bytes, 0, *value),
             Self::Text(value) => {
                 head(bytes, 3, value.len() as u64);
@@ -85,13 +104,13 @@ impl Cbor<'_> {
             }
         }
     }
-    fn bytes(&self) -> Vec<u8> {
+    pub(crate) fn bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         self.encode(&mut bytes);
         bytes
     }
 }
-fn hash(bytes: &[u8]) -> String {
+pub(crate) fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
