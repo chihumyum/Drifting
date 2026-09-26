@@ -7,6 +7,7 @@ mod drifts;
 mod elements;
 mod facts;
 mod journal;
+mod metadata;
 mod outline;
 mod storylines;
 mod trash;
@@ -16,6 +17,7 @@ pub use elements::{
     ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
 };
 pub use facts::Fact;
+pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetails};
 pub use outline::WorkspaceOutlineRow;
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
 #[cfg(test)]

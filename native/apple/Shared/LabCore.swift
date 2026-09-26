@@ -23,6 +23,7 @@ enum LabError: LocalizedError {
     case elementUnavailable(reason: String)
     case storylineUnavailable(reason: String)
     case driftUnavailable(reason: String)
+    case metadataUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -30,7 +31,7 @@ enum LabError: LocalizedError {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
              .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
-             .driftUnavailable(let text): return text
+             .driftUnavailable(let text), .metadataUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -46,7 +47,22 @@ enum LabError: LocalizedError {
         case .elementUnavailable(let reason): return LabError.elementMessage(reason)
         case .storylineUnavailable(let reason): return LabError.storylineMessage(reason)
         case .driftUnavailable(let reason): return LabError.driftMessage(reason)
+        case .metadataUnavailable(let reason): return LabError.metadataMessage(reason)
         }
+    }
+
+    /// Summary, status and project detail refusals happen before any row or
+    /// journal change.
+    private static func metadataMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("A chapter cannot have status", "章节只能设为草稿、已完成或已弃用。"),
+            ("A drift cannot have status", "漂流只能设为漂浮中或休眠。"),
+            ("Chapter or drift is not", "这一章或这条漂流已不可用，请刷新列表。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+            ("Facts have rows without order registers", "字段数据不完整，暂时无法保存。已输入的内容仍保留。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "资料未能保存。已有内容未改变，可以稍后重试。"
     }
 
     /// Drift and drift group refusals happen before any row, binding or
@@ -254,6 +270,9 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceDrifts" {
                 throw LabError.driftUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceMetadata" {
+                throw LabError.metadataUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -481,6 +500,9 @@ struct WorkspaceProject: Decodable {
 struct WorkspaceChapter: Decodable {
     let id: String
     let title: String
+    /// `draft`, `finished` or `discarded` in chapter lists; nil for a chapter
+    /// named elsewhere, e.g. by a search hit or an outline row.
+    var writingStatus: String? = nil
 }
 struct WorkspaceAct: Decodable {
     let id: String
@@ -948,6 +970,58 @@ final class LabWorkspaceCore {
 
     private func driftRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
         try request("workspaceDrifts", fields: ["projectId": projectID, "command": command])
+    }
+
+    // MARK: Metadata
+
+    /// The project's summary, facts and storyline template.
+    func projectDetails(projectID: String, completion: @escaping (Result<WorkspaceProjectDetails, Error>) -> Void) {
+        perform(completion) { try self.metadataRequest(projectID, ["action": "project"]) }
+    }
+
+    /// One original with the present fields; an unchanged field writes nothing.
+    func updateProject(projectID: String, changes: WorkspaceProjectChanges,
+                       completion: @escaping (Result<WorkspaceProjectDetails, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateProject"
+        perform(completion) { try self.metadataRequest(projectID, command) }
+    }
+
+    /// A live chapter's or drift's summary and writing status.
+    func nodeMetadata(projectID: String, nodeID: String, completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        perform(completion) { try self.metadataRequest(projectID, ["action": "node", "nodeId": nodeID]) }
+    }
+
+    /// Several nodes in one queue turn; a node that is no longer live is left out.
+    func nodeMetadata(projectID: String, nodeIDs: [String], completion: @escaping (Result<[WorkspaceNodeMetadata], Error>) -> Void) {
+        perform(completion) {
+            guard self.handle != nil else { throw LabError.message("请先打开工作区") }
+            return nodeIDs.compactMap { id in
+                try? self.metadataRequest(projectID, ["action": "node", "nodeId": id]) as WorkspaceNodeMetadata
+            }
+        }
+    }
+
+    /// Metadata only: the node's body owner, its input and history are untouched.
+    func setNodeSummary(projectID: String, nodeID: String, summary: String,
+                        completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        perform(completion) {
+            try self.metadataRequest(projectID, ["action": "setNodeSummary", "nodeId": nodeID, "summary": summary])
+        }
+    }
+
+    /// Chapters take draft/finished/discarded and drifts drifting/resting;
+    /// Rust refuses any other status before writing.
+    func setNodeStatus(projectID: String, nodeID: String, status: String,
+                       completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        perform(completion) {
+            try self.metadataRequest(projectID, ["action": "setNodeStatus", "nodeId": nodeID, "status": status])
+        }
+    }
+
+    private func metadataRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        let reply: WorkspaceMetadataReply<Payload> = try request("workspaceMetadata", fields: ["projectId": projectID, "command": command])
+        return reply.result
     }
 
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {

@@ -111,7 +111,10 @@ fn parse(mutation: &VerifiedMutation) -> Result<Option<Metadata>, String> {
                     }
                     "driftGroupId" | "deletedAt" => value.is_null(),
                     "writingStatus" => value.as_str().is_some_and(|s| {
-                        matches!(s, "draft" | "revising" | "done" | "drifting" | "sorted")
+                        matches!(
+                            s,
+                            "draft" | "finished" | "discarded" | "drifting" | "resting"
+                        )
                     }),
                     "wordCountBasisKind" | "wordCountBasisHash" => {
                         value.is_null() || value.is_string()

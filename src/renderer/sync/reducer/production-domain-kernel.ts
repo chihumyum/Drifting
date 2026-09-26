@@ -185,7 +185,7 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
     summary: STRING,
     bookOrder: NULLABLE_FINITE_NUMBER,
     narrativeOrder: NULLABLE_FINITE_NUMBER,
-    writingStatus: oneOf('draft', 'revising', 'done', 'drifting', 'sorted'),
+    writingStatus: oneOf('draft', 'finished', 'discarded', 'drifting', 'resting'),
     kind: oneOf('chapter', 'drift'),
     driftGroupId: NULLABLE_STRING,
     deletedAt: NULLABLE_STRING,

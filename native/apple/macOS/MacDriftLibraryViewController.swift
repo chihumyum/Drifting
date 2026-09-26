@@ -6,15 +6,17 @@ final class DriftLibraryPanel: NSPanel {
 }
 
 /// The 漂流 panel: drift groups (collapsible, one nesting level) with their
-/// drifts, drifts outside any group, and the trash with 恢复. Opening and
-/// trashing a drift go through the owner of the editor tabs; every other
-/// command is a library command whose reply reaches open pages, the outline
-/// and entity links through the model.
+/// drifts, drifts outside any group, and the trash with 恢复. 休眠 drifts stay
+/// in place, muted. Opening, trashing and a drift's status go through the
+/// owner of the editor tabs; every other command is a library command whose
+/// reply reaches open pages, the outline and entity links through the model.
 final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     let model: DriftLibraryModel
     var onOpen: ((WorkspaceDrift) -> Void)?
     var onTrash: ((WorkspaceDrift) -> Void)?
     var onCreated: ((WorkspaceDrift) -> Void)?
+    /// The row menu chose another status (`drifting` or `resting`).
+    var onSetStatus: ((WorkspaceDrift, String) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     /// Presents an alert (prompts, pickers and confirmations). Nil uses a
@@ -128,10 +130,14 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
         case .drift(let drift, let depth):
             let text = NSStackView()
             text.orientation = .vertical; text.alignment = .leading; text.spacing = 1
+            // A 休眠 drift stays in place, muted, with a small 休眠 note.
+            let resting = model.isResting(drift)
             let title = NSTextField(labelWithString: drift.title)
             title.font = .systemFont(ofSize: 13)
+            title.textColor = resting ? .tertiaryLabelColor : .labelColor
             title.lineBreakMode = .byTruncatingTail
-            title.setAccessibilityLabel(drift.title)
+            title.setAccessibilityIdentifier("drift-title-\(drift.id)")
+            title.setAccessibilityLabel(resting ? "\(drift.title)，\(WritingStatus.resting.label)" : drift.title)
             text.addArrangedSubview(title)
             if drift.actId != nil {
                 let act = NSTextField(labelWithString: "幕笔记 · \(model.actName(of: drift) ?? "已绑定")")
@@ -141,7 +147,14 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
                 text.addArrangedSubview(act)
             }
             text.setContentCompressionResistancePriority(.init(1), for: .horizontal)
-            stack.setViews([text, NSView()], in: .leading)
+            var views: [NSView] = [text, NSView()]
+            if resting {
+                let status = NSTextField(labelWithString: WritingStatus.resting.label)
+                status.font = .systemFont(ofSize: 11); status.textColor = .tertiaryLabelColor
+                status.setAccessibilityIdentifier("drift-resting-\(drift.id)")
+                views.append(status)
+            }
+            stack.setViews(views, in: .leading)
             stack.edgeInsets = NSEdgeInsets(top: 0, left: Self.indent(depth) + 20, bottom: 0, right: 4)
         case .emptyGroup(_, let depth):
             let label = NSTextField(labelWithString: "空分组")
@@ -220,7 +233,10 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
             let trash = LibraryMenuItem(title: drift.actId == nil ? "移到回收站" : "移到回收站…", identifier: "trash-drift") { [weak self] in
                 self?.trash(drift)
             }
-            return [open, .separator(), rename, move, .separator(), trash]
+            var items: [NSMenuItem] = [open, .separator(), rename, move, .separator()]
+            items += statusItems(drift)
+            items += [.separator(), trash]
+            return items
         case .group(let group, _, _, _):
             let create = LibraryMenuItem(title: "新建漂流", identifier: "create-drift-in-group") { [weak self] in
                 self?.createDrift(in: group)
@@ -241,6 +257,26 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
         default:
             return []
         }
+    }
+
+    /// 状态: 漂浮中 and 休眠, the current one checked. Choosing it writes nothing.
+    private func statusItems(_ drift: WorkspaceDrift) -> [NSMenuItem] {
+        let heading = NSMenuItem(title: "状态", action: nil, keyEquivalent: "")
+        heading.isEnabled = false
+        let current = model.status(of: drift)
+        return [heading] + WritingStatus.drift.map { status in
+            let item = LibraryMenuItem(title: status.label, identifier: "drift-menu-status-\(status.rawValue)") { [weak self] in
+                self?.setStatus(drift, status.rawValue)
+            }
+            item.state = current == status.rawValue ? .on : .off
+            item.isEnabled = current != nil && onSetStatus != nil
+            return item
+        }
+    }
+
+    private func setStatus(_ drift: WorkspaceDrift, _ status: String) {
+        guard model.status(of: drift) != status, canCommand() else { return }
+        onSetStatus?(drift, status)
     }
 
     private func canCommand() -> Bool {

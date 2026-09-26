@@ -157,6 +157,10 @@ final class DriftLibraryModel {
     private(set) var collapsed: Set<String> = []
     /// Act names by identity, from the outline; a bound drift names its act.
     private(set) var actNames: [String: String] = [:]
+    /// Writing statuses of live drifts by identity. Library rows carry none,
+    /// so each drift's node metadata is read once and replies keep it current.
+    private(set) var statuses: [String: String] = [:]
+    private var readingStatuses: Set<String> = []
     private var rereadAfterCommand = false
     var onChange: (() -> Void)?
     /// Every successful read or command's complete library, for pages, the
@@ -201,6 +205,40 @@ final class DriftLibraryModel {
     /// The name of the act a drift is bound to, once the outline was read.
     func actName(of drift: WorkspaceDrift) -> String? { drift.actId.flatMap { actNames[$0] } }
 
+    /// `drifting` or `resting`; nil until the drift's metadata was read.
+    func status(of drift: WorkspaceDrift) -> String? { statuses[drift.id] }
+    /// 休眠 drifts stay in place and are muted, as in the renderer's panel.
+    func isResting(_ drift: WorkspaceDrift) -> Bool { statuses[drift.id] == WritingStatus.resting.rawValue }
+
+    /// Adopt a drift's stored metadata, e.g. after its page or a menu wrote it.
+    func applyNodeMetadata(_ metadata: WorkspaceNodeMetadata) {
+        guard metadata.kind == "drift", library.drift(id: metadata.id) != nil,
+              statuses[metadata.id] != metadata.writingStatus else { return }
+        statuses[metadata.id] = metadata.writingStatus
+        onChange?()
+    }
+
+    /// Reads the statuses of live drifts not yet known. A trashed drift is
+    /// forgotten, so a restored one is read again.
+    private func readStatuses() {
+        let live = library.drifts.map(\.id), liveSet = Set(live)
+        statuses = statuses.filter { liveSet.contains($0.key) }
+        let missing = live.filter { statuses[$0] == nil && !readingStatuses.contains($0) }
+        guard !missing.isEmpty else { return }
+        readingStatuses.formUnion(missing)
+        workspace.nodeMetadata(projectID: projectID, nodeIDs: missing) { [weak self] result in
+            guard let self else { return }
+            self.readingStatuses.subtract(missing)
+            guard case .success(let nodes) = result else { return }
+            // Replies arrive in queue order, so a later command's reply still
+            // lands after this read.
+            for node in nodes where node.kind == "drift" && self.library.drift(id: node.id) != nil {
+                self.statuses[node.id] = node.writingStatus
+            }
+            self.onChange?()
+        }
+    }
+
     func showStatus(_ message: String) { status = message; onChange?() }
 
     func toggle(groupID: String) {
@@ -240,6 +278,7 @@ final class DriftLibraryModel {
             ? "还没有漂流。漂流是书序之外的笔记，可以分组整理，也可以绑定为某一幕的笔记。"
             : "点击漂流打开页面；右键漂流或分组查看更多操作。")
         onChange?()
+        readStatuses()
     }
 
     /// An empty title uses Rust's default name.

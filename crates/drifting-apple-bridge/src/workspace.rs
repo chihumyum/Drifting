@@ -9,6 +9,8 @@ use drifting_document::Edit;
 pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
 pub(super) mod elements;
+#[path = "workspace_metadata.rs"]
+pub(super) mod metadata;
 #[path = "workspace_remote_prose.rs"]
 mod remote_prose;
 #[path = "workspace_search.rs"]
@@ -172,6 +174,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceElements { .. }
             | Request::WorkspaceStorylines { .. }
             | Request::WorkspaceDrifts { .. }
+            | Request::WorkspaceMetadata { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -420,6 +423,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .drifts(documents, project_id, command)?,
+        Request::WorkspaceMetadata {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .metadata(project_id, command)?,
         Request::WorkspaceStorylines {
             handle,
             project_id,

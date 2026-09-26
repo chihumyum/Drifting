@@ -22,7 +22,7 @@ const rendererSpecs = [
   { file: 'src/renderer/services/snapshot-restore-sync-boundary.acceptance.test.ts', count: 2 },
   { file: 'src/renderer/sync/journal/yjs-materialization.integration.test.ts', count: 14 },
   { file: 'src/renderer/sync/journal/yjs-update.integration.test.ts', count: 15 },
-  { file: 'src/renderer/sync/reducer/production-domain-kernel.integration.test.ts', count: 27 },
+  { file: 'src/renderer/sync/reducer/production-domain-kernel.integration.test.ts', count: 28 },
   { file: 'src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts', count: 12 },
 ];
 function manifest() {

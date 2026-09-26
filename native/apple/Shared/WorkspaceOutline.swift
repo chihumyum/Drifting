@@ -34,6 +34,9 @@ final class WorkspaceOutlineModel {
     private(set) var storylines: WorkspaceStorylineLibrary?
     /// Drifts, for each act's bound notes; nil until read.
     private(set) var drifts: WorkspaceDriftLibrary?
+    /// Each chapter's writing status, from the chapter list (outline rows
+    /// carry none); nil until read.
+    private(set) var chapterStatuses: [String: String]?
     var onChange: (() -> Void)?
     /// The rows Rust returned after a read or an act command, for views that
     /// name acts elsewhere (drift pages and the drift panel).
@@ -66,6 +69,26 @@ final class WorkspaceOutlineModel {
     /// The live drift bound to the act as its notes (not yet read: nil).
     func boundDrift(actID: String) -> WorkspaceDrift? { drifts?.drift(actID: actID) }
 
+    /// `draft`, `finished` or `discarded`; nil until the chapters were read.
+    func writingStatus(chapterID: String) -> String? { chapterStatuses?[chapterID] }
+
+    /// Adopt chapter statuses from a chapter list.
+    func applyChapters(_ chapters: [WorkspaceChapter]) {
+        let statuses = Dictionary(chapters.compactMap { chapter in chapter.writingStatus.map { (chapter.id, $0) } },
+                                  uniquingKeysWith: { first, _ in first })
+        guard statuses != chapterStatuses else { return }
+        chapterStatuses = statuses
+        onChange?()
+    }
+
+    /// Adopt a chapter's stored status after a page or a menu wrote it.
+    func applyNodeMetadata(_ metadata: WorkspaceNodeMetadata) {
+        guard metadata.kind == "chapter", let current = chapterStatuses,
+              current[metadata.id] != metadata.writingStatus else { return }
+        chapterStatuses?[metadata.id] = metadata.writingStatus
+        onChange?()
+    }
+
     func load() {
         guard !busy else { return }
         requestID += 1
@@ -77,9 +100,18 @@ final class WorkspaceOutlineModel {
                 self.entries = entries
                 self.status = entries.isEmpty ? "还没有章节。新建章节后，大纲会显示在这里。" : "展开章节查看场、拍、注；点击标题跳转。"
                 self.onEntries?(entries)
+                self.readChapterStatuses()
             case .failure(let error): self.status = error.localizedDescription
             }
             self.onChange?()
+        }
+    }
+
+    /// Statuses come from the chapter list; replies arrive in queue order, so
+    /// a later status command still lands after this read.
+    private func readChapterStatuses() {
+        workspace.chapters(projectID: projectID) { [weak self] result in
+            if case .success(let chapters) = result { self?.applyChapters(chapters) }
         }
     }
 

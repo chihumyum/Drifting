@@ -1,7 +1,7 @@
 import AppKit
 
-/// What a tab shows: a chapter body, or an element, storyline or drift page
-/// (fields and body).
+/// What a tab shows: a chapter page (title, 摘要, 状态 and body), or an
+/// element, storyline or drift page (fields and body).
 enum WorkspaceTabTarget {
     case chapter(WorkspaceChapter)
     case element(WorkspaceElement)
@@ -18,12 +18,15 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         var target: WorkspaceTabTarget
         let core: LabCore
         let view: NativeDocumentView
-        /// Element and storyline tabs show their page; the body is the
-        /// page's document view.
+        /// Every tab shows its page; the body is the page's document view.
         let page: MacElementPageView?
         let storylinePage: MacStorylinePageView?
         let driftPage: MacDriftPageView?
-        var content: NSView { page ?? storylinePage ?? driftPage ?? view }
+        let chapterPage: MacChapterPageView?
+        var content: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? view }
+        /// The 摘要 and 状态 of a chapter or drift tab.
+        var metadataEditor: NodeMetadataEditor? { chapterPage?.metadataEditor ?? driftPage?.metadataEditor }
+        var nodeID: String? { chapter?.id ?? drift?.id }
         var chapter: WorkspaceChapter? { if case .chapter(let chapter) = target { return chapter }; return nil }
         var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
         var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
@@ -42,21 +45,22 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
              drifts: WorkspaceDriftLibrary?) {
             self.project = project; self.target = target; self.core = core
             switch target {
-            case .chapter:
-                view = NativeDocumentView(core: core); page = nil; storylinePage = nil; driftPage = nil
+            case .chapter(let chapter):
+                let page = MacChapterPageView(chapter: chapter, core: core)
+                self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = page; view = page.documentView
             case .element(let element):
                 let page = MacElementPageView(element: element, categories: categories, core: core)
-                self.page = page; storylinePage = nil; driftPage = nil; view = page.documentView
+                self.page = page; storylinePage = nil; driftPage = nil; chapterPage = nil; view = page.documentView
             case .storyline(let storyline):
                 let page = MacStorylinePageView(storyline: storyline, core: core)
-                self.page = nil; storylinePage = page; driftPage = nil; view = page.documentView
+                self.page = nil; storylinePage = page; driftPage = nil; chapterPage = nil; view = page.documentView
             case .drift(let drift):
                 let page = MacDriftPageView(drift: drift, library: drifts ?? .empty, core: core)
-                self.page = nil; storylinePage = nil; driftPage = page; view = page.documentView
+                self.page = nil; storylinePage = nil; driftPage = page; chapterPage = nil; view = page.documentView
             }
         }
         /// Ends an uncommitted header edit of any page kind.
-        func endEditing() { page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing() }
+        func endEditing() { page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing(); chapterPage?.endEditing() }
     }
     private final class Pane {
         let root = NSView()
@@ -120,6 +124,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// A drift page edit, drift trash or re-read returned this project's
     /// complete drift library.
     var onDriftLibrary: ((String, WorkspaceDriftLibrary) -> Void)?
+    /// A chapter's or drift's 摘要 or 状态 was written through a page or
+    /// `setNodeStatus`; the panel, the outline and the chapter list follow.
+    var onNodeMetadata: ((String, WorkspaceNodeMetadata) -> Void)?
     /// Act rows were read again (act names for the drift panel).
     var onOutline: ((String, [WorkspaceOutlineEntry]) -> Void)?
     var paneCount: Int { panes.count }
@@ -133,6 +140,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var activeStorylinePage: MacStorylinePageView? { panes[activePane].active?.storylinePage }
     var activeDrift: WorkspaceDrift? { panes[activePane].active?.drift }
     var activeDriftPage: MacDriftPageView? { panes[activePane].active?.driftPage }
+    var activeChapterPage: MacChapterPageView? { panes[activePane].active?.chapterPage }
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
@@ -205,6 +213,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == .drift(scope) }?.driftPage
     }
+    func retainedChapterPage(pane: Int, scope: ChapterScope) -> MacChapterPageView? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == .chapter(scope) }?.chapterPage
+    }
     /// Tab titles in display order, for accessibility checks and acceptance.
     func tabTitles(pane: Int) -> [String] {
         panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
@@ -274,7 +286,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     tab.project = project
                     // A retained element, storyline or drift page keeps its
                     // own, newer fields: library replies already updated it.
-                    if case .chapter = target { tab.target = target }
+                    if case .chapter(let chapter) = target { tab.target = target; tab.chapterPage?.apply(chapter: chapter) }
                 } else {
                     isNew = true
                     // Another view of this element may hold newer fields.
@@ -297,6 +309,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if isNew { self.ensureLinkSources(projectID: project.id) }
                 if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
                 if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
+                if isNew { self.loadMetadata(of: tab) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -482,6 +495,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.showSelected(in: pane)
                 self.pendingFocus = tab.view
                 tab.view.binding.load()
+                self.loadMetadata(of: tab)
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
@@ -512,9 +526,70 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         refreshTabs(); onChange?()
     }
     func rename(chapter: WorkspaceChapter, projectID: String) {
-        for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id { tab.target = .chapter(chapter) }
+        for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id {
+            tab.target = .chapter(chapter)
+            tab.chapterPage?.apply(chapter: chapter)
+        }
         refreshTabs(); onChange?()
         chaptersChanged(projectID: projectID)
+    }
+
+    // MARK: Summary and status
+
+    /// Every open page of the node shows its stored 摘要 and 状态; a summary
+    /// being typed is kept.
+    func applyNodeMetadata(projectID: String, metadata: WorkspaceNodeMetadata) {
+        for tab in allTabs where tab.project.id == projectID && tab.nodeID == metadata.id {
+            tab.metadataEditor?.show(metadata)
+        }
+    }
+
+    /// Writes a chapter's or drift's status from a panel, the outline or the
+    /// chapter list. Rust refuses a status of the other kind before writing.
+    func setNodeStatus(projectID: String, nodeID: String, status: String,
+                       completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        workspace.setNodeStatus(projectID: projectID, nodeID: nodeID, status: status) { [weak self] result in
+            if case .success(let metadata) = result { self?.adopt(metadata, projectID: projectID, summaryChanged: false) }
+            completion(result)
+        }
+    }
+
+    /// A new page reads its node's stored summary and status once.
+    private func loadMetadata(of tab: Tab) {
+        guard let nodeID = tab.nodeID, let editor = tab.metadataEditor else { return }
+        workspace.nodeMetadata(projectID: tab.project.id, nodeID: nodeID) { [weak editor] result in
+            switch result {
+            case .success(let metadata): editor?.show(metadata)
+            case .failure(let error): editor?.showUnavailable(error)
+            }
+        }
+    }
+
+    /// 摘要 and 状态 are metadata writes: the body owner, its queued input and
+    /// history are untouched.
+    private func commitMetadata(_ tab: Tab, _ change: NodeMetadataEditor.Change,
+                                completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        guard let nodeID = tab.nodeID else { completion(.failure(LabError.message("这个标签没有摘要和状态。"))); return }
+        let projectID = tab.project.id
+        let summaryChanged: Bool
+        if case .summary = change { summaryChanged = true } else { summaryChanged = false }
+        let done: (Result<WorkspaceNodeMetadata, Error>) -> Void = { [weak self] result in
+            if case .success(let metadata) = result { self?.adopt(metadata, projectID: projectID, summaryChanged: summaryChanged) }
+            completion(result)
+        }
+        switch change {
+        case .summary(let summary):
+            workspace.setNodeSummary(projectID: projectID, nodeID: nodeID, summary: summary, completion: done)
+        case .status(let status):
+            workspace.setNodeStatus(projectID: projectID, nodeID: nodeID, status: status, completion: done)
+        }
+    }
+
+    private func adopt(_ metadata: WorkspaceNodeMetadata, projectID: String, summaryChanged: Bool) {
+        applyNodeMetadata(projectID: projectID, metadata: metadata)
+        onNodeMetadata?(projectID, metadata)
+        // A drift's summary is also in the drift library (link previews).
+        if summaryChanged, metadata.kind == "drift" { driftsChanged(projectID: projectID) }
     }
 
     // MARK: Storylines
@@ -935,12 +1010,17 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.commitDrift(tab, changes: changes, completion: done)
             }
         } else {
+            tab.chapterPage?.metadataEditor.onFocus = { [weak self] in self?.activate(pane: pane) }
             tab.view.onComments = { [weak self, weak view = tab.view] in
                 if let self, let view { self.onComments?(view) }
             }
             tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
                 if let self, let view { self.onCommentCreated?(view, comment) }
             }
+        }
+        tab.metadataEditor?.onCommit = { [weak self, weak tab] change, done in
+            guard let self, let tab else { done(.failure(LabError.message("页面已关闭，摘要和状态未保存。"))); return }
+            self.commitMetadata(tab, change, completion: done)
         }
         tab.view.onActivity = { [weak self, weak tab] busy in
             guard let self else { return }
@@ -960,6 +1040,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
         tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil
+        tab.metadataEditor?.onCommit = nil; tab.chapterPage?.metadataEditor.onFocus = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {
@@ -1039,6 +1120,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             (child as? MacElementPageView)?.endEditing()
             (child as? MacStorylinePageView)?.endEditing()
             (child as? MacDriftPageView)?.endEditing()
+            (child as? MacChapterPageView)?.endEditing()
         }
         for child in pane.body.subviews { child.removeFromSuperview() }
         if let view = pane.active?.content {

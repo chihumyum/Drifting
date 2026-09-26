@@ -77,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// One project's drifts and groups, kept while its panel is closed: the
     /// outline names each act's notes.
     private var driftModel: DriftLibraryModel?
+    private var profileButton: NSButton!
+    private var profileSheet: ProjectProfileSheet?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -102,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let file = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""), fileMenu = NSMenu(title: "文件")
         let save = fileMenu.addItem(withTitle: "保存正文", action: #selector(saveDocument), keyEquivalent: "s")
         save.target = self
+        fileMenu.addItem(.separator())
+        let profile = fileMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "i")
+        profile.keyEquivalentModifierMask = [.command, .shift]
+        profile.target = self
         file.submenu = fileMenu
         menu.addItem(file)
         let edit = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""), editMenu = NSMenu(title: "编辑")
@@ -143,10 +149,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         createProjectButton = button("新建项目", id: "create-project", action: #selector(createProject))
         createChapterButton = button("新建章节", id: "create-chapter", action: #selector(createChapter))
         renameProjectButton = button("重命名", id: "rename-project", action: #selector(renameProject))
+        profileButton = button("资料", id: "show-project-profile", action: #selector(showProjectProfile))
+        profileButton.toolTip = "本书简介、本书字段和故事线字段模版"
         renameChapterButton = button("重命名", id: "rename-chapter", action: #selector(renameChapter))
         moveUpButton = button("上移", id: "move-chapter-up", action: #selector(moveChapterUp))
         moveDownButton = button("下移", id: "move-chapter-down", action: #selector(moveChapterDown))
-        let projectActions = NSStackView(views: [createProjectButton, renameProjectButton])
+        let projectActions = NSStackView(views: [createProjectButton, renameProjectButton, profileButton])
         let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
         let orderActions = NSStackView(views: [moveUpButton, moveDownButton])
         trashButton = button("移入回收站", id: "trash-chapter", action: #selector(changeChapterTrash))
@@ -216,6 +224,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         chapterWorkspace.onOutline = { [weak self] projectID, entries in
             if let model = self?.driftModel, model.projectID == projectID { model.applyActs(entries) }
+        }
+        chapterWorkspace.onNodeMetadata = { [weak self] projectID, metadata in
+            self?.adoptNodeMetadata(projectID: projectID, metadata: metadata)
         }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
@@ -321,6 +332,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.editStorylines(of: chapter, project: project, from: self?.window)
         }
         menu.addItem(item)
+        // 写作状态: the current status is checked; choosing it writes nothing.
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "写作状态", action: nil, keyEquivalent: "")
+        for status in WritingStatus.chapter {
+            let choice = LibraryMenuItem(title: status.label, identifier: "chapter-menu-status-\(status.rawValue)") { [weak self] in
+                guard let self, chapter.writingStatus != status.rawValue, !self.loading else { return }
+                self.chapterWorkspace.setNodeStatus(projectID: project.id, nodeID: chapter.id, status: status.rawValue) { [weak self] result in
+                    self?.status.stringValue = Self.statusMessage(result, title: chapter.title)
+                }
+            }
+            choice.state = chapter.writingStatus == status.rawValue ? .on : .off
+            menu.addItem(choice)
+        }
+    }
+
+    private static func statusMessage(_ result: Result<WorkspaceNodeMetadata, Error>, title: String) -> String {
+        switch result {
+        case .success(let metadata): return "“\(title)”已设为\(WritingStatus.label(metadata.writingStatus))。"
+        case .failure(let error): return error.localizedDescription
+        }
+    }
+
+    /// Every written 摘要 or 状态 reaches the chapter list, the outline and the
+    /// drift panel; open pages already follow through the tab host.
+    private func adoptNodeMetadata(projectID: String, metadata: WorkspaceNodeMetadata) {
+        if metadata.kind == "chapter", selectedProject?.id == projectID,
+           let index = chapters.firstIndex(where: { $0.id == metadata.id }) {
+            chapters[index].writingStatus = metadata.writingStatus
+        }
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.applyNodeMetadata(metadata) }
+        if let model = driftModel, model.projectID == projectID { model.applyNodeMetadata(metadata) }
+    }
+
+    // MARK: Project profile
+
+    /// 项目资料: a sheet over the window; each part saves as it is edited.
+    @objc private func showProjectProfile() {
+        guard !loading, profileSheet == nil, let project = currentProject ?? selectedProject else { return }
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        let sheet = ProjectProfileSheet(model: ProjectProfileModel(workspace: workspace, projectID: project.id), projectName: name)
+        profileSheet = sheet
+        sheet.onFinish = { [weak self] in
+            self?.profileSheet = nil
+            self?.status.stringValue = "项目资料已保存"
+        }
+        sheet.begin(in: window)
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
@@ -351,6 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         createProjectButton.isEnabled = ready
         createChapterButton.isEnabled = ready && selectedProject != nil
         renameProjectButton.isEnabled = ready && selectedProject != nil
+        profileButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         renameChapterButton.isEnabled = ready && !showingTrash && chapters.indices.contains(chapterTable.selectedRow)
         let chapterIndex = chapterTable.selectedRow
         moveUpButton.isEnabled = ready && !showingTrash && chapters.indices.contains(chapterIndex) && chapterIndex > 0
@@ -854,6 +912,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.onOpen = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: false) }
         controller.onCreated = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: true) }
         controller.onTrash = { [weak self] drift in self?.trashDrift(drift, project: project) }
+        controller.onSetStatus = { [weak self] drift, status in
+            self?.chapterWorkspace.setNodeStatus(projectID: project.id, nodeID: drift.id, status: status) { result in
+                model.showStatus(Self.statusMessage(result, title: drift.title))
+            }
+        }
         window.addChildWindow(panel, ordered: .above)
         let frame = window.frame
         panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 72, y: frame.maxY - 130))
@@ -948,6 +1011,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.onOpenDrift = { [weak self] drift in
             self?.openDrift(drift, project: project, focusTitle: false) { opened in
                 if opened { self?.closeOutline() }
+            }
+        }
+        controller.onSetChapterStatus = { [weak self, weak model] entry, status in
+            self?.chapterWorkspace.setNodeStatus(projectID: project.id, nodeID: entry.id, status: status) { result in
+                model?.showStatus(Self.statusMessage(result, title: entry.title))
             }
         }
         controller.onEditStorylines = { [weak self, weak controller] entry in

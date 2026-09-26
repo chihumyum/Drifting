@@ -402,6 +402,29 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect((await db.select().from(SyncChangeSetTable)).filter(({ origin }) => origin === 'local')).toEqual([]);
   });
 
+  it('accepts the domain writing statuses and rejects retired ones', async () => {
+    const db = await createDatabase();
+    await apply(db, await changeSet(1, [{
+      action: 'field.set',
+      kind: 'node',
+      id: NODE_ID,
+      payload: { field: 'writingStatus', value: 'finished' },
+    }]));
+    expect(await db.select({ writingStatus: BookNodeTable.writingStatus }).from(BookNodeTable)).toEqual([
+      { writingStatus: 'finished' },
+    ]);
+    const retired = await apply(db, await changeSet(2, [{
+      action: 'field.set',
+      kind: 'node',
+      id: NODE_ID,
+      payload: { field: 'writingStatus', value: 'revising' },
+    }]));
+    expect(retired.effects).toMatchObject([{ type: 'field.set', materialize: false }]);
+    expect(await db.select({ writingStatus: BookNodeTable.writingStatus }).from(BookNodeTable)).toEqual([
+      { writingStatus: 'finished' },
+    ]);
+  });
+
   it('keeps invalid effects as deterministic conflicts without touching domain rows', async () => {
     const db = await createDatabase();
     const remote = await changeSet(1, [{

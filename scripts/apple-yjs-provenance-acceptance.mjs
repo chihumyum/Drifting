@@ -105,13 +105,14 @@ const suites = [
     ]),
   },
   {
-    file: 'src/renderer/sync/reducer/production-domain-kernel.integration.test.ts', count: 27,
+    file: 'src/renderer/sync/reducer/production-domain-kernel.integration.test.ts', count: 28,
     names: named('production SyncDomainMaterializationKernel on file-backed SQLite', [
       'classifies every frozen reducer target as implemented or explicitly fail-closed',
       'lets a narrative drop update an older chapter lifecycle without revalidating untouched book order',
       'rejects a newly authored chapter fractional-order register',
       'replays a locked built-in relation type before applying the next chapter creation bundle',
       'materializes a classified field and records no authored echo',
+      'accepts the domain writing statuses and rejects retired ones',
       'keeps invalid effects as deterministic conflicts without touching domain rows',
       'validates relation invariants before a lifecycle seed reaches SQLite',
       'materializes membership OR-set state before the independent primary LWW register',

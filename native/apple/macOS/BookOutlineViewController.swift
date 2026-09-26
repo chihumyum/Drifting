@@ -14,6 +14,8 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
     var onBindDrift: ((WorkspaceOutlineEntry, WorkspaceDrift?) -> Void)?
     /// An act row's notes subtitle opens the drift page.
     var onOpenDrift: ((WorkspaceDrift) -> Void)?
+    /// A chapter row's 操作 menu chose another writing status.
+    var onSetChapterStatus: ((WorkspaceOutlineEntry, String) -> Void)?
     /// Presents the drift picker. Nil uses a sheet on the panel; acceptance
     /// answers here without a window.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
@@ -79,6 +81,11 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         return cellView(item).arrangedSubviews.compactMap { $0 as? StorylineChip }.first
     }
 
+    /// A chapter or act row's view, built as the table builds it.
+    func rowView(entryID: String) -> NSStackView? {
+        rows.first { ($0.isChapter || $0.isAct) && $0.entry.id == entryID }.map(cellView)
+    }
+
     /// The notes subtitle of an act row, built as the table builds it; nil
     /// when no drift is bound (or drifts are not yet read).
     func actDriftButton(actID: String) -> NSButton? {
@@ -97,6 +104,19 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         let stack = NSStackView(views: [label])
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 0, left: CGFloat(item.depth) * 14, bottom: 0, right: 4)
+        // The writing status follows the title in small text: 已完成 a little
+        // stronger, 已弃用 with the title muted. No edge accent.
+        if item.isChapter, let status = model.writingStatus(chapterID: item.entry.id) {
+            let finished = status == WritingStatus.finished.rawValue
+            let text = NSTextField(labelWithString: WritingStatus.label(status))
+            text.font = .systemFont(ofSize: 11, weight: finished ? .medium : .regular)
+            text.textColor = finished ? .secondaryLabelColor : .tertiaryLabelColor
+            text.setContentHuggingPriority(.required, for: .horizontal)
+            text.setAccessibilityIdentifier("outline-status-\(item.entry.id)")
+            stack.addArrangedSubview(text)
+            if status == WritingStatus.discarded.rawValue { label.textColor = .secondaryLabelColor }
+            label.setAccessibilityLabel("\(item.label)，\(WritingStatus.label(status))")
+        }
         // A leading dot in the 主线 colour, hollow for 未归属, and the
         // storyline's name in secondary text after the title; no edge accent.
         if item.isChapter, model.storylines != nil {
@@ -167,6 +187,19 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             storylines.setAccessibilityIdentifier("outline-chapter-storylines")
             storylines.isEnabled = onEditStorylines != nil
             button.menu?.addItem(storylines)
+            // 写作状态: the current status is checked; choosing it writes nothing.
+            button.menu?.addItem(.separator())
+            let heading = NSMenuItem(title: "写作状态", action: nil, keyEquivalent: "")
+            heading.isEnabled = false
+            button.menu?.addItem(heading)
+            let current = model.writingStatus(chapterID: item.entry.id)
+            for status in WritingStatus.chapter {
+                let choice = OutlineActionMenuItem(title: status.label) { [weak self] in self?.setStatus(item.entry, status.rawValue) }
+                choice.setAccessibilityIdentifier("outline-chapter-status-\(status.rawValue)")
+                choice.state = current == status.rawValue ? .on : .off
+                choice.isEnabled = onSetChapterStatus != nil && current != nil
+                button.menu?.addItem(choice)
+            }
         } else {
             let rename = OutlineActionMenuItem(title: "改名") { [weak self] in self?.renameAct(item.entry) }
             rename.setAccessibilityIdentifier("outline-rename-act")
@@ -192,6 +225,12 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             button.menu?.addItem(bind); button.menu?.addItem(unbind)
         }
         return button
+    }
+
+    private func setStatus(_ entry: WorkspaceOutlineEntry, _ status: String) {
+        guard model.writingStatus(chapterID: entry.id) != status else { return }
+        guard !model.busy else { model.showStatus("正在保存幕分界，请稍后重试。"); return }
+        onSetChapterStatus?(entry, status)
     }
 
     private func canBindDrift() -> Bool {

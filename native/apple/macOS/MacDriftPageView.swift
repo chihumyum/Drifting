@@ -1,16 +1,18 @@
 import AppKit
 
-/// One drift's page: 标题 and 分组 on a neutral wash, the act whose notes it
-/// is (幕笔记), then the drift's prose body. The title commits on end-editing
-/// or Return and the group on a popup choice, through `onCommit`; a refusal
-/// keeps the typed title and shows the reason. The body is an ordinary native
-/// editor bound to the drift's own document owner.
+/// One drift's page: 标题, 摘要, 状态 and 分组 on a neutral wash, the act whose
+/// notes it is (幕笔记), then the drift's prose body. The title commits on
+/// end-editing or Return and the group on a popup choice, through `onCommit`;
+/// 摘要 and 状态 commit through `metadataEditor`. A refusal keeps the typed
+/// text and shows the reason. The body is an ordinary native editor bound to
+/// the drift's own document owner.
 final class MacDriftPageView: NSView, NSTextFieldDelegate {
     enum Field: CaseIterable { case title, group }
 
     let documentView: NativeDocumentView
     let titleField = NSTextField()
     let groupPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let metadataEditor = NodeMetadataEditor(kind: "drift", prefix: "drift", summaryHeight: 48)
     /// The bound act's name, or a hint when the drift is not an act's notes.
     let actLabel = NSTextField(labelWithString: "")
     private let message = NSTextField(wrappingLabelWithString: "")
@@ -47,13 +49,20 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         message.textColor = .systemRed
         message.isHidden = true
         message.setAccessibilityIdentifier("drift-page-error")
+        metadataEditor.onMessage = { [weak self] in self?.showMessage($0) }
+        metadataEditor.onFocus = { [weak self] in self?.onFocus?() }
 
         let grid = NSGridView(views: [
+            [label("摘要"), metadataEditor.summaryScroll],
+            [label("状态"), metadataEditor.statusPopup],
             [label("分组"), groupPopup],
             [label("幕笔记"), actLabel],
         ])
         grid.rowSpacing = 8; grid.columnSpacing = 10
         grid.column(at: 0).xPlacement = .trailing
+        grid.row(at: 0).yPlacement = .top
+        grid.cell(for: metadataEditor.summaryScroll)?.xPlacement = .fill
+        grid.cell(for: metadataEditor.statusPopup)?.xPlacement = .leading
         grid.cell(for: groupPopup)?.xPlacement = .leading
         grid.cell(for: actLabel)?.xPlacement = .leading
         let headerStack = NSStackView(views: [titleField, grid, message])
@@ -157,6 +166,9 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         if cleanTitle { show(updated.title, in: .title) }
         showAct()
     }
+
+    /// The stored 摘要 and 状态; a summary being typed is kept.
+    func show(metadata: WorkspaceNodeMetadata) { metadataEditor.show(metadata) }
 
     /// The bound act's current name; nil while acts are being read.
     func show(actName: String?) {

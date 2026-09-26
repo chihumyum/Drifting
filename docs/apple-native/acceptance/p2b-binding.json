@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T22:50:49.940Z",
+  "generatedAt": "2026-09-26T23:31:21.571Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "aaffcdd53036912ccc721e958998557a24942ce5",
+    "commit": "c4cfcdb027b99545d9d125421e57e7f122e47073",
     "dirty": true,
-    "fingerprint": "63364c8ef621deca8fd045b1626e4698c08edf06bb792cf90722bf4582f96324"
+    "fingerprint": "0f97d08d1fdc031c71af46fcc07e631f79f9f493e3b82f972239cdd2e165e5d0"
   },
   "cases": [
     {
@@ -400,6 +400,18 @@
     },
     {
       "name": "AppKit act notes bound from the outline picker show on the act row and drift page and follow an act rename, a stale bind is refused, queued input blocks the trash, trash unbinds and closes the tab only after commit, restore returns it unbound, and unbinding or removing an act keeps the drift",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit chapter page 摘要 and 状态 trim and write once, skip unchanged, Escape and refused edits without journal rows, follow the split pane and the outline status and 操作 menu, keep body history and survive cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit drift page 摘要 and 状态 reach the panel, which mutes 休眠 drifts and offers the other status in its row menu, the current status and a chapter status write nothing, and statuses survive cold reopen into a new panel",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit project sheet trims 本书简介, edits 本书字段 and 故事线字段模版 as ordered untrimmed lists, writes nothing when unchanged, keeps typed rows and stays open on refusal, 完成 saves pending edits, a new storyline clones the template while an older one stays unchanged, and everything survives cold reopen",
       "status": "passed"
     }
   ],
