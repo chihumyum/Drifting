@@ -56,10 +56,13 @@ enum LabError: LocalizedError {
             ("Category is not available", "这个分类已不可用，请刷新设定库。"),
             ("Element is not available", "这个设定已不可用，请刷新设定库。"),
             ("Category name is empty", "分类名称不能为空，颜色须为有效的颜色值。"),
-            ("Category templates are not supported", "这个分类带有模板，原生版本暂不支持在其中新建设定。"),
-            ("linked relations", "这个设定有关联关系，原生版本暂不支持移入回收站或恢复。"),
+            ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持在其中新建设定。"),
+            ("linked relations", "这个设定或分类有关联关系，原生版本暂不支持移入回收站或恢复。"),
             ("portraits", "这个设定有头像，原生版本暂不支持恢复。"),
+            ("Category has unresolved prose dependencies", "分类正文还有未完成的同步依赖，暂时无法恢复。"),
             ("unresolved prose dependencies", "设定正文还有未完成的同步依赖，暂时无法恢复。"),
+            ("Category lifecycle must be", "分类状态已变化，请刷新设定库。"),
+            ("Facts have rows without order registers", "字段数据不完整，暂时无法保存。已输入的内容仍保留。"),
             ("live document owner", "请先关闭这个设定的页面，再恢复。"),
             ("Element is not open", "这个设定页面已关闭，请重新打开。"),
             ("Element lifecycle must be", "设定状态已变化，请刷新设定库。"),
@@ -614,6 +617,34 @@ final class LabWorkspaceCore {
         var command = changes.fields
         command["action"] = "updateElement"; command["elementId"] = elementID
         perform(completion) { try self.elementRequest(projectID, command) }
+    }
+
+    /// Replaces the element's ordered facts. Metadata only, like header fields.
+    func setElementFacts(projectID: String, elementID: String, facts: [WorkspaceFact],
+                         completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        perform(completion) {
+            try self.elementRequest(projectID, ["action": "setElementFacts", "elementId": elementID, "facts": facts.map(\.payload)])
+        }
+    }
+
+    /// The facts later elements of this category clone at creation.
+    func setCategoryTemplateFacts(projectID: String, categoryID: String, facts: [WorkspaceFact],
+                                  completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        perform(completion) {
+            try self.elementRequest(projectID, ["action": "setCategoryTemplateFacts", "categoryId": categoryID, "facts": facts.map(\.payload)])
+        }
+    }
+
+    /// Detaches every element of the category; no element owner changes, so
+    /// open element pages stay open. Category bodies have no native owner.
+    func trashElementCategory(projectID: String, categoryID: String,
+                              completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        perform(completion) { try self.elementRequest(projectID, ["action": "trashCategory", "categoryId": categoryID]) }
+    }
+
+    func restoreElementCategory(projectID: String, categoryID: String,
+                                completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        perform(completion) { try self.elementRequest(projectID, ["action": "restoreCategory", "categoryId": categoryID]) }
     }
 
     /// Rust saves an open body before the trash commits, then retires it.

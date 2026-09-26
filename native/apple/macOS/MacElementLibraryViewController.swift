@@ -6,7 +6,9 @@ final class ElementLibraryPanel: NSPanel {
 }
 
 /// The 设定库: categories with their elements grouped by group name, and the
-/// element trash. Opening and trashing go through the owner of the editor tabs.
+/// trash of categories and elements. Opening and trashing an element go
+/// through the owner of the editor tabs; a category's template and trash are
+/// library commands whose reply reaches open pages through the model.
 final class MacElementLibraryViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     /// A small palette; Rust validates the stored `#RRGGBB` value.
     static let palette: [(name: String, hex: String)] = [
@@ -20,6 +22,11 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     var onCreated: ((WorkspaceElement) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
+    /// Presents a confirmation. Nil uses a sheet on the panel; acceptance
+    /// answers here without a window.
+    var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
+    /// The open 模板字段 editor, if any.
+    private(set) var templateSheet: CategoryTemplateSheet?
     private let table = NSTableView()
     private let status = NSTextField(wrappingLabelWithString: "")
     private let createCategoryButton = NSButton(title: "新建分类", target: nil, action: nil)
@@ -85,6 +92,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         switch rows[row] {
         case .category, .uncategorized, .trashHeader: return 34
+        case .trashPart: return 24
         case .element(let element, _) where !element.summary.isEmpty: return 40
         default: return 26
         }
@@ -133,6 +141,24 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
             stack.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 0)
         case .trashHeader(let count):
             stack.setViews([heading("回收站"), countLabel(count)], in: .leading)
+        case .trashPart(let title, _):
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 12, weight: .medium)
+            label.textColor = .secondaryLabelColor
+            stack.setViews([label], in: .leading)
+            stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 0)
+        case .trashedCategory(let category):
+            let swatch = NSImageView(image: ElementSwatch.image(for: category))
+            swatch.setAccessibilityLabel("颜色 \(category.color)")
+            let name = NSTextField(labelWithString: category.name)
+            name.textColor = .secondaryLabelColor
+            name.lineBreakMode = .byTruncatingTail
+            let restore = LibraryButton(title: "恢复", identifier: "restore-element-category-\(category.id)") { [weak self] in
+                self?.restoreCategory(category)
+            }
+            restore.isEnabled = !model.busy
+            stack.setViews([swatch, name, NSView(), restore], in: .leading)
+            stack.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 4)
         case .trashed(let element):
             let name = NSTextField(labelWithString: element.name)
             name.textColor = .secondaryLabelColor
@@ -196,10 +222,16 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
                 palette.addItem(item)
             }
             colors.submenu = palette
+            let template = LibraryMenuItem(title: "模板字段…", identifier: "edit-element-category-template") { [weak self] in
+                self?.editTemplate(of: category)
+            }
             let create = LibraryMenuItem(title: "新建设定", identifier: "create-element") { [weak self] in
                 self?.createElement(in: category)
             }
-            return [rename, colors, .separator(), create]
+            let trash = LibraryMenuItem(title: "移到回收站", identifier: "trash-element-category") { [weak self] in
+                self?.trashCategory(category)
+            }
+            return [rename, colors, template, .separator(), create, .separator(), trash]
         case .element(let element, _):
             let open = LibraryMenuItem(title: "打开", identifier: "open-element") { [weak self] in self?.open(element) }
             let trash = LibraryMenuItem(title: "移到回收站", identifier: "trash-element") { [weak self] in
@@ -209,6 +241,8 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
             return [open, .separator(), trash]
         case .trashed(let element):
             return [LibraryMenuItem(title: "恢复", identifier: "restore-element") { [weak self] in self?.restore(element) }]
+        case .trashedCategory(let category):
+            return [LibraryMenuItem(title: "恢复", identifier: "restore-element-category") { [weak self] in self?.restoreCategory(category) }]
         default:
             return []
         }
@@ -229,6 +263,64 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     private func restore(_ element: WorkspaceElement) {
         guard canChange() else { return }
         model.restore(elementID: element.id)
+    }
+
+    // MARK: Category template and trash
+
+    /// Opens the 模板字段 sheet with the category's stored template.
+    private func editTemplate(of category: WorkspaceElementCategory) {
+        guard !model.busy else { model.showStatus("正在保存设定库，请稍后重试。"); return }
+        guard templateSheet == nil else { return }
+        let current = model.library.categories.first { $0.id == category.id } ?? category
+        let sheet = CategoryTemplateSheet(category: current)
+        templateSheet = sheet
+        sheet.onCancel = { [weak self] in self?.endTemplateSheet() }
+        sheet.onSave = { [weak self, weak sheet] facts in
+            guard let self, let sheet else { return }
+            sheet.showError(nil)
+            sheet.setSaving(true)
+            self.model.setTemplateFacts(categoryID: current.id, facts: facts) { [weak self, weak sheet] result in
+                sheet?.setSaving(false)
+                switch result {
+                case .success: self?.endTemplateSheet()
+                // The typed rows stay in the sheet for another try.
+                case .failure(let error): sheet?.showError(error.localizedDescription)
+                }
+            }
+        }
+        if let window = view.window { window.beginSheet(sheet.window) }
+        if let first = sheet.editor.rows.first { sheet.window.makeFirstResponder(first.keyField) }
+    }
+
+    private func endTemplateSheet() {
+        guard let sheet = templateSheet else { return }
+        templateSheet = nil
+        if let parent = sheet.window.sheetParent { parent.endSheet(sheet.window) } else { sheet.window.orderOut(nil) }
+    }
+
+    /// Its elements are not trashed: they move to 未分类 and open pages stay.
+    private func trashCategory(_ category: WorkspaceElementCategory) {
+        guard !model.busy else { model.showStatus("正在保存设定库，请稍后重试。"); return }
+        let count = model.library.elements.filter { $0.categoryId == category.id }.count
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "将分类“\(category.name)”移到回收站？"
+        alert.informativeText = count == 0
+            ? "这个分类中没有设定。之后可以在回收站中恢复它。"
+            : "其中的 \(count) 个设定会移到“未分类”，设定内容和已打开的页面保持不变。恢复分类时，这些设定不会自动移回。"
+        alert.addButton(withTitle: "移到回收站").setAccessibilityIdentifier("confirm-trash-element-category")
+        alert.addButton(withTitle: "取消")
+        let proceed: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.model.trashCategory(id: category.id)
+        }
+        if let presentAlert { presentAlert(alert, proceed) }
+        else if let window = view.window { alert.beginSheetModal(for: window, completionHandler: proceed) }
+    }
+
+    private func restoreCategory(_ category: WorkspaceElementCategory) {
+        guard !model.busy else { model.showStatus("正在保存设定库，请稍后重试。"); return }
+        model.restoreCategory(id: category.id)
     }
 
     private func createElement(in category: WorkspaceElementCategory) {
@@ -276,7 +368,12 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         field.selectText(nil)
     }
 
-    @objc private func closeLibrary() { onClose?() }
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        endTemplateSheet()
+    }
+
+    @objc private func closeLibrary() { endTemplateSheet(); onClose?() }
 }
 
 private final class LibraryButton: NSButton {

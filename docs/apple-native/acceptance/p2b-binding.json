@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T20:07:36.962Z",
+  "generatedAt": "2026-09-26T20:40:42.742Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "dcab132856ee7328254076133ea9fc6975b5a560",
+    "commit": "5f1871704b6a304fdd9cdb4168f829916f9d1ab4",
     "dirty": true,
-    "fingerprint": "50e817175e236208e4dd50bc208e4efbd23996bc284f8e88d6b0852e0d698fd7"
+    "fingerprint": "6ceccb2737a037b631174376740601d88e572973893cb92638bcc4885be71388"
   },
   "cases": [
     {
@@ -352,6 +352,18 @@
     },
     {
       "name": "AppKit element trash closes only that element's tabs after commit and restore reopens its body while chapter tabs stay untouched",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page facts add edit reorder and delete rows as one ordered untrimmed list, keep typed rows on refusal, follow the other page and survive cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit category template facts edited in the library sheet clone into an element created through the panel while older elements and the template stay independent",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit category trash moves its elements to 未分类 with open element tabs retained and category popups updated, refuses a stale template save and restore does not re-attach",
       "status": "passed"
     }
   ],

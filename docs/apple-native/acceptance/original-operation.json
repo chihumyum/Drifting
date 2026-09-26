@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "cd1c9fe8155ef348637b146288f5de17eabe342d1d798bfa02f70b1d3054859c",
+    "fingerprint": "f8389dbecc39be1eeb7b54d4645678d11bb1a0b3f6ee4870181a02293db07b65",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -23,8 +23,12 @@
         "sha256": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c"
       },
       {
+        "path": "crates/drifting-core/src/fractional.rs",
+        "sha256": "cc01e4ddddbbbab9739af273898b3bc3e2f1ca8800da03aeb2b87210e91985b3"
+      },
+      {
         "path": "crates/drifting-core/src/lib.rs",
-        "sha256": "7968d8e0194a09970f2209ec7d3e849f22865ba53a6b3913deae22a8855f3ac5"
+        "sha256": "7a0484260e3caca585cbdb10fe9f482481b809193208d0dc87a68228cb7b3964"
       },
       {
         "path": "crates/drifting-core/src/materialization_admission.rs",
@@ -104,7 +108,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "48cda00b4a59de69294a4b88be98f1426663d097621a2ee0124926e0082b44e3"
+        "sha256": "057b1b5706863872a286b1aaa84e8e848c5a95d5907439da53b49baf02143f49"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -124,15 +128,19 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/elements.rs",
-        "sha256": "e62f36d5a329fb33202a5d34b1ce7beb48faa92a162bef53227aa0a156f4812a"
+        "sha256": "c14d59acb7bbe2ffc1ba53bffdc57684f887561e6d900d90226f7e0aa93e7857"
       },
       {
         "path": "crates/drifting-core/src/workspace/elements/tests.rs",
-        "sha256": "6750a3b69cbc805752fb2bd6a1c9edc91bb3db6f4b9e5b62a34ad094a78dd8bd"
+        "sha256": "7de9a65eb341d636dc38301d998c2b77e0e37b93bea2a0e1ee1560776ff5849d"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/facts.rs",
+        "sha256": "a1df6c3c044054abb87b9c94190a1a92bb1bd1fbc0e3bd63edfdb1e251c4bad4"
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "802ae1ea8575092e6454ad8c4900e6dfe70d10442bddd57d4b4dfd4029bd9d46"
+        "sha256": "e979d25708f0101b7128de511a74a075305d5db126da2852784488add7ee1761"
       },
       {
         "path": "crates/drifting-core/src/workspace/outline.rs",
@@ -165,6 +173,10 @@
       {
         "path": "crates/drifting-core/tests/fixtures/event-order.json",
         "sha256": "6f85842ff8f17ba1424210dc1966e3b9781dd3718a9353c23f3d06c1b13d9641"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/fractional-indexing.json",
+        "sha256": "a00a25078ee7df78a70a6aaf37a0ab8709003322e5bc5510b7276484adc50c66"
       },
       {
         "path": "crates/drifting-core/tests/fixtures/native-journal-evidence.json",
@@ -808,8 +820,8 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "listed": 95,
-    "passed": 95,
+    "listed": 99,
+    "passed": 99,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -847,7 +859,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "0d3350d292ba9fb0adadd819eeb0c091532d1f51d009f6f576f7aeef84126dd9"
+    "logSha256": "4aaec539265e7f8d095d01eb0cf138e92f180bc6d96f8253a3445a3d2b45f367"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

@@ -4,6 +4,7 @@
 mod acts;
 mod comments;
 mod elements;
+mod facts;
 mod journal;
 mod outline;
 mod trash;
@@ -11,6 +12,7 @@ pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
 pub use elements::{
     ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
 };
+pub use facts::Fact;
 pub use outline::WorkspaceOutlineRow;
 #[cfg(test)]
 mod tests;

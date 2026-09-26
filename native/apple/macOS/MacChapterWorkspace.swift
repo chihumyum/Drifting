@@ -390,11 +390,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         page.focusName()
     }
 
-    private func commitElement(_ tab: Tab, changes: WorkspaceElementChanges,
-                               completion: @escaping (Result<WorkspaceElement, Error>) -> Void) {
+    /// Header fields and facts are metadata writes: the body owner, its queued
+    /// input and history are untouched. Every open view adopts the library.
+    private func commitElement(_ tab: Tab, completion: @escaping (Result<WorkspaceElement, Error>) -> Void,
+                               write: (_ projectID: String, _ elementID: String,
+                                       _ done: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) -> Void) {
         guard let element = tab.element else { completion(.failure(LabError.message("这个标签不是设定页面。"))); return }
         let projectID = tab.project.id
-        workspace.updateElement(projectID: projectID, elementID: element.id, changes: changes) { [weak self] result in
+        write(projectID, element.id) { [weak self] result in
             switch result {
             case .success(let reply):
                 guard let stored = reply.result else { completion(.failure(LabError.message("设定结果缺失"))); return }
@@ -416,7 +419,15 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             page.onFocus = { [weak self] in self?.activate(pane: pane) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，修改未保存。"))); return }
-                self.commitElement(tab, changes: changes, completion: done)
+                self.commitElement(tab, completion: done) {
+                    self.workspace.updateElement(projectID: $0, elementID: $1, changes: changes, completion: $2)
+                }
+            }
+            page.onCommitFacts = { [weak self, weak tab] facts, done in
+                guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，字段未保存。"))); return }
+                self.commitElement(tab, completion: done) {
+                    self.workspace.setElementFacts(projectID: $0, elementID: $1, facts: facts, completion: $2)
+                }
             }
         } else {
             tab.view.onComments = { [weak self, weak view = tab.view] in
@@ -435,7 +446,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
     private func disconnect(_ tab: Tab) {
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
-        tab.page?.onFocus = nil; tab.page?.onCommit = nil
+        tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {

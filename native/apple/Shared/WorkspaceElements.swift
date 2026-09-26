@@ -1,17 +1,31 @@
 import Foundation
 
+/// One ordered key/value row of an element's facts or a category template.
+/// Text is exactly what the author typed; Rust decides which rows are blank.
+struct WorkspaceFact: Codable, Equatable {
+    var key: String
+    var value: String
+
+    var payload: [String: Any] { ["key": key, "value": value] }
+}
+
 /// An element category as the shared Rust workspace store returns it.
 struct WorkspaceElementCategory: Decodable, Equatable {
     let id: String
     let projectId: String
     let name: String
     let color: String
+    /// Cloned into elements created in this category later; never applied
+    /// to existing elements.
+    let templateFacts: [WorkspaceFact]
     let documentId: String
     let createdAt: String
     let updatedAt: String
 
     /// `#RRGGBB` components in 0...1, or nil for a value this view cannot draw.
-    var rgb: (red: Double, green: Double, blue: Double)? {
+    var rgb: (red: Double, green: Double, blue: Double)? { Self.rgb(hex: color) }
+
+    static func rgb(hex color: String) -> (red: Double, green: Double, blue: Double)? {
         let hex = color.hasPrefix("#") ? String(color.dropFirst()) : color
         guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
         return (Double((value >> 16) & 0xFF) / 255, Double((value >> 8) & 0xFF) / 255, Double(value & 0xFF) / 255)
@@ -27,6 +41,8 @@ struct WorkspaceElement: Decodable, Equatable {
     let summary: String
     let aliases: [String]
     let groupName: String?
+    /// Ordered facts; rows with a blank key and value are never stored.
+    let facts: [WorkspaceFact]
     let documentId: String
     let createdAt: String
     let updatedAt: String
@@ -36,8 +52,10 @@ struct WorkspaceElementLibrary: Decodable, Equatable {
     var categories: [WorkspaceElementCategory]
     var elements: [WorkspaceElement]
     var trashedElements: [WorkspaceElement]
+    /// Trashing a category detaches its elements; restoring does not re-attach.
+    var trashedCategories: [WorkspaceElementCategory]
 
-    static let empty = WorkspaceElementLibrary(categories: [], elements: [], trashedElements: [])
+    static let empty = WorkspaceElementLibrary(categories: [], elements: [], trashedElements: [], trashedCategories: [])
 }
 
 /// Every library command returns its own result and the complete library
@@ -76,6 +94,11 @@ enum ElementText {
     }
     static func display(aliases: [String]) -> String { aliases.joined(separator: "，") }
     static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// The rows Rust would store: a row whose key and value are both blank is
+    /// dropped, and nothing is trimmed. Used only to skip unchanged commits.
+    static func stored(facts: [WorkspaceFact]) -> [WorkspaceFact] {
+        facts.filter { !trimmed($0.key).isEmpty || !trimmed($0.value).isEmpty }
+    }
 }
 
 /// Presentation state of one project's 设定库. Rust owns every list and
@@ -88,6 +111,9 @@ final class ElementLibraryModel {
         case element(WorkspaceElement, grouped: Bool)
         case empty(section: String)
         case trashHeader(count: Int)
+        /// “已删除分类” or “已删除设定” inside the trash.
+        case trashPart(title: String, identifier: String)
+        case trashedCategory(WorkspaceElementCategory)
         case trashed(WorkspaceElement)
 
         var element: WorkspaceElement? {
@@ -104,6 +130,8 @@ final class ElementLibraryModel {
             case .element(let element, _): return "element-row-\(element.id)"
             case .empty(let section): return "element-empty-\(section)"
             case .trashHeader: return "element-trash"
+            case .trashPart(_, let identifier): return identifier
+            case .trashedCategory(let category): return "trashed-element-category-\(category.id)"
             case .trashed(let element): return "trashed-element-\(element.id)"
             }
         }
@@ -149,8 +177,16 @@ final class ElementLibraryModel {
             rows.append(.uncategorized(count: orphans.count))
             section(orphans, id: "uncategorized")
         }
-        if !library.trashedElements.isEmpty {
-            rows.append(.trashHeader(count: library.trashedElements.count))
+        let trashed = library.trashedCategories.count + library.trashedElements.count
+        if trashed > 0 {
+            rows.append(.trashHeader(count: trashed))
+            if !library.trashedCategories.isEmpty {
+                rows.append(.trashPart(title: "已删除分类", identifier: "element-trash-categories"))
+                rows += library.trashedCategories.map { .trashedCategory($0) }
+                if !library.trashedElements.isEmpty {
+                    rows.append(.trashPart(title: "已删除设定", identifier: "element-trash-elements"))
+                }
+            }
             rows += library.trashedElements.map { .trashed($0) }
         }
         return rows
@@ -202,6 +238,29 @@ final class ElementLibraryModel {
     func createElement(categoryID: String, completion: ((Result<WorkspaceElement, Error>) -> Void)? = nil) {
         mutate(message: "设定已创建，可以在页面中填写名称和正文。", completion: completion) {
             workspace.createElement(projectID: projectID, categoryID: categoryID, completion: $0)
+        }
+    }
+
+    /// Only elements created later clone the template.
+    func setTemplateFacts(categoryID: String, facts: [WorkspaceFact],
+                          completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        mutate(message: "模板字段已保存，之后新建的设定会带上这些字段。", completion: completion) {
+            workspace.setCategoryTemplateFacts(projectID: projectID, categoryID: categoryID, facts: facts, completion: $0)
+        }
+    }
+
+    /// Its elements stay live and open; they move to 未分类.
+    func trashCategory(id: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        let name = library.categories.first { $0.id == id }?.name ?? "分类"
+        mutate(message: "“\(name)”已移到回收站，其中的设定已移到“未分类”。", completion: completion) {
+            workspace.trashElementCategory(projectID: projectID, categoryID: id, completion: $0)
+        }
+    }
+
+    /// Restoring does not move detached elements back.
+    func restoreCategory(id: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        mutate(message: "分类已恢复。原来的设定仍在“未分类”中，可以在设定页面重新选择分类。", completion: completion) {
+            workspace.restoreElementCategory(projectID: projectID, categoryID: id, completion: $0)
         }
     }
 

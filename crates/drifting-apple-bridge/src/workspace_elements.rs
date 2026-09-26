@@ -2,7 +2,7 @@
 //! drifting-core; an element body is an ordinary durable prose owner keyed
 //! separately from chapters.
 use super::*;
-use drifting_core::workspace::{ElementChanges, NewElement, NewElementCategory};
+use drifting_core::workspace::{ElementChanges, Fact, NewElement, NewElementCategory};
 use serde::Deserializer;
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +36,20 @@ pub(crate) enum ElementCommand {
         #[serde(default, deserialize_with = "present")]
         category_id: Option<Option<String>>,
         aliases: Option<Vec<String>>,
+    },
+    SetElementFacts {
+        element_id: String,
+        facts: Vec<Fact>,
+    },
+    SetCategoryTemplateFacts {
+        category_id: String,
+        facts: Vec<Fact>,
+    },
+    TrashCategory {
+        category_id: String,
+    },
+    RestoreCategory {
+        category_id: String,
     },
     TrashElement {
         element_id: String,
@@ -127,7 +141,30 @@ impl WorkspaceSession {
                     group_name: group_name.clone(),
                     seed: empty_body()?,
                 },
+                &mut || identifier("fact"),
             )?),
+            ElementCommand::SetElementFacts { element_id, facts } => json!(store
+                .set_element_facts(&self.context(&project)?, element_id, facts, &mut || {
+                    identifier("fact")
+                },)?),
+            ElementCommand::SetCategoryTemplateFacts { category_id, facts } => json!(store
+                .set_category_template_facts(
+                    &self.context(&project)?,
+                    category_id,
+                    facts,
+                    &mut || identifier("fact"),
+                )?),
+            ElementCommand::TrashCategory { category_id } => {
+                json!(store.trash_element_category(&self.context(&project)?, category_id)?)
+            }
+            ElementCommand::RestoreCategory { category_id } => {
+                json!(drifting_prose::workspace::restore_element_category(
+                    &self.gateway,
+                    CLIENT,
+                    &self.context(&project)?,
+                    category_id,
+                )?)
+            }
             ElementCommand::UpdateElement {
                 element_id,
                 name,
@@ -199,6 +236,7 @@ impl WorkspaceSession {
                 "categories": store.element_categories(project_id)?,
                 "elements": store.elements(project_id)?,
                 "trashedElements": store.trashed_elements(project_id)?,
+                "trashedCategories": store.trashed_element_categories(project_id)?,
             },
         }))
     }

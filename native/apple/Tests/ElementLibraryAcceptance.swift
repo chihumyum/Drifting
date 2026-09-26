@@ -1,14 +1,14 @@
 import AppKit
 
 extension BindingAcceptance {
-    private static func elementResult<T>(_ run: (@escaping (Result<T, Error>) -> Void) -> Void) throws -> T {
+    static func elementResult<T>(_ run: (@escaping (Result<T, Error>) -> Void) -> Void) throws -> T {
         var result: Result<T, Error>?
         run { result = $0 }
         try wait { result != nil }
         return try result!.get()
     }
 
-    private static func elementRefused<T>(_ run: (@escaping (Result<T, Error>) -> Void) -> Void, _ message: String) throws -> String {
+    static func elementRefused<T>(_ run: (@escaping (Result<T, Error>) -> Void) -> Void, _ message: String) throws -> String {
         var result: Result<T, Error>?
         run { result = $0 }
         try wait { result != nil }
@@ -16,11 +16,11 @@ extension BindingAcceptance {
         return error.localizedDescription
     }
 
-    private static func elementSettled(_ host: MacChapterWorkspace, _ views: NativeDocumentView...) throws {
+    static func elementSettled(_ host: MacChapterWorkspace, _ views: NativeDocumentView...) throws {
         try wait { !host.isBusy && views.allSatisfy { $0.binding.state != nil && !$0.binding.hasPendingWork } }
     }
 
-    private static func elementFixture() throws -> (URL, LabWorkspaceCore, WorkspaceProject, WorkspaceChapter) {
+    static func elementFixture() throws -> (URL, LabWorkspaceCore, WorkspaceProject, WorkspaceChapter) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             .appendingPathComponent("apple-native-lab")
         let workspace = LabWorkspaceCore(directory: directory)
@@ -33,7 +33,7 @@ extension BindingAcceptance {
 
     /// A sized window gives header fields a real field editor and both panes
     /// a usable layout; it is never ordered on screen.
-    private static func elementHost(_ workspace: LabWorkspaceCore) -> (NSWindow, MacChapterWorkspace) {
+    static func elementHost(_ workspace: LabWorkspaceCore) -> (NSWindow, MacChapterWorkspace) {
         let host = MacChapterWorkspace(workspace: workspace)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 760),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -43,7 +43,7 @@ extension BindingAcceptance {
         return (window, host)
     }
 
-    private static func elementCount(_ directory: URL, _ table: String) throws -> Int64 {
+    static func elementCount(_ directory: URL, _ table: String) throws -> Int64 {
         guard case .integer(let count)? = try WorkspaceRemoteProseFixture.query(in: directory,
             sql: "SELECT COUNT(*) AS n FROM \(table)").first?["n"] else {
             throw LabError.message("Element count query returned no row")
@@ -53,7 +53,7 @@ extension BindingAcceptance {
 
     /// Types into a header field through its real field editor, then ends
     /// editing by Return or by moving the keyboard away.
-    private static func editHeader(_ window: NSWindow, _ field: NSTextField, _ text: String, returnKey: Bool = false) throws {
+    static func editHeader(_ window: NSWindow, _ field: NSTextField, _ text: String, returnKey: Bool = false) throws {
         try require(window.makeFirstResponder(field), "Header field refused keyboard focus")
         guard let editor = field.currentEditor() as? NSTextView else { throw LabError.message("Header field has no field editor") }
         editor.selectAll(nil)
@@ -61,7 +61,7 @@ extension BindingAcceptance {
         if returnKey { editor.insertNewline(nil) } else { try require(window.makeFirstResponder(nil), "Header field did not end editing") }
     }
 
-    private static func pageSettled(_ page: MacElementPageView, _ condition: () -> Bool) throws {
+    static func pageSettled(_ page: MacElementPageView, _ condition: () -> Bool) throws {
         try wait { !page.isCommitting && condition() }
     }
 

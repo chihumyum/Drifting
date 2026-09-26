@@ -407,3 +407,131 @@ fn workspace_element_failures_roll_back_and_retry() {
     unchanged(&db, &before);
     fixture.close();
 }
+
+#[test]
+fn workspace_element_facts_templates_and_category_trash() {
+    let mut fixture = Fixture::new();
+    let db = workspace_gateway(&fixture);
+    let category =
+        command(&fixture, json!({"action":"createCategory","name":"人物"}))["result"].clone();
+    let mut export = Export::start("element-facts-templates-and-category-trash", &fixture, &db);
+    let template = json!([{"key":"年龄","value":""},{"key":"阵营","value":""}]);
+    let templated = command(
+        &fixture,
+        json!({"action":"setCategoryTemplateFacts","categoryId":category["id"],"facts":template}),
+    )["result"]
+        .clone();
+    assert_eq!(templated["templateFacts"], template);
+    assert_eq!(
+        actions(&db),
+        [
+            "entity.create kv-entry",
+            "entity.create kv-entry",
+            "order.move kv-entry",
+            "order.move kv-entry"
+        ]
+    );
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "setCategoryTemplateFacts", &templated, false);
+    }
+    let hero = command(
+        &fixture,
+        json!({"action":"createElement","categoryId":category["id"],"name":"林凯"}),
+    )["result"]
+        .clone();
+    assert_eq!(hero["facts"], template);
+    assert_eq!(
+        actions(&db),
+        [
+            "entity.create kv-entry",
+            "entity.create kv-entry",
+            "order.move kv-entry",
+            "order.move kv-entry",
+            "entity.create element",
+            "yjs.update prose-document"
+        ]
+    );
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "createElement", &hero, false);
+    }
+    let edited = command(&fixture, json!({"action":"setElementFacts","elementId":hero["id"],"facts":[
+        {"key":"年龄","value":"二十七"},{"key":"住址","value":"北塔🙂"},{"key":"阵营","value":"邮局"}]}))["result"].clone();
+    assert_eq!(
+        actions(&db),
+        [
+            "field.set kv-entry",
+            "entity.create kv-entry",
+            "field.set kv-entry",
+            "order.move kv-entry"
+        ]
+    );
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "setElementFacts", &edited, false);
+    }
+    let reordered = command(
+        &fixture,
+        json!({"action":"setElementFacts","elementId":hero["id"],"facts":[
+        {"key":"阵营","value":"邮局"},{"key":"年龄","value":"二十七"}]}),
+    )["result"]
+        .clone();
+    assert_eq!(
+        actions(&db),
+        [
+            "entity.purge kv-entry",
+            "order.rebalance kv-entry",
+            "order.rebalance kv-entry"
+        ]
+    );
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "setElementFacts", &reordered, false);
+    }
+    let trashed = command(
+        &fixture,
+        json!({"action":"trashCategory","categoryId":category["id"]}),
+    );
+    assert_eq!(actions(&db), ["entity.trash element-category"]);
+    assert_eq!(trashed["library"]["elements"][0]["categoryId"], Value::Null);
+    assert_eq!(
+        trashed["library"]["trashedCategories"][0]["id"],
+        category["id"]
+    );
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "trashCategory", &trashed["result"], false);
+    }
+    let restored = command(
+        &fixture,
+        json!({"action":"restoreCategory","categoryId":category["id"]}),
+    );
+    assert_eq!(
+        actions(&db),
+        [
+            "entity.restore element-category",
+            "yjs.update prose-document"
+        ]
+    );
+    assert_eq!(restored["result"]["templateFacts"], template);
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "restoreCategory", &restored["result"], false);
+    }
+    let before = rows(&db);
+    let request = json!({"action":"setElementFacts","elementId":hero["id"],"facts":[{"key":"阵营","value":"灯塔"}]});
+    execute(&db, FAULT);
+    assert!(refused(&fixture, request.clone()).contains("synthetic element receipt fault"));
+    unchanged(&db, &before);
+    execute(&db, "DROP TRIGGER fail_element_receipt");
+    let retried = command(&fixture, request)["result"].clone();
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "setElementFacts", &retried, true);
+    }
+    assert_eq!(retried["facts"], json!([{"key":"阵营","value":"灯塔"}]));
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let library = command(&fixture, json!({"action":"library"}))["library"].clone();
+    assert_eq!(library["elements"][0]["facts"], retried["facts"]);
+    assert_eq!(library["elements"][0]["categoryId"], Value::Null);
+    assert_eq!(library["categories"][0]["templateFacts"], template);
+    fixture.close();
+}

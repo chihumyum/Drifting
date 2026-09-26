@@ -127,7 +127,26 @@ fn element(
             group_name: Some(" 主角 ".into()),
             seed: seed(),
         },
+        &mut fact_ids(id),
     )
+}
+/// Deterministic fresh fact IDs per owner, like the host's generator.
+fn fact_ids(owner: &str) -> impl FnMut() -> Result<String, String> {
+    let owner = owner.to_owned();
+    let mut next = 0;
+    move || {
+        next += 1;
+        Ok(format!("{owner}-fact-{next}"))
+    }
+}
+fn facts(pairs: &[(&str, &str)]) -> Vec<Fact> {
+    pairs
+        .iter()
+        .map(|(key, value)| Fact {
+            key: (*key).into(),
+            value: (*value).into(),
+        })
+        .collect()
 }
 fn capture(repo: &ProseRepository<'_>, tx: u64, doc: &str) -> Result<ChapterSeed, String> {
     assert_eq!(doc, "element:hero");
@@ -272,7 +291,7 @@ fn workspace_elements_create_defaults_names_conflicts_and_seed() {
         element(&store, "hero", Some("另一个")).is_err(),
         "identity reuse"
     );
-    exec(&g, "UPDATE element_category SET element_template_kv_json='[{\"key\":\"年龄\",\"value\":\"\"}]' WHERE id='people'");
+    exec(&g, "UPDATE element_category SET element_template_json='{\"type\":\"doc\",\"content\":[]}' WHERE id='people'");
     let before = state(&g);
     assert!(element(&store, "templated", Some("模板"))
         .unwrap_err()
@@ -541,6 +560,272 @@ fn workspace_elements_trash_restore_and_failures() {
     let before = state(&g);
     assert!(store
         .trash_element(&c, "hero")
+        .unwrap_err()
+        .contains("relations"));
+    assert_eq!(state(&g), before);
+}
+
+fn fact_rows(g: &DatabaseGateway, owner: &str) -> Vec<Vec<V>> {
+    rows(g, &format!("SELECT e.id,e.key,e.value,r.position_key FROM entity_kv_entry e JOIN sync_order_register r ON r.entity_id=e.id WHERE e.owner_id='{owner}' ORDER BY r.position_key,e.id"))
+}
+
+#[test]
+fn workspace_elements_facts_reconcile_ids_order_and_projection() {
+    let (_dir, g) = database();
+    let store = WorkspaceStore::new(&g, CLIENT);
+    let c = context();
+    category(&store, "people", "人物");
+    element(&store, "hero", Some("林凯")).unwrap();
+    let mut ids = fact_ids("hero");
+    let set = |facts: Vec<Fact>, ids: &mut dyn FnMut() -> Result<String, String>| {
+        store.set_element_facts(&c, "hero", &facts, ids).unwrap()
+    };
+    let hero = set(
+        facts(&[("年龄", "二十七"), ("职业", "邮差"), (" ", " ")]),
+        &mut ids,
+    );
+    assert_eq!(hero.facts, facts(&[("年龄", "二十七"), ("职业", "邮差")]));
+    let scope = r#"["element","hero","facts"]"#;
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1, m.3))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "entity.create".into(),
+                "kv-entry:hero-fact-1".into(),
+                json!({"seed":{"projectId":"elements-project","ownerKind":"element","ownerId":"hero","namespace":"facts","key":"年龄","value":"二十七"}})
+            ),
+            (
+                "entity.create".into(),
+                "kv-entry:hero-fact-2".into(),
+                json!({"seed":{"projectId":"elements-project","ownerKind":"element","ownerId":"hero","namespace":"facts","key":"职业","value":"邮差"}})
+            ),
+            (
+                "order.move".into(),
+                "kv-entry:hero-fact-1".into(),
+                json!({"scope":scope,"positionKey":"a0"})
+            ),
+            (
+                "order.move".into(),
+                "kv-entry:hero-fact-2".into(),
+                json!({"scope":scope,"positionKey":"a1"})
+            ),
+        ]
+    );
+    assert_eq!(
+        rows(&g, "SELECT kv_json FROM element WHERE id='hero'"),
+        vec![vec![text(
+            r#"[{"key":"年龄","value":"二十七"},{"key":"职业","value":"邮差"}]"#
+        )]]
+    );
+    let unchanged = state(&g);
+    set(facts(&[("年龄", "二十七"), ("职业", "邮差")]), &mut ids);
+    assert_eq!(state(&g), unchanged);
+    // Insert between: the new entry gets a key inside its neighbours' gap; an
+    // edited value keeps its ID.
+    set(
+        facts(&[("年龄", "二十八"), ("住址", "北塔"), ("职业", "邮差")]),
+        &mut ids,
+    );
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1, m.3))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "field.set".into(),
+                "kv-entry:hero-fact-1".into(),
+                json!({"field":"value","value":"二十八"})
+            ),
+            (
+                "entity.create".into(),
+                "kv-entry:hero-fact-3".into(),
+                json!({"seed":{"projectId":"elements-project","ownerKind":"element","ownerId":"hero","namespace":"facts","key":"住址","value":"北塔"}})
+            ),
+            (
+                "order.move".into(),
+                "kv-entry:hero-fact-3".into(),
+                json!({"scope":scope,"positionKey":"a0V"})
+            ),
+        ]
+    );
+    // Reorder and remove: one purge, then an atomic rebalance of every entry.
+    let hero = set(facts(&[("职业", "邮差"), ("年龄", "二十八")]), &mut ids);
+    assert_eq!(hero.facts, facts(&[("职业", "邮差"), ("年龄", "二十八")]));
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1, m.3))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "entity.purge".into(),
+                "kv-entry:hero-fact-3".into(),
+                json!({})
+            ),
+            (
+                "order.rebalance".into(),
+                "kv-entry:hero-fact-2".into(),
+                json!({"scope":scope,"entries":[{"entityId":"hero-fact-2","positionKey":"a0"}]})
+            ),
+            (
+                "order.rebalance".into(),
+                "kv-entry:hero-fact-1".into(),
+                json!({"scope":scope,"entries":[{"entityId":"hero-fact-1","positionKey":"a1"}]})
+            ),
+        ]
+    );
+    assert_eq!(
+        fact_rows(&g, "hero"),
+        vec![
+            vec![text("hero-fact-2"), text("职业"), text("邮差"), text("a0")],
+            vec![
+                text("hero-fact-1"),
+                text("年龄"),
+                text("二十八"),
+                text("a1")
+            ],
+        ]
+    );
+    assert_eq!(
+        rows(
+            &g,
+            "SELECT state FROM sync_entity_lifecycle WHERE entity_id='hero-fact-3'"
+        ),
+        vec![vec![text("purged")]]
+    );
+    // Same cardinality: a renamed key keeps its slot identity.
+    set(facts(&[("身份", "邮差"), ("年龄", "二十八")]), &mut ids);
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1, m.3))
+            .collect::<Vec<_>>(),
+        vec![(
+            "field.set".into(),
+            "kv-entry:hero-fact-2".into(),
+            json!({"field":"key","value":"身份"})
+        )]
+    );
+}
+
+#[test]
+fn workspace_elements_category_template_facts_clone_into_new_elements() {
+    let (_dir, g) = database();
+    let store = WorkspaceStore::new(&g, CLIENT);
+    let c = context();
+    category(&store, "people", "人物");
+    element(&store, "before", Some("先来者")).unwrap();
+    let people = store
+        .set_category_template_facts(
+            &c,
+            "people",
+            &facts(&[("年龄", ""), ("阵营", "")]),
+            &mut fact_ids("people"),
+        )
+        .unwrap();
+    assert_eq!(people.template_facts, facts(&[("年龄", ""), ("阵营", "")]));
+    assert_eq!(latest(&g)[0].3["seed"]["namespace"], "element-template");
+    let hero = element(&store, "hero", Some("林凯")).unwrap();
+    assert_eq!(hero.facts, facts(&[("年龄", ""), ("阵营", "")]));
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1))
+            .collect::<Vec<_>>(),
+        vec![
+            ("entity.create".into(), "kv-entry:hero-fact-1".into()),
+            ("entity.create".into(), "kv-entry:hero-fact-2".into()),
+            ("order.move".into(), "kv-entry:hero-fact-1".into()),
+            ("order.move".into(), "kv-entry:hero-fact-2".into()),
+            ("entity.create".into(), "element:hero".into()),
+            ("yjs.update".into(), "prose-document:element:hero".into()),
+        ]
+    );
+    assert!(store
+        .elements(&c.project_id)
+        .unwrap()
+        .iter()
+        .find(|e| e.id == "before")
+        .unwrap()
+        .facts
+        .is_empty());
+    assert_eq!(
+        rows(
+            &g,
+            "SELECT revision FROM yjs_document_revision WHERE document_id='element:hero'"
+        ),
+        vec![vec![integer(1)]]
+    );
+}
+
+#[test]
+fn workspace_elements_category_trash_detaches_elements_and_restores() {
+    let (_dir, g) = database();
+    let store = WorkspaceStore::new(&g, CLIENT);
+    let c = context();
+    category(&store, "people", "人物");
+    element(&store, "hero", Some("林凯")).unwrap();
+    exec(&g, "CREATE TRIGGER fail_category_receipt BEFORE INSERT ON sync_apply_receipt BEGIN SELECT RAISE(ABORT,'category receipt fault'); END");
+    let before = state(&g);
+    assert!(store
+        .trash_element_category(&c, "people")
+        .unwrap_err()
+        .contains("category receipt fault"));
+    assert_eq!(state(&g), before);
+    exec(&g, "DROP TRIGGER fail_category_receipt");
+    store.trash_element_category(&c, "people").unwrap();
+    assert_eq!(
+        latest(&g)
+            .into_iter()
+            .map(|m| (m.0, m.1))
+            .collect::<Vec<_>>(),
+        vec![("entity.trash".into(), "element-category:people".into())]
+    );
+    assert!(store.element_categories(&c.project_id).unwrap().is_empty());
+    assert_eq!(
+        store.trashed_element_categories(&c.project_id).unwrap()[0].id,
+        "people"
+    );
+    assert_eq!(store.elements(&c.project_id).unwrap()[0].category_id, None);
+    assert!(
+        element(&store, "late", Some("迟到")).is_err(),
+        "no new elements in a trashed category"
+    );
+    let restored = store
+        .restore_element_category(&c, "people", |repo, tx, doc| {
+            assert_eq!(doc, "category:people");
+            Ok(ChapterSeed {
+                update: repo.list_updates(doc, None, Some(tx))?[0]
+                    .update_blob
+                    .clone(),
+                content_json: CACHE.into(),
+            })
+        })
+        .unwrap();
+    assert_eq!(restored.name, "人物");
+    let wire = latest(&g);
+    assert_eq!(
+        wire.iter().map(|m| (m.0.as_str(), m.2)).collect::<Vec<_>>(),
+        vec![("entity.restore", 1), ("yjs.update", 1)]
+    );
+    assert_eq!(
+        wire[0].3,
+        json!({"seed":{"color":"#A1B2C3","elementTemplateJson":"{}","gridX":null,"gridY":null,"layoutMode":"auto","name":"人物"}})
+    );
+    assert_eq!(
+        store.elements(&c.project_id).unwrap()[0].category_id,
+        None,
+        "elements stay detached"
+    );
+    // Relations name categories with the entity kind `category`.
+    exec(&g,"INSERT INTO entity_relation(id,project_id,from_kind,from_id,to_kind,to_id,relation_type_id,created_at,updated_at) SELECT 'rel','elements-project','element','hero','category','people',id,'t','t' FROM entity_relation_type LIMIT 1");
+    let before = state(&g);
+    assert!(store
+        .trash_element_category(&c, "people")
         .unwrap_err()
         .contains("relations"));
     assert_eq!(state(&g), before);

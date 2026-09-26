@@ -55,14 +55,16 @@ architectural redesign.
 | Recoverable chapter trash | `0e97a995` | [chapter trash](chapter-trash.md) |
 | Act boundary editing | `ea5d75f3` | [act boundaries](act-boundaries.md) |
 | Chapter selection comments | `dcab1328` | [chapter comments](chapter-comments.md) |
-| Elements library (设定库) | this batch | [element library](element-library.md) |
+| Elements library (设定库) | `5f187170` | [element library](element-library.md) |
+| Element facts, category templates and trash | this batch | [element library](element-library.md) |
 
 ## Next batch
 
-Elements library, second half: element facts and category templates (the
-normalized key/value authority with fractional order keys), category trash and
-restore. Portraits follow the asset library; relations follow the relation
-domain. Then the minimal in-process Agent runtime over native prose.
+Entity links: link element names and aliases in chapter prose (typed and
+retroactive), open an element from a link, and show backlinks on the element
+page through a native reference index read from live Yjs. Then storylines and
+drift placement, the asset library (portraits), and the minimal in-process
+Agent runtime.
 
 ## Open gates
 

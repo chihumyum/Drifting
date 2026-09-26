@@ -1,9 +1,10 @@
 import AppKit
 
-/// One element's page: editable fields above the element's prose body. Each
-/// field commits on end-editing or Return through `onCommit`; a refusal keeps
-/// the typed text and shows the reason. The body is an ordinary native editor
-/// bound to the element's own document owner.
+/// One element's page: editable fields and ordered facts above the element's
+/// prose body. Each field commits on end-editing or Return through `onCommit`;
+/// the facts list commits as a whole through `onCommitFacts`. A refusal keeps
+/// the typed text and rows and shows the reason. The body is an ordinary
+/// native editor bound to the element's own document owner.
 final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     enum Field: CaseIterable { case name, aliases, summary, group, category }
 
@@ -13,14 +14,18 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     let groupField = NSTextField()
     let summaryView = NSTextView()
     let categoryPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let factsEditor = ElementFactsEditor(prefix: "element-fact", emptyText: "还没有字段。可以添加“年龄”“身份”这类要点。")
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var element: WorkspaceElement
     private(set) var categories: [WorkspaceElementCategory]
     private(set) var isCommitting = false
-    private var queued: [Field] = []
+    private enum Pending: Equatable { case field(Field), facts }
+    private var queued: [Pending] = []
     /// Receives one field's changes; reports the stored element or the refusal.
     var onCommit: ((WorkspaceElementChanges, @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
+    /// Receives the complete ordered facts list exactly as typed.
+    var onCommitFacts: (([WorkspaceFact], @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
     var onFocus: (() -> Void)?
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
@@ -62,15 +67,22 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         message.textColor = .systemRed
         message.isHidden = true
         message.setAccessibilityIdentifier("element-page-error")
+        factsEditor.onCommit = { [weak self] in self?.commitFacts() }
+        factsEditor.onFocus = { [weak self] in self?.onFocus?() }
+        let factsLabel = label("字段")
 
         let grid = NSGridView(views: [
             [label("别名"), aliasesField],
             [label("分组"), NSStackView(views: [groupField, label("分类"), categoryPopup])],
             [label("简介"), summaryScroll],
+            [factsLabel, factsEditor],
         ])
         grid.rowSpacing = 8; grid.columnSpacing = 10
         grid.column(at: 0).xPlacement = .trailing
         grid.row(at: 2).yPlacement = .top
+        grid.row(at: 3).yPlacement = .top
+        grid.row(at: 3).topPadding = 4
+        grid.cell(for: factsEditor)?.xPlacement = .fill
         let headerStack = NSStackView(views: [nameField, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
@@ -93,9 +105,11 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
             message.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             summaryScroll.heightAnchor.constraint(equalToConstant: 48),
             groupField.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+            factsLabel.topAnchor.constraint(equalTo: factsEditor.topAnchor, constant: 3),
         ])
-        rebuildCategories()
+        rebuildCategories(selecting: element.categoryId)
         for field in Field.allCases { show(display(field, of: element), in: field) }
+        factsEditor.show(element.facts)
         updateWash()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -153,8 +167,7 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         categoryPopup.selectItem(at: index ?? 0)
     }
 
-    private func rebuildCategories() {
-        let selected = categoryPopup.numberOfItems == 0 ? element.categoryId : selectedCategoryID
+    private func rebuildCategories(selecting selected: String?) {
         categoryPopup.removeAllItems()
         categoryPopup.addItem(withTitle: "未分类")
         categoryPopup.lastItem?.setAccessibilityIdentifier("element-category-none")
@@ -177,16 +190,23 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     }
 
     /// Adopt a newer stored element, e.g. after another view of the same
-    /// element saved. Fields with uncommitted text keep it.
+    /// element saved or its category was trashed. Fields and facts with
+    /// uncommitted text keep it.
     func apply(element updated: WorkspaceElement, categories updatedCategories: [WorkspaceElementCategory]? = nil) {
         let previous = element
         let clean = Field.allCases.filter { text(of: $0) == display($0, of: previous) }
+        let typedFacts = ElementText.stored(facts: factsEditor.facts)
         element = updated
         if let updatedCategories, updatedCategories != categories {
             categories = updatedCategories
-            rebuildCategories()
+            // A clean popup follows the stored category, so a detached
+            // element shows 未分类 rather than a stale entry.
+            rebuildCategories(selecting: clean.contains(.category) ? updated.categoryId : selectedCategoryID)
         }
         for field in clean { show(display(field, of: updated), in: field) }
+        // Rows already equal to the stored list stay as they are, including a
+        // blank row the author has just added.
+        if typedFacts == previous.facts, typedFacts != updated.facts { factsEditor.show(updated.facts) }
         updateWash()
     }
 
@@ -224,7 +244,7 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     /// Writes one field. Commands run one at a time in the order requested.
     func commit(_ field: Field) {
         guard !isCommitting else {
-            if !queued.contains(field) { queued.append(field) }
+            if !queued.contains(.field(field)) { queued.append(.field(field)) }
             return
         }
         // Sent now, so a following close or quit is ordered after this write.
@@ -256,9 +276,36 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         }
     }
 
+    /// Writes the whole facts list after a row ended editing or was added,
+    /// removed or moved. Queued behind any header field command.
+    func commitFacts() {
+        guard !isCommitting else {
+            if !queued.contains(.facts) { queued.append(.facts) }
+            return
+        }
+        let submitted = factsEditor.facts
+        guard ElementText.stored(facts: submitted) != element.facts, let onCommitFacts else { commitNext(); return }
+        isCommitting = true
+        onCommitFacts(submitted) { [weak self] result in
+            guard let self else { return }
+            self.isCommitting = false
+            switch result {
+            case .success(let stored):
+                self.showMessage(nil)
+                self.apply(element: stored)
+            case .failure(let error):
+                self.showMessage(error.localizedDescription)
+            }
+            self.commitNext()
+        }
+    }
+
     private func commitNext() {
         guard !isCommitting, !queued.isEmpty else { return }
-        commit(queued.removeFirst())
+        switch queued.removeFirst() {
+        case .field(let field): commit(field)
+        case .facts: commitFacts()
+        }
     }
 
     /// Ends an active header edit so its end-editing commit is sent now.
@@ -315,7 +362,7 @@ enum ElementSwatch {
         category.rgb.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: 1) }
     }
     static func color(hex: String) -> NSColor? {
-        color(for: WorkspaceElementCategory(id: "", projectId: "", name: "", color: hex, documentId: "", createdAt: "", updatedAt: ""))
+        WorkspaceElementCategory.rgb(hex: hex).map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: 1) }
     }
     static func image(for category: WorkspaceElementCategory) -> NSImage { image(color: color(for: category)) }
     static func image(color: NSColor?) -> NSImage {

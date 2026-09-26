@@ -1,8 +1,9 @@
 //! Elements library: categories and elements with the renderer's rows,
 //! alias set and canonical originals. Element and category bodies are Yjs
 //! documents (`element:<id>`, `category:<id>`) seeded like chapters.
-//! Category templates, facts, portraits and relations are refused explicitly
-//! until their own batch ports them.
+//! Facts use the normalized key/value authority. Category body templates,
+//! portraits and relations are refused explicitly until they are ported.
+use super::facts::{Fact, FactOwner};
 use super::*;
 use crate::prose_journal::encoding::Cbor;
 use std::collections::BTreeMap;
@@ -21,6 +22,7 @@ pub struct WorkspaceElementCategory {
     pub project_id: String,
     pub name: String,
     pub color: String,
+    pub template_facts: Vec<Fact>,
     pub document_id: String,
     pub created_at: String,
     pub updated_at: String,
@@ -36,6 +38,7 @@ pub struct WorkspaceElement {
     pub summary: String,
     pub aliases: Vec<String>,
     pub group_name: Option<String>,
+    pub facts: Vec<Fact>,
     pub document_id: String,
     pub created_at: String,
     pub updated_at: String,
@@ -79,14 +82,45 @@ impl WorkspaceStore<'_> {
         &self,
         project_id: &str,
     ) -> Result<Vec<WorkspaceElementCategory>, String> {
-        self.query(None, r#"
-            SELECT c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at FROM element_category c
+        self.query(
+            None,
+            &format!(
+                r#"
+            SELECT {CATEGORY_COLUMNS} FROM element_category c
             JOIN sync_generation g ON g.project_id=c.project_id AND g.status='active'
             LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
                 AND l.entity_kind='element-category' AND l.entity_id=c.id
             WHERE c.project_id=? AND c.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')
             ORDER BY c.name,c.rowid
-        "#, vec![text(project_id)])?.iter().map(|row| category_from_row(row)).collect()
+        "#
+            ),
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| category_from_row(row))
+        .collect()
+    }
+
+    pub fn trashed_element_categories(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<WorkspaceElementCategory>, String> {
+        self.query(
+            None,
+            &format!(
+                r#"
+            SELECT {CATEGORY_COLUMNS} FROM element_category c
+            JOIN sync_generation g ON g.project_id=c.project_id AND g.status='active'
+            JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
+                AND l.entity_kind='element-category' AND l.entity_id=c.id AND l.state='trashed'
+            WHERE c.project_id=? AND c.deleted_at IS NOT NULL ORDER BY c.deleted_at DESC,c.rowid
+        "#
+            ),
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| category_from_row(row))
+        .collect()
     }
 
     pub fn elements(&self, project_id: &str) -> Result<Vec<WorkspaceElement>, String> {
@@ -151,7 +185,7 @@ impl WorkspaceStore<'_> {
             ], Some((1, &appended, &input.seed.update)))?;
             Ok(WorkspaceElementCategory {
                 id: input.id.clone(), project_id: context.project_id.clone(), name: name.into(),
-                color: input.color.clone(), document_id: doc_id.clone(),
+                color: input.color.clone(), template_facts: Vec::new(), document_id: doc_id.clone(),
                 created_at: context.now_iso.clone(), updated_at: context.now_iso.clone(),
             })
         })
@@ -194,10 +228,13 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Template facts are cloned with fresh IDs from `new_fact_id` before the
+    /// element's own create, as in the renderer's creation original.
     pub fn create_element(
         &self,
         context: &AuthoredProseContext,
         input: NewElement,
+        new_fact_id: &mut dyn FnMut() -> Result<String, String>,
     ) -> Result<WorkspaceElement, String> {
         validate_context(context)?;
         let doc_id = format!("element:{}", input.id);
@@ -214,12 +251,10 @@ impl WorkspaceStore<'_> {
             self.guard_project(tx, context)?;
             self.live_category(tx, context, &input.category_id)?;
             let templates = self.query(Some(tx),
-                "SELECT element_template_json,element_template_kv_json FROM element_category WHERE id=?",
+                "SELECT element_template_json FROM element_category WHERE id=?",
                 vec![text(&input.category_id)])?;
-            let template = string(&templates[0], 0)?;
-            let facts: Value = serde_json::from_str(&string(&templates[0], 1)?).unwrap_or(Value::Null);
-            if !matches!(js_trim(&template), "" | "{}") || facts.as_array().is_none_or(|a| !a.is_empty()) {
-                return Err("Category templates are not supported natively yet".into());
+            if !matches!(js_trim(&string(&templates[0], 0)?), "" | "{}") {
+                return Err("Category body templates are not supported natively yet".into());
             }
             let others = self.element_rows(Some(tx), &context.project_id, false)?;
             let name = match input.name.as_deref().map(js_trim).filter(|v| !v.is_empty()) {
@@ -238,23 +273,30 @@ impl WorkspaceStore<'_> {
                 }
             };
             let appended = self.seed_document(tx, context, &doc_id, &input.seed)?;
+            let template = self.facts(tx, context, FactOwner {
+                kind: "element-category", id: &input.category_id, namespace: "element-template",
+            })?;
+            let mut mutations = Vec::new();
+            let facts_projection = self.replace_facts(tx, context,
+                FactOwner { kind: "element", id: &input.id, namespace: "facts" },
+                &template, new_fact_id, &mut mutations)?;
             self.execute(tx, r#"
                 INSERT INTO element(id,project_id,category_id,name,summary,content_json,kv_json,aliases_json,
                     group_name,portrait_asset_id,deleted_at,created_at,updated_at)
-                VALUES (?,?,?,?,'',?,'[]','[]',?,NULL,NULL,?,?)
+                VALUES (?,?,?,?,'',?,?,'[]',?,NULL,NULL,?,?)
             "#, vec![text(&input.id), text(&context.project_id), text(&input.category_id), text(&name),
-                text(&input.seed.content_json), group_name.map(text).unwrap_or(V::Null),
+                text(&input.seed.content_json), text(&facts_projection), group_name.map(text).unwrap_or(V::Null),
                 text(&context.now_iso), text(&context.now_iso)])?;
-            self.commit_changes(tx, context, &[
-                journal::Mutation::create("element", &input.id, json!({
-                    "categoryId": input.category_id, "groupName": group_name, "name": name, "summary": "",
-                })),
-                journal::Mutation::yjs(&doc_id, &input.seed.update),
-            ], Some((1, &appended, &input.seed.update)))?;
+            mutations.push(journal::Mutation::create("element", &input.id, json!({
+                "categoryId": input.category_id, "groupName": group_name, "name": name, "summary": "",
+            })));
+            let seed = mutations.len();
+            mutations.push(journal::Mutation::yjs(&doc_id, &input.seed.update));
+            self.commit_changes(tx, context, &mutations, Some((seed, &appended, &input.seed.update)))?;
             Ok(WorkspaceElement {
                 id: input.id.clone(), project_id: context.project_id.clone(),
                 category_id: Some(input.category_id.clone()), name, summary: String::new(), aliases: Vec::new(),
-                group_name: group_name.map(Into::into), document_id: doc_id.clone(),
+                group_name: group_name.map(Into::into), facts: template.clone(), document_id: doc_id.clone(),
                 created_at: context.now_iso.clone(), updated_at: context.now_iso.clone(),
             })
         })
@@ -466,6 +508,162 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    pub fn set_element_facts(
+        &self,
+        context: &AuthoredProseContext,
+        element_id: &str,
+        facts: &[Fact],
+        new_fact_id: &mut dyn FnMut() -> Result<String, String>,
+    ) -> Result<WorkspaceElement, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let LiveElement { mut element, .. } = self.live_element(tx, context, element_id)?;
+            let mut mutations = Vec::new();
+            let projection = self.replace_facts(
+                tx,
+                context,
+                FactOwner {
+                    kind: "element",
+                    id: element_id,
+                    namespace: "facts",
+                },
+                facts,
+                new_fact_id,
+                &mut mutations,
+            )?;
+            if mutations.is_empty() {
+                return Ok(element);
+            }
+            self.execute(
+                tx,
+                "UPDATE element SET kv_json=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    text(&projection),
+                    text(&context.now_iso),
+                    text(element_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            element.facts = serde_json::from_str(&projection).map_err(|e| e.to_string())?;
+            element.updated_at = context.now_iso.clone();
+            Ok(element)
+        })
+    }
+
+    /// The template that later elements of this category clone; existing
+    /// elements never change, as in the renderer.
+    pub fn set_category_template_facts(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+        facts: &[Fact],
+        new_fact_id: &mut dyn FnMut() -> Result<String, String>,
+    ) -> Result<WorkspaceElementCategory, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut category, _) = self.live_category(tx, context, category_id)?;
+            let mut mutations = Vec::new();
+            let projection = self.replace_facts(tx, context,
+                FactOwner { kind: "element-category", id: category_id, namespace: "element-template" },
+                facts, new_fact_id, &mut mutations)?;
+            if mutations.is_empty() {
+                return Ok(category);
+            }
+            self.execute(tx,
+                "UPDATE element_category SET element_template_kv_json=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&projection), text(&context.now_iso), text(category_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            category.template_facts = serde_json::from_str(&projection).map_err(|e| e.to_string())?;
+            category.updated_at = context.now_iso.clone();
+            Ok(category)
+        })
+    }
+
+    /// Like the renderer, every element of the category (live or trashed)
+    /// loses its category locally without an original; restoring the category
+    /// does not re-attach them.
+    pub fn trash_element_category(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+    ) -> Result<WorkspaceElementCategory, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut category, incarnation) = self.live_category(tx, context, category_id)?;
+            self.guard_relations(tx, context, "category", category_id)?;
+            self.execute(tx, "UPDATE element SET category_id=NULL,updated_at=? WHERE category_id=? AND project_id=?",
+                vec![text(&context.now_iso), text(category_id), text(&context.project_id)])?;
+            self.execute(tx, "UPDATE element_category SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&context.now_iso), text(&context.now_iso), text(category_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &[journal::Mutation::json(
+                "entity", "element-category", category_id, "entity.trash", json!({}))
+                .at_incarnation(incarnation)], None)?;
+            category.updated_at = context.now_iso.clone();
+            Ok(category)
+        })
+    }
+
+    /// Reauthors the category in the next incarnation: its six-field seed and
+    /// complete body state. Template facts are not re-emitted.
+    pub fn restore_element_category<F>(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+        mut capture_full_state: F,
+    ) -> Result<WorkspaceElementCategory, String>
+    where
+        F: FnMut(&ProseRepository<'_>, u64, &str) -> Result<ChapterSeed, String>,
+    {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let rows = self.query(Some(tx), &format!(r#"
+                SELECT {CATEGORY_COLUMNS},l.incarnation,c.element_template_json,c.layout_mode,c.grid_x,c.grid_y
+                FROM element_category c JOIN sync_entity_lifecycle l ON l.sync_generation_id=?
+                    AND l.entity_kind='element-category' AND l.entity_id=c.id AND l.state='trashed'
+                WHERE c.id=? AND c.project_id=? AND c.deleted_at IS NOT NULL
+            "#), vec![text(&context.sync_generation_id), text(category_id), text(&context.project_id)])?;
+            let row = rows.first().ok_or("Category lifecycle must be trashed")?;
+            let mut category = category_from_row(row)?;
+            self.guard_relations(tx, context, "category", category_id)?;
+            let incarnation = safe_integer(&row[7], "category incarnation")?
+                .checked_add(1)
+                .filter(|n| *n <= MAX_SAFE)
+                .ok_or("Category incarnation overflow")?;
+            let grid = |index: usize| match &row[index] {
+                V::Null => Ok(Value::Null),
+                V::Integer(value) => value
+                    .parse::<i64>()
+                    .map(|n| json!(n))
+                    .map_err(|_| "Invalid category grid".to_string()),
+                _ => Err("Invalid category grid".to_string()),
+            };
+            let seed = json!({"color": category.color, "elementTemplateJson": string(row, 8)?,
+                "gridX": grid(10)?, "gridY": grid(11)?, "layoutMode": string(row, 9)?, "name": category.name});
+            let repo = ProseRepository::new(self.gateway, self.client);
+            let revision = repo.get_revision(&category.document_id, Some(tx))?;
+            let state = capture_full_state(&repo, tx, &category.document_id)?;
+            if state.update.is_empty() {
+                return Err("Restore requires a complete prose state".into());
+            }
+            self.execute(tx, "UPDATE element_category SET deleted_at=NULL,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&context.now_iso), text(category_id), text(&context.project_id)])?;
+            let appended = repo.append_update(&category.document_id, &state.update, &RevisionSource::System,
+                &context.now_iso, Some(revision), Some(tx))?;
+            self.commit_changes(tx, context, &[
+                journal::Mutation::json("entity", "element-category", category_id, "entity.restore",
+                    json!({"seed": seed})).at_incarnation(incarnation),
+                journal::Mutation::yjs(&category.document_id, &state.update).at_incarnation(incarnation),
+            ], Some((1, &appended, &state.update)))?;
+            category.updated_at = context.now_iso.clone();
+            Ok(category)
+        })
+    }
+
     fn seed_document(
         &self,
         tx: u64,
@@ -563,22 +761,34 @@ impl WorkspaceStore<'_> {
         context: &AuthoredProseContext,
         element_id: &str,
     ) -> Result<(), String> {
+        self.guard_relations(tx, context, "element", element_id)
+    }
+
+    fn guard_relations(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        kind: &str,
+        id: &str,
+    ) -> Result<(), String> {
         let rows = self.query(
             Some(tx),
             r#"
             SELECT 1 FROM entity_relation WHERE project_id=?
-                AND ((from_kind='element' AND from_id=?) OR (to_kind='element' AND to_id=?)) LIMIT 1
+                AND ((from_kind=? AND from_id=?) OR (to_kind=? AND to_id=?)) LIMIT 1
         "#,
             vec![
                 text(&context.project_id),
-                text(element_id),
-                text(element_id),
+                text(kind),
+                text(id),
+                text(kind),
+                text(id),
             ],
         )?;
         if rows.is_empty() {
             Ok(())
         } else {
-            Err("Element trash and restore do not yet support linked relations".into())
+            Err("Trash and restore do not yet support linked relations".into())
         }
     }
 
@@ -589,7 +799,8 @@ impl WorkspaceStore<'_> {
         category_id: &str,
     ) -> Result<(WorkspaceElementCategory, u64), String> {
         let rows = self.query(Some(tx), r#"
-            SELECT c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at,COALESCE(l.incarnation,0)
+            SELECT c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at,c.element_template_kv_json,
+                COALESCE(l.incarnation,0)
             FROM element_category c LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=?
                 AND l.entity_kind='element-category' AND l.entity_id=c.id
             WHERE c.id=? AND c.project_id=? AND c.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')
@@ -599,7 +810,7 @@ impl WorkspaceStore<'_> {
             .ok_or("Category is not available in this project")?;
         Ok((
             category_from_row(row)?,
-            safe_integer(&row[6], "category incarnation")?,
+            safe_integer(&row[7], "category incarnation")?,
         ))
     }
 
@@ -637,25 +848,25 @@ impl WorkspaceStore<'_> {
         let row = rows
             .first()
             .ok_or("Element is not available in this project")?;
-        let state = match &row[10] {
+        let state = match &row[11] {
             V::Null => "live".to_string(),
-            _ => string(row, 10)?,
+            _ => string(row, 11)?,
         };
-        let deleted = row[11] != V::Null;
+        let deleted = row[12] != V::Null;
         let expected = if trashed { "trashed" } else { "live" };
         // Only the renderer's own lifecycle proves a restorable trash state.
-        if deleted != trashed || state != expected || (trashed && row[9] == V::Null) {
+        if deleted != trashed || state != expected || (trashed && row[10] == V::Null) {
             return Err(format!("Element lifecycle must be {expected}"));
         }
-        let incarnation = if row[9] == V::Null {
+        let incarnation = if row[10] == V::Null {
             0
         } else {
-            safe_integer(&row[9], "element incarnation")?
+            safe_integer(&row[10], "element incarnation")?
         };
         Ok(LiveElement {
             element: element_from_row(row)?,
             incarnation,
-            portrait: row[12] != V::Null,
+            portrait: row[13] != V::Null,
         })
     }
 
@@ -696,7 +907,9 @@ impl WorkspaceStore<'_> {
 }
 
 const ELEMENT_COLUMNS: &str =
-    "e.id,e.project_id,e.category_id,e.name,e.summary,e.aliases_json,e.group_name,e.created_at,e.updated_at";
+    "e.id,e.project_id,e.category_id,e.name,e.summary,e.aliases_json,e.group_name,e.created_at,e.updated_at,e.kv_json";
+const CATEGORY_COLUMNS: &str =
+    "c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at,c.element_template_kv_json";
 
 /// Renderer `desiredAliases`: display is trimmed NFKC, the member is its
 /// lowercase; the last value of a member wins; members sort by UTF-8 bytes.
@@ -779,6 +992,8 @@ fn category_from_row(row: &[V]) -> Result<WorkspaceElementCategory, String> {
         project_id: string(row, 1)?,
         name: string(row, 2)?,
         color: string(row, 3)?,
+        template_facts: serde_json::from_str(&string(row, 6)?)
+            .map_err(|_| "Invalid category template facts")?,
         created_at: string(row, 4)?,
         updated_at: string(row, 5)?,
     })
@@ -800,6 +1015,7 @@ fn element_from_row(row: &[V]) -> Result<WorkspaceElement, String> {
         summary: string(row, 4)?,
         aliases: serde_json::from_str(&string(row, 5)?).map_err(|_| "Invalid element aliases")?,
         group_name: optional(6)?,
+        facts: serde_json::from_str(&string(row, 9)?).map_err(|_| "Invalid element facts")?,
         created_at: string(row, 7)?,
         updated_at: string(row, 8)?,
     })

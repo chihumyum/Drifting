@@ -216,7 +216,9 @@ impl WorkspaceStore<'_> {
                         } else if mutation.action == "entity.purge" {
                             // Only removing a book-axis separator is exposed.
                             // This must not become a chapter/content purge path.
-                            if mutation.family != "entity" || mutation.kind != "book-act" {
+                            if mutation.family != "entity"
+                                || !matches!(mutation.kind, "book-act" | "kv-entry")
+                            {
                                 return Err("Unsupported workspace purge target".into());
                             }
                             ("live", "purged", mutation.incarnation)
@@ -270,6 +272,40 @@ impl WorkspaceStore<'_> {
                             position_key,hlc_wall_ms,hlc_counter,writer_id,writer_epoch,device_seq,change_set_id,mutation_index)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     "#,values)?;
+                }
+                "order.rebalance" => {
+                    // One entry per mutation keeps each rebalance incarnation-homogeneous.
+                    let entry = mutation.payload["entries"]
+                        .as_array()
+                        .filter(|entries| entries.len() == 1)
+                        .map(|entries| &entries[0])
+                        .ok_or("Workspace rebalance must carry one entry")?;
+                    let scope = mutation.payload["scope"]
+                        .as_str()
+                        .ok_or("Missing workspace order scope")?;
+                    let position = entry["positionKey"]
+                        .as_str()
+                        .ok_or("Missing workspace order key")?;
+                    let mut values = vec![
+                        text(&context.sync_generation_id),
+                        text(mutation.kind),
+                        text(scope),
+                        text(&mutation.id),
+                        integer(mutation.incarnation),
+                        text(position),
+                    ];
+                    values.extend(clock);
+                    self.execute(tx, r#"
+                        INSERT INTO sync_order_register(sync_generation_id,list_kind,owner_id,entity_id,incarnation,
+                            position_key,hlc_wall_ms,hlc_counter,writer_id,writer_epoch,device_seq,change_set_id,mutation_index)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(sync_generation_id,list_kind,entity_id,incarnation) DO UPDATE SET
+                            owner_id=excluded.owner_id, position_key=excluded.position_key,
+                            hlc_wall_ms=excluded.hlc_wall_ms, hlc_counter=excluded.hlc_counter,
+                            writer_id=excluded.writer_id, writer_epoch=excluded.writer_epoch,
+                            device_seq=excluded.device_seq, change_set_id=excluded.change_set_id,
+                            mutation_index=excluded.mutation_index
+                    "#, values)?;
                 }
                 "field.set" | "tuple.set" => {
                     let key = if mutation.action == "tuple.set" {

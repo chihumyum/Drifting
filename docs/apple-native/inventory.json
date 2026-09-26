@@ -218,7 +218,7 @@
         "category, element, patch CRUD and reference cleanup; categories and elements created, renamed, aliased, trashed and restored with exact renderer originals and alias set authority"
       ],
       "milestone": "P3/P5",
-      "status": "Mac-categories-and-elements-create-update-alias-trash-restore-and-element-body-editing-implemented; facts-templates-category-trash-portraits-relations-patches-planned",
+      "status": "Mac-categories-elements-aliases-facts-template-facts-trash-restore-and-element-body-editing-implemented; category-body-templates-portraits-relations-patches-planned",
       "decisionTask": null
     },
     {
