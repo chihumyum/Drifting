@@ -5,6 +5,8 @@ use drifting_core::workspace::{
     ChapterSeed, CreateChapter, CreateProject, WorkspaceProject, WorkspaceStore,
 };
 use drifting_document::Edit;
+#[path = "workspace_search.rs"]
+pub(super) mod search;
 
 const WORKSPACE_DATABASE: &str = "apple-native-workspace.db";
 const WORKSPACE_USER: &str = "local-user";
@@ -128,6 +130,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
+            | Request::WorkspaceSearch { .. }
+            | Request::WorkspaceResolveSearchHit { .. }
             | Request::WorkspaceChapterOutline { .. }
             | Request::WorkspaceCreateChapter { .. }
             | Request::WorkspaceOpenChapter { .. }
@@ -257,6 +261,18 @@ pub(super) fn dispatch(
             workspace.project(project_id)?;
             json!(WorkspaceStore::new(&workspace.gateway, CLIENT).outline(project_id)?)
         }
+        Request::WorkspaceSearch {
+            handle,
+            project_id,
+            query,
+        } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .search(documents, project_id, query)?,
+        Request::WorkspaceResolveSearchHit { handle, hit } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .resolve_search_hit(documents, hit)?,
         Request::WorkspaceChapterOutline {
             handle,
             project_id,

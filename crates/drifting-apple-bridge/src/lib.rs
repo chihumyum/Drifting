@@ -302,6 +302,16 @@ enum Request {
         #[serde(rename = "chapterId")]
         chapter_id: String,
     },
+    WorkspaceSearch {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        query: String,
+    },
+    WorkspaceResolveSearchHit {
+        handle: u64,
+        hit: workspace::search::SearchHit,
+    },
     WorkspaceCreateChapter {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -929,6 +939,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
+        | Request::WorkspaceSearch { .. }
+        | Request::WorkspaceResolveSearchHit { .. }
         | Request::WorkspaceChapterOutline { .. }
         | Request::WorkspaceCreateChapter { .. }
         | Request::WorkspaceOpenChapter { .. }

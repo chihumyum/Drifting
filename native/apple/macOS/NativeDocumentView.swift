@@ -160,6 +160,21 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         return true
     }
 
+    @discardableResult
+    func reveal(range: NativeRange, revision: UInt64) -> Bool {
+        guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
+              let projection = binding.store.projection, projection.revision == revision,
+              NativeText.identical(textView.string, projection.text),
+              range.location >= 0, range.length > 0,
+              range.location <= (projection.text as NSString).length,
+              range.length <= (projection.text as NSString).length - range.location else { return false }
+        textView.setSelectedRange(range.nsRange)
+        binding.selectionChanged(range.nsRange, text: projection.text, marked: false)
+        textView.scrollRangeToVisible(range.nsRange)
+        focus()
+        return true
+    }
+
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard !textView.hasMarkedText() else { styledProjection = nil; return }
         rendering = true

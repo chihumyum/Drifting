@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T12:00:57.608Z",
+  "generatedAt": "2026-09-26T12:48:44.832Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "94a9e6f9f320b142359f155b83558de304de70c5",
+    "commit": "791cbb622d04b69e6af2d5924149c2df2a20a2c4",
     "dirty": true,
-    "fingerprint": "1f194c098652df796dac24ecd0be018a3e2e8c8ba404804c9709826d0dc60e11"
+    "fingerprint": "31f62d3e1bd1daa9d3df9fab5d19bce54af1097e80df4b79469713963678e5fb"
   },
   "cases": [
     {
@@ -280,6 +280,18 @@
     },
     {
       "name": "Workspace close guards retain queued marked and failed-save input through retry and cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit project search reads live and cold chapter text without changing owners or history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit search revalidates anchored Unicode matches and preserves other pane selection and history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit search guards queued and marked input and discards superseded query results",
       "status": "passed"
     }
   ],

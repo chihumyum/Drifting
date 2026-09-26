@@ -15,6 +15,11 @@ const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9)
   ?? 'docs/apple-native/acceptance/p2a-document.json';
 const logDirectory = '.local-data/apple-native/document';
 const requiredUnitTests = [
+  'search_tests::native_search_maps_literal_lowercase_matches_to_original_utf16',
+  'search_tests::native_search_cold_anchors_relocate_and_reject_changed_original_text',
+  'search_tests::native_search_excludes_ambiguous_placeholder_and_cross_block_matches',
+  'search_tests::native_search_and_resolution_leave_document_history_and_capture_unchanged',
+
   'outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent',
   'outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay',
   'formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit',
@@ -86,7 +91,7 @@ if (process.argv.includes('--check')) {
   assert.equal(previous.status, 'passed', 'P2a document acceptance must pass');
   assert(previous.cases.some(entry => entry.name === 'native formatting exchanges real marks and heading structure with Yjs' && entry.status === 'passed'));
   assert(previous.cases.some(entry => entry.name === 'native outline matches renderer hierarchy and current UTF-16 ranges' && entry.status === 'passed'));
-  assert(previous.unitTests?.passed >= 140 && previous.unitTests.failed === 0, 'Document unit tests must execute');
+  assert(previous.unitTests?.passed >= 144 && previous.unitTests.failed === 0, 'Document unit tests must execute');
   assert.deepEqual(previous.unitTests.requiredCases, requiredUnitTests.map(name => ({ name, status: 'passed' })));
   assert.equal(previous.relocationAliasAcceptance?.status, 'passed', 'Original-prefix routing must pass');
   assert.equal(previous.relocationAliasAcceptance.scenarios.length, 2, 'Both supported quote shapes must execute');
@@ -195,7 +200,7 @@ try {
   const testLog = run('cargo', ['test', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked']);
   writeFileSync(`${logDirectory}/rust-tests.log`, testLog);
   const testCount = [...testLog.matchAll(/test result: ok\. (\d+) passed;/g)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert(testCount >= 140, 'Document, comment, selection and sparse-replay unit tests must actually execute');
+  assert(testCount >= 144, 'Document, comment, selection and sparse-replay unit tests must actually execute');
   for (const name of requiredUnitTests) assert(testLog.includes(`test ${name} ... ok`), `Missing document regression: ${name}`);
   report.unitTests = { passed: testCount, failed: 0, requiredCases: requiredUnitTests.map(name => ({ name, status: 'passed' })) };
   run('cargo', ['build', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked', '--example', 'document_protocol']);

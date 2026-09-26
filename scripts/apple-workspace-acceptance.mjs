@@ -39,6 +39,11 @@ const requiredCases = {
     'workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation',
   ],
   'bridge-workspace': [
+    'workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes',
+    'workspace_tests::search::workspace_search_resolves_cold_unicode_hits_in_live_owner_and_rejects_stale_hits',
+    'workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match',
+    'workspace_tests::search::workspace_search_caps_results_and_reports_actual_truncation',
+
     'workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history',
     'workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes',
     'workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry',
@@ -59,7 +64,7 @@ const requiredCases = {
 };
 const boundaries = {
   source: 'shared Rust workspace and bridge commands; actual renderer decoder and domain materializer',
-  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement; retained chapter owners with independent history, scoped reopen and close, all-owner close and retained drafts/save failures for retry',
+  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement; retained chapter owners with independent history, scoped reopen and close, all-owner close and retained drafts/save failures for retry; project title/prose search over live owners and cold authoritative prose without writes, current-scope CRDT anchor resolution, stale-result refusal, unavailable chapters and explicit result truncation',
   nativeUI: 'separate native acceptance report', physicalDevice: 'not-run', physicalIME: 'not-run',
   realAccount: 'not-run', signedDistribution: 'not-run', fullRemoteSync: 'not-certified', performance: 'deferred',
 };

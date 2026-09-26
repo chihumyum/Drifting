@@ -228,6 +228,25 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
         textView.scrollRangeToVisible(item.range.nsRange)
         return true
     }
+    @discardableResult
+    func reveal(range: NativeRange, revision: UInt64) -> Bool {
+        guard binding.canEdit, !binding.hasPendingWork, textView.markedTextRange == nil,
+              let projection = binding.store.projection, projection.revision == revision,
+              NativeText.identical(textView.text, projection.text), range.location >= 0, range.length > 0,
+              range.location <= textView.textStorage.length,
+              range.length <= textView.textStorage.length - range.location else { return false }
+        let units = Array(projection.text.utf16)
+        func scalarBoundary(_ offset: Int) -> Bool {
+            offset == 0 || offset == units.count || !(0xD800...0xDBFF).contains(units[offset - 1]) ||
+                !(0xDC00...0xDFFF).contains(units[offset])
+        }
+        guard scalarBoundary(range.location), scalarBoundary(range.location + range.length) else { return false }
+        textView.selectedRange = range.nsRange
+        binding.selectionChanged(range.nsRange, text: projection.text, marked: false)
+        textView.scrollRangeToVisible(range.nsRange)
+        textView.becomeFirstResponder()
+        return true
+    }
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard textView.markedTextRange == nil else { return }
         rendering = true

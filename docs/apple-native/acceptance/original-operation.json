@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "84ac767956a36ea4b1312e93ef9f9de1b1e9ef59249b6628665cbc94e0ed7d6b",
+    "fingerprint": "9f8962ca0abfe6cd079aab4bf348c2cfaa449de6d5d0a5fd107f50beba41f06b",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -204,7 +204,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "fe90455fb13a32e9e23dc0cf8db8dad370de31c2bc476198a0c581be1f2b085d"
+        "sha256": "92aebb7976b8765c91b812099653bde6a244f5225888b749608426ba36019bff"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -257,6 +257,14 @@
       {
         "path": "crates/drifting-document/src/retention_tests.rs",
         "sha256": "bff8d54b87240d6b14dd143bdb5104f7924bf3c654271fff7d29b183bff2d5b6"
+      },
+      {
+        "path": "crates/drifting-document/src/search.rs",
+        "sha256": "3771985f205075ac5e6e82e55662b090b8c8643a30e320a08d871af1af83429b"
+      },
+      {
+        "path": "crates/drifting-document/src/search_tests.rs",
+        "sha256": "29c5b70f267347f51f57c5c8591c92b60d05e8cfde3147a4f8b79e682d805204"
       },
       {
         "path": "crates/drifting-document/src/selection_tests.rs",
@@ -468,7 +476,7 @@
       },
       {
         "path": "vendor/yrs/DRIFTING_PATCHES.md",
-        "sha256": "9ac0f29465e3ab4143464081169afdf5f14f6bd9f383991ebc3d5b2cf86be353"
+        "sha256": "884226c4631161e0cf5d1f75b52d8257ea7ad959885adaaaa09a619fc6ef8204"
       },
       {
         "path": "vendor/yrs/LICENSE",
@@ -480,7 +488,7 @@
       },
       {
         "path": "vendor/yrs/UPSTREAM.json",
-        "sha256": "729997f8ab1d625f3035c57f0a9c5eaa3ead37104d49a0b5522ab00c21f3ac9b"
+        "sha256": "5c111de893961c4dba309498204d309625db4c1a044005b0187befe5245b8a3d"
       },
       {
         "path": "vendor/yrs/benches/benches.rs",
@@ -516,7 +524,7 @@
       },
       {
         "path": "vendor/yrs/src/block_store.rs",
-        "sha256": "f847209b60ca6e2b9d5667a586fe8fc5271dfa1b844e9b3d9b2d6d0bdd976391"
+        "sha256": "7817525d7fa7ca89632197c3ad350e5037b76f26e4555d400bdfff664e7b176b"
       },
       {
         "path": "vendor/yrs/src/branch.rs",
@@ -672,7 +680,7 @@
       },
       {
         "path": "vendor/yrs/src/transaction.rs",
-        "sha256": "f297a67b6ea75bb0f11ccf9bc56927ad88d89c76229cd813cbf7f1e4bcc93172"
+        "sha256": "9442c05d6405e1fe18f1298b6265702910a0bf01b6bae1789d0d21dc41cbebfe"
       },
       {
         "path": "vendor/yrs/src/types/array.rs",
@@ -786,7 +794,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "9391a63dce3a3dd4f5d6ebba478db0ff60bd8088141d1a6d49219fc2e835228a"
+    "logSha256": "1566795efe0777446e6f3e7a29e1c918b35b2caf53ad6545e19da19b701cbb8d"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

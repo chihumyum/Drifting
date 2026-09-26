@@ -48,6 +48,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var closePaneButton: NSButton!
     private var workspaceClosed = false
     private var closingWorkspace = false
+    private var searchButton: NSButton!
+    private var searchPanel: WorkspaceSearchPanel?
+    private var searchController: MacWorkspaceSearchViewController?
+    private var pendingSearch: (hit: WorkspaceSearchHit, view: NativeDocumentView)?
+    private var resolvingSearch = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -84,6 +89,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         edit.submenu = editMenu
         menu.addItem(edit)
+        let search = editMenu.addItem(withTitle: "项目搜索", action: #selector(showSearch), keyEquivalent: "f")
+        search.keyEquivalentModifierMask = [.command, .shift]
+        search.target = self
         let format = NSMenuItem(title: "格式", action: nil, keyEquivalent: ""), formatMenu = NSMenu(title: "格式")
         formatMenu.addItem(withTitle: "加粗", action: #selector(ProseTextView.boldProse(_:)), keyEquivalent: "b")
         formatMenu.addItem(withTitle: "斜体", action: #selector(ProseTextView.italicProse(_:)), keyEquivalent: "i")
@@ -120,9 +128,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         saveButton = button("保存", id: "save-document", action: #selector(saveDocument))
         reopenButton = button("重新打开", id: "reopen-document", action: #selector(reopenDocument))
         outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
+        searchButton = button("搜索", id: "show-search", action: #selector(showSearch))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
-        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, splitButton, closePaneButton])
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -250,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         saveButton.isEnabled = ready && documentView != nil
         reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
         outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        searchButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -283,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func selectProject(_ project: WorkspaceProject) {
         guard canLeaveDocument() else { return }
         closeOutline()
+        closeSearch()
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -363,6 +374,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             if documentView.reveal(blockId: blockID) { closeOutline() }
             else { outlineController?.model.showStatus("标题已变化，请重新选择大纲位置。") }
         }
+        resolvePendingSearch()
+    }
+
+    @objc private func showSearch() {
+        guard canLeaveDocument(), let project = currentProject ?? selectedProject else { return }
+        if let searchPanel, searchPanel.isVisible, searchController?.model.projectID == project.id {
+            searchPanel.makeKeyAndOrderFront(nil); searchController?.focusQuery(); return
+        }
+        closeSearch()
+        let model = WorkspaceSearchModel(workspace: workspace, projectID: project.id)
+        let controller = MacWorkspaceSearchViewController(model: model)
+        let panel = WorkspaceSearchPanel(contentRect: NSRect(x: 0, y: 0, width: 430, height: 580),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 搜索"
+        panel.minSize = NSSize(width: 340, height: 320)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        searchPanel = panel; searchController = controller
+        panel.onClose = { [weak self] in
+            self?.searchPanel = nil; self?.searchController = nil; self?.pendingSearch = nil
+        }
+        controller.onClose = { [weak self] in self?.closeSearch() }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onNavigate = { [weak self] hit in
+            guard let self, self.canLeaveDocument() else { return }
+            self.chapterWorkspace.open(project: project,
+                chapter: WorkspaceChapter(id: hit.chapterId, title: hit.chapterTitle)) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let view):
+                    self.pendingSearch = (hit, view)
+                    self.resolvePendingSearch()
+                case .failure(let error): model.showStatus(error.localizedDescription)
+                }
+            }
+        }
+        window.addChildWindow(panel, ordered: .above)
+        panel.center(); panel.makeKeyAndOrderFront(nil); controller.focusQuery()
+    }
+
+    private func resolvePendingSearch() {
+        guard !resolvingSearch, !loading, let pending = pendingSearch,
+              chapterWorkspace.canNavigate, pending.view.binding.canEdit,
+              pending.view.binding.store.projection != nil else { return }
+        pendingSearch = nil
+        guard documentView === pending.view else {
+            searchController?.model.showStatus("当前编辑栏已变化，请重新选择搜索结果。"); return
+        }
+        resolvingSearch = true
+        setLoading(true)
+        workspace.resolveSearchHit(pending.hit) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            self.resolvingSearch = false
+            switch result {
+            case .success(let location):
+                guard self.documentView === pending.view else {
+                    self.searchController?.model.showStatus("当前编辑栏已变化，请重新选择搜索结果。"); return
+                }
+                if let range = location.range {
+                    guard pending.view.reveal(range: range, revision: location.revision) else {
+                        self.searchController?.model.showStatus("正文已变化，请重新搜索后再定位。"); return
+                    }
+                }
+                self.closeSearch()
+                self.status.stringValue = "已打开搜索结果"
+                self.window.makeKeyAndOrderFront(nil)
+            case .failure:
+                self.searchController?.model.showStatus("这条结果已无法定位，请重新搜索。")
+            }
+        }
+    }
+
+    private func closeSearch() {
+        let panel = searchPanel
+        searchPanel = nil; searchController = nil; pendingSearch = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
     @objc private func showOutline() {
@@ -441,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 switch result {
                 case .success(let updated):
                     self.closeOutline()
+                    self.closeSearch()
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -471,6 +559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 switch result {
                 case .success(let updated):
                     self.closeOutline()
+                    self.closeSearch()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
                     self.chapterWorkspace.rename(chapter: updated, projectID: project.id)
                     self.updatingSelection = true
@@ -611,7 +700,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self.closingWorkspace = false
             switch result {
             case .success:
-                self.workspaceClosed = true; self.closeOutline(); completion(true)
+                self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
         }
@@ -624,6 +713,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     func windowWillClose(_ notification: Notification) {
         guard notification.object as? NSWindow === window else { return }
         closeOutline()
+        closeSearch()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

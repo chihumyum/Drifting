@@ -167,6 +167,26 @@
       "decisionTask": null
     },
     {
+      "id": "project-search",
+      "sources": [
+        "src/renderer/components/search/AllChaptersFindPanel.tsx",
+        "src/renderer/shells/mobile/workspace/mobile-project-search.ts"
+      ],
+      "target": "shared Rust title/prose search and anchored navigation; native Apple search controllers",
+      "strategy": "port-business",
+      "dependencies": [
+        "business",
+        "prose",
+        "project-workspace"
+      ],
+      "acceptance": [
+        "current project title/prose matches over live and cold owners without cache writes; exact current anchored selection; stale, unavailable and truncated results are explicit; summaries, replacement and wider entity search remain later parity gates"
+      ],
+      "milestone": "P3/P5/P6",
+      "status": "chapter-title-and-prose-navigation-implemented; wider-search-parity-planned",
+      "decisionTask": null
+    },
+    {
       "id": "outline-drift",
       "sources": [
         "src/renderer/components/leftBars"

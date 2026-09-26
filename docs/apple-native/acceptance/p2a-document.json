@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T10:34:17.320Z",
+  "generatedAt": "2026-09-26T12:46:38.787Z",
   "status": "passed",
   "source": {
-    "commit": "be701d92c7a362a44bec8d64346fc4219e125230",
+    "commit": "791cbb622d04b69e6af2d5924149c2df2a20a2c4",
     "dirty": true,
-    "fingerprint": "afb99efe43624c2e8aef4f4274eb80814728935f1436c2ac53374102b81f3ba5"
+    "fingerprint": "7cfbafcd658564b514a0eb72926ec1dc0127beb0d0239c0d74fb59ca0efff471"
   },
   "libraries": {
     "yjs": "13.6.32",
@@ -222,7 +222,7 @@
   },
   "sparseReplayDiagnostic": {
     "path": "yrs-random-array-diagnostic.json",
-    "sha256": "625911cf062f74ed358a867fd1c7d594305e93a5989a2b57580934464ee1324d"
+    "sha256": "95e82da500ea8d3c88a6ea7ae20646662f985f36566a0010fc3d41379a20a0ac"
   },
   "upstreamRegression": {
     "passed": 378,
@@ -231,9 +231,25 @@
     "exclusionReason": "Seven upstream trace/dataset tests need assets absent from the published crate; not claimed as passed."
   },
   "unitTests": {
-    "passed": 140,
+    "passed": 144,
     "failed": 0,
     "requiredCases": [
+      {
+        "name": "search_tests::native_search_maps_literal_lowercase_matches_to_original_utf16",
+        "status": "passed"
+      },
+      {
+        "name": "search_tests::native_search_cold_anchors_relocate_and_reject_changed_original_text",
+        "status": "passed"
+      },
+      {
+        "name": "search_tests::native_search_excludes_ambiguous_placeholder_and_cross_block_matches",
+        "status": "passed"
+      },
+      {
+        "name": "search_tests::native_search_and_resolution_leave_document_history_and_capture_unchanged",
+        "status": "passed"
+      },
       {
         "name": "outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent",
         "status": "passed"

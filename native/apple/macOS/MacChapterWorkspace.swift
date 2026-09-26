@@ -95,7 +95,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     func activate(pane: Int) {
-        guard panes.indices.contains(pane), !isBusy else { return }
+        guard panes.indices.contains(pane), !isBusy, !externallyLocked else { return }
         guard activePane != pane else { return }
         activePane = pane
         refreshTabs()

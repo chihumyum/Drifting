@@ -238,4 +238,52 @@ final class ProjectPersistenceUITests: XCTestCase {
         selectRow(app, title: "Chapter B"); currentChapter(app, title: "Chapter B"); saved(app); equalText(app, second)
         app.terminate()
     }
+
+    #if !os(macOS)
+    func testProjectSearchNavigatesExactCurrentAndOtherChapterMatches() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        createProject(app, name: "Search " + UUID().uuidString.prefix(8))
+        createChapter(app, title: "Harbor A")
+        var prose = app.textViews["document-text"]
+        press(prose); prose.typeText("Alpha beacon shore"); finishInput(app)
+
+        func search(_ query: String) {
+            press(app.buttons["show-search"])
+            let field = app.searchFields["search-query"]
+            press(field)
+            field.typeText(query)
+            let row = app.cells["project-search-hit-0"]
+            XCTAssertTrue(row.waitForExistence(timeout: 20))
+            press(row)
+            expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.tables["search-results"])
+            waitForExpectations(timeout: 20)
+        }
+        func located() {
+            expectation(for: NSPredicate(format: "label == %@", "已定位搜索结果，正文自动保存"),
+                        evaluatedWith: app.staticTexts["workspace-status"])
+            waitForExpectations(timeout: 20)
+        }
+
+        search("beacon"); located()
+        currentChapter(app, title: "Harbor A"); equalText(app, "Alpha beacon shore")
+        // The result already selected this exact occurrence. Tapping the text
+        // view here would replace the search selection with a tap position.
+        prose.typeText("light"); finishInput(app); equalText(app, "Alpha light shore")
+        press(app.buttons["back-to-chapters"])
+        createChapter(app, title: "Harbor B")
+        prose = app.textViews["document-text"]
+        press(prose); prose.typeText("Beta lantern sea"); finishInput(app)
+
+        search("light"); located()
+        currentChapter(app, title: "Harbor A"); equalText(app, "Alpha light shore")
+        prose = app.textViews["document-text"]
+        prose.typeText("star"); finishInput(app); equalText(app, "Alpha star shore")
+        press(app.buttons["back-to-chapters"])
+        search("Harbor B")
+        currentChapter(app, title: "Harbor B"); saved(app); equalText(app, "Beta lantern sea")
+        app.terminate()
+    }
+    #endif
 }

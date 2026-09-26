@@ -377,6 +377,17 @@ final class LabWorkspaceCore {
         }
     }
 
+    func search(projectID: String, query: String, completion: @escaping (Result<WorkspaceSearchResult, Error>) -> Void) {
+        perform(completion) { try self.request("workspaceSearch", fields: ["projectId": projectID, "query": query]) }
+    }
+
+    func resolveSearchHit(_ hit: WorkspaceSearchHit, completion: @escaping (Result<WorkspaceSearchLocation, Error>) -> Void) {
+        perform(completion) {
+            let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hit))
+            return try self.request("workspaceResolveSearchHit", fields: ["hit": payload])
+        }
+    }
+
     func createChapter(projectID: String, title: String,
                        completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
         perform(completion) {

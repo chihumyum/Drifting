@@ -5,6 +5,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9) ?? 'docs/apple-native/acceptance/p2b-binding.json';
 const directory = '.local-data/apple-native/binding';
+const searchCases = [
+  'AppKit project search reads live and cold chapter text without changing owners or history',
+  'AppKit search revalidates anchored Unicode matches and preserves other pane selection and history',
+  'AppKit search guards queued and marked input and discards superseded query results',
+];
 const workspaceCases = [
   'Workspace tabs retain chapter owners views selections and independent history',
   'Workspace split panes share one chapter owner and preserve independent selections after closing one pane',
@@ -72,7 +77,8 @@ const report = { schemaVersion: 1, kind: 'apple_native_p2b_first_binding', statu
 if (process.argv.includes('--check')) {
   const previous = JSON.parse(readFileSync(output));
   assert.equal(previous.status, 'passed');
-  assert(previous.cases.length >= 68);
+  assert(previous.cases.length >= 71);
+  for (const name of searchCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing search gate: ${name}`);
   for (const name of workspaceCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing workspace gate: ${name}`);
   assert(previous.cases.some(entry => entry.name === 'AppKit safe quote join preserves native suffix editing, history and reopen'));
   for (const name of styleCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing style gate: ${name}`);
@@ -96,11 +102,12 @@ try {
     '-target', `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos14.0`,
     '-I', 'native/apple/FFI', '-L', `.local-data/apple-native/rust/${target}/debug`, '-ldrifting_apple_bridge', '-liconv', '-framework', 'AppKit',
     'native/apple/Shared/LabCore.swift', 'native/apple/Shared/DocumentBinding.swift', 'native/apple/Shared/DocumentStore.swift', 'native/apple/Shared/DocumentStyle.swift',
-    'native/apple/macOS/NativeDocumentView.swift', 'native/apple/macOS/MacChapterWorkspace.swift', 'native/apple/Tests/BindingAcceptance.swift', 'native/apple/Tests/MultiViewAcceptance.swift', 'native/apple/Tests/SelectionAcceptance.swift', 'native/apple/Tests/DraftTransportAcceptance.swift', 'native/apple/Tests/InputQueueAcceptance.swift', 'native/apple/Tests/NativeHistoryAcceptance.swift', 'native/apple/Tests/PartialQuoteHistoryAcceptance.swift', 'native/apple/Tests/RemoteBlockAcceptance.swift', 'native/apple/Tests/RemoteRecoveryAcceptance.swift', 'native/apple/Tests/RelocationAcceptance.swift', 'native/apple/Tests/StyleAcceptance.swift', 'native/apple/Tests/TextIdentityAcceptance.swift', 'native/apple/Tests/FormattingAcceptance.swift', 'native/apple/Tests/OutlineAcceptance.swift', 'native/apple/Tests/WorkspaceTabsAcceptance.swift', 'native/apple/Shared/WorkspaceOutline.swift', '-o', `${directory}/binding-acceptance`]));
+    'native/apple/macOS/NativeDocumentView.swift', 'native/apple/macOS/MacChapterWorkspace.swift', 'native/apple/Tests/BindingAcceptance.swift', 'native/apple/Tests/MultiViewAcceptance.swift', 'native/apple/Tests/SelectionAcceptance.swift', 'native/apple/Tests/DraftTransportAcceptance.swift', 'native/apple/Tests/InputQueueAcceptance.swift', 'native/apple/Tests/NativeHistoryAcceptance.swift', 'native/apple/Tests/PartialQuoteHistoryAcceptance.swift', 'native/apple/Tests/RemoteBlockAcceptance.swift', 'native/apple/Tests/RemoteRecoveryAcceptance.swift', 'native/apple/Tests/RelocationAcceptance.swift', 'native/apple/Tests/StyleAcceptance.swift', 'native/apple/Tests/TextIdentityAcceptance.swift', 'native/apple/Tests/FormattingAcceptance.swift', 'native/apple/Tests/OutlineAcceptance.swift', 'native/apple/Tests/WorkspaceTabsAcceptance.swift', 'native/apple/Shared/WorkspaceOutline.swift', 'native/apple/Shared/WorkspaceSearch.swift', 'native/apple/Tests/SearchAcceptance.swift', '-o', `${directory}/binding-acceptance`]));
   const result = run(`${directory}/binding-acceptance`, []);
   writeFileSync(`${directory}/result.log`, result);
   const test = JSON.parse(result.trim().split('\n').at(-1));
-  assert.equal(test.status, 'passed'); assert(test.cases.length >= 68);
+  assert.equal(test.status, 'passed'); assert(test.cases.length >= 71);
+  for (const name of searchCases) assert(test.cases.includes(name), `Missing search gate: ${name}`);
   for (const name of workspaceCases) assert(test.cases.includes(name), `Missing workspace gate: ${name}`);
   for (const name of styleCases) assert(test.cases.includes(name), `Missing style gate: ${name}`);
   for (const name of prefixDeletionCases) assert(test.cases.includes(name), `Missing prefix-deletion gate: ${name}`);

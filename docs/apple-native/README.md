@@ -94,6 +94,8 @@ for current behavior and remaining structural, remote IME, selection and durabil
 The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two
 editor panes; UIKit keeps one visible editor. Views of the same chapter share
 their document owner and history while retaining independent selections.
+Both hosts support [project title and prose search](search.md), with current
+CRDT anchor resolution before selecting a match in the editor.
 Local multi-view and overlapping marked-text behavior have programmatic
 AppKit evidence. Hosted UIKit tests cover its real input entry points, remote
 composition, repeated-character identity, Unicode deletion, focus loss and native

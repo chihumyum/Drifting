@@ -195,7 +195,10 @@ final class ChaptersViewController: UITableViewController {
         navigationItem.leftBarButtonItem = back
         let outline = UIBarButtonItem(title: "整书大纲", style: .plain, target: self, action: #selector(showOutline))
         outline.accessibilityIdentifier = "show-outline"
-        toolbarItems = [UIBarButtonItem(systemItem: .flexibleSpace), outline, UIBarButtonItem(systemItem: .flexibleSpace)]
+        let search = UIBarButtonItem(title: "搜索", style: .plain, target: self, action: #selector(showSearch))
+        search.accessibilityIdentifier = "show-search"
+        toolbarItems = [UIBarButtonItem(systemItem: .flexibleSpace), outline,
+            UIBarButtonItem(systemItem: .flexibleSpace), search, UIBarButtonItem(systemItem: .flexibleSpace)]
         setLoading(true)
         status.text = "正在读取章节…"
         workspace.chapters(projectID: project.id) { [weak self] result in
@@ -236,29 +239,57 @@ final class ChaptersViewController: UITableViewController {
         guard !loading else { return }
         openChapter(chapters[indexPath.row])
     }
-    private func openChapter(_ chapter: WorkspaceChapter, revealBlockID: String? = nil) {
+    private func openChapter(_ chapter: WorkspaceChapter, revealBlockID: String? = nil, searchHit: WorkspaceSearchHit? = nil) {
         setLoading(true)
         workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
             guard let self else { return }
-            self.setLoading(false)
             switch result {
             case .success(let core):
-                let editor = ChapterEditorViewController(workspace: self.workspace, core: core,
-                    project: self.project, chapter: chapter, chapters: self.chapters, revealBlockID: revealBlockID)
-                editor.onChapterRenamed = { [weak self] updated in
-                    guard let self else { return }
-                    if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
-                    self.refreshList()
-                }
-                editor.onChapterOrderChanged = { [weak self] chapters in
-                    guard let self else { return }
-                    self.chapters = chapters
-                    self.refreshList()
-                }
-                self.navigationController?.pushViewController(editor, animated: true)
-            case .failure(let error): self.status.text = error.localizedDescription
+                if let searchHit {
+                    self.workspace.resolveSearchHit(searchHit) { [weak self] resolved in
+                        guard let self else { return }
+                        switch resolved {
+                        case .success(let location): self.showChapter(chapter, core: core, searchLocation: location)
+                        case .failure(let error):
+                            self.workspace.closeChapter(projectID: self.project.id, chapterID: chapter.id) { [weak self] _ in
+                                self?.setLoading(false)
+                                self?.status.text = error.localizedDescription
+                            }
+                        }
+                    }
+                } else { self.showChapter(chapter, core: core, revealBlockID: revealBlockID) }
+            case .failure(let error): self.setLoading(false); self.status.text = error.localizedDescription
             }
         }
+    }
+    private func showChapter(_ chapter: WorkspaceChapter, core: LabCore, revealBlockID: String? = nil,
+                             searchLocation: WorkspaceSearchLocation? = nil) {
+        setLoading(false)
+        let editor = ChapterEditorViewController(workspace: workspace, core: core,
+            project: project, chapter: chapter, chapters: chapters, revealBlockID: revealBlockID, searchLocation: searchLocation)
+        editor.onChapterRenamed = { [weak self] updated in
+            guard let self else { return }
+            if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
+            self.refreshList()
+        }
+        editor.onChapterOrderChanged = { [weak self] chapters in
+            guard let self else { return }
+            self.chapters = chapters
+            self.refreshList()
+        }
+        navigationController?.pushViewController(editor, animated: true)
+    }
+    @objc private func showSearch() {
+        guard !loading else { return }
+        let controller = WorkspaceSearchViewController(model: WorkspaceSearchModel(workspace: workspace, projectID: project.id))
+        controller.canNavigate = { [weak self] in self?.loading == false }
+        controller.onNavigate = { [weak self, weak controller] hit in
+            guard let self, !self.loading else { return }
+            controller?.dismiss(animated: true) {
+                self.openChapter(WorkspaceChapter(id: hit.chapterId, title: hit.chapterTitle), searchHit: hit)
+            }
+        }
+        present(UINavigationController(rootViewController: controller), animated: true)
     }
     @objc private func showOutline() {
         guard !loading else { return }
@@ -334,19 +365,23 @@ final class ChapterEditorViewController: UIViewController {
     private let saveButton = UIButton(type: .system)
     private let reopenButton = UIButton(type: .system)
     private let outlineButton = UIButton(type: .system)
+    private let searchButton = UIButton(type: .system)
     private weak var outlineController: BookOutlineViewController?
     private var pendingReveal: String?
+    private var pendingSearchLocation: WorkspaceSearchLocation?
     private var orderButton: UIBarButtonItem!
     private var loading = false
 
     init(workspace: LabWorkspaceCore, core: LabCore, project: WorkspaceProject,
-         chapter: WorkspaceChapter, chapters: [WorkspaceChapter], revealBlockID: String? = nil) {
+         chapter: WorkspaceChapter, chapters: [WorkspaceChapter], revealBlockID: String? = nil,
+         searchLocation: WorkspaceSearchLocation? = nil) {
         self.workspace = workspace
         self.core = core
         self.project = project
         self.chapter = chapter
         self.chapters = chapters
         pendingReveal = revealBlockID
+        pendingSearchLocation = searchLocation
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -377,7 +412,10 @@ final class ChapterEditorViewController: UIViewController {
         outlineButton.setTitle("整书大纲", for: .normal)
         outlineButton.accessibilityIdentifier = "show-outline"
         outlineButton.addTarget(self, action: #selector(showOutline), for: .touchUpInside)
-        let actions = UIStackView(arrangedSubviews: [saveButton, reopenButton, outlineButton])
+        searchButton.setTitle("搜索", for: .normal)
+        searchButton.accessibilityIdentifier = "show-search"
+        searchButton.addTarget(self, action: #selector(showSearch), for: .touchUpInside)
+        let actions = UIStackView(arrangedSubviews: [saveButton, reopenButton, outlineButton, searchButton])
         actions.distribution = .fillEqually
         status.text = "正文自动保存"
         status.numberOfLines = 0
@@ -434,6 +472,7 @@ final class ChapterEditorViewController: UIViewController {
         saveButton.isEnabled = ready
         reopenButton.isEnabled = ready
         outlineButton.isEnabled = ready
+        searchButton.isEnabled = ready
         navigationItem.leftBarButtonItem?.isEnabled = ready
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = ready }
         orderButton.isEnabled = ready && chapters.count > 1
@@ -461,6 +500,88 @@ final class ChapterEditorViewController: UIViewController {
         if let blockID = pendingReveal {
             pendingReveal = nil
             if !documentView.reveal(blockId: blockID) { status.text = "标题已变化，请重新选择大纲位置。" }
+        }
+        if let location = pendingSearchLocation {
+            pendingSearchLocation = nil
+            setLoading(false)
+            revealSearch(location)
+        }
+    }
+
+    private func revealSearch(_ location: WorkspaceSearchLocation) {
+        if let range = location.range {
+            status.text = documentView.reveal(range: range, revision: location.revision)
+                ? "已定位搜索结果，正文自动保存" : "搜索结果已变化，请重新搜索。"
+        } else { status.text = "已打开匹配的章节，正文自动保存" }
+    }
+
+    @objc private func showSearch() {
+        guard canLeaveDocument() else { return }
+        view.endEditing(true)
+        guard canLeaveDocument() else { return }
+        let controller = WorkspaceSearchViewController(model: WorkspaceSearchModel(workspace: workspace, projectID: project.id))
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onNavigate = { [weak self, weak controller] hit in
+            guard let self, self.canLeaveDocument() else { return }
+            controller?.dismiss(animated: true) { self.navigateSearch(hit) }
+        }
+        present(UINavigationController(rootViewController: controller), animated: true)
+    }
+
+    private func navigateSearch(_ hit: WorkspaceSearchHit) {
+        guard canLeaveDocument() else { return }
+        setLoading(true)
+        status.text = "正在定位搜索结果…"
+        if hit.chapterId == chapter.id {
+            workspace.resolveSearchHit(hit) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let location): self.revealSearch(location)
+                case .failure(let error): self.status.text = error.localizedDescription
+                }
+            }
+            return
+        }
+        workspace.openChapter(projectID: project.id, chapterID: hit.chapterId) { [weak self] opened in
+            guard let self else { return }
+            switch opened {
+            case .failure(let error): self.setLoading(false); self.status.text = error.localizedDescription
+            case .success(let candidate):
+                // Resolve against the candidate before releasing the visible
+                // owner. A stale result cannot replace a usable editor.
+                self.workspace.resolveSearchHit(hit) { [weak self] resolved in
+                    guard let self else { return }
+                    switch resolved {
+                    case .failure(let error): self.failSearchNavigation(error, candidateChapterID: hit.chapterId)
+                    case .success(let location):
+                        self.workspace.closeChapter(projectID: self.project.id, chapterID: self.chapter.id) { [weak self] closed in
+                            guard let self else { return }
+                            switch closed {
+                            case .failure(let error): self.failSearchNavigation(error, candidateChapterID: hit.chapterId)
+                            case .success:
+                                self.chapter = WorkspaceChapter(id: hit.chapterId, title: hit.chapterTitle)
+                                self.heading.text = hit.chapterTitle
+                                self.pendingSearchLocation = location
+                                self.mountDocument(candidate)
+                                self.updateOrderMenu()
+                                // The binding now owns load/persistence guards.
+                                // Its retry controls must remain reachable if
+                                // the initial read or input branch fails.
+                                self.setLoading(false)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private func failSearchNavigation(_ error: Error, candidateChapterID: String) {
+        // The target has no view yet. Keep the visible chapter owner and release
+        // this failed navigation candidate before enabling editing again.
+        workspace.closeChapter(projectID: project.id, chapterID: candidateChapterID) { [weak self] _ in
+            self?.setLoading(false)
+            self?.status.text = error.localizedDescription
         }
     }
 
