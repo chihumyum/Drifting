@@ -1,6 +1,12 @@
 import AppKit
 
 final class ProseTextView: NSTextView {
+    var onFocus: (() -> Void)?
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { onFocus?() }
+        return accepted
+    }
     var canPerformHistory: ((Bool) -> Bool)?
     var performHistory: ((Bool) -> Void)?
     var canPerformFormat: ((NativeFormatAction) -> Bool)?
@@ -57,6 +63,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private(set) var lastStyleUpdate = DocumentStyle.Update.full
     var onStyleUpdate: ((DocumentStyle.Update) -> Void)?
     var onActivity: ((Bool) -> Void)?
+    var onFocus: (() -> Void)?
+    var isInteractionLocked = false {
+        didSet {
+            updateEditability()
+            updateActions()
+        }
+    }
 
     init(core: LabCore) {
         binding = DocumentBinding(core: core)
@@ -79,6 +92,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.setAccessibilityIdentifier("document-text")
         textView.setAccessibilityLabel("正文")
         textView.delegate = self
+        textView.onFocus = { [weak self] in self?.onFocus?() }
         textView.canPerformHistory = { [weak self] in self?.canPerformHistory(redo: $0) == true }
         textView.performHistory = { [weak self] in self?.performHistory(redo: $0) }
         textView.canPerformFormat = { [weak self] in self?.canPerformFormat($0) == true }
@@ -102,13 +116,15 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             blockMenu.item(at: index)?.setAccessibilityIdentifier(action.accessibilityID)
         }
         blockMenu.target = self; blockMenu.action = #selector(formatBlock)
-        let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, boldButton, italicButton, blockMenu, discardButton])
+        let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
         toolbar.spacing = 8
+        let formats = NSStackView(views: [boldButton, italicButton, blockMenu])
+        formats.spacing = 8
         status.textColor = .secondaryLabelColor
         status.setAccessibilityIdentifier("document-status")
         comments.textColor = .secondaryLabelColor
         comments.setAccessibilityIdentifier("document-comments")
-        let stack = NSStackView(views: [toolbar, scroll, comments, status])
+        let stack = NSStackView(views: [toolbar, formats, scroll, comments, status])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -123,12 +139,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         binding.onStatus = { [weak self] in self?.status.stringValue = $0 }
         binding.onActivity = { [weak self] busy in
             guard let self else { return }
-            self.undoButton.isEnabled = self.canPerformHistory(redo: false)
-            self.redoButton.isEnabled = self.canPerformHistory(redo: true)
-            self.updateFormatControls()
-            self.discardButton.isHidden = !self.binding.hasFailedDraft
-            self.discardButton.isEnabled = !self.binding.hasRemoteBlock
-            self.retryButton.title = self.binding.hasRemoteBlock ? "重试应用" : "重试保存"
+            self.updateEditability()
+            self.updateActions()
             self.onActivity?(busy)
         }
     }
@@ -136,7 +148,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     @discardableResult
     func reveal(blockId: String) -> Bool {
-        guard binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
+        guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
               let projection = binding.store.projection,
               let item = projection.outline.first(where: { $0.blockId == blockId }) else { return false }
         // Resolve the identity again here; a panel's earlier range may be stale.
@@ -171,12 +183,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.setSelectedRange(NSRange(location: start, length: min(selection.length, length - start)))
         binding.displayedSelection(textView.selectedRange())
         if let scroll { textView.enclosingScrollView?.contentView.scroll(to: scroll) }
-        textView.isEditable = binding.canEdit
+        updateEditability()
         rendering = false
         updateFormatControls()
     }
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
-        guard let replacementString else { return false }
+        guard !isInteractionLocked, let replacementString else { return false }
         return binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())
     }
     func textDidChange(_ notification: Notification) {
@@ -194,17 +206,35 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         binding.changed(text, marked: marked)
     }
     private func canPerformHistory(redo: Bool) -> Bool {
-        guard binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
+        guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
               let projection = binding.state?.projection else { return false }
         return redo ? projection.canRedo : projection.canUndo
     }
     private func performHistory(redo: Bool) {
         guard canPerformHistory(redo: redo) else { return }
+        focus()
         binding.history(redo: redo)
     }
     private func canPerformFormat(_ action: NativeFormatAction) -> Bool {
-        !textView.hasMarkedText() && binding.canFormat(action, range: textView.selectedRange())
+        !isInteractionLocked && !textView.hasMarkedText() && binding.canFormat(action, range: textView.selectedRange())
     }
+    private func updateActions() {
+        undoButton.isEnabled = canPerformHistory(redo: false)
+        redoButton.isEnabled = canPerformHistory(redo: true)
+        updateFormatControls()
+        discardButton.isHidden = !binding.hasFailedDraft
+        discardButton.isEnabled = !isInteractionLocked && !binding.hasRemoteBlock
+        retryButton.isEnabled = !isInteractionLocked
+        retryButton.title = binding.hasRemoteBlock ? "重试应用" : "重试保存"
+    }
+    private func updateEditability() {
+        // AppKit cancels marked text when isEditable becomes false. A retained
+        // remote block must preserve that native draft; input delegates still
+        // consult the binding/interaction guards before any prose submission.
+        guard !textView.hasMarkedText() else { return }
+        textView.isEditable = !isInteractionLocked && binding.canEdit
+    }
+    private func focus() { onFocus?(); window?.makeFirstResponder(textView) }
     private func updateFormatControls() {
         boldButton.isEnabled = canPerformFormat(.bold)
         italicButton.isEnabled = canPerformFormat(.italic)
@@ -219,7 +249,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private func performFormat(_ action: NativeFormatAction) {
         guard canPerformFormat(action) else { return }
         let range = textView.selectedRange()
-        window?.makeFirstResponder(textView)
+        focus()
         binding.format(action, range: range)
     }
     @objc private func boldProse() { performFormat(.bold) }
@@ -230,6 +260,6 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
     @objc func undoProse() { performHistory(redo: false) }
     @objc func redoProse() { performHistory(redo: true) }
-    @objc private func retrySave() { binding.retrySave() }
-    @objc private func discardDraft() { binding.discardDraft() }
+    @objc private func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
+    @objc private func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
 }

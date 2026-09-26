@@ -28,7 +28,7 @@ architecture. Existing correctness fixes and their evidence remain in place.
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
 | P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename and before-ID move accepted; read-only act/chapter outline and scoped heading queries added; remaining domain commands open |
 | P4 | Sync and Agent over native prose | Minimal in-process runtime, guarded writes/reviews, offline/reconnect/restart; accounts separately tested | Not started |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation integrated; tabs/split, search and sync remain open |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs and two-pane editing integrated; search and sync remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
 | P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Initial project/chapter/editor slice passes iPhone/iPad simulator workflows; auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
@@ -95,11 +95,16 @@ and [native](acceptance/p2b-native.json) reports own exact counts and outcomes.
 Completed batches are documented, accepted and committed before starting the
 next feature, without pushing.
 
-Next connect native chapter tabs and split editing to the shared document owners,
-retaining each chapter's selection/history and guarding close/switch on pending
-input. Act editing, deletion, full workspace parity, search, sync and Agent remain
-further batches. No performance measurement or extra historical migration matrix
-is a prerequisite.
+The [chapter tabs and split editing batch](tabs-and-split.md) connects
+shared document owners to retained Mac views, preserving each chapter's
+selection/history and guarding close/switch on pending input. UIKit retains its
+single-editor workflow using the same explicit chapter lifecycle. Its three
+coordinator scenarios include a real window layout; attended Mac interaction
+also verifies same-chapter sharing, different-chapter focus, close and restart.
+
+Next integrate native search into this writing workspace. Act editing, deletion,
+full workspace parity, sync and Agent remain further batches. No performance
+measurement or extra historical migration matrix is a prerequisite.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

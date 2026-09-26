@@ -36,7 +36,7 @@ final class DocumentStore {
         sending || !pending.isEmpty || needsRefresh || failure != nil || state?.saved == false || remoteBlock != nil
     }
     var hasPendingWork: Bool { hasPendingCommits || !failedInputs.isEmpty || bindings.allObjects.contains { $0.hasUnsubmittedDraft } }
-    var canEdit: Bool { state != nil && failure == nil && state?.saved == true && remoteBlock == nil }
+    var canEdit: Bool { !core.isSuspended && !core.isClosed && state != nil && failure == nil && state?.saved == true && remoteBlock == nil }
     var viewCount: Int { bindings.allObjects.count }
 
     init(core: LabCore) { self.core = core }

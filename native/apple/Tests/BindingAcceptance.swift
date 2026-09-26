@@ -22,6 +22,10 @@ struct BindingAcceptance {
     }
     static func main() throws {
         _ = NSApplication.shared
+        if CommandLine.arguments.contains("--workspace-tabs-only") {
+            print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": try workspaceTabsAcceptance()]), encoding: .utf8)!)
+            return
+        }
         if CommandLine.arguments.contains("--remote-recovery-only") {
             print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": try remoteRecoveryAcceptance()]), encoding: .utf8)!)
             return
@@ -148,7 +152,7 @@ struct BindingAcceptance {
         try require(reopenedComment.quote == "北塔" && reopenedComment.ranges[0].length == 3, "Redo comment anchor did not survive SQLite reopen")
         let cases = ["queued Unicode edits", "per-event undo and redo", "marked text waits for commit", "composition undo",
             "heading split and queued typing", "SQLite reopen", "AppKit delegate edit", "AppKit marked-text commit and undo",
-            "AppKit Enter, join and structural undo", "AppKit comment highlight, split, history and SQLite reopen"] + (try multiViewAcceptance()) + (try selectionAcceptance()) + (try draftTransportAcceptance()) + (try inputQueueAcceptance()) + (try prefixDeletionQueueAcceptance()) + (try nativeHistoryAcceptance()) + (try partialQuoteHistoryAcceptance()) + (try remoteBlockAcceptance()) + (try remoteRecoveryAcceptance()) + (try relocationAcceptance()) + (try styleAcceptance()) + (try textIdentityAcceptance()) + (try formattingAcceptance()) + (try outlineAcceptance())
+            "AppKit Enter, join and structural undo", "AppKit comment highlight, split, history and SQLite reopen"] + (try multiViewAcceptance()) + (try selectionAcceptance()) + (try draftTransportAcceptance()) + (try inputQueueAcceptance()) + (try prefixDeletionQueueAcceptance()) + (try nativeHistoryAcceptance()) + (try partialQuoteHistoryAcceptance()) + (try remoteBlockAcceptance()) + (try remoteRecoveryAcceptance()) + (try relocationAcceptance()) + (try styleAcceptance()) + (try textIdentityAcceptance()) + (try formattingAcceptance()) + (try outlineAcceptance()) + (try workspaceTabsAcceptance())
         print(String(data: try JSONSerialization.data(withJSONObject: ["status": "passed", "cases": cases]), encoding: .utf8)!)
     }
 }

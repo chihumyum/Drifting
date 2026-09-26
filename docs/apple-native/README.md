@@ -24,6 +24,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Local project and chapter writing slice](workspace.md)
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
+- [Chapter tabs and split editing](tabs-and-split.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -90,8 +91,10 @@ undo, original-comment highlights, atomic authored updates/comment anchors/sync
 journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. Remote
 delivery remains a fixture-only seam. Read [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
-The workspace host currently has one editor per window; shared multi-view
-ownership remains covered by the binding harness. Local multi-view and overlapping marked-text behavior have programmatic
+The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two
+editor panes; UIKit keeps one visible editor. Views of the same chapter share
+their document owner and history while retaining independent selections.
+Local multi-view and overlapping marked-text behavior have programmatic
 AppKit evidence. Hosted UIKit tests cover its real input entry points, remote
 composition, repeated-character identity, Unicode deletion, focus loss and native
 history routes on iPhone/iPad simulators. AppKit responder actions and menu

@@ -25,8 +25,9 @@ is not repaired by inventing a navigation ID. Nesting uses the nearest preceding
 lower-level heading and does not create missing levels.
 
 `workspaceOutline` exposes the ordered book rows. `workspaceChapterOutline`
-reads the current chapter through its existing live owner; another chapter uses
-a temporary owner through the existing scoped, read-only snapshot/tail loader.
+reads any open chapter through its existing live owner, including a hidden tab;
+an unopened chapter uses a temporary owner through the existing scoped, read-only
+snapshot/tail loader.
 The temporary read never replaces the active handle, persists, compacts or changes
 history. Unsupported or corrupt prose retains its existing recovery refusal.
 `contentJson` and `outline_json` remain caches, never outline truth.

@@ -14,7 +14,7 @@ struct WorkspaceSession {
     directory: PathBuf,
     gateway: DatabaseGateway,
     installation_id: String,
-    document_handle: Option<u64>,
+    documents: HashMap<(String, String), u64>,
 }
 
 fn identifier(kind: &str) -> Result<String, String> {
@@ -53,17 +53,43 @@ impl WorkspaceSession {
         documents: &mut HashMap<u64, LabSession>,
         project_id: &str,
         chapter_id: &str,
+        reopen: bool,
     ) -> Result<Value, String> {
         self.project(project_id)?;
         let scope =
             WorkspaceStore::new(&self.gateway, CLIENT).chapter_scope(project_id, chapter_id)?;
-        if let Some(handle) = self.document_handle {
+        let key = (project_id.to_owned(), chapter_id.to_owned());
+        let previous = self.documents.get(&key).copied();
+        if reopen && previous.is_none() {
+            return Err("Chapter is not open in this workspace".into());
+        }
+        if let Some(handle) = previous {
+            let owner = documents
+                .get(&handle)
+                .ok_or("Workspace document owner is missing")?;
+            if !reopen && owner.owner.scope != scope {
+                return Err("Open chapter scope changed; reopen before editing".into());
+            }
+        }
+        let handles = if reopen {
+            vec![previous.unwrap()]
+        } else {
+            self.document_handles()
+        };
+        for handle in handles {
             documents
                 .get_mut(&handle)
                 .ok_or("Workspace document owner is missing")?
                 .prepare_to_release()?;
         }
-        // Keep the old owner and its history until load/replay/checkpoint succeeds.
+        if let Some(handle) = previous.filter(|_| !reopen) {
+            let state = documents[&handle].document_state()?;
+            return Ok(
+                json!({"handle":handle,"projectId":project_id,"chapterId":chapter_id,"document":state}),
+            );
+        }
+        // Keep every old owner until load/replay/checkpoint succeeds. An explicit
+        // reopen replaces only this chapter; opening another chapter retains it.
         let candidate = LabSession::open_chapter(
             self.directory.clone(),
             self.gateway.clone(),
@@ -74,10 +100,16 @@ impl WorkspaceSession {
         let state = candidate.document_state()?;
         let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
         documents.insert(handle, candidate);
-        if let Some(previous) = self.document_handle.replace(handle) {
+        if let Some(previous) = self.documents.insert(key, handle) {
             documents.remove(&previous);
         }
         Ok(json!({"handle":handle,"projectId":project_id,"chapterId":chapter_id,"document":state}))
+    }
+
+    fn document_handles(&self) -> Vec<u64> {
+        let mut handles: Vec<_> = self.documents.values().copied().collect();
+        handles.sort_unstable();
+        handles
     }
 }
 
@@ -100,6 +132,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceCreateChapter { .. }
             | Request::WorkspaceOpenChapter { .. }
             | Request::WorkspaceReopenChapter { .. }
+            | Request::WorkspaceCloseChapter { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -128,7 +161,7 @@ pub(super) fn dispatch(
                     directory,
                     gateway,
                     installation_id: identifier("installation")?,
-                    document_handle: None,
+                    documents: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})
@@ -236,12 +269,14 @@ pub(super) fn dispatch(
             let scope = WorkspaceStore::new(&workspace.gateway, CLIENT)
                 .chapter_scope(project_id, chapter_id)?;
             if let Some(current) = workspace
-                .document_handle
-                .and_then(|id| documents.get(&id))
-                .filter(|owner| {
-                    owner.owner.scope.project_id == *project_id
-                        && owner.owner.chapter_id == *chapter_id
+                .documents
+                .get(&(project_id.clone(), chapter_id.clone()))
+                .map(|id| {
+                    documents
+                        .get(id)
+                        .ok_or("Workspace document owner is missing")
                 })
+                .transpose()?
             {
                 if current.owner.scope != scope {
                     return Err(
@@ -300,30 +335,49 @@ pub(super) fn dispatch(
         } => workspaces
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
-            .open_chapter(documents, project_id, chapter_id)?,
-        Request::WorkspaceReopenChapter { handle } => {
+            .open_chapter(documents, project_id, chapter_id, false)?,
+        Request::WorkspaceReopenChapter {
+            handle,
+            project_id,
+            chapter_id,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .open_chapter(documents, project_id, chapter_id, true)?,
+        Request::WorkspaceCloseChapter {
+            handle,
+            project_id,
+            chapter_id,
+        } => {
             let workspace = workspaces
                 .get_mut(handle)
                 .ok_or("Unknown or closed workspace")?;
-            let document = documents
-                .get(&workspace.document_handle.ok_or("No chapter is selected")?)
-                .ok_or("Workspace document owner is missing")?;
-            let project_id = document.owner.scope.project_id.clone();
-            let chapter_id = document.owner.chapter_id.clone();
-            workspace.open_chapter(documents, &project_id, &chapter_id)?
+            let key = (project_id.clone(), chapter_id.clone());
+            let document = *workspace
+                .documents
+                .get(&key)
+                .ok_or("Chapter is not open in this workspace")?;
+            documents
+                .get_mut(&document)
+                .ok_or("Workspace document owner is missing")?
+                .prepare_to_release()?;
+            workspace.documents.remove(&key);
+            documents.remove(&document);
+            Value::Null
         }
         Request::WorkspaceClose { handle } => {
             let workspace = workspaces
                 .get(handle)
                 .ok_or("Unknown or closed workspace")?;
-            if let Some(document) = workspace.document_handle {
+            let handles = workspace.document_handles();
+            for document in &handles {
                 documents
-                    .get_mut(&document)
+                    .get_mut(document)
                     .ok_or("Workspace document owner is missing")?
                     .prepare_to_release()?;
             }
             workspace.gateway.close(CLIENT.into())?;
-            if let Some(document) = workspace.document_handle {
+            for document in handles {
                 documents.remove(&document);
             }
             workspaces.remove(handle);
@@ -340,8 +394,12 @@ pub(super) fn document_closed(handle: u64) -> Result<(), String> {
         .lock()
         .map_err(|_| "Workspace registry is unavailable")?;
     for workspace in workspaces.values_mut() {
-        if workspace.document_handle == Some(handle) {
-            workspace.document_handle = None;
+        if let Some(key) = workspace
+            .documents
+            .iter()
+            .find_map(|(key, value)| (*value == handle).then(|| key.clone()))
+        {
+            workspace.documents.remove(&key);
             return Ok(());
         }
     }

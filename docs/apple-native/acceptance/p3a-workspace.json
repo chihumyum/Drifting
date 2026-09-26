@@ -14,19 +14,23 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/lib.rs",
-        "sha256": "ffe23eeac1264d86d1f80a01b4a9170d41a46e2a24c332c8c828a8cef3515d62"
+        "sha256": "76c34f132bff3bde02bd164a5d7126439c73174710a90a2d28fb990a8c9e2caf"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace.rs",
-        "sha256": "16b316c16b6fa86dc667391ef966bc31ca6724eaa69b0d9b7fef8edc67a1bcf2"
+        "sha256": "43aa4b4d8f89d59a3fc7d1f880fb1e3c81971315b9c3e4f8f532379c997e9b3a"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_outline_tests.rs",
-        "sha256": "28a4e338f9133a1ee5e4aa7df5b2f85a6117af5e17bd38630bbca6820d5ed6c5"
+        "sha256": "db4d9499768d2b6719b5b70573244460ba9436650a7196152614411d81ef2f76"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_tabs_tests.rs",
+        "sha256": "a883f7ddfc3fd56af067fb2f19ea98fded6d395ea26ee46174ef2ef821c8dfef"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_tests.rs",
-        "sha256": "5e0f2feac87c19800c69d7380785c9cbc5f8d41ae52a46e4993651b272e3e98b"
+        "sha256": "14b74afdaf9b9b9f9cdfc1972a0b3e2959dbb6c80e7196f55df246a3f6a7ffa0"
       },
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -402,7 +406,7 @@
       },
       {
         "path": "native/apple/Shared/DocumentStore.swift",
-        "sha256": "6db7f524dc1ce8c2d67c9c5b170eaec66d15ada9cb39fad95bcc4f054301879a"
+        "sha256": "0193c3dfe42b09a105d7a8cc87fd9ac6ce312d64ff62135741100ea9394dc420"
       },
       {
         "path": "native/apple/Shared/DocumentStyle.swift",
@@ -410,7 +414,7 @@
       },
       {
         "path": "native/apple/Shared/LabCore.swift",
-        "sha256": "b026a9e34256d61c6465a7736e84c5aede6b2a8ced82f2f992d5fc1ba1091d1f"
+        "sha256": "dd7bb246decb155508cd40d759b6420c7cd4ef7fb31196fb50488b4882816ab0"
       },
       {
         "path": "native/apple/Shared/WorkspaceOutline.swift",
@@ -418,7 +422,7 @@
       },
       {
         "path": "native/apple/Tests/BindingAcceptance.swift",
-        "sha256": "99278c346134a016d206badf4c02e49a5b75b98a668ba4d594db6248aea4de05"
+        "sha256": "d2bb6b36265a6050e0a6bd50c0c2f1f89c7e25f372e43b4a78b61ebe5581f811"
       },
       {
         "path": "native/apple/Tests/DraftTransportAcceptance.swift",
@@ -481,12 +485,16 @@
         "sha256": "bc2b8029e8da16b79fb302dbcef80eff73980e138f68ebbaec712d011f6260e2"
       },
       {
+        "path": "native/apple/Tests/WorkspaceTabsAcceptance.swift",
+        "sha256": "d557216fe26dad8a563c5ae87ea903ed089e0aee07875d1f061a9cf17e8377c0"
+      },
+      {
         "path": "native/apple/UITests/ProjectPersistenceUITests.swift",
         "sha256": "9731c24f3d46a57a08f4d92327d02c856f8de3f842d90943e6902a91e81481e7"
       },
       {
         "path": "native/apple/iOS/AppDelegate.swift",
-        "sha256": "4148a3fea77b2289d7b4161612ee506a134d820c1152ee8f9cf5da324a433b75"
+        "sha256": "d16c2badd0c015cb388d994025dc6f6f209a2d30bc9eb0286d31dc5af6974706"
       },
       {
         "path": "native/apple/iOS/BookOutlineViewController.swift",
@@ -502,15 +510,19 @@
       },
       {
         "path": "native/apple/macOS/AppDelegate.swift",
-        "sha256": "cc9fc57961f0c067359bada3f63cb008e1d653d1524f41a3fb66c9fa6f160621"
+        "sha256": "bab3032b270e321b03f955b89406641d8760b798e8a64e2c6816d44c71520979"
       },
       {
         "path": "native/apple/macOS/BookOutlineViewController.swift",
         "sha256": "9c669164464a8cccf611a6a751768a77b965d784f9b68b921959597d246d9957"
       },
       {
+        "path": "native/apple/macOS/MacChapterWorkspace.swift",
+        "sha256": "08815c15d04de080698bf7edabedee91468725bbd914f8a362e5380c3829f020"
+      },
+      {
         "path": "native/apple/macOS/NativeDocumentView.swift",
-        "sha256": "cf965c2ce3ec88f12aea0cba15e2a80e514b04d1600027fbb49b875d80b34bef"
+        "sha256": "da81dd173a0745a2f00ae1a9d6c61b74e6071f24254e1bba21e44dd51c689aa2"
       },
       {
         "path": "native/apple/project.yml",
@@ -526,7 +538,7 @@
       },
       {
         "path": "scripts/apple-workspace-acceptance.mjs",
-        "sha256": "7d8756f14826603d64725917f95cf2449cda459191013631d30d4f3bd39b614e"
+        "sha256": "254bdd19067fdbcb7749c826750d459312b1a1cb14daf7556067288c68e70ba0"
       },
       {
         "path": "scripts/apple-workspace-wire-check.ts",
@@ -1466,7 +1478,7 @@
       },
       {
         "path": "vendor/yrs/DRIFTING_PATCHES.md",
-        "sha256": "9ac0f29465e3ab4143464081169afdf5f14f6bd9f383991ebc3d5b2cf86be353"
+        "sha256": "884226c4631161e0cf5d1f75b52d8257ea7ad959885adaaaa09a619fc6ef8204"
       },
       {
         "path": "vendor/yrs/LICENSE",
@@ -1478,7 +1490,7 @@
       },
       {
         "path": "vendor/yrs/UPSTREAM.json",
-        "sha256": "729997f8ab1d625f3035c57f0a9c5eaa3ead37104d49a0b5522ab00c21f3ac9b"
+        "sha256": "5c111de893961c4dba309498204d309625db4c1a044005b0187befe5245b8a3d"
       },
       {
         "path": "vendor/yrs/benches/benches.rs",
@@ -1514,7 +1526,7 @@
       },
       {
         "path": "vendor/yrs/src/block_store.rs",
-        "sha256": "f847209b60ca6e2b9d5667a586fe8fc5271dfa1b844e9b3d9b2d6d0bdd976391"
+        "sha256": "7817525d7fa7ca89632197c3ad350e5037b76f26e4555d400bdfff664e7b176b"
       },
       {
         "path": "vendor/yrs/src/branch.rs",
@@ -1670,7 +1682,7 @@
       },
       {
         "path": "vendor/yrs/src/transaction.rs",
-        "sha256": "f297a67b6ea75bb0f11ccf9bc56927ad88d89c76229cd813cbf7f1e4bcc93172"
+        "sha256": "9442c05d6405e1fe18f1298b6265702910a0bf01b6bae1789d0d21dc41cbebfe"
       },
       {
         "path": "vendor/yrs/src/types/array.rs",
@@ -1725,7 +1737,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "998279e16d90fe65b480f0fffd885223c732ce79ba463bbef10aadb7981cfb43"
+    "fingerprint": "f6cee7e0adbd84dc346f2bbe92e051279e1c11c7d9edeb346a5cdcf3f1aa6f9c"
   },
   "suites": [
     {
@@ -1738,38 +1750,41 @@
         "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
         "workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project",
         "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
-        "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
         "workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries",
         "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
         "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
+        "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
         "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
-        "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
         "workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens",
-        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
-        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer"
+        "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
+        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer",
+        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes"
       ],
-      "logSha256": "b9b2533fef1bff51b0b26437e5d0a8bccf2ab4bf0deb2107b2d30175331cfb3f"
+      "logSha256": "adead6471508e4f3ebbaf1104fcf01feb274c3558cc5e0d8add6d27bdca6fc45"
     },
     {
       "name": "bridge-workspace",
-      "passed": 13,
+      "passed": 16,
       "failed": 0,
       "cases": [
         "workspace_tests::workspace_fixture_database_and_workspace_owners_remain_separate",
-        "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
-        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
         "workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database",
+        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
+        "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
         "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
-        "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
-        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
         "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
-        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
+        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
         "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
-        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
         "workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once",
-        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen"
+        "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
+        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
+        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
+        "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
+        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
+        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
+        "workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry"
       ],
-      "logSha256": "029adba513e07ef8a993b9b3820dcd2cb7297acbe70c954acc88481879d76f39"
+      "logSha256": "ef418f2774556874c2603990ccc093589b22dbe1dcaa048e339d5ce3560c949b"
     }
   ],
   "renderer": {
@@ -1923,7 +1938,7 @@
   "strictTypeScript": "passed",
   "boundaries": {
     "source": "shared Rust workspace and bridge commands; actual renderer decoder and domain materializer",
-    "integration": "temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement",
+    "integration": "temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement; retained chapter owners with independent history, scoped reopen and close, all-owner close and retained drafts/save failures for retry",
     "nativeUI": "separate native acceptance report",
     "physicalDevice": "not-run",
     "physicalIME": "not-run",
@@ -1934,43 +1949,43 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/source-before.json",
-      "sha256": "2b1ea13001e83dd1f3935f2fe57ddc3240fd37fb3e2b9d0bb2464dc51e7be1f7"
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/source-before.json",
+      "sha256": "0c758f897fe528da07c1bc78e3309a525f812dd6b923dc9e907bc00846442310"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/core-workspace.log",
-      "sha256": "b9b2533fef1bff51b0b26437e5d0a8bccf2ab4bf0deb2107b2d30175331cfb3f"
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/core-workspace.log",
+      "sha256": "adead6471508e4f3ebbaf1104fcf01feb274c3558cc5e0d8add6d27bdca6fc45"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/bridge-workspace.log",
-      "sha256": "029adba513e07ef8a993b9b3820dcd2cb7297acbe70c954acc88481879d76f39"
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/bridge-workspace.log",
+      "sha256": "ef418f2774556874c2603990ccc093589b22dbe1dcaa048e339d5ce3560c949b"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/workspace-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/workspace-wire.json",
       "sha256": "783011b8dfd93fa32498a18a6c59e54bee3b4f1f4c34804437d8fc829bd5fd31"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/workspace-rename-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/workspace-rename-wire.json",
       "sha256": "9844ed1b24f39ab7707baa04b0da08a7303750d7de722f5bf18cf01b3526c0cd"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/workspace-reorder-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/workspace-reorder-wire.json",
       "sha256": "7eaeff70bba52414b174e663a6b37de3c6590a29f371976ecbd55f4bce4fa469"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/workspace-outline.json",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/workspace-outline.json",
       "sha256": "6ef84b5cf32a6e21c98cbe1ed6aac474929b82a82f5708b7a9328b4854d45abb"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/renderer.json",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/renderer.json",
       "sha256": "0a2f20e96a846303dc873ce8ba2b27ef2c8fae41a5b94f5e2cfa94720760645e"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/renderer.log",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/renderer.log",
       "sha256": "be4041bc547337caf5be2874f10a1cefc869b2579a8ef225b946a1f2a763eaaa"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-P1BfSC/typecheck.log",
+      "path": ".local-data/apple-native/workspace-acceptance-I7IEto/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     }
   ]

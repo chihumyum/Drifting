@@ -2,6 +2,8 @@
 use super::*;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
+#[path = "workspace_tabs_tests.rs"]
+mod tabs;
 
 fn call(request: Value) -> Value {
     let input = CString::new(request.to_string()).unwrap();
@@ -63,10 +65,16 @@ impl Fixture {
     }
 
     fn open(&self, index: usize) -> Value {
-        success(
-            json!({"operation":"workspaceOpenChapter","handle":self.workspace,
-            "projectId":self.project,"chapterId":self.chapters[index]}),
-        )
+        success(self.chapter_request("workspaceOpenChapter", index))
+    }
+
+    fn chapter_request(&self, operation: &str, index: usize) -> Value {
+        json!({"operation":operation,"handle":self.workspace,
+            "projectId":self.project,"chapterId":self.chapters[index]})
+    }
+
+    fn reopen(&self, index: usize) -> Value {
+        success(self.chapter_request("workspaceReopenChapter", index))
     }
 
     fn close(&self) {
@@ -135,10 +143,9 @@ fn workspace_two_chapters_edit_history_switch_and_cold_reopen() {
         second["document"]["projection"]["blocks"][0]["id"]
     );
     assert_eq!(second["document"]["projection"]["text"], "");
-    rejected(json!({"operation":"documentRead","handle":first_handle}));
+    assert_eq!(state(first_handle)["projection"]["text"], "初航🙂");
     assert_eq!(insert(second_handle, "归航👩🏽‍🚀")["saved"], true);
-    let reopened =
-        success(json!({"operation":"workspaceReopenChapter","handle":fixture.workspace}));
+    let reopened = fixture.reopen(1);
     assert_ne!(reopened["handle"], second_handle);
     assert_eq!(reopened["document"]["projection"]["text"], "归航👩🏽‍🚀");
     fixture.close();
@@ -181,7 +188,7 @@ fn workspace_switch_and_close_preserve_active_draft_and_composition() {
     );
     for request in [
         json!({"operation":"workspaceOpenChapter","handle":fixture.workspace,"projectId":fixture.project,"chapterId":fixture.chapters[1]}),
-        json!({"operation":"workspaceReopenChapter","handle":fixture.workspace}),
+        fixture.chapter_request("workspaceReopenChapter", 0),
         json!({"operation":"workspaceClose","handle":fixture.workspace}),
     ] {
         assert!(rejected(request).contains("draft"));
@@ -211,6 +218,7 @@ fn workspace_switch_and_close_preserve_active_draft_and_composition() {
 fn workspace_failed_save_and_target_load_keep_current_owner() {
     let fixture = Fixture::new();
     fixture.open(1);
+    success(fixture.chapter_request("workspaceCloseChapter", 1));
     let handle = fixture.open(0)["handle"].as_u64().unwrap();
     let database = gateway(handle);
     execute(&database, "CREATE TRIGGER fail_workspace_save BEFORE INSERT ON sync_yjs_materialization_receipt BEGIN SELECT RAISE(ABORT, 'synthetic workspace save failure'); END");
@@ -331,7 +339,7 @@ fn workspace_comment_anchors_use_selected_project_and_chapter_scope() {
     );
     let second_before =
         load_comments_for(&database, &fixture.project, &fixture.chapters[1]).unwrap();
-    let first = fixture.open(0);
+    let first = fixture.reopen(0);
     let first_handle = first["handle"].as_u64().unwrap();
     let comments = first["document"]["projection"]["comments"]
         .as_array()
@@ -352,7 +360,7 @@ fn workspace_comment_anchors_use_selected_project_and_chapter_scope() {
     let persisted = load_comments_for(&database, &fixture.project, &fixture.chapters[0]).unwrap();
     let payload: Value = serde_json::from_str(&persisted[0].anchor_json).unwrap();
     assert_eq!(payload["syntheticMetadata"]["preserve"], true);
-    let second = fixture.open(1);
+    let second = fixture.reopen(1);
     assert_eq!(
         second["document"]["projection"]["comments"][0]["id"],
         "synthetic-comment-b"
@@ -860,8 +868,7 @@ fn workspace_formatting_rejection_preserves_input_and_save_failure_retries_once(
     }
     success(json!({"operation":"documentSave","handle":handle}));
     assert_eq!(counts(), counts_after);
-    let reopened =
-        success(json!({"operation":"workspaceReopenChapter","handle":fixture.workspace}));
+    let reopened = fixture.reopen(0);
     assert_eq!(
         reopened["document"]["projection"]["text"],
         saved["projection"]["text"]

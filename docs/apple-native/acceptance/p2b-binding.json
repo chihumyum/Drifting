@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T10:47:28.226Z",
+  "generatedAt": "2026-09-26T12:00:57.608Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "be701d92c7a362a44bec8d64346fc4219e125230",
+    "commit": "94a9e6f9f320b142359f155b83558de304de70c5",
     "dirty": true,
-    "fingerprint": "af6713c91a4691df2a43556fd8193e33ccabda7175d5e1f24836be21de6f4401"
+    "fingerprint": "1f194c098652df796dac24ecd0be018a3e2e8c8ba404804c9709826d0dc60e11"
   },
   "cases": [
     {
@@ -268,6 +268,18 @@
     },
     {
       "name": "AppKit outline survives prefix edits history and reopening while guarding marked input",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace tabs retain chapter owners views selections and independent history",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace split panes share one chapter owner and preserve independent selections after closing one pane",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace close guards retain queued marked and failed-save input through retry and cold reopen",
       "status": "passed"
     }
   ],

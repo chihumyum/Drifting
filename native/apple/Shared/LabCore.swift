@@ -52,6 +52,9 @@ final class LabCore {
     private let directory: URL
     private weak var sharedDocument: DocumentStore?
     private var pendingDocument: DocumentStore?
+    private let closesOwnHandle: Bool
+    private(set) var isSuspended = false
+    private(set) var isClosed = false
 
     fileprivate var hasPendingDocumentWork: Bool {
         precondition(Thread.isMainThread)
@@ -73,15 +76,32 @@ final class LabCore {
     }
 
     init(directory: URL? = nil) {
+        closesOwnHandle = true
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "cc.drifting.native-lab")
             .appendingPathComponent("apple-native-lab", isDirectory: true)
     }
 
     fileprivate init(handle: UInt64, directory: URL) {
+        closesOwnHandle = false
         self.handle = handle
         self.directory = directory
     }
+
+    fileprivate func suspend(_ value: Bool) {
+        precondition(Thread.isMainThread)
+        isSuspended = value
+        sharedDocument?.activity()
+    }
+
+    fileprivate func invalidate() {
+        precondition(Thread.isMainThread)
+        isClosed = true
+        queue.async { self.handle = nil }
+        sharedDocument?.activity()
+    }
+
+    fileprivate var documentViewCount: Int { sharedDocument?.viewCount ?? 0 }
 
     fileprivate static func call<Payload: Decodable>(_ request: [String: Any]) throws -> Payload? {
         let data = try JSONSerialization.data(withJSONObject: request)
@@ -267,7 +287,7 @@ final class LabCore {
 
     deinit {
         // Enqueued operations retain self, so deinit only runs after they finish.
-        if let handle {
+        if closesOwnHandle, let handle {
             queue.async { let _: LabState? = try? LabCore.call(["operation": "close", "handle": handle]) }
         }
     }
@@ -281,6 +301,10 @@ struct WorkspaceProject: Decodable {
 struct WorkspaceChapter: Decodable {
     let id: String
     let title: String
+}
+struct ChapterScope: Hashable {
+    let projectID: String
+    let chapterID: String
 }
 struct WorkspaceOutlineEntry: Decodable {
     let kind: String
@@ -301,17 +325,16 @@ private struct WorkspaceDocumentReply: Decodable {
     let document: LabDocumentState
 }
 
-/// Workspace commands and chapter switching belong to Rust. A successful
-/// switch returns a new document owner, never a repurposed Swift store: old
-/// selections, input branches and undo projections cannot cross chapters.
+/// Registry of Swift wrappers for Rust's chapter owners. Cache changes belong
+/// to the main thread; the workspace queue owns only FFI requests and its handle.
 final class LabWorkspaceCore {
     private let queue = DispatchQueue(label: "cc.drifting.native-lab.workspace")
     private let directory: URL
     private var handle: UInt64?
-    // A list screen may have no editor view. Keep the bridge's current owner
-    // alive until a successful replacement or workspace shutdown.
-    private var currentDocument: LabCore?
-    private var switchingDocument = false
+    private struct Owner { let handle: UInt64; let core: LabCore }
+    private var owners: [ChapterScope: Owner] = [:]
+    private(set) var isChangingOwners = false
+    var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
 
     init(directory: URL? = nil) {
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -375,7 +398,7 @@ final class LabWorkspaceCore {
     private func updateMetadata<Payload: Decodable>(_ operation: String, fields: [String: Any],
                                                     completion: @escaping (Result<Payload, Error>) -> Void) {
         precondition(Thread.isMainThread)
-        guard !switchingDocument, currentDocument?.hasPendingDocumentWork != true else {
+        guard !isChangingOwners, !hasPendingDocuments else {
             completion(.failure(LabError.message("请先完成输入，并等待正文保存后再操作")))
             return
         }
@@ -384,29 +407,90 @@ final class LabWorkspaceCore {
     }
 
     func openChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
-        openDocument("workspaceOpenChapter", fields: ["projectId": projectID, "chapterId": chapterID], completion: completion)
+        openDocument("workspaceOpenChapter", scope: ChapterScope(projectID: projectID, chapterID: chapterID), completion: completion)
     }
 
-    func reopenChapter(completion: @escaping (Result<LabCore, Error>) -> Void) {
-        openDocument("workspaceReopenChapter", fields: [:], completion: completion)
+    func reopenChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
+        guard (owners[scope]?.core.documentViewCount ?? 0) <= 1 else {
+            completion(.failure(LabError.message("请先关闭这个章节的另一处显示，再重新打开"))); return
+        }
+        openDocument("workspaceReopenChapter", scope: scope, completion: completion)
     }
 
-    private func openDocument(_ operation: String, fields: [String: Any],
+    private func openDocument(_ operation: String, scope: ChapterScope,
                               completion: @escaping (Result<LabCore, Error>) -> Void) {
         precondition(Thread.isMainThread)
-        guard !switchingDocument, currentDocument?.hasPendingDocumentWork != true else {
+        guard beginOwnerChange() else {
             completion(.failure(LabError.message("请先完成输入，并等待正文保存后再切换章节")))
             return
         }
-        switchingDocument = true
-        perform({ (result: Result<LabCore, Error>) in
-            self.switchingDocument = false
-            if case .success(let core) = result { self.currentDocument = core }
+        perform({ (result: Result<WorkspaceDocumentReply, Error>) in
+            let result = result.map { reply -> LabCore in
+                if let owner = self.owners[scope], owner.handle == reply.handle { return owner.core }
+                // Only a successful explicit reopen invalidates this scope.
+                self.owners[scope]?.core.invalidate()
+                let core = LabCore(handle: reply.handle, directory: self.directory)
+                self.owners[scope] = Owner(handle: reply.handle, core: core)
+                return core
+            }
+            self.endOwnerChange()
             completion(result)
         }) {
-            let opened: WorkspaceDocumentReply = try self.request(operation, fields: fields)
-            return LabCore(handle: opened.handle, directory: self.directory)
+            try self.request(operation, fields: ["projectId": scope.projectID, "chapterId": scope.chapterID])
         }
+    }
+
+    func closeChapter(projectID: String, chapterID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
+        guard (owners[scope]?.core.documentViewCount ?? 0) <= 1, beginOwnerChange() else {
+            completion(.failure(LabError.message("请先完成输入、处理草稿，并关闭这个章节的另一处显示"))); return
+        }
+        perform({ (result: Result<Bool, Error>) in
+            if case .success = result { self.owners.removeValue(forKey: scope)?.core.invalidate() }
+            self.endOwnerChange()
+            completion(result)
+        }) {
+            try self.emptyRequest("workspaceCloseChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+        }
+    }
+
+    func close(completion: @escaping (Result<Bool, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard beginOwnerChange() else {
+            completion(.failure(LabError.message("仍有未完成输入或待恢复草稿，请先保存所有章节"))); return
+        }
+        perform({ (result: Result<Bool, Error>) in
+            if case .success = result {
+                self.owners.values.forEach { $0.core.invalidate() }
+                self.owners.removeAll()
+            }
+            self.endOwnerChange()
+            completion(result)
+        }) {
+            guard self.handle != nil else { return true }
+            _ = try self.emptyRequest("workspaceClose")
+            self.handle = nil
+            return true
+        }
+    }
+
+    private func beginOwnerChange() -> Bool {
+        guard !isChangingOwners, !hasPendingDocuments else { return false }
+        isChangingOwners = true
+        owners.values.forEach { $0.core.suspend(true) }
+        return true
+    }
+    private func endOwnerChange() {
+        isChangingOwners = false
+        owners.values.forEach { $0.core.suspend(false) }
+    }
+    private func emptyRequest(_ operation: String, fields: [String: Any] = [:]) throws -> Bool {
+        guard let handle else { throw LabError.message("请先打开工作区") }
+        var request = fields; request["operation"] = operation; request["handle"] = handle
+        let _: LabState? = try LabCore.call(request)
+        return true
     }
 
     private func request<Payload: Decodable>(_ operation: String, fields: [String: Any] = [:]) throws -> Payload {

@@ -45,6 +45,7 @@ fn workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_sw
     format_document(cold, "heading3", json!({"location":8,"length":0}));
     let expected = state(cold)["projection"]["outline"].clone();
     assert_eq!(expected.as_array().unwrap().len(), 3);
+    success(fixture.chapter_request("workspaceCloseChapter", 0));
     let handle = fixture.open(1)["handle"].as_u64().unwrap();
     insert(handle, "当前");
     format_document(handle, "heading1", json!({"location":0,"length":0}));

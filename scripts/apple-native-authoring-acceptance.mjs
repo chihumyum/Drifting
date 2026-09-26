@@ -85,7 +85,7 @@ const specs = [
     'native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input',
     'native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes',
   ] },
-  { name: 'bridge', crate: 'drifting-apple-bridge', count: 31, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
+  { name: 'bridge', crate: 'drifting-apple-bridge', count: 34, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
 ];
 const boundaries = [
   'Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.',

@@ -39,6 +39,9 @@ const requiredCases = {
     'workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation',
   ],
   'bridge-workspace': [
+    'workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history',
+    'workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes',
+    'workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry',
     'workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch',
     'workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database',
     'workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks',
@@ -56,7 +59,7 @@ const requiredCases = {
 };
 const boundaries = {
   source: 'shared Rust workspace and bridge commands; actual renderer decoder and domain materializer',
-  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement',
+  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement; retained chapter owners with independent history, scoped reopen and close, all-owner close and retained drafts/save failures for retry',
   nativeUI: 'separate native acceptance report', physicalDevice: 'not-run', physicalIME: 'not-run',
   realAccount: 'not-run', signedDistribution: 'not-run', fullRemoteSync: 'not-certified', performance: 'deferred',
 };

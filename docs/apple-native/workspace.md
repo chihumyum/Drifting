@@ -3,9 +3,9 @@
 This is a functional integration of P3 shared commands with the minimum P5/P6
 native host. Creation and editing were accepted in `15e298ba`; project/chapter
 rename followed in `5a604200` and chapter ordering in `5bc7a9f8`. The current
-extension adds [whole-book outline navigation](outline.md), following native
-selection and block formatting in `be701d92`. It keeps the same document owner,
-history and durable persistence path.
+extension adds [chapter tabs and split editing](tabs-and-split.md), following
+selection and block formatting in `be701d92` and whole-book outline navigation
+in `94a9e6f9`. It keeps the shared document, history and durable persistence path.
 This slice does not complete P3, P2 remote semantics, desktop parity or
 mobile release. Performance tuning remains deferred.
 
@@ -30,10 +30,13 @@ and tail; it never seeds from the JSON cache.
 
 AppKit presents project and chapter lists beside the editor. UIKit uses project,
 chapter and editor screens. Both offer creation, rename, ordering, selection and block formatting, whole-book outline navigation, automatic save,
-explicit save and reopen. Chapter transitions create a new document handle and
-Swift store only after saving the old owner and opening the candidate successfully.
-Selections and history cannot cross chapters. Pending input, marked composition
-and failed persistence prevent replacement or metadata commands.
+explicit save and reopen. The workspace retains one handle per open chapter;
+switching back verifies its scope and reuses the same owner. New-chapter loading
+failure retains all existing owners. AppKit tabs retain their views and bindings,
+and two panes can share a chapter with independent selections. UIKit retains one
+visible editor and explicitly releases chapters it leaves. Selections and history
+cannot cross chapters. Pending input, marked composition and failed persistence
+prevent destructive close/reopen or metadata commands.
 
 Rename validates active scope and the target entity's current incarnation. Project
 names must be nonblank. Chapter titles share the existing project-wide,
@@ -101,7 +104,7 @@ UI/build dimensions separate. Agreed scenarios are:
   prose owner, uses the heading menu, switches chapters and restores names, order,
   prose and heading structure after restart.
 
-The current workspace report passes 14 core and 13 bridge cases. Production
+The generated workspace report records the current core and bridge cases. Production
 renderer replay accepts the actual creation, rename and reorder journals, including
 all three order transitions and matching field clocks. Formatting exchanges real
 marks and XML structure with installed Yjs. The generated native report records
@@ -124,6 +127,12 @@ distribution remain separate gates. The six known old-peer alias-delete failures
 stay open; this local workflow does not certify general remote convergence.
 No push or release is part of this batch.
 
-Next connect chapter tabs and split editing while preserving document ownership,
-selection and history. Act editing, deletion, full outline parity, general remote
-synchronization and performance measurement remain separate batches.
+The current [tabs and split record](tabs-and-split.md) adds retained per-chapter
+owners, two visible Mac panes, guarded close/reopen and explicit UIKit release.
+It records the latest attended Mac workflow and links the current generated
+source, AppKit and platform results; the earlier observations above remain
+historical evidence for their own batches.
+
+Next integrate native search with this writing workspace. Act editing, deletion,
+full outline parity, general remote synchronization and performance measurement
+remain separate batches.

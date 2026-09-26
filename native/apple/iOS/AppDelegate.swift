@@ -440,6 +440,8 @@ final class ChapterEditorViewController: UIViewController {
     }
     private func canLeaveDocument() -> Bool {
         guard !loading else { return false }
+        // Shared pending work includes marked input and failed view drafts,
+        // as well as queued writes and unresolved persistence failures.
         guard documentView?.binding.hasPendingWork != true else {
             status.text = "请先完成输入，并等待正文保存。保存失败时可在编辑器中重试。"
             return false
@@ -489,17 +491,30 @@ final class ChapterEditorViewController: UIViewController {
                 guard let self else { return }
                 switch result {
                 case .success(let core):
-                    // The bridge has replaced the handle. Mount immediately;
-                    // dismissal animation must never re-enable the old owner.
-                    self.outlineController = nil
-                    self.chapter = WorkspaceChapter(id: entry.id, title: entry.title)
-                    self.heading.text = entry.title
-                    self.pendingReveal = blockID
-                    self.mountDocument(core)
-                    self.updateOrderMenu()
-                    self.setLoading(false)
-                    self.status.text = "正文自动保存"
-                    controller?.dismiss(animated: true)
+                    // Opening a candidate retains the old owner. Release it
+                    // before replacing this single-pane editor; a close error
+                    // must leave the visible draft and its retry action intact.
+                    self.workspace.closeChapter(projectID: self.project.id, chapterID: self.chapter.id) { [weak self, weak controller] closed in
+                        guard let self else { return }
+                        switch closed {
+                        case .success:
+                            self.outlineController = nil
+                            self.chapter = WorkspaceChapter(id: entry.id, title: entry.title)
+                            self.heading.text = entry.title
+                            self.pendingReveal = blockID
+                            self.mountDocument(core)
+                            self.updateOrderMenu()
+                            self.setLoading(false)
+                            self.status.text = "正文自动保存"
+                            controller?.dismiss(animated: true)
+                        case .failure(let error):
+                            // The unopened candidate remains cached for retry;
+                            // it has no view or unsubmitted input to discard.
+                            self.setLoading(false)
+                            self.status.text = error.localizedDescription
+                            model.showStatus(error.localizedDescription)
+                        }
+                    }
                 case .failure(let error):
                     self.setLoading(false)
                     model.showStatus(error.localizedDescription)
@@ -578,22 +593,35 @@ final class ChapterEditorViewController: UIViewController {
         view.endEditing(true)
         guard canLeaveDocument() else { return }
         setLoading(true)
-        workspace.reopenChapter { [weak self] result in
+        workspace.reopenChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
             guard let self else { return }
-            self.setLoading(false)
             switch result {
             case .success(let core):
                 self.mountDocument(core)
+                self.setLoading(false)
                 self.status.text = "已从磁盘重新打开，正文自动保存"
-            case .failure(let error): self.status.text = error.localizedDescription
+            case .failure(let error):
+                self.setLoading(false)
+                self.status.text = error.localizedDescription
             }
         }
     }
     @objc private func backToChapters() {
         guard canLeaveDocument() else { return }
         view.endEditing(true)
-        guard canLeaveDocument(), documentView.binding.detach() else { return }
-        documentView.onActivity = nil
-        navigationController?.popViewController(animated: true)
+        guard canLeaveDocument() else { return }
+        setLoading(true)
+        workspace.closeChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.documentView.onActivity = nil
+                _ = self.documentView.binding.detach()
+                self.navigationController?.popViewController(animated: true)
+            case .failure(let error):
+                self.setLoading(false)
+                self.status.text = error.localizedDescription
+            }
+        }
     }
 }

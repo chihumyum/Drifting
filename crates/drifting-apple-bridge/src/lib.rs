@@ -317,6 +317,17 @@ enum Request {
     },
     WorkspaceReopenChapter {
         handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
+    WorkspaceCloseChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
     },
     WorkspaceClose {
         handle: u64,
@@ -922,6 +933,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceCreateChapter { .. }
         | Request::WorkspaceOpenChapter { .. }
         | Request::WorkspaceReopenChapter { .. }
+        | Request::WorkspaceCloseChapter { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

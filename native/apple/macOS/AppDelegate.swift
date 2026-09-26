@@ -10,18 +10,18 @@ struct NativeMacMain {
     }
 }
 
-/// One workspace window owns the current chapter. Multi-window editing stays
-/// out of this flow until each window has an explicit chapter scope.
+/// One window owns a chapter workspace with retained tabs and at most two panes.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private var window: NSWindow!
     private let workspace = LabWorkspaceCore()
     private var projects: [WorkspaceProject] = []
     private var chapters: [WorkspaceChapter] = []
     private var selectedProject: WorkspaceProject?
-    private var currentChapter: WorkspaceChapter?
-    private var currentProject: WorkspaceProject?
-    private var documentCore: LabCore?
-    private var documentView: NativeDocumentView?
+    private var currentChapter: WorkspaceChapter? { chapterWorkspace.activeChapter }
+    private var currentProject: WorkspaceProject? { chapterWorkspace.activeProject }
+    private lazy var chapterWorkspace = MacChapterWorkspace(workspace: workspace)
+    private var documentCore: LabCore? { chapterWorkspace.activeCore }
+    private var documentView: NativeDocumentView? { chapterWorkspace.activeView }
     private var loading = false
     private var updatingSelection = false
     private let projectTable = NSTableView()
@@ -44,6 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var outlinePanel: NSPanel?
     private var outlineController: BookOutlineViewController?
     private var pendingReveal: String?
+    private var splitButton: NSButton!
+    private var closePaneButton: NSButton!
+    private var workspaceClosed = false
+    private var closingWorkspace = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -116,7 +120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         saveButton = button("保存", id: "save-document", action: #selector(saveDocument))
         reopenButton = button("重新打开", id: "reopen-document", action: #selector(reopenDocument))
         outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
-        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton])
+        splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
+        closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -126,6 +132,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         emptyEditor.alignment = .center
         emptyEditor.translatesAutoresizingMaskIntoConstraints = false
         editorHost.addSubview(emptyEditor)
+        chapterWorkspace.translatesAutoresizingMaskIntoConstraints = false
+        editorHost.addSubview(chapterWorkspace)
+        chapterWorkspace.onChange = { [weak self] in self?.activeChapterChanged() }
+        chapterWorkspace.onActivity = { [weak self] busy in self?.documentActivity(busy) }
+        chapterWorkspace.onError = { [weak self] error in self?.status.stringValue = error.localizedDescription }
+        NSLayoutConstraint.activate([
+            chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
+            chapterWorkspace.trailingAnchor.constraint(equalTo: editorHost.trailingAnchor),
+            chapterWorkspace.topAnchor.constraint(equalTo: editorHost.topAnchor),
+            chapterWorkspace.bottomAnchor.constraint(equalTo: editorHost.bottomAnchor),
+        ])
         NSLayoutConstraint.activate([
             emptyEditor.centerXAnchor.constraint(equalTo: editorHost.centerXAnchor),
             emptyEditor.centerYAnchor.constraint(equalTo: editorHost.centerYAnchor),
@@ -217,21 +234,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func setLoading(_ value: Bool) {
         loading = value
         if value { window.makeFirstResponder(nil) }
-        if let documentView {
-            setControls(documentView, enabled: !value)
-            if !value { documentView.binding.store.activity() }
-        }
-        documentView?.textView.isEditable = !value && documentView?.binding.canEdit == true
+        chapterWorkspace.lockViews(value)
         updateControls()
     }
 
-    private func setControls(_ view: NSView, enabled: Bool) {
-        (view as? NSControl)?.isEnabled = enabled
-        for child in view.subviews { setControls(child, enabled: enabled) }
-    }
-
     private func updateControls() {
-        let ready = !loading && documentView?.binding.hasPendingWork != true
+        let ready = !loading && chapterWorkspace.canNavigate
         createProjectButton.isEnabled = ready
         createChapterButton.isEnabled = ready && selectedProject != nil
         renameProjectButton.isEnabled = ready && selectedProject != nil
@@ -240,13 +248,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         moveUpButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex > 0
         moveDownButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex + 1 < chapters.count
         saveButton.isEnabled = ready && documentView != nil
-        reopenButton.isEnabled = ready && documentView != nil
-        outlineButton.isEnabled = ready && selectedProject != nil
+        reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
+        outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        splitButton.isEnabled = ready && documentView != nil
+        closePaneButton.isHidden = chapterWorkspace.paneCount == 1
+        closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
     }
 
     private func canLeaveDocument() -> Bool {
         guard !loading else { return false }
-        guard documentView?.binding.hasPendingWork != true, documentView?.textView.hasMarkedText() != true else {
+        guard chapterWorkspace.canNavigate else {
             status.stringValue = "请先完成输入，并等待正文保存。保存失败时可在编辑器中重试。"
             return false
         }
@@ -302,58 +313,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     private func openChapter(_ chapter: WorkspaceChapter, project: WorkspaceProject, revealBlockID: String? = nil) {
         guard canLeaveDocument() else { return }
-        setLoading(true)
-        workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
-            self?.receiveDocument(result, chapter: chapter, project: project, message: "正文自动保存", revealBlockID: revealBlockID)
+        chapterWorkspace.open(project: project, chapter: chapter) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.pendingReveal = revealBlockID
+                self.status.stringValue = "正文自动保存"
+                if revealBlockID == nil { self.closeOutline() }
+                self.documentActivity(!self.chapterWorkspace.canNavigate)
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.outlineController?.model.showStatus(error.localizedDescription)
+                self.activeChapterChanged()
+            }
         }
     }
 
-    private func receiveDocument(_ result: Result<LabCore, Error>, chapter: WorkspaceChapter,
-                                 project: WorkspaceProject, message: String, revealBlockID: String? = nil) {
-        switch result {
-        case .success(let core):
-            // The bridge has atomically selected the new owner. Detach the old
-            // view before mounting a fresh store; never load into the old view.
-            documentView?.onActivity = nil
-            documentView?.binding.detach()
-            documentView?.removeFromSuperview()
-            documentCore = core
-            let view = NativeDocumentView(core: core)
-            documentView = view
-            currentChapter = chapter
-            currentProject = project
-            pendingReveal = revealBlockID
-            currentTitle.stringValue = "\(project.name) / \(chapter.title)"
-            window.title = "\(chapter.title) — Drifting Native Lab"
-            emptyEditor.isHidden = true
-            view.translatesAutoresizingMaskIntoConstraints = false
-            editorHost.addSubview(view)
-            NSLayoutConstraint.activate([
-                view.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
-                view.trailingAnchor.constraint(equalTo: editorHost.trailingAnchor),
-                view.topAnchor.constraint(equalTo: editorHost.topAnchor),
-                view.bottomAnchor.constraint(equalTo: editorHost.bottomAnchor),
-            ])
-            view.onActivity = { [weak self] busy in self?.documentActivity(busy) }
-            updatingSelection = true
-            if let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
-                chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-            }
-            updatingSelection = false
-            setLoading(false)
-            status.stringValue = message
-            if revealBlockID == nil { closeOutline() }
-            view.binding.load()
-        case .failure(let error):
-            setLoading(false)
-            status.stringValue = error.localizedDescription
-            outlineController?.model.showStatus(error.localizedDescription)
-            updatingSelection = true
-            if let currentChapter, let index = chapters.firstIndex(where: { $0.id == currentChapter.id }) {
-                chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-            } else { chapterTable.deselectAll(nil) }
-            updatingSelection = false
+    private func activeChapterChanged() {
+        emptyEditor.isHidden = documentView != nil
+        updateCurrentTitle()
+        if documentView == nil { currentTitle.stringValue = "开始写作"; window.title = "Drifting Native Lab" }
+        updatingSelection = true
+        if currentProject?.id == selectedProject?.id, let chapter = currentChapter,
+           let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
+            chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        } else { chapterTable.deselectAll(nil) }
+        updatingSelection = false
+        let minWidth: CGFloat = chapterWorkspace.paneCount == 2 ? 1100 : 820
+        window.minSize = NSSize(width: minWidth, height: 660)
+        if window.frame.width < minWidth {
+            var frame = window.frame; frame.size.width = minWidth
+            window.setFrame(frame, display: true)
         }
+        updateControls()
     }
 
     private func documentActivity(_ busy: Bool) {
@@ -374,7 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     @objc private func showOutline() {
-        guard canLeaveDocument(), let project = selectedProject else { return }
+        guard canLeaveDocument(), let project = currentProject ?? selectedProject else { return }
         if let outlinePanel, outlinePanel.isVisible { outlinePanel.makeKeyAndOrderFront(nil); return }
         closeOutline()
         let model = WorkspaceOutlineModel(workspace: workspace, projectID: project.id)
@@ -451,7 +443,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.closeOutline()
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
-                    if self.currentProject?.id == updated.id { self.currentProject = updated }
+                    self.chapterWorkspace.rename(project: updated)
                     self.updatingSelection = true
                     self.projectTable.reloadData()
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) {
@@ -480,7 +472,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 case .success(let updated):
                     self.closeOutline()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
-                    if self.currentChapter?.id == updated.id { self.currentChapter = updated }
+                    self.chapterWorkspace.rename(chapter: updated, projectID: project.id)
                     self.updatingSelection = true
                     self.chapterTable.reloadData()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) {
@@ -588,21 +580,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     @objc private func reopenDocument() {
-        guard canLeaveDocument(), let chapter = currentChapter, let project = currentProject else { return }
-        setLoading(true)
-        workspace.reopenChapter { [weak self] result in
-            self?.receiveDocument(result, chapter: chapter, project: project, message: "已从磁盘重新打开，正文自动保存")
+        guard canLeaveDocument(), chapterWorkspace.canReopenActive else { return }
+        chapterWorkspace.reopenActive { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success: self.status.stringValue = "已从磁盘重新打开，正文自动保存"
+            case .failure(let error): self.status.stringValue = error.localizedDescription
+            }
         }
     }
 
-    func windowShouldClose(_ sender: NSWindow) -> Bool { canLeaveDocument() }
+    @objc private func splitEditor() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.split { [weak self] result in
+            if case .failure(let error) = result { self?.status.stringValue = error.localizedDescription }
+        }
+    }
+    @objc private func closeEditorPane() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.closeSecondPane { [weak self] result in
+            if case .failure(let error) = result { self?.status.stringValue = error.localizedDescription }
+        }
+    }
+
+    private func closeWorkspace(completion: @escaping (Bool) -> Void) {
+        guard !closingWorkspace, canLeaveDocument() else { completion(false); return }
+        closingWorkspace = true
+        chapterWorkspace.close { [weak self] result in
+            guard let self else { return }
+            self.closingWorkspace = false
+            switch result {
+            case .success:
+                self.workspaceClosed = true; self.closeOutline(); completion(true)
+            case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
+            }
+        }
+    }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if workspaceClosed { return true }
+        closeWorkspace { [weak self] success in if success { self?.window.performClose(nil) } }
+        return false
+    }
     func windowWillClose(_ notification: Notification) {
         guard notification.object as? NSWindow === window else { return }
         closeOutline()
-        documentView?.binding.detach()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        canLeaveDocument() ? .terminateNow : .terminateCancel
+        if workspaceClosed { return .terminateNow }
+        guard !closingWorkspace, canLeaveDocument() else { return .terminateCancel }
+        closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
+        return .terminateLater
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }

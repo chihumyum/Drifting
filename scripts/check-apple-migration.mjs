@@ -56,7 +56,10 @@ const report = { schemaVersion: 1, kind: 'apple_native_migration_inventory',
   entries: inventory.entries.length, coverage,
   agentCapabilities: { source: inventory.agentCapabilitySource, sha256: sha256(JSON.stringify(capabilities)) },
   source: { fingerprint: sha256(JSON.stringify(sources)),
-    runtimeFingerprint: sha256(JSON.stringify(sources.filter(file => !file.path.startsWith('docs/') || file.path.startsWith('docs/apple-native/fixtures/')))), files: sources },
+    // Keep prose in the complete source inventory without invalidating native
+    // build/UI evidence when only an upstream note or migration guide changes.
+    runtimeFingerprint: sha256(JSON.stringify(sources.filter(file => !file.path.endsWith('.md')
+      && (!file.path.startsWith('docs/') || file.path.startsWith('docs/apple-native/fixtures/'))))), files: sources },
   openDecisions: inventory.decisionTasks };
 const output = 'docs/apple-native/acceptance/inventory.json';
 if (process.argv.includes('--write')) writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);

@@ -163,7 +163,7 @@
         "project home, tabs, split, focus, navigation, mounted session ownership"
       ],
       "milestone": "P5/P6",
-      "status": "in-progress",
+      "status": "local-writing-tabs-and-two-pane-implemented; remaining-workspace-parity-planned",
       "decisionTask": null
     },
     {
@@ -180,7 +180,7 @@
         "five-level semantics, nullable storyline, ordering and drift visibility"
       ],
       "milestone": "P5/P6",
-      "status": "planned",
+      "status": "read-only-five-level-navigation-implemented; act-editing-and-drift-UI-planned",
       "decisionTask": null
     },
     {
