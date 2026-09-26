@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 1,
+  "targetPlatforms": [
+    "macOS",
+    "iOS",
+    "iPadOS"
+  ],
+  "excludedPlatforms": [
+    "Android",
+    "Windows",
+    "Linux"
+  ],
+  "agentCapabilitySource": "docs/agent-runtime/acceptance/agent-capabilities.json",
+  "entries": [
+    {
+      "id": "database",
+      "sources": [
+        "src-tauri/src/database.rs",
+        "crates/drifting-core/src/database.rs",
+        "drizzle"
+      ],
+      "target": "crates/drifting-core/database",
+      "strategy": "retain-rust",
+      "dependencies": [],
+      "acceptance": [
+        "published-prefix migration, tamper rejection, safety snapshot and SIGKILL matrix"
+      ],
+      "milestone": "P1",
+      "status": "extracted-and-tested",
+      "decisionTask": null
+    },
+    {
+      "id": "durable-files",
+      "sources": [
+        "src-tauri/src/native_capabilities.rs",
+        "crates/drifting-core/src/file_io.rs"
+      ],
+      "target": "crates/drifting-core/file_io and asset services",
+      "strategy": "retain-rust",
+      "dependencies": [
+        "database"
+      ],
+      "acceptance": [
+        "atomic write and deletion durability; managed paths"
+      ],
+      "milestone": "P1/P3",
+      "status": "durability-primitives-extracted; asset-domain-port-planned",
+      "decisionTask": null
+    },
+    {
+      "id": "host-lifecycle",
+      "sources": [
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/main.rs",
+        "src-tauri/src/commands.rs",
+        "src-tauri/src/state.rs",
+        "src-tauri/src/data_paths.rs"
+      ],
+      "target": "native/apple platform hosts",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "database"
+      ],
+      "acceptance": [
+        "startup, close, scene interruption and distinct app/data identity"
+      ],
+      "milestone": "P1/P2",
+      "status": "synthetic-native-hosts-implemented; production-lifecycle-planned",
+      "decisionTask": null
+    },
+    {
+      "id": "prose",
+      "sources": [
+        "src/renderer/services/yjs-document-session.ts",
+        "src/renderer/services/yjs-local-durability.service.ts",
+        "src/renderer/hooks/useYjsDoc.ts",
+        "src/renderer/hooks/useEntityYjsDoc.ts"
+      ],
+      "target": "Rust document session",
+      "strategy": "replace-library",
+      "dependencies": [
+        "database"
+      ],
+      "acceptance": [
+        "Yjs/Yrs XML semantics, tail replay, compaction, local origins and undo"
+      ],
+      "milestone": "P2",
+      "status": "headless-compatibility-accepted; inline-and-sibling-native-binding-implemented; authored-journal-and-durable-tail-implemented; performance-gate-open",
+      "decisionTask": "D1"
+    },
+    {
+      "id": "editor",
+      "sources": [
+        "src/renderer/features/editor",
+        "src/renderer/components/editor",
+        "src/renderer/lib/extensions",
+        "src/renderer/views/NodeEditorView.tsx"
+      ],
+      "target": "AppKit/UIKit TextKit binding",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "prose"
+      ],
+      "acceptance": [
+        "IME, UTF-16 positions, split/merge IDs, marks, opaque data, selection, multi-view"
+      ],
+      "milestone": "P2",
+      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open",
+      "decisionTask": "D2/D3/D4"
+    },
+    {
+      "id": "models",
+      "sources": [
+        "src/renderer/domain",
+        "src/renderer/schema",
+        "src/renderer/sqlite-repo"
+      ],
+      "target": "Rust domain models and repositories",
+      "strategy": "port-business",
+      "dependencies": [
+        "database"
+      ],
+      "acceptance": [
+        "semantic operation comparisons and immutable schema"
+      ],
+      "milestone": "P3",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "business",
+      "sources": [
+        "src/renderer/usecase",
+        "src/renderer/hooks",
+        "src/renderer/store"
+      ],
+      "target": "Rust commands; Swift presentation state",
+      "strategy": "port-business",
+      "dependencies": [
+        "models",
+        "prose"
+      ],
+      "acceptance": [
+        "single authority for create/delete/link/restore; effects and journal parity"
+      ],
+      "milestone": "P3",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "project-workspace",
+      "sources": [
+        "src/renderer/features/workspace",
+        "src/renderer/app",
+        "src/renderer/shells"
+      ],
+      "target": "native/apple workspace controllers",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "business"
+      ],
+      "acceptance": [
+        "project home, tabs, split, focus, navigation, mounted session ownership"
+      ],
+      "milestone": "P5/P6",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "outline-drift",
+      "sources": [
+        "src/renderer/components/leftBars"
+      ],
+      "target": "native/apple outline and drift views",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "business"
+      ],
+      "acceptance": [
+        "five-level semantics, nullable storyline, ordering and drift visibility"
+      ],
+      "milestone": "P5/P6",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "elements",
+      "sources": [
+        "src/renderer/features/entities",
+        "src/renderer/features/entity-create"
+      ],
+      "target": "Rust element commands and native inspectors",
+      "strategy": "port-business",
+      "dependencies": [
+        "business"
+      ],
+      "acceptance": [
+        "category, element, patch CRUD and reference cleanup"
+      ],
+      "milestone": "P3/P5",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "comments-review",
+      "sources": [
+        "src/renderer/features/comments",
+        "src/renderer/components/rightBars"
+      ],
+      "target": "Rust anchor/review services and native review UI",
+      "strategy": "port-business",
+      "dependencies": [
+        "prose",
+        "business"
+      ],
+      "acceptance": [
+        "anchor preservation, invalidation and durable review decisions"
+      ],
+      "milestone": "P2/P3/P5",
+      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; production-lifecycle-review-UI-planned",
+      "decisionTask": null
+    },
+    {
+      "id": "graph-timeline",
+      "sources": [
+        "src/renderer/features/graph",
+        "src/renderer/views/StoryGraphView.tsx",
+        "src/renderer/views/SuperViews",
+        "src/renderer/components/topBars"
+      ],
+      "target": "native/apple graph/timeline",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "business"
+      ],
+      "acceptance": [
+        "relation types, drift-endpoint rule, timeline/order, pointer/touch and large projects"
+      ],
+      "milestone": "P5",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "library",
+      "sources": [
+        "src/renderer/features/library",
+        "src/renderer/services/local-project-asset.service.ts",
+        "src/renderer/services/asset-store.service.ts",
+        "src/renderer/services/asset-store-restart-gc.ts"
+      ],
+      "target": "Rust asset services and native library",
+      "strategy": "port-business",
+      "dependencies": [
+        "durable-files",
+        "business"
+      ],
+      "acceptance": [
+        "install/delete/restart boundaries and durable asset refs"
+      ],
+      "milestone": "P3/P5",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "metrics",
+      "sources": [
+        "packages/prose-metrics",
+        "src/renderer/features/stats",
+        "src/renderer/services/node-prose-metrics.service.ts"
+      ],
+      "target": "Rust metrics port or shared compatible engine",
+      "strategy": "replace-library",
+      "dependencies": [
+        "prose",
+        "models"
+      ],
+      "acceptance": [
+        "synthetic corpus counting parity; preserve Apache-2.0 provenance"
+      ],
+      "milestone": "P3",
+      "status": "planned",
+      "decisionTask": "D6"
+    },
+    {
+      "id": "reference-projection",
+      "sources": [
+        "src/renderer/services/reference-index.service.ts",
+        "src/renderer/services/reference-projection.service.ts",
+        "src/renderer/services/reference-index-queue.ts",
+        "src/renderer/services/reference-index-repository.ts"
+      ],
+      "target": "Rust derived reference services",
+      "strategy": "port-business",
+      "dependencies": [
+        "business",
+        "prose"
+      ],
+      "acceptance": [
+        "rebuildable indices, retroactive links and deletion behavior"
+      ],
+      "milestone": "P3",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "workspace-projection",
+      "sources": [
+        "src/renderer/services/workspace-projection.service.ts",
+        "src/renderer/services/workspace-projection-refresh.ts"
+      ],
+      "target": "Rust queries and Swift snapshots",
+      "strategy": "port-business",
+      "dependencies": [
+        "models",
+        "business"
+      ],
+      "acceptance": [
+        "consistent generations, owned metrics patches and structural refresh barrier"
+      ],
+      "milestone": "P3/P5",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "history-restore",
+      "sources": [
+        "src/renderer/services/snapshot-history.service.ts",
+        "src/renderer/services/snapshot-restore.service.ts",
+        "src/renderer/services/backup"
+      ],
+      "target": "Rust history/checkpoint services",
+      "strategy": "port-business",
+      "dependencies": [
+        "prose",
+        "business"
+      ],
+      "acceptance": [
+        "restore identities, guarded inverse, journal and asset closure"
+      ],
+      "milestone": "P3/P4",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "sync",
+      "sources": [
+        "src/renderer/sync",
+        "src/renderer/hooks/useYjsSync.ts"
+      ],
+      "target": "Rust provider-neutral sync runtime",
+      "strategy": "port-business",
+      "dependencies": [
+        "business",
+        "prose",
+        "durable-files"
+      ],
+      "acceptance": [
+        "receipt/frontier ordering, replay/no-echo, offline, duplicate, restart and restore"
+      ],
+      "milestone": "P2/P4",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "sync-transport",
+      "sources": [
+        "src-tauri/src/sync_object_store.rs",
+        "src-tauri/src/sync_asset_store.rs",
+        "src-tauri/src/google_drive_sync.rs",
+        "src-tauri/src/google_drive_sync_legacy_fixture.rs"
+      ],
+      "target": "Rust transports with Apple credential/file ports",
+      "strategy": "retain-rust",
+      "dependencies": [
+        "sync",
+        "credentials"
+      ],
+      "acceptance": [
+        "transport conformance, credential ownership, attachments and separate real accounts"
+      ],
+      "milestone": "P4",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "agent",
+      "sources": [
+        "src/renderer/lib/agent",
+        "src/renderer/features/agent",
+        "src/renderer/components/agent"
+      ],
+      "target": "Rust in-process Agent plus native views",
+      "strategy": "port-business",
+      "dependencies": [
+        "prose",
+        "business",
+        "credentials"
+      ],
+      "acceptance": [
+        "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
+      ],
+      "milestone": "P4/P5",
+      "status": "planned",
+      "decisionTask": "D7"
+    },
+    {
+      "id": "model-network",
+      "sources": [
+        "src-tauri/src/openai_responses.rs",
+        "src/renderer/lib/ai"
+      ],
+      "target": "Rust model drivers and native settings",
+      "strategy": "port-business",
+      "dependencies": [
+        "credentials",
+        "agent"
+      ],
+      "acceptance": [
+        "streaming/cancel, provider neutrality and versioned contracts"
+      ],
+      "milestone": "P4",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "extensions",
+      "sources": [
+        "src-tauri/src/mcp_http.rs",
+        "src-tauri/src/mcp_stdio.rs"
+      ],
+      "target": "Rust MCP transports and per-platform capabilities",
+      "strategy": "retain-rust",
+      "dependencies": [
+        "agent"
+      ],
+      "acceptance": [
+        "availability, permission, process lifetime and transport cancellation"
+      ],
+      "milestone": "P4",
+      "status": "planned",
+      "decisionTask": "D7"
+    },
+    {
+      "id": "credentials",
+      "sources": [
+        "src-tauri/src/secure_storage.rs",
+        "src-tauri/src/codex_oauth.rs",
+        "src-tauri/plugins/drifting-google-drive-oauth"
+      ],
+      "target": "Apple secure storage/OAuth adapters",
+      "strategy": "port-business",
+      "dependencies": [],
+      "acceptance": [
+        "namespace isolation, no plaintext fallback, opaque references and reauthorization"
+      ],
+      "milestone": "P4",
+      "status": "planned",
+      "decisionTask": "D5"
+    },
+    {
+      "id": "media",
+      "sources": [
+        "src-tauri/src/image_pipeline.rs",
+        "src-tauri/src/apple_image_codec.rs",
+        "src-tauri/src/android_image_codec.rs",
+        "src-tauri/src/webview_media.rs"
+      ],
+      "target": "Rust image pipeline plus Apple image/PDF/audio adapters",
+      "strategy": "replace-library",
+      "dependencies": [
+        "library"
+      ],
+      "acceptance": [
+        "PDF preview, image derivatives, microphone permission, capture interruptions"
+      ],
+      "milestone": "P5",
+      "status": "planned",
+      "decisionTask": "D8"
+    },
+    {
+      "id": "fonts",
+      "sources": [
+        "src-tauri/src/system_fonts.rs"
+      ],
+      "target": "native/apple font adapter",
+      "strategy": "replace-library",
+      "dependencies": [],
+      "acceptance": [
+        "font enumeration, preferences and fallback"
+      ],
+      "milestone": "P2/P5",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "import-export",
+      "sources": [
+        "src/renderer/services/import",
+        "src/renderer/services/export"
+      ],
+      "target": "Rust transformations and Apple file UI",
+      "strategy": "replace-library",
+      "dependencies": [
+        "business",
+        "library"
+      ],
+      "acceptance": [
+        "DOCX/Markdown import/export parity and synthetic asset fixtures"
+      ],
+      "milestone": "P5",
+      "status": "planned",
+      "decisionTask": "D8"
+    },
+    {
+      "id": "settings",
+      "sources": [
+        "src/renderer/features/settings",
+        "src/renderer/locales"
+      ],
+      "target": "native/apple settings and localization",
+      "strategy": "rebuild-ui",
+      "dependencies": [
+        "credentials"
+      ],
+      "acceptance": [
+        "preferences, provider controls, accessibility and errors"
+      ],
+      "milestone": "P5/P6",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "platform",
+      "sources": [
+        "src/renderer/platform"
+      ],
+      "target": "versioned Swift/core host ports",
+      "strategy": "port-business",
+      "dependencies": [
+        "database",
+        "credentials"
+      ],
+      "acceptance": [
+        "typed capabilities, cancellation, lifetime and native errors"
+      ],
+      "milestone": "P1/P4",
+      "status": "fixture-only-bridge-implemented; production-ports-planned",
+      "decisionTask": null
+    },
+    {
+      "id": "updates-diagnostics",
+      "sources": [
+        "src-tauri/src/app_update.rs",
+        "src/renderer/services/update",
+        "src/renderer/services/diagnostics"
+      ],
+      "target": "Apple distribution and sanitized diagnostics",
+      "strategy": "replace-library",
+      "dependencies": [
+        "host-lifecycle"
+      ],
+      "acceptance": [
+        "signing, update/rollback, bundle-source provenance, redacted logs"
+      ],
+      "milestone": "P7",
+      "status": "planned",
+      "decisionTask": "D5"
+    },
+    {
+      "id": "hosted-boundary",
+      "sources": [
+        "src/renderer/services/account.service.ts",
+        "src/renderer/services/subscription.service.ts",
+        "src/renderer/services/api"
+      ],
+      "target": "versioned public contracts only; no hosted implementation",
+      "strategy": "port-business",
+      "dependencies": [],
+      "acceptance": [
+        "public local-only default and private-service exclusion"
+      ],
+      "milestone": "P0/P4",
+      "status": "planned",
+      "decisionTask": null
+    },
+    {
+      "id": "support-and-tools",
+      "sources": [
+        "src/renderer/utils",
+        "src/renderer/architecture",
+        "src/renderer/performance",
+        "src/dev-cli",
+        "src/renderer/lib",
+        "src/renderer/components",
+        "src/renderer/views"
+      ],
+      "target": "Rust pure helpers, native presentation helpers and acceptance tooling",
+      "strategy": "port-business",
+      "dependencies": [
+        "business"
+      ],
+      "acceptance": [
+        "classify remaining helper dependencies per operation; preserve CLI observability"
+      ],
+      "milestone": "P3/P5",
+      "status": "planned",
+      "decisionTask": null
+    }
+  ],
+  "decisionTasks": {
+    "D1": "Yrs 0.28.0 with redone-offset and sparse-replay patches / Yjs 13.6.32 document matrix; full native behavior remains P2b/P2c",
+    "D2": "TextKit engine choice and instrumentation: P2b",
+    "D3": "UTF-16/CRDT/composition mapping: P2b",
+    "D4": "Undo origins and shared multi-view owner: P2b",
+    "D5": "Signing/sandbox/credentials/distribution/minimum-OS/Intel: before P5 exit",
+    "D6": "Prose metric port, dependency and license parity: P3",
+    "D7": "Minimal Rust Agent permission/read/write/review portability and platform transport matrix: before P4 bulk port",
+    "D8": "PDF/audio/import/export library replacement or bounded transition: before P5 integration"
+  }
+}

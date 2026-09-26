@@ -33,13 +33,9 @@ import {
 } from './yjs-prose-persistence-coordinator';
 import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
-const baselineSql = readFileSync(
-  new URL(
-    '../../../../../drizzle/0000_local_first_baseline.sql',
-    import.meta.url,
-  ),
-  'utf8',
-).replaceAll('--> statement-breakpoint', '');
+const migrationDirectory = new URL('../../../../../drizzle/', import.meta.url);
+const journal = JSON.parse(readFileSync(new URL('meta/_journal.json', migrationDirectory), 'utf8')) as { entries: Array<{ tag: string }> };
+const baselineSql = journal.entries.map(entry => readFileSync(new URL(`${entry.tag}.sql`, migrationDirectory), 'utf8').replaceAll('--> statement-breakpoint', '')).join('\n');
 
 class NodeSqliteGateway implements DatabasePlatformApi {
   readonly database = new DatabaseSync(':memory:');
@@ -356,6 +352,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(1);
     expect(queryCount(gateway!, 'sync_change_set')).toBe(1);
     expect(queryCount(gateway!, 'sync_apply_receipt')).toBe(1);
+    expect(queryCount(gateway!, 'sync_yjs_materialization_receipt')).toBe(1);
 
     const duplicateProjection = vi.fn();
     const duplicateAppend = vi.fn();
@@ -608,6 +605,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(queryCount(gateway!, 'yjs_updates')).toBe(0);
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(0);
     expect(queryCount(gateway!, 'sync_change_set')).toBe(0);
+    expect(queryCount(gateway!, 'sync_yjs_materialization_receipt')).toBe(0);
     const projection = gateway!.database
       .prepare('SELECT content_json, updated_at FROM node_content WHERE node_id = ?')
       .get('node-1') as { content_json: string; updated_at: string };
@@ -874,6 +872,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(0);
     expect(queryCount(gateway!, 'sync_change_set')).toBe(0);
+    expect(queryCount(gateway!, 'sync_yjs_materialization_receipt')).toBe(0);
   });
 });
 

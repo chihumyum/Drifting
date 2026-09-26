@@ -1,11 +1,63 @@
 import { and, asc, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
-import { getDb, type DbExecutor } from '../lib/db';
+import { assertActiveDatabaseTransaction, getDb, type DbExecutor } from '../lib/db';
 import {
   YjsDocumentRevisionProvenanceTable,
   YjsDocumentRevisionTable,
   yjsSnapshots,
   yjsUpdates,
 } from '../schema/drizzle';
+
+export type YjsMaterializationBinding =
+  | { readonly kind: 'authored'; readonly builder: object; readonly mutationIndex: number }
+  | { readonly kind: 'remote'; readonly changeSetId: string; readonly mutationIndex: number };
+declare const appendTokenBrand: unique symbol;
+/** Only a successful actual append can mint this transaction-local proof. */
+export interface YjsMaterializationToken {
+  readonly [appendTokenBrand]: true;
+}
+type AppendLease = {
+  tx: DbExecutor;
+  binding: YjsMaterializationBinding;
+  docId: string;
+  updateId: number;
+  revision: number;
+  event: Uint8Array;
+  consumed: boolean;
+};
+const appendLeases = new WeakMap<YjsMaterializationToken, AppendLease>();
+export function readMaterializationAppend(
+  tx: DbExecutor,
+  token: YjsMaterializationToken,
+  binding: YjsMaterializationBinding,
+): Readonly<Omit<AppendLease, 'tx' | 'binding' | 'consumed'>> {
+  assertActiveDatabaseTransaction(tx);
+  const lease = appendLeases.get(token);
+  if (
+    !lease ||
+    lease.tx !== tx ||
+    lease.consumed ||
+    lease.binding.kind !== binding.kind ||
+    lease.binding.mutationIndex !== binding.mutationIndex ||
+    (binding.kind === 'authored'
+      ? lease.binding.kind !== 'authored' || lease.binding.builder !== binding.builder
+      : lease.binding.kind !== 'remote' || lease.binding.changeSetId !== binding.changeSetId)
+  )
+    throw new Error('Materialization token is missing, consumed, or bound to another append');
+  return {
+    docId: lease.docId,
+    updateId: lease.updateId,
+    revision: lease.revision,
+    event: new Uint8Array(lease.event),
+  };
+}
+export function consumeMaterializationAppend(
+  tx: DbExecutor,
+  token: YjsMaterializationToken,
+  binding: YjsMaterializationBinding,
+): void {
+  readMaterializationAppend(tx, token, binding);
+  appendLeases.get(token)!.consumed = true;
+}
 
 export interface YjsUpdateRow {
   id: number;
@@ -62,6 +114,14 @@ export class YjsDocumentRevisionConflictError extends Error {
 }
 
 export interface YjsRepository {
+  appendMaterializedUpdate(
+    docId: string,
+    update: Uint8Array,
+    binding: YjsMaterializationBinding,
+    source: YjsRevisionSource,
+    expectedRevision?: number,
+  ): Promise<YjsUpdateRevisionResult & { token: YjsMaterializationToken }>;
+
   listUpdates(docId: string, sinceId?: number): Promise<YjsUpdateRow[]>;
   listDocIds(only?: readonly string[]): Promise<string[]>;
   /**
@@ -71,11 +131,7 @@ export interface YjsRepository {
    * change-set. Remote reducers use this method inside their remote apply
    * transaction and must never route through the authored helper.
    */
-  appendUpdate(
-    docId: string,
-    updateBlob: Uint8Array,
-    source?: YjsRevisionSource,
-  ): Promise<number>;
+  appendUpdate(docId: string, updateBlob: Uint8Array, source?: YjsRevisionSource): Promise<number>;
   /**
    * Compare-and-increment the durable revision while appending an update.
    * Used by prepared Agent prose commands after their state vector/hash checks.
@@ -101,10 +157,7 @@ export interface YjsRepository {
    */
   listRevisions(only?: readonly string[]): Promise<Array<{ docId: string; revision: number }>>;
   /** Durable authors for revisions strictly newer than `afterRevision`. */
-  listRevisionProvenance(
-    docId: string,
-    afterRevision: number,
-  ): Promise<YjsRevisionProvenanceRow[]>;
+  listRevisionProvenance(docId: string, afterRevision: number): Promise<YjsRevisionProvenanceRow[]>;
   /** Highest update id currently stored for this doc, or 0 if none. */
   maxUpdateId(docId: string): Promise<number>;
   /**
@@ -363,6 +416,35 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     });
   };
 
+  const appendMaterializedUpdate: YjsRepository['appendMaterializedUpdate'] = async (
+    docId,
+    update,
+    binding,
+    source,
+    expectedRevision,
+  ) => {
+    if (!dbOverride) throw new Error('Materialized append requires an explicit transaction');
+    assertActiveDatabaseTransaction(dbOverride);
+    if (!Number.isSafeInteger(binding.mutationIndex) || binding.mutationIndex < 0)
+      throw new TypeError('Invalid materialization mutation index');
+    const bound = { ...binding };
+    const event = new Uint8Array(update);
+    const expected = expectedRevision ?? (await getRevisionFrom(dbOverride, docId));
+    const result = await appendUpdateCas(docId, event, expected, source);
+    assertActiveDatabaseTransaction(dbOverride);
+    const token = Object.freeze({}) as YjsMaterializationToken;
+    appendLeases.set(token, {
+      tx: dbOverride,
+      binding: bound,
+      docId,
+      updateId: result.updateId,
+      revision: result.revision,
+      event,
+      consumed: false,
+    });
+    return { ...result, token };
+  };
+
   const listDocIds = async (only?: readonly string[]): Promise<string[]> => {
     if (only?.length === 0) return [];
     const updateRows = await dbProvider()
@@ -504,6 +586,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     listUpdates,
     listDocIds,
     appendUpdate,
+    appendMaterializedUpdate,
     appendUpdateCas,
     getSnapshot,
     upsertSnapshot,

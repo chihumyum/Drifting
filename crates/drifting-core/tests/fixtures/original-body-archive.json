@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "scope": {
+    "projectId": "synthetic-archive-project",
+    "projectSyncId": "synthetic-archive-sync",
+    "syncGenerationId": "synthetic-archive-generation",
+    "documentId": "node-content:synthetic-body-archive",
+    "incarnation": 0
+  },
+  "originalOperations": [
+    {
+      "name": "seed",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxsAAAGLz+VoAGdjb3VudGVyAGhwcm90b2NvbHdkcmlmdGluZy5zeW5jLmNoYW5nZXNldGh3cml0ZXJJZG5hcmNoaXZlLXdyaXRlcmlkZXZpY2VTZXEBaW11dGF0aW9uc4GmZWluZGV4AGZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCNub2RlLWNvbnRlbnQ6c3ludGhldGljLWJvZHktYXJjaGl2ZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWSiZnVwZGF0ZVg9AQTp+wMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwDp+wMABgQA6fsDAQbmva7msZAoAOn7AwACaWQBdwFiAHgZc291cmNlUmV0ZW50aW9uUHJvdmVuYW5jZaRka2luZHF0cmFuc2FjdGlvbi1ldmVudGd2ZXJzaW9uAW5iZWZvcmVTbmFwc2hvdEIAAHJ0cmFuc2FjdGlvbkRlbGV0ZXOAbXBheWxvYWRTaGEyNTZ4R3NoYTI1NjoyYjcwODY2NjM3NjRiMTJlZmNhMTg2ZGVkZjE2NDcyYWM1Y2E4NzVmOWJjZTZlZDdjMDI5ODllZTU3NGI1ZGNkbnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GXN5bnRoZXRpYy1hcmNoaXZlLXByb2plY3RrY2hhbmdlU2V0SWR4GGFyY2hpdmUtd3JpdGVyOmVwb2NoLWE6MWt3cml0ZXJFcG9jaGdlcG9jaC1hbXByb2plY3RTeW5jSWR2c3ludGhldGljLWFyY2hpdmUtc3luY25wYXlsb2FkVmVyc2lvbgFvcHJvdG9jb2xWZXJzaW9uAXBzeW5jR2VuZXJhdGlvbklkeBxzeW50aGV0aWMtYXJjaGl2ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-archive-project",
+        "projectSyncId": "synthetic-archive-sync",
+        "syncGenerationId": "synthetic-archive-generation",
+        "changeSetId": "archive-writer:epoch-a:1",
+        "originalEnvelopeSha256": "9d23d9e24e4746ed7c33d9b12e1dd8c3f8092b307357c3f1dc9de9fd172e4ea1"
+      },
+      "header": {
+        "writerId": "archive-writer",
+        "writerEpoch": "epoch-a",
+        "deviceSeq": 1,
+        "hlc": {
+          "wallMs": 1700000000000,
+          "counter": 0
+        },
+        "protocolVersion": 1,
+        "payloadVersion": 1,
+        "mutationCount": 1
+      },
+      "mutations": [
+        {
+          "index": 0,
+          "target": {
+            "family": "yjs",
+            "kind": "prose-document",
+            "id": "node-content:synthetic-body-archive",
+            "incarnation": 0
+          },
+          "action": "yjs.update",
+          "payloadVersion": 1,
+          "payloadSha256": "sha256:2b7086663764b12efca186dedf16472ac5ca875f9bce6ed7c02989ee574b5dcd",
+          "canonicalPayloadBase64": "omZ1cGRhdGVYPQEE6fsDAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcA6fsDAAYEAOn7AwEG5r2u5rGQKADp+wMAAmlkAXcBYgB4GXNvdXJjZVJldGVudGlvblByb3ZlbmFuY2WkZGtpbmRxdHJhbnNhY3Rpb24tZXZlbnRndmVyc2lvbgFuYmVmb3JlU25hcHNob3RCAABydHJhbnNhY3Rpb25EZWxldGVzgA==",
+          "updateBase64": "AQTp+wMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwDp+wMABgQA6fsDAQbmva7msZAoAOn7AwACaWQBdwFiAA=="
+        }
+      ],
+      "expectedText": "潮汐",
+      "expectedInTargetArchive": true
+    },
+    {
+      "name": "insert",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxsAAAGLz+VoAWdjb3VudGVyAWhwcm90b2NvbHdkcmlmdGluZy5zeW5jLmNoYW5nZXNldGh3cml0ZXJJZG5hcmNoaXZlLXdyaXRlcmlkZXZpY2VTZXECaW11dGF0aW9uc4KmZWluZGV4AGZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCNub2RlLWNvbnRlbnQ6c3ludGhldGljLWJvZHktYXJjaGl2ZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWSiZnVwZGF0ZVQBAer7AwBE6fsDAgfkv53wn5mCAHgZc291cmNlUmV0ZW50aW9uUHJvdmVuYW5jZaRka2luZHF0cmFuc2FjdGlvbi1ldmVudGd2ZXJzaW9uAW5iZWZvcmVTbmFwc2hvdEYAAen7AwVydHJhbnNhY3Rpb25EZWxldGVzgG1wYXlsb2FkU2hhMjU2eEdzaGEyNTY6MTA4NTZiNTBmMzkwMjYwMzI0NDFiZjE1MmJmNjY3MTgyZGRmNTZhNzJlZDEzZDY0N2U0ZTdkZGZhMzkwYmExZG5wYXlsb2FkVmVyc2lvbgGmZWluZGV4AWZhY3Rpb25pZmllbGQuc2V0ZnRhcmdldKRiaWR4G3N5bnRoZXRpYy11bnJlbGF0ZWQtY2hhcHRlcmRraW5kZ2NoYXB0ZXJmZmFtaWx5ZmVudGl0eWtpbmNhcm5hdGlvbgBncGF5bG9hZKNlZmllbGRldGl0bGVldmFsdWV4G1N5bnRoZXRpYyB1bnJlbGF0ZWQgc2libGluZ2tmdXR1cmVGaWVsZKFka2VlcPVtcGF5bG9hZFNoYTI1NnhHc2hhMjU2OjZiMzFkZWNlNmNmMzUyODkxMmI2MzM4ODQxZWFhZTM3ZjM2YjFhOWQxNmMyNDhmYjdkZmMzN2Q3YzA5NzJjZDBucGF5bG9hZFZlcnNpb24BaXByb2plY3RJZHgZc3ludGhldGljLWFyY2hpdmUtcHJvamVjdGtjaGFuZ2VTZXRJZHgYYXJjaGl2ZS13cml0ZXI6ZXBvY2gtYToya3dyaXRlckVwb2NoZ2Vwb2NoLWFtcHJvamVjdFN5bmNJZHZzeW50aGV0aWMtYXJjaGl2ZS1zeW5jbnBheWxvYWRWZXJzaW9uAW9wcm90b2NvbFZlcnNpb24BcHN5bmNHZW5lcmF0aW9uSWR4HHN5bnRoZXRpYy1hcmNoaXZlLWdlbmVyYXRpb24=",
+      "reference": {
+        "projectId": "synthetic-archive-project",
+        "projectSyncId": "synthetic-archive-sync",
+        "syncGenerationId": "synthetic-archive-generation",
+        "changeSetId": "archive-writer:epoch-a:2",
+        "originalEnvelopeSha256": "e90a4d0f62859248af9e4b0b4d9c900690f9a14383dd71b146e655306250dc55"
+      },
+      "header": {
+        "writerId": "archive-writer",
+        "writerEpoch": "epoch-a",
+        "deviceSeq": 2,
+        "hlc": {
+          "wallMs": 1700000000001,
+          "counter": 1
+        },
+        "protocolVersion": 1,
+        "payloadVersion": 1,
+        "mutationCount": 2
+      },
+      "mutations": [
+        {
+          "index": 0,
+          "target": {
+            "family": "yjs",
+            "kind": "prose-document",
+            "id": "node-content:synthetic-body-archive",
+            "incarnation": 0
+          },
+          "action": "yjs.update",
+          "payloadVersion": 1,
+          "payloadSha256": "sha256:10856b50f39026032441bf152bf667182ddf56a72ed13d647e4e7ddfa390ba1d",
+          "canonicalPayloadBase64": "omZ1cGRhdGVUAQHq+wMAROn7AwIH5L+d8J+ZggB4GXNvdXJjZVJldGVudGlvblByb3ZlbmFuY2WkZGtpbmRxdHJhbnNhY3Rpb24tZXZlbnRndmVyc2lvbgFuYmVmb3JlU25hcHNob3RGAAHp+wMFcnRyYW5zYWN0aW9uRGVsZXRlc4A=",
+          "updateBase64": "AQHq+wMAROn7AwIH5L+d8J+ZggA="
+        },
+        {
+          "index": 1,
+          "target": {
+            "family": "entity",
+            "kind": "chapter",
+            "id": "synthetic-unrelated-chapter",
+            "incarnation": 0
+          },
+          "action": "field.set",
+          "payloadVersion": 1,
+          "payloadSha256": "sha256:6b31dece6cf3528912b6338841eaae37f36b1a9d16c248fb7dfc37d7c0972cd0",
+          "canonicalPayloadBase64": "o2VmaWVsZGV0aXRsZWV2YWx1ZXgbU3ludGhldGljIHVucmVsYXRlZCBzaWJsaW5na2Z1dHVyZUZpZWxkoWRrZWVw9Q=="
+        }
+      ],
+      "expectedText": "保🙂潮汐",
+      "expectedInTargetArchive": true
+    },
+    {
+      "name": "delete",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxsAAAGLz+VoAmdjb3VudGVyAmhwcm90b2NvbHdkcmlmdGluZy5zeW5jLmNoYW5nZXNldGh3cml0ZXJJZG5hcmNoaXZlLXdyaXRlcmlkZXZpY2VTZXEDaW11dGF0aW9uc4GmZWluZGV4AGZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCNub2RlLWNvbnRlbnQ6c3ludGhldGljLWJvZHktYXJjaGl2ZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWSjZnVwZGF0ZUgAAer7AwEAAXVzb3VyY2VPcGVyYXRpb25JbnRlbnSmZGtpbmRxcHJvc2UudGV4dC5kZWxldGVndmVyc2lvbgFqdGFyZ2V0VGV4dKJlY2xvY2sBZmNsaWVudBn96WtsZW5ndGhVVEYxNgFrb2Zmc2V0VVRGMTYAdHNlbGVjdGVkU291cmNlUmFuZ2VzgaNlY2xvY2sAZmNsaWVudBn96mZsZW5ndGgBeBlzb3VyY2VSZXRlbnRpb25Qcm92ZW5hbmNlpGRraW5kcXRyYW5zYWN0aW9uLWV2ZW50Z3ZlcnNpb24BbmJlZm9yZVNuYXBzaG90SgAC6vsDA+n7AwVydHJhbnNhY3Rpb25EZWxldGVzgaNlY2xvY2sAZmNsaWVudBn96mZsZW5ndGgBbXBheWxvYWRTaGEyNTZ4R3NoYTI1NjoxMWFhMGI5NjRjOThmYTNmNjJjZGY0ZWU3MWEyZWZiYjJmNjIyNTU1MTY2NmRmYTBlMjU4MTJiMTAyMTY4ZDE1bnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GXN5bnRoZXRpYy1hcmNoaXZlLXByb2plY3RrY2hhbmdlU2V0SWR4GGFyY2hpdmUtd3JpdGVyOmVwb2NoLWE6M2t3cml0ZXJFcG9jaGdlcG9jaC1hbXByb2plY3RTeW5jSWR2c3ludGhldGljLWFyY2hpdmUtc3luY25wYXlsb2FkVmVyc2lvbgFvcHJvdG9jb2xWZXJzaW9uAXBzeW5jR2VuZXJhdGlvbklkeBxzeW50aGV0aWMtYXJjaGl2ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-archive-project",
+        "projectSyncId": "synthetic-archive-sync",
+        "syncGenerationId": "synthetic-archive-generation",
+        "changeSetId": "archive-writer:epoch-a:3",
+        "originalEnvelopeSha256": "16139c720054dbac02202f39194745c36e9df40fd3a1d34f3e5eb8f568fe871c"
+      },
+      "originalOperationReference": {
+        "projectId": "synthetic-archive-project",
+        "projectSyncId": "synthetic-archive-sync",
+        "syncGenerationId": "synthetic-archive-generation",
+        "changeSetId": "archive-writer:epoch-a:3",
+        "originalEnvelopeSha256": "16139c720054dbac02202f39194745c36e9df40fd3a1d34f3e5eb8f568fe871c",
+        "mutationIndex": 0,
+        "target": {
+          "family": "yjs",
+          "kind": "prose-document",
+          "id": "node-content:synthetic-body-archive",
+          "incarnation": 0
+        },
+        "payloadSha256": "sha256:11aa0b964c98fa3f62cdf4ee71a2efbb2f6225551666dfa0e25812b102168d15"
+      },
+      "header": {
+        "writerId": "archive-writer",
+        "writerEpoch": "epoch-a",
+        "deviceSeq": 3,
+        "hlc": {
+          "wallMs": 1700000000002,
+          "counter": 2
+        },
+        "protocolVersion": 1,
+        "payloadVersion": 1,
+        "mutationCount": 1
+      },
+      "mutations": [
+        {
+          "index": 0,
+          "target": {
+            "family": "yjs",
+            "kind": "prose-document",
+            "id": "node-content:synthetic-body-archive",
+            "incarnation": 0
+          },
+          "action": "yjs.update",
+          "payloadVersion": 1,
+          "payloadSha256": "sha256:11aa0b964c98fa3f62cdf4ee71a2efbb2f6225551666dfa0e25812b102168d15",
+          "canonicalPayloadBase64": "o2Z1cGRhdGVIAAHq+wMBAAF1c291cmNlT3BlcmF0aW9uSW50ZW50pmRraW5kcXByb3NlLnRleHQuZGVsZXRlZ3ZlcnNpb24BanRhcmdldFRleHSiZWNsb2NrAWZjbGllbnQZ/elrbGVuZ3RoVVRGMTYBa29mZnNldFVURjE2AHRzZWxlY3RlZFNvdXJjZVJhbmdlc4GjZWNsb2NrAGZjbGllbnQZ/epmbGVuZ3RoAXgZc291cmNlUmV0ZW50aW9uUHJvdmVuYW5jZaRka2luZHF0cmFuc2FjdGlvbi1ldmVudGd2ZXJzaW9uAW5iZWZvcmVTbmFwc2hvdEoAAur7AwPp+wMFcnRyYW5zYWN0aW9uRGVsZXRlc4GjZWNsb2NrAGZjbGllbnQZ/epmbGVuZ3RoAQ==",
+          "updateBase64": "AAHq+wMBAAE="
+        }
+      ],
+      "expectedText": "🙂潮汐",
+      "expectedInTargetArchive": true
+    },
+    {
+      "name": "other-document",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxsAAAGLz+VoA2djb3VudGVyA2hwcm90b2NvbHdkcmlmdGluZy5zeW5jLmNoYW5nZXNldGh3cml0ZXJJZG5hcmNoaXZlLXdyaXRlcmlkZXZpY2VTZXEEaW11dGF0aW9uc4GmZWluZGV4AGZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCRub2RlLWNvbnRlbnQ6c3ludGhldGljLW90aGVyLWFyY2hpdmVka2luZG5wcm9zZS1kb2N1bWVudGZmYW1pbHljeWpza2luY2FybmF0aW9uAGdwYXlsb2FkoWZ1cGRhdGVYQQEE6/sDAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcA6/sDAAYEAOv7AwEG5peB5pSvKADr+wMAAmlkAXcFb3RoZXIAbXBheWxvYWRTaGEyNTZ4R3NoYTI1Njo4ZDY1YTQ1N2MzNjUzYjcwNTZkMTU1NzM3MjhiNzIzNGU3YjUxMWI0MzY2NTlkZWU3ZDI3ZDZmZGYwY2JlNjBlbnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GXN5bnRoZXRpYy1hcmNoaXZlLXByb2plY3RrY2hhbmdlU2V0SWR4GGFyY2hpdmUtd3JpdGVyOmVwb2NoLWE6NGt3cml0ZXJFcG9jaGdlcG9jaC1hbXByb2plY3RTeW5jSWR2c3ludGhldGljLWFyY2hpdmUtc3luY25wYXlsb2FkVmVyc2lvbgFvcHJvdG9jb2xWZXJzaW9uAXBzeW5jR2VuZXJhdGlvbklkeBxzeW50aGV0aWMtYXJjaGl2ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-archive-project",
+        "projectSyncId": "synthetic-archive-sync",
+        "syncGenerationId": "synthetic-archive-generation",
+        "changeSetId": "archive-writer:epoch-a:4",
+        "originalEnvelopeSha256": "93d42194b55dbf43c24f330c22da832a5f18bcf4ce9fecd97482ce529cb6b217"
+      },
+      "header": {
+        "writerId": "archive-writer",
+        "writerEpoch": "epoch-a",
+        "deviceSeq": 4,
+        "hlc": {
+          "wallMs": 1700000000003,
+          "counter": 3
+        },
+        "protocolVersion": 1,
+        "payloadVersion": 1,
+        "mutationCount": 1
+      },
+      "mutations": [
+        {
+          "index": 0,
+          "target": {
+            "family": "yjs",
+            "kind": "prose-document",
+            "id": "node-content:synthetic-other-archive",
+            "incarnation": 0
+          },
+          "action": "yjs.update",
+          "payloadVersion": 1,
+          "payloadSha256": "sha256:8d65a457c3653b7056d15573728b7234e7b511b436659dee7d27d6fdf0cbe60e",
+          "canonicalPayloadBase64": "oWZ1cGRhdGVYQQEE6/sDAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcA6/sDAAYEAOv7AwEG5peB5pSvKADr+wMAAmlkAXcFb3RoZXIA",
+          "updateBase64": "AQTr+wMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwDr+wMABgQA6/sDAQbml4HmlK8oAOv7AwACaWQBdwVvdGhlcgA="
+        }
+      ],
+      "expectedText": "旁支",
+      "expectedInTargetArchive": false
+    }
+  ],
+  "expectedText": "🙂潮汐",
+  "targetUpdateBase64": [
+    "AQTp+wMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwDp+wMABgQA6fsDAQbmva7msZAoAOn7AwACaWQBdwFiAA==",
+    "AQHq+wMAROn7AwIH5L+d8J+ZggA=",
+    "AAHq+wMBAAE="
+  ],
+  "expectedStateBase64": "AgLq+wMAROn7AwID5L+dxOr7AwDp+wMCBPCfmYIE6fsDAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcA6fsDAAYEAOn7AwEG5r2u5rGQKADp+wMAAmlkAXcBYgHq+wMBAAE=",
+  "requiredOriginals": [
+    {
+      "projectId": "synthetic-archive-project",
+      "projectSyncId": "synthetic-archive-sync",
+      "syncGenerationId": "synthetic-archive-generation",
+      "changeSetId": "archive-writer:epoch-a:1",
+      "originalEnvelopeSha256": "9d23d9e24e4746ed7c33d9b12e1dd8c3f8092b307357c3f1dc9de9fd172e4ea1"
+    },
+    {
+      "projectId": "synthetic-archive-project",
+      "projectSyncId": "synthetic-archive-sync",
+      "syncGenerationId": "synthetic-archive-generation",
+      "changeSetId": "archive-writer:epoch-a:2",
+      "originalEnvelopeSha256": "e90a4d0f62859248af9e4b0b4d9c900690f9a14383dd71b146e655306250dc55"
+    },
+    {
+      "projectId": "synthetic-archive-project",
+      "projectSyncId": "synthetic-archive-sync",
+      "syncGenerationId": "synthetic-archive-generation",
+      "changeSetId": "archive-writer:epoch-a:3",
+      "originalEnvelopeSha256": "16139c720054dbac02202f39194745c36e9df40fd3a1d34f3e5eb8f568fe871c"
+    }
+  ]
+}

@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_system_ime_activation_route_comparison",
+  "diagnosticStatus": "two-complete-direct-latin-observations",
+  "acceptanceStatus": "system-ime-gate-open",
+  "sourceFingerprint": "168a6822bb7ea75db446d891b30ace83d714628b35ecc56bf9fc704cbd1f48bc",
+  "generatorSha256": "3ffda7cfde602bfaf6774a93d461e191ea662fa1c1678d3937aff00940c87da6",
+  "comparedReviewHashes": [
+    "4689c43256a8972de79bdbfa885620fea5ee81124399a96abc3078d94f12bf49",
+    "9d95ace95fd0db8813f1caa79b544909fc685bcd60226c072015b9c5d1e2933a"
+  ],
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "kind": "apple_system_ime_single_key_diagnostic_review",
+      "diagnosticOutcome": "direct-latin-insertion-without-marked-text",
+      "acceptanceStatus": "system-ime-gate-open",
+      "provenance": {
+        "producerLocation": "ignored-prototype",
+        "sourceFingerprint": "168a6822bb7ea75db446d891b30ace83d714628b35ecc56bf9fc704cbd1f48bc",
+        "producerSources": [
+          {
+            "file": "ProbeTextView.swift",
+            "sha256": "411b89fa5395b484328a6176ef7ec9b85e2b21eb1e5e0d0cb9536f9bec8fef2d"
+          },
+          {
+            "file": "SystemIMEEventProbe.swift",
+            "sha256": "c6679efee5e2a4491c09597996d06fa55fc862957be039e0ce626a7c70bbaf4d"
+          },
+          {
+            "file": "prepare.mjs",
+            "sha256": "cbd2f0aacad41c6336c725f3341ebbfcb2ef6b4399f61718c174f298a0cbb5ef"
+          }
+        ],
+        "binarySha256": "aa51a269c0fc805c235656550854098cf30fb5ae7906b1237683a5e4a62da7a4",
+        "configSha256": "7fd0d372b09d0dec0fe915b45adca0e5057a04fd81134576c5b19dae8644712d",
+        "rawReportSha256": "3383fcd000fda8fc90ea1eb4e5c91053c5e79e686c5a6457270a1ab38d019890",
+        "reviewerSha256": "e9b6992fa61c6d1617464da7a5dbea3c49efb23098a02dd170064b083b863e6c",
+        "sourceBinaryConfigRawVerified": true,
+        "collectedSampleAlsoVerified": true,
+        "sourceCommitAtRun": "not-recorded-by-prototype"
+      },
+      "scope": {
+        "syntheticEmptyStockTextView": true,
+        "observerOverridesForwardExactlyOnce": true,
+        "productBinding": false,
+        "persistence": false,
+        "physicalKeyboard": false,
+        "providerSubmode": "unestablished",
+        "keyboardDelivery": "operator-declared-CUA"
+      },
+      "observation": {
+        "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+        "initialInputSource": "com.apple.keylayout.ABC",
+        "activationRoute": "helper-visible-menu",
+        "focusAndMatchingContextsThroughoutKeyPhase": true,
+        "key": {
+          "keyCode": 45,
+          "charactersUtf16": [
+            110
+          ],
+          "modifierFlags": 0,
+          "autorepeat": false
+        },
+        "cgEventRepresentation": {
+          "unicodeUtf16": [],
+          "unicodeReportedLength": 0,
+          "keyboardType": 91,
+          "sourceStateID": 1,
+          "sourceUnixProcessIDPresent": true,
+          "sourceUserData": 0
+        },
+        "callbackOrder": [
+          "localMonitor.keyDown",
+          "keyDown.before",
+          "interpretKeyEvents.before",
+          "insertText-one-argument.before",
+          "insertText.before",
+          "insertText.after",
+          "insertText-one-argument.after",
+          "interpretKeyEvents.after",
+          "keyDown.after"
+        ],
+        "callbackCounts": {
+          "setMarkedText": 0,
+          "unmarkText": 0,
+          "insertTextOneArgument": 1,
+          "insertTextReplacementRange": 1
+        },
+        "committedTextUtf16": [
+          110
+        ],
+        "committedUtf16Length": 1,
+        "textRemainsUnmarkedAcrossFourPostKeyObservations": true,
+        "observationWindowAfterKeyDownMs": 636,
+        "traceEntries": 16,
+        "droppedTraceEntries": 0,
+        "sourceSelectionsRecordedByAppMenu": [
+          {
+            "phase": "select-pinyin",
+            "requestedSource": "com.apple.inputmethod.SCIM.ITABC",
+            "route": "visible Input Source menu"
+          },
+          {
+            "phase": "restore-input-source",
+            "requestedSource": "com.apple.keylayout.ABC",
+            "route": "visible Input Source menu"
+          }
+        ],
+        "sourceSwitchKeyEvents": []
+      },
+      "restoration": {
+        "originalSourceRestored": true,
+        "finalPhase": "finished",
+        "proof": "observer wait predicate plus finished report; no final TIS trace in prototype",
+        "helperExitExpected": true
+      },
+      "conclusions": [
+        "One actual insertion: the legacy callback forwards to the replacement-range callback.",
+        "No transient marked-text callback was observed during this recorded key and follow-up window.",
+        "The exposed CGEvent representation carries no Unicode string; no explicit Unicode n payload was observed.",
+        "Source state 1 and keyboard type 91 do not prove physical provenance or identify the cause.",
+        "Provider submode, source activation path and event-delivery behavior remain possible discriminators."
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "apple_system_ime_single_key_diagnostic_review",
+      "diagnosticOutcome": "direct-latin-insertion-without-marked-text",
+      "acceptanceStatus": "system-ime-gate-open",
+      "provenance": {
+        "producerLocation": "ignored-prototype",
+        "sourceFingerprint": "168a6822bb7ea75db446d891b30ace83d714628b35ecc56bf9fc704cbd1f48bc",
+        "producerSources": [
+          {
+            "file": "ProbeTextView.swift",
+            "sha256": "411b89fa5395b484328a6176ef7ec9b85e2b21eb1e5e0d0cb9536f9bec8fef2d"
+          },
+          {
+            "file": "SystemIMEEventProbe.swift",
+            "sha256": "c6679efee5e2a4491c09597996d06fa55fc862957be039e0ce626a7c70bbaf4d"
+          },
+          {
+            "file": "prepare.mjs",
+            "sha256": "cbd2f0aacad41c6336c725f3341ebbfcb2ef6b4399f61718c174f298a0cbb5ef"
+          }
+        ],
+        "binarySha256": "308db399127113f5388f1fde9ef595bc9369133a52e8f48f4ae87cd1d586c58d",
+        "configSha256": "e80017dc904ccd9f231c5b791ff0c9ad8d56bf5b3eeae57f342694f686d55438",
+        "rawReportSha256": "c5dd94c8d75fdf78685d9e02c33a4fce1befdde1c25f24b54689392cfd3caefe",
+        "reviewerSha256": "e9b6992fa61c6d1617464da7a5dbea3c49efb23098a02dd170064b083b863e6c",
+        "sourceBinaryConfigRawVerified": true,
+        "collectedSampleAlsoVerified": true,
+        "sourceCommitAtRun": "not-recorded-by-prototype"
+      },
+      "scope": {
+        "syntheticEmptyStockTextView": true,
+        "observerOverridesForwardExactlyOnce": true,
+        "productBinding": false,
+        "persistence": false,
+        "physicalKeyboard": false,
+        "providerSubmode": "unestablished",
+        "keyboardDelivery": "operator-declared-CUA"
+      },
+      "observation": {
+        "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+        "initialInputSource": "com.apple.keylayout.ABC",
+        "activationRoute": "system-Control-Space-shortcut",
+        "focusAndMatchingContextsThroughoutKeyPhase": true,
+        "key": {
+          "keyCode": 45,
+          "charactersUtf16": [
+            110
+          ],
+          "modifierFlags": 0,
+          "autorepeat": false
+        },
+        "cgEventRepresentation": {
+          "unicodeUtf16": [],
+          "unicodeReportedLength": 0,
+          "keyboardType": 91,
+          "sourceStateID": 1,
+          "sourceUnixProcessIDPresent": true,
+          "sourceUserData": 0
+        },
+        "callbackOrder": [
+          "localMonitor.keyDown",
+          "keyDown.before",
+          "interpretKeyEvents.before",
+          "insertText-one-argument.before",
+          "insertText.before",
+          "insertText.after",
+          "insertText-one-argument.after",
+          "interpretKeyEvents.after",
+          "keyDown.after"
+        ],
+        "callbackCounts": {
+          "setMarkedText": 0,
+          "unmarkText": 0,
+          "insertTextOneArgument": 1,
+          "insertTextReplacementRange": 1
+        },
+        "committedTextUtf16": [
+          110
+        ],
+        "committedUtf16Length": 1,
+        "textRemainsUnmarkedAcrossFourPostKeyObservations": true,
+        "observationWindowAfterKeyDownMs": 637,
+        "traceEntries": 18,
+        "droppedTraceEntries": 0,
+        "sourceSelectionsRecordedByAppMenu": [],
+        "sourceSwitchKeyEvents": [
+          {
+            "phase": "select-pinyin",
+            "keyCode": 49,
+            "modifierFlags": 262144
+          },
+          {
+            "phase": "restore-input-source",
+            "keyCode": 49,
+            "modifierFlags": 262144
+          }
+        ]
+      },
+      "restoration": {
+        "originalSourceRestored": true,
+        "finalPhase": "finished",
+        "proof": "observer wait predicate plus finished report; no final TIS trace in prototype",
+        "helperExitExpected": true
+      },
+      "conclusions": [
+        "One actual insertion: the legacy callback forwards to the replacement-range callback.",
+        "No transient marked-text callback was observed during this recorded key and follow-up window.",
+        "The exposed CGEvent representation carries no Unicode string; no explicit Unicode n payload was observed.",
+        "Source state 1 and keyboard type 91 do not prove physical provenance or identify the cause.",
+        "Provider submode, source activation path and event-delivery behavior remain possible discriminators."
+      ]
+    }
+  ],
+  "interpretation": [
+    "The same probe source observed direct n insertion after either helper-menu or system Control-Space activation.",
+    "The second run observes Control-Space before ITABC and again during restoration; it did not use the system Input menu.",
+    "The symptom is therefore reproducible without the helper selection action being invoked.",
+    "The trace records one insertion via nested legacy and replacement-range callbacks; no marked callback occurred.",
+    "A cause in CUA, the provider, macOS, or the product is not established by these two traces.",
+    "The next useful discriminator needs new facts about provider submode or a supported independent key-delivery route; do not repeat identical UI attempts.",
+    "Finished/restored reports make the helper exit expected; a subsequent AX process-not-found observation is consistent with completion."
+  ],
+  "acceptanceNotEstablished": [
+    "system composition",
+    "candidate commit",
+    "Escape cancellation",
+    "system-IME undo/redo",
+    "persistence/reopen",
+    "remote during composition",
+    "physical keyboard"
+  ],
+  "promotionBoundary": "Historical ignored-prototype diagnosis only. Formal producer changes require fresh source fingerprints and a new run; do not relabel these hashes as formal-source execution."
+}

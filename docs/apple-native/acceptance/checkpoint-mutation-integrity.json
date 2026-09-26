@@ -1,0 +1,435 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_checkpoint_mutation_integrity",
+  "status": "passed",
+  "generatedAt": "2026-09-26T08:08:28.247Z",
+  "generator": {
+    "path": "scripts/apple-checkpoint-provenance-acceptance.mjs",
+    "sha256": "6c224a322135467a71bad3db466c71ac0f277c97a053d1806f34011c89838fad"
+  },
+  "source": {
+    "fingerprint": "6bfeef7d1ee31aa4300867487d70a8d009ec0f5fe7e5eac49ffc39350c46159d",
+    "files": [
+      {
+        "path": "drizzle/0000_local_first_baseline.sql",
+        "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
+      },
+      {
+        "path": "drizzle/0001_agent_chat_sync.sql",
+        "sha256": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0"
+      },
+      {
+        "path": "drizzle/0002_workspace_projection_journal.sql",
+        "sha256": "35ea9b635f4f5d671335684c109275444d406fb2715301dcb667703ab2304b90"
+      },
+      {
+        "path": "drizzle/0003_agent_checkpoint_anchors.sql",
+        "sha256": "b61e084d2af4244ded43dd2ad05242a4a0e846d7150a2bd8c46caeeb38e76341"
+      },
+      {
+        "path": "drizzle/0004_yjs_materialization_admission.sql",
+        "sha256": "865ebe4a9c9855cafad7780f33ba185bdfaa3d86db4ed32ec0562933bbfb0a05"
+      },
+      {
+        "path": "drizzle/meta/0000_snapshot.json",
+        "sha256": "525d14cb83a2e870355ab62d3d6bf2e52a93a98cc8d6119832c02731e8c8c248"
+      },
+      {
+        "path": "drizzle/meta/0001_snapshot.json",
+        "sha256": "4e6cab7e7e48925e3d2dca0e0de557dd6d399cd3d87456a064a724858c58b608"
+      },
+      {
+        "path": "drizzle/meta/0002_snapshot.json",
+        "sha256": "bf157f0d181cccef22c5a44721b2319ecc89f4d57bb116a2b0aeba1dcea93459"
+      },
+      {
+        "path": "drizzle/meta/0003_snapshot.json",
+        "sha256": "a9edf2dd08bf6dadcb3d96a3341fc4dc983f3a4e5e9aea9be8c019fdb78adda1"
+      },
+      {
+        "path": "drizzle/meta/0004_snapshot.json",
+        "sha256": "ff8aa3ce4481e71d806aee5a2d0548fb0c2c6777623f9bdb70b794c7be26dda7"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "d111a6fa2faa8b2791571f305fe160909a1e3b0728b3a8d0f36f9d808ae7b6d3"
+      },
+      {
+        "path": "package.json",
+        "sha256": "5d793fb1261be4747083c6d74bfd058c6831131c6d80d602eb7ad9159d9aee88"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
+      },
+      {
+        "path": "src/renderer/schema/drizzle.ts",
+        "sha256": "b27a674f229c9d91fb6d4992f4c4144cbbce1f9eab3256f5447590057ac8b5b3"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/capture.ts",
+        "sha256": "c91da498a1205937a6b81dfe198a1f27d00e36a88959fc881376bee21adfa550"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+        "sha256": "62207a6d7be602bcddd39f9a5e127ec8bbb7521b3772d7f437125f9098ca1437"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/domain-catalog.ts",
+        "sha256": "8b75ef6f2d0a4b88f4d9c5a4365b0a7734cf5da95c8de01409b46ed302bfa2f7"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/index.ts",
+        "sha256": "18f7faaa57b2aad22bb6dab635ecf0f7dd60c53e719286e24f9dcc230a1d1394"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.integration.test.ts",
+        "sha256": "f40511b6f55822f1ce2eb77002327f2d27dd4dd0cc820d2c2207070cb45447df"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.ts",
+        "sha256": "aac217046c6193175858d9d90128344d68dacf89dad6729ce2f97057574edca2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/publish.ts",
+        "sha256": "1653f12b0dd3005a87030700b0aba47a828edb057de5238782532ec90f11d120"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/reducer-state.ts",
+        "sha256": "adb139d0cca2cb5f6bb9b1c6f9d51b20f30308cba12bed16b3105b06a7279b94"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/restore.ts",
+        "sha256": "198d3a9338dd2ec1e7e4cc4d1ec8796b0fb7ea14f7f9e7a62eed1b37b7da5ac2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/types.ts",
+        "sha256": "77dc713884cdf1a4a7fcf526a3203144b0ccf39346b47b42c50e46cb9d1e5ac8"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/validate.ts",
+        "sha256": "6a97bd09d167c29892dc6a3c0d45046db4fc20ad94c0f9774439f2342c493ac0"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.test.ts",
+        "sha256": "8358f2e811d07cfa324cd82275f4a42268c45a6b776d23d325d55795d38a96ae"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.ts",
+        "sha256": "7007ae8e6958a14d7877d48d1641c3ca3a9f6fa63da5735a7a0168928623007a"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.integration.test.ts",
+        "sha256": "ac170959e6de88c243aa6f8f71c6118bd98d382091cffbe6317df48e43a5dff1"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.ts",
+        "sha256": "1c16f0c293c92426aac771139b18fe5cabc8767cdcea3b30af634430cf273bba"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.test.ts",
+        "sha256": "500535034c0c2df8ec1c685f1fefacf3b5d685133e407dd0577b5e39182bec12"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.ts",
+        "sha256": "b35e56e5c18af74de3e7af51e0e8f9ad93ecf065aae74cff53da5b5e9d452551"
+      },
+      {
+        "path": "src/renderer/sync/journal/continuous-timeline-authority.acceptance.test.ts",
+        "sha256": "dd54276772c7e88a58d3cfc4b25794e74260c5cd1a831ef0b5caaed9f73e174a"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.test.ts",
+        "sha256": "98a50f36ee53595e2948ae8086c81ffa850b32138d6bc3c4dcb3e9e810976b25"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.ts",
+        "sha256": "5ca5086acc36e2bdd051fe0275cce98799c97c759a1fa55e4a58a998410a5166"
+      },
+      {
+        "path": "src/renderer/sync/journal/fractional-order-authority.acceptance.test.ts",
+        "sha256": "0e88fac9cd8bc0cbc9b411decd7f5998e1d46abd122f073a91a5a54f14b19ff5"
+      },
+      {
+        "path": "src/renderer/sync/journal/incarnation.ts",
+        "sha256": "8ff5dd9966180e9ca5e227ccaa355bb804eb9c47a78bbdf0a2bf761a5f56a96a"
+      },
+      {
+        "path": "src/renderer/sync/journal/index.ts",
+        "sha256": "58113c46c0544c0292c534cb949704fb350408049169124d1aa8fb91af1f9a26"
+      },
+      {
+        "path": "src/renderer/sync/journal/installation-identity.ts",
+        "sha256": "5d4b1c97828bf57fbdb78eac2d22a8a5014602d282d768849c17787cd32490f5"
+      },
+      {
+        "path": "src/renderer/sync/journal/main-prose-authority.acceptance.test.ts",
+        "sha256": "4ab6b5277ed58736043313235a2af628380b075e4dee017e4608cbfebf86da0c"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority-repository.ts",
+        "sha256": "6cf0e1d65d189414228d44e9c47ad9a7583171fa970801638edaab6eeb8a12af"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.test.ts",
+        "sha256": "4c87806a3866b81d5efe23114755a8fdc7ac576b0f054926d64f439ad3ca27a7"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.ts",
+        "sha256": "18ed2e9ee49fe2e4fc1cb919babc472ea6413f5e527153c24af32a5f98dcbb63"
+      },
+      {
+        "path": "src/renderer/sync/journal/plot-grid-mutation.ts",
+        "sha256": "0110888c96c1f694304ef2a05a8a058eae71f5238cfc096a79152c70c7b48042"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.integration.test.ts",
+        "sha256": "082373510d90c4e74948029259926c8ebc7fe472e7c1e2b6b5a86a82fe8673c7"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.ts",
+        "sha256": "e76429cd449e572c167121d9cabca36514ec475309a14d1e44aed25cc2b4ddb8"
+      },
+      {
+        "path": "src/renderer/sync/journal/storyline-membership.ts",
+        "sha256": "f5f35cd2f5b6ecaaff73af444b1beda4aa71e9deeedf636a0898eb20d60761dd"
+      },
+      {
+        "path": "src/renderer/sync/journal/sync-generation-repository.ts",
+        "sha256": "f4b096a50ed963f6f349969f99a0f400e6f1a05d64c2690aa61560407253eaa1"
+      },
+      {
+        "path": "src/renderer/sync/journal/writer-state.ts",
+        "sha256": "c1ed054602476b8ebabd664d34eb4747982a83a54f691bf9aac953aff52292b9"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-materialization.integration.test.ts",
+        "sha256": "23eaaea8b27baab5f5d124e529b8b34cb6a97612f0ec39bff8406f4ab04e85bd"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-materialization.ts",
+        "sha256": "76c81c7edf93cdf7714036f053837125c2ad4f4f6ed7f97836ed6b5bce7e789e"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+        "sha256": "8e11a20c8e7db9aaf60278aa2718c47d83803ca16555518a374d9cc7ff34cc0e"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.ts",
+        "sha256": "6fa032bdb77e3a10be058b0df563c389b5102975c04baf9b5fb4e694dda224e3"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.test.ts",
+        "sha256": "2040144cccd1089bb5f347f44cbbf6b442c3749bf046c8fbadc03d0d254c9dfa"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.ts",
+        "sha256": "02ca95278b8ff33f3d2541deb62254911140a9b061e6f0e771b2a9ba14d677e3"
+      },
+      {
+        "path": "src/renderer/sync/protocol/canonical-cbor.ts",
+        "sha256": "e47cde3592daa3740ed8b5c7ab47173053509a887d0175b2053e44b4b9d7ff63"
+      },
+      {
+        "path": "src/renderer/sync/protocol/change-set.ts",
+        "sha256": "b04005c646928683a10d3e3195bba939d24d2526fd066840324313e2da497f24"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest-schema.ts",
+        "sha256": "d5f0290e33b71fd0be8ae07a47e5a5e0a10170d7826347217f3cbfb5dfc68cab"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.test.ts",
+        "sha256": "3d186ee9b7539233072be4ea479cbefd7b63e672006e2f5636e3fc9226960c2b"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.ts",
+        "sha256": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/protocol-v1.golden.json",
+        "sha256": "b94c77cdaf1ce5f858c8b43452f30f426838915425b303fb153c964080557491"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/v1-fixtures.ts",
+        "sha256": "3123e18ed04fb71f8bf0884aee2ff1ab6ef7deb3b70208d70fe42544dd2dd917"
+      },
+      {
+        "path": "src/renderer/sync/protocol/index.ts",
+        "sha256": "200a7e9280dbd2e03db48ab237573843f3e43633076ca128a7d3e082b6563fdb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/order.ts",
+        "sha256": "5fe8f55e28c526fc0714c536f9c316813440c4428d29536a2770ecb9b3014a31"
+      },
+      {
+        "path": "src/renderer/sync/protocol/primitives.ts",
+        "sha256": "80405edc5dd7a99ad6d91e0eb29ad58ededc843d1b1c1eb6753905b85b825be8"
+      },
+      {
+        "path": "src/renderer/sync/protocol/protocol.test.ts",
+        "sha256": "3bea0800c7b38cdaecc09d23085c14574828c625da384eb682122e3e9e71379d"
+      },
+      {
+        "path": "src/renderer/sync/protocol/provider.ts",
+        "sha256": "1c60123b664585b4abd9f18ca10a566ff9f3475f27408e9605aaf11c5d476794"
+      },
+      {
+        "path": "src/renderer/sync/protocol/segment.ts",
+        "sha256": "e724e98063be4215d707774e00d3b8f0dd7d899ec09c4e42d3320fabcb53c56a"
+      },
+      {
+        "path": "src/renderer/sync/protocol/snapshot.ts",
+        "sha256": "e2089f61827df5f06d47232d11e4408334500e2bb0aed3679fede3660c799b58"
+      },
+      {
+        "path": "src/renderer/sync/protocol/validation.ts",
+        "sha256": "992c10215764d660390a5da11cc4c69546eb01a2a6e50417d107673249134ecb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/versioned-codec.ts",
+        "sha256": "168cc9ab673da9c582ef47729d5c90fb00c24b195688a22660137ed79a0f4276"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+        "sha256": "8c7b9258f15cfaa0c3e9ffff8fb61949c46c0518ac2d24ab223cfa1e3ba16a67"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.ts",
+        "sha256": "d80221fadc09556e4a60effd65089631055da2d4db3dbf36bd04bcbc051c5b93"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+        "sha256": "ec8c6c4b743749d82fe39f57d40887a99c1985a4cd0af42979c9cecadf2955ad"
+      }
+    ]
+  },
+  "scope": {
+    "acceptedTestFile": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+    "acceptedCases": 20,
+    "resealedMutationTamperCases": 13,
+    "boundary": "Synthetic file-backed SQLite checkpoint validation and isolated restore; invalid mutation rows reject before asset preparation or domain activation, while failed-attempt bookkeeping remains durable.",
+    "excluded": [
+      "Complete reducer-register semantic validation",
+      "Yjs alias deletion intent",
+      "Physical input or IME",
+      "Native UI or device execution",
+      "Real-account sync",
+      "Distribution"
+    ]
+  },
+  "cases": [
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore captures and restores snapshot-only, update-only, combined, and seed-only prose",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore captures normalized authority and rebuilds a deliberately stale JSON projection",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore fails capture before publishing a checkpoint with missing fractional list authority",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore fails closed on missing/corrupt blobs and wrong projectSync without exposing a project",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore materializes no project when any member of an atomic multi-SyncGeneration restore fails",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore publishes every blob and the package before the only visible commit marker",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row action without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row duplicate index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row extra row with out-of-range index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row forged payload with matching row hash without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row incarnation without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row missing row without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row negative index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload bytes without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload hash without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload version without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target family without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target id without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target kind without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "name": "provider-neutral checkpoint capture and isolated restore rejects unknown package versions and invalid Yjs before materialization",
+      "status": "passed"
+    }
+  ],
+  "run": {
+    "mode": "ran-three-vitest-suites",
+    "rawSha256": "627b92d9a1ef28d7d6de294465bbca603ef615bbaaeef9413818980c45f910ac",
+    "requiredSuites": [
+      {
+        "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/protocol/protocol.test.ts",
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/restore/google-drive-restore.integration.test.ts",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "overall": {
+      "success": true,
+      "total": 43,
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "skippedTests": []
+  }
+}

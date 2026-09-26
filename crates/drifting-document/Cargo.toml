@@ -1,0 +1,16 @@
+[package]
+name = "drifting-document"
+version = "0.1.0-alpha.1"
+edition = "2021"
+rust-version = "1.96"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+yrs = { version = "=0.28.0", path = "../../vendor/yrs", features = ["sync"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.25", features = ["v7"] }
+
+[dev-dependencies]
+base64 = "0.22"

@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "origin": "synthetic-generated-no-user-content",
+  "yjsVersion": "13.6.32",
+  "updateEncoding": "v1",
+  "root": "default",
+  "updateBase64": "ASjSjqXqBAAHAQdkZWZhdWx0AwdoZWFkaW5nBwDSjqXqBAAGBADSjqXqBAEV5ZCI5oiQ5paH5qGj77ya54Gv5aGUKADSjqXqBAACaWQBdw9maXh0dXJlLWhlYWRpbmcoANKOpeoEAAVsZXZlbAF9AYfSjqXqBAADCXBhcmFncmFwaAcA0o6l6gQLBgQA0o6l6gQMD+WknOiIquWRmOadpeWIsIbSjqXqBBEEYm9sZAJ7fYbSjqXqBBIKZW50aXR5TGluazV7InRhcmdldElkIjoiZml4dHVyZS1lbGVtZW50IiwidGFyZ2V0S2luZCI6ImVsZW1lbnQifYTSjqXqBBMG5YyX5aGUhtKOpeoEFQRib2xkBG51bGyG0o6l6gQWCmVudGl0eUxpbmsEbnVsbITSjqXqBBck44CC8J+RqfCfj73igI3wn5qAIGXMgSDwoK63INep15zXldedKADSjqXqBAsCaWQBdxFmaXh0dXJlLXBhcmFncmFwaCgA0o6l6gQLFm5hdGl2ZVVua25vd25BdHRyaWJ1dGUBdgIEa2VlcHgIcmV2aXNpb259A4fSjqXqBAsDCmJ1bGxldExpc3QHANKOpeoELQMIbGlzdEl0ZW0HANKOpeoELgMJcGFyYWdyYXBoBwDSjqXqBC8GBADSjqXqBDAV6L+Z5piv5ZCI5oiQ5p2h55uu44CCKADSjqXqBC8CaWQBdxZmaXh0dXJlLWxpc3QtcGFyYWdyYXBoKADSjqXqBC4CaWQBdwxmaXh0dXJlLWl0ZW0oANKOpeoELQJpZAF3DGZpeHR1cmUtbGlzdIfSjqXqBC0DCmJsb2NrcXVvdGUHANKOpeoEOwMJcGFyYWdyYXBoBwDSjqXqBDwGBADSjqXqBD0S5r2u5rGQ5Lya5Zue5p2l44CCKADSjqXqBDwCaWQBdxdmaXh0dXJlLXF1b3RlLXBhcmFncmFwaCgA0o6l6gQ7AmlkAXcNZml4dHVyZS1xdW90ZYfSjqXqBDsDCWNvZGVCbG9jawcA0o6l6gRGBgQA0o6l6gRHFHNpZ25hbCA9ICJzeW50aGV0aWMiKADSjqXqBEYCaWQBdwxmaXh0dXJlLWNvZGUoANKOpeoERghsYW5ndWFnZQF3BHRleHSH0o6l6gRGAw5ob3Jpem9udGFsUnVsZSgA0o6l6gReAmlkAXcMZml4dHVyZS1ydWxlh9KOpeoEXgMMZnV0dXJlV2lkZ2V0KADSjqXqBGACaWQBdw5maXh0dXJlLW9wYXF1ZSgA0o6l6gRgB3BheWxvYWQBdgIEa2luZHcJc3ludGhldGljBnZhbHVlc3UDfQF9An0DAA==",
+  "semantic": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "id": "fixture-heading",
+          "level": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "合成文档：灯塔"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "id": "fixture-paragraph",
+          "nativeUnknownAttribute": {
+            "keep": true,
+            "revision": 3
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "夜航员来到"
+          },
+          {
+            "type": "text",
+            "text": "北塔",
+            "marks": [
+              {
+                "type": "bold",
+                "attrs": {}
+              },
+              {
+                "type": "entityLink",
+                "attrs": {
+                  "targetId": "fixture-element",
+                  "targetKind": "element"
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "。👩🏽‍🚀 é 𠮷 שלום"
+          }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "attrs": {
+          "id": "fixture-list"
+        },
+        "content": [
+          {
+            "type": "listItem",
+            "attrs": {
+              "id": "fixture-item"
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "id": "fixture-list-paragraph"
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "这是合成条目。"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "blockquote",
+        "attrs": {
+          "id": "fixture-quote"
+        },
+        "content": [
+          {
+            "type": "paragraph",
+            "attrs": {
+              "id": "fixture-quote-paragraph"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "潮汐会回来。"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": {
+          "id": "fixture-code",
+          "language": "text"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "signal = \"synthetic\""
+          }
+        ]
+      },
+      {
+        "type": "horizontalRule",
+        "attrs": {
+          "id": "fixture-rule"
+        }
+      },
+      {
+        "type": "futureWidget",
+        "attrs": {
+          "id": "fixture-opaque",
+          "payload": {
+            "kind": "synthetic",
+            "values": [
+              1,
+              2,
+              3
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "comments": [
+    {
+      "id": "fixture-comment",
+      "targetBlockIds": [
+        "fixture-paragraph"
+      ],
+      "textAnchor": {
+        "startBlockId": "fixture-paragraph",
+        "startOffset": 5,
+        "endBlockId": "fixture-paragraph",
+        "endOffset": 7,
+        "text": "北塔"
+      }
+    }
+  ],
+  "scale": {
+    "seed": "星光照着合成的海岸。",
+    "chapterUTF16Lengths": [
+      5000,
+      50000,
+      200000
+    ],
+    "projectChapterCount": 1000
+  },
+  "requiredOperations": [
+    "insert",
+    "delete",
+    "format",
+    "split",
+    "merge",
+    "undo-local",
+    "redo-local",
+    "concurrent-edit",
+    "duplicate-update",
+    "reordered-update",
+    "opaque-node-preservation",
+    "crash-replay"
+  ]
+}

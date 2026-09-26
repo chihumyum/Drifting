@@ -13,6 +13,23 @@ Guidance for coding agents working in this standalone Drifting client repository
   databases, signing material, or data copied from the private official service.
 - Test fixtures must be synthetic or have documented redistribution rights.
 
+## Apple native migration
+
+- Follow `docs/apple-native/README.md` for the Apple-only target and staged gates.
+- Shared native correctness lives in `crates/drifting-core`; Tauri adapters and
+  `native/apple` must use that owner instead of duplicating migration logic.
+- Native lab builds use synthetic data and separate application/data identity.
+- Keep P2 document/IME/undo/recovery gates ahead of broad interface construction.
+- Run `pnpm apple:check` and `pnpm apple:core:test` for changes to this boundary.
+- The Yrs document module requires Rust 1.96; run `pnpm apple:document:acceptance`
+  when its protocol, projection, edit or anchor behavior changes.
+- Run `pnpm apple:durability:acceptance` for prose persistence, journal, replay
+  or compaction changes; keep process termination and power-loss evidence distinct.
+- Default native acceptance excludes desktop XCTest input. On this host it
+  repeatedly opened System Settings and timed out. The user permits desktop
+  interaction, but repair the failing input path before repeatedly rerunning
+  it. Keep omitted/failed UI evidence explicit; targeted app inspection is fine.
+
 ## Repository boundary
 
 - This repository contains the Tauri 2, Rust, React, and Vite client.

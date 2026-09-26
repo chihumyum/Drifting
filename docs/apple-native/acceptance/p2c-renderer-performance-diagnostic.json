@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple-renderer-performance-diagnostic",
+  "status": "incomplete",
+  "generatedAt": "2026-09-25T13:34:35.778Z",
+  "rawReportSha256": "5810eea7b04b4b4e9dfa85204fe6e96f7a108a84d53980041e1ffac76455c31f",
+  "corpusSha256": "f19d451f2c37b4f2cfb66b5c6fc24b1d6c503070512d42455691822574fc27e9",
+  "runtimeSourceFingerprint": "6b515a6567109c3a841d95ef51770541892bde65f2f7d1536fd2bc0a06911fb9",
+  "preparedArtifact": {
+    "executableSha256": "1ca9b2a70bd227e4fb18e4b40e1e8d4388ffa0c16a26f6393f05b0779d8ae95b",
+    "bundleSha256": "32f104204eb69aca513c4a20d985e554c39ba02d947feb0d3decb239a7eb8d42",
+    "procMacroWrapperSha256": "04356e148f86b77d5cdd7b1a219bd045bef5d919298ce02717eb10b23b787673"
+  },
+  "generatorSha256": "09645f2d867bf8bd87f5b7a35b85b32f5b6e10efe922b84a24486d0513007261",
+  "failureMessage": "Error: Visible window did not deliver animation frame",
+  "completedSampleCount": 0,
+  "observation": {
+    "atMs": 30439,
+    "focused": false,
+    "visibility": "hidden"
+  },
+  "focusTransitions": [
+    {
+      "event": "blur",
+      "atMs": 589,
+      "focused": false,
+      "visibility": "visible"
+    },
+    {
+      "event": "focus",
+      "atMs": 977,
+      "focused": true,
+      "visibility": "visible"
+    },
+    {
+      "event": "blur",
+      "atMs": 2407,
+      "focused": false,
+      "visibility": "visible"
+    },
+    {
+      "event": "visibilitychange",
+      "atMs": 2425,
+      "focused": false,
+      "visibility": "hidden"
+    }
+  ],
+  "boundary": "One failed foreground attempt. No old renderer baseline or performance comparison accepted.",
+  "timingBoundary": "Monotonic milliseconds relative to the renderer performance clock; no physical input latency inferred.",
+  "limitations": [
+    "Earlier attempts are not aggregated. Focus events do not identify who or which application took focus.",
+    "This diagnostic does not establish normal shutdown or database replay acceptance."
+  ]
+}

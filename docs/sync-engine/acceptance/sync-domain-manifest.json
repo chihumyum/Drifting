@@ -2,20 +2,20 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "35a9b39b44f67c39677e0c765438d763f87d2554a81d82442f561c2032a0fe80",
+  "schemaSha256": "f2a8e356560251d6740f2aa13f7f4e93ff000a5ca9ea8620c8d3b68ea79179ca",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 92,
-    "fieldCount": 966,
+    "tableCount": 93,
+    "fieldCount": 976,
     "includedTableCount": 26,
-    "excludedTableCount": 66,
+    "excludedTableCount": 67,
     "classCounts": {
       "authored": 168,
       "crdt": 10,
       "derived": 92,
       "device-local": 369,
       "secret": 5,
-      "transport": 303,
+      "transport": 313,
       "extension": 19
     }
   },
@@ -6200,6 +6200,74 @@
         },
         {
           "field": "updated_at",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        }
+      ]
+    },
+    {
+      "table": "sync_yjs_materialization_receipt",
+      "scope": "project-via-reference",
+      "disposition": "exclude",
+      "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content.",
+      "fields": [
+        {
+          "field": "admission_version",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "change_set_id",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "created_at",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "document_id",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "document_revision",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "event_sha256",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "incarnation",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "mutation_index",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "original_envelope_sha256",
+          "classification": "transport",
+          "disposition": "exclude",
+          "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."
+        },
+        {
+          "field": "update_row_id",
           "classification": "transport",
           "disposition": "exclude",
           "reason": "SyncEngine journal, reducer metadata, frontier, durable transfer, or recovery state is protocol machinery, not authored domain content."

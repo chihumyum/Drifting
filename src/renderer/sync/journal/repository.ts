@@ -1,6 +1,7 @@
+import { persistAuthoredYjsMaterializations } from './yjs-materialization';
 import { and, asc, eq } from 'drizzle-orm';
 
-import type { DbTransaction } from '../../lib/db';
+import { assertActiveDatabaseTransaction, type DbExecutor, type DbTransaction } from '../../lib/db';
 import {
   SyncApplyReceiptTable,
   SyncChangeSetTable,
@@ -27,6 +28,25 @@ import {
   type SyncJournalClock,
   type SyncWriterIdentitySource,
 } from './writer-state';
+
+// Only this module's successful new authored insert can seal this identity.
+const authoredOriginals = new WeakMap<object, {
+  tx: DbExecutor;
+  changeSetId: string;
+  envelopeSha256: string;
+}>();
+
+export function readNewAuthoredMaterializationOriginal(
+  tx: DbExecutor,
+  builder: object,
+): Readonly<{ changeSetId: string; envelopeSha256: string }> {
+  assertActiveDatabaseTransaction(tx);
+  const value = authoredOriginals.get(builder);
+  if (!value || value.tx !== tx) {
+    throw new Error('Authored materialization has no newly inserted original in this transaction');
+  }
+  return { changeSetId: value.changeSetId, envelopeSha256: value.envelopeSha256 };
+}
 
 export interface RecordedSyncChangeSet {
   readonly changeSet: SyncChangeSetV1;
@@ -231,6 +251,12 @@ export async function recordAuthoredChangeSetInTransaction(
     origin: 'local',
     createdAt: input.clock.nowIso,
   });
+  authoredOriginals.set(builder, {
+    tx,
+    changeSetId: changeSet.changeSetId,
+    envelopeSha256: sha256Hex(encodedSha256),
+  });
+  await persistAuthoredYjsMaterializations(tx, builder, input.clock.nowIso);
   await insertApplyReceipt(tx, {
     changeSet,
     appliedAt: input.clock.nowIso,

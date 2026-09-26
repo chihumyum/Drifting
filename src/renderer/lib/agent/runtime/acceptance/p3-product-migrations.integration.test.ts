@@ -99,6 +99,7 @@ const APPLICATION_TABLES = [
   'sync_segment',
   'sync_set_tag',
   'sync_transfer',
+  'sync_yjs_materialization_receipt',
   'timeline_marker',
   'workspace_projection_change',
   'workspace_projection_clock',
@@ -127,6 +128,9 @@ const APPLICATION_TRIGGERS = [
   'protect_locked_relation_type_endpoint_insert',
   'protect_locked_relation_type_endpoint_update',
   'protect_locked_relation_type_update',
+  'sync_yjs_materialization_receipt_immutable_delete',
+  'sync_yjs_materialization_receipt_immutable_update',
+  'sync_yjs_materialization_receipt_insert_guard',
   'trg_agent_runtime_element_patch_receipt_immutable',
   'trg_agent_runtime_element_patch_receipt_provenance',
   'trg_agent_runtime_entity_write_receipt_immutable',
@@ -210,7 +214,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(4);
+    expect(journal.entries).toHaveLength(5);
+    expect(journal.entries[4]?.tag).toBe('0004_yjs_materialization_admission');
     expect(journal.entries[3]?.tag).toBe('0003_agent_checkpoint_anchors');
     expect(journal.entries[2]?.tag).toBe('0002_workspace_projection_journal');
     expect(journal.entries[1]?.tag).toBe('0001_agent_chat_sync');
@@ -249,7 +254,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 196 });
+    ).toEqual({ count: 197 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

@@ -37,3 +37,22 @@ Project-owned and generated asset origins are recorded in
 Names and trademarks of third-party providers belong to their respective
 owners. Their appearance describes compatibility and does not imply
 affiliation or endorsement.
+# Vendored Yrs
+
+`vendor/yrs` contains Yrs 0.28.0, copyright its upstream authors, under the MIT
+license retained in `vendor/yrs/LICENSE`. Its provenance and local correctness
+patches are recorded in `vendor/yrs/UPSTREAM.json` and `DRIFTING_PATCHES.md`.
+
+## Native original-operation verification
+
+The shared Rust core uses `ciborium-io` and `ciborium-ll` 0.2.2 for its CBOR
+reader. Both are copyright Nathaniel McCallum and contributors, licensed under
+Apache-2.0; their source and license are available from
+[enarx/ciborium](https://github.com/enarx/ciborium). Their locked runtime
+dependencies include `half` 2.7.1 (MIT OR Apache-2.0,
+[half-rs](https://github.com/VoidStarKat/half-rs)) and `crunchy` 0.2.4 (MIT,
+[crunchy](https://github.com/eira-fransham/crunchy)). The test fixtures use
+`base64` 0.22.1 (MIT OR Apache-2.0,
+[rust-base64](https://github.com/marshallpierce/rust-base64)). These dependencies
+retain their upstream licenses; binary redistribution must include the notices
+required by the exact locked packages.

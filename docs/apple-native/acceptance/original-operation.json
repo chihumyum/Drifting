@@ -1,0 +1,785 @@
+{
+  "schemaVersion": 1,
+  "kind": "native_original_operation_verification",
+  "status": "passed",
+  "productionSemanticDeletionEnabled": false,
+  "source": {
+    "fingerprint": "3c67e4a5394537b78e0c5ee87a08036cff508e76d12e32198a12c89662cf8ce3",
+    "files": [
+      {
+        "path": "crates/drifting-core/Cargo.lock",
+        "sha256": "e110906728f6b087fc97b4ed0907d5fdb5ff4ab2a101b286d5ea024a7e6015c4"
+      },
+      {
+        "path": "crates/drifting-core/Cargo.toml",
+        "sha256": "3c149aa4631001435b64f56f1c3814d6f52d474bb1166adefd8f93d32bb78a3b"
+      },
+      {
+        "path": "crates/drifting-core/src/database.rs",
+        "sha256": "0f10006f3fbdbf42c2888d964ab2ac1de552d5d49964a5ae3dcea1d6649f3a40"
+      },
+      {
+        "path": "crates/drifting-core/src/file_io.rs",
+        "sha256": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c"
+      },
+      {
+        "path": "crates/drifting-core/src/lib.rs",
+        "sha256": "331fb86d00cf5278a72692914c35c7af409cdfca4e1d83fc53f0fb617cea8a72"
+      },
+      {
+        "path": "crates/drifting-core/src/materialization_admission.rs",
+        "sha256": "066ac21715dc4a80eaa3c601da17eb6a86b9efe91718aade76d0a3bfd9c0b25d"
+      },
+      {
+        "path": "crates/drifting-core/src/materialization_admission/tests.rs",
+        "sha256": "7d439cd5e5fb31d9c200ce8f3c6be922cb45916598cc9cbdd7c0c13efc718bc2"
+      },
+      {
+        "path": "crates/drifting-core/src/original_body_archive.rs",
+        "sha256": "393c2be0a986dc96a6e61486f2d758bb3284561b74d24cfe9970d80291816b51"
+      },
+      {
+        "path": "crates/drifting-core/src/original_body_archive/tests.rs",
+        "sha256": "8f87572866964155765ff1e30a902cf80b41e8c30f457e393edb76a014ea6f89"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation.rs",
+        "sha256": "82ae0b281a657413bbe193faf934fb5ae9c0a3a547837920db568d8316aaf85d"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation/canonical.rs",
+        "sha256": "4a939d809c9b5b78f8be7388f0b68a58fd4ed47edf290af03629c2278637ae0f"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation/tests.rs",
+        "sha256": "18fc6ab3dbbf8b45fd5a6158a3c8e391662ed71d00826b52cf55baa12cd685b9"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store.rs",
+        "sha256": "bab64633f7a6f05d0910738f6fc2460e87d5bd85608be6207b63a048a7850651"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store/fixtures.json",
+        "sha256": "171f67aef40fee55e3e6d9d91f0bd4717109fcd4f8922dcde3cc889ec3169235"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store/tests.rs",
+        "sha256": "331ddce840fe718480da7a0a725170495148452561e1f0ca4ce28f44c95bf5d8"
+      },
+      {
+        "path": "crates/drifting-core/src/prose.rs",
+        "sha256": "cc31352caeb8ce2d79040dc6dc2f8effd8d19c5908afb2b6db6304b2413b17a8"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal.rs",
+        "sha256": "657c4d0cbedf4e5dff1a6aa2eea4eeabdf00cb7d1dd497dd6cd1f13f5932ac89"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal/encoding.rs",
+        "sha256": "14eced4f188ab3a8082cf33471abf573d1afa5a947261bdd145ad7cabbe5f21e"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal/tests.rs",
+        "sha256": "14734f46a81b59cfe95409ea71566016de6d487ee73674f37ff823bd9b1bac0e"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/event-order.json",
+        "sha256": "6f85842ff8f17ba1424210dc1966e3b9781dd3718a9353c23f3d06c1b13d9641"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/native-journal-evidence.json",
+        "sha256": "00066771c223e9a9e10730acd7320556833e41c359d9a2a378fdf1fe74880d34"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/original-body-archive.json",
+        "sha256": "7ca060f8c3e93d488e654c6eca6a5b8e8556eae98b1e1d6f35c95da0101d51a8"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/original-operation.json",
+        "sha256": "0aaad3290384a98c2a47ea4a4bfb429e4eb3182f81092f0ff8a75d1034bba463"
+      },
+      {
+        "path": "crates/drifting-core/tests/native_journal.rs",
+        "sha256": "c5ac535cd89aef86f8ac7cbd03f2c926cf1a94a55a585bfb848d5ff387ccb75e"
+      },
+      {
+        "path": "crates/drifting-document/Cargo.lock",
+        "sha256": "1885bbd0b1f5f856986b0b445221c066a035316c19c0a59cb638192abad89338"
+      },
+      {
+        "path": "crates/drifting-document/Cargo.toml",
+        "sha256": "59162d32a6156011d5af1ce6d7444dd8557da4d3164ab0b27a85e721350b73c3"
+      },
+      {
+        "path": "crates/drifting-document/examples/document_protocol.rs",
+        "sha256": "62747278cd0345f5f3f255ecf646f748861b31274d0062604a02f38b21037a43"
+      },
+      {
+        "path": "crates/drifting-document/examples/native-command-fixtures.rs",
+        "sha256": "dc56370ea6ab337b485463af88743812dbd9c4440d8067e69ac4c3f3349a0c0f"
+      },
+      {
+        "path": "crates/drifting-document/examples/native-draft-fixtures.rs",
+        "sha256": "f74772328ec54f4e3bf55a4312678c1b5f9e216e26bf82ec28a886d7b0943a46"
+      },
+      {
+        "path": "crates/drifting-document/src/capture.rs",
+        "sha256": "a2c0319022b1b7ec27324e15953698e715130f0a3a9daa2e15fbde2b34afecbd"
+      },
+      {
+        "path": "crates/drifting-document/src/comment_tests.rs",
+        "sha256": "0bdc23e7b03694cd4e550166b81d49964ce256080902223ab66dfcdfd0504305"
+      },
+      {
+        "path": "crates/drifting-document/src/comments.rs",
+        "sha256": "de7835a7efc883ef8abd16d4210bc8758ab5accfe69553ebcf0b9a1733884040"
+      },
+      {
+        "path": "crates/drifting-document/src/concurrent.rs",
+        "sha256": "3713bbad72e89891c5fae50967b9e767de1aa1c7426e1e41eddb42ecd12e945b"
+      },
+      {
+        "path": "crates/drifting-document/src/concurrent_draft_tests.rs",
+        "sha256": "b0f5ce6bf6a45d2c925d6277fdd8612c1e14143013ee8e293f42d92db7e71fa0"
+      },
+      {
+        "path": "crates/drifting-document/src/draft_evidence_tests.rs",
+        "sha256": "1924c74d7ecd432edc192d138def773569978967137259edd17dca8cdff6e39c"
+      },
+      {
+        "path": "crates/drifting-document/src/draft_tests.rs",
+        "sha256": "5a1ff7f1ad6998d17c27686f17c8ed6eded7d4ca41d6ce7fa0f2ba4e9ea3edfe"
+      },
+      {
+        "path": "crates/drifting-document/src/drafts.rs",
+        "sha256": "723aaadbee4efee3da7476256f2db33c813f0364fab25e2f87b706c8d92e89e4"
+      },
+      {
+        "path": "crates/drifting-document/src/history.rs",
+        "sha256": "3ab3fae65724a3c11a5a1e04c790d59c45041850c7d9f7c0a75c0224eccd303e"
+      },
+      {
+        "path": "crates/drifting-document/src/input_tests.rs",
+        "sha256": "bcd886b4929b0ae2efb71389ae9c8d57960fe38d0671b1043d02dc65ae7a20dd"
+      },
+      {
+        "path": "crates/drifting-document/src/inputs.rs",
+        "sha256": "22352607d6e5d2fc1d290abf740c666fc21de6fc6951dd3665024bff522fb3ad"
+      },
+      {
+        "path": "crates/drifting-document/src/lib.rs",
+        "sha256": "e897fc9fb72f0af4e5d81771e4b453b3281fb44fcd1eb21191f7db2a5520198c"
+      },
+      {
+        "path": "crates/drifting-document/src/lineage.rs",
+        "sha256": "5661b53a73bb7efc599a2f0eb478131cfa778a52917a1a75bec2805b936e313a"
+      },
+      {
+        "path": "crates/drifting-document/src/native.rs",
+        "sha256": "3bb77c7cae96e062365eec218f69da1f6738772445a7346c12b5c9f48471801e"
+      },
+      {
+        "path": "crates/drifting-document/src/native_command.rs",
+        "sha256": "41e62224d09250b5a7b16ca5d90000d644ff9136ae19ab9df17688d34025e44f"
+      },
+      {
+        "path": "crates/drifting-document/src/native_command_tests.rs",
+        "sha256": "a459a4c24b292d6c885eb3eaec238ef88c08d6ff85fd424e057548359d2b2f73"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_alias.rs",
+        "sha256": "dd7464f0d1917c6f8f84aa3606b2ed6b63520b9edf9b1d283723985091301c11"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_alias/gaps.rs",
+        "sha256": "825f4da35f5f7334a3c53bb4138fcfaf9a04aa52ea00bb51d4b9a52b79de26fe"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_history.rs",
+        "sha256": "e916f8bc4bda42983b62a30efea4d025fd18948ff59aca52323715d629688987"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_history_tests.rs",
+        "sha256": "7793e8a2271a1e018b22dacb7824f72e0cb8e2a1b6768fd91a1c9eaf1175a586"
+      },
+      {
+        "path": "crates/drifting-document/src/remote.rs",
+        "sha256": "bd3afe5eabab1ca7ab4f7a4ed87b84056f6bf9c651cd323eaed4ce5e297c3c70"
+      },
+      {
+        "path": "crates/drifting-document/src/replay_tests.rs",
+        "sha256": "8f1303c1a525767a378c8c07947f28c3f56cd721bd5e463b12598fd325860a91"
+      },
+      {
+        "path": "crates/drifting-document/src/retention.rs",
+        "sha256": "520cbef82d4d4693732e36e9e296d16ede6e01158d064f1d3556fa7cf2b344c6"
+      },
+      {
+        "path": "crates/drifting-document/src/retention_tests.rs",
+        "sha256": "bff8d54b87240d6b14dd143bdb5104f7924bf3c654271fff7d29b183bff2d5b6"
+      },
+      {
+        "path": "crates/drifting-document/src/selection_tests.rs",
+        "sha256": "49f5d182b112fcf2e6f1de7e389de8783a60260ec42235398a3890ef84388793"
+      },
+      {
+        "path": "crates/drifting-document/src/selections.rs",
+        "sha256": "9749e9ecbc508de9b3e454f887e6648cef69f04bcd357da55a5980323add35c1"
+      },
+      {
+        "path": "crates/drifting-document/src/structure.rs",
+        "sha256": "f6f177e1560ddba985fdb2328889c080f0e928ae16670605f17b3e85728e56a4"
+      },
+      {
+        "path": "crates/drifting-document/src/structure/containers.rs",
+        "sha256": "37e6a4174cfbfaef418777c92e8864d4c6230ad8b0caff1fa608c7b7ef8a5053"
+      },
+      {
+        "path": "crates/drifting-document/src/undo_policy.rs",
+        "sha256": "531518cba07622eea8ea5f5c177a5ccb1ad642e6ed8245380e6e0da519851cf8"
+      },
+      {
+        "path": "crates/drifting-document/src/undo_policy_tests.rs",
+        "sha256": "9a1fe8d08f1de1267bbac5b0f608a6f144f49a18cf7df22a62bdc1cec4280141"
+      },
+      {
+        "path": "crates/drifting-document/src/wire.rs",
+        "sha256": "c8ee1dda396a82cb83ceeedbf5817f7797ea2284f1569857d82d77a7911800bf"
+      },
+      {
+        "path": "docs/apple-native/fixtures/prose-journal-v1.json",
+        "sha256": "0a384b27feddcee720598e79138555872db490308f50c24b12b3912e4caef663"
+      },
+      {
+        "path": "drizzle/0000_local_first_baseline.sql",
+        "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
+      },
+      {
+        "path": "drizzle/0001_agent_chat_sync.sql",
+        "sha256": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0"
+      },
+      {
+        "path": "drizzle/0002_workspace_projection_journal.sql",
+        "sha256": "35ea9b635f4f5d671335684c109275444d406fb2715301dcb667703ab2304b90"
+      },
+      {
+        "path": "drizzle/0003_agent_checkpoint_anchors.sql",
+        "sha256": "b61e084d2af4244ded43dd2ad05242a4a0e846d7150a2bd8c46caeeb38e76341"
+      },
+      {
+        "path": "drizzle/0004_yjs_materialization_admission.sql",
+        "sha256": "865ebe4a9c9855cafad7780f33ba185bdfaa3d86db4ed32ec0562933bbfb0a05"
+      },
+      {
+        "path": "drizzle/meta/0000_snapshot.json",
+        "sha256": "525d14cb83a2e870355ab62d3d6bf2e52a93a98cc8d6119832c02731e8c8c248"
+      },
+      {
+        "path": "drizzle/meta/0001_snapshot.json",
+        "sha256": "4e6cab7e7e48925e3d2dca0e0de557dd6d399cd3d87456a064a724858c58b608"
+      },
+      {
+        "path": "drizzle/meta/0002_snapshot.json",
+        "sha256": "bf157f0d181cccef22c5a44721b2319ecc89f4d57bb116a2b0aeba1dcea93459"
+      },
+      {
+        "path": "drizzle/meta/0003_snapshot.json",
+        "sha256": "a9edf2dd08bf6dadcb3d96a3341fc4dc983f3a4e5e9aea9be8c019fdb78adda1"
+      },
+      {
+        "path": "drizzle/meta/0004_snapshot.json",
+        "sha256": "ff8aa3ce4481e71d806aee5a2d0548fb0c2c6777623f9bdb70b794c7be26dda7"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "d111a6fa2faa8b2791571f305fe160909a1e3b0728b3a8d0f36f9d808ae7b6d3"
+      },
+      {
+        "path": "package.json",
+        "sha256": "5d793fb1261be4747083c6d74bfd058c6831131c6d80d602eb7ad9159d9aee88"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
+      },
+      {
+        "path": "scripts/apple-native-event-order-oracle.ts",
+        "sha256": "d47766dd3f61d3e649b557eedcfbdc279b5dedf53dce569fe8dd8f788fb2766f"
+      },
+      {
+        "path": "scripts/apple-native-journal-oracle.ts",
+        "sha256": "8db85d89640b94c31fcf73653bde14f2f86540b3b2f094620744480b34e3a4df"
+      },
+      {
+        "path": "scripts/apple-original-body-archive-oracle.ts",
+        "sha256": "4a071e8034bbb32eaddc3cb8499314470f7b47530ba26c1acd0a4ca5235c4d2f"
+      },
+      {
+        "path": "scripts/apple-original-operation-acceptance.mjs",
+        "sha256": "798d3a86231f90a13a3202b4bded7082bd1c8f63986320cc16af45b5c051c1ec"
+      },
+      {
+        "path": "scripts/apple-original-operation-oracle.ts",
+        "sha256": "5fb69a6e1599728f059b448b2085ee751e2846528b9556946be9483d8d37ce89"
+      },
+      {
+        "path": "src/renderer/lib/yjs-persistence-origin.ts",
+        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+      },
+      {
+        "path": "src/renderer/services/yjs-transaction-evidence.ts",
+        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.test.ts",
+        "sha256": "2040144cccd1089bb5f347f44cbbf6b442c3749bf046c8fbadc03d0d254c9dfa"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.ts",
+        "sha256": "02ca95278b8ff33f3d2541deb62254911140a9b061e6f0e771b2a9ba14d677e3"
+      },
+      {
+        "path": "src/renderer/sync/protocol/canonical-cbor.ts",
+        "sha256": "e47cde3592daa3740ed8b5c7ab47173053509a887d0175b2053e44b4b9d7ff63"
+      },
+      {
+        "path": "src/renderer/sync/protocol/change-set.ts",
+        "sha256": "b04005c646928683a10d3e3195bba939d24d2526fd066840324313e2da497f24"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest-schema.ts",
+        "sha256": "d5f0290e33b71fd0be8ae07a47e5a5e0a10170d7826347217f3cbfb5dfc68cab"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.test.ts",
+        "sha256": "3d186ee9b7539233072be4ea479cbefd7b63e672006e2f5636e3fc9226960c2b"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.ts",
+        "sha256": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/protocol-v1.golden.json",
+        "sha256": "b94c77cdaf1ce5f858c8b43452f30f426838915425b303fb153c964080557491"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/v1-fixtures.ts",
+        "sha256": "3123e18ed04fb71f8bf0884aee2ff1ab6ef7deb3b70208d70fe42544dd2dd917"
+      },
+      {
+        "path": "src/renderer/sync/protocol/index.ts",
+        "sha256": "200a7e9280dbd2e03db48ab237573843f3e43633076ca128a7d3e082b6563fdb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/order.ts",
+        "sha256": "5fe8f55e28c526fc0714c536f9c316813440c4428d29536a2770ecb9b3014a31"
+      },
+      {
+        "path": "src/renderer/sync/protocol/primitives.ts",
+        "sha256": "80405edc5dd7a99ad6d91e0eb29ad58ededc843d1b1c1eb6753905b85b825be8"
+      },
+      {
+        "path": "src/renderer/sync/protocol/protocol.test.ts",
+        "sha256": "3bea0800c7b38cdaecc09d23085c14574828c625da384eb682122e3e9e71379d"
+      },
+      {
+        "path": "src/renderer/sync/protocol/provider.ts",
+        "sha256": "1c60123b664585b4abd9f18ca10a566ff9f3475f27408e9605aaf11c5d476794"
+      },
+      {
+        "path": "src/renderer/sync/protocol/segment.ts",
+        "sha256": "e724e98063be4215d707774e00d3b8f0dd7d899ec09c4e42d3320fabcb53c56a"
+      },
+      {
+        "path": "src/renderer/sync/protocol/snapshot.ts",
+        "sha256": "e2089f61827df5f06d47232d11e4408334500e2bb0aed3679fede3660c799b58"
+      },
+      {
+        "path": "src/renderer/sync/protocol/validation.ts",
+        "sha256": "992c10215764d660390a5da11cc4c69546eb01a2a6e50417d107673249134ecb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/versioned-codec.ts",
+        "sha256": "168cc9ab673da9c582ef47729d5c90fb00c24b195688a22660137ed79a0f4276"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+        "sha256": "8c7b9258f15cfaa0c3e9ffff8fb61949c46c0518ac2d24ab223cfa1e3ba16a67"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.ts",
+        "sha256": "d80221fadc09556e4a60effd65089631055da2d4db3dbf36bd04bcbc051c5b93"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+        "sha256": "ec8c6c4b743749d82fe39f57d40887a99c1985a4cd0af42979c9cecadf2955ad"
+      },
+      {
+        "path": "vendor/yrs/Cargo.lock",
+        "sha256": "53a56e3e14693c1ecbde5cc93828fc1c9799cd2a89925a37b9efa999c8990314"
+      },
+      {
+        "path": "vendor/yrs/Cargo.toml",
+        "sha256": "2085b13775601afe212f93a5fbbe31abfd45e840da0f62c557b91a1ffd0d346a"
+      },
+      {
+        "path": "vendor/yrs/Cargo.toml.orig",
+        "sha256": "ad560977cdad06a087d94fafcf0a464754fd5f0b2a527b5bafd1471b684b60ba"
+      },
+      {
+        "path": "vendor/yrs/DRIFTING_PATCHES.md",
+        "sha256": "9ac0f29465e3ab4143464081169afdf5f14f6bd9f383991ebc3d5b2cf86be353"
+      },
+      {
+        "path": "vendor/yrs/LICENSE",
+        "sha256": "b6d81564e9c46473907bd3c09d4d5ab0f21cfbe6ac35d46daf1bdb0423182a5b"
+      },
+      {
+        "path": "vendor/yrs/README.md",
+        "sha256": "6c56d67ee262839d49c3d5bba0930800274f78d5a3a3aacb7225d9649f019b6c"
+      },
+      {
+        "path": "vendor/yrs/UPSTREAM.json",
+        "sha256": "729997f8ab1d625f3035c57f0a9c5eaa3ead37104d49a0b5522ab00c21f3ac9b"
+      },
+      {
+        "path": "vendor/yrs/benches/benches.rs",
+        "sha256": "b3196024b9e3904085a3927e1cfcfee3dce38baeb71c7f259d83384a38bb6784"
+      },
+      {
+        "path": "vendor/yrs/benches/id_set.rs",
+        "sha256": "90790cde288a056b6dcf33f5b4e006295e4e400eebafc3c936fc904350be6761"
+      },
+      {
+        "path": "vendor/yrs/benches/serialization.rs",
+        "sha256": "ba868f355a910b39e4121621b585ef885a583340d1fca856d7c3c1249042fb23"
+      },
+      {
+        "path": "vendor/yrs/src/alt.rs",
+        "sha256": "cdd569c656ac5bb94f353886f5f1bf9d49e07b40bff2033d840c75975d50e272"
+      },
+      {
+        "path": "vendor/yrs/src/any.rs",
+        "sha256": "2e5ee918b0c29a707ae259bd71474f5f6a72045f8bf062de2f5aa979c4591230"
+      },
+      {
+        "path": "vendor/yrs/src/atomic.rs",
+        "sha256": "3a3f2cfeacbc6d97a678d72a6a975ee0fde6e54f8e95a8ed8c74989cafb24784"
+      },
+      {
+        "path": "vendor/yrs/src/block.rs",
+        "sha256": "86dcf0f33bc59c40e3793679badecab6dc3cc8d9651d34096d48c70cda6511d3"
+      },
+      {
+        "path": "vendor/yrs/src/block_iter.rs",
+        "sha256": "176074723260296892a8567cb660c5a81b87984c7149407bee745483fd9354b2"
+      },
+      {
+        "path": "vendor/yrs/src/block_store.rs",
+        "sha256": "f847209b60ca6e2b9d5667a586fe8fc5271dfa1b844e9b3d9b2d6d0bdd976391"
+      },
+      {
+        "path": "vendor/yrs/src/branch.rs",
+        "sha256": "22734a9877161f87f1543fbd6fe27099dc4a14d886f9485e04d8b328008aa794"
+      },
+      {
+        "path": "vendor/yrs/src/doc.rs",
+        "sha256": "d44dff119bba51fbcd7a69d3b179f1190096e531a8742b4d96c5e1e7113120a8"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/mod.rs",
+        "sha256": "bde6947363f0c42106035b2da31d5e62e964d15af507f533e8a7a4d052fc3c02"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/read.rs",
+        "sha256": "733ef78e1d2f2db7d6a3da6fcc77d27f642b65ea2ce7ab3c23d173ecb91d1936"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/de.rs",
+        "sha256": "a4cfb97aca9fa5045dafd55ac89406a1ff00846f543319c569f78b378f3cf31c"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/mod.rs",
+        "sha256": "fcc015de3dd54231a2588b4827961e2f65de0cbe0d5ada574eb25de81e7b1a78"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/ser.rs",
+        "sha256": "02c607ee20c839a5a74047446b4ac29b04bdbd83251dd541737c54d83edbd211"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/varint.rs",
+        "sha256": "37d24f5ee019a59ec83d95e1b85b2d12432e8ac09ec26d2ac4ac352c728c7dfc"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/write.rs",
+        "sha256": "a0117c689ec93bcb2871115791e33e3e91588486561b5811d41a0c5e53e5090d"
+      },
+      {
+        "path": "vendor/yrs/src/error.rs",
+        "sha256": "4a57f59683c17347022fd087fad9a2a30b22ee825f8ff52b29b992558da6f2f2"
+      },
+      {
+        "path": "vendor/yrs/src/event.rs",
+        "sha256": "2658442ab8b5eea485217ec2ff7dae57599f9c5623734ad2d893f3604642bd9a"
+      },
+      {
+        "path": "vendor/yrs/src/gc.rs",
+        "sha256": "fa1ab49207697d8c2e182048e3023e226513f9331b90c3aef065a950b795d63d"
+      },
+      {
+        "path": "vendor/yrs/src/id_map.rs",
+        "sha256": "579ccb3ec2208eb983106d65ffcae30c500b3e24c92174451868e709b09105cf"
+      },
+      {
+        "path": "vendor/yrs/src/id_set.rs",
+        "sha256": "49e386c51b6297ae278361abea6f3181c8939ef5bb5c33c70d0f8060f07f0d25"
+      },
+      {
+        "path": "vendor/yrs/src/ids.rs",
+        "sha256": "9040539c9ef680ca10e04f765cfc0a23052be0f0b56ef8b17891f7c0099c299d"
+      },
+      {
+        "path": "vendor/yrs/src/input.rs",
+        "sha256": "78eff9f0128a0bb2b13e9c6e844d5a1b15904c6b30498469944f0b4df3ba5fd1"
+      },
+      {
+        "path": "vendor/yrs/src/iter.rs",
+        "sha256": "c1303953bec70bb2b68b02b7948fa7c2f43b8c3f7389885f457e8d9a501c552f"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/iter_any.rs",
+        "sha256": "8a4d997539c6a25df95ad606c12d2087f9be849ee8d193fc29477bea1d2efa9e"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/iter_txn.rs",
+        "sha256": "ce864d642ec05dfc5bceabf0c526ed340c0a99c16e13332af899363462729585"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/mod.rs",
+        "sha256": "da4d9067a1e8d868899d0c6762a2afabf51ab04a8d0601008b6a3a56fdf8dd1e"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/parse.rs",
+        "sha256": "4f521787b5bb445d02ab601a0e2cf0acf6ee4b59a0552993f7938e4aece16829"
+      },
+      {
+        "path": "vendor/yrs/src/lib.rs",
+        "sha256": "32bcc29e46572aef447528ac8421a41898c108863f8c34bbeb8135e887943a59"
+      },
+      {
+        "path": "vendor/yrs/src/observer.rs",
+        "sha256": "b08f6e1c3f390eec764d316033373eb460437d1b6ccc308e2215895da6133aac"
+      },
+      {
+        "path": "vendor/yrs/src/out.rs",
+        "sha256": "7f4562d84cc16d56e679d0ec178617367660e70a0c86bab5147ee340a38a7c85"
+      },
+      {
+        "path": "vendor/yrs/src/slice.rs",
+        "sha256": "328df6ab85a13990b6de10839900d0b97c4469d498fb3dec7fbe8758943e6210"
+      },
+      {
+        "path": "vendor/yrs/src/state_vector.rs",
+        "sha256": "19a03d6cf0a4f174df9d7e2b22ed1f96d13064aed42f3af41edcfd3e4ba6680b"
+      },
+      {
+        "path": "vendor/yrs/src/sticky_index.rs",
+        "sha256": "e2bfa8cbfc8407c0c1585a65a50c1def49b5696a6435c5c75b3e556a0c41e7b5"
+      },
+      {
+        "path": "vendor/yrs/src/store.rs",
+        "sha256": "1b6a9e14a43f91c418618054bec80bc2302416df0ffc7e5d707fc4a2dd7be5d1"
+      },
+      {
+        "path": "vendor/yrs/src/sync/awareness.rs",
+        "sha256": "836d951e8b8570c035e568dca54097f131ee94226492fa3f4cb2fda44621b23c"
+      },
+      {
+        "path": "vendor/yrs/src/sync/mod.rs",
+        "sha256": "5999c93424d3bba819de2922ef49f93857e5b286f334150e2a9358b977cb7f7a"
+      },
+      {
+        "path": "vendor/yrs/src/sync/protocol.rs",
+        "sha256": "0887f7e7d1007a879316bc8adb1fe1dbd7aabfa71842571ce6183b7779a7bbdd"
+      },
+      {
+        "path": "vendor/yrs/src/sync/time.rs",
+        "sha256": "bc302d99aa85f9d3169752c3369882e6cd806e5856f70e4c2828f6063c35087c"
+      },
+      {
+        "path": "vendor/yrs/src/test_utils.rs",
+        "sha256": "31e0845546d85300f6f12a5c35b0ff607a96794c4a83405ba357020753863881"
+      },
+      {
+        "path": "vendor/yrs/src/tests/compatibility_tests.rs",
+        "sha256": "6a6e9761d6174f598b530901ccfec965b07eba2cf54e9ff652fc18e146ac5947"
+      },
+      {
+        "path": "vendor/yrs/src/tests/edit_traces.rs",
+        "sha256": "f8b5965ae50bd369fc5e2ce73e1ed7a43b29d6461224512fed93f8dd5d810e8f"
+      },
+      {
+        "path": "vendor/yrs/src/tests/edit_traces_tests.rs",
+        "sha256": "11f875b7abbbc6ec664c1e7f28ccaac9c903307f05baada6e65bfa440aad1962"
+      },
+      {
+        "path": "vendor/yrs/src/tests/mod.rs",
+        "sha256": "bed339b92949cceadfc5d128c85a35a6009a72cb4affb676988f41e440431eca"
+      },
+      {
+        "path": "vendor/yrs/src/transact.rs",
+        "sha256": "e0ee48b3a108a0bf05669be06c90db5b2dc6c846579d624ac587b7759ea0520c"
+      },
+      {
+        "path": "vendor/yrs/src/transaction.rs",
+        "sha256": "f297a67b6ea75bb0f11ccf9bc56927ad88d89c76229cd813cbf7f1e4bcc93172"
+      },
+      {
+        "path": "vendor/yrs/src/types/array.rs",
+        "sha256": "93d985cb367551577af2d6534a85f09ad057a42cee8dab9cd58054dd3c490e88"
+      },
+      {
+        "path": "vendor/yrs/src/types/map.rs",
+        "sha256": "5ebd1a960cf258ee97904dd69d8bc81d68763fb288afc089d6a466d4ff496e13"
+      },
+      {
+        "path": "vendor/yrs/src/types/mod.rs",
+        "sha256": "835ed9cdfddcb65e1a91b2db3cf5cd9c3b039a443c719f331b651be352855d05"
+      },
+      {
+        "path": "vendor/yrs/src/types/text.rs",
+        "sha256": "0f9dfa82c11ab8f9547f100367653feb0891318e055cb0932585e043c8eb1691"
+      },
+      {
+        "path": "vendor/yrs/src/types/weak.rs",
+        "sha256": "d27a49c7ab115e8e72b729c153cc7065f5293a348df542fcf94d1e4db269fa39"
+      },
+      {
+        "path": "vendor/yrs/src/types/xml.rs",
+        "sha256": "aa1071730511d373d2766e9af38326e160099e03bf4b6928817d53722e14f0e2"
+      },
+      {
+        "path": "vendor/yrs/src/undo.rs",
+        "sha256": "a6359e133b095ec046e62287da0d7cbed6a909b64bd5143fa77bd152f2f45e3d"
+      },
+      {
+        "path": "vendor/yrs/src/update.rs",
+        "sha256": "f3719ef93e9dad0221f658077ad89bab251a466c87f092e75c6777655db31f8d"
+      },
+      {
+        "path": "vendor/yrs/src/updates/decoder.rs",
+        "sha256": "4ac62a307eabd8ac156526e22c32966db72fcf696d4208ff92c42c71d27eb5d1"
+      },
+      {
+        "path": "vendor/yrs/src/updates/encoder.rs",
+        "sha256": "808dca538a0cb6cc8b2f526995a72ae89906f22c39e777623b3b5f0876367aa5"
+      },
+      {
+        "path": "vendor/yrs/src/updates/mod.rs",
+        "sha256": "12954b9be2c0512f93e93d6bf57584536aaed2689c9003a11873cc36d2850903"
+      },
+      {
+        "path": "vendor/yrs/src/utils/client_hasher.rs",
+        "sha256": "f72c959781699537adc96b036d62aa6b91cf7f64da7c8a615be7f035b6ccc3d6"
+      },
+      {
+        "path": "vendor/yrs/src/utils/mod.rs",
+        "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
+      }
+    ]
+  },
+  "fixtureCases": {
+    "validEnvelopes": 8,
+    "invalidEnvelopes": 49,
+    "canonicalValues": 52,
+    "strictEventByteCases": 1,
+    "bodyArchive": {
+      "originals": 4,
+      "mutations": 5,
+      "targetBodies": 3
+    },
+    "eventOrder": {
+      "accepted": 11,
+      "rejected": 21
+    },
+    "journalEvidence": {
+      "cases": 3
+    }
+  },
+  "tests": {
+    "rustToolchain": "1.88.0",
+    "passed": 61,
+    "failed": 0,
+    "ignored": 0,
+    "requiredCases": [
+      "original_operation::tests::original_operation_accepts_real_ts_envelopes_and_returns_all_exact_materialized_rows",
+      "original_operation::tests::original_operation_rejects_ts_binding_schema_hash_versions_and_unclassified_event_corpus",
+      "original_operation::tests::original_operation_complete_canonical_value_model_matches_production_cborg",
+      "original_operation::tests::original_operation_bounds_envelope_before_decode_and_owns_selected_bytes",
+      "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
+      "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
+      "original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders",
+      "original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes",
+      "original_operation_store::tests::original_store_reads_actual_single_and_multi_operation_without_side_effects",
+      "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
+      "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
+      "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
+      "original_operation_store::tests::original_store_reads_one_wal_snapshot_while_another_connection_commits",
+      "original_operation_store::tests::original_store_refuses_oversize_envelope_and_row_blobs_before_copying_them",
+      "original_operation_store::tests::original_store_refuses_rehashed_companion_insert_with_published_guards_intact",
+      "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
+      "original_operation_store::tests::original_store_requires_an_actual_matching_apply_receipt",
+      "original_operation_store::tests::original_store_leaves_callers_work_intact_after_success_and_failure",
+      "original_operation_store::tests::original_store_limits_corrupt_text_cells_before_gateway_allocation",
+      "original_body_archive::tests::archive_generic_envelope_layer_does_not_claim_standalone_deletion_intent",
+      "original_body_archive::tests::archive_collects_real_seed_insert_delete_originals_and_reopens_without_intent_for_bodies",
+      "original_body_archive::tests::archive_canonical_discovery_rejects_hidden_target_and_unselected_row_tampering",
+      "original_body_archive::tests::archive_requires_applied_receipt_original_bytes_scope_and_known_references",
+      "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
+      "original_body_archive::tests::archive_bounds_reads_before_copy_and_leaves_caller_transaction_intact",
+      "native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire",
+      "native_journal_rejects_exact_event_and_schema_mismatches_without_advancing_writer_or_revision",
+      "native_journal_nested_evidence_rejection_and_receipt_failure_rollback_preserve_outer_work",
+      "native_journal_limits_optional_evidence_before_large_encoding_and_keeps_default_append_unchanged",
+      "materialization_admission::tests::materialization_native_journal_records_actual_append_and_survives_prune_cold",
+      "materialization_admission::tests::materialization_native_admission_failure_rolls_back_writer_revision_and_journal",
+      "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
+      "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
+    ],
+    "logSha256": "d9bd457f75fb7cfbc7dbad7f7396b968f9d8ea02efdb33f029f7c3fe644c8266"
+  },
+  "scope": [
+    "Canonical original envelope and every mutation schema, payload hash and full selected reference",
+    "Exact declared pure-deletion event bytes and causal snapshot syntax; no higher-level command classifier",
+    "One SQLite snapshot for original bytes, matching application receipt and all materialized mutation rows",
+    "Rehashed sibling substitution, missing or extra rows, wrong references and unaccepted originals refuse without writes",
+    "WAL snapshot consistency, caller-owned transaction preservation and bounded SQLite cells",
+    "Canonical originals identify same-scope body events independently of mutable target indices",
+    "Read-only seed, insert and deletion collection verifies generation catalog, original receipts and every sibling row",
+    "Missing required originals, forged target indices, absent receipts and exceeded local collection budgets refuse",
+    "Legal Yjs/Yrs event client orders preserve exact bytes; complete parsing rejects malformed, duplicate and trailing data",
+    "Optional native journal declarations bind exact events to canonical originals and roll back rejected evidence without advancing writer sequence",
+    "The default journal payload remains byte-compatible; actual command capture and scoped owner behavior have a separate authoring report",
+    "Positive materialization receipts bind actual journal appends, survive raw compaction, and remain distinct for equal events in different originals",
+    "Receipt failure rolls back the native append and writer sequence; missing historical admission is never backfilled"
+  ],
+  "limits": {
+    "sourceVisibility": "not-established-by-this-reader",
+    "writerIdentity": "not-authenticated-by-hashes",
+    "liveDeletionAuthority": "not-enabled",
+    "durableAuthorityCommit": "not-implemented",
+    "capabilityRollout": "not-implemented",
+    "retainedCollectionCompleteness": "not-established",
+    "lostOrGarbageCollectedBodyRecovery": "not-implemented",
+    "archiveReadBudgets": {
+      "envelopes": 4096,
+      "aggregateBytes": 67108864,
+      "envelopeBytes": 16777216
+    },
+    "simulator": "not-run-by-this-report",
+    "physicalInput": "not-run",
+    "device": "not-run",
+    "account": "not-run",
+    "distribution": "not-run"
+  }
+}

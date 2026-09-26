@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', '**/*.d.ts'],
+    ignores: ['dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', 'crates/*/target', 'native/apple/build', 'native/apple/*.xcodeproj', '.local-data', '**/*.d.ts'],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

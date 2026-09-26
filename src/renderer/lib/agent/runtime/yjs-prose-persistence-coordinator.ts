@@ -1,3 +1,4 @@
+import { registerAuthoredYjsMaterialization } from '../../../sync/journal/yjs-materialization';
 /**
  * Provider-neutral durable integration for prepared Yjs prose commands.
  *
@@ -661,10 +662,11 @@ export class YjsProsePersistenceCoordinator {
         );
       }
       const update = updateFor(input.command.prepared, input.direction);
-      const appended = await repo.appendUpdateCas(
+      const mutationIndex = appendYjsUpdateMutation(changes, input.command.base.docId, update);
+      const appended = await repo.appendMaterializedUpdate(
         input.command.base.docId,
         update,
-        revision,
+        { kind: 'authored', builder: changes, mutationIndex },
         {
           kind: 'agent',
           ...(input.collaborator
@@ -677,6 +679,7 @@ export class YjsProsePersistenceCoordinator {
               }
             : {}),
         },
+        revision,
       );
       await repo.upsertSnapshot(
         input.command.base.docId,
@@ -689,7 +692,7 @@ export class YjsProsePersistenceCoordinator {
         resultHash,
       );
       await input.persistProjection(tx, projection);
-      appendYjsUpdateMutation(changes, input.command.base.docId, update);
+      registerAuthoredYjsMaterialization(tx, changes, mutationIndex, appended.token);
       await input.appendAuthoredMutations?.(changes, projection);
 
       const preparedResult = resultSemanticState(

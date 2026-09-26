@@ -20,6 +20,12 @@ Mobile is outside the desktop Alpha release scope. The mobile Google Drive
 release gate and its real-account Desktop/iOS/Android run are tracked in
 [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
 
+## Apple native migration
+
+The Apple-only target, staged P0–P7 plan and experimental native builds are
+tracked in [apple-native/README.md](apple-native/README.md). The current Tauri
+client remains the daily-use implementation until each replacement is accepted.
+
 ## Start here
 
 | Question                                                   | Source                                                                                                                                                                |

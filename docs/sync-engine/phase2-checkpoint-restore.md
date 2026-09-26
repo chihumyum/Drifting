@@ -57,6 +57,14 @@ back to a JSON or numeric projection.
   and identities, validates the current manifest, cross-table references,
   asset manifest, reducer identity/frontier, and every Yjs state before creating
   a domain row.
+- Every materialized mutation row must match its verified encoded change-set:
+  index, action, target family/kind/ID/incarnation, payload version, payload hash,
+  and exact canonical payload bytes. Missing, extra or inconsistent rows are
+  rejected even when the enclosing package and commit marker have valid hashes.
+  Register references therefore cannot acquire a different meaning through a
+  separately supplied mutation row. This also preserves a trustworthy source
+  for future native operation-provenance validation; it does not infer author
+  intent from an unclassified Yjs update.
 - Asset preparation/verification is isolated under one restore attempt. The
   project, reducer metadata, full Yjs states, blob receipts, SyncGeneration activation,
   and activation receipt commit in one SQLite transaction. A failed validation
@@ -97,6 +105,15 @@ covers:
 - missing and corrupt blobs, wrong ProjectSync identity, unknown version, and invalid Yjs;
 - failure isolation: no project row and no staged sync-generation activation on failure.
 - terminal project-purge reducer-state round-trip and post-restore non-resurrection.
+- re-sealed packages with inconsistent mutation rows fail before activation,
+  while valid source mutation rows round-trip exactly.
 
 The machine-readable result is
 [`acceptance/phase2-checkpoint-restore.json`](acceptance/phase2-checkpoint-restore.json).
+That file is the historical Phase 2 record. The later mutation-row integrity
+fix has separate [source-matched generated evidence](../apple-native/acceptance/checkpoint-mutation-integrity.json).
+Its runner, `node scripts/apple-checkpoint-provenance-acceptance.mjs`, executes
+the checkpoint, protocol and restore suites; `--check` verifies the recorded
+source and required cases. The 13 re-sealed tamper cases and valid round-trip
+cover mutation-row consistency, not complete validation of every reducer
+register's target or clock semantics.

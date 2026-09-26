@@ -55,3 +55,11 @@ databases/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Apple migration experiments and Rust build outputs
+crates/*/target/
+vendor/*/target/
+native/apple/build/
+native/apple/*.xcodeproj/
+native/apple/*.xcworkspace/
+native/apple/*.local.xcconfig

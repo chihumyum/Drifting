@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_native_p2b_first_binding",
+  "status": "passed",
+  "generatedAt": "2026-09-26T07:32:22.570Z",
+  "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
+  "source": {
+    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "dirty": true,
+    "fingerprint": "3506c5f59d453cb8910dfe519c6298ead7cc7e25d07fa3572de26bd789b1670c"
+  },
+  "cases": [
+    {
+      "name": "queued Unicode edits",
+      "status": "passed"
+    },
+    {
+      "name": "per-event undo and redo",
+      "status": "passed"
+    },
+    {
+      "name": "marked text waits for commit",
+      "status": "passed"
+    },
+    {
+      "name": "composition undo",
+      "status": "passed"
+    },
+    {
+      "name": "heading split and queued typing",
+      "status": "passed"
+    },
+    {
+      "name": "SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit delegate edit",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit marked-text commit and undo",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Enter, join and structural undo",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit comment highlight, split, history and SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "interleaved multi-view input and shared history",
+      "status": "passed"
+    },
+    {
+      "name": "per-view UTF-16 selection and structural shifts",
+      "status": "passed"
+    },
+    {
+      "name": "marked composition retains context across disjoint view input",
+      "status": "passed"
+    },
+    {
+      "name": "composition cancel applies deferred input",
+      "status": "passed"
+    },
+    {
+      "name": "view detach preserves document and queued edits",
+      "status": "passed"
+    },
+    {
+      "name": "overlapping inline composition and continued input preserve concurrent work",
+      "status": "passed"
+    },
+    {
+      "name": "concurrent structural rejection retains recoverable draft",
+      "status": "passed"
+    },
+    {
+      "name": "shared queue save failure, retry and SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "last-view detach drains committed queue",
+      "status": "passed"
+    },
+    {
+      "name": "disjoint UTF-16 rebase commutation matrix",
+      "status": "passed"
+    },
+    {
+      "name": "CRDT selection survives repeated-text undo and newer manual movement",
+      "status": "passed"
+    },
+    {
+      "name": "selection capture epochs, structural history, reopen and detach",
+      "status": "passed"
+    },
+    {
+      "name": "TextKit marked replacement retains identity when its initial string is unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "new AppKit selections follow copied and redone text through structural history",
+      "status": "passed"
+    },
+    {
+      "name": "Swift draft transport preserves overlapping remote text and authored selection",
+      "status": "passed"
+    },
+    {
+      "name": "draft cancel, duplicate replay, local history and SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit overlapping remote composition with immediate continued input and history",
+      "status": "passed"
+    },
+    {
+      "name": "queued remote replay preserves visible-basis deletion, duplicates and SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "input arriving during merged-projection refresh remains responsive and converges",
+      "status": "passed"
+    },
+    {
+      "name": "last-view rejection retains draft for a new view and refuses destructive reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit queued Enter after partial remote prefix deletion preserves two views, comments, history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit queued Enter after complete remote prefix deletion preserves two views, comments, history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit standard responder history and menu validation",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit pending command and composition history guards",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit second responder shares Rust history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit queued split and continued input preserve disjoint remote text through responder history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit safe quote join preserves native suffix editing, history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit partial quote deletion preserves queued typing, two-view selections, comments, suffix history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit stored but unapplied remote update preserves queued input and blocks history, retry compaction and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit stored but unapplied remote update preserves marked input and shared recovery status",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit durable dependency recovery bypasses held local jobs then drains exact queued input through history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit durable dependency recovery preserves marked branch until native commit and keeps remote text through history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit late original prefix after quote join converges across two views history duplicate delivery and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit mixed late prefix and safe suffix after quote join preserve two views selections item identity history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit interleaved Unicode prefix and safe suffix clocks after quote join preserve two views selections item identity history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit refused relocation history preserves remote formatting and keeps both views editable",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit late original prefix after partial quote deletion converges across two views history duplicate delivery and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit mixed late prefix and safe suffix after partial quote deletion preserve two views selections item identity history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit interleaved Unicode prefix and safe suffix clocks after partial quote deletion preserve two views selections item identity history and reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit incremental style matches full reference at every UTF-16 position",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit local Unicode styling uses one-block path and authoritative no-op skip",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit composition commit and cancellation clear temporary text-system styling",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit bold link italic strike and comment boundaries retain full-reference attributes",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit remote format-only styling refreshes unchanged text",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit structural style fallback matches full reference",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit comment-only projection refresh removes stale highlights",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit revision and selection-only refresh skips styling",
+      "status": "passed"
+    },
+    {
+      "name": "Canonical-equivalent text replacement retains exact scalar and UTF-16 identity",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit canonical replacement refreshes passive views and history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit canonical composition commits as one exact undo unit",
+      "status": "passed"
+    },
+    {
+      "name": "Remote canonical text refresh and SQLite reopen retain exact storage ranges",
+      "status": "passed"
+    }
+  ],
+  "limits": {
+    "fullP2b": "incomplete",
+    "physicalIME": "not-run",
+    "remoteDuringComposition": "programmatic AppKit shared queue tested, including overlap and immediate continued input; physical IME not-run; UIKit marked text recorded separately in native report",
+    "crossBlockEditing": "sibling, scoped blockquote boundaries and right-parent-preserving quote join tested; complex unselected suffix relocation remains rejected",
+    "commentReanchor": "sibling split, undo/redo, SQLite reopen and native highlight tested; production sync open",
+    "crashAndCompaction": "separate-durability-report",
+    "multipleViews": "shared owner, authored branches, overlapping composition, continued-input and refresh races, CRDT selection epochs/history, detach/draft recovery and save retry tested; copied/redone sibling text lineage tested; disjoint-block structural drafts and same-paragraph Enter with pure remote prefix deletion tested; other same-block structural concurrency open",
+    "simulator": "separate-native-report",
+    "signedDistribution": "not-run"
+  }
+}

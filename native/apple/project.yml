@@ -1,0 +1,112 @@
+name: DriftingNativeLab
+options:
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGNING_ALLOWED: NO
+    SWIFT_INCLUDE_PATHS: $(PROJECT_DIR)/FFI
+    LIBRARY_SEARCH_PATHS: $(PROJECT_DIR)/../../.local-data/apple-native/rust/$(DRIFTING_RUST_TARGET)/debug
+    OTHER_LDFLAGS: $(inherited) -ldrifting_apple_bridge -liconv
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  DriftingNativeMac:
+    type: application
+    platform: macOS
+    sources: [Shared, macOS]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.drifting.native-lab.macos
+        PRODUCT_NAME: DriftingNativeMac
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Drifting Native Lab
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+  DriftingNativeIOS:
+    type: application
+    platform: iOS
+    sources: [Shared, iOS]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.drifting.native-lab.ios
+        PRODUCT_NAME: DriftingNativeIOS
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: build/IOS-Info.plist
+      properties:
+        CFBundleDisplayName: Drifting Native Lab
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Native Lab
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+
+  DriftingNativeMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [UITests]
+    dependencies:
+      - target: DriftingNativeMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.drifting.native-lab.macos.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: $(inherited)
+  DriftingNativeIOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: DriftingNativeIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.drifting.native-lab.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: $(inherited)
+
+  DriftingNativeIOSBindingTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [iOSTests]
+    dependencies:
+      - target: DriftingNativeIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.drifting.native-lab.ios.bindingtests
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: $(inherited)
+
+schemes:
+  DriftingNativeMac:
+    build:
+      targets:
+        DriftingNativeMac: all
+    test:
+      targets: [DriftingNativeMacUITests]
+      captureScreenshotsAutomatically: false
+      preferredScreenCaptureFormat: screenshots
+  DriftingNativeIOS:
+    build:
+      targets:
+        DriftingNativeIOS: all
+    test:
+      targets: [DriftingNativeIOSUITests]
+      captureScreenshotsAutomatically: false
+      preferredScreenCaptureFormat: screenshots
+  DriftingNativeIOSBinding:
+    build:
+      targets:
+        DriftingNativeIOS: all
+    test:
+      targets: [DriftingNativeIOSBindingTests]
+      captureScreenshotsAutomatically: false
+      preferredScreenCaptureFormat: screenshots

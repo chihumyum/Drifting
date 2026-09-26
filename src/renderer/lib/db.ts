@@ -76,6 +76,17 @@ export type DbTransaction = Parameters<Parameters<DbClient['transaction']>[0]>[0
 export type DbExecutor = DbClient | DbTransaction;
 
 const transactionCommitCallbacks = new WeakMap<object, Array<() => void>>();
+const transactionScopes = new WeakMap<object, SavepointSequence>();
+
+/** A materialization lease is usable only while its owning callback is active. */
+export function assertActiveDatabaseTransaction(transaction: DbExecutor): void {
+  if (!transactionCommitCallbacks.has(transaction)) {
+    throw new Error('Materialization requires an active bound transaction.');
+  }
+  if (transactionScopes.get(transaction)?.active !== transaction) {
+    throw new Error('Materialization requires the innermost active transaction.');
+  }
+}
 
 /** Schedule a synchronous notification only after the owning outer commit.
  * Savepoint rollback discards its callbacks. Notifications must enqueue work,
@@ -166,6 +177,7 @@ async function rollbackAfterFailure(
 
 interface SavepointSequence {
   next: number;
+  active?: object;
 }
 
 function createBoundTransaction(
@@ -176,6 +188,8 @@ function createBoundTransaction(
 ): DbTransaction {
   const transactionDatabase = drizzle(createProxyCallback(database, transactionId), { schema });
   transactionCommitCallbacks.set(transactionDatabase, commitCallbacks);
+  transactionScopes.set(transactionDatabase, savepoints);
+  savepoints.active = transactionDatabase;
 
   transactionDatabase.transaction = (async (callback) => {
     const savepoint = `drifting_sp_${savepoints.next++}`;
@@ -208,6 +222,8 @@ function createBoundTransaction(
       throw cause;
     } finally {
       transactionCommitCallbacks.delete(nestedTransaction);
+      transactionScopes.delete(nestedTransaction);
+      savepoints.active = transactionDatabase;
       nestedCallbacks.length = 0;
     }
   }) as DrizzleDatabase['transaction'];
@@ -241,6 +257,7 @@ async function runGatewayTransaction<T>(
     return rollbackAfterFailure(database, id, error);
   } finally {
     transactionCommitCallbacks.delete(transaction);
+    transactionScopes.delete(transaction);
   }
 
   try {

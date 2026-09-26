@@ -28,7 +28,9 @@ import {
   SyncEntityLifecycleTable,
   SyncGenerationPurgeTable,
   SyncGenerationTable,
+  SyncMutationTable,
   YjsDocumentRevisionProvenanceTable,
+  YjsDocumentRevisionTable,
   yjsUpdates,
 } from '../../schema/drizzle';
 import {
@@ -42,6 +44,8 @@ import {
 } from '../checkpoint/reducer-state';
 import {
   createSyncMutationV1,
+  decodeSyncChangeSetV1,
+  encodeCanonicalCbor,
   type CanonicalCborValue,
   type SyncChangeSetV1,
   type SyncMutationAction,
@@ -53,6 +57,7 @@ import {
   observeLocalAuthoredReducerInTransaction,
   SQLITE_REDUCER_V1_TARGET_KINDS,
 } from './sqlite-materializer';
+import type { ReducerEffect } from './types';
 import { canonicalReducerSnapshot } from './reducer';
 import {
   PRODUCTION_DOMAIN_KERNEL_COVERAGE,
@@ -1000,6 +1005,87 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
       { contentJson: expect.stringContaining('remote prose') },
     ]);
   });
+
+  it.each(['transaction-event', 'state-transfer'] as const)(
+    'preserves %s evidence in the remote envelope while materializing ordinary prose', async kind => {
+      const db = await createDatabase();
+      const update = await createYjsProseSeedState(JSON.stringify({ type: 'doc', content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'evidence remote prose' }] },
+      ] }));
+      const sourceRetentionProvenance = kind === 'state-transfer'
+        ? { version: 1, kind }
+        : { version: 1, kind, beforeSnapshot: Y.encodeSnapshot(Y.emptySnapshot), transactionDeletes: [] };
+      const futurePayloadField = { synthetic: true, retainedBytes: Uint8Array.of(0, 127, 255) };
+      const payload = { update, sourceRetentionProvenance, futurePayloadField } as CanonicalCborValue;
+      const expectedPayloadBytes = encodeCanonicalCbor(payload);
+      const remote = await changeSet(1, [{ action: 'yjs.update', kind: 'prose-document',
+        id: `node-content:${NODE_ID}`, payload }]);
+      await apply(db, remote);
+      const [row] = await db.select().from(SyncChangeSetTable);
+      const decoded = await decodeSyncChangeSetV1(row!.encodedBytes as Uint8Array);
+      if (!decoded.ok) throw new Error(decoded.message);
+      expect(encodeCanonicalCbor(decoded.value.mutations[0]!.payload)).toEqual(expectedPayloadBytes);
+      expect(decoded.value.mutations[0]!.payload).toMatchObject({ futurePayloadField });
+      const [mutation] = await db.select().from(SyncMutationTable);
+      expect(new Uint8Array(mutation!.payloadCbor as Uint8Array)).toEqual(expectedPayloadBytes);
+      expect(await db.select().from(NodeContentTable)).toMatchObject([
+        { nodeId: NODE_ID, contentJson: expect.stringContaining('evidence remote prose') },
+      ]);
+      expect(await db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ['present null', null],
+    ['unsupported evidence version', { version: 2, kind: 'state-transfer' }],
+    ['snapshot with trailing bytes', {
+      version: 1, kind: 'transaction-event', beforeSnapshot: Uint8Array.of(0, 0, 0), transactionDeletes: [],
+    }],
+    ['overlapping delete ranges', {
+      version: 1, kind: 'transaction-event', beforeSnapshot: Uint8Array.of(0, 0),
+      transactionDeletes: [{ client: 71, clock: 0, length: 2 }, { client: 71, clock: 1, length: 1 }],
+    }],
+  ] as const)(
+    'rejects %s at the direct kernel validation seam without domain or Yjs writes',
+    async (_name, sourceRetentionProvenance) => {
+      const db = await createDatabase();
+      const update = await createYjsProseSeedState(JSON.stringify({ type: 'doc', content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'must remain unapplied' }] },
+      ] }));
+      const payload = { update, sourceRetentionProvenance } as CanonicalCborValue;
+      // Construct a correctly hashed in-memory envelope and invoke the kernel
+      // directly. No change-set/segment encoder or decoder can reject it first.
+      const remote = await changeSet(1, [{ action: 'yjs.update', kind: 'prose-document',
+        id: `node-content:${NODE_ID}`, payload }]);
+      const effect: Extract<ReducerEffect, { type: 'yjs.update' }> = {
+        effectId: 'synthetic-direct-yjs-evidence',
+        type: 'yjs.update',
+        materialize: true,
+        target: remote.mutations[0]!.target,
+        payload,
+        source: { changeSetId: remote.changeSetId, mutationIndex: 0 },
+        order: { hlc: remote.hlc, writerId: remote.writerId, writerEpoch: remote.writerEpoch,
+          deviceSeq: remote.deviceSeq, mutationIndex: 0 },
+      };
+      const originalNodes = await db.select().from(BookNodeTable);
+      const issues = await db.transaction(tx => productionSyncDomainMaterializationKernel.validate({
+        tx, origin: 'remote', changeSet: remote, effects: [effect],
+      }));
+      expect(issues).toEqual([expect.objectContaining({
+        code: 'yjs.invalid-update',
+        target: { kind: 'prose-document', id: `node-content:${NODE_ID}`, incarnation: 0 },
+        blockedEffectIds: [effect.effectId],
+      })]);
+      expect(await db.select().from(BookNodeTable)).toEqual(originalNodes);
+      expect(await db.select().from(NodeContentTable)).toEqual([]);
+      expect(await db.select().from(yjsUpdates)).toEqual([]);
+      expect(await db.select().from(YjsDocumentRevisionTable)).toEqual([]);
+      expect(await db.select().from(YjsDocumentRevisionProvenanceTable)).toEqual([]);
+      expect(await db.select().from(SyncChangeSetTable)).toEqual([]);
+      expect(await db.select().from(SyncMutationTable)).toEqual([]);
+      expect(await db.select().from(SyncApplyReceiptTable)).toEqual([]);
+    },
+  );
 
   it('binds an asset only after verified blob staging and enforces one typed owner', async () => {
     const db = await createDatabase();

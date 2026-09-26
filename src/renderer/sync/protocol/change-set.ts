@@ -1,6 +1,6 @@
 import { Type, type Static } from '@sinclair/typebox';
 
-import { hashCanonicalCbor } from './canonical-cbor';
+import { decodeCanonicalCbor, encodeCanonicalCbor, hashCanonicalCbor, sha256Bytes } from './canonical-cbor';
 import {
   DOMAIN_KIND_SCHEMA,
   HLC_SCHEMA,
@@ -15,6 +15,7 @@ import {
   type CanonicalCborValue,
 } from './primitives';
 import type { ProtocolValidationIssue } from './validation';
+import { parseYjsUpdatePayload } from './yjs-update-payload';
 import {
   decodeVersionedProtocol,
   encodeVersionedProtocol,
@@ -167,6 +168,14 @@ export function validateSyncChangeSetV1Invariants(
       // Payloads are action/kind versioned, but their shared transport data model is frozen here.
       // Domain-specific allowlists validate these maps before journaling and materialization.
       assertCanonicalCborValue(mutation.payload);
+      // The optional evidence is covered by the existing canonical payload
+      // hash. A present unsupported/malformed supplement cannot become legacy
+      // input. Leave absent legacy payloads to their established domain checks.
+      const payload = recordValue(mutation.payload);
+      if (mutation.action === 'yjs.update' && payload &&
+        Object.prototype.hasOwnProperty.call(payload, 'sourceRetentionProvenance')) {
+        parseYjsUpdatePayload(payload);
+      }
     } catch (error) {
       issues.push({
         path: `/mutations/${index}/payload`,
@@ -231,7 +240,13 @@ const CHANGESET_DESCRIPTOR = {
 export async function createSyncMutationV1(
   input: Omit<SyncMutationV1, 'payloadSha256'>,
 ): Promise<SyncMutationV1> {
-  return { ...input, payloadSha256: await hashCanonicalCbor(input.payload) };
+  // Own the exact body before hashing yields: callers may reuse nested maps,
+  // arrays and even SharedArrayBuffer-backed bytes while the digest is pending.
+  const payloadBytes = encodeCanonicalCbor(input.payload);
+  const payload = decodeCanonicalCbor(payloadBytes);
+  if (!payload.ok) throw new TypeError(`Cannot snapshot canonical mutation payload: ${payload.message}`);
+  const mutation = { ...input, target: { ...input.target }, payload: payload.value };
+  return { ...mutation, payloadSha256: await sha256Bytes(payloadBytes) };
 }
 
 export function encodeSyncChangeSetV1(value: SyncChangeSetV1): Uint8Array {

@@ -34,6 +34,7 @@ jobs:
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm ci:contract:check
+      - run: pnpm apple:check
       - run: pnpm public:check
       - run: pnpm security:dependencies
       - run: pnpm lint
@@ -132,3 +133,55 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked --all-targets
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+
+      - run: cargo fmt --manifest-path crates/drifting-core/Cargo.toml --check
+      - run: cargo test --manifest-path crates/drifting-core/Cargo.toml --locked
+
+  apple-native:
+    name: Apple native / simulator
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # 1.88.0
+        with:
+          toolchain: 1.96.0
+          components: rustfmt
+          targets: aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Check Yjs and Yrs document compatibility
+        run: |
+          cargo fmt --manifest-path crates/drifting-document/Cargo.toml --check
+          pnpm apple:document:acceptance --output=.local-data/apple-native/document/p2a-document.json
+      - name: Exercise native command capture and durable originals
+        run: pnpm apple:authoring:acceptance --output=.local-data/apple-native/authoring/native-authoring.json
+      - name: Exercise native document binding without desktop event synthesis
+        run: |
+          cargo fmt --manifest-path crates/drifting-apple-bridge/Cargo.toml --check
+          pnpm apple:binding:acceptance --output=.local-data/apple-native/binding/p2b-binding.json
+      - name: Exercise native SQLite process recovery and journal compatibility
+        run: |
+          cargo fmt --manifest-path crates/drifting-prose/Cargo.toml --check
+          pnpm apple:durability:acceptance --output=.local-data/apple-native/durability/p2c-durability.json
+      - name: Ensure XcodeGen is available
+        run: command -v xcodegen || brew install xcodegen
+      - name: Exercise native persistence through UIKit and process restart
+        run: pnpm apple:acceptance --ios-only
+      - name: Retain native evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: apple-native-${{ github.sha }}
+          path: |
+            .local-data/apple-native/acceptance-*
+            .local-data/apple-native/document
+            .local-data/apple-native/binding
+            .local-data/apple-native/durability
+            .local-data/apple-native/authoring
+          include-hidden-files: true
+          retention-days: 14

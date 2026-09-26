@@ -109,7 +109,7 @@ const HASHED_SOURCE_FILES = [
   ...TEST_FILES,
   CURRENT_BASELINE.file,
   'drizzle/meta/_journal.json',
-  'src-tauri/src/database.rs',
+  'crates/drifting-core/src/database.rs',
 ];
 
 const CERTIFIED_WRITES = [
@@ -283,7 +283,7 @@ async function readMigrationIdentity() {
     ),
   };
   const databaseSource = await readFile(
-    path.join(CORE_DIRECTORY, 'src-tauri/src/database.rs'),
+    path.join(CORE_DIRECTORY, 'crates/drifting-core/src/database.rs'),
     'utf8',
   );
   const indexesCanonical = entries.every(
@@ -291,7 +291,7 @@ async function readMigrationIdentity() {
   );
   const tagsUnique = tags.size === entries.length;
   const rustEmbedsDrizzleDirectory = databaseSource.includes(
-    'include_dir!("$CARGO_MANIFEST_DIR/../drizzle")',
+    'include_dir!("$CARGO_MANIFEST_DIR/../../drizzle")',
   );
   return {
     count: entries.length,

@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_alias_delete_diagnostic",
+  "status": "open",
+  "generatedAt": "2026-09-25T20:07:07.923Z",
+  "diagnosticReproduced": true,
+  "productDeletionAcceptance": "not-established",
+  "source": {
+    "generator": "scripts/apple-alias-delete-diagnostic.mjs",
+    "generatorSha256": "dd17eb092806a92a9b9c06e091f32a512eae2e9866037ee7b5a28b3e17ea710b",
+    "fingerprint": "b5d5679bae1ec43f58ebe0a0ee9627c09a75fef655a5a2d0c6154368cbe9dca7",
+    "yjsVersion": "13.6.32",
+    "yrsVersion": "0.28.0"
+  },
+  "cli": {
+    "build": "cargo build --locked --manifest-path crates/drifting-document/Cargo.toml --example document_protocol",
+    "sha256": "ef5ecaa29da4ea71b70a40876ab17bebf17eb335775d643d9805bcab35bb7377",
+    "sourceFingerprint": "b5d5679bae1ec43f58ebe0a0ee9627c09a75fef655a5a2d0c6154368cbe9dca7"
+  },
+  "scope": {
+    "layer": "Actual DocumentSession CLI and ordinary Yjs, synthetic right-survivor partial quote deletion",
+    "deletionCases": "Three old-layout source deletions, each delivered as an exact event and a full state after native insertion repair",
+    "ambiguity": "An actual source deletion coalesced with the repaired state has the same full-state and same-state-vector differential bytes as a harmless repeat",
+    "compatibility": "Ordinary Yjs duplicate and safe suffix state-vector differential remain accepted by the current native document API",
+    "excluded": [
+      "Durable owner blocked-row cancellation",
+      "Author or operation provenance",
+      "General alias delete support",
+      "Physical input",
+      "Performance",
+      "P2 completion"
+    ]
+  },
+  "deletionCases": [
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "late-only",
+      "delivery": "event",
+      "inputSha256": "4f26bbc820cb2e0b8954ead93d67662012ed2f6ff32c0ba0c46a8b4a388dfff7",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "潮汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "潮航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    },
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "late-only",
+      "delivery": "full",
+      "inputSha256": "d52ca9516efe4324206e6670f54469ab7a52753faab4c7a21661025c77832ee6",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "潮汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "潮航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    },
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "base-only",
+      "delivery": "event",
+      "inputSha256": "fc6e035f5783e0a242ac4e2883e6e458f1c1b08598c49452a44f978e243a4d3c",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "保汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "保航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    },
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "base-only",
+      "delivery": "full",
+      "inputSha256": "37e304e377cac5eff4743ff49e7e09c6949bd7de40c4c6a978071c548cfa7e06",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "保汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "保航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    },
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "late-and-base",
+      "delivery": "event",
+      "inputSha256": "999701a9bde9e36137a539ad318448cc11f83562401976c2d599f917eaa019d0",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    },
+    {
+      "scope": "after-repair-old-layout-delete",
+      "variant": "late-and-base",
+      "delivery": "full",
+      "inputSha256": "95872f7c0d02967903e8ab761ac95fd8ff84b859c5cedf50019369ff6e64202c",
+      "before": "保潮航\n远🙂终章",
+      "actualOldPeerSourceText": "汐",
+      "expectedIfLogicalSourceDeletionWereSupported": "航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "applyAccepted": true,
+      "hasPending": false,
+      "deleteSemanticsSatisfied": false,
+      "outcome": "accepted-without-logical-source-deletion"
+    }
+  ],
+  "indistinguishableCases": [
+    {
+      "scope": "coalesced-wire-ambiguity",
+      "variant": "late-only",
+      "fullBytesEqual": true,
+      "differentialBytesEqual": true,
+      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
+      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+    },
+    {
+      "scope": "coalesced-wire-ambiguity",
+      "variant": "base-only",
+      "fullBytesEqual": true,
+      "differentialBytesEqual": true,
+      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
+      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+    },
+    {
+      "scope": "coalesced-wire-ambiguity",
+      "variant": "late-and-base",
+      "fullBytesEqual": true,
+      "differentialBytesEqual": true,
+      "fullSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "fullWithOldDeleteSha256": "28598e0601d660be59e4ab6db620b76ab088ce6d410e8292e2350d4bd5ae71ab",
+      "differentialSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
+      "differentialWithOldDeleteSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78"
+    }
+  ],
+  "compatibilityControls": [
+    {
+      "scope": "current-normal-incremental-compatibility",
+      "name": "same-state-vector-repeat",
+      "inputSha256": "d5b93c9259c21ea295da53382d1dcc4992a3b4cd4ba9284471bb59ea6508dc78",
+      "applyAccepted": true,
+      "hasPending": false,
+      "expected": "保潮航\n远🙂终章",
+      "actual": "保潮航\n远🙂终章",
+      "structs": 0,
+      "carriesProtectedSourceDeleteSet": true,
+      "containsAliasMapStructs": false
+    },
+    {
+      "scope": "current-normal-incremental-compatibility",
+      "name": "aware-peer-safe-suffix-differential",
+      "inputSha256": "062108fce8319377de31c333b4d08b23871fe59f3f940ff0200e7dc60731195c",
+      "applyAccepted": true,
+      "hasPending": false,
+      "expected": "保潮航\n安远🙂终章",
+      "actual": "保潮航\n安远🙂终章",
+      "structs": 1,
+      "carriesProtectedSourceDeleteSet": true,
+      "containsAliasMapStructs": false
+    }
+  ],
+  "interpretation": [
+    "The current document API accepts these old-layout deletes after relocation repair without deleting their visible logical counterparts.",
+    "The same deletion can disappear into pre-existing structural and repair DeleteSets; identical wire bytes cannot identify an author or a newly intended operation.",
+    "Local alias receipts prove source-to-render mappings, not the provenance of a newly received DeleteSet.",
+    "Requiring every incoming packet to carry a complete repair closure would also retain normal state-vector differential traffic; these controls expose that compatibility cost.",
+    "This report keeps the defect open. It is neither successful deletion acceptance nor authorization to reinterpret raw DeleteSets as authored intent."
+  ]
+}

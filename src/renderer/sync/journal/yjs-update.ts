@@ -1,3 +1,4 @@
+import { registerAuthoredYjsMaterialization } from './yjs-materialization';
 import {
   createYjsRepository,
   type YjsRevisionSource,
@@ -10,6 +11,11 @@ import {
   type AuthoredTransactionContext,
 } from './authored-transaction';
 import type { SyncChangeBuilder } from './change-builder';
+import {
+  parseYjsUpdatePayload,
+  type YjsSourceRetentionProvenanceV1,
+} from '../protocol/yjs-update-payload';
+import type { CanonicalCborValue } from '../protocol/primitives';
 
 export interface AuthoredYjsUpdateResult {
   readonly updateId: number;
@@ -31,6 +37,7 @@ export type AuthoredYjsUpdateWriter = (
   docId: string,
   update: Uint8Array,
   source?: YjsRevisionSource,
+  sourceRetentionProvenance?: YjsSourceRetentionProvenanceV1,
 ) => Promise<AuthoredYjsUpdateResult>;
 
 function assertYjsUpdateIdentity(docId: string, update: Uint8Array): void {
@@ -42,16 +49,19 @@ function assertYjsUpdateIdentity(docId: string, update: Uint8Array): void {
 
 /**
  * Append the wire mutation for an update already being persisted by the same
- * SQLite transaction. The journal carries only the document identity and raw
- * Yjs bytes; local revision/provenance rows remain device-local metadata.
+ * SQLite transaction. An explicit transaction/state-transfer supplement is
+ * immutable evidence, not authorization to interpret its DeleteSet as author
+ * intent. Local revision source labels remain device-local metadata.
  */
 export function appendYjsUpdateMutation(
   changes: SyncChangeBuilder,
   docId: string,
   update: Uint8Array,
-): void {
+  sourceRetentionProvenance?: YjsSourceRetentionProvenanceV1,
+): number {
   assertYjsUpdateIdentity(docId, update);
-  changes.add({
+  const payload = copyYjsPayload(update, sourceRetentionProvenance);
+  return changes.add({
     action: 'yjs.update',
     target: {
       family: 'yjs',
@@ -59,8 +69,27 @@ export function appendYjsUpdateMutation(
       id: docId,
       incarnation: 0,
     },
-    payload: { update: new Uint8Array(update) },
+    payload,
   });
+}
+
+function copyYjsPayload(
+  update: Uint8Array,
+  sourceRetentionProvenance?: YjsSourceRetentionProvenanceV1,
+): { update: Uint8Array; sourceRetentionProvenance?: YjsSourceRetentionProvenanceV1 } & CanonicalCborValue {
+  const parsed = parseYjsUpdatePayload(sourceRetentionProvenance === undefined
+    ? { update }
+    : { update, sourceRetentionProvenance });
+  // Construct CBOR records explicitly; optional undefined values must never
+  // change the frozen legacy payload { update }.
+  const evidence = parsed.sourceRetentionProvenance;
+  if (!evidence) return { update: parsed.update };
+  if (evidence.kind === 'state-transfer') {
+    return { update: parsed.update, sourceRetentionProvenance: { ...evidence } };
+  }
+  return { update: parsed.update, sourceRetentionProvenance: {
+    ...evidence, transactionDeletes: evidence.transactionDeletes.map(range => ({ ...range })),
+  } };
 }
 
 /**
@@ -90,13 +119,15 @@ export async function appendAuthoredProseSeedInTransaction(
   if (hasState || revision !== 0) {
     throw new Error(`Cannot seed existing Yjs document ${docId}`);
   }
-  const appended = await repository.appendUpdateCas(
+  const index = appendYjsUpdateMutation(changes, docId, input.stateUpdate);
+  const appended = await repository.appendMaterializedUpdate(
     docId,
-    new Uint8Array(input.stateUpdate),
-    0,
+    input.stateUpdate,
+    { kind: 'authored', builder: changes, mutationIndex: index },
     input.source ?? { kind: 'system' },
+    0,
   );
-  appendYjsUpdateMutation(changes, docId, input.stateUpdate);
+  registerAuthoredYjsMaterialization(tx, changes, index, appended.token);
   return { docId, updateId: appended.updateId, revision: appended.revision };
 }
 
@@ -119,14 +150,15 @@ export async function appendAuthoredProseRestoreStateInTransaction(
   const docId = proseDocId(input.entityType, input.entityId);
   assertYjsUpdateIdentity(docId, input.stateUpdate);
   const repository = createYjsRepository(tx);
-  const updateId = await repository.appendUpdate(
+  const index = appendYjsUpdateMutation(changes, docId, input.stateUpdate);
+  const appended = await repository.appendMaterializedUpdate(
     docId,
-    new Uint8Array(input.stateUpdate),
+    input.stateUpdate,
+    { kind: 'authored', builder: changes, mutationIndex: index },
     input.source ?? { kind: 'system' },
   );
-  const revision = await repository.getRevision(docId);
-  appendYjsUpdateMutation(changes, docId, input.stateUpdate);
-  return { docId, updateId, revision };
+  registerAuthoredYjsMaterialization(tx, changes, index, appended.token);
+  return { docId, updateId: appended.updateId, revision: appended.revision };
 }
 
 /**
@@ -142,17 +174,27 @@ export function createAuthoredYjsUpdateWriter(
     docId,
     update,
     source = { kind: 'user' },
+    sourceRetentionProvenance,
   ) {
     assertYjsUpdateIdentity(docId, update);
-    const updateCopy = new Uint8Array(update);
+    // Snapshot explicit evidence before crossing the asynchronous SQLite
+    // scheduler; a subsequent edit cannot alter the operation being queued.
+    const payload = copyYjsPayload(update, sourceRetentionProvenance);
     return runTransaction(projectId, 'yjs.update', async ({ tx, changes }) => {
-      const updateId = await createYjsRepository(tx).appendUpdate(
+      const index = appendYjsUpdateMutation(
+        changes,
         docId,
-        updateCopy,
+        payload.update,
+        payload.sourceRetentionProvenance,
+      );
+      const appended = await createYjsRepository(tx).appendMaterializedUpdate(
+        docId,
+        payload.update,
+        { kind: 'authored', builder: changes, mutationIndex: index },
         source,
       );
-      appendYjsUpdateMutation(changes, docId, updateCopy);
-      return { updateId };
+      registerAuthoredYjsMaterialization(tx, changes, index, appended.token);
+      return { updateId: appended.updateId };
     });
   };
 }

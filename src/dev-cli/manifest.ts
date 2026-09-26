@@ -405,6 +405,7 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   yjs_prose_command_receipt: 'yjs_revision_and_provenance',
   sync_app_authority: 'sync_engine_state',
   sync_apply_receipt: 'sync_engine_state',
+  sync_yjs_materialization_receipt: 'sync_engine_state',
   sync_blob_state: 'sync_engine_state',
   sync_change_set: 'sync_engine_state',
   sync_checkpoint: 'sync_engine_state',

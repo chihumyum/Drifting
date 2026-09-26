@@ -1,0 +1,2147 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_yjs_transaction_provenance",
+  "status": "passed",
+  "generatedAt": "2026-09-25T21:17:51.552Z",
+  "generator": {
+    "path": "scripts/apple-yjs-provenance-acceptance.mjs",
+    "sha256": "edb749125e91879e8b56555ad2c08e2b8246ef6e3bd66350e48220a2823924b2"
+  },
+  "source": {
+    "fingerprint": "55723456370d6dc219b1c54b18567aea2dce38132c52269f8b8ea98e76fa019a",
+    "files": [
+      {
+        "path": "drizzle/0000_local_first_baseline.sql",
+        "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
+      },
+      {
+        "path": "drizzle/0001_agent_chat_sync.sql",
+        "sha256": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0"
+      },
+      {
+        "path": "drizzle/0002_workspace_projection_journal.sql",
+        "sha256": "35ea9b635f4f5d671335684c109275444d406fb2715301dcb667703ab2304b90"
+      },
+      {
+        "path": "drizzle/0003_agent_checkpoint_anchors.sql",
+        "sha256": "b61e084d2af4244ded43dd2ad05242a4a0e846d7150a2bd8c46caeeb38e76341"
+      },
+      {
+        "path": "drizzle/meta/0000_snapshot.json",
+        "sha256": "525d14cb83a2e870355ab62d3d6bf2e52a93a98cc8d6119832c02731e8c8c248"
+      },
+      {
+        "path": "drizzle/meta/0001_snapshot.json",
+        "sha256": "4e6cab7e7e48925e3d2dca0e0de557dd6d399cd3d87456a064a724858c58b608"
+      },
+      {
+        "path": "drizzle/meta/0002_snapshot.json",
+        "sha256": "bf157f0d181cccef22c5a44721b2319ecc89f4d57bb116a2b0aeba1dcea93459"
+      },
+      {
+        "path": "drizzle/meta/0003_snapshot.json",
+        "sha256": "a9edf2dd08bf6dadcb3d96a3341fc4dc983f3a4e5e9aea9be8c019fdb78adda1"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "837ad4ca99722a825a468d19491be69d9e8e04a6d8dc2a4394ab83a4f8614a56"
+      },
+      {
+        "path": "package.json",
+        "sha256": "739a65d0c3f0738e83a53de4b3a9d05b64a71d9076fa3cb6030f4004e607f9d4"
+      },
+      {
+        "path": "patches/@tiptap__y-tiptap@3.0.8.patch",
+        "sha256": "84709781a0b0a28d663cdbb04d91759a97734a7a87a7827d36a2a1ef90da6ff2"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
+      },
+      {
+        "path": "scripts/apple-yjs-provenance-acceptance.mjs",
+        "sha256": "edb749125e91879e8b56555ad2c08e2b8246ef6e3bd66350e48220a2823924b2"
+      },
+      {
+        "path": "src/renderer/domain/agent-chat-transcript.test.ts",
+        "sha256": "670cf3d1e92c82e03f9da8a336bfd44bd07fb906fdbbcaf324c03e5cbc1495d7"
+      },
+      {
+        "path": "src/renderer/domain/agent-chat-transcript.ts",
+        "sha256": "72d3f005b850d9c7580a80ed1762263bdad6e3328fd81c5975da870aeb9424aa"
+      },
+      {
+        "path": "src/renderer/domain/agent-conversation.ts",
+        "sha256": "b941554a97babbfe4870552d24ebc79d2b01db6339730c5549c1cc2bb5117c7d"
+      },
+      {
+        "path": "src/renderer/domain/agent-extension.ts",
+        "sha256": "9f9a25f67e2155eebcb6bcca86ad30a6feb8ac1deb3891d8c682381149439183"
+      },
+      {
+        "path": "src/renderer/domain/agent-memory.ts",
+        "sha256": "2771942c8039a9da0f70d707a815834902be12fe902708477b79742e0ccf8e69"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-element-patch-receipt.ts",
+        "sha256": "92744c1340c171161b0010349d8e55144acd4fd5a11176b0aab558a6dd30c42d"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-entity-write-receipt.ts",
+        "sha256": "0309566a61cb9955fa43d5ab59e0405fe9675e6e849ac02f8c4403aacd495c9a"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-freshness.ts",
+        "sha256": "59d1c99ebc50397e19d86afda854664e65028c20d1bd21d94a90505f936fefdf"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-long-task.ts",
+        "sha256": "ab8e3969b81719ec9360ff115be6f9dc63acb014217e36576dc2eb54685c24d3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-persistence.ts",
+        "sha256": "448d4c3588310e5c22cb39ac5214e3db1386fd312c133f045d75f607c34dba0f"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-result-artifact.ts",
+        "sha256": "d4013e1a69a316e0350460eaa8ad856c8521e588c9a9354127ede9104a8cb1a3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-write-effect.ts",
+        "sha256": "1aca4c6ac752c072766205d5a7b4c04be82fe84ad2ee8750c1ead76de47f1f77"
+      },
+      {
+        "path": "src/renderer/domain/agent-working-memory.ts",
+        "sha256": "652eb1d9dab4f3faf6511aeaf8a10282268336eb8009c7632e09ce40f98719ef"
+      },
+      {
+        "path": "src/renderer/domain/block-section.ts",
+        "sha256": "cb99c4674b4ae8606e52ea580f36168306f934688d40092fd4d1501dde0112cb"
+      },
+      {
+        "path": "src/renderer/domain/book-act.test.ts",
+        "sha256": "a61c5e47c8cf5a9b87f51db11aa81ecce4906b0421d5842d55d65f129acf3d3c"
+      },
+      {
+        "path": "src/renderer/domain/book-act.ts",
+        "sha256": "a57c96c94e6ed71eeed0081f6075cfb02c27af5d035298d8e58829e30f556349"
+      },
+      {
+        "path": "src/renderer/domain/book-element.ts",
+        "sha256": "fd35bdf9c865be2fbdf73d191771234dcef2c0fbe17be871a0141e295e21d105"
+      },
+      {
+        "path": "src/renderer/domain/book-node.test.ts",
+        "sha256": "1673459490aaa87c2f90ecdd155293e00f46538b45549c9d67aa1b80984a0a58"
+      },
+      {
+        "path": "src/renderer/domain/book-node.ts",
+        "sha256": "7e174a4fa39b665872083010f93f707ae005de8c6e2769532cc7e50320e0cdec"
+      },
+      {
+        "path": "src/renderer/domain/comment.ts",
+        "sha256": "d6aa8e398cde4d3f92b5d6b65a57c5e32e01e4cdf62c37e4feb05c944d0252de"
+      },
+      {
+        "path": "src/renderer/domain/copilot-suggestion.ts",
+        "sha256": "7b5b19fa58c09f4b6a119b8912303e750e85299c70247dae41a0fea8308c22f1"
+      },
+      {
+        "path": "src/renderer/domain/drift-group.ts",
+        "sha256": "af72524323b602602863593416e5cdbe12933e52504b0f0b1ea9312e49a8be89"
+      },
+      {
+        "path": "src/renderer/domain/entity-kinds.ts",
+        "sha256": "67ed43e3352f06131f4a4b73232a1f80afa701166b1ff1d4911a09ea856e8565"
+      },
+      {
+        "path": "src/renderer/domain/entity-kv-entry.ts",
+        "sha256": "ea46e9ea05265a02c620b33fc0e09a68a35246b1ca63e4dd89a13239665fa5ac"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.test.ts",
+        "sha256": "ff0c02e4a150d61b4e1ba7c160fb8fff953a14e009369a144d84c9634fb6f84d"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.ts",
+        "sha256": "a535501b2f8f6ce21c2041c644b3746965cfafc0d9b63b02f4ea91dc73c2e4ae"
+      },
+      {
+        "path": "src/renderer/domain/kv.ts",
+        "sha256": "e84bf938213fe3722c63042ae1e7e57bad6e3f7374b6eebdf89742cfdea745b8"
+      },
+      {
+        "path": "src/renderer/domain/library-item.ts",
+        "sha256": "a0b49af7acd43425cc853fa568505f90d89a0977b3ead6b039b1a0df8cce9a71"
+      },
+      {
+        "path": "src/renderer/domain/node-content.ts",
+        "sha256": "e1961b35f6f189eb508a005227be62a7fe13841ff942e1b7491d01d06d69fd64"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.test.ts",
+        "sha256": "de26bdb33f1abf2d8949deebd22f97946bbbf3d4160d9f20042e0ec1eeda0434"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.ts",
+        "sha256": "82161332e922034814a299f104729c4acf7cb057589b96d0388132d291be91fe"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.test.ts",
+        "sha256": "49f90887cfd8c12e231add1e205694ebcd03c25234c8e031ae7daca1b5fb85b2"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.ts",
+        "sha256": "dd88fbc8b1234f6c4cb2d279967a84ac11635fd154c11c5faabb608ac1f2ff01"
+      },
+      {
+        "path": "src/renderer/domain/project-asset.ts",
+        "sha256": "d247bc6b78e3d6d05447e03e3ff2dd37566fc338cf6340f10a835eaeaca5b497"
+      },
+      {
+        "path": "src/renderer/domain/project-summary.ts",
+        "sha256": "c184a19c16d2cd59f5b686bda5647912726847fafe95e50fd05a530c1d79f67c"
+      },
+      {
+        "path": "src/renderer/domain/project.ts",
+        "sha256": "0869310d172c773f866822feef08848c06dc07f7ed2233b486b5b8d27e747626"
+      },
+      {
+        "path": "src/renderer/domain/storyline.ts",
+        "sha256": "be20059b6b052409fc178b7ee5ca7fad26f74104ec584887c624224f8be2baef"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.test.ts",
+        "sha256": "ad7323c47dbfa0e1d2bb9f2c5fa95fbca396ff576488d7cc853da6fb86c3ba7a"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.ts",
+        "sha256": "cdd50bc81304e757b2f1fdba1661c060bdf85fafefa3c22802fa24a57caaa205"
+      },
+      {
+        "path": "src/renderer/domain/timeline-marker.ts",
+        "sha256": "986f6661216461cd793649ce2ec976a40ef29f3cd5f1b0cd4d9fcaf13eea0b35"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.test.ts",
+        "sha256": "f049c25dc7e65871da49f7d077d1869e2516165c91855eb291ddb286405f5d71"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.ts",
+        "sha256": "b6f5c7b324f85a8e56df4ff90f80f83ed755863e3f1f252a63cedd713e9601b3"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts",
+        "sha256": "82504cc06e3e913bdc31ac5d13c7b934941014a0ca332cb057245647b093e742"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-command.test.ts",
+        "sha256": "ef8ddf5f1158897c2168d0a4bb6fc69d5e80faf875ca302e8d51618fceb2fb01"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-command.ts",
+        "sha256": "56522ec64a7f6cc847042e07eff73b829df289e53c7a764341796f5012878e93"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts",
+        "sha256": "fd123be067a67c9bda74b1a115b981912fc648b31490e2a25e6ce0e111dd0369"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts",
+        "sha256": "a63075aa4d1eef0232f6cd0bde25ec26f5740981c9457e8c0a2f2947bb7293c6"
+      },
+      {
+        "path": "src/renderer/lib/db.ts",
+        "sha256": "8a157fe9848b4cab4aac239ce4a819bca0e4e23fb29288d9d31cafbac549df83"
+      },
+      {
+        "path": "src/renderer/lib/extensions/block-id.ts",
+        "sha256": "25af725dda6b1d663328ee80d713c8326663efe67d2267f83fdc1312c807a38e"
+      },
+      {
+        "path": "src/renderer/lib/extensions/entity-link.ts",
+        "sha256": "34686301e0d75c5fd6d97e518d2cb3c227eae9859af300d9eaa3020b04de92ac"
+      },
+      {
+        "path": "src/renderer/lib/yjs-doc-id.ts",
+        "sha256": "a1f6385106e15fff96aa6f29405b85ba7aae47c2abc8cad38a0e995b27b3736d"
+      },
+      {
+        "path": "src/renderer/lib/yjs-persistence-origin.ts",
+        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+      },
+      {
+        "path": "src/renderer/platform/database-recovery-store.ts",
+        "sha256": "f1393be917e85c459a16c5e388dba6a537fdd2d07e8c1205bbdb2d69fd14f320"
+      },
+      {
+        "path": "src/renderer/platform/database.test.ts",
+        "sha256": "d2036ef714151d6470dc11b206e4e9f463fe1a212315e1031cca63b8739b02ac"
+      },
+      {
+        "path": "src/renderer/platform/database.ts",
+        "sha256": "57eccac249eccf2a685006ab2ff17e008c155a12d12548ba77487136c24a141e"
+      },
+      {
+        "path": "src/renderer/schema/agent-checkpoint-retention.ts",
+        "sha256": "81fda9edb639dd3d8f696116023e058f9b6ab646eb60b288f40d5a00f42b023c"
+      },
+      {
+        "path": "src/renderer/schema/drizzle.ts",
+        "sha256": "bce085e5b96d2975ea40ad58603708fd2d85d485ac36673b0e6de4754cee7ea4"
+      },
+      {
+        "path": "src/renderer/schema/sync-engine-schema.integration.test.ts",
+        "sha256": "e7e06c97207c3aeddc38778c1933014e80a1a5d347bd39a6ab0c816b1073c091"
+      },
+      {
+        "path": "src/renderer/services/atomic-sync-transaction-tracker.ts",
+        "sha256": "f4c196fbcdd6069d81891ad2467cbf210023b21a9f3a990334b3641ab718091f"
+      },
+      {
+        "path": "src/renderer/services/snapshot-history.service.ts",
+        "sha256": "c9ba6e3d289cc71fecf9c9e4f7f358ba084f1fb5c13fc1fd85d1329b837b374d"
+      },
+      {
+        "path": "src/renderer/services/yjs-document-session.test.ts",
+        "sha256": "42c22c3c72ad5804c0362089db18dc73ad73fe971bea802bbd0279df5139cb87"
+      },
+      {
+        "path": "src/renderer/services/yjs-document-session.ts",
+        "sha256": "e3dc7273a558dd32f83ccd6a7900c46049a738e1a4d746a71ce9612fb4dc8201"
+      },
+      {
+        "path": "src/renderer/services/yjs-local-durability.lifecycle.test.ts",
+        "sha256": "5c6f712fc1b678fcf7c128e527efaa3185344edf74d29e526168cb322315d493"
+      },
+      {
+        "path": "src/renderer/services/yjs-local-durability.service.ts",
+        "sha256": "faaa62e27583653f3bf0ed322f59f88767738c8485b737e9738b2d1f01b19885"
+      },
+      {
+        "path": "src/renderer/services/yjs-remote-live-merge.integration.test.ts",
+        "sha256": "e1516a3182720247b4e6d99cbe13462d07816aeb159f025307ab3bc260ec760f"
+      },
+      {
+        "path": "src/renderer/services/yjs-transaction-evidence.test.ts",
+        "sha256": "27a0cd04b4f5888bf24655c25bbb01e63d28ba23cd1517c15f0ed17c667baa19"
+      },
+      {
+        "path": "src/renderer/services/yjs-transaction-evidence.ts",
+        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-checkpoint-retention.integration.test.ts",
+        "sha256": "e570c5bbf74be467d5bfe797813de8bf5a23c2811f8c4475fcdd0f46b9a5f9e4"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-control-interruption.integration.test.ts",
+        "sha256": "f652c87a00ad0540d0b25224d1a46485cf70aab9def6f8c1148859c4c8e43dcc"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-conversation-repo.ts",
+        "sha256": "44b089770371795c6dc52ae4534cb89e632e2e85f80084cf1ec45c223ac3902d"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-extension-repo.integration.test.ts",
+        "sha256": "286df4c61c2b75333fe489d5b4508d171237c59be4eda9d6e1929dca3f61084e"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-extension-repo.ts",
+        "sha256": "9dfb2776bcf70356c77f8e1fc37e70fdfc83cf9bced1302966e8c9125d54292f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-memory-repo.ts",
+        "sha256": "69a97e1b89cea540e34af392f69986a8620d5a47a563603c74d061bebabe4e14"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-element-patch-receipt-repo.test.ts",
+        "sha256": "41e4584f060e1df9c8b874dc57732a307a052356d24e8e31f9aac52d86866c1f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-element-patch-receipt-repo.ts",
+        "sha256": "c8088af308b720da41acc71afde4d1837bb5d389009efdc71064f8a32a2024d3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-entity-write-receipt-repo.ts",
+        "sha256": "81758207924c2a2776c77ecdeb2c1c5921e23fa720d35027d411faf8696bfd01"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-freshness-repo.integration.test.ts",
+        "sha256": "3754fbb96b796c505ac3e9e91f2111ec7488dd636fead6320572b9bec5a9c4a3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-freshness-repo.ts",
+        "sha256": "fab5c67f5126e6935efbdf6ea9400d7ff3dd7c414545a669ac26b1470494071b"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-long-task-repo.ts",
+        "sha256": "7ca3e1387d8deb470380a9a70e220c9bef7f8e193d8e294750829fa3a8e0b1a4"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts",
+        "sha256": "d72bdbcacdc66d5f9e5eafac17ab0464c2ec70cf3c76af26339773ae17f9d530"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.test.ts",
+        "sha256": "344d4a99d5d193a73d918342b3036b7ca6cf757606847e04dd521d8ca3c1e07a"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts",
+        "sha256": "17e33829609d5a685bcb54f65de2bab41ad18bdce69c200180441aec49dde6fb"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts",
+        "sha256": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts",
+        "sha256": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-write-effect-repo.integration.test.ts",
+        "sha256": "4d905e942759f61acb9ea22981391a3408933754c30e6bf53595c8fc708036f6"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-write-effect-repo.ts",
+        "sha256": "76225a151b8c7bb5f4952d757d66177022e05cc26bfe1c4c231976ebd188ebf1"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-working-memory-repo.ts",
+        "sha256": "75f12267b0063599a81af54c7bd5c6134585b3f5c44906852e426fb0196b2dce"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/block-section-repo.ts",
+        "sha256": "c5ec8795d04a1b4d2c8fc28c24ff96a7305b880105655b524513499a3c4ad539"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/book-act-repo.ts",
+        "sha256": "817a271349f98587d9804782e816dae7feab951f2a10b58c12388b706c4032ab"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/comment-repo.ts",
+        "sha256": "bb75afc1fad1efff703064b700eebca56a7fef38baf8178bc97493482390f958"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/content-repo.ts",
+        "sha256": "da3befd8a78ac7e298211f4515f96401df34b8bf9e91fdd823d864273acaee7f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/drift-group-repo.ts",
+        "sha256": "784aa02a936150fa38fe7b5a84b3c5f477d356f64db12a572014e59ef7ec8321"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-category-repo.ts",
+        "sha256": "c6b5c7887d59d3d3b7c8f486fab53a8cdb8a1f0fb7520f619c6af864ea870a06"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-patch-repo.ts",
+        "sha256": "fddf372f9e4d2c4e2bcd16d34b7c8067eda04158697731931797ca46a79166da"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-repo.ts",
+        "sha256": "e35275c699de85a5106eefab0bb98f23fa7c237b3492675af207c398dd6fecd5"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-kv-entry-repo.ts",
+        "sha256": "f175db919ce3f3e5b7895dc3f9f0700d320edbe92875a21cb755692719668e08"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-repo.ts",
+        "sha256": "1008deb9c0257ee4de12ef2a6dc7439ad3801d0517b7e7bc80b356fb9318773d"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-type-repo.integration.test.ts",
+        "sha256": "88490129d9f4466e686e934998402ced69103ed74d3134d7876a7df0217a5ac5"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-type-repo.ts",
+        "sha256": "75662aaa92fb9f463f5919bbe372b5eacd1434918dedc70f10a1431e5bb3d068"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-snapshot-repo.ts",
+        "sha256": "ed38935894856fa7f542ccf2bccc5806165cf5e45ef6da2bb2ddf9632f4ace60"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/inline-mention-repo.ts",
+        "sha256": "6eaa57f074823e2ab9fca7660e0b7ba626808dd25964e19a45afe903ce359195"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/library-item-repo.ts",
+        "sha256": "6dceab71d17579ff8473080d73a128aca85d28987e5cd45c3baa79becc981976"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/node-repo.ts",
+        "sha256": "df06c38f348e64360243cbacbfb5706948204dfee293a45af1f42462e09c71e2"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/node-storyline-link-repo.ts",
+        "sha256": "4055e5aeae2fb78a15016242ca8f7e52bc8892c3d3d4622d6167e728e0d951c3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/plot-grid-repo.ts",
+        "sha256": "414c106149192bcc89daf4240624337c7e2847d1a093749c30c0c1f42376a24c"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-asset-repo.ts",
+        "sha256": "d952ec66a7f85b17c00e443188b75980f0cee7b3ff630ec97940005f89190a2a"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-deletion-repo.integration.test.ts",
+        "sha256": "e2f9e69fd0ab0a793633c4b8f67960d204f51439551e9532abe117b1f4f4e7c7"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-deletion-repo.ts",
+        "sha256": "b584f97484dbad35f7cd215c4f46aa76f3a5ca01f3c4b79222f3292b358dc546"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-repo.ts",
+        "sha256": "e7ed30598414445fcf46f4796cd0628affa5b74094afdaf5e99801d259c7b1c2"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-stats-repo.integration.test.ts",
+        "sha256": "c2b4952884f14e8965516141da6337bda64a39e3c0373e9eb9aa9e071376b000"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-stats-repo.ts",
+        "sha256": "706e5785c063da85051924e95e8d94f2f9837490866f5a0c866eca91e39c059c"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/storyline-repo.ts",
+        "sha256": "54c322730eda0295d995473bceac95a2a10f74746f20df00f89b88d01f977797"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/timeline-marker-repo.ts",
+        "sha256": "f5dc0090be0fa723dc249a63860cff2e4ecc2cd8e52edecd98a9abcbfa6dfa85"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/yjs-repo.ts",
+        "sha256": "dd613658719bebb3eb1a8987c8a687812b3d08db0f407e4b7ccb0a450501fac4"
+      },
+      {
+        "path": "src/renderer/store/data-store.ts",
+        "sha256": "f23523ada3ca257a8769a1aee06a597afa4cac9ede92aa394f6014021e31f2ec"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/agent-chat.integration.test.ts",
+        "sha256": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/imported-history.ts",
+        "sha256": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/payload.ts",
+        "sha256": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/protocol.ts",
+        "sha256": "368d5bab483867663ece81db2ec9fb492d6df9bd76d961e096fc8623e5321464"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/repository.ts",
+        "sha256": "836b39f0c4ce44e318b020251110f2326e6df579a2566108b5f1ffdae349e02e"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/runtime.ts",
+        "sha256": "c5edf303fc6942f14a0777160cf928a4f8b9afd53f4cbf3f533b8be66bc53e0c"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/seed.ts",
+        "sha256": "4f335f75d8203c2196817b313926808ce6300791f0ef8d728fab647a034c7766"
+      },
+      {
+        "path": "src/renderer/sync/app-authority-repository.integration.test.ts",
+        "sha256": "d84a3ff3c245535d34e400ac6be859b7aba477ee0411f93538d571cea9021e7a"
+      },
+      {
+        "path": "src/renderer/sync/app-authority-repository.ts",
+        "sha256": "26bbae113c6f07593856891d344f784c35b97d579aea3c528472a71923d2fd2b"
+      },
+      {
+        "path": "src/renderer/sync/app-authority.test.ts",
+        "sha256": "36447bf6cf94c2a7f54ad36b7f7832782b718db29baf500e807e8ec682380c7c"
+      },
+      {
+        "path": "src/renderer/sync/app-authority.ts",
+        "sha256": "76cf4a6ed21428060bb7ccc3267bfe8a88a1191eb4bf6b7671d015f841c158f4"
+      },
+      {
+        "path": "src/renderer/sync/assets/attempt-recovery.ts",
+        "sha256": "94c9a77fa79188b7fcd92fab0db069ae7e5fb8fad8e082dc5f83eeaa33bc101d"
+      },
+      {
+        "path": "src/renderer/sync/assets/index.ts",
+        "sha256": "5b71e8a69ad84e6b39a22da6ee6ee29566dd19ded49d373c16dcfc4d90b22a7a"
+      },
+      {
+        "path": "src/renderer/sync/assets/local-authored-blob.integration.test.ts",
+        "sha256": "9d76316b3fbc0aee28cc5e3b6b4dc954582e4f92d363e54689d5d7568b837046"
+      },
+      {
+        "path": "src/renderer/sync/assets/local-authored-blob.ts",
+        "sha256": "a575068d9aa4d822908f59ea72803ebb14d7ee4983438c59f1b1cf7769843427"
+      },
+      {
+        "path": "src/renderer/sync/assets/native-asset-pipeline.test.ts",
+        "sha256": "2136dc01deff24fa97d5942f92022064b8cd8028c12b0f2deaa09c02ec5b1221"
+      },
+      {
+        "path": "src/renderer/sync/assets/native-asset-pipeline.ts",
+        "sha256": "9402b2b05ccf3b59ade770ab109337038ef8e6d525a6b5a96407412ddcffb396"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/capture.ts",
+        "sha256": "c91da498a1205937a6b81dfe198a1f27d00e36a88959fc881376bee21adfa550"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+        "sha256": "62207a6d7be602bcddd39f9a5e127ec8bbb7521b3772d7f437125f9098ca1437"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/domain-catalog.ts",
+        "sha256": "8b75ef6f2d0a4b88f4d9c5a4365b0a7734cf5da95c8de01409b46ed302bfa2f7"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/index.ts",
+        "sha256": "18f7faaa57b2aad22bb6dab635ecf0f7dd60c53e719286e24f9dcc230a1d1394"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.integration.test.ts",
+        "sha256": "f40511b6f55822f1ce2eb77002327f2d27dd4dd0cc820d2c2207070cb45447df"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.ts",
+        "sha256": "aac217046c6193175858d9d90128344d68dacf89dad6729ce2f97057574edca2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/publish.ts",
+        "sha256": "1653f12b0dd3005a87030700b0aba47a828edb057de5238782532ec90f11d120"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/reducer-state.ts",
+        "sha256": "adb139d0cca2cb5f6bb9b1c6f9d51b20f30308cba12bed16b3105b06a7279b94"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/restore.ts",
+        "sha256": "198d3a9338dd2ec1e7e4cc4d1ec8796b0fb7ea14f7f9e7a62eed1b37b7da5ac2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/types.ts",
+        "sha256": "77dc713884cdf1a4a7fcf526a3203144b0ccf39346b47b42c50e46cb9d1e5ac8"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/validate.ts",
+        "sha256": "6a97bd09d167c29892dc6a3c0d45046db4fc20ad94c0f9774439f2342c493ac0"
+      },
+      {
+        "path": "src/renderer/sync/connect/capability-gate.test.ts",
+        "sha256": "0370474d52290808b6354a106faee5b53397c9471988ac03a5b9277bd4104581"
+      },
+      {
+        "path": "src/renderer/sync/connect/capability-gate.ts",
+        "sha256": "4006ca9121221e8b95e69c8e42c4876f97943e4e5f881cba0a490d813dfd9695"
+      },
+      {
+        "path": "src/renderer/sync/connect/index.ts",
+        "sha256": "61e096e772ee8d2f73213bc0e647f60a4404e9e721a0df295ed4974ea9e78089"
+      },
+      {
+        "path": "src/renderer/sync/connect/pending-transition-cancel.integration.test.ts",
+        "sha256": "425c2710c984e0a9491191b00f33dd898913b373681af18f60a99139bfe8644d"
+      },
+      {
+        "path": "src/renderer/sync/connect/pending-transition-cancel.ts",
+        "sha256": "5845eea1208cdae16da3d4267b6b96cacbb0c35777df106c5e7c3a33d3445bd8"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/cloud-disconnect.integration.test.ts",
+        "sha256": "665a9c62f92c30d748596bedd9e32a9fd005476d9da0752bff04fa8953e7fdad"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/cloud-disconnect.ts",
+        "sha256": "346a3e5d8ca8fbd8de1466e7a65a3dec8554515367d74b410e8ca129ffd36b06"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/google-drive-disconnect.ts",
+        "sha256": "8cd8355b8483fc596da4fe5837be017c9e69a6a9a896449db8d1ad14aa96ace1"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/index.ts",
+        "sha256": "dde0dbd2522c355a3457a395cdb0d5108373237fdbde97845914645c221be6b5"
+      },
+      {
+        "path": "src/renderer/sync/engine/architecture.test.ts",
+        "sha256": "5bc4d15bfb4347a3d067a2a061dcc307baedb31dccb8554dcbec40d8f2281ea9"
+      },
+      {
+        "path": "src/renderer/sync/engine/backoff.ts",
+        "sha256": "786ccb91cf84722d814c6cc8213bdb9e4c927572782a8e4ebaf0dd1819205e81"
+      },
+      {
+        "path": "src/renderer/sync/engine/blob-port.ts",
+        "sha256": "a52096196e65ba051ac5c129193a144afc1374f2bc34c7362211aca9058f0971"
+      },
+      {
+        "path": "src/renderer/sync/engine/coordinator.test.ts",
+        "sha256": "24b58c35f3dec4a7a4d14baf7dd60edc725d714e506c3d96af467ddb504fe2e7"
+      },
+      {
+        "path": "src/renderer/sync/engine/coordinator.ts",
+        "sha256": "0739cc105c4880b80d89599b879bf8df7a812896b564c4f444903ccdbd3df6ad"
+      },
+      {
+        "path": "src/renderer/sync/engine/cursor.test.ts",
+        "sha256": "4c8765f58a838ee21a49a790026e0088c2580c8c959e5b7f0deebb459043d685"
+      },
+      {
+        "path": "src/renderer/sync/engine/cursor.ts",
+        "sha256": "374b4ccc04cbfdbba3fe6298f5a2e6ba80b73b325c7abed64ad61a905d4992f4"
+      },
+      {
+        "path": "src/renderer/sync/engine/cycle.test.ts",
+        "sha256": "d76e80deca41639a4b048b6ee9c791f10a939f934afeba76918db70673e67c88"
+      },
+      {
+        "path": "src/renderer/sync/engine/cycle.ts",
+        "sha256": "df084ebc13dcf2bf8e3fa6f7a8a90ee1e1f5d5d2cf3e40d187312f9a659c3f9a"
+      },
+      {
+        "path": "src/renderer/sync/engine/durable-runtime.integration.test.ts",
+        "sha256": "ca8e475a5ebb8087b6ffb68cba5a7d44031ae465918461e7c5e432d69c90bcbc"
+      },
+      {
+        "path": "src/renderer/sync/engine/durable-runtime.ts",
+        "sha256": "d9b21f708651be3e4dee10ef01553d80aee188908033e76d89024b06dad263ec"
+      },
+      {
+        "path": "src/renderer/sync/engine/frontier.test.ts",
+        "sha256": "e2a6dcecf11bddaa3f62245a36c428f364a468dc8d4683464128b2a8658cbe3d"
+      },
+      {
+        "path": "src/renderer/sync/engine/frontier.ts",
+        "sha256": "b188c96d287b52b027a9ada0b85e086c76509e731ef52bd75a34e2c801ffcdb0"
+      },
+      {
+        "path": "src/renderer/sync/engine/index.ts",
+        "sha256": "0b1fded891b6486bbecc118fd09cd1610e11c74e013ffc81721f687a9bc9c002"
+      },
+      {
+        "path": "src/renderer/sync/engine/native-plaintext-object-codec.ts",
+        "sha256": "fde853b8b63db9a9667fb7d39e8069eef8d12b46aa02b9da9a006a156831bcd8"
+      },
+      {
+        "path": "src/renderer/sync/engine/object-codec.ts",
+        "sha256": "07eeb477a14bda2d5566ece43ba01349912e65c21c0baf873b33fecab5dfa73b"
+      },
+      {
+        "path": "src/renderer/sync/engine/plaintext-object-codec.ts",
+        "sha256": "a0aa966fff3f198eb0948dc214a171f187cb50416b1db43156c752d6efe4f5a1"
+      },
+      {
+        "path": "src/renderer/sync/engine/scheduler.test.ts",
+        "sha256": "66357b933e064b739854553d955f87258ed9f0e47ffffa2e6093f58697ee3050"
+      },
+      {
+        "path": "src/renderer/sync/engine/scheduler.ts",
+        "sha256": "04aec610e8bf4b5ebde31c10cda9c88569f760e75d562664aee5b6771ca6b9e8"
+      },
+      {
+        "path": "src/renderer/sync/engine/segmenter.test.ts",
+        "sha256": "888412fb456fbaf0f4f97a940e4dd64d19cdc819fe99f97669f5c75802741240"
+      },
+      {
+        "path": "src/renderer/sync/engine/segmenter.ts",
+        "sha256": "b371516163bacb24488aebfb7c9751e48ff0f86c6ab253cedffabfc0f36059fe"
+      },
+      {
+        "path": "src/renderer/sync/engine/sqlite-repository.test.ts",
+        "sha256": "5e3d8695ba5b1c11fdbfcbe9996566dae9b13ef91d849af35fadf2f5a92ec98a"
+      },
+      {
+        "path": "src/renderer/sync/engine/sqlite-repository.ts",
+        "sha256": "ac6d6f02eabd8c12e3a68ed5e5df60020068a9ee5844b30caa219d671749836d"
+      },
+      {
+        "path": "src/renderer/sync/engine/status-store.ts",
+        "sha256": "33814604db6beb0d117c47b9f7f69d3eeb7b5aa991c8396f11f30fff4196a54f"
+      },
+      {
+        "path": "src/renderer/sync/engine/transfer-id.test.ts",
+        "sha256": "8a60fe464309c953d73d5e44a3f3d3b0dec32087bccd060c83627bccdc239c17"
+      },
+      {
+        "path": "src/renderer/sync/engine/transfer-id.ts",
+        "sha256": "cdf36294aa6fdcd23a3bd25bb5036c8445ca535b6bfbdecf6dd194a8a3d2a26a"
+      },
+      {
+        "path": "src/renderer/sync/google-drive-physical-evidence.acceptance.test.ts",
+        "sha256": "27e3409699e01451ad511480d3041db15cb04cec323a1d7ad115ea3404972672"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.test.ts",
+        "sha256": "8358f2e811d07cfa324cd82275f4a42268c45a6b776d23d325d55795d38a96ae"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.ts",
+        "sha256": "7007ae8e6958a14d7877d48d1641c3ca3a9f6fa63da5735a7a0168928623007a"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.integration.test.ts",
+        "sha256": "ac170959e6de88c243aa6f8f71c6118bd98d382091cffbe6317df48e43a5dff1"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.ts",
+        "sha256": "1c16f0c293c92426aac771139b18fe5cabc8767cdcea3b30af634430cf273bba"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.test.ts",
+        "sha256": "500535034c0c2df8ec1c685f1fefacf3b5d685133e407dd0577b5e39182bec12"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.ts",
+        "sha256": "b35e56e5c18af74de3e7af51e0e8f9ad93ecf065aae74cff53da5b5e9d452551"
+      },
+      {
+        "path": "src/renderer/sync/journal/continuous-timeline-authority.acceptance.test.ts",
+        "sha256": "dd54276772c7e88a58d3cfc4b25794e74260c5cd1a831ef0b5caaed9f73e174a"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.test.ts",
+        "sha256": "98a50f36ee53595e2948ae8086c81ffa850b32138d6bc3c4dcb3e9e810976b25"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.ts",
+        "sha256": "5ca5086acc36e2bdd051fe0275cce98799c97c759a1fa55e4a58a998410a5166"
+      },
+      {
+        "path": "src/renderer/sync/journal/fractional-order-authority.acceptance.test.ts",
+        "sha256": "0e88fac9cd8bc0cbc9b411decd7f5998e1d46abd122f073a91a5a54f14b19ff5"
+      },
+      {
+        "path": "src/renderer/sync/journal/incarnation.ts",
+        "sha256": "8ff5dd9966180e9ca5e227ccaa355bb804eb9c47a78bbdf0a2bf761a5f56a96a"
+      },
+      {
+        "path": "src/renderer/sync/journal/index.ts",
+        "sha256": "58113c46c0544c0292c534cb949704fb350408049169124d1aa8fb91af1f9a26"
+      },
+      {
+        "path": "src/renderer/sync/journal/installation-identity.ts",
+        "sha256": "5d4b1c97828bf57fbdb78eac2d22a8a5014602d282d768849c17787cd32490f5"
+      },
+      {
+        "path": "src/renderer/sync/journal/main-prose-authority.acceptance.test.ts",
+        "sha256": "4ab6b5277ed58736043313235a2af628380b075e4dee017e4608cbfebf86da0c"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority-repository.ts",
+        "sha256": "6cf0e1d65d189414228d44e9c47ad9a7583171fa970801638edaab6eeb8a12af"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.test.ts",
+        "sha256": "4c87806a3866b81d5efe23114755a8fdc7ac576b0f054926d64f439ad3ca27a7"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.ts",
+        "sha256": "18ed2e9ee49fe2e4fc1cb919babc472ea6413f5e527153c24af32a5f98dcbb63"
+      },
+      {
+        "path": "src/renderer/sync/journal/plot-grid-mutation.ts",
+        "sha256": "0110888c96c1f694304ef2a05a8a058eae71f5238cfc096a79152c70c7b48042"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.integration.test.ts",
+        "sha256": "082373510d90c4e74948029259926c8ebc7fe472e7c1e2b6b5a86a82fe8673c7"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.ts",
+        "sha256": "7a3c8fcf8da425b756c920fd5fc24fb9cea91a6520c8ab7383d9e8a8e49c8660"
+      },
+      {
+        "path": "src/renderer/sync/journal/storyline-membership.ts",
+        "sha256": "f5f35cd2f5b6ecaaff73af444b1beda4aa71e9deeedf636a0898eb20d60761dd"
+      },
+      {
+        "path": "src/renderer/sync/journal/sync-generation-repository.ts",
+        "sha256": "f4b096a50ed963f6f349969f99a0f400e6f1a05d64c2690aa61560407253eaa1"
+      },
+      {
+        "path": "src/renderer/sync/journal/writer-state.ts",
+        "sha256": "c1ed054602476b8ebabd664d34eb4747982a83a54f691bf9aac953aff52292b9"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+        "sha256": "8e11a20c8e7db9aaf60278aa2718c47d83803ca16555518a374d9cc7ff34cc0e"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.ts",
+        "sha256": "7b268bc1a0c90cfc804d5a3a6ec37c6c88068d12de3a01d19ffae1c219e62f88"
+      },
+      {
+        "path": "src/renderer/sync/local-object-gc.test.ts",
+        "sha256": "833051b22a59f54be1ce3dd1217dfaf3fbd1f687d0bbe8f7272a4cf3f3eac3ce"
+      },
+      {
+        "path": "src/renderer/sync/local-object-gc.ts",
+        "sha256": "0b7da6d71dc418ef23980a409027ea93df529634fcda20c6adc66cabf04228e7"
+      },
+      {
+        "path": "src/renderer/sync/native-object-codec.test.ts",
+        "sha256": "b5cee2c4a9c7f5495f27ca11d5e3f6ff35f969ac601c2b18e0793db9a6987187"
+      },
+      {
+        "path": "src/renderer/sync/native-object-codec.ts",
+        "sha256": "55af25211e19b8fd7f1a5a1af63e3980424bc9ff8e9f6246f26461111d45fc8a"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-react.ts",
+        "sha256": "ec0d64836ec156ab04517462543aecbc026db1ff46acae5e6238a84a1ccde2c5"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-store.integration.test.ts",
+        "sha256": "75a2a06f5fe2d39d587fb185d128a594846cbf67e9045c4d9d1c8141e1ce841e"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-store.ts",
+        "sha256": "892e10e4bda2528af883043a785ae1a5438a311b3c6ee89fb59ee1869dd3dc97"
+      },
+      {
+        "path": "src/renderer/sync/product-commands.integration.test.ts",
+        "sha256": "f182b02996d0f106ed2a9a586dc66a0a7da6c2411fef1b45ba29e437ef5088f4"
+      },
+      {
+        "path": "src/renderer/sync/product-commands.ts",
+        "sha256": "a1d4ba21d5a3b515ebcc738b71b0681f4e2a56e0dfee2c1f7665d5cad5a7e96e"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-control.test.ts",
+        "sha256": "b7f33b08999a0a75b25adc5fb4a5ea41dc16558155806ed2bfc268bb3918b4b2"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-control.ts",
+        "sha256": "bb05cf51b17d03d8f7aeb5001b3857f96d51490c5334460428030e93f3ef32cb"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-react.ts",
+        "sha256": "404fbf91d9352244553553058384f352362d84de55c3ecdab0b20bdb04e45d81"
+      },
+      {
+        "path": "src/renderer/sync/production-runtime.test.ts",
+        "sha256": "3b0af580f9d88f9ee58c0ba718baa7d578749cff4553afcc962abdcc7cd7aa45"
+      },
+      {
+        "path": "src/renderer/sync/production-runtime.ts",
+        "sha256": "5e97c7546d010bdc6210f5f1804c2708a391ca62de4488207a4d2e45da9574be"
+      },
+      {
+        "path": "src/renderer/sync/prose-change-scope.test.ts",
+        "sha256": "7fa2e1eea0ca6c8c261223183a3b6c6ea471bdc5013a299d01d1cd4091b4a562"
+      },
+      {
+        "path": "src/renderer/sync/prose-change-scope.ts",
+        "sha256": "0e30fb13c03ede6fec078facc3deaf33971c721a86166ed8bd01a6bb6007e693"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.test.ts",
+        "sha256": "2040144cccd1089bb5f347f44cbbf6b442c3749bf046c8fbadc03d0d254c9dfa"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.ts",
+        "sha256": "02ca95278b8ff33f3d2541deb62254911140a9b061e6f0e771b2a9ba14d677e3"
+      },
+      {
+        "path": "src/renderer/sync/protocol/canonical-cbor.ts",
+        "sha256": "e47cde3592daa3740ed8b5c7ab47173053509a887d0175b2053e44b4b9d7ff63"
+      },
+      {
+        "path": "src/renderer/sync/protocol/change-set.ts",
+        "sha256": "b04005c646928683a10d3e3195bba939d24d2526fd066840324313e2da497f24"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest-schema.ts",
+        "sha256": "d5f0290e33b71fd0be8ae07a47e5a5e0a10170d7826347217f3cbfb5dfc68cab"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.test.ts",
+        "sha256": "3d186ee9b7539233072be4ea479cbefd7b63e672006e2f5636e3fc9226960c2b"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.ts",
+        "sha256": "9f5e8313f37d72e39bc468d249da84ec4abb6553d748f5c9631112c04f0f748a"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/protocol-v1.golden.json",
+        "sha256": "b94c77cdaf1ce5f858c8b43452f30f426838915425b303fb153c964080557491"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/v1-fixtures.ts",
+        "sha256": "3123e18ed04fb71f8bf0884aee2ff1ab6ef7deb3b70208d70fe42544dd2dd917"
+      },
+      {
+        "path": "src/renderer/sync/protocol/index.ts",
+        "sha256": "200a7e9280dbd2e03db48ab237573843f3e43633076ca128a7d3e082b6563fdb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/order.ts",
+        "sha256": "5fe8f55e28c526fc0714c536f9c316813440c4428d29536a2770ecb9b3014a31"
+      },
+      {
+        "path": "src/renderer/sync/protocol/primitives.ts",
+        "sha256": "80405edc5dd7a99ad6d91e0eb29ad58ededc843d1b1c1eb6753905b85b825be8"
+      },
+      {
+        "path": "src/renderer/sync/protocol/protocol.test.ts",
+        "sha256": "3bea0800c7b38cdaecc09d23085c14574828c625da384eb682122e3e9e71379d"
+      },
+      {
+        "path": "src/renderer/sync/protocol/provider.ts",
+        "sha256": "1c60123b664585b4abd9f18ca10a566ff9f3475f27408e9605aaf11c5d476794"
+      },
+      {
+        "path": "src/renderer/sync/protocol/segment.ts",
+        "sha256": "e724e98063be4215d707774e00d3b8f0dd7d899ec09c4e42d3320fabcb53c56a"
+      },
+      {
+        "path": "src/renderer/sync/protocol/snapshot.ts",
+        "sha256": "e2089f61827df5f06d47232d11e4408334500e2bb0aed3679fede3660c799b58"
+      },
+      {
+        "path": "src/renderer/sync/protocol/validation.ts",
+        "sha256": "992c10215764d660390a5da11cc4c69546eb01a2a6e50417d107673249134ecb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/versioned-codec.ts",
+        "sha256": "168cc9ab673da9c582ef47729d5c90fb00c24b195688a22660137ed79a0f4276"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+        "sha256": "8c7b9258f15cfaa0c3e9ffff8fb61949c46c0518ac2d24ab223cfa1e3ba16a67"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.ts",
+        "sha256": "d80221fadc09556e4a60effd65089631055da2d4db3dbf36bd04bcbc051c5b93"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+        "sha256": "ec8c6c4b743749d82fe39f57d40887a99c1985a4cd0af42979c9cecadf2955ad"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/architecture.test.ts",
+        "sha256": "737a569c4558ee30e92d68872c90e0da23a4d56562732f944aa2528537d2cf4f"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/index.ts",
+        "sha256": "41197fc1f0ae76b0db76c6f04bd6ea7187fec601a0028ff1f2867356ba9461ee"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts",
+        "sha256": "37853a3789a3b5b239053fd5bb1ab68e18d6b3ae0c20772376e9436cd2fa7fcb"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/project-snapshot-discovery.ts",
+        "sha256": "bc3b62bca54a13182ca6931d869eaae3e342f41cd970c4d60846d151cac6b7ae"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/provider.test.ts",
+        "sha256": "ebe313f0d7c30109a278eb0cd4c80f18999993a39a7f972a0db620563580c787"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/provider.ts",
+        "sha256": "43a4bf368b9f1eb051e8b823b95813280b1c7b6ad51d5fda3879222629c5a1e4"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/tauri-transport.test.ts",
+        "sha256": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/tauri-transport.ts",
+        "sha256": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/transport.ts",
+        "sha256": "52a82c2302b418883471b23e003e51c991b0889e6be96a5ba153ba2da88222f4"
+      },
+      {
+        "path": "src/renderer/sync/providers/index.ts",
+        "sha256": "2f66fd916c8ffcc9ea5c5415a0ed07d3024171f08552b32474a0b9ae6f183a3e"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/architecture.test.ts",
+        "sha256": "1d7045555adee64392e1a9be0cf7b16783736bece72bd8ec2741dce436ebfe01"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/durability.test.ts",
+        "sha256": "ef3ff34f5512f28db125ac9b988bd740c13aa0de31e530467a673a523e153faa"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/index.ts",
+        "sha256": "477f26ce0aeb05de510775002b907abd4d08cdf24abfce388a7797e70591231e"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/node-test-transport.ts",
+        "sha256": "194f0110fc8844e2c1e701ae32934cffd9cf092ef294410cf41e0fd2edffe834"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.conformance.test.ts",
+        "sha256": "f8eacb1f1b431bea7b4275ba8c2f0e27f0a121fa1d8d2b097bbae537087bf9d9"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.test.ts",
+        "sha256": "283a8fc2d7849fbd0d51c83c572e0f9b79602ba9c7552617ba57a88b211cf04f"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.ts",
+        "sha256": "b6fd74bfa31fcbbe132914dda0d343a585e9c9d35e9ed0e3ac038a959644b358"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/sigkill-worker.test.ts",
+        "sha256": "9ed749efc0f4f2cb3619cde7966a738dcea596af56c71d13fc01899633316f96"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/transport.ts",
+        "sha256": "88cb9b56117fabc570feff723f4d8e9d3768c878596a9ff32fb6fee42e87a358"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-object-store.ts",
+        "sha256": "85e7fc66dbc81b95168d6b3ec877c55e2931e49306cc378adb950af8fbc29eb2"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.conformance.test.ts",
+        "sha256": "9d96f165d6adf147a448547e04cfa9ea3050b3cfac1f7fb7598de7889ef019ab"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.test.ts",
+        "sha256": "5779ffa1d2f829738e606fa1b7545d3f365cfbe93d9aa2f37ea396f135085805"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.ts",
+        "sha256": "eaf9aa5bd892ca5b894023b2560605d6a46647e67e72ab6af54391cfbdd1a114"
+      },
+      {
+        "path": "src/renderer/sync/providers/object-log-provider.conformance.ts",
+        "sha256": "b19145cff4f5764c56c97c5fba121001b80012993f3882eb57fad12d4a5428f2"
+      },
+      {
+        "path": "src/renderer/sync/providers/provider-error.ts",
+        "sha256": "3b3e609cb88241dbbac7659577fefebbed3df4022bfc4f9989a08e4e78a85b37"
+      },
+      {
+        "path": "src/renderer/sync/provision/google-drive-runtime.ts",
+        "sha256": "051b18cd4bac601438f51698add62602ec89ea3cbf97ce0015bb1d29ccfb32ef"
+      },
+      {
+        "path": "src/renderer/sync/provision/index.ts",
+        "sha256": "74469680cb812c50c6009d05e7ca84c9d4146d88a2cab10388f3a87c29195ef1"
+      },
+      {
+        "path": "src/renderer/sync/provision/repository.ts",
+        "sha256": "5232b28a54fb479d5875d28c59dd92c6b02732aa77928ab9d953120ebff3731d"
+      },
+      {
+        "path": "src/renderer/sync/provision/supervisor.test.ts",
+        "sha256": "6195ad9e4dcc241e7cf9b395d2a813481bb142c9d01e811700af9762efa1a96c"
+      },
+      {
+        "path": "src/renderer/sync/provision/supervisor.ts",
+        "sha256": "a99941a51c98f8fa2b2a76d0b9207f62376e6a3be4442b1202434efae0499c6a"
+      },
+      {
+        "path": "src/renderer/sync/provision/sync-generation-provisioner.integration.test.ts",
+        "sha256": "8b7f048c9cbe5c730a88c4b3bf69bf9e3b60a3dd56184650d11b0c9db5ae8821"
+      },
+      {
+        "path": "src/renderer/sync/provision/sync-generation-provisioner.ts",
+        "sha256": "f835470432629b29a3af9c212a0544f105e9122546947372e39b8d272b5e3cb6"
+      },
+      {
+        "path": "src/renderer/sync/reducer/architecture.test.ts",
+        "sha256": "2eb2128a55369e95ab5230da57638c89d0472a3b4d80dd90fbc154e22a5a71ec"
+      },
+      {
+        "path": "src/renderer/sync/reducer/index.ts",
+        "sha256": "b3a39d6ec2d016e5c539705aba041cca7ac2b410800a985693a5a41492d72b3e"
+      },
+      {
+        "path": "src/renderer/sync/reducer/payloads.ts",
+        "sha256": "a07bc7aa5381be734a2cdf00cf2fd4a0c8a1418a9c74d6a13fff41ae5208c731"
+      },
+      {
+        "path": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+        "sha256": "fc4be11e280237d01b4800643b6350ef7d15f50855daa7839001c5b66943e291"
+      },
+      {
+        "path": "src/renderer/sync/reducer/production-domain-kernel.ts",
+        "sha256": "30992e351bf04184bbd1a64eb8b877ffd25ff3c33be919aed6201c3cd9786580"
+      },
+      {
+        "path": "src/renderer/sync/reducer/reducer.test.ts",
+        "sha256": "5af71647bb88b134c758f82621b8f0f6ee29427f62c210183d674e71d842babc"
+      },
+      {
+        "path": "src/renderer/sync/reducer/reducer.ts",
+        "sha256": "52b526c16fd2a83c17dbdbe1155948ad12f73836a7dceb3fe50c90f7a5efe8ab"
+      },
+      {
+        "path": "src/renderer/sync/reducer/sqlite-materializer.integration.test.ts",
+        "sha256": "da22ec317ebc8b5718869c3e9c1b1af2017c61b7a54764cac671144b8a2d5c5b"
+      },
+      {
+        "path": "src/renderer/sync/reducer/sqlite-materializer.ts",
+        "sha256": "b31c0ab3ef18a6c7e246d6bb0a746efb03611175d634f2c1ee9096c8531c235b"
+      },
+      {
+        "path": "src/renderer/sync/reducer/types.ts",
+        "sha256": "62afef5215a101f4d0018c24b717e18517830bb3be761ac4b557e21fe6b3dc45"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-product-connect.integration.test.ts",
+        "sha256": "f3ff688abc57cf23d1b039b97b71e62a6bd44f2067a4475e1a1c42fd7622b6fe"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-product-connect.ts",
+        "sha256": "703acae008cce0f435d8a1dfabd6e038a9af65b45a38562e002f8c8f2cf50af7"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-restore.integration.test.ts",
+        "sha256": "095f3db77413e750e5afd0ef565234cf0a8cc950aa24b072921bdafa4a7e2dc7"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-restore.ts",
+        "sha256": "aa8b7e3a2a8bcf2c0bb25b43d3b75e42c762adfeb62a45b5192ef0e4acc41e70"
+      },
+      {
+        "path": "src/renderer/sync/restore/index.ts",
+        "sha256": "99ffe43e8a461ceb5bb9ca8380a1c25afe0f46137442c99fe10c0e12fb0ab547"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "101d8d82f8b277474bc5e8625446ed86072256cfdd9ecd475558bf61d19bc01a"
+      },
+      {
+        "path": "vitest.config.ts",
+        "sha256": "80186ca061766cdccfe96b38b45f4fc2ebaeddf27248aed4dd8c63892439afeb"
+      },
+      {
+        "path": "vitest.shared.ts",
+        "sha256": "bd0f98a27ad9b750fca3490a3f250fade374bebfb0d8164beb4b0f0e087f9eb4"
+      }
+    ]
+  },
+  "scope": {
+    "acceptedCases": 166,
+    "boundary": "Structural validation and immutable wire transport of optional neutral transaction evidence, actual synthetic Yjs transaction capture, and file-backed SQLite authored-write atomicity. The helper is opt-in and transactionDeletes are not authored-deletion certificates.",
+    "accepted": [
+      "Strict payload shape, snapshot round-trip, bounds, deep copies and legacy omission",
+      "Change-set/segment integrity checks and unchanged protocol golden bytes",
+      "Mutation creation snapshots target and canonical payload before hashing, including shared-buffer binary inputs",
+      "Actual local Yjs event capture, pure-delete bases, contamination refusal and retained capture failures",
+      "Explicit evidence persisted with update/journal bytes atomically and copied before asynchronous scheduling",
+      "Checkpoint mutation bytes preserved exactly and direct production kernel evidence validation before writes"
+    ],
+    "excluded": [
+      "Authored deletion intent or a reconstructible causal source basis",
+      "Production automatic capture or live editor integration",
+      "Native alias deletion routing or repair",
+      "Legacy-client deletion provenance recovery",
+      "Full checkpoint semantic acceptance",
+      "Physical input, IME, native UI or real device execution",
+      "Real-account sync",
+      "Distribution"
+    ]
+  },
+  "cases": [
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence accepts 100,000 ranges and rejects 100,001 before reading elements",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence accepts exact empty snapshot and boundary clock/client values, preserving adjacent range segmentation",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence accepts state-transfer evidence only as its own copied exact shape",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence does not downgrade a malformed inherited provenance field or accept missing own evidence keys",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence keeps the existing non-empty byte contract without decoding or imposing a new update size cap",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence parses actual Yjs transaction bytes and snapshots without claiming authored deletion semantics",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence preserves omitted-provenance legacy bytes and ignores unknown top-level fields without rewriting input",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 0",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 1",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 2",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 3",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 4",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 5",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects an invalid legacy payload 6",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 0",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 1",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 10",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 11",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 12",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 13",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 14",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 15",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 16",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 17",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 18",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 19",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 2",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 20",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 3",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 4",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 5",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 6",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 7",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 8",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects invalid, overflowing, unsorted or overlapping delete ranges 9",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 0",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 1",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 2",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 3",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 4",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 5",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 6",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects malformed, non-round-tripping or oversized snapshot 7",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 0 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 1 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 10 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 11 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 2 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 3 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 4 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 5 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 6 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 7 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 8 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence rejects present malformed, unknown or over-specified provenance 9 instead of downgrading",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+      "name": "Yjs update payload transaction evidence returns independent copies of update, provenance, snapshot, array and every range",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire keeps an omitted supplement absent and preserves legacy payload bytes and hash",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire owns mutation payload and target when callers change inputs after hashing completes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire owns mutation payload and target when callers change inputs before hashing completes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire preserves a real transaction snapshot, update and delete ranges exactly through both envelopes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire preserves the distinct state-transfer shape through both envelopes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects correctly hashed overlapping delete ranges evidence at both wire entry points",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects correctly hashed present null evidence at both wire entry points",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects correctly hashed snapshot with trailing bytes evidence at both wire entry points",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects correctly hashed state-transfer carrying deletes evidence at both wire entry points",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects correctly hashed unsupported inner version evidence at both wire entry points",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects syntactically valid before snapshot tampering when the original payload hash is retained",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects syntactically valid delete ranges tampering when the original payload hash is retained",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+      "name": "optional Yjs transaction evidence across change-set and segment wire rejects syntactically valid evidence kind tampering when the original payload hash is retained",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture captures the exact eligible local insert event and the preceding snapshot",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture disposes idempotently without discarding queued records and automatically detaches on destroy",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture distinguishes consecutive pure deletes whose state vectors are identical",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture excludes non-approved, remote, full-state and already-persisted transactions",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture keeps an unknown origin accessor failure at beforeTransaction outside Yjs cleanup",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture keeps an unknown origin accessor failure at update outside Yjs cleanup",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture keeps rapid event bases and bytes independent of later events and listeners",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture preserves distinct observer-transaction bases without claiming event bytes are transaction-exclusive",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture rechecks locality after a remote apply nested inside an eligible local transaction",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture records structural replacement deletes as neutral transaction facts",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from earlier listener delete even when eligibility is true",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from earlier listener insert even when eligibility is true",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from predicate delete even when eligibility is false",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from predicate delete even when eligibility is true",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from predicate insert even when eligibility is false",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture refuses a contaminated basis from predicate insert even when eligibility is true",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture retains an explicit capture failure without throwing into Yjs or poisoning later cleanup",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+      "name": "actual Yjs transaction evidence capture uses one outer transaction basis for nested local transact calls",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal commits a deterministic create seed with the owner and one complete authored change-set",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal commits the update, revision, provenance and raw-byte mutation atomically",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal copies update and evidence before waiting for the SQLite transaction scheduler",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal enumerates snapshot-only documents for checkpoint capture",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal keeps agent revision labels separate from wire evidence",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal keeps seed and restore state untagged unless an operation supplies evidence",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal keeps system revision labels separate from wire evidence",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal keeps user revision labels separate from wire evidence",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal persists actual transaction evidence with identical update and immutable envelope bytes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal persists explicit state-transfer evidence without transaction delete claims",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"state-transfer\",\"transactionDeletes\":[]}",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"transaction-event\",\"beforeSnapshot\":{\"0\":255},\"transactionDeletes\":[]}",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":2,\"kind\":\"state-transfer\"}",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal rolls back evidence and prose together when receipt observation fails after journaling",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "name": "authored Yjs journal rolls every Yjs row back when the authored transaction cannot bind a SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore captures and restores snapshot-only, update-only, combined, and seed-only prose",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore captures normalized authority and rebuilds a deliberately stale JSON projection",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore fails capture before publishing a checkpoint with missing fractional list authority",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore fails closed on missing/corrupt blobs and wrong projectSync without exposing a project",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore materializes no project when any member of an atomic multi-SyncGeneration restore fails",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore publishes every blob and the package before the only visible commit marker",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row action without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row duplicate index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row extra row with out-of-range index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row forged payload with matching row hash without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row incarnation without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row missing row without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row negative index without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload bytes without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload hash without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload version without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target family without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target id without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target kind without changing target domain state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+      "name": "provider-neutral checkpoint capture and isolated restore rejects unknown package versions and invalid Yjs before materialization",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite accepts a local authored membership removal bundled with storyline trash",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite applies a valid Yjs update with remote provenance inside the receipt transaction",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite binds an asset only after verified blob staging and enforces one typed owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite blocks a primary register that does not reference a present membership",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite classifies every frozen reducer target as implemented or explicitly fail-closed",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite converges asset bind/unbind when the older bind arrives after the winner",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite fails closed on scalar prose and prose lifecycles without one full Yjs state",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite keeps invalid effects as deterministic conflicts without touching domain rows",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite keeps restored Yjs and asset ownership when late incarnation-zero operations arrive",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite keeps sync-generation.purge absorbing across two-writer reorder, duplicate, and restart replay",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite lets a narrative drop update an older chapter lifecycle without revalidating untouched book order",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite materializes a classified field and records no authored echo",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite materializes membership OR-set state before the independent primary LWW register",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite materializes sync-generation.purge without deleting the immutable sync receipt",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite materializes trash and full-seed restore as a new incarnation",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite preserves state-transfer evidence in the remote envelope while materializing ordinary prose",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite preserves the terminal purge register through checkpoint reducer-state restore",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite preserves transaction-event evidence in the remote envelope while materializing ordinary prose",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite rejects a newly authored chapter fractional-order register",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite rejects overlapping delete ranges at the direct kernel validation seam without domain or Yjs writes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite rejects present null at the direct kernel validation seam without domain or Yjs writes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite rejects snapshot with trailing bytes at the direct kernel validation seam without domain or Yjs writes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite rejects unsupported evidence version at the direct kernel validation seam without domain or Yjs writes",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite removes storyline memberships before materializing storyline trash",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite replays a locked built-in relation type before applying the next chapter creation bundle",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite restores rows without deletedAt from physical trash projections at incarnation one",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "name": "production SyncDomainMaterializationKernel on file-backed SQLite validates relation invariants before a lifecycle seed reaches SQLite",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "RFC 8949 deterministic CBOR encodes maps deterministically and keeps binary values as CBOR byte strings",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "RFC 8949 deterministic CBOR quarantines valid but non-deterministically ordered CBOR",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "RFC 8949 deterministic CBOR rejects non-finite numbers, undefined, sparse arrays and malformed hex",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "UTF-8 and HLC total order advances local and received clocks monotonically",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "UTF-8 and HLC total order orders strings by UTF-8 bytes instead of locale collation",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "UTF-8 and HLC total order uses every frozen tie-break field in order",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "cross-runtime protocol v1 golden fixtures keeps every core envelope byte-for-byte stable",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "opaque provider object boundaries does not allow renderer absolute paths as LocalObjectRef values",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "opaque provider object boundaries keeps provider authority out of individual bindings",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "opaque provider object boundaries keeps provider/object constants and runtime unions in lockstep",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "snapshot packages and commit markers keeps commit visibility separate from the snapshot body",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "snapshot packages and commit markers verifies canonical authored/reducer sections, Yjs bytes and seed payloads",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "versioned change sets and segments keeps exported mutation constants and runtime unions in lockstep",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "versioned change sets and segments quarantines unknown protocol and payload versions without an upconverter",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "versioned change sets and segments rejects partial indexes, mismatched action families and payload tampering",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "versioned change sets and segments requires one writer epoch, contiguous sequences and sorted blob dependencies",
+      "status": "passed"
+    },
+    {
+      "file": "src/renderer/sync/protocol/protocol.test.ts",
+      "name": "versioned change sets and segments round-trips a complete change set and verifies each payload hash",
+      "status": "passed"
+    }
+  ],
+  "run": {
+    "mode": "collected-existing-vitest",
+    "rawSha256": "c7735d7d4b33cabe3647e0e7c0f91c8cc692f904f654b0d419a5dd82db74302f",
+    "requiredSuites": [
+      {
+        "file": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+        "passed": 56,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/services/yjs-transaction-evidence.test.ts",
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "file": "src/renderer/sync/protocol/protocol.test.ts",
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "overall": {
+      "success": true,
+      "total": 3107,
+      "passed": 3106,
+      "failed": 0,
+      "skipped": 1
+    },
+    "skippedTests": [
+      {
+        "file": "src/renderer/sync/providers/local-folder/sigkill-worker.test.ts",
+        "name": "LocalFolder SIGKILL child writer blocks exactly at the requested durability boundary",
+        "status": "skipped"
+      }
+    ]
+  }
+}

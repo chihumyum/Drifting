@@ -1,0 +1,1381 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_native_p2a_document_compatibility",
+  "generatedAt": "2026-09-26T05:06:58.407Z",
+  "status": "passed",
+  "source": {
+    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "dirty": true,
+    "fingerprint": "cf50ef1b04eb9c667918d4b6fef1823cc4a8ed3953bd4061eaceb29efb25140a"
+  },
+  "libraries": {
+    "yjs": "13.6.32",
+    "yrs": "0.28.0",
+    "localYrsPatches": [
+      "follow-redone-offset",
+      "sparse-hole-pending-replay",
+      "undo-deletion-filter"
+    ],
+    "localYrsTestPatches": [
+      "awareness-summary-fixed-clock"
+    ],
+    "offsetKind": "utf16",
+    "garbageCollection": true,
+    "nativeUndoOrigin": "native-local",
+    "inputEncodings": [
+      1,
+      2
+    ],
+    "outputEncodings": [
+      1
+    ]
+  },
+  "knownLimitations": [
+    {
+      "name": "Yrs v2 binary-array emission",
+      "mitigation": "Reject v2 output; keep published v1 output. Binary map/array/XML attribute values remain supported."
+    },
+    {
+      "name": "V1 JSON-only format/embed values",
+      "mitigation": "Reject non-JSON format/embed values before remote integration and v1 export; validate missing-dependency structs and unknown roots as well as visible prose."
+    },
+    {
+      "name": "Late text under deleted or copied parents",
+      "mitigation": "Persisted aliases route unformatted insertions inside the retained left prefix of the two supported right-survivor quote shapes, including packets with safe suffix text from another writer or later clocks of the same writer. Exact persisted safe-clock proof covers same-writer interleaving outside one alias graph. Unknown holes, fresh formatting, collisions, alias-graph text and other deleted parents remain behind the raw-retention barrier; general relocation and its performance remain open. Context-aware durable tail recovery is recorded separately by the persistence report."
+    }
+  ],
+  "cases": [
+    {
+      "name": "v1/v2 input and v1 output preserve XML, marks, opaque metadata, shared roots and binary values",
+      "status": "passed"
+    },
+    {
+      "name": "differential targeted edits and incremental exchange in both directions",
+      "status": "passed",
+      "operations": 8
+    },
+    {
+      "name": "pinned upstream v2 binary-array failure is reproduced and production output rejects v2",
+      "status": "passed"
+    },
+    {
+      "name": "local undo/redo preserves concurrent remote edits and formatting",
+      "status": "passed"
+    },
+    {
+      "name": "empty paragraphs keep metadata, accept first input and preserve start/end affinity",
+      "status": "passed"
+    },
+    {
+      "name": "reordered duplicate updates and pending deletions survive snapshot reload",
+      "status": "passed"
+    },
+    {
+      "name": "sparse dependencies replay across all update orders, encodings and pending checkpoints before further local/remote editing",
+      "status": "passed",
+      "arrivalOrders": 6,
+      "encodings": [
+        1,
+        2
+      ],
+      "restartStages": [
+        0,
+        1,
+        2
+      ],
+      "scenarios": 36
+    },
+    {
+      "name": "Yjs relative positions and native anchors agree after insert, delete and parent removal",
+      "status": "passed"
+    },
+    {
+      "name": "invalid edits preserve the full document and unsupported nodes remain intact",
+      "status": "passed"
+    },
+    {
+      "name": "seeded concurrent UTF-16 edits converge through incremental and duplicate exchanges",
+      "status": "passed",
+      "seeds": 24,
+      "roundsPerSeed": 12,
+      "authoredOperations": 576
+    },
+    {
+      "name": "native UTF-16 projection and atomic replacement preserve marks, anchors and opaque metadata",
+      "status": "passed"
+    },
+    {
+      "name": "supported structural replacements agree with the real chapter schema; unsafe relocation is retained atomically",
+      "status": "passed",
+      "accepted": 37,
+      "retainedWithoutMutation": 3,
+      "oracle": "actual chapter schema + ProseMirror + existing BlockId plugin"
+    },
+    {
+      "name": "quote boundary history matches production binding semantics while retaining original right suffix items across remote edits and independent checkpoint reopens",
+      "status": "passed",
+      "scenarios": 2,
+      "stages": 14,
+      "independentCheckpointReopens": 14,
+      "oracle": "production @tiptap/y-tiptap updateYFragment and defaultDeleteFilter",
+      "identityScope": "original right wrapper, joined paragraph and unselected suffix physical Y.Item IDs",
+      "oldClientDiagnostics": "recorded separately; not native acceptance expectations"
+    },
+    {
+      "name": "proved safe clock gaps preserve original suffix identities across Yjs exchange, delivery boundaries and native history",
+      "status": "passed",
+      "scenarios": 12,
+      "historyStages": 60,
+      "residualPendingRefusals": 2,
+      "boundary": "DocumentSession; no durable blocked-row lookahead claim"
+    },
+    {
+      "name": "split/join maps comment endpoints and preserves quotes, marks, unknown metadata and restart identities",
+      "status": "passed"
+    },
+    {
+      "name": "comment history and checkpoint anchors survive Yjs exchange and legacy comment readers",
+      "status": "passed"
+    },
+    {
+      "name": "ephemeral view selections agree with Yjs relative positions across remote edits and local history",
+      "status": "passed"
+    },
+    {
+      "name": "new selections follow copied sibling text through repeated history and Yjs prefix updates",
+      "status": "passed"
+    },
+    {
+      "name": "protected structural undo retains remote subtree content, history and checkpoints against the old collaboration filter",
+      "status": "passed",
+      "scenarios": 12,
+      "cycles": 2,
+      "semantics": "Remote-owned text survives. Deletion/formatting of local copied items follows the old plugin; those items disappear on undo and are redone later, not transferred to their pre-split originals."
+    },
+    {
+      "name": "snapshot-authored draft updates converge with Yjs and undo preserves overlapping remote prose",
+      "status": "passed",
+      "scenarios": 6,
+      "scope": "inline authored drafts; native queue tested in separate binding report; same-block structural drafts remain open"
+    },
+    {
+      "name": "queued input branches preserve visible item identity across remote merge, incremental Yjs exchange and history",
+      "status": "passed"
+    },
+    {
+      "name": "disjoint remote inline edits allow structural input branches, queued typing and local history",
+      "status": "passed",
+      "scenarios": 6,
+      "scope": "same-parent structural commands; remote edits outside affected blocks; same-block and cross-container concurrent reconciliation remain open"
+    },
+    {
+      "name": "same-paragraph Enter preserves concurrent prefix insertions, queued author offsets and selection history",
+      "status": "passed",
+      "scenarios": 6,
+      "historyCycles": 2,
+      "scope": "interior paragraph Enter; remote inserted items strictly before the cut; original items, metadata and copied tail unchanged"
+    },
+    {
+      "name": "same-paragraph Enter preserves remote prefix deletions, author offsets and repeated selection history",
+      "status": "passed",
+      "scenarios": 8,
+      "historyCycles": 2,
+      "updateOrders": 2,
+      "scope": "interior paragraph Enter; pure deletion of original items before the cut, including the whole prefix; copied tail, metadata and remaining marks unchanged; mixed insertion/deletion remains rejected"
+    },
+    {
+      "name": "structural copies preserve v1-canonical marks and raw binary XML metadata types",
+      "status": "passed",
+      "scenarios": 3,
+      "scope": "Yjs v1-canonical mark values and typed binary XML attributes across editing, history and checkpoint reopen"
+    },
+    {
+      "name": "non-JSON v2 format values reject atomically before live or pending integration",
+      "status": "passed",
+      "scenarios": 8,
+      "scope": "v1-incompatible format/embed JSON values reject; raw binary map/array/XML attributes remain supported"
+    }
+  ],
+  "limits": {
+    "nativeTextBinding": "separate-binding-report",
+    "ime": "not-run",
+    "splitMergeAnchorRemap": "sibling/scoped quote maps, comment history and disjoint structural draft maps tested; subtree relocation and production sync open",
+    "nativeCommandEvidence": "plain contiguous native/queued/draft deletions capture exact live transaction facts; journal and version ownership are checked separately by the authoring report; semantic deletion authority is not enabled",
+    "sqliteDurableReplay": "separate-durability-report",
+    "physicalDevice": "not-run",
+    "realAccount": "not-run",
+    "distribution": "not-run"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "node": "v24.19.0"
+  },
+  "sparseReplayDiagnostic": {
+    "path": "yrs-random-array-diagnostic.json",
+    "sha256": "625911cf062f74ed358a867fd1c7d594305e93a5989a2b57580934464ee1324d"
+  },
+  "upstreamRegression": {
+    "passed": 378,
+    "ignored": 1,
+    "excluded": 7,
+    "exclusionReason": "Seven upstream trace/dataset tests need assets absent from the published crate; not claimed as passed."
+  },
+  "unitTests": {
+    "passed": 132,
+    "failed": 0,
+    "requiredCases": [
+      {
+        "name": "relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation",
+        "status": "passed"
+      },
+      {
+        "name": "relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_history_is_raw_and_preserves_existing_local_undo_units",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_origin_is_removed_after_success_and_scope_drop_retains_only_raw_bytes",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_multiple_or_foreign_events_disqualify_without_dropping_authored_bytes",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_observers_cannot_open_a_nested_write_transaction",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_basis_includes_preexisting_deletions_but_event_does_not_reemit_them",
+        "status": "passed"
+      },
+      {
+        "name": "native_command_tests::native_command_mutable_after_transaction_expansion_never_inherits_delete_intent",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_rebuilds_live_snapshot_offset_and_cross_client_emoji_ids_after_prefix_insert",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_excludes_already_remote_deleted_ids_and_never_undoes_remote_deletion",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_interior_remote_insertion_stays_raw_without_deleting_or_claiming_remote_text",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_all_remote_deleted_produces_no_event_but_consumes_successful_sequence_once",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_rapid_followup_uses_visible_branch_ids_and_distinct_live_bases",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified",
+        "status": "passed"
+      }
+    ]
+  },
+  "relocationAliasAcceptance": {
+    "name": "late original-left quote prefix edits after copying",
+    "classification": "scoped-native-acceptance",
+    "status": "passed",
+    "scope": "Unformatted insertion in the retained original-left prefix of the two supported right-survivor quote shapes; mixed safe suffix text retains its original identity when authored by another writer or after the prefix on the same writer.",
+    "mechanism": "Persistent source-clock aliases, deterministic canonical strings and receipt-owned history renders; original XML objects are not cloned.",
+    "scenarios": [
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "range": {
+          "location": 2,
+          "length": 1
+        },
+        "stages": [
+          {
+            "action": "joined",
+            "visibleText": "保潮汐夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "visibleText": "保潮汐\n夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "visibleText": "保潮汐夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "visibleText": "保潮汐\n夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "visibleText": "保潮汐夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "range": {
+          "location": 1,
+          "length": 3
+        },
+        "stages": [
+          {
+            "action": "joined",
+            "visibleText": "保潮航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "visibleText": "保潮汐\n夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "visibleText": "保潮航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "visibleText": "保潮汐\n夜航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "visibleText": "保潮航\n终章",
+            "remotePrefixVisible": true,
+            "delivery": "automatically-routed",
+            "yjsConverged": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      }
+    ],
+    "mixedPackets": [
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "writers": "one-prefix-before-suffix",
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "writers": "independent",
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "writers": "one-prefix-before-suffix",
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "writers": "independent",
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeItemIdentity": true,
+            "commentsAndAnchor": true,
+            "checkpointReopened": true
+          }
+        ]
+      }
+    ]
+  },
+  "oldClientDiagnostics": [
+    {
+      "name": "both wrappers retain unselected children",
+      "classification": "diagnostic-only-not-native-acceptance",
+      "source": "production @tiptap/y-tiptap updateYFragment and defaultDeleteFilter",
+      "reason": "Production binding relocates the unselected suffix by copying; copying these history artifacts is not a native acceptance contract.",
+      "observations": {
+        "copiedUnselectedSuffix": true,
+        "anonymousRemoteFragmentAfterUndo": true,
+        "lateOriginalSuffixVisibleWhileUndone": false,
+        "lateOriginalSuffixVisibleAfterRedo": false
+      }
+    }
+  ],
+  "safeClockGaps": {
+    "status": "passed",
+    "scope": "One alias in either supported right-survivor quote shape; original plain prefix strings separated by exactly proved live non-alias string clocks.",
+    "mechanism": "Persistent exact UTF-16 skip receipts; source evidence keeps sparse original clocks across history, while only proved canonical gaps become GC.",
+    "boundaries": {
+      "independentBFirst": "atomic-retention-refusal-until-complete-closure",
+      "ownerBlockedRowLookahead": "not-implemented",
+      "novelFormatOrDelete": "retention-refusal",
+      "unknownHole": "retention-refusal",
+      "aliasGraphText": "not-safe-gap-proof",
+      "residualPendingWithLostText": "atomic-retention-refusal"
+    },
+    "scenarios": [
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "complete",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "normal-split",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "independent-b-refused-then-closure",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "complete",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "normal-split",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "dependent-b-pending-then-closure",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "complete",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "normal-split",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "d→b",
+        "delivery": "independent-b-refused-then-closure",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "complete",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "normal-split",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "pattern": "b→d→b",
+        "delivery": "dependent-b-pending-then-closure",
+        "independentReceiver": true,
+        "stages": [
+          {
+            "action": "joined",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "undo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          },
+          {
+            "action": "redo",
+            "yjsConverged": true,
+            "safeOriginalIdsMarksAndMetadata": true,
+            "commentsAndAnchor": true,
+            "persistentSkipProof": true,
+            "sparseSourceClockReplay": true,
+            "canonicalOnlyGc": true,
+            "duplicateIdempotent": true,
+            "checkpointReopened": true
+          }
+        ]
+      }
+    ],
+    "negativeCases": [
+      {
+        "operation": "join adjacent quotes preserving right suffix identity",
+        "case": "lost-prefix-with-unrelated-residual-pending",
+        "atomicRefusal": true
+      },
+      {
+        "operation": "delete across adjacent quotes preserving right suffix identity",
+        "case": "lost-prefix-with-unrelated-residual-pending",
+        "atomicRefusal": true
+      }
+    ]
+  }
+}

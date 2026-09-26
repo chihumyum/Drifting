@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "declaration": "synthetic explicit command; not production native capture",
+  "cases": [
+    {
+      "name": "plain",
+      "seedUpdates": [
+        "AQS5jgMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwC5jgMABgQAuY4DAQbmva7msZAoALmOAwACaWQBdwFwAA=="
+      ],
+      "beforeText": "潮汐",
+      "afterText": "汐",
+      "update": "AAG5jgMBAgE=",
+      "afterState": "AQW5jgMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwC5jgMABgQAuY4DAQPmva6EuY4DAgPmsZAoALmOAwACaWQBdwFwAbmOAwECAQ==",
+      "beforeSnapshot": "AAG5jgMF",
+      "transactionDeletes": [
+        {
+          "client": 51001,
+          "clock": 2,
+          "length": 1
+        }
+      ],
+      "intent": {
+        "targetText": {
+          "client": 51001,
+          "clock": 1
+        },
+        "offsetUTF16": 0,
+        "lengthUTF16": 1,
+        "selectedSourceRanges": [
+          {
+            "client": 51001,
+            "clock": 2,
+            "length": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "emoji",
+      "seedUpdates": [
+        "AQS5jgMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwC5jgMABgQAuY4DAQrmva7wn5mC5rGQKAC5jgMAAmlkAXcBcAA="
+      ],
+      "beforeText": "潮🙂汐",
+      "afterText": "潮汐",
+      "update": "AAG5jgMBAwI=",
+      "afterState": "AQa5jgMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwC5jgMABgQAuY4DAQPmva6EuY4DAgTwn5mChLmOAwQD5rGQKAC5jgMAAmlkAXcBcAG5jgMBAwI=",
+      "beforeSnapshot": "AAG5jgMH",
+      "transactionDeletes": [
+        {
+          "client": 51001,
+          "clock": 3,
+          "length": 2
+        }
+      ],
+      "intent": {
+        "targetText": {
+          "client": 51001,
+          "clock": 1
+        },
+        "offsetUTF16": 1,
+        "lengthUTF16": 2,
+        "selectedSourceRanges": [
+          {
+            "client": 51001,
+            "clock": 3,
+            "length": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "multiple-source-clocks",
+      "seedUpdates": [
+        "AQS5jgMABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwC5jgMABgQAuY4DAQbmva7msZAoALmOAwACaWQBdwFwAA==",
+        "AQG6jgMARLmOAwID5L+dAA=="
+      ],
+      "beforeText": "保潮汐",
+      "afterText": "汐",
+      "update": "AAK6jgMBAAG5jgMBAgE=",
+      "afterState": "AgG6jgMARLmOAwID5L+dBbmOAwAHAQdkZWZhdWx0AwlwYXJhZ3JhcGgHALmOAwAGBAC5jgMBA+a9roS5jgMCA+axkCgAuY4DAAJpZAF3AXACuo4DAQABuY4DAQIB",
+      "beforeSnapshot": "AAK6jgMBuY4DBQ==",
+      "transactionDeletes": [
+        {
+          "client": 51001,
+          "clock": 2,
+          "length": 1
+        },
+        {
+          "client": 51002,
+          "clock": 0,
+          "length": 1
+        }
+      ],
+      "intent": {
+        "targetText": {
+          "client": 51001,
+          "clock": 1
+        },
+        "offsetUTF16": 0,
+        "lengthUTF16": 2,
+        "selectedSourceRanges": [
+          {
+            "client": 51001,
+            "clock": 2,
+            "length": 1
+          },
+          {
+            "client": 51002,
+            "clock": 0,
+            "length": 1
+          }
+        ]
+      }
+    }
+  ]
+}

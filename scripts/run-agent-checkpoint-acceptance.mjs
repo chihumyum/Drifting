@@ -82,7 +82,7 @@ if (process.argv.includes('--check')) {
       crashes.push({ boundary, seed, kill, restarts: [first, second] }); console.log(`Recovered checkpoint ${boundary}/${seed}`);
     }
     const common = path.resolve(root, git('rev-parse', '--git-common-dir'));
-    const nativeResult = await command('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--lib', 'database::tests::', '--', '--test-threads=1'], root,
+    const nativeResult = await command('cargo', ['test', '--manifest-path', 'crates/drifting-core/Cargo.toml', '--lib', 'database::tests::', '--', '--test-threads=1'], root,
       { ...process.env, CARGO_TARGET_DIR: process.env.CARGO_TARGET_DIR ?? path.join(path.dirname(common), 'src-tauri/target') });
     assert.equal(nativeResult.code, 0, nativeResult.stdout + nativeResult.stderr);
     const nativeTests = [...nativeResult.stdout.matchAll(/^test (database::tests::\S+) \.\.\. ok$/gm)].map(match => match[1]);

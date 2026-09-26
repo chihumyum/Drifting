@@ -1,3 +1,4 @@
+import { registerAuthoredYjsMaterialization } from '../sync/journal/yjs-materialization';
 /**
  * Snapshot restore — applies a time-machine capture back onto the entity.
  *
@@ -106,8 +107,15 @@ async function applyProseState(
               const txRepo = createYjsRepository(tx);
               let lastUpdateId = 0;
               for (const update of diff) {
-                lastUpdateId = await txRepo.appendUpdate(docId, update, { kind: 'user' });
-                appendYjsUpdateMutation(changes, docId, update);
+                const mutationIndex = appendYjsUpdateMutation(changes, docId, update);
+                const appended = await txRepo.appendMaterializedUpdate(
+                  docId,
+                  update,
+                  { kind: 'authored', builder: changes, mutationIndex },
+                  { kind: 'user' },
+                );
+                lastUpdateId = appended.updateId;
+                registerAuthoredYjsMaterialization(tx, changes, mutationIndex, appended.token);
               }
               await txRepo.upsertSnapshot(docId, fullState, {
                 source: { kind: 'user' },

@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_system_ime_acceptance",
+  "status": "failed",
+  "generatedAt": "2026-09-25T14:48:25.987Z",
+  "source": {
+    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "fingerprint": "0719a6e7acfdcbe1fcfd513f9b4f3f328259ad46dfb6c2f262b1a9a270df13e0"
+  },
+  "binarySha256": "d13f79454a46c812b536086bb0623ee5d11e079389aa17e6a2c891046d8a8985",
+  "rawReportSha256": "ca151dfb8581afad8df322f9e7a873c54a10e96e54bf964add351ad2565b5a36",
+  "sample": {
+    "cases": [
+      {
+        "name": "type-basic",
+        "observedKeyDownCount": 5,
+        "source": "CUA through macOS input routing"
+      }
+    ],
+    "eventLoop": "NSApplication.run; asynchronous main-actor phase waits",
+    "failure": "Timed out during system IME phase: type-basic",
+    "failureInputObservation": {
+      "focused": true,
+      "inputContext": {
+        "allowedSourceLocales": null,
+        "currentContextIsViewContext": true,
+        "currentSelectedSource": "com.apple.inputmethod.SCIM.ITABC",
+        "keyboardSourceIDs": [
+          "com.apple.keylayout.ABC",
+          "com.apple.inputmethod.SCIM.ITABC",
+          "com.apple.inputmethod.SCIM",
+          "com.bytedance.inputmethod.doubaoime.pinyin",
+          "com.bytedance.inputmethod.doubaoime"
+        ],
+        "modeBoundary": "TIS mode class and ASCII capability do not establish a provider's Chinese/English submode.",
+        "tis": {
+          "asciiCapable": false,
+          "modeID": "com.apple.inputmethod.SCIM.ITABC",
+          "sourceType": "TISTypeKeyboardInputMode"
+        },
+        "viewContextPresent": true,
+        "viewSelectedSource": "com.apple.inputmethod.SCIM.ITABC"
+      },
+      "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+      "keyDowns": [
+        {
+          "command": false,
+          "control": false,
+          "keyCode": 45,
+          "modifierFlags": 0,
+          "option": false,
+          "shift": false
+        },
+        {
+          "command": false,
+          "control": false,
+          "keyCode": 34,
+          "modifierFlags": 0,
+          "option": false,
+          "shift": false
+        },
+        {
+          "command": false,
+          "control": false,
+          "keyCode": 4,
+          "modifierFlags": 0,
+          "option": false,
+          "shift": false
+        },
+        {
+          "command": false,
+          "control": false,
+          "keyCode": 0,
+          "modifierFlags": 0,
+          "option": false,
+          "shift": false
+        },
+        {
+          "command": false,
+          "control": false,
+          "keyCode": 31,
+          "modifierFlags": 0,
+          "option": false,
+          "shift": false
+        }
+      ],
+      "marked": false,
+      "markedLocation": 79,
+      "markedUtf16Length": 0,
+      "phase": "type-basic"
+    },
+    "inputProvider": "Apple Simplified Chinese Pinyin",
+    "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+    "inputSourceSelections": [
+      {
+        "phase": "select-pinyin",
+        "previousSource": "com.apple.keylayout.ABC",
+        "requestedSource": "com.apple.inputmethod.SCIM.ITABC",
+        "route": "visible Input Source menu action",
+        "selectedSource": "com.apple.inputmethod.SCIM.ITABC"
+      },
+      {
+        "phase": "restore-input-source",
+        "previousSource": "com.apple.inputmethod.SCIM.ITABC",
+        "requestedSource": "com.bytedance.inputmethod.doubaoime.pinyin",
+        "route": "visible Input Source menu action",
+        "selectedSource": "com.bytedance.inputmethod.doubaoime.pinyin"
+      }
+    ],
+    "keyboardDelivery": "CUA only; helper observes native keyDown and marked ranges",
+    "keyboardObservations": [
+      {
+        "focused": true,
+        "inputContext": {
+          "allowedSourceLocales": null,
+          "currentContextIsViewContext": true,
+          "currentSelectedSource": "com.apple.inputmethod.SCIM.ITABC",
+          "keyboardSourceIDs": [
+            "com.apple.keylayout.ABC",
+            "com.apple.inputmethod.SCIM.ITABC",
+            "com.apple.inputmethod.SCIM",
+            "com.bytedance.inputmethod.doubaoime.pinyin",
+            "com.bytedance.inputmethod.doubaoime"
+          ],
+          "modeBoundary": "TIS mode class and ASCII capability do not establish a provider's Chinese/English submode.",
+          "tis": {
+            "asciiCapable": false,
+            "modeID": "com.apple.inputmethod.SCIM.ITABC",
+            "sourceType": "TISTypeKeyboardInputMode"
+          },
+          "viewContextPresent": true,
+          "viewSelectedSource": "com.apple.inputmethod.SCIM.ITABC"
+        },
+        "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+        "keyDowns": [
+          {
+            "command": true,
+            "control": false,
+            "keyCode": 126,
+            "modifierFlags": 9437184,
+            "option": false,
+            "shift": false
+          }
+        ],
+        "marked": false,
+        "markedLocation": 74,
+        "markedUtf16Length": 0,
+        "phase": "type-basic-position"
+      },
+      {
+        "focused": true,
+        "inputContext": {
+          "allowedSourceLocales": null,
+          "currentContextIsViewContext": true,
+          "currentSelectedSource": "com.apple.inputmethod.SCIM.ITABC",
+          "keyboardSourceIDs": [
+            "com.apple.keylayout.ABC",
+            "com.apple.inputmethod.SCIM.ITABC",
+            "com.apple.inputmethod.SCIM",
+            "com.bytedance.inputmethod.doubaoime.pinyin",
+            "com.bytedance.inputmethod.doubaoime"
+          ],
+          "modeBoundary": "TIS mode class and ASCII capability do not establish a provider's Chinese/English submode.",
+          "tis": {
+            "asciiCapable": false,
+            "modeID": "com.apple.inputmethod.SCIM.ITABC",
+            "sourceType": "TISTypeKeyboardInputMode"
+          },
+          "viewContextPresent": true,
+          "viewSelectedSource": "com.apple.inputmethod.SCIM.ITABC"
+        },
+        "inputSource": "com.apple.inputmethod.SCIM.ITABC",
+        "keyDowns": [
+          {
+            "command": false,
+            "control": false,
+            "keyCode": 45,
+            "modifierFlags": 0,
+            "option": false,
+            "shift": false
+          },
+          {
+            "command": false,
+            "control": false,
+            "keyCode": 34,
+            "modifierFlags": 0,
+            "option": false,
+            "shift": false
+          },
+          {
+            "command": false,
+            "control": false,
+            "keyCode": 4,
+            "modifierFlags": 0,
+            "option": false,
+            "shift": false
+          },
+          {
+            "command": false,
+            "control": false,
+            "keyCode": 0,
+            "modifierFlags": 0,
+            "option": false,
+            "shift": false
+          },
+          {
+            "command": false,
+            "control": false,
+            "keyCode": 31,
+            "modifierFlags": 0,
+            "option": false,
+            "shift": false
+          }
+        ],
+        "marked": false,
+        "markedLocation": 79,
+        "markedUtf16Length": 0,
+        "phase": "type-basic"
+      }
+    ],
+    "kind": "apple-system-ime-observation",
+    "limits": {
+      "backgroundInterruption": "not-run",
+      "hardwareKeyboard": "not-run",
+      "overlappingRemoteComposition": "not-run",
+      "physicalDevice": "not-run"
+    },
+    "originalInputSourceRestored": true,
+    "schemaVersion": 1,
+    "status": "failed"
+  },
+  "scope": "CUA keyboard events routed through macOS input source com.apple.inputmethod.SCIM.ITABC into the synthetic AppKit editor; observer-only helper"
+}

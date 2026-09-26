@@ -1319,6 +1319,10 @@ const syncTransportTables: Readonly<
       'payload_sha256',
     ],
   },
+  sync_yjs_materialization_receipt: {
+    scope: 'project-via-reference',
+    fields: ['change_set_id', 'mutation_index', 'admission_version', 'original_envelope_sha256', 'document_id', 'incarnation', 'event_sha256', 'update_row_id', 'document_revision', 'created_at'],
+  },
   sync_apply_receipt: {
     scope: 'project-via-reference',
     fields: [

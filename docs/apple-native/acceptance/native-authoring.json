@@ -1,0 +1,2156 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "toolchain": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)"
+  },
+  "rawEvidence": [
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/bridge-check.log",
+      "sha256": "3e1b05f33fa5abf3310808b2fbf60ce6cbe966690429188c7d40b7990eb94982"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/bridge-fmt.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/bridge.log",
+      "sha256": "7b23028c323910344fc064e0e540ac1850cc4fe10cf2386211f30b0717b50835"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/cargo.log",
+      "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/core-check.log",
+      "sha256": "fd04102cf0c84f5347672a7b737b094e4201db26cb1b7c7555def919fd5bd304"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/core-fmt.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/core.log",
+      "sha256": "d2dce84a40bac1ec4a1877b08ca9f333048638d14309613b02754c0319101622"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/document-check.log",
+      "sha256": "10d4a6fbc6ceab164c2d26cffb98b74f1acdc229587dfdbf378d6919aad139ea"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/document-fmt.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/document.log",
+      "sha256": "45af27b7d3184c259feaad54fdd137ccdaf2b19052052b325865221f40168984"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/event-order.log",
+      "sha256": "0b225a1d36777d8fb5431ef5ed76eec59f243bc7f8fe09a5056829b6eccc7749"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/journal-fixture.log",
+      "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/journal-wire-result.json",
+      "sha256": "54959ec06d713dfb48d05186cec64b5c578dd25e7637da45226de41fe940af01"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/journal-wire.json",
+      "sha256": "f66c17bbbd50f723d7da1d28906eff75a580db806700e8011c613efd1d627b92"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/journal-wire.log",
+      "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire-result.json",
+      "sha256": "24c8948fbb795a9ef0d7a9a2ca9d3cf31784c81cc317124a9af518508c49cefe"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire.log",
+      "sha256": "cd0d3daaaefb9dd7d924a08e76cd23aacf41ccacced3549455746768275b46f9"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire/native-draft.json",
+      "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire/native-multiclient.json",
+      "sha256": "6192a32aefe79bc135ce570535c9b645454ef1f717f433edbaceb1425580e7b7"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire/native-plain.json",
+      "sha256": "d7e497d42031f11552193881a1afbf4eea40ef4edae748014d092745313c803c"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/native-wire/native-queued.json",
+      "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/prose-check.log",
+      "sha256": "3c6b030fe8b9855193bec0cda3437eb56835ecc4d2596e6b04b1ab25e5ed7df1"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/prose-fmt.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/prose.log",
+      "sha256": "e6a6703674b585811ab1a58158908da6dd793e98140a87fb8de52c74773b0b09"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/renderer.json",
+      "sha256": "2a8d1a35ee0d4761d88603fa7ac3d09a0f4c7939bf4885cc395bf736ebbe5ceb"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/renderer.log",
+      "sha256": "5213b2e47d102bc4f4ef93471ef28238669b75f83c78246e44605272eba0cb98"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/rustc.log",
+      "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/tsconfig.json",
+      "sha256": "d4457101ea3e9f4e8130393663cc770ce13cef8ca97b9c17f8db8d52506d20af"
+    },
+    {
+      "path": ".local-data/apple-native/authoring-1790407899123/typecheck.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  ],
+  "source": {
+    "fingerprint": "c339f7da4a2bbb0bc35ba6cadef67eac0e5d4c0140ebd0971d8e8a8cdecb9a4e",
+    "files": [
+      {
+        "path": "crates/drifting-apple-bridge/Cargo.lock",
+        "sha256": "695b61abda59dca65a07e3fdcaa5ce50817d5905a4656b67f10497713e87ea4e"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/Cargo.toml",
+        "sha256": "87512d9110d50eae9e67a9459fb1f78532c8bd98eedc50074836273e3512607e"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/lib.rs",
+        "sha256": "b083ff7dc81bb2869b4ebf567cc0a4ea392c7c85c9f14534b99fa27610ace18e"
+      },
+      {
+        "path": "crates/drifting-core/Cargo.lock",
+        "sha256": "e110906728f6b087fc97b4ed0907d5fdb5ff4ab2a101b286d5ea024a7e6015c4"
+      },
+      {
+        "path": "crates/drifting-core/Cargo.toml",
+        "sha256": "3c149aa4631001435b64f56f1c3814d6f52d474bb1166adefd8f93d32bb78a3b"
+      },
+      {
+        "path": "crates/drifting-core/src/database.rs",
+        "sha256": "0f10006f3fbdbf42c2888d964ab2ac1de552d5d49964a5ae3dcea1d6649f3a40"
+      },
+      {
+        "path": "crates/drifting-core/src/file_io.rs",
+        "sha256": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c"
+      },
+      {
+        "path": "crates/drifting-core/src/lib.rs",
+        "sha256": "331fb86d00cf5278a72692914c35c7af409cdfca4e1d83fc53f0fb617cea8a72"
+      },
+      {
+        "path": "crates/drifting-core/src/materialization_admission.rs",
+        "sha256": "066ac21715dc4a80eaa3c601da17eb6a86b9efe91718aade76d0a3bfd9c0b25d"
+      },
+      {
+        "path": "crates/drifting-core/src/materialization_admission/tests.rs",
+        "sha256": "7d439cd5e5fb31d9c200ce8f3c6be922cb45916598cc9cbdd7c0c13efc718bc2"
+      },
+      {
+        "path": "crates/drifting-core/src/original_body_archive.rs",
+        "sha256": "393c2be0a986dc96a6e61486f2d758bb3284561b74d24cfe9970d80291816b51"
+      },
+      {
+        "path": "crates/drifting-core/src/original_body_archive/tests.rs",
+        "sha256": "8f87572866964155765ff1e30a902cf80b41e8c30f457e393edb76a014ea6f89"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation.rs",
+        "sha256": "82ae0b281a657413bbe193faf934fb5ae9c0a3a547837920db568d8316aaf85d"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation/canonical.rs",
+        "sha256": "4a939d809c9b5b78f8be7388f0b68a58fd4ed47edf290af03629c2278637ae0f"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation/tests.rs",
+        "sha256": "18fc6ab3dbbf8b45fd5a6158a3c8e391662ed71d00826b52cf55baa12cd685b9"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store.rs",
+        "sha256": "bab64633f7a6f05d0910738f6fc2460e87d5bd85608be6207b63a048a7850651"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store/fixtures.json",
+        "sha256": "171f67aef40fee55e3e6d9d91f0bd4717109fcd4f8922dcde3cc889ec3169235"
+      },
+      {
+        "path": "crates/drifting-core/src/original_operation_store/tests.rs",
+        "sha256": "331ddce840fe718480da7a0a725170495148452561e1f0ca4ce28f44c95bf5d8"
+      },
+      {
+        "path": "crates/drifting-core/src/prose.rs",
+        "sha256": "cc31352caeb8ce2d79040dc6dc2f8effd8d19c5908afb2b6db6304b2413b17a8"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal.rs",
+        "sha256": "657c4d0cbedf4e5dff1a6aa2eea4eeabdf00cb7d1dd497dd6cd1f13f5932ac89"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal/encoding.rs",
+        "sha256": "14eced4f188ab3a8082cf33471abf573d1afa5a947261bdd145ad7cabbe5f21e"
+      },
+      {
+        "path": "crates/drifting-core/src/prose_journal/tests.rs",
+        "sha256": "14734f46a81b59cfe95409ea71566016de6d487ee73674f37ff823bd9b1bac0e"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/event-order.json",
+        "sha256": "6f85842ff8f17ba1424210dc1966e3b9781dd3718a9353c23f3d06c1b13d9641"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/native-journal-evidence.json",
+        "sha256": "00066771c223e9a9e10730acd7320556833e41c359d9a2a378fdf1fe74880d34"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/original-body-archive.json",
+        "sha256": "7ca060f8c3e93d488e654c6eca6a5b8e8556eae98b1e1d6f35c95da0101d51a8"
+      },
+      {
+        "path": "crates/drifting-core/tests/fixtures/original-operation.json",
+        "sha256": "0aaad3290384a98c2a47ea4a4bfb429e4eb3182f81092f0ff8a75d1034bba463"
+      },
+      {
+        "path": "crates/drifting-core/tests/native_journal.rs",
+        "sha256": "c5ac535cd89aef86f8ac7cbd03f2c926cf1a94a55a585bfb848d5ff387ccb75e"
+      },
+      {
+        "path": "crates/drifting-document/Cargo.lock",
+        "sha256": "1885bbd0b1f5f856986b0b445221c066a035316c19c0a59cb638192abad89338"
+      },
+      {
+        "path": "crates/drifting-document/Cargo.toml",
+        "sha256": "59162d32a6156011d5af1ce6d7444dd8557da4d3164ab0b27a85e721350b73c3"
+      },
+      {
+        "path": "crates/drifting-document/examples/document_protocol.rs",
+        "sha256": "62747278cd0345f5f3f255ecf646f748861b31274d0062604a02f38b21037a43"
+      },
+      {
+        "path": "crates/drifting-document/examples/native-command-fixtures.rs",
+        "sha256": "dc56370ea6ab337b485463af88743812dbd9c4440d8067e69ac4c3f3349a0c0f"
+      },
+      {
+        "path": "crates/drifting-document/examples/native-draft-fixtures.rs",
+        "sha256": "f74772328ec54f4e3bf55a4312678c1b5f9e216e26bf82ec28a886d7b0943a46"
+      },
+      {
+        "path": "crates/drifting-document/src/capture.rs",
+        "sha256": "a2c0319022b1b7ec27324e15953698e715130f0a3a9daa2e15fbde2b34afecbd"
+      },
+      {
+        "path": "crates/drifting-document/src/comment_tests.rs",
+        "sha256": "0bdc23e7b03694cd4e550166b81d49964ce256080902223ab66dfcdfd0504305"
+      },
+      {
+        "path": "crates/drifting-document/src/comments.rs",
+        "sha256": "de7835a7efc883ef8abd16d4210bc8758ab5accfe69553ebcf0b9a1733884040"
+      },
+      {
+        "path": "crates/drifting-document/src/concurrent.rs",
+        "sha256": "3713bbad72e89891c5fae50967b9e767de1aa1c7426e1e41eddb42ecd12e945b"
+      },
+      {
+        "path": "crates/drifting-document/src/concurrent_draft_tests.rs",
+        "sha256": "b0f5ce6bf6a45d2c925d6277fdd8612c1e14143013ee8e293f42d92db7e71fa0"
+      },
+      {
+        "path": "crates/drifting-document/src/draft_evidence_tests.rs",
+        "sha256": "1924c74d7ecd432edc192d138def773569978967137259edd17dca8cdff6e39c"
+      },
+      {
+        "path": "crates/drifting-document/src/draft_tests.rs",
+        "sha256": "5a1ff7f1ad6998d17c27686f17c8ed6eded7d4ca41d6ce7fa0f2ba4e9ea3edfe"
+      },
+      {
+        "path": "crates/drifting-document/src/drafts.rs",
+        "sha256": "723aaadbee4efee3da7476256f2db33c813f0364fab25e2f87b706c8d92e89e4"
+      },
+      {
+        "path": "crates/drifting-document/src/history.rs",
+        "sha256": "3ab3fae65724a3c11a5a1e04c790d59c45041850c7d9f7c0a75c0224eccd303e"
+      },
+      {
+        "path": "crates/drifting-document/src/input_tests.rs",
+        "sha256": "bcd886b4929b0ae2efb71389ae9c8d57960fe38d0671b1043d02dc65ae7a20dd"
+      },
+      {
+        "path": "crates/drifting-document/src/inputs.rs",
+        "sha256": "22352607d6e5d2fc1d290abf740c666fc21de6fc6951dd3665024bff522fb3ad"
+      },
+      {
+        "path": "crates/drifting-document/src/lib.rs",
+        "sha256": "e897fc9fb72f0af4e5d81771e4b453b3281fb44fcd1eb21191f7db2a5520198c"
+      },
+      {
+        "path": "crates/drifting-document/src/lineage.rs",
+        "sha256": "5661b53a73bb7efc599a2f0eb478131cfa778a52917a1a75bec2805b936e313a"
+      },
+      {
+        "path": "crates/drifting-document/src/native.rs",
+        "sha256": "3bb77c7cae96e062365eec218f69da1f6738772445a7346c12b5c9f48471801e"
+      },
+      {
+        "path": "crates/drifting-document/src/native_command.rs",
+        "sha256": "41e62224d09250b5a7b16ca5d90000d644ff9136ae19ab9df17688d34025e44f"
+      },
+      {
+        "path": "crates/drifting-document/src/native_command_tests.rs",
+        "sha256": "a459a4c24b292d6c885eb3eaec238ef88c08d6ff85fd424e057548359d2b2f73"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_alias.rs",
+        "sha256": "dd7464f0d1917c6f8f84aa3606b2ed6b63520b9edf9b1d283723985091301c11"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_alias/gaps.rs",
+        "sha256": "825f4da35f5f7334a3c53bb4138fcfaf9a04aa52ea00bb51d4b9a52b79de26fe"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_history.rs",
+        "sha256": "e916f8bc4bda42983b62a30efea4d025fd18948ff59aca52323715d629688987"
+      },
+      {
+        "path": "crates/drifting-document/src/relocation_history_tests.rs",
+        "sha256": "7793e8a2271a1e018b22dacb7824f72e0cb8e2a1b6768fd91a1c9eaf1175a586"
+      },
+      {
+        "path": "crates/drifting-document/src/remote.rs",
+        "sha256": "bd3afe5eabab1ca7ab4f7a4ed87b84056f6bf9c651cd323eaed4ce5e297c3c70"
+      },
+      {
+        "path": "crates/drifting-document/src/replay_tests.rs",
+        "sha256": "8f1303c1a525767a378c8c07947f28c3f56cd721bd5e463b12598fd325860a91"
+      },
+      {
+        "path": "crates/drifting-document/src/retention.rs",
+        "sha256": "520cbef82d4d4693732e36e9e296d16ede6e01158d064f1d3556fa7cf2b344c6"
+      },
+      {
+        "path": "crates/drifting-document/src/retention_tests.rs",
+        "sha256": "bff8d54b87240d6b14dd143bdb5104f7924bf3c654271fff7d29b183bff2d5b6"
+      },
+      {
+        "path": "crates/drifting-document/src/selection_tests.rs",
+        "sha256": "49f5d182b112fcf2e6f1de7e389de8783a60260ec42235398a3890ef84388793"
+      },
+      {
+        "path": "crates/drifting-document/src/selections.rs",
+        "sha256": "9749e9ecbc508de9b3e454f887e6648cef69f04bcd357da55a5980323add35c1"
+      },
+      {
+        "path": "crates/drifting-document/src/structure.rs",
+        "sha256": "f6f177e1560ddba985fdb2328889c080f0e928ae16670605f17b3e85728e56a4"
+      },
+      {
+        "path": "crates/drifting-document/src/structure/containers.rs",
+        "sha256": "37e6a4174cfbfaef418777c92e8864d4c6230ad8b0caff1fa608c7b7ef8a5053"
+      },
+      {
+        "path": "crates/drifting-document/src/undo_policy.rs",
+        "sha256": "531518cba07622eea8ea5f5c177a5ccb1ad642e6ed8245380e6e0da519851cf8"
+      },
+      {
+        "path": "crates/drifting-document/src/undo_policy_tests.rs",
+        "sha256": "9a1fe8d08f1de1267bbac5b0f608a6f144f49a18cf7df22a62bdc1cec4280141"
+      },
+      {
+        "path": "crates/drifting-document/src/wire.rs",
+        "sha256": "c8ee1dda396a82cb83ceeedbf5817f7797ea2284f1569857d82d77a7911800bf"
+      },
+      {
+        "path": "crates/drifting-prose/Cargo.lock",
+        "sha256": "b1dcc3f5cae8d3f3785e79fe0729ef90641c021a65d6d16fdf66e448138a3b0b"
+      },
+      {
+        "path": "crates/drifting-prose/Cargo.toml",
+        "sha256": "e9575f23e6057370f33f73b007283f0a58fb0a9303cbcd8cd036813296f4df98"
+      },
+      {
+        "path": "crates/drifting-prose/examples/durability-worker.rs",
+        "sha256": "99a97f7b21fe544279188c0734ef772c7bdad70919f5f6ecceffc28239c61836"
+      },
+      {
+        "path": "crates/drifting-prose/examples/durability/native_delete.rs",
+        "sha256": "06e411ea65cc8cd9452c0d82374bb373df18b4ee390a6b0707741091d6a5f06e"
+      },
+      {
+        "path": "crates/drifting-prose/examples/scale-fixture.rs",
+        "sha256": "e2c829199832535c7ce8919594f718d6fba308888927671ed99500bb7dbad7f4"
+      },
+      {
+        "path": "crates/drifting-prose/src/lib.rs",
+        "sha256": "5fab516d9192f72a4568e63aa962b89b942d22a1c453788bb7cf7cc67e58260d"
+      },
+      {
+        "path": "crates/drifting-prose/src/native_source.rs",
+        "sha256": "63214b4e08438041c35d78ec50db0e4d83db46d81f58bc11c1b409f6f6b02f21"
+      },
+      {
+        "path": "crates/drifting-prose/tests/durability.rs",
+        "sha256": "72c40268879e6e315f3b4cbfe0d1264b0234df7e6fddccb63b6c59bedda7783f"
+      },
+      {
+        "path": "crates/drifting-prose/tests/durability/native_persistence.rs",
+        "sha256": "f3ad65f29a53ad2e43151433a2faa5bf455d5682b5e312113f114cd4aeb2c1fe"
+      },
+      {
+        "path": "docs/apple-native/fixtures/document-v1.json",
+        "sha256": "678aff5da470aa30327e9d60b53580c5fd339fd8bc7854dfe6aea5732759a30d"
+      },
+      {
+        "path": "docs/apple-native/fixtures/prose-journal-v1.json",
+        "sha256": "0a384b27feddcee720598e79138555872db490308f50c24b12b3912e4caef663"
+      },
+      {
+        "path": "drizzle/0000_local_first_baseline.sql",
+        "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
+      },
+      {
+        "path": "drizzle/0001_agent_chat_sync.sql",
+        "sha256": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0"
+      },
+      {
+        "path": "drizzle/0002_workspace_projection_journal.sql",
+        "sha256": "35ea9b635f4f5d671335684c109275444d406fb2715301dcb667703ab2304b90"
+      },
+      {
+        "path": "drizzle/0003_agent_checkpoint_anchors.sql",
+        "sha256": "b61e084d2af4244ded43dd2ad05242a4a0e846d7150a2bd8c46caeeb38e76341"
+      },
+      {
+        "path": "drizzle/0004_yjs_materialization_admission.sql",
+        "sha256": "865ebe4a9c9855cafad7780f33ba185bdfaa3d86db4ed32ec0562933bbfb0a05"
+      },
+      {
+        "path": "drizzle/meta/0000_snapshot.json",
+        "sha256": "525d14cb83a2e870355ab62d3d6bf2e52a93a98cc8d6119832c02731e8c8c248"
+      },
+      {
+        "path": "drizzle/meta/0001_snapshot.json",
+        "sha256": "4e6cab7e7e48925e3d2dca0e0de557dd6d399cd3d87456a064a724858c58b608"
+      },
+      {
+        "path": "drizzle/meta/0002_snapshot.json",
+        "sha256": "bf157f0d181cccef22c5a44721b2319ecc89f4d57bb116a2b0aeba1dcea93459"
+      },
+      {
+        "path": "drizzle/meta/0003_snapshot.json",
+        "sha256": "a9edf2dd08bf6dadcb3d96a3341fc4dc983f3a4e5e9aea9be8c019fdb78adda1"
+      },
+      {
+        "path": "drizzle/meta/0004_snapshot.json",
+        "sha256": "ff8aa3ce4481e71d806aee5a2d0548fb0c2c6777623f9bdb70b794c7be26dda7"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "d111a6fa2faa8b2791571f305fe160909a1e3b0728b3a8d0f36f9d808ae7b6d3"
+      },
+      {
+        "path": "package.json",
+        "sha256": "5d793fb1261be4747083c6d74bfd058c6831131c6d80d602eb7ad9159d9aee88"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
+      },
+      {
+        "path": "scripts/apple-native-authoring-acceptance.mjs",
+        "sha256": "6a54be8e0d308ff6fa6709484f9dd13b2c74b3029e83969a24157b4ce5374d05"
+      },
+      {
+        "path": "scripts/apple-native-authoring-wire-check.ts",
+        "sha256": "6cd2295cdb96c2f95cbb9fb706b648bec8597c1d1c183acb3c7d27effcb06990"
+      },
+      {
+        "path": "scripts/apple-native-event-order-oracle.ts",
+        "sha256": "d47766dd3f61d3e649b557eedcfbdc279b5dedf53dce569fe8dd8f788fb2766f"
+      },
+      {
+        "path": "scripts/apple-native-journal-oracle.ts",
+        "sha256": "8db85d89640b94c31fcf73653bde14f2f86540b3b2f094620744480b34e3a4df"
+      },
+      {
+        "path": "scripts/apple-native-journal-wire-check.ts",
+        "sha256": "1e2482e235076d5e6def1e1a9efb498e6b3887c632fa1c7c04f64e693b244430"
+      },
+      {
+        "path": "src/renderer/deferred-settings.d.ts",
+        "sha256": "3583b63493873ddcde579ff536a56aac856f42284e1ac544f445cdfda2a55c1f"
+      },
+      {
+        "path": "src/renderer/deferred-super-views.d.ts",
+        "sha256": "9c37ebafe653c74e05702f02c2083a3ead694e5d697980a3f1b4acd0e7a9f8b2"
+      },
+      {
+        "path": "src/renderer/global.d.ts",
+        "sha256": "6c05b59c8e1802fff5f1087ed42ab3b7a71d82ed973962b853fc8f42f1784cfb"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts",
+        "sha256": "82504cc06e3e913bdc31ac5d13c7b934941014a0ca332cb057245647b093e742"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-command.ts",
+        "sha256": "56522ec64a7f6cc847042e07eff73b829df289e53c7a764341796f5012878e93"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts",
+        "sha256": "91c4865e5a6db72ab3c585dcc61ac63a63c22ae4f429852ee27eeb7870435f68"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts",
+        "sha256": "c74e4e6e4f8192f3dfef28ad0387a8de38cdba29d2f9c00b04d1402217018f6d"
+      },
+      {
+        "path": "src/renderer/lib/db.test.ts",
+        "sha256": "3f82160978a3c9d035146f30384702b442ac75bf71bfbbd97a3ade2c4758645f"
+      },
+      {
+        "path": "src/renderer/lib/db.ts",
+        "sha256": "a6027028f91cd6f4929b1948ad55e2ac4f48ae2fafdbed6f31cb85041d0e51f5"
+      },
+      {
+        "path": "src/renderer/lib/yjs-doc-id.ts",
+        "sha256": "a1f6385106e15fff96aa6f29405b85ba7aae47c2abc8cad38a0e995b27b3736d"
+      },
+      {
+        "path": "src/renderer/lib/yjs-persistence-origin.ts",
+        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+      },
+      {
+        "path": "src/renderer/platform/database-recovery-store.ts",
+        "sha256": "f1393be917e85c459a16c5e388dba6a537fdd2d07e8c1205bbdb2d69fd14f320"
+      },
+      {
+        "path": "src/renderer/platform/database.ts",
+        "sha256": "57eccac249eccf2a685006ab2ff17e008c155a12d12548ba77487136c24a141e"
+      },
+      {
+        "path": "src/renderer/schema/agent-checkpoint-retention.ts",
+        "sha256": "81fda9edb639dd3d8f696116023e058f9b6ab646eb60b288f40d5a00f42b023c"
+      },
+      {
+        "path": "src/renderer/schema/drizzle.ts",
+        "sha256": "b27a674f229c9d91fb6d4992f4c4144cbbce1f9eab3256f5447590057ac8b5b3"
+      },
+      {
+        "path": "src/renderer/schema/sync-engine-schema.integration.test.ts",
+        "sha256": "e7e06c97207c3aeddc38778c1933014e80a1a5d347bd39a6ab0c816b1073c091"
+      },
+      {
+        "path": "src/renderer/services/snapshot-restore-sync-boundary.acceptance.test.ts",
+        "sha256": "1cd1eca0d96c8f7c83933b1f547558268d99e0d6dc45fcea0a5adee943afaec0"
+      },
+      {
+        "path": "src/renderer/services/snapshot-restore.service.ts",
+        "sha256": "39b3a51b01df4831cee092a5a9ac813b5957a64d9a5a6e17951758f5ab13133b"
+      },
+      {
+        "path": "src/renderer/services/yjs-transaction-evidence.ts",
+        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-checkpoint-retention.integration.test.ts",
+        "sha256": "e570c5bbf74be467d5bfe797813de8bf5a23c2811f8c4475fcdd0f46b9a5f9e4"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-control-interruption.integration.test.ts",
+        "sha256": "f652c87a00ad0540d0b25224d1a46485cf70aab9def6f8c1148859c4c8e43dcc"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-conversation-repo.ts",
+        "sha256": "44b089770371795c6dc52ae4534cb89e632e2e85f80084cf1ec45c223ac3902d"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-extension-repo.integration.test.ts",
+        "sha256": "286df4c61c2b75333fe489d5b4508d171237c59be4eda9d6e1929dca3f61084e"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-extension-repo.ts",
+        "sha256": "9dfb2776bcf70356c77f8e1fc37e70fdfc83cf9bced1302966e8c9125d54292f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-memory-repo.ts",
+        "sha256": "69a97e1b89cea540e34af392f69986a8620d5a47a563603c74d061bebabe4e14"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-element-patch-receipt-repo.test.ts",
+        "sha256": "41e4584f060e1df9c8b874dc57732a307a052356d24e8e31f9aac52d86866c1f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-element-patch-receipt-repo.ts",
+        "sha256": "c8088af308b720da41acc71afde4d1837bb5d389009efdc71064f8a32a2024d3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-entity-write-receipt-repo.ts",
+        "sha256": "81758207924c2a2776c77ecdeb2c1c5921e23fa720d35027d411faf8696bfd01"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-freshness-repo.integration.test.ts",
+        "sha256": "3754fbb96b796c505ac3e9e91f2111ec7488dd636fead6320572b9bec5a9c4a3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-freshness-repo.ts",
+        "sha256": "fab5c67f5126e6935efbdf6ea9400d7ff3dd7c414545a669ac26b1470494071b"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-long-task-repo.ts",
+        "sha256": "7ca3e1387d8deb470380a9a70e220c9bef7f8e193d8e294750829fa3a8e0b1a4"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts",
+        "sha256": "d72bdbcacdc66d5f9e5eafac17ab0464c2ec70cf3c76af26339773ae17f9d530"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.test.ts",
+        "sha256": "344d4a99d5d193a73d918342b3036b7ca6cf757606847e04dd521d8ca3c1e07a"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts",
+        "sha256": "17e33829609d5a685bcb54f65de2bab41ad18bdce69c200180441aec49dde6fb"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts",
+        "sha256": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts",
+        "sha256": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-write-effect-repo.integration.test.ts",
+        "sha256": "4d905e942759f61acb9ea22981391a3408933754c30e6bf53595c8fc708036f6"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-runtime-write-effect-repo.ts",
+        "sha256": "76225a151b8c7bb5f4952d757d66177022e05cc26bfe1c4c231976ebd188ebf1"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/agent-working-memory-repo.ts",
+        "sha256": "75f12267b0063599a81af54c7bd5c6134585b3f5c44906852e426fb0196b2dce"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/block-section-repo.ts",
+        "sha256": "c5ec8795d04a1b4d2c8fc28c24ff96a7305b880105655b524513499a3c4ad539"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/book-act-repo.ts",
+        "sha256": "817a271349f98587d9804782e816dae7feab951f2a10b58c12388b706c4032ab"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/comment-repo.ts",
+        "sha256": "bb75afc1fad1efff703064b700eebca56a7fef38baf8178bc97493482390f958"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/content-repo.ts",
+        "sha256": "da3befd8a78ac7e298211f4515f96401df34b8bf9e91fdd823d864273acaee7f"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/drift-group-repo.ts",
+        "sha256": "784aa02a936150fa38fe7b5a84b3c5f477d356f64db12a572014e59ef7ec8321"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-category-repo.ts",
+        "sha256": "c6b5c7887d59d3d3b7c8f486fab53a8cdb8a1f0fb7520f619c6af864ea870a06"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-patch-repo.ts",
+        "sha256": "fddf372f9e4d2c4e2bcd16d34b7c8067eda04158697731931797ca46a79166da"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/element-repo.ts",
+        "sha256": "e35275c699de85a5106eefab0bb98f23fa7c237b3492675af207c398dd6fecd5"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-kv-entry-repo.ts",
+        "sha256": "f175db919ce3f3e5b7895dc3f9f0700d320edbe92875a21cb755692719668e08"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-repo.ts",
+        "sha256": "1008deb9c0257ee4de12ef2a6dc7439ad3801d0517b7e7bc80b356fb9318773d"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-type-repo.integration.test.ts",
+        "sha256": "88490129d9f4466e686e934998402ced69103ed74d3134d7876a7df0217a5ac5"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-relation-type-repo.ts",
+        "sha256": "75662aaa92fb9f463f5919bbe372b5eacd1434918dedc70f10a1431e5bb3d068"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/entity-snapshot-repo.ts",
+        "sha256": "ed38935894856fa7f542ccf2bccc5806165cf5e45ef6da2bb2ddf9632f4ace60"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/inline-mention-repo.ts",
+        "sha256": "6eaa57f074823e2ab9fca7660e0b7ba626808dd25964e19a45afe903ce359195"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/library-item-repo.ts",
+        "sha256": "6dceab71d17579ff8473080d73a128aca85d28987e5cd45c3baa79becc981976"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/node-repo.ts",
+        "sha256": "df06c38f348e64360243cbacbfb5706948204dfee293a45af1f42462e09c71e2"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/node-storyline-link-repo.ts",
+        "sha256": "4055e5aeae2fb78a15016242ca8f7e52bc8892c3d3d4622d6167e728e0d951c3"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/plot-grid-repo.ts",
+        "sha256": "414c106149192bcc89daf4240624337c7e2847d1a093749c30c0c1f42376a24c"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-asset-repo.ts",
+        "sha256": "d952ec66a7f85b17c00e443188b75980f0cee7b3ff630ec97940005f89190a2a"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-deletion-repo.integration.test.ts",
+        "sha256": "e2f9e69fd0ab0a793633c4b8f67960d204f51439551e9532abe117b1f4f4e7c7"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-deletion-repo.ts",
+        "sha256": "b584f97484dbad35f7cd215c4f46aa76f3a5ca01f3c4b79222f3292b358dc546"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-repo.ts",
+        "sha256": "e7ed30598414445fcf46f4796cd0628affa5b74094afdaf5e99801d259c7b1c2"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-stats-repo.integration.test.ts",
+        "sha256": "c2b4952884f14e8965516141da6337bda64a39e3c0373e9eb9aa9e071376b000"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/project-stats-repo.ts",
+        "sha256": "706e5785c063da85051924e95e8d94f2f9837490866f5a0c866eca91e39c059c"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/storyline-repo.ts",
+        "sha256": "54c322730eda0295d995473bceac95a2a10f74746f20df00f89b88d01f977797"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/timeline-marker-repo.ts",
+        "sha256": "f5dc0090be0fa723dc249a63860cff2e4ecc2cd8e52edecd98a9abcbfa6dfa85"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/yjs-materialization-receipt-repo.ts",
+        "sha256": "f8bd2297187fc20ff8936b07cbb55c7ca0c325b079c2ea659b853c58c3b74f5e"
+      },
+      {
+        "path": "src/renderer/sqlite-repo/yjs-repo.ts",
+        "sha256": "cb3e251015043761303d74397eac50ec81f91cb119969f0b1d47ffda6d54b0ae"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/agent-chat.integration.test.ts",
+        "sha256": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/imported-history.ts",
+        "sha256": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/payload.ts",
+        "sha256": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/protocol.ts",
+        "sha256": "368d5bab483867663ece81db2ec9fb492d6df9bd76d961e096fc8623e5321464"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/repository.ts",
+        "sha256": "836b39f0c4ce44e318b020251110f2326e6df579a2566108b5f1ffdae349e02e"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/runtime.ts",
+        "sha256": "c5edf303fc6942f14a0777160cf928a4f8b9afd53f4cbf3f533b8be66bc53e0c"
+      },
+      {
+        "path": "src/renderer/sync/agent-chat/seed.ts",
+        "sha256": "4f335f75d8203c2196817b313926808ce6300791f0ef8d728fab647a034c7766"
+      },
+      {
+        "path": "src/renderer/sync/app-authority-repository.integration.test.ts",
+        "sha256": "d84a3ff3c245535d34e400ac6be859b7aba477ee0411f93538d571cea9021e7a"
+      },
+      {
+        "path": "src/renderer/sync/app-authority-repository.ts",
+        "sha256": "26bbae113c6f07593856891d344f784c35b97d579aea3c528472a71923d2fd2b"
+      },
+      {
+        "path": "src/renderer/sync/app-authority.test.ts",
+        "sha256": "36447bf6cf94c2a7f54ad36b7f7832782b718db29baf500e807e8ec682380c7c"
+      },
+      {
+        "path": "src/renderer/sync/app-authority.ts",
+        "sha256": "76cf4a6ed21428060bb7ccc3267bfe8a88a1191eb4bf6b7671d015f841c158f4"
+      },
+      {
+        "path": "src/renderer/sync/assets/attempt-recovery.ts",
+        "sha256": "94c9a77fa79188b7fcd92fab0db069ae7e5fb8fad8e082dc5f83eeaa33bc101d"
+      },
+      {
+        "path": "src/renderer/sync/assets/index.ts",
+        "sha256": "5b71e8a69ad84e6b39a22da6ee6ee29566dd19ded49d373c16dcfc4d90b22a7a"
+      },
+      {
+        "path": "src/renderer/sync/assets/local-authored-blob.integration.test.ts",
+        "sha256": "9d76316b3fbc0aee28cc5e3b6b4dc954582e4f92d363e54689d5d7568b837046"
+      },
+      {
+        "path": "src/renderer/sync/assets/local-authored-blob.ts",
+        "sha256": "a575068d9aa4d822908f59ea72803ebb14d7ee4983438c59f1b1cf7769843427"
+      },
+      {
+        "path": "src/renderer/sync/assets/native-asset-pipeline.test.ts",
+        "sha256": "2136dc01deff24fa97d5942f92022064b8cd8028c12b0f2deaa09c02ec5b1221"
+      },
+      {
+        "path": "src/renderer/sync/assets/native-asset-pipeline.ts",
+        "sha256": "9402b2b05ccf3b59ade770ab109337038ef8e6d525a6b5a96407412ddcffb396"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/capture.ts",
+        "sha256": "c91da498a1205937a6b81dfe198a1f27d00e36a88959fc881376bee21adfa550"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+        "sha256": "62207a6d7be602bcddd39f9a5e127ec8bbb7521b3772d7f437125f9098ca1437"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/domain-catalog.ts",
+        "sha256": "8b75ef6f2d0a4b88f4d9c5a4365b0a7734cf5da95c8de01409b46ed302bfa2f7"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/index.ts",
+        "sha256": "18f7faaa57b2aad22bb6dab635ecf0f7dd60c53e719286e24f9dcc230a1d1394"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.integration.test.ts",
+        "sha256": "f40511b6f55822f1ce2eb77002327f2d27dd4dd0cc820d2c2207070cb45447df"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/provider-publisher.ts",
+        "sha256": "aac217046c6193175858d9d90128344d68dacf89dad6729ce2f97057574edca2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/publish.ts",
+        "sha256": "1653f12b0dd3005a87030700b0aba47a828edb057de5238782532ec90f11d120"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/reducer-state.ts",
+        "sha256": "adb139d0cca2cb5f6bb9b1c6f9d51b20f30308cba12bed16b3105b06a7279b94"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/restore.ts",
+        "sha256": "198d3a9338dd2ec1e7e4cc4d1ec8796b0fb7ea14f7f9e7a62eed1b37b7da5ac2"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/types.ts",
+        "sha256": "77dc713884cdf1a4a7fcf526a3203144b0ccf39346b47b42c50e46cb9d1e5ac8"
+      },
+      {
+        "path": "src/renderer/sync/checkpoint/validate.ts",
+        "sha256": "6a97bd09d167c29892dc6a3c0d45046db4fc20ad94c0f9774439f2342c493ac0"
+      },
+      {
+        "path": "src/renderer/sync/connect/capability-gate.test.ts",
+        "sha256": "0370474d52290808b6354a106faee5b53397c9471988ac03a5b9277bd4104581"
+      },
+      {
+        "path": "src/renderer/sync/connect/capability-gate.ts",
+        "sha256": "4006ca9121221e8b95e69c8e42c4876f97943e4e5f881cba0a490d813dfd9695"
+      },
+      {
+        "path": "src/renderer/sync/connect/index.ts",
+        "sha256": "61e096e772ee8d2f73213bc0e647f60a4404e9e721a0df295ed4974ea9e78089"
+      },
+      {
+        "path": "src/renderer/sync/connect/pending-transition-cancel.integration.test.ts",
+        "sha256": "425c2710c984e0a9491191b00f33dd898913b373681af18f60a99139bfe8644d"
+      },
+      {
+        "path": "src/renderer/sync/connect/pending-transition-cancel.ts",
+        "sha256": "5845eea1208cdae16da3d4267b6b96cacbb0c35777df106c5e7c3a33d3445bd8"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/cloud-disconnect.integration.test.ts",
+        "sha256": "665a9c62f92c30d748596bedd9e32a9fd005476d9da0752bff04fa8953e7fdad"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/cloud-disconnect.ts",
+        "sha256": "346a3e5d8ca8fbd8de1466e7a65a3dec8554515367d74b410e8ca129ffd36b06"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/google-drive-disconnect.ts",
+        "sha256": "8cd8355b8483fc596da4fe5837be017c9e69a6a9a896449db8d1ad14aa96ace1"
+      },
+      {
+        "path": "src/renderer/sync/disconnect/index.ts",
+        "sha256": "dde0dbd2522c355a3457a395cdb0d5108373237fdbde97845914645c221be6b5"
+      },
+      {
+        "path": "src/renderer/sync/engine/architecture.test.ts",
+        "sha256": "5bc4d15bfb4347a3d067a2a061dcc307baedb31dccb8554dcbec40d8f2281ea9"
+      },
+      {
+        "path": "src/renderer/sync/engine/backoff.ts",
+        "sha256": "786ccb91cf84722d814c6cc8213bdb9e4c927572782a8e4ebaf0dd1819205e81"
+      },
+      {
+        "path": "src/renderer/sync/engine/blob-port.ts",
+        "sha256": "a52096196e65ba051ac5c129193a144afc1374f2bc34c7362211aca9058f0971"
+      },
+      {
+        "path": "src/renderer/sync/engine/coordinator.test.ts",
+        "sha256": "24b58c35f3dec4a7a4d14baf7dd60edc725d714e506c3d96af467ddb504fe2e7"
+      },
+      {
+        "path": "src/renderer/sync/engine/coordinator.ts",
+        "sha256": "0739cc105c4880b80d89599b879bf8df7a812896b564c4f444903ccdbd3df6ad"
+      },
+      {
+        "path": "src/renderer/sync/engine/cursor.test.ts",
+        "sha256": "4c8765f58a838ee21a49a790026e0088c2580c8c959e5b7f0deebb459043d685"
+      },
+      {
+        "path": "src/renderer/sync/engine/cursor.ts",
+        "sha256": "374b4ccc04cbfdbba3fe6298f5a2e6ba80b73b325c7abed64ad61a905d4992f4"
+      },
+      {
+        "path": "src/renderer/sync/engine/cycle.test.ts",
+        "sha256": "d76e80deca41639a4b048b6ee9c791f10a939f934afeba76918db70673e67c88"
+      },
+      {
+        "path": "src/renderer/sync/engine/cycle.ts",
+        "sha256": "df084ebc13dcf2bf8e3fa6f7a8a90ee1e1f5d5d2cf3e40d187312f9a659c3f9a"
+      },
+      {
+        "path": "src/renderer/sync/engine/durable-runtime.integration.test.ts",
+        "sha256": "ca8e475a5ebb8087b6ffb68cba5a7d44031ae465918461e7c5e432d69c90bcbc"
+      },
+      {
+        "path": "src/renderer/sync/engine/durable-runtime.ts",
+        "sha256": "d9b21f708651be3e4dee10ef01553d80aee188908033e76d89024b06dad263ec"
+      },
+      {
+        "path": "src/renderer/sync/engine/frontier.test.ts",
+        "sha256": "e2a6dcecf11bddaa3f62245a36c428f364a468dc8d4683464128b2a8658cbe3d"
+      },
+      {
+        "path": "src/renderer/sync/engine/frontier.ts",
+        "sha256": "b188c96d287b52b027a9ada0b85e086c76509e731ef52bd75a34e2c801ffcdb0"
+      },
+      {
+        "path": "src/renderer/sync/engine/index.ts",
+        "sha256": "0b1fded891b6486bbecc118fd09cd1610e11c74e013ffc81721f687a9bc9c002"
+      },
+      {
+        "path": "src/renderer/sync/engine/native-plaintext-object-codec.ts",
+        "sha256": "fde853b8b63db9a9667fb7d39e8069eef8d12b46aa02b9da9a006a156831bcd8"
+      },
+      {
+        "path": "src/renderer/sync/engine/object-codec.ts",
+        "sha256": "07eeb477a14bda2d5566ece43ba01349912e65c21c0baf873b33fecab5dfa73b"
+      },
+      {
+        "path": "src/renderer/sync/engine/plaintext-object-codec.ts",
+        "sha256": "a0aa966fff3f198eb0948dc214a171f187cb50416b1db43156c752d6efe4f5a1"
+      },
+      {
+        "path": "src/renderer/sync/engine/scheduler.test.ts",
+        "sha256": "66357b933e064b739854553d955f87258ed9f0e47ffffa2e6093f58697ee3050"
+      },
+      {
+        "path": "src/renderer/sync/engine/scheduler.ts",
+        "sha256": "04aec610e8bf4b5ebde31c10cda9c88569f760e75d562664aee5b6771ca6b9e8"
+      },
+      {
+        "path": "src/renderer/sync/engine/segmenter.test.ts",
+        "sha256": "888412fb456fbaf0f4f97a940e4dd64d19cdc819fe99f97669f5c75802741240"
+      },
+      {
+        "path": "src/renderer/sync/engine/segmenter.ts",
+        "sha256": "b371516163bacb24488aebfb7c9751e48ff0f86c6ab253cedffabfc0f36059fe"
+      },
+      {
+        "path": "src/renderer/sync/engine/sqlite-repository.test.ts",
+        "sha256": "5e3d8695ba5b1c11fdbfcbe9996566dae9b13ef91d849af35fadf2f5a92ec98a"
+      },
+      {
+        "path": "src/renderer/sync/engine/sqlite-repository.ts",
+        "sha256": "ac6d6f02eabd8c12e3a68ed5e5df60020068a9ee5844b30caa219d671749836d"
+      },
+      {
+        "path": "src/renderer/sync/engine/status-store.ts",
+        "sha256": "33814604db6beb0d117c47b9f7f69d3eeb7b5aa991c8396f11f30fff4196a54f"
+      },
+      {
+        "path": "src/renderer/sync/engine/transfer-id.test.ts",
+        "sha256": "8a60fe464309c953d73d5e44a3f3d3b0dec32087bccd060c83627bccdc239c17"
+      },
+      {
+        "path": "src/renderer/sync/engine/transfer-id.ts",
+        "sha256": "cdf36294aa6fdcd23a3bd25bb5036c8445ca535b6bfbdecf6dd194a8a3d2a26a"
+      },
+      {
+        "path": "src/renderer/sync/google-drive-physical-evidence.acceptance.test.ts",
+        "sha256": "27e3409699e01451ad511480d3041db15cb04cec323a1d7ad115ea3404972672"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.test.ts",
+        "sha256": "8358f2e811d07cfa324cd82275f4a42268c45a6b776d23d325d55795d38a96ae"
+      },
+      {
+        "path": "src/renderer/sync/journal/asset-mutation.ts",
+        "sha256": "7007ae8e6958a14d7877d48d1641c3ca3a9f6fa63da5735a7a0168928623007a"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.integration.test.ts",
+        "sha256": "ac170959e6de88c243aa6f8f71c6118bd98d382091cffbe6317df48e43a5dff1"
+      },
+      {
+        "path": "src/renderer/sync/journal/authored-transaction.ts",
+        "sha256": "1c16f0c293c92426aac771139b18fe5cabc8767cdcea3b30af634430cf273bba"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.test.ts",
+        "sha256": "500535034c0c2df8ec1c685f1fefacf3b5d685133e407dd0577b5e39182bec12"
+      },
+      {
+        "path": "src/renderer/sync/journal/change-builder.ts",
+        "sha256": "b35e56e5c18af74de3e7af51e0e8f9ad93ecf065aae74cff53da5b5e9d452551"
+      },
+      {
+        "path": "src/renderer/sync/journal/continuous-timeline-authority.acceptance.test.ts",
+        "sha256": "dd54276772c7e88a58d3cfc4b25794e74260c5cd1a831ef0b5caaed9f73e174a"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.test.ts",
+        "sha256": "98a50f36ee53595e2948ae8086c81ffa850b32138d6bc3c4dcb3e9e810976b25"
+      },
+      {
+        "path": "src/renderer/sync/journal/domain-mutation.ts",
+        "sha256": "5ca5086acc36e2bdd051fe0275cce98799c97c759a1fa55e4a58a998410a5166"
+      },
+      {
+        "path": "src/renderer/sync/journal/fractional-order-authority.acceptance.test.ts",
+        "sha256": "0e88fac9cd8bc0cbc9b411decd7f5998e1d46abd122f073a91a5a54f14b19ff5"
+      },
+      {
+        "path": "src/renderer/sync/journal/incarnation.ts",
+        "sha256": "8ff5dd9966180e9ca5e227ccaa355bb804eb9c47a78bbdf0a2bf761a5f56a96a"
+      },
+      {
+        "path": "src/renderer/sync/journal/index.ts",
+        "sha256": "58113c46c0544c0292c534cb949704fb350408049169124d1aa8fb91af1f9a26"
+      },
+      {
+        "path": "src/renderer/sync/journal/installation-identity.ts",
+        "sha256": "5d4b1c97828bf57fbdb78eac2d22a8a5014602d282d768849c17787cd32490f5"
+      },
+      {
+        "path": "src/renderer/sync/journal/main-prose-authority.acceptance.test.ts",
+        "sha256": "4ab6b5277ed58736043313235a2af628380b075e4dee017e4608cbfebf86da0c"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority-repository.ts",
+        "sha256": "6cf0e1d65d189414228d44e9c47ad9a7583171fa970801638edaab6eeb8a12af"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.test.ts",
+        "sha256": "4c87806a3866b81d5efe23114755a8fdc7ac576b0f054926d64f439ad3ca27a7"
+      },
+      {
+        "path": "src/renderer/sync/journal/order-authority.ts",
+        "sha256": "18ed2e9ee49fe2e4fc1cb919babc472ea6413f5e527153c24af32a5f98dcbb63"
+      },
+      {
+        "path": "src/renderer/sync/journal/plot-grid-mutation.ts",
+        "sha256": "0110888c96c1f694304ef2a05a8a058eae71f5238cfc096a79152c70c7b48042"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.integration.test.ts",
+        "sha256": "082373510d90c4e74948029259926c8ebc7fe472e7c1e2b6b5a86a82fe8673c7"
+      },
+      {
+        "path": "src/renderer/sync/journal/repository.ts",
+        "sha256": "e76429cd449e572c167121d9cabca36514ec475309a14d1e44aed25cc2b4ddb8"
+      },
+      {
+        "path": "src/renderer/sync/journal/storyline-membership.ts",
+        "sha256": "f5f35cd2f5b6ecaaff73af444b1beda4aa71e9deeedf636a0898eb20d60761dd"
+      },
+      {
+        "path": "src/renderer/sync/journal/sync-generation-repository.ts",
+        "sha256": "f4b096a50ed963f6f349969f99a0f400e6f1a05d64c2690aa61560407253eaa1"
+      },
+      {
+        "path": "src/renderer/sync/journal/writer-state.ts",
+        "sha256": "c1ed054602476b8ebabd664d34eb4747982a83a54f691bf9aac953aff52292b9"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-materialization.integration.test.ts",
+        "sha256": "23eaaea8b27baab5f5d124e529b8b34cb6a97612f0ec39bff8406f4ab04e85bd"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-materialization.ts",
+        "sha256": "76c81c7edf93cdf7714036f053837125c2ad4f4f6ed7f97836ed6b5bce7e789e"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+        "sha256": "8e11a20c8e7db9aaf60278aa2718c47d83803ca16555518a374d9cc7ff34cc0e"
+      },
+      {
+        "path": "src/renderer/sync/journal/yjs-update.ts",
+        "sha256": "6fa032bdb77e3a10be058b0df563c389b5102975c04baf9b5fb4e694dda224e3"
+      },
+      {
+        "path": "src/renderer/sync/local-object-gc.test.ts",
+        "sha256": "833051b22a59f54be1ce3dd1217dfaf3fbd1f687d0bbe8f7272a4cf3f3eac3ce"
+      },
+      {
+        "path": "src/renderer/sync/local-object-gc.ts",
+        "sha256": "0b7da6d71dc418ef23980a409027ea93df529634fcda20c6adc66cabf04228e7"
+      },
+      {
+        "path": "src/renderer/sync/native-object-codec.test.ts",
+        "sha256": "b5cee2c4a9c7f5495f27ca11d5e3f6ff35f969ac601c2b18e0793db9a6987187"
+      },
+      {
+        "path": "src/renderer/sync/native-object-codec.ts",
+        "sha256": "55af25211e19b8fd7f1a5a1af63e3980424bc9ff8e9f6246f26461111d45fc8a"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-react.ts",
+        "sha256": "ec0d64836ec156ab04517462543aecbc026db1ff46acae5e6238a84a1ccde2c5"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-store.integration.test.ts",
+        "sha256": "75a2a06f5fe2d39d587fb185d128a594846cbf67e9045c4d9d1c8141e1ce841e"
+      },
+      {
+        "path": "src/renderer/sync/product-authority-store.ts",
+        "sha256": "892e10e4bda2528af883043a785ae1a5438a311b3c6ee89fb59ee1869dd3dc97"
+      },
+      {
+        "path": "src/renderer/sync/product-commands.integration.test.ts",
+        "sha256": "f182b02996d0f106ed2a9a586dc66a0a7da6c2411fef1b45ba29e437ef5088f4"
+      },
+      {
+        "path": "src/renderer/sync/product-commands.ts",
+        "sha256": "a1d4ba21d5a3b515ebcc738b71b0681f4e2a56e0dfee2c1f7665d5cad5a7e96e"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-control.test.ts",
+        "sha256": "b7f33b08999a0a75b25adc5fb4a5ea41dc16558155806ed2bfc268bb3918b4b2"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-control.ts",
+        "sha256": "bb05cf51b17d03d8f7aeb5001b3857f96d51490c5334460428030e93f3ef32cb"
+      },
+      {
+        "path": "src/renderer/sync/product-runtime-react.ts",
+        "sha256": "404fbf91d9352244553553058384f352362d84de55c3ecdab0b20bdb04e45d81"
+      },
+      {
+        "path": "src/renderer/sync/production-runtime.test.ts",
+        "sha256": "3b0af580f9d88f9ee58c0ba718baa7d578749cff4553afcc962abdcc7cd7aa45"
+      },
+      {
+        "path": "src/renderer/sync/production-runtime.ts",
+        "sha256": "5e97c7546d010bdc6210f5f1804c2708a391ca62de4488207a4d2e45da9574be"
+      },
+      {
+        "path": "src/renderer/sync/prose-change-scope.test.ts",
+        "sha256": "7fa2e1eea0ca6c8c261223183a3b6c6ea471bdc5013a299d01d1cd4091b4a562"
+      },
+      {
+        "path": "src/renderer/sync/prose-change-scope.ts",
+        "sha256": "0e30fb13c03ede6fec078facc3deaf33971c721a86166ed8bd01a6bb6007e693"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.test.ts",
+        "sha256": "2040144cccd1089bb5f347f44cbbf6b442c3749bf046c8fbadc03d0d254c9dfa"
+      },
+      {
+        "path": "src/renderer/sync/protocol/asset.ts",
+        "sha256": "02ca95278b8ff33f3d2541deb62254911140a9b061e6f0e771b2a9ba14d677e3"
+      },
+      {
+        "path": "src/renderer/sync/protocol/canonical-cbor.ts",
+        "sha256": "e47cde3592daa3740ed8b5c7ab47173053509a887d0175b2053e44b4b9d7ff63"
+      },
+      {
+        "path": "src/renderer/sync/protocol/change-set.ts",
+        "sha256": "b04005c646928683a10d3e3195bba939d24d2526fd066840324313e2da497f24"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest-schema.ts",
+        "sha256": "d5f0290e33b71fd0be8ae07a47e5a5e0a10170d7826347217f3cbfb5dfc68cab"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.test.ts",
+        "sha256": "3d186ee9b7539233072be4ea479cbefd7b63e672006e2f5636e3fc9226960c2b"
+      },
+      {
+        "path": "src/renderer/sync/protocol/domain-manifest.ts",
+        "sha256": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/protocol-v1.golden.json",
+        "sha256": "b94c77cdaf1ce5f858c8b43452f30f426838915425b303fb153c964080557491"
+      },
+      {
+        "path": "src/renderer/sync/protocol/fixtures/v1-fixtures.ts",
+        "sha256": "3123e18ed04fb71f8bf0884aee2ff1ab6ef7deb3b70208d70fe42544dd2dd917"
+      },
+      {
+        "path": "src/renderer/sync/protocol/index.ts",
+        "sha256": "200a7e9280dbd2e03db48ab237573843f3e43633076ca128a7d3e082b6563fdb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/order.ts",
+        "sha256": "5fe8f55e28c526fc0714c536f9c316813440c4428d29536a2770ecb9b3014a31"
+      },
+      {
+        "path": "src/renderer/sync/protocol/primitives.ts",
+        "sha256": "80405edc5dd7a99ad6d91e0eb29ad58ededc843d1b1c1eb6753905b85b825be8"
+      },
+      {
+        "path": "src/renderer/sync/protocol/protocol.test.ts",
+        "sha256": "3bea0800c7b38cdaecc09d23085c14574828c625da384eb682122e3e9e71379d"
+      },
+      {
+        "path": "src/renderer/sync/protocol/provider.ts",
+        "sha256": "1c60123b664585b4abd9f18ca10a566ff9f3475f27408e9605aaf11c5d476794"
+      },
+      {
+        "path": "src/renderer/sync/protocol/segment.ts",
+        "sha256": "e724e98063be4215d707774e00d3b8f0dd7d899ec09c4e42d3320fabcb53c56a"
+      },
+      {
+        "path": "src/renderer/sync/protocol/snapshot.ts",
+        "sha256": "e2089f61827df5f06d47232d11e4408334500e2bb0aed3679fede3660c799b58"
+      },
+      {
+        "path": "src/renderer/sync/protocol/validation.ts",
+        "sha256": "992c10215764d660390a5da11cc4c69546eb01a2a6e50417d107673249134ecb"
+      },
+      {
+        "path": "src/renderer/sync/protocol/versioned-codec.ts",
+        "sha256": "168cc9ab673da9c582ef47729d5c90fb00c24b195688a22660137ed79a0f4276"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.test.ts",
+        "sha256": "8c7b9258f15cfaa0c3e9ffff8fb61949c46c0518ac2d24ab223cfa1e3ba16a67"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-payload.ts",
+        "sha256": "d80221fadc09556e4a60effd65089631055da2d4db3dbf36bd04bcbc051c5b93"
+      },
+      {
+        "path": "src/renderer/sync/protocol/yjs-update-wire.test.ts",
+        "sha256": "ec8c6c4b743749d82fe39f57d40887a99c1985a4cd0af42979c9cecadf2955ad"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/architecture.test.ts",
+        "sha256": "737a569c4558ee30e92d68872c90e0da23a4d56562732f944aa2528537d2cf4f"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/index.ts",
+        "sha256": "41197fc1f0ae76b0db76c6f04bd6ea7187fec601a0028ff1f2867356ba9461ee"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts",
+        "sha256": "37853a3789a3b5b239053fd5bb1ab68e18d6b3ae0c20772376e9436cd2fa7fcb"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/project-snapshot-discovery.ts",
+        "sha256": "bc3b62bca54a13182ca6931d869eaae3e342f41cd970c4d60846d151cac6b7ae"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/provider.test.ts",
+        "sha256": "ebe313f0d7c30109a278eb0cd4c80f18999993a39a7f972a0db620563580c787"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/provider.ts",
+        "sha256": "43a4bf368b9f1eb051e8b823b95813280b1c7b6ad51d5fda3879222629c5a1e4"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/tauri-transport.test.ts",
+        "sha256": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/tauri-transport.ts",
+        "sha256": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
+      },
+      {
+        "path": "src/renderer/sync/providers/google-drive/transport.ts",
+        "sha256": "52a82c2302b418883471b23e003e51c991b0889e6be96a5ba153ba2da88222f4"
+      },
+      {
+        "path": "src/renderer/sync/providers/index.ts",
+        "sha256": "2f66fd916c8ffcc9ea5c5415a0ed07d3024171f08552b32474a0b9ae6f183a3e"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/architecture.test.ts",
+        "sha256": "1d7045555adee64392e1a9be0cf7b16783736bece72bd8ec2741dce436ebfe01"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/durability.test.ts",
+        "sha256": "ef3ff34f5512f28db125ac9b988bd740c13aa0de31e530467a673a523e153faa"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/index.ts",
+        "sha256": "477f26ce0aeb05de510775002b907abd4d08cdf24abfce388a7797e70591231e"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/node-test-transport.ts",
+        "sha256": "194f0110fc8844e2c1e701ae32934cffd9cf092ef294410cf41e0fd2edffe834"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.conformance.test.ts",
+        "sha256": "f8eacb1f1b431bea7b4275ba8c2f0e27f0a121fa1d8d2b097bbae537087bf9d9"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.test.ts",
+        "sha256": "283a8fc2d7849fbd0d51c83c572e0f9b79602ba9c7552617ba57a88b211cf04f"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/provider.ts",
+        "sha256": "b6fd74bfa31fcbbe132914dda0d343a585e9c9d35e9ed0e3ac038a959644b358"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/sigkill-worker.test.ts",
+        "sha256": "9ed749efc0f4f2cb3619cde7966a738dcea596af56c71d13fc01899633316f96"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-folder/transport.ts",
+        "sha256": "88cb9b56117fabc570feff723f4d8e9d3768c878596a9ff32fb6fee42e87a358"
+      },
+      {
+        "path": "src/renderer/sync/providers/local-object-store.ts",
+        "sha256": "85e7fc66dbc81b95168d6b3ec877c55e2931e49306cc378adb950af8fbc29eb2"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.conformance.test.ts",
+        "sha256": "9d96f165d6adf147a448547e04cfa9ea3050b3cfac1f7fb7598de7889ef019ab"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.test.ts",
+        "sha256": "5779ffa1d2f829738e606fa1b7545d3f365cfbe93d9aa2f37ea396f135085805"
+      },
+      {
+        "path": "src/renderer/sync/providers/memory-provider.ts",
+        "sha256": "eaf9aa5bd892ca5b894023b2560605d6a46647e67e72ab6af54391cfbdd1a114"
+      },
+      {
+        "path": "src/renderer/sync/providers/object-log-provider.conformance.ts",
+        "sha256": "b19145cff4f5764c56c97c5fba121001b80012993f3882eb57fad12d4a5428f2"
+      },
+      {
+        "path": "src/renderer/sync/providers/provider-error.ts",
+        "sha256": "3b3e609cb88241dbbac7659577fefebbed3df4022bfc4f9989a08e4e78a85b37"
+      },
+      {
+        "path": "src/renderer/sync/provision/google-drive-runtime.ts",
+        "sha256": "051b18cd4bac601438f51698add62602ec89ea3cbf97ce0015bb1d29ccfb32ef"
+      },
+      {
+        "path": "src/renderer/sync/provision/index.ts",
+        "sha256": "74469680cb812c50c6009d05e7ca84c9d4146d88a2cab10388f3a87c29195ef1"
+      },
+      {
+        "path": "src/renderer/sync/provision/repository.ts",
+        "sha256": "5232b28a54fb479d5875d28c59dd92c6b02732aa77928ab9d953120ebff3731d"
+      },
+      {
+        "path": "src/renderer/sync/provision/supervisor.test.ts",
+        "sha256": "6195ad9e4dcc241e7cf9b395d2a813481bb142c9d01e811700af9762efa1a96c"
+      },
+      {
+        "path": "src/renderer/sync/provision/supervisor.ts",
+        "sha256": "a99941a51c98f8fa2b2a76d0b9207f62376e6a3be4442b1202434efae0499c6a"
+      },
+      {
+        "path": "src/renderer/sync/provision/sync-generation-provisioner.integration.test.ts",
+        "sha256": "8b7f048c9cbe5c730a88c4b3bf69bf9e3b60a3dd56184650d11b0c9db5ae8821"
+      },
+      {
+        "path": "src/renderer/sync/provision/sync-generation-provisioner.ts",
+        "sha256": "f835470432629b29a3af9c212a0544f105e9122546947372e39b8d272b5e3cb6"
+      },
+      {
+        "path": "src/renderer/sync/reducer/architecture.test.ts",
+        "sha256": "2eb2128a55369e95ab5230da57638c89d0472a3b4d80dd90fbc154e22a5a71ec"
+      },
+      {
+        "path": "src/renderer/sync/reducer/index.ts",
+        "sha256": "b3a39d6ec2d016e5c539705aba041cca7ac2b410800a985693a5a41492d72b3e"
+      },
+      {
+        "path": "src/renderer/sync/reducer/payloads.ts",
+        "sha256": "a07bc7aa5381be734a2cdf00cf2fd4a0c8a1418a9c74d6a13fff41ae5208c731"
+      },
+      {
+        "path": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+        "sha256": "fc4be11e280237d01b4800643b6350ef7d15f50855daa7839001c5b66943e291"
+      },
+      {
+        "path": "src/renderer/sync/reducer/production-domain-kernel.ts",
+        "sha256": "9db708a0c236d35489279bf223b61831de28c4feb658286f1104a3a5a2cf5121"
+      },
+      {
+        "path": "src/renderer/sync/reducer/reducer.test.ts",
+        "sha256": "5af71647bb88b134c758f82621b8f0f6ee29427f62c210183d674e71d842babc"
+      },
+      {
+        "path": "src/renderer/sync/reducer/reducer.ts",
+        "sha256": "52b526c16fd2a83c17dbdbe1155948ad12f73836a7dceb3fe50c90f7a5efe8ab"
+      },
+      {
+        "path": "src/renderer/sync/reducer/sqlite-materializer.integration.test.ts",
+        "sha256": "da22ec317ebc8b5718869c3e9c1b1af2017c61b7a54764cac671144b8a2d5c5b"
+      },
+      {
+        "path": "src/renderer/sync/reducer/sqlite-materializer.ts",
+        "sha256": "b31c0ab3ef18a6c7e246d6bb0a746efb03611175d634f2c1ee9096c8531c235b"
+      },
+      {
+        "path": "src/renderer/sync/reducer/types.ts",
+        "sha256": "62afef5215a101f4d0018c24b717e18517830bb3be761ac4b557e21fe6b3dc45"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-product-connect.integration.test.ts",
+        "sha256": "f3ff688abc57cf23d1b039b97b71e62a6bd44f2067a4475e1a1c42fd7622b6fe"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-product-connect.ts",
+        "sha256": "703acae008cce0f435d8a1dfabd6e038a9af65b45a38562e002f8c8f2cf50af7"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-restore.integration.test.ts",
+        "sha256": "095f3db77413e750e5afd0ef565234cf0a8cc950aa24b072921bdafa4a7e2dc7"
+      },
+      {
+        "path": "src/renderer/sync/restore/google-drive-restore.ts",
+        "sha256": "aa8b7e3a2a8bcf2c0bb25b43d3b75e42c762adfeb62a45b5192ef0e4acc41e70"
+      },
+      {
+        "path": "src/renderer/sync/restore/index.ts",
+        "sha256": "99ffe43e8a461ceb5bb9ca8380a1c25afe0f46137442c99fe10c0e12fb0ab547"
+      },
+      {
+        "path": "src/renderer/vite-env.d.ts",
+        "sha256": "9a7a0f23a9aa8743b69c544f4c9d8ee2739637533484f2b9809274fa06596e50"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "101d8d82f8b277474bc5e8625446ed86072256cfdd9ecd475558bf61d19bc01a"
+      },
+      {
+        "path": "vendor/yrs/Cargo.lock",
+        "sha256": "53a56e3e14693c1ecbde5cc93828fc1c9799cd2a89925a37b9efa999c8990314"
+      },
+      {
+        "path": "vendor/yrs/Cargo.toml",
+        "sha256": "2085b13775601afe212f93a5fbbe31abfd45e840da0f62c557b91a1ffd0d346a"
+      },
+      {
+        "path": "vendor/yrs/benches/benches.rs",
+        "sha256": "b3196024b9e3904085a3927e1cfcfee3dce38baeb71c7f259d83384a38bb6784"
+      },
+      {
+        "path": "vendor/yrs/benches/id_set.rs",
+        "sha256": "90790cde288a056b6dcf33f5b4e006295e4e400eebafc3c936fc904350be6761"
+      },
+      {
+        "path": "vendor/yrs/benches/serialization.rs",
+        "sha256": "ba868f355a910b39e4121621b585ef885a583340d1fca856d7c3c1249042fb23"
+      },
+      {
+        "path": "vendor/yrs/src/alt.rs",
+        "sha256": "cdd569c656ac5bb94f353886f5f1bf9d49e07b40bff2033d840c75975d50e272"
+      },
+      {
+        "path": "vendor/yrs/src/any.rs",
+        "sha256": "2e5ee918b0c29a707ae259bd71474f5f6a72045f8bf062de2f5aa979c4591230"
+      },
+      {
+        "path": "vendor/yrs/src/atomic.rs",
+        "sha256": "3a3f2cfeacbc6d97a678d72a6a975ee0fde6e54f8e95a8ed8c74989cafb24784"
+      },
+      {
+        "path": "vendor/yrs/src/block.rs",
+        "sha256": "86dcf0f33bc59c40e3793679badecab6dc3cc8d9651d34096d48c70cda6511d3"
+      },
+      {
+        "path": "vendor/yrs/src/block_iter.rs",
+        "sha256": "176074723260296892a8567cb660c5a81b87984c7149407bee745483fd9354b2"
+      },
+      {
+        "path": "vendor/yrs/src/block_store.rs",
+        "sha256": "f847209b60ca6e2b9d5667a586fe8fc5271dfa1b844e9b3d9b2d6d0bdd976391"
+      },
+      {
+        "path": "vendor/yrs/src/branch.rs",
+        "sha256": "22734a9877161f87f1543fbd6fe27099dc4a14d886f9485e04d8b328008aa794"
+      },
+      {
+        "path": "vendor/yrs/src/doc.rs",
+        "sha256": "d44dff119bba51fbcd7a69d3b179f1190096e531a8742b4d96c5e1e7113120a8"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/mod.rs",
+        "sha256": "bde6947363f0c42106035b2da31d5e62e964d15af507f533e8a7a4d052fc3c02"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/read.rs",
+        "sha256": "733ef78e1d2f2db7d6a3da6fcc77d27f642b65ea2ce7ab3c23d173ecb91d1936"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/de.rs",
+        "sha256": "a4cfb97aca9fa5045dafd55ac89406a1ff00846f543319c569f78b378f3cf31c"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/mod.rs",
+        "sha256": "fcc015de3dd54231a2588b4827961e2f65de0cbe0d5ada574eb25de81e7b1a78"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/serde/ser.rs",
+        "sha256": "02c607ee20c839a5a74047446b4ac29b04bdbd83251dd541737c54d83edbd211"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/varint.rs",
+        "sha256": "37d24f5ee019a59ec83d95e1b85b2d12432e8ac09ec26d2ac4ac352c728c7dfc"
+      },
+      {
+        "path": "vendor/yrs/src/encoding/write.rs",
+        "sha256": "a0117c689ec93bcb2871115791e33e3e91588486561b5811d41a0c5e53e5090d"
+      },
+      {
+        "path": "vendor/yrs/src/error.rs",
+        "sha256": "4a57f59683c17347022fd087fad9a2a30b22ee825f8ff52b29b992558da6f2f2"
+      },
+      {
+        "path": "vendor/yrs/src/event.rs",
+        "sha256": "2658442ab8b5eea485217ec2ff7dae57599f9c5623734ad2d893f3604642bd9a"
+      },
+      {
+        "path": "vendor/yrs/src/gc.rs",
+        "sha256": "fa1ab49207697d8c2e182048e3023e226513f9331b90c3aef065a950b795d63d"
+      },
+      {
+        "path": "vendor/yrs/src/id_map.rs",
+        "sha256": "579ccb3ec2208eb983106d65ffcae30c500b3e24c92174451868e709b09105cf"
+      },
+      {
+        "path": "vendor/yrs/src/id_set.rs",
+        "sha256": "49e386c51b6297ae278361abea6f3181c8939ef5bb5c33c70d0f8060f07f0d25"
+      },
+      {
+        "path": "vendor/yrs/src/ids.rs",
+        "sha256": "9040539c9ef680ca10e04f765cfc0a23052be0f0b56ef8b17891f7c0099c299d"
+      },
+      {
+        "path": "vendor/yrs/src/input.rs",
+        "sha256": "78eff9f0128a0bb2b13e9c6e844d5a1b15904c6b30498469944f0b4df3ba5fd1"
+      },
+      {
+        "path": "vendor/yrs/src/iter.rs",
+        "sha256": "c1303953bec70bb2b68b02b7948fa7c2f43b8c3f7389885f457e8d9a501c552f"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/iter_any.rs",
+        "sha256": "8a4d997539c6a25df95ad606c12d2087f9be849ee8d193fc29477bea1d2efa9e"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/iter_txn.rs",
+        "sha256": "ce864d642ec05dfc5bceabf0c526ed340c0a99c16e13332af899363462729585"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/mod.rs",
+        "sha256": "da4d9067a1e8d868899d0c6762a2afabf51ab04a8d0601008b6a3a56fdf8dd1e"
+      },
+      {
+        "path": "vendor/yrs/src/json_path/parse.rs",
+        "sha256": "4f521787b5bb445d02ab601a0e2cf0acf6ee4b59a0552993f7938e4aece16829"
+      },
+      {
+        "path": "vendor/yrs/src/lib.rs",
+        "sha256": "32bcc29e46572aef447528ac8421a41898c108863f8c34bbeb8135e887943a59"
+      },
+      {
+        "path": "vendor/yrs/src/observer.rs",
+        "sha256": "b08f6e1c3f390eec764d316033373eb460437d1b6ccc308e2215895da6133aac"
+      },
+      {
+        "path": "vendor/yrs/src/out.rs",
+        "sha256": "7f4562d84cc16d56e679d0ec178617367660e70a0c86bab5147ee340a38a7c85"
+      },
+      {
+        "path": "vendor/yrs/src/slice.rs",
+        "sha256": "328df6ab85a13990b6de10839900d0b97c4469d498fb3dec7fbe8758943e6210"
+      },
+      {
+        "path": "vendor/yrs/src/state_vector.rs",
+        "sha256": "19a03d6cf0a4f174df9d7e2b22ed1f96d13064aed42f3af41edcfd3e4ba6680b"
+      },
+      {
+        "path": "vendor/yrs/src/sticky_index.rs",
+        "sha256": "e2bfa8cbfc8407c0c1585a65a50c1def49b5696a6435c5c75b3e556a0c41e7b5"
+      },
+      {
+        "path": "vendor/yrs/src/store.rs",
+        "sha256": "1b6a9e14a43f91c418618054bec80bc2302416df0ffc7e5d707fc4a2dd7be5d1"
+      },
+      {
+        "path": "vendor/yrs/src/sync/awareness.rs",
+        "sha256": "836d951e8b8570c035e568dca54097f131ee94226492fa3f4cb2fda44621b23c"
+      },
+      {
+        "path": "vendor/yrs/src/sync/mod.rs",
+        "sha256": "5999c93424d3bba819de2922ef49f93857e5b286f334150e2a9358b977cb7f7a"
+      },
+      {
+        "path": "vendor/yrs/src/sync/protocol.rs",
+        "sha256": "0887f7e7d1007a879316bc8adb1fe1dbd7aabfa71842571ce6183b7779a7bbdd"
+      },
+      {
+        "path": "vendor/yrs/src/sync/time.rs",
+        "sha256": "bc302d99aa85f9d3169752c3369882e6cd806e5856f70e4c2828f6063c35087c"
+      },
+      {
+        "path": "vendor/yrs/src/test_utils.rs",
+        "sha256": "31e0845546d85300f6f12a5c35b0ff607a96794c4a83405ba357020753863881"
+      },
+      {
+        "path": "vendor/yrs/src/tests/compatibility_tests.rs",
+        "sha256": "6a6e9761d6174f598b530901ccfec965b07eba2cf54e9ff652fc18e146ac5947"
+      },
+      {
+        "path": "vendor/yrs/src/tests/edit_traces.rs",
+        "sha256": "f8b5965ae50bd369fc5e2ce73e1ed7a43b29d6461224512fed93f8dd5d810e8f"
+      },
+      {
+        "path": "vendor/yrs/src/tests/edit_traces_tests.rs",
+        "sha256": "11f875b7abbbc6ec664c1e7f28ccaac9c903307f05baada6e65bfa440aad1962"
+      },
+      {
+        "path": "vendor/yrs/src/tests/mod.rs",
+        "sha256": "bed339b92949cceadfc5d128c85a35a6009a72cb4affb676988f41e440431eca"
+      },
+      {
+        "path": "vendor/yrs/src/transact.rs",
+        "sha256": "e0ee48b3a108a0bf05669be06c90db5b2dc6c846579d624ac587b7759ea0520c"
+      },
+      {
+        "path": "vendor/yrs/src/transaction.rs",
+        "sha256": "f297a67b6ea75bb0f11ccf9bc56927ad88d89c76229cd813cbf7f1e4bcc93172"
+      },
+      {
+        "path": "vendor/yrs/src/types/array.rs",
+        "sha256": "93d985cb367551577af2d6534a85f09ad057a42cee8dab9cd58054dd3c490e88"
+      },
+      {
+        "path": "vendor/yrs/src/types/map.rs",
+        "sha256": "5ebd1a960cf258ee97904dd69d8bc81d68763fb288afc089d6a466d4ff496e13"
+      },
+      {
+        "path": "vendor/yrs/src/types/mod.rs",
+        "sha256": "835ed9cdfddcb65e1a91b2db3cf5cd9c3b039a443c719f331b651be352855d05"
+      },
+      {
+        "path": "vendor/yrs/src/types/text.rs",
+        "sha256": "0f9dfa82c11ab8f9547f100367653feb0891318e055cb0932585e043c8eb1691"
+      },
+      {
+        "path": "vendor/yrs/src/types/weak.rs",
+        "sha256": "d27a49c7ab115e8e72b729c153cc7065f5293a348df542fcf94d1e4db269fa39"
+      },
+      {
+        "path": "vendor/yrs/src/types/xml.rs",
+        "sha256": "aa1071730511d373d2766e9af38326e160099e03bf4b6928817d53722e14f0e2"
+      },
+      {
+        "path": "vendor/yrs/src/undo.rs",
+        "sha256": "a6359e133b095ec046e62287da0d7cbed6a909b64bd5143fa77bd152f2f45e3d"
+      },
+      {
+        "path": "vendor/yrs/src/update.rs",
+        "sha256": "f3719ef93e9dad0221f658077ad89bab251a466c87f092e75c6777655db31f8d"
+      },
+      {
+        "path": "vendor/yrs/src/updates/decoder.rs",
+        "sha256": "4ac62a307eabd8ac156526e22c32966db72fcf696d4208ff92c42c71d27eb5d1"
+      },
+      {
+        "path": "vendor/yrs/src/updates/encoder.rs",
+        "sha256": "808dca538a0cb6cc8b2f526995a72ae89906f22c39e777623b3b5f0876367aa5"
+      },
+      {
+        "path": "vendor/yrs/src/updates/mod.rs",
+        "sha256": "12954b9be2c0512f93e93d6bf57584536aaed2689c9003a11873cc36d2850903"
+      },
+      {
+        "path": "vendor/yrs/src/utils/client_hasher.rs",
+        "sha256": "f72c959781699537adc96b036d62aa6b91cf7f64da7c8a615be7f035b6ccc3d6"
+      },
+      {
+        "path": "vendor/yrs/src/utils/mod.rs",
+        "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
+      },
+      {
+        "path": "vitest.config.ts",
+        "sha256": "80186ca061766cdccfe96b38b45f4fc2ebaeddf27248aed4dd8c63892439afeb"
+      },
+      {
+        "path": "vitest.shared.ts",
+        "sha256": "bd0f98a27ad9b750fca3490a3f250fade374bebfb0d8164beb4b0f0e087f9eb4"
+      }
+    ]
+  },
+  "suites": [
+    {
+      "name": "core",
+      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+      "passed": 61,
+      "failed": 0,
+      "cases": [
+        "database::tests::database_names_cannot_escape_the_managed_directory",
+        "database::tests::malformed_recovery_receipt_stops_startup_instead_of_guessing",
+        "database::tests::failed_shadow_candidate_never_changes_the_active_database",
+        "database::tests::restart_after_replace_never_migrates_an_incomplete_active_database",
+        "database::tests::shadow_migration_sigkill_worker",
+        "database::tests::refuses_a_database_migrated_by_a_newer_client",
+        "database::tests::another_renderer_cannot_take_over_without_explicit_recovery",
+        "database::tests::a_fresh_renderer_session_recovers_a_stale_transaction",
+        "database::tests::agent_runtime_migration_enforces_canonical_journal_constraints",
+        "database::tests::ordinary_requests_wait_until_the_owning_transaction_finishes",
+        "database::tests::round_trips_every_sqlite_storage_class_without_losing_i64_precision",
+        "database::tests::current_local_first_baseline_is_exactly_recorded_and_idempotent",
+        "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
+        "database::tests::the_same_renderer_session_cannot_recover_its_own_active_transaction",
+        "original_body_archive::tests::archive_generic_envelope_layer_does_not_claim_standalone_deletion_intent",
+        "database::tests::pre_update_safety_snapshot_is_standalone_and_once_per_version",
+        "database::tests::restart_after_replace_completes_marker_only_after_validating_active_database",
+        "original_operation::tests::original_operation_accepts_real_ts_envelopes_and_returns_all_exact_materialized_rows",
+        "original_operation::tests::original_operation_bounds_envelope_before_decode_and_owns_selected_bytes",
+        "original_operation::tests::original_operation_complete_canonical_value_model_matches_production_cborg",
+        "original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes",
+        "original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders",
+        "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
+        "original_operation::tests::original_operation_rejects_ts_binding_schema_hash_versions_and_unclassified_event_corpus",
+        "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
+        "materialization_admission::tests::materialization_native_admission_failure_rolls_back_writer_revision_and_journal",
+        "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity",
+        "materialization_admission::tests::materialization_native_journal_records_actual_append_and_survives_prune_cold",
+        "original_body_archive::tests::archive_canonical_discovery_rejects_hidden_target_and_unselected_row_tampering",
+        "original_body_archive::tests::archive_bounds_reads_before_copy_and_leaves_caller_transaction_intact",
+        "original_body_archive::tests::archive_requires_applied_receipt_original_bytes_scope_and_known_references",
+        "original_body_archive::tests::archive_collects_real_seed_insert_delete_originals_and_reopens_without_intent_for_bodies",
+        "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
+        "original_operation_store::tests::original_store_leaves_callers_work_intact_after_success_and_failure",
+        "original_operation_store::tests::original_store_limits_corrupt_text_cells_before_gateway_allocation",
+        "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
+        "original_operation_store::tests::original_store_reads_one_wal_snapshot_while_another_connection_commits",
+        "original_operation_store::tests::original_store_refuses_rehashed_companion_insert_with_published_guards_intact",
+        "original_operation_store::tests::original_store_requires_an_actual_matching_apply_receipt",
+        "original_operation_store::tests::original_store_refuses_oversize_envelope_and_row_blobs_before_copying_them",
+        "prose::tests::append_revision_provenance_and_cas_share_one_atomic_write",
+        "prose_journal::tests::prose_journal_bytes_and_hashes_match_actual_typescript_encoder",
+        "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
+        "prose::tests::failed_prune_rolls_back_snapshot_inside_the_callers_transaction",
+        "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
+        "original_operation_store::tests::original_store_reads_actual_single_and_multi_operation_without_side_effects",
+        "prose::tests::caller_rollback_and_failed_nested_append_leave_no_partial_prose_rows",
+        "prose::tests::invalid_provenance_or_precision_is_rejected_before_any_write",
+        "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
+        "prose::tests::snapshots_preserve_revision_and_prune_only_exact_document_coverage",
+        "prose_journal::tests::prose_journal_nested_failure_retains_outer_work_and_rejects_invalid_owner_generation_and_clock",
+        "prose_journal::tests::prose_journal_receipt_failure_rolls_back_prose_revision_writer_and_complete_journal",
+        "prose_journal::tests::prose_journal_rejects_utf16_oversized_ids_atomically_and_accepts_unicode_boundary",
+        "prose_journal::tests::prose_journal_writer_rotation_and_clock_rollback_match_authored_writer_contract",
+        "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
+        "database::tests::sigkill_matrix_reconciles_to_exactly_old_or_new_database",
+        "database::tests::project_upgrades_preserve_published_prefixes_with_same_version_safety_snapshots",
+        "native_journal_limits_optional_evidence_before_large_encoding_and_keeps_default_append_unchanged",
+        "native_journal_nested_evidence_rejection_and_receipt_failure_rollback_preserve_outer_work",
+        "native_journal_rejects_exact_event_and_schema_mismatches_without_advancing_writer_or_revision",
+        "native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire"
+      ],
+      "outputSha256": "9fd61e9cd7a96763fdfbe60d251b7f0a2f98340b6235580da4f4d99a802fc87a"
+    },
+    {
+      "name": "document",
+      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+      "passed": 132,
+      "failed": 0,
+      "cases": [
+        "capture::tests::capture_is_exact_local_history_and_never_remote_echo",
+        "comment_tests::stale_or_malformed_anchors_never_highlight_unrelated_prose_and_unknown_bytes_survive",
+        "comment_tests::whole_block_targets_split_and_rejoin_with_their_own_undo_metadata",
+        "comment_tests::external_anchor_revision_and_comments_added_after_edit_are_not_overwritten_by_undo",
+        "concurrent_draft_tests::identical_visible_replacement_with_new_items_rejects_structural_commit_atomically",
+        "comment_tests::deleted_text_and_blocks_keep_anchor_context_until_undo_restores_it",
+        "concurrent_draft_tests::concurrent_sibling_insert_rejects_a_join_across_changed_topology_atomically",
+        "comment_tests::split_join_history_and_checkpoint_keep_quote_and_original_snapshots",
+        "comment_tests::stale_quote_offsets_recover_nearest_match_and_cross_block_snapshot_fragments",
+        "concurrent_draft_tests::disjoint_remote_prefix_allows_split_and_followup_input_on_the_old_visible_branch",
+        "concurrent_draft_tests::remote_text_metadata_change_rejects_structure_even_with_equal_visible_text",
+        "concurrent_draft_tests::disjoint_structural_commit_maps_live_tail_comments_and_newer_selection_history",
+        "comment_tests::remote_insert_survives_local_structural_undo_and_adjusts_comment_positions",
+        "concurrent_draft_tests::recreated_domain_block_id_rejects_structural_commit_atomically",
+        "draft_evidence_tests::queued_evidence_all_remote_deleted_produces_no_event_but_consumes_successful_sequence_once",
+        "concurrent_draft_tests::prefix_deletion_does_not_allow_mixed_items_changed_marks_or_tail",
+        "concurrent_draft_tests::same_paragraph_prefix_insert_does_not_relax_text_metadata_or_non_enter_gates",
+        "concurrent_draft_tests::same_paragraph_prefix_insertions_keep_unicode_and_the_queued_author_basis",
+        "draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged",
+        "draft_evidence_tests::queued_evidence_interior_remote_insertion_stays_raw_without_deleting_or_claiming_remote_text",
+        "concurrent_draft_tests::same_paragraph_split_maps_comments_and_new_selection_history_in_live_offsets",
+        "draft_evidence_tests::queued_evidence_rapid_followup_uses_visible_branch_ids_and_distinct_live_bases",
+        "draft_evidence_tests::queued_evidence_excludes_already_remote_deleted_ids_and_never_undoes_remote_deletion",
+        "draft_tests::draft_selection_uses_authored_positions_after_remote_prefix_and_delete",
+        "draft_tests::draft_validation_cancel_and_rejected_commit_leave_live_state_untouched",
+        "draft_tests::draft_replaces_original_items_and_preserves_overlapping_remote_insertion_and_history",
+        "draft_evidence_tests::queued_evidence_rebuilds_live_snapshot_offset_and_cross_client_emoji_ids_after_prefix_insert",
+        "native::tests::native_replacement_is_one_undo_and_rejects_stale_or_structural_edits",
+        "draft_tests::overlapping_local_views_commit_as_separate_authors_without_overwriting_each_other",
+        "native_command_tests::native_command_basis_includes_preexisting_deletions_but_event_does_not_reemit_them",
+        "input_tests::branch_lifetime_sequence_and_rejected_edits_are_atomic",
+        "draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified",
+        "input_tests::queued_inputs_keep_their_visible_basis_across_overlapping_merges",
+        "native_command_tests::native_command_mutable_after_transaction_expansion_never_inherits_delete_intent",
+        "native_command_tests::native_command_origin_is_removed_after_success_and_scope_drop_retains_only_raw_bytes",
+        "concurrent_draft_tests::same_paragraph_split_rejects_boundary_tail_deleted_items_marks_and_metadata",
+        "native_command_tests::native_command_multiple_or_foreign_events_disqualify_without_dropping_authored_bytes",
+        "native_command_tests::native_command_observers_cannot_open_a_nested_write_transaction",
+        "relocation_alias::gaps::tests::safe_clock_gaps_receipts_normalize_unicode_and_reject_conflicts",
+        "relocation_alias::gaps::tests::safe_clock_gaps_source_skip_is_not_canonical_gc_authority",
+        "relocation_alias::gaps::tests::safe_clock_gaps_receipt_key_is_immutable_and_unknown_fields_reject",
+        "native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items",
+        "native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged",
+        "native_command_tests::native_command_history_is_raw_and_preserves_existing_local_undo_units",
+        "draft_tests::unchanged_structural_draft_keeps_the_standard_maps_and_remote_structure_is_explicit",
+        "native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive",
+        "relocation_alias::tests::relocation_alias_known_source_clock_prefix_is_gc_covered_but_unknown_holes_are_not",
+        "relocation_alias::tests::relocation_alias_full_state_coalescing_and_v2_keep_original_clock_coverage",
+        "relocation_alias::tests::relocation_alias_malformed_metadata_leaves_live_unchanged",
+        "relocation_alias::tests::relocation_alias_collision_and_nonplain_insertions_remain_unapplied",
+        "relocation_alias::tests::relocation_alias_maps_immutable_origins_for_opposite_arrival_orders",
+        "relocation_alias::tests::relocation_alias_mixed_safe_text_does_not_hide_unmapped_loss_format_or_delete",
+        "relocation_alias::tests::safe_clock_gaps_lost_prefix_with_residual_pending_is_atomic",
+        "relocation_alias::tests::relocation_alias_two_receivers_translate_same_source_without_duplicate_characters",
+        "relocation_alias::tests::relocation_alias_reactivation_reuses_source_graph_and_commits_activation_with_render",
+        "relocation_alias::tests::relocation_alias_overlapping_receipt_segmentations_converge_after_exchange",
+        "relocation_alias::tests::relocation_alias_mixed_same_writer_interleaved_safe_clocks_require_exact_proof",
+        "relocation_history_tests::relocation_history_activation_without_evidence_routes_later_original_update",
+        "relocation_alias::tests::safe_clock_gaps_retained_proof_outlives_safe_delete_without_resurrection",
+        "relocation_alias::tests::safe_clock_gaps_unproved_deleted_or_alias_branch_rejects_atomically",
+        "relocation_alias::tests::safe_clock_gaps_two_receivers_exchange_repairs_and_later_return_to_b",
+        "relocation_history_tests::relocation_history_maps_retained_surrogate_and_combining_item_clocks_exactly",
+        "relocation_history_tests::relocation_history_pending_dependency_rejects_before_any_history_mutation",
+        "relocation_alias::tests::relocation_alias_mixed_same_writer_prefix_then_suffix_preserves_safe_clocks",
+        "relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation",
+        "relocation_history_tests::relocation_history_rejects_modified_owned_render_without_resurrection",
+        "relocation_history_tests::relocation_history_preserves_aware_c_tail_and_suffix_items",
+        "relocation_history_tests::relocation_history_rejects_activation_replaced_without_retiring_owned_render",
+        "relocation_history_tests::relocation_history_handle_resolves_in_owner_after_draft_and_input_forks",
+        "remote::tests::prepared_remote_is_pure_and_cannot_apply_after_local_change",
+        "replay_tests::sparse_pending_delete_replays_and_subsequent_native_history_preserves_remote_text",
+        "retention::tests::retention_scanner_rejects_clock_overflow_before_building_ranges",
+        "replay_tests::separate_holes_and_duplicate_updates_remain_pending_until_dependencies_arrive",
+        "retention_tests::retention_duplicates_and_partially_known_clock_ranges_are_idempotent",
+        "relocation_history_tests::relocation_history_rejects_unowned_restored_b_text_before_redo",
+        "retention_tests::retention_explicit_deleted_new_text_under_deleted_parent_is_accepted",
+        "replay_tests::sparse_dependency_replays_in_every_order_and_across_pending_snapshot",
+        "retention_tests::retention_explicit_deletes_work_in_the_same_packet_and_before_insert",
+        "input_tests::one_branch_reuses_its_author_clocks_for_rapid_typing",
+        "retention_tests::retention_pending_text_checks_dependency_only_packets_and_reopen",
+        "retention_tests::retention_styled_rejection_survives_checkpoint_without_undo_history",
+        "retention_tests::retention_mixed_safe_and_unsafe_packet_rejects_the_entire_packet",
+        "selection_tests::invalid_or_stale_capture_is_atomic_and_detached_views_never_return_from_history",
+        "selection_tests::joined_tail_and_inserted_or_empty_blocks_have_explicit_history_positions",
+        "selection_tests::deleted_selection_collapses_and_removed_parent_is_unresolved_until_undo",
+        "selection_tests::lineage_tracks_fragmented_items_and_remote_prefix_shifts_without_text_search",
+        "selection_tests::reading_compressed_lineage_does_not_write_prose_or_add_undo_items",
+        "selection_tests::new_manual_positions_in_copied_tail_survive_repeated_structural_history",
+        "selection_tests::selection_metadata_never_enters_checkpoint_or_creates_prose_history",
+        "selection_tests::newest_selection_follows_multiple_reconstructed_ancestors",
+        "structure::containers::tests::conflicting_container_metadata_fails_atomically_before_any_text_is_removed",
+        "selection_tests::relative_selections_follow_remote_edits_on_both_sides_without_collapsing",
+        "relocation_history_tests::relocation_history_selection_on_late_render_follows_logical_b",
+        "selection_tests::structural_selection_history_keeps_live_crdt_positions_and_manual_epochs",
+        "structure::containers::tests::right_survivor_accepts_late_suffix_edits_from_the_original_parent",
+        "structure::containers::tests::right_survivor_partial_delete_keeps_unsupported_boundaries_atomic",
+        "retention_tests::retention_styled_original_prefix_rejects_atomically_with_active_history_and_input",
+        "structure::containers::tests::right_survivor_conflicts_reject_before_any_public_identity_changes",
+        "structure::containers::tests::right_survivor_partial_delete_retains_raw_clipped_marks",
+        "structure::containers::tests::consumed_container_keeps_typed_metadata_marks_comments_and_manual_selection_history",
+        "structure::containers::tests::right_survivor_partial_delete_queued_typing_has_two_undo_units",
+        "structure::containers::tests::right_survivor_separator_join_still_accepts_empty_right_paragraph",
+        "structure::containers::tests::suffix_relocation_is_rejected_before_it_can_create_duplicate_ids_on_remote_undo",
+        "remote::tests::staging_replay_accepts_the_same_clocks_after_many_independent_writers",
+        "structure::tests::conflicting_unknown_metadata_rejects_merge_without_mutation_or_history",
+        "structure::containers::tests::right_survivor_keeps_physical_tail_and_typed_metadata_through_history_and_reopen",
+        "structure::tests::enter_before_heading_keeps_the_live_heading_and_its_relative_positions",
+        "structure::tests::structural_block_metadata_keeps_binary_types_and_rejects_shared_values",
+        "structure::tests::split_keeps_prefix_items_and_maps_tail_then_undo_restores_original_anchors",
+        "tests::invalid_ranges_leave_content_and_history_unchanged",
+        "tests::malformed_update_and_duplicate_block_ids_are_rejected",
+        "structure::tests::xml_text_metadata_conflicts_and_shared_values_reject_before_mutation",
+        "structure::tests::raw_inline_marks_survive_in_memory_inheritance_entity_affinity_split_join_and_history",
+        "undo_policy_tests::protected_parent_does_not_disable_regular_attribute_or_local_insert_undo",
+        "structure::containers::tests::right_survivor_partial_delete_remote_prefix_matches_production_history",
+        "wire::tests::deleted_format_payloads_are_validated_before_integration_can_hide_them",
+        "wire::tests::export_rejects_unsafe_raw_in_memory_and_pending_marks",
+        "wire::tests::json_marks_and_raw_binary_map_array_values_keep_the_existing_v1_bytes",
+        "wire::tests::ordinary_json_v2_format_update_passes_checked_v1_encoding",
+        "structure::tests::xml_text_metadata_survives_split_heading_start_join_history_and_checkpoint",
+        "wire::tests::pending_format_structs_are_checked_even_without_their_text_dependencies",
+        "undo_policy_tests::selection_of_remote_append_stays_in_the_protected_parent_through_history",
+        "wire::tests::v2_non_json_marks_and_embeds_are_rejected_before_v1_conversion",
+        "undo_policy_tests::remote_deletion_and_format_on_remote_text_and_new_comments_survive_undo",
+        "concurrent_draft_tests::same_paragraph_prefix_deletions_keep_tail_history_and_queued_author_offsets",
+        "structure::containers::tests::right_survivor_retains_remote_suffix_text_and_metadata_on_undo_redo",
+        "undo_policy_tests::structural_undo_retains_remote_subtree_text_identity_marks_and_metadata",
+        "relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history",
+        "relocation_history_tests::relocation_history_original_prefix_survives_two_cycles_one_event_and_reopen",
+        "structure::containers::tests::right_survivor_partial_delete_preserves_ranges_unicode_comments_and_history",
+        "relocation_alias::tests::relocation_alias_mixed_different_writers_preserve_safe_identity_marks_and_history",
+        "relocation_alias::tests::safe_clock_gaps_same_writer_complete_split_reversed_and_history"
+      ],
+      "outputSha256": "0a7822f17de316b9e97d3b5895351f501fe693d0a2c0ae85b4594cfd172d706a"
+    },
+    {
+      "name": "prose",
+      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+      "passed": 27,
+      "failed": 0,
+      "cases": [
+        "native_persistence::actual_native_multiclient_deletion_keeps_exact_event_through_original_store",
+        "lookahead_explicit_cancellation_without_derived_repair_remains_atomically_retained_by_owner_scope",
+        "malformed_tail_stops_coverage_before_the_bad_row_and_forbids_compaction",
+        "derived_repair_snapshot_failure_rolls_back_journal_comments_and_live_then_cold_retry_commits_once",
+        "failed_comment_cas_retains_authored_bytes_and_retry_never_duplicates_journal",
+        "lookahead_comment_cas_rollback_preserves_raw_receipts_live_state_and_retry",
+        "lookahead_preceding_safe_step_and_pending_local_event_commit_with_one_basis_and_local_only_undo",
+        "lookahead_committed_snapshot_survives_interrupt_before_live_apply_without_repair_echo",
+        "lookahead_cold_recovery_uses_stored_full_closure_without_duplicate_system_journal",
+        "native_persistence::native_captured_deletion_rechecks_scope_after_projection_callback_and_retries",
+        "mixed_same_writer_prefix_and_safe_suffix_repair_journals_once_and_survives_history_reopen",
+        "lookahead_releases_first_retained_row_only_after_complete_durable_dependency_and_replays_actual_gapped_ids",
+        "native_persistence::native_captured_deletion_refuses_changed_incarnation_without_losing_record",
+        "native_persistence::native_history_and_generic_delete_do_not_gain_standalone_command_intent",
+        "native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes",
+        "native_persistence::native_delete_record_survives_projection_failure_and_later_input_before_retry",
+        "native_persistence::sequential_native_declarations_rollback_as_one_batch_without_sequence_holes",
+        "native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input",
+        "pending_local_and_derived_repair_commit_together_after_comment_cas_retry_without_undoing_remote_text",
+        "prepared_projection_failure_does_not_publish_remote_state_or_consume_local_history",
+        "received_late_text_stays_durable_uncovered_and_retry_does_not_duplicate_it",
+        "remote_then_local_replays_actual_gapped_ids_and_recovers_lost_notifications",
+        "snapshot_and_prune_failures_leave_reopenable_rows_and_retry_does_not_rejournal",
+        "lookahead_malformed_formatted_and_still_pending_tail_members_reject_the_entire_candidate",
+        "safe_clock_gap_between_original_prefix_inserts_preserves_two_history_cycles_and_cold_replay",
+        "safe_clock_gap_pending_last_prefix_survives_checkpoint_prune_cold_open_and_dependency_comment_cas",
+        "native_persistence::queued_and_draft_commands_persist_live_basis_without_deleting_remote_insertions"
+      ],
+      "outputSha256": "b6b9646b07ff89644b0aa0a08ccf46a9e831f89007457f751087cd54de9b426a"
+    },
+    {
+      "name": "bridge",
+      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+      "passed": 18,
+      "failed": 0,
+      "cases": [
+        "tests::checkpoint_preserves_comment_body_and_refuses_external_anchor_overwrite",
+        "tests::authored_commit_survives_checkpoint_failure_without_duplicate_journal_or_stale_comment_cas",
+        "tests::comment_write_failure_rolls_back_prose_and_anchor_until_atomic_retry",
+        "tests::comment_split_redo_and_checkpoint_restore_original_quote",
+        "tests::failed_checkpoint_retains_prose_until_retry",
+        "tests::draft_checkpoint_failure_consumes_commit_once_and_retries_only_persistence",
+        "tests::remote_delivery_commits_before_live_replay_and_does_not_author_local_journal",
+        "tests::old_lab_keys_merge_snapshots_and_tail_without_losing_content_or_comment_targets",
+        "tests::sparse_remote_dependencies_survive_checkpoint_reopen_and_later_delivery",
+        "tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen",
+        "tests::rejects_production_directories_and_malformed_requests",
+        "tests::final_close_replays_committed_remote_tail_after_lost_notification",
+        "tests::c_abi_preserves_unicode_across_close_and_reopen_and_rejects_stale_handles",
+        "tests::abi_distinguishes_stored_remote_from_applied_and_retains_blocked_owner",
+        "tests::ephemeral_selection_abi_tracks_history_and_drops_without_checkpoint_writes",
+        "tests::native_prose_unicode_history_and_metadata_survive_sqlite_reopen",
+        "tests::input_branches_checkpoint_once_and_guard_active_composition",
+        "tests::draft_remote_abi_preserves_concurrent_text_and_survives_checkpoint_reopen"
+      ],
+      "outputSha256": "e52c224641f606fbc56c268efa0d4f546f07f9560480970af007440f3d5c690f"
+    }
+  ],
+  "rendererMaterialization": [
+    {
+      "file": "src/renderer/lib/db.test.ts",
+      "passed": 10,
+      "failed": 0,
+      "cases": [
+        "Drizzle Tauri transaction binding notifies only after the outer commit, including successful savepoints",
+        "Drizzle Tauri transaction binding discards notifications registered in a rolled-back savepoint",
+        "Drizzle Tauri transaction binding discards successful-savepoint notifications when the outer transaction rolls back",
+        "Drizzle Tauri transaction binding does not notify when the gateway commit fails",
+        "Drizzle Tauri transaction binding does not turn an observer failure into an apparent author write failure",
+        "Drizzle Tauri transaction binding rejects notification registration outside a live bound transaction",
+        "Drizzle Tauri transaction binding uses the gateway transaction ID and never emits raw top-level transaction SQL",
+        "Drizzle Tauri transaction binding rolls back the owning gateway transaction when the callback fails",
+        "Drizzle Tauri transaction binding serializes concurrent top-level transactions before asking Rust to begin",
+        "Drizzle Tauri transaction binding implements nested Drizzle transactions with transaction-bound savepoints"
+      ]
+    },
+    {
+      "file": "src/renderer/services/snapshot-restore-sync-boundary.acceptance.test.ts",
+      "passed": 2,
+      "failed": 0,
+      "cases": [
+        "snapshot history SyncEngine boundary journals every closed-document restore before compaction",
+        "snapshot history SyncEngine boundary flushes an open document and keeps local history off hosted HTTP"
+      ]
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-materialization.integration.test.ts",
+      "passed": 14,
+      "failed": 0,
+      "cases": [
+        "positive Yjs materialization admission records stable indices and historical revisions for two actual local appends in one normalized envelope",
+        "positive Yjs materialization admission does not backfill admission for an arbitrary journal mutation with existing identical raw bytes",
+        "positive Yjs materialization admission rejects forged old-row registration and cross-builder or wrong-index tokens",
+        "positive Yjs materialization admission refuses tokens after commit and rollback even when the rolled-back row ID is reused",
+        "positive Yjs materialization admission never rebinds a fresh state-carrier token to a same-bytes suppressed command",
+        "positive Yjs materialization admission rolls all tables back on admission failure and retries at sequence and revision one",
+        "positive Yjs materialization admission rolls the complete batch back when its second receipt fails and retries both appends",
+        "positive Yjs materialization admission rolls admission back when post-journal authored observation fails",
+        "positive Yjs materialization admission retains immutable admission after actual snapshot and raw pruning",
+        "positive Yjs materialization admission gives identical bytes in independent authored originals independent row IDs and admissions",
+        "positive Yjs materialization admission seals an authored append only to its newly inserted original and rejects an old identical unadmitted original",
+        "positive Yjs materialization admission uses the final restored incarnation rather than the provisional prose target zero",
+        "positive Yjs materialization admission preserves per-append revisions when the same restore transaction then advances a snapshot revision",
+        "positive Yjs materialization admission rejects an outer-handle materialized append inside a savepoint before rollback can leave a reusable lease"
+      ]
+    },
+    {
+      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
+      "passed": 15,
+      "failed": 0,
+      "cases": [
+        "authored Yjs journal persists actual transaction evidence with identical update and immutable envelope bytes",
+        "authored Yjs journal copies update and evidence before waiting for the SQLite transaction scheduler",
+        "authored Yjs journal keeps user revision labels separate from wire evidence",
+        "authored Yjs journal keeps agent revision labels separate from wire evidence",
+        "authored Yjs journal keeps system revision labels separate from wire evidence",
+        "authored Yjs journal keeps seed and restore state untagged unless an operation supplies evidence",
+        "authored Yjs journal persists explicit state-transfer evidence without transaction delete claims",
+        "authored Yjs journal rolls back evidence and prose together when receipt observation fails after journaling",
+        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":2,\"kind\":\"state-transfer\"}",
+        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"transaction-event\",\"beforeSnapshot\":{\"0\":255},\"transactionDeletes\":[]}",
+        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"state-transfer\",\"transactionDeletes\":[]}",
+        "authored Yjs journal commits the update, revision, provenance and raw-byte mutation atomically",
+        "authored Yjs journal commits a deterministic create seed with the owner and one complete authored change-set",
+        "authored Yjs journal rolls every Yjs row back when the authored transaction cannot bind a SyncGeneration",
+        "authored Yjs journal enumerates snapshot-only documents for checkpoint capture"
+      ]
+    },
+    {
+      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
+      "passed": 27,
+      "failed": 0,
+      "cases": [
+        "production SyncDomainMaterializationKernel on file-backed SQLite classifies every frozen reducer target as implemented or explicitly fail-closed",
+        "production SyncDomainMaterializationKernel on file-backed SQLite lets a narrative drop update an older chapter lifecycle without revalidating untouched book order",
+        "production SyncDomainMaterializationKernel on file-backed SQLite rejects a newly authored chapter fractional-order register",
+        "production SyncDomainMaterializationKernel on file-backed SQLite replays a locked built-in relation type before applying the next chapter creation bundle",
+        "production SyncDomainMaterializationKernel on file-backed SQLite materializes a classified field and records no authored echo",
+        "production SyncDomainMaterializationKernel on file-backed SQLite keeps invalid effects as deterministic conflicts without touching domain rows",
+        "production SyncDomainMaterializationKernel on file-backed SQLite validates relation invariants before a lifecycle seed reaches SQLite",
+        "production SyncDomainMaterializationKernel on file-backed SQLite materializes membership OR-set state before the independent primary LWW register",
+        "production SyncDomainMaterializationKernel on file-backed SQLite removes storyline memberships before materializing storyline trash",
+        "production SyncDomainMaterializationKernel on file-backed SQLite accepts a local authored membership removal bundled with storyline trash",
+        "production SyncDomainMaterializationKernel on file-backed SQLite blocks a primary register that does not reference a present membership",
+        "production SyncDomainMaterializationKernel on file-backed SQLite materializes trash and full-seed restore as a new incarnation",
+        "production SyncDomainMaterializationKernel on file-backed SQLite fails closed on scalar prose and prose lifecycles without one full Yjs state",
+        "production SyncDomainMaterializationKernel on file-backed SQLite restores rows without deletedAt from physical trash projections at incarnation one",
+        "production SyncDomainMaterializationKernel on file-backed SQLite keeps restored Yjs and asset ownership when late incarnation-zero operations arrive",
+        "production SyncDomainMaterializationKernel on file-backed SQLite applies a valid Yjs update with remote provenance inside the receipt transaction",
+        "production SyncDomainMaterializationKernel on file-backed SQLite preserves transaction-event evidence in the remote envelope while materializing ordinary prose",
+        "production SyncDomainMaterializationKernel on file-backed SQLite preserves state-transfer evidence in the remote envelope while materializing ordinary prose",
+        "production SyncDomainMaterializationKernel on file-backed SQLite rejects present null at the direct kernel validation seam without domain or Yjs writes",
+        "production SyncDomainMaterializationKernel on file-backed SQLite rejects unsupported evidence version at the direct kernel validation seam without domain or Yjs writes",
+        "production SyncDomainMaterializationKernel on file-backed SQLite rejects snapshot with trailing bytes at the direct kernel validation seam without domain or Yjs writes",
+        "production SyncDomainMaterializationKernel on file-backed SQLite rejects overlapping delete ranges at the direct kernel validation seam without domain or Yjs writes",
+        "production SyncDomainMaterializationKernel on file-backed SQLite binds an asset only after verified blob staging and enforces one typed owner",
+        "production SyncDomainMaterializationKernel on file-backed SQLite converges asset bind/unbind when the older bind arrives after the winner",
+        "production SyncDomainMaterializationKernel on file-backed SQLite materializes sync-generation.purge without deleting the immutable sync receipt",
+        "production SyncDomainMaterializationKernel on file-backed SQLite keeps sync-generation.purge absorbing across two-writer reorder, duplicate, and restart replay",
+        "production SyncDomainMaterializationKernel on file-backed SQLite preserves the terminal purge register through checkpoint reducer-state restore"
+      ]
+    },
+    {
+      "file": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts",
+      "passed": 12,
+      "failed": 0,
+      "cases": [
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc keeps exact user and Agent revision provenance after update compaction",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc commits seed -> closed commands, survives compaction, and replays receipts without a duplicate write",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for persisted prose with 'missing-block-id' without writing a repair update",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for persisted prose with 'duplicate-block-id' without writing a repair update",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for live prose with 'missing-block-id' without mutating Yjs or SQLite",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for live prose with 'duplicate-block-id' without mutating Yjs or SQLite",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc applies a committed command to the live Y.Doc with an already-persisted origin and no second append",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc rolls back Yjs, revision, projection, journal, and receipt when the transaction-bound journal fails",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc detects stale revision/vector/hash before mutation and commits an exact inverse as a new revision",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc rebases an inverse over an unrelated durable block edit and preserves both outcomes",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc refuses a rebased inverse after its affected block changed again",
+        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails the SQL revision CAS when another durable Yjs update wins the race"
+      ]
+    }
+  ],
+  "checks": {
+    "normalLibraries": true,
+    "strictTypeScript": true,
+    "rustfmt": true,
+    "eventOrderFixtures": {
+      "accepted": 11,
+      "rejected": 21,
+      "actualNativeEvents": 4
+    },
+    "journalWireCases": 3,
+    "nativeWireCases": 4
+  },
+  "boundaries": [
+    "Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.",
+    "Exact Yrs event bytes are preserved; delete-client groups may be in any order, while minimal varuint, complete consumption, duplicate-client, range overlap and declared-range checks remain enforced.",
+    "NativeLab opens with a complete current scope and revalidates it before persistence; unscoped captured deletion is retained and rejected, never downgraded to an unclassified payload.",
+    "Rust and renderer writers record positive local materialization in the append transaction. Renderer append tokens are bound to the innermost active transaction and exact original; rolled-back or same-bytes foreign originals cannot borrow them. No historical admission is backfilled.",
+    "Renderer tests cover journal, reducer, Agent persistence, transaction/savepoint behavior and source-level snapshot service wiring; they do not establish live editor reconciliation or performance.",
+    "Unsupported noncontiguous/structural/formatted intent remains raw; this evidence does not certify generic deletion intent, semantic alias deletion routing, receiver authority or capability negotiation.",
+    "No OriginalAtomicOwner, isolated semantic authority module, provider/account, UI event synthesis, physical device, signing or release acceptance is included. Actual process-kill evidence is generated by its separate durability runner."
+  ]
+}

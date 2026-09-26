@@ -32,6 +32,8 @@ const sourceFiles = [
   'src-tauri/src/google_drive_sync.rs',
   'src-tauri/src/google_drive_sync_legacy_fixture.rs',
   'src-tauri/src/database.rs',
+  'crates/drifting-core/src/database.rs',
+  'crates/drifting-core/src/file_io.rs',
   'src-tauri/src/mcp_stdio.rs',
   'src/renderer/platform/types.ts',
   'src/renderer/platform/contracts.ts',
@@ -115,6 +117,11 @@ if (process.argv.includes('--check')) {
       native.stdout,
     );
     if (!totals) throw new Error('Native test result is missing');
+    const core = spawnSync('cargo', ['test', '--manifest-path', 'crates/drifting-core/Cargo.toml', '--locked', '--lib'], { encoding: 'utf8' });
+    if (core.status !== 0) throw new Error(`Shared database acceptance failed\n${core.stdout}\n${core.stderr}`);
+    const coreTotals = /test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored/.exec(core.stdout);
+    if (!coreTotals || Number(coreTotals[1]) === 0) throw new Error('Shared database tests are missing');
+
     const report = {
       contract,
       automated: {
@@ -128,6 +135,10 @@ if (process.argv.includes('--check')) {
               suite.assertionResults.map((test) => ({ name: test.fullName, status: test.status })),
             )
             .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)),
+        },
+        sharedDatabase: {
+          passed: Number(coreTotals[1]), failed: Number(coreTotals[2]), ignored: Number(coreTotals[3]),
+          command: 'cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib',
         },
         native: {
           passed: Number(totals[1]),

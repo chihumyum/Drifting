@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_native_device_prerequisite_diagnostic",
+  "status": "blocked-at-development-signing",
+  "attemptRecordedAt": "2026-09-25T14:01:21.080522+00:00",
+  "source": {
+    "generator": "scripts/apple-device-prerequisite-diagnostic.mjs",
+    "generatorSha256": "8370eb1c32a6b451b2f2d0eb9ea8c26d0c1f71d0fafeb53fab26433813d07bc1",
+    "nativeRuntimeSourceAssociation": "not-captured; no runtime acceptance claimed"
+  },
+  "device": {
+    "observedPhysicalDevices": 1,
+    "model": "iPhone18,2",
+    "osVersion": "27.0",
+    "bootState": "booted",
+    "developerMode": "enabled",
+    "ddiServicesAvailable": true,
+    "pairingState": "paired",
+    "transport": "localNetwork",
+    "tunnelState": "connected"
+  },
+  "signing": {
+    "validAppleDevelopmentIdentities": 2,
+    "recordedProfiles": 15,
+    "recordedUnexpiredProfiles": 15,
+    "profilesWithSomeLocalDevelopmentIdentity": 15,
+    "nativeBundleMatchingProfiles": 1,
+    "profilesIncludingPairedDevice": 11,
+    "eligibleNativeDeviceProfiles": 0,
+    "status": "failed",
+    "exitCode": 65,
+    "failures": [
+      "no-xcode-account",
+      "profile-excludes-device",
+      "profile-certificate-mismatch"
+    ]
+  },
+  "deviceRustBuild": {
+    "status": "build-completed-only",
+    "target": "aarch64-apple-ios",
+    "profile": "debug"
+  },
+  "acceptance": {
+    "installation": "not-run",
+    "appLaunch": "not-run",
+    "hostedUIKitTests": "not-run",
+    "deviceUITests": "not-run",
+    "realTouch": "not-run",
+    "realIME": "not-run",
+    "interruptionRecovery": "not-run",
+    "distribution": "not-run"
+  },
+  "artifacts": [
+    {
+      "role": "device-list",
+      "sha256": "a64c6c4e6851306ab00e5ba918d88683cbc6c3d7e6c3ec3d3d80b954c2b7e312",
+      "bytes": 42394
+    },
+    {
+      "role": "physical-device-details",
+      "sha256": "8e3343bf04aa78a1882f7c71f217cc77bffad03ea0dc85e39c678a339b10ead1",
+      "bytes": 15362
+    },
+    {
+      "role": "signing-identity-inventory",
+      "sha256": "4b4c5652f3cdc809b781d8386e02e64cf8e0c0a10eca18728ef036897dd6d273",
+      "bytes": 320
+    },
+    {
+      "role": "profile-metadata-inventory",
+      "sha256": "0be0e07fd0026f8f2de87140b5ecd36ce4480ec7a368d48a0bd457261f4c7d49",
+      "bytes": 6898
+    },
+    {
+      "role": "device-rust-build-log",
+      "sha256": "29c6a65f37c4ec035e9f9629af3cf472c8ba573673413dfa6268e40d0ad04c5d",
+      "bytes": 24659
+    },
+    {
+      "role": "development-signing-build-log",
+      "sha256": "bd1401cf978450862b0d73f1f950006c3f10f7eff5f8456bbcca6e711f581091",
+      "bytes": 3481
+    },
+    {
+      "role": "attempt-stop-receipt",
+      "sha256": "a85646e21f5b681ffe0c54985eb1d839d8b1624639bae54e9a6396cbcfd2935f",
+      "bytes": 1122
+    }
+  ],
+  "limitations": [
+    "Hardware discovery and signing metadata are prerequisites, not physical-device application acceptance.",
+    "A completed Rust target build does not prove the signed iOS app builds or runs.",
+    "The failed attempt did not capture a native source fingerprint; the generator hash authenticates only this diagnostic producer.",
+    "Not-run fields describe this stopped attempt; no claim is made about unrelated device activity.",
+    "Raw local artifacts are hashed, never embedded. Signing identities and profile metadata do not prove an authenticated Xcode account."
+  ]
+}

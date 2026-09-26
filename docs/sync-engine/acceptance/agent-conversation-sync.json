@@ -15,10 +15,12 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
+      "crates/drifting-core/src/database.rs": "0f10006f3fbdbf42c2888d964ab2ac1de552d5d49964a5ae3dcea1d6649f3a40",
+      "crates/drifting-core/src/file_io.rs": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
-      "scripts/generate-agent-conversation-sync.ts": "437dc49597db754b0aba5d56a4624c8703778e1be1dfe1bc45218b60f7f30655",
-      "src-tauri/src/database.rs": "bfce13d0e6f821c1a806f928dadf81f967fb35bec190d4de0cc71593f8b9bd30",
+      "scripts/generate-agent-conversation-sync.ts": "2e083e27d2398976b272e1eb929aa493186277a6bf62c752eadf530b0f354372",
+      "src-tauri/src/database.rs": "0542c66d704a6633290f9e051cd9971ad86ae86b6e62c9daa12ef3c8a65c71c8",
       "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
       "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
       "src-tauri/src/mcp_stdio.rs": "48c385cbd4571c60a89e29d1013029c9cb26ffec924543d18d0eba2c5be74ce2",
@@ -26,7 +28,7 @@
       "src/renderer/features/agent/chat-display-projection.ts": "3ed2ecce0b1333bf697cfc90805540138a071758be7422498e1e2c17eb4ad9b5",
       "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "51a0ce295e8dc842c7718c07e9b55af2fd1e36f0b4df1f05f4908c17c1f6312d",
       "src/renderer/features/agent/useAgentChatMessages.ts": "6685393d3cc43c71fc4ea954fcc2f159faf50353dc3f4b6ab6a3427303168f63",
-      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "8b1d2a2ca29dc9a5d21f7cf90e8a19718a0b4a4f32ec1566a0bbbcfa378cb47f",
+      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "29ee9564927f9a9d82c85d2c4f014f511d4d23f77d2c6b7dfd761563b2a2f3d8",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts": "51d399cf3dffefd538e86f3b173d4b3bffb10e092d088be4adb92bfbdfb7fd6c",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.ts": "152db7e49f552b39e1dd5bba8d61d23a73dc000d28ed229137e87b5f4777e24f",
       "src/renderer/lib/agent/runtime/chat-message-publication.ts": "23992bb0ea3be5f8885deac0ebcc9ac18cbb37601ca93689bc1497fc82a679f1",
@@ -35,7 +37,7 @@
       "src/renderer/lib/events.ts": "450249da4402ebb8609233cbf3665802d09ef7d8644898855c312df637e8380b",
       "src/renderer/platform/contracts.ts": "d7abe5e13130fce84ae3832ff48a56bbf17bf8dd0441cd5a654bddcc3041ceb0",
       "src/renderer/platform/types.ts": "48a1b88e2af5c1676be225722e235dc54faadb55ec61164c7e21db09d4ef77aa",
-      "src/renderer/schema/drizzle.ts": "bce085e5b96d2975ea40ad58603708fd2d85d485ac36673b0e6de4754cee7ea4",
+      "src/renderer/schema/drizzle.ts": "b27a674f229c9d91fb6d4992f4c4144cbbce1f9eab3256f5447590057ac8b5b3",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "27d71a8ddf9ead7a8ba3840f7161993516ee723a1876da37e6a1e0329d2f2fc5",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "44b089770371795c6dc52ae4534cb89e632e2e85f80084cf1ec45c223ac3902d",
       "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts": "17e33829609d5a685bcb54f65de2bab41ad18bdce69c200180441aec49dde6fb",
@@ -52,7 +54,7 @@
       "src/renderer/sync/agent-chat/seed.ts": "4f335f75d8203c2196817b313926808ce6300791f0ef8d728fab647a034c7766",
       "src/renderer/sync/production-runtime.test.ts": "3b0af580f9d88f9ee58c0ba718baa7d578749cff4553afcc962abdcc7cd7aa45",
       "src/renderer/sync/production-runtime.ts": "5e97c7546d010bdc6210f5f1804c2708a391ca62de4488207a4d2e45da9574be",
-      "src/renderer/sync/protocol/domain-manifest.ts": "9f5e8313f37d72e39bc468d249da84ec4abb6553d748f5c9631112c04f0f748a",
+      "src/renderer/sync/protocol/domain-manifest.ts": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766",
       "src/renderer/sync/providers/google-drive/tauri-transport.test.ts": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1",
       "src/renderer/sync/providers/google-drive/tauri-transport.ts": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
     }
@@ -306,8 +308,14 @@
         }
       ]
     },
+    "sharedDatabase": {
+      "passed": 57,
+      "failed": 0,
+      "ignored": 0,
+      "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
+    },
     "native": {
-      "passed": 108,
+      "passed": 90,
       "failed": 0,
       "ignored": 1,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"

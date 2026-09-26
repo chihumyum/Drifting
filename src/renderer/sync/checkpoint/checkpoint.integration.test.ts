@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import * as Y from 'yjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import type { DbClient } from '../../lib/db';
@@ -27,9 +27,11 @@ import {
   ProjectTable,
   StorylineTable,
   SyncChangeSetTable,
+  SyncApplyReceiptTable,
   SyncCheckpointTable,
   SyncFieldClockTable,
   SyncFrontierTable,
+  SyncMutationTable,
   SyncOrderRegisterTable,
   SyncRestoreAttemptTable,
   SyncSetTagTable,
@@ -41,10 +43,13 @@ import {
 } from '../../schema/drizzle';
 import {
   createLocalObjectRef,
+  decodeCanonicalCbor,
+  decodeSnapshotPackageV1,
   encodeCanonicalCbor,
   encodeSnapshotCommitMarkerV1,
   encodeSnapshotPackageV1,
   sha256Bytes,
+  type CanonicalCborValue,
   type LocalObjectRef,
   type Sha256,
   type SnapshotPackageV1,
@@ -69,7 +74,9 @@ import {
   restoreSnapshotV1,
   restoreSnapshotsAtomicallyV1,
   SnapshotRestoreError,
+  validateSnapshotForRestoreV1,
   type CapturedSnapshotV1,
+  type ReducerStatePayloadV1,
   type SnapshotAssetRestorePort,
 } from '.';
 
@@ -139,7 +146,7 @@ function yState(text: string): Uint8Array {
   return Y.encodeStateAsUpdate(doc);
 }
 
-async function seedSource(db: DbClient): Promise<void> {
+async function seedSource(db: DbClient, includeTransactionEvidence = false): Promise<void> {
   await db.insert(ProjectTable).values({
     id: PROJECT_ID,
     name: 'Checkpoint source',
@@ -318,6 +325,7 @@ async function seedSource(db: DbClient): Promise<void> {
   combined.getText('content').insert(0, 'snapshot');
   const snapshot = Y.encodeStateAsUpdate(combined);
   const vector = Y.encodeStateVector(combined);
+  const beforeSnapshot = Y.encodeSnapshot(Y.snapshot(combined));
   combined.getText('content').insert(8, ' + update');
   const update = Y.encodeStateAsUpdate(combined, vector);
   await db.insert(yjsSnapshots).values({
@@ -387,6 +395,15 @@ async function seedSource(db: DbClient): Promise<void> {
       action: 'field.set',
       payload: { field: 'title', value: 'Snapshot node with reducer clock' },
     });
+    if (includeTransactionEvidence) {
+      changes.add({
+        target: { family: 'yjs', kind: 'prose-document', id: 'storyline:storyline-combined', incarnation: 0 },
+        action: 'yjs.update',
+        payload: { update, sourceRetentionProvenance: {
+          version: 1, kind: 'transaction-event', beforeSnapshot, transactionDeletes: [],
+        } },
+      });
+    }
     const [firstKey, secondKey] = fractionalPositionKeysBetween(null, null, 2);
     appendAuthoredOrderMove(changes, {
       listKind: 'storyline',
@@ -533,6 +550,75 @@ async function restore(
   });
 }
 
+type MutableMutationRow = Record<string, CanonicalCborValue>;
+type MutationRowsTamper = (rows: MutableMutationRow[]) => void | Promise<void>;
+
+async function resealMutationRows(
+  captured: CapturedSnapshotV1,
+  tamper: MutationRowsTamper,
+): Promise<CapturedSnapshotV1> {
+  const decoded = decodeCanonicalCbor(captured.package.reducerState.bytes);
+  if (!decoded.ok) throw new Error('Synthetic reducer state failed to decode');
+  const reducer = decoded.value as unknown as ReducerStatePayloadV1;
+  const mutations = reducer.mutations.map((row) => ({ ...row }));
+  await tamper(mutations);
+  const bytes = encodeCanonicalCbor({ ...reducer, mutations } as unknown as CanonicalCborValue);
+  const packageValue: SnapshotPackageV1 = {
+    ...captured.package,
+    reducerState: { ...captured.package.reducerState, bytes, sha256: await sha256Bytes(bytes) },
+  };
+  const packageBytes = encodeSnapshotPackageV1(packageValue);
+  const packageSha256 = await sha256Bytes(packageBytes);
+  const commitMarker = { ...captured.commitMarker, packageSha256 };
+  return {
+    ...captured,
+    package: packageValue,
+    packageBytes,
+    packageSha256,
+    commitMarker,
+    commitMarkerBytes: encodeSnapshotCommitMarkerV1(commitMarker),
+  };
+}
+
+const mutationRowTampering: readonly [string, MutationRowsTamper][] = [
+  ['payload bytes', (rows) => { rows[0]!.payload_cbor = encodeCanonicalCbor({ forged: true }); }],
+  ['payload hash', (rows) => { rows[0]!.payload_sha256 = '0'.repeat(64); }],
+  ['forged payload with matching row hash', async (rows) => {
+    const bytes = encodeCanonicalCbor({ forged: true });
+    rows[0]!.payload_cbor = bytes;
+    rows[0]!.payload_sha256 = (await sha256Bytes(bytes)).slice('sha256:'.length);
+  }],
+  ['action', (rows) => { rows[0]!.action = rows[0]!.action === 'field.set' ? 'entity.create' : 'field.set'; }],
+  ['target family', (rows) => { rows[0]!.target_family = 'yjs'; }],
+  ['target kind', (rows) => { rows[0]!.target_kind = 'prose-document'; }],
+  ['target id', (rows) => { rows[0]!.target_id = 'synthetic-forged-target'; }],
+  ['incarnation', (rows) => { rows[0]!.incarnation = Number(rows[0]!.incarnation) + 1; }],
+  ['payload version', (rows) => { rows[0]!.payload_version = 2; }],
+  ['missing row', (rows) => { rows.splice(0, 1); }],
+  ['extra row with out-of-range index', (rows) => {
+    rows.push({ ...rows[0]!, mutation_index: rows.length });
+  }],
+  ['negative index', (rows) => { rows[0]!.mutation_index = -1; }],
+  ['duplicate index', (rows) => { rows[0]!.mutation_index = rows[1]!.mutation_index!; }],
+];
+
+async function restoredDomainState(db: DbClient) {
+  return Promise.all([
+    db.select().from(ProjectTable),
+    db.select().from(SyncGenerationTable),
+    db.select().from(SyncChangeSetTable),
+    db.select().from(SyncMutationTable),
+    db.select().from(SyncApplyReceiptTable),
+    db.select().from(SyncCheckpointTable),
+    db.select().from(SyncFrontierTable),
+    db.select().from(SyncGenerationWriterStateTable),
+    db.select().from(ProjectAssetTable),
+    db.select().from(NodeContentTable),
+    db.select().from(yjsSnapshots),
+    db.select().from(yjsUpdates),
+  ]);
+}
+
 afterEach(async () => {
   for (const gateway of gateways.splice(0)) await gateway.close();
   for (const directory of temporaryDirectories.splice(0)) {
@@ -615,7 +701,7 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
 
   it('captures and restores snapshot-only, update-only, combined, and seed-only prose', async () => {
     const source = await database('source');
-    await seedSource(source);
+    await seedSource(source, true);
     const captured = await capture(source);
     expect(captured.package.proseDocuments.map((entry) => [entry.documentId, entry.mode])).toEqual([
       ['category:category-seed', 'seed-only'],
@@ -640,6 +726,16 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
         origin: 'remote',
       },
     ]);
+    const mutationRows = (db: DbClient) => db.select().from(SyncMutationTable).orderBy(
+      asc(SyncMutationTable.changeSetId), asc(SyncMutationTable.mutationIndex),
+    );
+    expect(await mutationRows(target)).toEqual(await mutationRows(source));
+    const evidenceRow = (await mutationRows(target)).find(row => row.action === 'yjs.update');
+    expect(evidenceRow).toBeDefined();
+    const evidencePayload = decodeCanonicalCbor(evidenceRow!.payloadCbor as Uint8Array);
+    expect(evidencePayload).toMatchObject({ ok: true, value: {
+      sourceRetentionProvenance: { version: 1, kind: 'transaction-event', transactionDeletes: [] },
+    } });
     expect(await target.select().from(SyncFieldClockTable)).toContainEqual(
       expect.objectContaining({
         targetKind: 'node',
@@ -962,4 +1058,48 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     ).rejects.toBeInstanceOf(SnapshotRestoreError);
     expect(await invalid.select().from(ProjectTable)).toEqual([]);
   });
+
+  it.each(mutationRowTampering)(
+    'rejects rehashed checkpoint mutation-row %s without changing target domain state',
+    async (_label, tamper) => {
+      const source = await database('mutation-row-source');
+      await seedSource(source);
+      const captured = await capture(source);
+      const invalid = await resealMutationRows(captured, tamper);
+      // All outer hashes are valid; only the retained row disagrees with its
+      // original, independently verified encoded change-set mutation.
+      expect((await decodeSnapshotPackageV1(invalid.packageBytes)).ok).toBe(true);
+      expect(await sha256Bytes(invalid.packageBytes)).toBe(invalid.commitMarker.packageSha256);
+      await expect(validateSnapshotForRestoreV1({
+        packageBytes: invalid.packageBytes,
+        commitMarkerBytes: invalid.commitMarkerBytes,
+        expected: { projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID },
+      })).rejects.toMatchObject({ code: 'reference-invalid' });
+
+      const target = await database('mutation-row-target');
+      await stagedTarget(target);
+      await target.insert(ProjectTable).values({
+        id: 'unrelated-synthetic-project',
+        name: 'Retain existing project',
+        userId: 'existing-synthetic-user',
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const before = await restoredDomainState(target);
+      const port = restorePort();
+      const prepareVerifiedSource = vi.fn(port.prepareVerifiedSource);
+      const activatePreparedSources = vi.fn(port.activatePreparedSources);
+      await expect(restore(target, invalid, {
+        assetPort: { ...port, prepareVerifiedSource, activatePreparedSources },
+      })).rejects.toMatchObject({ code: 'reference-invalid' });
+      expect(await restoredDomainState(target)).toEqual(before);
+      expect(prepareVerifiedSource).not.toHaveBeenCalled();
+      expect(activatePreparedSources).not.toHaveBeenCalled();
+      // Failed-attempt bookkeeping is intentionally durable; no domain,
+      // journal, frontier or prose state from the package has been exposed.
+      expect(await target.select().from(SyncRestoreAttemptTable)).toMatchObject([
+        { state: 'failed', errorCode: 'reference-invalid', activationReceipt: null },
+      ]);
+    },
+  );
 });

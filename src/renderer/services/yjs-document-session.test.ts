@@ -36,6 +36,9 @@ function createHarness(options: { updates?: YjsUpdateRow[]; snapshotError?: Erro
       )),
     listDocIds: vi.fn(async () => []),
     appendUpdate: vi.fn(async (docId, update) => persistUpdate(docId, update)),
+    appendMaterializedUpdate: vi.fn(async () => {
+      throw new Error('Session writes must use the authored transaction dependency.');
+    }),
     appendUpdateCas: vi.fn(async (docId, update, expectedRevision) => ({
       updateId: persistUpdate(docId, update),
       previousRevision: expectedRevision,

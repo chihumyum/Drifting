@@ -15,7 +15,7 @@ if (/^\s{4}tags:/mu.test(ci)) {
   errors.push('ordinary CI must not duplicate the exact-SHA release workflow on tags');
 }
 
-for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native']) {
+for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native', 'apple-native']) {
   requireMatch(ci, new RegExp(`^  ${job}:\\s*$`, 'mu'), `CI is missing the ${job} job`);
 }
 requireMatch(ci, /^\s{4}name: client\s*$/mu, 'CI must preserve the required client context');
@@ -34,6 +34,12 @@ requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u,
 for (const command of [
   'pnpm ci:contract:check',
   'pnpm public:check',
+  'pnpm apple:check',
+  'pnpm apple:acceptance --ios-only',
+  'pnpm apple:document:acceptance',
+  'pnpm apple:binding:acceptance',
+  'pnpm apple:durability:acceptance',
+  'pnpm apple:authoring:acceptance',
   'pnpm security:dependencies',
   'pnpm lint',
   'pnpm typecheck',

@@ -3411,3 +3411,31 @@ export const SyncQuarantinedObjectTable = sqliteTable(
     ),
   ],
 );
+
+/** Local-only immutable positive evidence of this database's Yjs append. */
+export const SyncYjsMaterializationReceiptTable = sqliteTable('sync_yjs_materialization_receipt', {
+  changeSetId: text('change_set_id').notNull(),
+  mutationIndex: integer('mutation_index').notNull(),
+  admissionVersion: integer('admission_version').notNull().default(1),
+  originalEnvelopeSha256: text('original_envelope_sha256').notNull(),
+  documentId: text('document_id').notNull(),
+  incarnation: integer('incarnation').notNull(),
+  eventSha256: text('event_sha256').notNull(),
+  updateRowId: integer('update_row_id').notNull(),
+  documentRevision: integer('document_revision').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.changeSetId, t.mutationIndex] }),
+  uniqueIndex('uniq_sync_yjs_materialization_update').on(t.updateRowId),
+  foreignKey({ columns: [t.changeSetId, t.mutationIndex], foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex] }).onDelete('restrict'),
+  check('sync_yjs_materialization_change_set_check', sql`typeof(${t.changeSetId}) = 'text' and length(${t.changeSetId}) > 0`),
+  check('sync_yjs_materialization_index_check', sql`typeof(${t.mutationIndex}) = 'integer' and ${t.mutationIndex} between 0 and 9007199254740991`),
+  check('sync_yjs_materialization_version_check', sql`typeof(${t.admissionVersion}) = 'integer' and ${t.admissionVersion} = 1`),
+  check('sync_yjs_materialization_original_hash_check', sql`typeof(${t.originalEnvelopeSha256}) = 'text' and length(${t.originalEnvelopeSha256}) = 64 and length(CAST(${t.originalEnvelopeSha256} AS BLOB)) = 64 and ${t.originalEnvelopeSha256} not glob '*[^0-9a-f]*'`),
+  check('sync_yjs_materialization_doc_check', sql`typeof(${t.documentId}) = 'text' and length(${t.documentId}) > 0`),
+  check('sync_yjs_materialization_incarnation_check', sql`typeof(${t.incarnation}) = 'integer' and ${t.incarnation} between 0 and 9007199254740991`),
+  check('sync_yjs_materialization_event_hash_check', sql`typeof(${t.eventSha256}) = 'text' and length(${t.eventSha256}) = 64 and length(CAST(${t.eventSha256} AS BLOB)) = 64 and ${t.eventSha256} not glob '*[^0-9a-f]*'`),
+  check('sync_yjs_materialization_update_check', sql`typeof(${t.updateRowId}) = 'integer' and ${t.updateRowId} between 1 and 9007199254740991`),
+  check('sync_yjs_materialization_revision_check', sql`typeof(${t.documentRevision}) = 'integer' and ${t.documentRevision} between 1 and 9007199254740991`),
+  check('sync_yjs_materialization_created_check', sql`typeof(${t.createdAt}) = 'text' and length(${t.createdAt}) > 0`),
+]);

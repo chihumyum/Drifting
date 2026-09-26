@@ -19,7 +19,7 @@ const suites = [
   'src/dev-cli/manifest.test.ts',
 ];
 const measuredSuite = 'src/renderer/services/workspace-projection-reads.acceptance.test.ts';
-const nativeArgs = ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--lib', 'database::tests', '--', '--nocapture'];
+const nativeArgs = ['test', '--manifest-path', 'crates/drifting-core/Cargo.toml', '--lib', 'database::tests', '--', '--nocapture'];
 const output = 'docs/renderer-performance/acceptance/f6-workspace-reads.json';
 const fingerprint = () => workspaceEvidenceFingerprint(root);
 const nonnegative = (value) => Number.isFinite(value) && value >= 0;

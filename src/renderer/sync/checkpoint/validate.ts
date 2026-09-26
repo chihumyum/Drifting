@@ -14,6 +14,7 @@ import {
   type Hlc,
   type SnapshotCommitMarkerV1,
   type SnapshotPackageV1,
+  type SyncMutationV1,
 } from '../protocol';
 import {
   SNAPSHOT_DOMAIN_TABLE_NAMES_V1,
@@ -433,6 +434,7 @@ async function assertReducerIdentity(
   packageValue: SnapshotPackageV1,
 ): Promise<Hlc> {
   const changeSetIds = new Set<string>();
+  const expectedMutations = new Map<string, SyncMutationV1>();
   const mutationKeys = new Set<string>();
   const mutationsByKey = new Map<string, Readonly<Record<string, CanonicalCborValue>>>();
   let maxChangeSetHlc: Hlc = { wallMs: 0, counter: 0 };
@@ -474,6 +476,9 @@ async function assertReducerIdentity(
     if (compareHlc(maxChangeSetHlc, decoded.value.hlc) < 0) {
       maxChangeSetHlc = decoded.value.hlc;
     }
+    for (const mutation of decoded.value.mutations) {
+      expectedMutations.set(`${changeSetId}\u0000${mutation.index}`, mutation);
+    }
   }
   for (const row of reducer.mutations) {
     const changeSetId = requireString(row, 'change_set_id');
@@ -483,8 +488,31 @@ async function assertReducerIdentity(
     }
     const key = `${changeSetId}\u0000${index}`;
     if (mutationKeys.has(key)) throw new SnapshotRestoreError('reference-invalid', 'Reducer mutation identity repeats');
+    // Registers reference these materialized rows. Their meaning must come from
+    // the verified immutable change-set, not an independently supplied payload
+    // or target whose enclosing snapshot hash happens to be valid.
+    const expected = expectedMutations.get(key);
+    const payload = expected && encodeCanonicalCbor(expected.payload);
+    if (
+      !expected || !payload ||
+      row.target_family !== expected.target.family ||
+      row.target_kind !== expected.target.kind ||
+      row.target_id !== expected.target.id ||
+      row.incarnation !== expected.target.incarnation ||
+      row.action !== expected.action ||
+      row.payload_version !== expected.payloadVersion ||
+      row.payload_sha256 !== expected.payloadSha256.slice('sha256:'.length) ||
+      !(row.payload_cbor instanceof Uint8Array) ||
+      row.payload_cbor.length !== payload.length ||
+      !row.payload_cbor.every((byte, offset) => byte === payload[offset])
+    ) {
+      throw new SnapshotRestoreError('reference-invalid', `Reducer mutation ${changeSetId}/${index} disagrees with its change-set`);
+    }
     mutationKeys.add(key);
     mutationsByKey.set(key, row);
+  }
+  if (mutationKeys.size !== expectedMutations.size) {
+    throw new SnapshotRestoreError('reference-invalid', 'Reducer checkpoint must retain every change-set mutation exactly once');
   }
   const receiptIds = new Set<string>();
   for (const row of reducer.applyReceipts) {

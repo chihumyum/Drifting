@@ -109,7 +109,22 @@
     "security:dependencies": "pnpm audit --audit-level high",
     "public:evidence": "node scripts/generate-source-publication-evidence.mjs",
     "release:check": "node scripts/check-alpha-release.mjs",
-    "release:sbom": "node scripts/generate-release-sbom.mjs"
+    "release:sbom": "node scripts/generate-release-sbom.mjs",
+    "apple:inventory": "node scripts/check-apple-migration.mjs --write",
+    "apple:check": "node scripts/check-apple-migration.mjs",
+    "apple:build:macos": "node scripts/apple-native.mjs macos",
+    "apple:build:ios": "node scripts/apple-native.mjs ios",
+    "apple:build:ios-device": "node scripts/apple-native.mjs ios-device",
+    "apple:core:test": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked && cargo test --manifest-path crates/drifting-prose/Cargo.toml --locked && cargo test --manifest-path crates/drifting-apple-bridge/Cargo.toml --locked",
+    "apple:acceptance": "node scripts/apple-native-acceptance.mjs",
+    "apple:binding:acceptance": "node scripts/apple-binding-acceptance.mjs",
+    "apple:binding:check": "node scripts/apple-binding-acceptance.mjs --check",
+    "apple:document:acceptance": "node scripts/apple-document-acceptance.mjs",
+    "apple:document:check": "node scripts/apple-document-acceptance.mjs --check",
+    "apple:authoring:acceptance": "node scripts/apple-native-authoring-acceptance.mjs",
+    "apple:authoring:check": "node scripts/apple-native-authoring-acceptance.mjs --check",
+    "apple:durability:acceptance": "node scripts/apple-prose-durability-acceptance.mjs",
+    "apple:durability:check": "node scripts/apple-prose-durability-acceptance.mjs --check"
   },
   "keywords": [
     "tauri",

@@ -14,6 +14,8 @@ export function workspaceEvidenceFingerprint(root) {
     }
   };
   visit('src-tauri/src', /\.rs$/);
+  visit('crates/drifting-core/src', /\.rs$/);
+  files.push('crates/drifting-core/Cargo.toml', 'crates/drifting-core/Cargo.lock');
   visit('src/dev-cli', /\.ts$/);
   for (const name of readdirSync(path.join(root, 'scripts'))) if (/^(run-)?workspace-/.test(name)) files.push(`scripts/${name}`);
   for (const file of files.sort()) hash.update(file).update('\0').update(readFileSync(path.join(root, file)));

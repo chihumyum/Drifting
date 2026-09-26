@@ -1,3 +1,4 @@
+import { insertYjsMaterializationReceiptInTransaction } from '../../sqlite-repo/yjs-materialization-receipt-repo';
 import { and, eq, ne } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
@@ -67,6 +68,7 @@ import {
 import {
   compareUtf8Bytewise,
   parseProjectAssetMutationV1,
+  parseYjsUpdatePayload,
   validateProjectAssetBindSemantics,
   type CanonicalCborValue,
   type ProjectAssetBindPayloadV1,
@@ -666,10 +668,11 @@ async function validatePrimaryStorylineInvariant(
 }
 
 function parseYjsPayload(effect: Extract<ReducerEffect, { type: 'yjs.update' }>): Uint8Array | null {
-  const payload = record(effect.payload);
-  return payload?.update instanceof Uint8Array && payload.update.byteLength > 0
-    ? payload.update
-    : null;
+  try {
+    return parseYjsUpdatePayload(effect.payload).update;
+  } catch {
+    return null;
+  }
 }
 
 async function validateExternalEffect(
@@ -1277,7 +1280,21 @@ async function materializeYjsUpdate(
     }
     Y.applyUpdate(document, update, 'remote-sync');
     const contentJson = JSON.stringify(yDocToProsemirrorJSON(document, 'default'));
-    await repository.appendUpdate(effect.target.id, update, { kind: 'remote' });
+    const binding = {
+      kind: 'remote' as const,
+      changeSetId: effect.source.changeSetId,
+      mutationIndex: effect.source.mutationIndex,
+    };
+    const appended = await repository.appendMaterializedUpdate(effect.target.id, update, binding, {
+      kind: 'remote',
+    });
+    await insertYjsMaterializationReceiptInTransaction(context.tx, {
+      changeSetId: binding.changeSetId,
+      mutationIndex: binding.mutationIndex,
+      token: appended.token,
+      binding,
+      createdAt: winningIso(effect),
+    });
     const updatedAt = winningIso(effect);
     switch (parsed.kind) {
       case 'node-content':

@@ -10,11 +10,11 @@ process.chdir(root);
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9) ?? '.local-data/source-publication/evidence.json';
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180000 });
 const files = [...new Set(run('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(file => file && existsSync(file)))].sort();
-const inputs = files.filter(file => /^(src\/|src-tauri\/|packages\/|patches\/|scripts\/|\.github\/|package.json$|pnpm-)/.test(file));
+const inputs = files.filter(file => /^(src\/|src-tauri\/|crates\/|vendor\/|native\/|packages\/|patches\/|scripts\/|\.github\/|package.json$|pnpm-)/.test(file));
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const fingerprint = () => hash(inputs.map(file => `${file}\0${hash(readFileSync(file))}`).join('\n'));
 const source = { commit: run('git', ['rev-parse', 'HEAD']).trim(), dirty: Boolean(run('git', ['status', '--porcelain']).trim()),
-  fingerprint: fingerprint(), fingerprintScope: 'src, src-tauri, packages, patches, scripts, .github, package.json and pnpm files' };
+  fingerprint: fingerprint(), fingerprintScope: 'src, src-tauri, crates, vendor, native, packages, patches, scripts, .github, package.json and pnpm files' };
 const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-publication-evidence-'));
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 function audit(extra) {

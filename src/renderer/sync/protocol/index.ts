@@ -10,3 +10,4 @@ export * from './segment';
 export * from './snapshot';
 export * from './validation';
 export * from './versioned-codec';
+export * from './yjs-update-payload';

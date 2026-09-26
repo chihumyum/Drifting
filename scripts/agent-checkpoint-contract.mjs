@@ -13,7 +13,7 @@ export const checkpointSuites = [checkpointTestFile, 'src/renderer/sqlite-repo/a
 const hash = value => createHash('sha256').update(value).digest('hex');
 export const checkpointWorkerHash = root => hash(checkpointWorkerFiles.map(file => readFileSync(path.join(root, file), 'utf8')).join('\0'));
 export function checkpointFingerprint(root) {
-  const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'drizzle', 'src-tauri/src', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+  const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'crates/drifting-core/src', 'crates/drifting-core/Cargo.toml', 'crates/drifting-core/Cargo.lock', 'drizzle', 'src-tauri/src', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   files.push('scripts/agent-checkpoint-worker.mjs', 'scripts/agent-checkpoint-contract.mjs', 'scripts/run-agent-checkpoint-acceptance.mjs');
   return hash(rendererSourceFingerprint(root) + [...new Set(files)].sort().map(file => `${file}\0${hash(readFileSync(path.join(root, file)))}`).join('\n'));
 }

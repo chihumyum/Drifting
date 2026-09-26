@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "apple_native_p1_acceptance",
+  "generatedAt": "2026-09-25T07:56:56.361Z",
+  "status": "failed",
+  "source": {
+    "commit": "ab456af88daa03a973fbf8cfc94ca994b68a7ae8",
+    "dirty": true,
+    "runtimeFingerprint": "420db498acdcc92c38c985b8d071f8b1b6a6b2848791b98b6915ce3e3b6689ec"
+  },
+  "checks": [
+    {
+      "name": "inventory",
+      "status": "passed"
+    },
+    {
+      "name": "core",
+      "status": "passed",
+      "passed": 18
+    },
+    {
+      "name": "bridge",
+      "status": "passed",
+      "passed": 2
+    },
+    {
+      "name": "macos-build",
+      "status": "passed"
+    }
+  ],
+  "limits": {
+    "editor": "not-implemented",
+    "ime": "not-run",
+    "physicalDevice": "not-run",
+    "realAccount": "not-run",
+    "distribution": "not-run",
+    "minimumOSExecution": "not-run",
+    "intelBuild": "not-run"
+  },
+  "failure": "macos-ui failed; see .local-data/apple-native/acceptance-2026-09-25T07-56-56-360Z/macos-ui.log"
+}
