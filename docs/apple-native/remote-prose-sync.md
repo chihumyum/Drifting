@@ -129,6 +129,7 @@ SIGKILL durability harness and from power-loss evidence. Known old-peer
 alias-deletion and general structural gaps remain uncertified.
 
 The [complete chapter receiver](remote-workspace-sync.md) now owns the first
-metadata subset through the same canonical transaction. Next add project
-bootstrap, provider orchestration and the remaining domain reducer. Do not
+metadata subset through the same canonical transaction. Google Drive provider
+orchestration and snapshot bootstrap are deferred by the author's 2026-09-26
+scope update; continue local writing and Agent workflows. Do not
 filter unsupported metadata originals to skip ahead in a transport frontier.

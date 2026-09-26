@@ -19,6 +19,13 @@ paths. Performance work is deferred until functional integration except for an
 unusable stall or a demonstrated risk that would require redesigning the
 architecture. Existing correctness fixes and their evidence remain in place.
 
+Scope update (2026-09-26): the author explicitly excluded Google Drive sync
+migration and will redesign it after the native front end is migrated. Its
+connection/OAuth, cloud transport, provider snapshot bootstrap, account recovery
+and sync UI are no longer migration exit gates. Keep the accepted shared CRDT,
+local persistence and receiver code, without continuing the old provider's
+snapshot restore work. Native local workflows and Agent integration proceed.
+
 | Milestone | Deliverable | Exit gate | Current state |
 | --- | --- | --- | --- |
 | P0 | Inventory, ADR, scope, native design and synthetic corpus | Every inventoried surface has sources, dependencies, disposition, target, tests and unresolved decision task | Complete for initial migration scope |
@@ -27,10 +34,10 @@ architecture. Existing correctness fixes and their evidence remain in place.
 | P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
 | P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename and before-ID move accepted; read-only act/chapter outline, scoped headings and authoritative project title/prose search added; remaining domain commands open |
-| P4 | Sync and Agent over native prose | Minimal in-process runtime, guarded writes/reviews, offline/reconnect/restart; accounts separately tested | In progress: canonical pure-prose receive transaction, permanent original deduplication and all-open-owner replay accepted; shared Swift delivery retains queued and marked input on AppKit/UIKit; complete chapter creation/title/order originals and field conflict resolution added; project bootstrap, remaining domain reducer, provider orchestration and Agent remain open |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search, sync and recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; wider search parity and sync remain open |
+| P4 | Agent over native prose; accepted receiver foundations retained | Minimal in-process runtime, guarded writes/reviews and durable recovery; Google Drive migration excluded | In progress: canonical prose/chapter receiver, deduplication, field conflicts and shared native delivery accepted as foundations; Agent remains open; Google Drive provider/bootstrap postponed to a separate redesign |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search and local recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; chapter trash/restore and wider search parity remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
-| P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search, comments and sync status; interruptions and keyboard on devices | Project/chapter/editor slice and title/prose search integrated; exact simulator outcomes are in the generated native report; auxiliary scope and physical-device acceptance remain open |
+| P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search and comments; interruptions and keyboard on devices; Google Drive sync deferred | Project/chapter/editor slice and title/prose search integrated; exact simulator outcomes are in the generated native report; remaining auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
 
 ## Bounded editor gates and functional integration
@@ -126,11 +133,10 @@ Both native hosts receive current workspace lists without replacing live owners.
 Its four file-backed/TypeScript comparison groups and two native groups are
 reported separately from physical-device, account and distribution gates.
 
-Next implement native restoration of the existing committed v1 snapshots,
-including staged-generation activation, then provider orchestration and the
-remaining domain reducer. Project bootstrap follows that existing snapshot
-contract; a list of canonical originals is not a replacement import format. Act
-editing, deletion, wider search parity and Agent remain further batches. No
+Next complete the local chapter trash and restore workflow through shared
+domain commands and native controls, preserving prose and current editor
+ownership. Google Drive and its old snapshot/bootstrap workflow are deferred.
+Act editing, wider search parity and Agent remain further batches. No
 performance measurement or extra historical migration matrix is a prerequisite.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted

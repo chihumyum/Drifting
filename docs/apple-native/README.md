@@ -13,6 +13,13 @@ macOS 14 and iOS/iPadOS 17. macOS Intel packaging is a separate build gate; the
 first local build is Apple Silicon. Minimum-version execution is also a separate
 gate from building with a newer SDK.
 
+The author excluded Google Drive synchronization from this migration on
+2026-09-26 and will redesign it after the native client migration. Do not port
+its connection, credentials, transport, provider snapshots or recovery UI as
+native release requirements. Shared document correctness, local persistence and
+the already accepted receiver foundations remain; native writing and Agent
+work continue without a Google Drive prerequisite.
+
 The existing public `0.1.x` database compatibility promise is unchanged.
 `drizzle/0000_local_first_baseline.sql` and all published migrations remain
 immutable. The same journal, migration hashes, shadow migration, verified safety
@@ -95,9 +102,9 @@ undo, original-comment highlights, atomic authored updates/comment anchors/sync
 journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. The [canonical remote prose path](remote-prose-sync.md) now receives complete originals
 and reconciles open Rust owners through the workspace-owned Swift queue.
 The [chapter receiver](remote-workspace-sync.md) also applies complete chapter
-creation, title and order originals while retaining live editors. Project
-bootstrap, provider orchestration and the remaining domain reducer are still
-open. The older raw-update entry point remains a fixture-only seam. Read
+creation, title and order originals while retaining live editors. Google Drive
+bootstrap and provider orchestration are deferred to the author's later sync
+redesign. The older raw-update entry point remains a fixture-only seam. Read
 [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
 The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two

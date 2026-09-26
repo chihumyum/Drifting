@@ -202,7 +202,7 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "81a44fe3d6fc64f09afb9e713b5e6dcde139286bb353a76ccdc4305677e6538a",
+    "fingerprint": "ac79724f8f802736efcb57843c11a96b3a96f6ce2524b85a9260412b9b3e01a8",
     "runtimeFingerprint": "d7df57b2a8b04dddfe4c4a93a03f3a9cb4c03ad67adad8b09677e9621380ce0d",
     "files": [
       {
@@ -623,11 +623,11 @@
       },
       {
         "path": "docs/apple-native/README.md",
-        "sha256": "7da5615e13cdfded03b8728c14350d9c17431045c94563afa35b84c1cfab2868"
+        "sha256": "bfb8a946cbab6688a4e7d21ec8f8e33a71225eb906ff1e02ef5605687887ae82"
       },
       {
         "path": "docs/apple-native/architecture.md",
-        "sha256": "5d0ab4e8f3dd70d7be6ff1f5bb08994ff094a89dcabc0c4d262a9777cf172a67"
+        "sha256": "d56513b95c33edb190f66314bdd4db07013a316ec1dfd1fe0d972483d1f6bb28"
       },
       {
         "path": "docs/apple-native/design.md",
@@ -663,11 +663,11 @@
       },
       {
         "path": "docs/apple-native/inventory.json",
-        "sha256": "33779cd8e5f471d18c9b2c550665771f59755ecc76d6b6a620c0bac7ceba9bfa"
+        "sha256": "545a31d31e42718e55684eda7ca5e4153e42a4dadc0d392372d72f7ca0a9ff70"
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "1c7e7adb4f8edf4fb3ef700844df7a17754f00080cc5026db9b1c9cf0761cee4"
+        "sha256": "3c40e14422f73b80eede0ad064fcf56770e1a4dd2688587c234dafaecf2f71da"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -687,11 +687,11 @@
       },
       {
         "path": "docs/apple-native/remote-prose-sync.md",
-        "sha256": "3f575a10e6cf734713702d31d76dc94ce9f1f21e2728822719d7ce8d707f1fe1"
+        "sha256": "fc8c4ec007f5c9d26d22acca3284ae6c659b7acb67c7493b722a937214a1ec93"
       },
       {
         "path": "docs/apple-native/remote-workspace-sync.md",
-        "sha256": "25b6fbb7f1c289fae0dcb7f2fd7ec54e9f0a21cc5decb5052f79187b50507885"
+        "sha256": "18b90c7a2c7ca98944fd2c5ea429803691d2e16919982db6a91a81d1b37f5dbd"
       },
       {
         "path": "docs/apple-native/search.md",

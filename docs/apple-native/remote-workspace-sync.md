@@ -2,8 +2,9 @@
 
 P4b extends the native receiver to the complete existing-project chapter writing
 workflow. Both hosts share the same Rust metadata reducer and Swift delivery
-queue. Project bootstrap/import, providers, remaining domain actions and Agent
-integration remain subsequent work; this is not full synchronization acceptance.
+queue. This is not full synchronization acceptance. Google Drive and its
+provider bootstrap/import are excluded from the migration by the author's
+2026-09-26 scope update; Agent and local domain work continue separately.
 
 ## One transaction
 
@@ -63,9 +64,7 @@ existing owner, selection and undo history. Fault injection and cold reopen are
 not process-kill or power-loss tests. Simulator/programmatic input does not prove
 physical IME, device, account or signing/distribution behavior.
 
-Next restore the existing `SnapshotPackageV1` and commit marker through an
-explicit staged-generation activation, then integrate provider orchestration
-and the remaining domain reducer. Canonical project originals do not replace
-the snapshot's authored tables, reducer state, prose and frontier. Copying a
-closed synthetic baseline is a test fixture technique, not a product import
-workflow; no separate original-bundle product format is planned.
+The next migration work is the local chapter trash/restore workflow. Provider
+snapshot restoration is deferred with Google Drive to the author's later sync
+redesign. Copying a closed synthetic baseline remains a test fixture technique,
+not a product import workflow.

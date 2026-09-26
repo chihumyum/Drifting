@@ -5,6 +5,12 @@ persistence, transaction and domain correctness. Shared Swift owns typed UI
 models and the native adapter; platform Swift owns view composition, input,
 window/scene lifecycle, system file access and user interaction.
 
+Scope decision (2026-09-26): Google Drive sync is excluded from the native
+migration; the author will redesign synchronization afterwards. Existing
+document/transaction/replay foundations stay in shared Rust, but the old cloud
+transport, OAuth connection, provider snapshot bootstrap and account recovery
+are not work to port or gates for completing this migration.
+
 ## Ownership
 
 | Layer | Target owner | Rule |
@@ -15,7 +21,7 @@ window/scene lifecycle, system file access and user interaction.
 | Durable file replacement and atomic writes | `crates/drifting-core/src/file_io.rs` | Preserve fsync, rename and failure behavior |
 | CRDT, block operations, anchors, semantic undo | Rust document sessions, P2 decision | Preserve existing Yjs document tree and identities; display is a projection |
 | Domain commands, repositories, journal, derived data | Rust domain services, P3 | Migrate operation by operation with semantic comparison to TypeScript |
-| Sync reducer and replay coordination | Rust services, P4 with P2 durability slice | Remote SQLite commit precedes live-document replay; exact tail coverage controls compaction |
+| Accepted document receiver and replay foundation | Shared Rust services | Remote SQLite commit precedes live-document replay; exact tail coverage controls compaction; Google Drive migration deferred |
 | Agent orchestration | Shared in-process Rust runtime, P4 | Preserve provider-neutral protocol, permissions, CAS, durable reviews and receipts |
 | Credentials, file picking, OAuth and lifecycle | Apple host adapters behind core ports | Keep credentials out of UI/model payloads; do not force UI APIs into Rust |
 | Text rendering and native input | AppKit/UIKit TextKit adapters | One document owner across views; no full-document reconstruction on keystrokes |

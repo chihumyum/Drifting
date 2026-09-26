@@ -367,7 +367,7 @@
         "src/renderer/sync",
         "src/renderer/hooks/useYjsSync.ts"
       ],
-      "target": "Rust provider-neutral sync runtime",
+      "target": "Shared Rust document/journal/replay foundation; Google Drive migration deferred",
       "strategy": "port-business",
       "dependencies": [
         "business",
@@ -375,10 +375,10 @@
         "durable-files"
       ],
       "acceptance": [
-        "receipt/frontier ordering, replay/no-echo, offline, duplicate, restart and restore"
+        "local transaction durability, document replay and accepted receiver behavior; Google Drive connection, provider bootstrap and account recovery are outside migration scope"
       ],
       "milestone": "P2/P4",
-      "status": "in-progress",
+      "status": "foundation-accepted-provider-deferred",
       "decisionTask": null
     },
     {
@@ -389,17 +389,17 @@
         "src-tauri/src/google_drive_sync.rs",
         "src-tauri/src/google_drive_sync_legacy_fixture.rs"
       ],
-      "target": "Rust transports with Apple credential/file ports",
+      "target": "Existing Tauri transport retained during transition; no native Google Drive port in current scope",
       "strategy": "retain-rust",
       "dependencies": [
         "sync",
         "credentials"
       ],
       "acceptance": [
-        "transport conformance, credential ownership, attachments and separate real accounts"
+        "Google Drive transport, credentials, provider snapshot bootstrap and real-account migration deferred by user until sync redesign after the native migration"
       ],
       "milestone": "P4",
-      "status": "planned",
+      "status": "deferred-by-user",
       "decisionTask": null
     },
     {
@@ -636,5 +636,12 @@
     "D6": "Prose metric port, dependency and license parity: P3",
     "D7": "Minimal Rust Agent permission/read/write/review portability and platform transport matrix: before P4 bulk port",
     "D8": "PDF/audio/import/export library replacement or bounded transition: before P5 integration"
+  },
+  "excludedMigrationCapabilities": [
+    "google-drive-sync",
+    "google-drive-provider-snapshot-bootstrap"
+  ],
+  "scopeDecisions": {
+    "2026-09-26-google-drive": "User excluded Google Drive synchronization from the native migration and will redesign it afterwards. Shared CRDT/local durability and accepted receiver foundations remain."
   }
 }
