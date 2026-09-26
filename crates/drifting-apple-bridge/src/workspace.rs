@@ -5,6 +5,8 @@ use drifting_core::workspace::{
     ChapterSeed, CreateChapter, CreateProject, WorkspaceProject, WorkspaceStore,
 };
 use drifting_document::Edit;
+#[path = "workspace_remote_prose.rs"]
+mod remote_prose;
 #[path = "workspace_search.rs"]
 pub(super) mod search;
 
@@ -130,6 +132,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
+            | Request::WorkspaceReceiveProse { .. }
+            | Request::WorkspaceReconcileProse { .. }
             | Request::WorkspaceSearch { .. }
             | Request::WorkspaceResolveSearchHit { .. }
             | Request::WorkspaceChapterOutline { .. }
@@ -269,6 +273,24 @@ pub(super) fn dispatch(
             .get(handle)
             .ok_or("Unknown or closed workspace")?
             .search(documents, project_id, query)?,
+        Request::WorkspaceReceiveProse {
+            handle,
+            original,
+            envelope,
+        } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .receive_prose(
+                documents,
+                original,
+                &STANDARD
+                    .decode(envelope)
+                    .map_err(|_| "Invalid remote envelope base64")?,
+            )?,
+        Request::WorkspaceReconcileProse { handle, project_id } => json!(workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .reconcile_prose(documents, project_id)?),
         Request::WorkspaceResolveSearchHit { handle, hit } => workspaces
             .get(handle)
             .ok_or("Unknown or closed workspace")?

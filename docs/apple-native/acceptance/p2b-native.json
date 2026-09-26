@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T13:24:20.362Z",
+  "generatedAt": "2026-09-26T14:00:57.283Z",
   "status": "passed",
   "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
   "source": {
-    "commit": "791cbb622d04b69e6af2d5924149c2df2a20a2c4",
+    "commit": "03c2913609fdb24f11a42b23ef1d6aab83105d67",
     "dirty": true,
-    "runtimeFingerprint": "3c3c5095445eb2b49f551d6534a63f46f29bc4474412cb4bcb73f7476b5bdcb4"
+    "runtimeFingerprint": "387abdb61c150c1259375bf3e6c7cf601e4ed587000769e84672552a5880b68f"
   },
   "checks": [
     {
@@ -17,17 +17,17 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 75
+      "passed": 79
     },
     {
       "name": "prose-durability",
       "status": "passed",
-      "passed": 27
+      "passed": 29
     },
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 38
+      "passed": 42
     },
     {
       "name": "macos-build",

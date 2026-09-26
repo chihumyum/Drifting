@@ -308,6 +308,16 @@ enum Request {
         project_id: String,
         query: String,
     },
+    WorkspaceReceiveProse {
+        handle: u64,
+        original: drifting_core::original_operation::ChangeSetRef,
+        envelope: String,
+    },
+    WorkspaceReconcileProse {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
     WorkspaceResolveSearchHit {
         handle: u64,
         hit: workspace::search::SearchHit,
@@ -939,6 +949,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
+        | Request::WorkspaceReceiveProse { .. }
+        | Request::WorkspaceReconcileProse { .. }
         | Request::WorkspaceSearch { .. }
         | Request::WorkspaceResolveSearchHit { .. }
         | Request::WorkspaceChapterOutline { .. }

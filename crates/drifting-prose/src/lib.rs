@@ -11,6 +11,7 @@ use drifting_document::{
 };
 use std::ops::{Deref, DerefMut};
 mod native_source;
+pub mod remote_sync;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DurabilityPhase {

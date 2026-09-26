@@ -127,6 +127,23 @@ impl DocumentSession {
         Ok(())
     }
 
+    /// Validate one complete v1 frame without replacing its original wire bytes.
+    /// Client-group order is intentionally not required to match a re-encoding.
+    pub fn validate_update_v1(bytes: &[u8]) -> Result<(), String> {
+        use yrs::updates::decoder::{Decode, Decoder, DecoderV1};
+        let mut decoder = DecoderV1::from(bytes);
+        let update = yrs::Update::decode(&mut decoder)
+            .map_err(|error| format!("Invalid CRDT update: {error}"))?;
+        if !decoder
+            .read_to_end()
+            .map_err(|error| error.to_string())?
+            .is_empty()
+        {
+            return Err("Invalid CRDT update: trailing bytes after v1 frame".into());
+        }
+        super::wire::validate_update(&update)
+    }
+
     /// Normalize accepted v1/v2 input to the published v1 storage contract,
     /// retaining missing-dependency structs without reconstructing a document.
     pub fn normalize_update(bytes: &[u8], encoding: u8) -> Result<Vec<u8>, String> {

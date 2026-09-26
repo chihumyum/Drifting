@@ -31,6 +31,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Unselected-subtree relocation investigation](relocation-design.md)
 - [SQLite prose durability and process recovery](durability.md)
 - [Native command capture and durable originals](native-authoring.md)
+- [Canonical remote prose receive and replay](remote-prose-sync.md)
 - [Reproducible editor performance experiment](performance.md)
 - [Physical-device prerequisites and acceptance](device-acceptance.md)
 - [macOS system input-method observation](system-ime.md)
@@ -41,6 +42,7 @@ snapshot and fail-closed recovery rules apply to every host.
 pnpm apple:check
 pnpm apple:core:test
 pnpm apple:workspace:acceptance
+pnpm apple:remote-prose:acceptance
 pnpm apple:document:acceptance
 pnpm apple:authoring:acceptance
 pnpm apple:binding:acceptance
@@ -88,8 +90,9 @@ until the remaining migration and distribution gates pass.
 
 Prose uses a shared Rust document owner, one ordered Swift queue across views, local-origin
 undo, original-comment highlights, atomic authored updates/comment anchors/sync
-journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. Remote
-delivery remains a fixture-only seam. Read [the binding contract](document-core.md)
+journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. The [canonical remote prose path](remote-prose-sync.md) now receives complete originals
+and reconciles open Rust owners; Swift delivery and provider orchestration remain
+open. The older raw-update entry point remains a fixture-only seam. Read [the binding contract](document-core.md)
 for current behavior and remaining structural, remote IME, selection and durability gates.
 The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two
 editor panes; UIKit keeps one visible editor. Views of the same chapter share

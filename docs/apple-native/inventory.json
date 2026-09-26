@@ -378,7 +378,7 @@
         "receipt/frontier ordering, replay/no-echo, offline, duplicate, restart and restore"
       ],
       "milestone": "P2/P4",
-      "status": "planned",
+      "status": "in-progress",
       "decisionTask": null
     },
     {

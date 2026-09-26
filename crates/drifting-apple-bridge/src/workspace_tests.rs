@@ -2,6 +2,8 @@
 use super::*;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
+#[path = "workspace_remote_prose_tests.rs"]
+mod remote_prose;
 #[path = "workspace_search_tests.rs"]
 mod search;
 #[path = "workspace_tabs_tests.rs"]

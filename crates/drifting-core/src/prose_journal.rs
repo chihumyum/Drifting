@@ -450,6 +450,28 @@ impl<'a> AuthoredProseJournal<'a> {
         tx: u64,
         context: &AuthoredProseContext,
     ) -> Result<(String, String, u64, u64, u64), String> {
+        self.advance_writer(tx, context, None)
+    }
+
+    /// Observe an accepted remote clock without reserving a local sequence.
+    /// Rotation and identity checks are shared with the authored writer.
+    pub(crate) fn observe_remote_hlc(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        wall_ms: u64,
+        counter: u64,
+    ) -> Result<(), String> {
+        self.advance_writer(tx, context, Some((wall_ms, counter)))?;
+        Ok(())
+    }
+
+    fn advance_writer(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        remote: Option<(u64, u64)>,
+    ) -> Result<(String, String, u64, u64, u64), String> {
         let active = self.query(tx, "SELECT writer_id,writer_epoch,installation_id,next_device_seq,hlc_wall_ms,hlc_counter FROM sync_generation_writer_state WHERE sync_generation_id=? AND retired_at IS NULL", vec![text(&context.sync_generation_id)])?;
         if active.len() > 1 {
             return Err("Multiple active sync writers".into());
@@ -459,14 +481,22 @@ impl<'a> AuthoredProseJournal<'a> {
         else if let Some(row) = self.query(tx, "SELECT hlc_wall_ms,hlc_counter FROM sync_generation_writer_state WHERE sync_generation_id=? ORDER BY hlc_wall_ms DESC,hlc_counter DESC LIMIT 1", vec![text(&context.sync_generation_id)])?.first() {
             previous = (read_uint(row, 0)?, read_uint(row, 1)?);
         }
-        let (wall_ms, counter) = if context.now_ms > previous.0 {
-            (context.now_ms, 0)
-        } else {
-            if previous.1 == MAX_SAFE {
-                return Err("Writer HLC counter cannot be incremented safely".into());
+        let wall_ms = context
+            .now_ms
+            .max(previous.0)
+            .max(remote.map_or(0, |value| value.0));
+        let previous_counter = (wall_ms == previous.0).then_some(previous.1);
+        let remote_counter = remote
+            .filter(|value| value.0 == wall_ms)
+            .map(|value| value.1);
+        let counter = match previous_counter.into_iter().chain(remote_counter).max() {
+            Some(value) if value >= MAX_SAFE => {
+                return Err("Writer HLC counter cannot be incremented safely".into())
             }
-            (previous.0, previous.1 + 1)
+            Some(value) => value + 1,
+            None => 0,
         };
+        let consumed = u64::from(remote.is_none());
         if let Some(row) = active.first() {
             let writer = read_text(row, 0)?;
             let epoch = read_text(row, 1)?;
@@ -475,11 +505,11 @@ impl<'a> AuthoredProseJournal<'a> {
             }
             if read_text(row, 2)? == context.installation_id {
                 let seq = read_uint(row, 3)?;
-                if seq == 0 || seq == MAX_SAFE {
+                if seq == 0 || (consumed == 1 && seq == MAX_SAFE) {
                     return Err("Writer sequence cannot be incremented safely".into());
                 }
                 let changed = self.execute(tx, "UPDATE sync_generation_writer_state SET next_device_seq=?,hlc_wall_ms=?,hlc_counter=?,updated_at=? WHERE sync_generation_id=? AND writer_id=? AND writer_epoch=? AND retired_at IS NULL AND next_device_seq=?", vec![
-                    integer(seq+1), integer(wall_ms), integer(counter), text(&context.now_iso), text(&context.sync_generation_id), text(writer), text(epoch), integer(seq),
+                    integer(seq+consumed), integer(wall_ms), integer(counter), text(&context.now_iso), text(&context.sync_generation_id), text(writer), text(epoch), integer(seq),
                 ])?;
                 if changed != 1 {
                     return Err("Sync writer changed while reserving sequence".into());
@@ -493,8 +523,8 @@ impl<'a> AuthoredProseJournal<'a> {
         if !self.query(tx, "SELECT 1 FROM sync_change_set WHERE sync_generation_id=? AND writer_id=? AND writer_epoch=? LIMIT 1", vec![text(&context.sync_generation_id), text(&context.new_writer_id), text(&context.new_writer_epoch)])?.is_empty() {
             return Err("Fresh writer identity already exists in source history".into());
         }
-        self.execute(tx, "INSERT INTO sync_generation_writer_state (sync_generation_id,writer_id,writer_epoch,installation_id,next_device_seq,hlc_wall_ms,hlc_counter,created_at,updated_at) VALUES (?,?,?,?,2,?,?,?,?)", vec![
-            text(&context.sync_generation_id), text(&context.new_writer_id), text(&context.new_writer_epoch), text(&context.installation_id), integer(wall_ms), integer(counter), text(&context.now_iso), text(&context.now_iso),
+        self.execute(tx, "INSERT INTO sync_generation_writer_state (sync_generation_id,writer_id,writer_epoch,installation_id,next_device_seq,hlc_wall_ms,hlc_counter,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)", vec![
+            text(&context.sync_generation_id), text(&context.new_writer_id), text(&context.new_writer_epoch), text(&context.installation_id), integer(1+consumed), integer(wall_ms), integer(counter), text(&context.now_iso), text(&context.now_iso),
         ])?;
         Ok((
             context.new_writer_id.clone(),

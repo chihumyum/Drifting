@@ -1,0 +1,70 @@
+{
+  "synthetic": true,
+  "generation": "Yjs transactions (clients 45101..45105), production createSyncMutationV1/encodeSyncChangeSetV1/decodeSyncChangeSetV1",
+  "snapshotBase64": "AQSt4AIABwEHZGVmYXVsdAMJcGFyYWdyYXBoBwCt4AIABgQAreACAQfotbfwn5mCKACt4AIAAmlkAXcEYm9keQA=",
+  "tailBase64": "AQGu4AIARK3gAgID5penAA==",
+  "beforeText": "旧起🙂",
+  "afterText": "旧远起🙂章",
+  "cases": [
+    {
+      "name": "accepted",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxhlZ2NvdW50ZXIAaHByb3RvY29sd2RyaWZ0aW5nLnN5bmMuY2hhbmdlc2V0aHdyaXRlcklkbXJlbW90ZS13cml0ZXJpZGV2aWNlU2VxAWltdXRhdGlvbnOCpmVpbmRleABmYWN0aW9uanlqcy51cGRhdGVmdGFyZ2V0pGJpZHgibm9kZS1jb250ZW50OnN5bnRoZXRpYy1yZW1vdGUtbm9kZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWShZnVwZGF0ZVQBAa/gAgDEruACAK3gAgID6L+cAG1wYXlsb2FkU2hhMjU2eEdzaGEyNTY6YTQ5ZmQxYjEwMzdjNTk1MTcxZmI3NjkyNTA4MTNjYjdhMmIyZjdkNjgwYjQ4YTk0MTQwNzNhYTg2OGNlNDFmOW5wYXlsb2FkVmVyc2lvbgGmZWluZGV4AWZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCJub2RlLWNvbnRlbnQ6c3ludGhldGljLXJlbW90ZS1ub2RlZGtpbmRucHJvc2UtZG9jdW1lbnRmZmFtaWx5Y3lqc2tpbmNhcm5hdGlvbgBncGF5bG9hZKFmdXBkYXRlUAEBr+ACAYSt4AIEA+eroABtcGF5bG9hZFNoYTI1NnhHc2hhMjU2OjNmYmY2MTE1Yjc4ZDk3MDMzNTM2ZjVmOWUwYzFjM2VmZWNhYmZlZmMxOGE0OWFhMzY0ZjQ4Y2M1N2YzMGI5YjZucGF5bG9hZFZlcnNpb24BaXByb2plY3RJZHgYc3ludGhldGljLXJlbW90ZS1wcm9qZWN0a2NoYW5nZVNldElkeBxyZW1vdGUtd3JpdGVyOnJlbW90ZS1lcG9jaDoxa3dyaXRlckVwb2NobHJlbW90ZS1lcG9jaG1wcm9qZWN0U3luY0lkeB1zeW50aGV0aWMtcmVtb3RlLXByb2plY3Qtc3luY25wYXlsb2FkVmVyc2lvbgFvcHJvdG9jb2xWZXJzaW9uAXBzeW5jR2VuZXJhdGlvbklkeBtzeW50aGV0aWMtcmVtb3RlLWdlbmVyYXRpb24=",
+      "reference": {
+        "projectId": "synthetic-remote-project",
+        "projectSyncId": "synthetic-remote-project-sync",
+        "syncGenerationId": "synthetic-remote-generation",
+        "changeSetId": "remote-writer:remote-epoch:1",
+        "originalEnvelopeSha256": "8d73c920c53723785b55350c61175cf52b508001c1e8d5a35d1dcc808f6aa8aa"
+      },
+      "updatesBase64": [
+        "AQGv4AIAxK7gAgCt4AICA+i/nAA=",
+        "AQGv4AIBhK3gAgQD56ugAA=="
+      ]
+    },
+    {
+      "name": "trailing",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxhmZ2NvdW50ZXIAaHByb3RvY29sd2RyaWZ0aW5nLnN5bmMuY2hhbmdlc2V0aHdyaXRlcklkbXJlbW90ZS13cml0ZXJpZGV2aWNlU2VxAmltdXRhdGlvbnOCpmVpbmRleABmYWN0aW9uanlqcy51cGRhdGVmdGFyZ2V0pGJpZHgibm9kZS1jb250ZW50OnN5bnRoZXRpYy1yZW1vdGUtbm9kZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWShZnVwZGF0ZVQBAa/gAgDEruACAK3gAgID6L+cAG1wYXlsb2FkU2hhMjU2eEdzaGEyNTY6YTQ5ZmQxYjEwMzdjNTk1MTcxZmI3NjkyNTA4MTNjYjdhMmIyZjdkNjgwYjQ4YTk0MTQwNzNhYTg2OGNlNDFmOW5wYXlsb2FkVmVyc2lvbgGmZWluZGV4AWZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCJub2RlLWNvbnRlbnQ6c3ludGhldGljLXJlbW90ZS1ub2RlZGtpbmRucHJvc2UtZG9jdW1lbnRmZmFtaWx5Y3lqc2tpbmNhcm5hdGlvbgBncGF5bG9hZKFmdXBkYXRlUQEBr+ACAYSt4AIEA+eroAAAbXBheWxvYWRTaGEyNTZ4R3NoYTI1NjpiZTcxN2FjZGY0YzBiYzc0ODc0YjBlM2RhMDM4YjA4ODY4ZWViMWNmNjBmZDJkYjUyYjAxYmYwYzBjZmM5YjNibnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GHN5bnRoZXRpYy1yZW1vdGUtcHJvamVjdGtjaGFuZ2VTZXRJZHgccmVtb3RlLXdyaXRlcjpyZW1vdGUtZXBvY2g6Mmt3cml0ZXJFcG9jaGxyZW1vdGUtZXBvY2htcHJvamVjdFN5bmNJZHgdc3ludGhldGljLXJlbW90ZS1wcm9qZWN0LXN5bmNucGF5bG9hZFZlcnNpb24Bb3Byb3RvY29sVmVyc2lvbgFwc3luY0dlbmVyYXRpb25JZHgbc3ludGhldGljLXJlbW90ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-remote-project",
+        "projectSyncId": "synthetic-remote-project-sync",
+        "syncGenerationId": "synthetic-remote-generation",
+        "changeSetId": "remote-writer:remote-epoch:2",
+        "originalEnvelopeSha256": "db874267717219fcadcf1dd68751210f156590a790d7a9ecf0701b8372d22f67"
+      },
+      "updatesBase64": [
+        "AQGv4AIAxK7gAgCt4AICA+i/nAA=",
+        "AQGv4AIBhK3gAgQD56ugAAA="
+      ]
+    },
+    {
+      "name": "missing-dependency",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxhnZ2NvdW50ZXIAaHByb3RvY29sd2RyaWZ0aW5nLnN5bmMuY2hhbmdlc2V0aHdyaXRlcklkbXJlbW90ZS13cml0ZXJpZGV2aWNlU2VxA2ltdXRhdGlvbnOCpmVpbmRleABmYWN0aW9uanlqcy51cGRhdGVmdGFyZ2V0pGJpZHgibm9kZS1jb250ZW50OnN5bnRoZXRpYy1yZW1vdGUtbm9kZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWShZnVwZGF0ZVQBAa/gAgDEruACAK3gAgID6L+cAG1wYXlsb2FkU2hhMjU2eEdzaGEyNTY6YTQ5ZmQxYjEwMzdjNTk1MTcxZmI3NjkyNTA4MTNjYjdhMmIyZjdkNjgwYjQ4YTk0MTQwNzNhYTg2OGNlNDFmOW5wYXlsb2FkVmVyc2lvbgGmZWluZGV4AWZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCJub2RlLWNvbnRlbnQ6c3ludGhldGljLXJlbW90ZS1ub2RlZGtpbmRucHJvc2UtZG9jdW1lbnRmZmFtaWx5Y3lqc2tpbmNhcm5hdGlvbgBncGF5bG9hZKFmdXBkYXRlVwEBsOACAcSw4AIAr+ACAAbkvp3otZYAbXBheWxvYWRTaGEyNTZ4R3NoYTI1Njo4NzFhY2RlMGZhNjlmMTI1ZTMxMDgyMTE1YWZhNGJkZmRlNTNiNDEzMWI5MzZmM2U5NzA3YWJlMGRlODQxNmZjbnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GHN5bnRoZXRpYy1yZW1vdGUtcHJvamVjdGtjaGFuZ2VTZXRJZHgccmVtb3RlLXdyaXRlcjpyZW1vdGUtZXBvY2g6M2t3cml0ZXJFcG9jaGxyZW1vdGUtZXBvY2htcHJvamVjdFN5bmNJZHgdc3ludGhldGljLXJlbW90ZS1wcm9qZWN0LXN5bmNucGF5bG9hZFZlcnNpb24Bb3Byb3RvY29sVmVyc2lvbgFwc3luY0dlbmVyYXRpb25JZHgbc3ludGhldGljLXJlbW90ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-remote-project",
+        "projectSyncId": "synthetic-remote-project-sync",
+        "syncGenerationId": "synthetic-remote-generation",
+        "changeSetId": "remote-writer:remote-epoch:3",
+        "originalEnvelopeSha256": "5365e62e880e50db6fbd37ab8d9a31950cb08202e3486adc30633c4833da9498"
+      },
+      "updatesBase64": [
+        "AQGv4AIAxK7gAgCt4AICA+i/nAA=",
+        "AQGw4AIBxLDgAgCv4AIABuS+nei1lgA="
+      ]
+    },
+    {
+      "name": "unsupported-projection",
+      "envelopeBase64": "rGNobGOiZndhbGxNcxhoZ2NvdW50ZXIAaHByb3RvY29sd2RyaWZ0aW5nLnN5bmMuY2hhbmdlc2V0aHdyaXRlcklkbXJlbW90ZS13cml0ZXJpZGV2aWNlU2VxBGltdXRhdGlvbnOCpmVpbmRleABmYWN0aW9uanlqcy51cGRhdGVmdGFyZ2V0pGJpZHgibm9kZS1jb250ZW50OnN5bnRoZXRpYy1yZW1vdGUtbm9kZWRraW5kbnByb3NlLWRvY3VtZW50ZmZhbWlseWN5anNraW5jYXJuYXRpb24AZ3BheWxvYWShZnVwZGF0ZVQBAa/gAgDEruACAK3gAgID6L+cAG1wYXlsb2FkU2hhMjU2eEdzaGEyNTY6YTQ5ZmQxYjEwMzdjNTk1MTcxZmI3NjkyNTA4MTNjYjdhMmIyZjdkNjgwYjQ4YTk0MTQwNzNhYTg2OGNlNDFmOW5wYXlsb2FkVmVyc2lvbgGmZWluZGV4AWZhY3Rpb25qeWpzLnVwZGF0ZWZ0YXJnZXSkYmlkeCJub2RlLWNvbnRlbnQ6c3ludGhldGljLXJlbW90ZS1ub2RlZGtpbmRucHJvc2UtZG9jdW1lbnRmZmFtaWx5Y3lqc2tpbmNhcm5hdGlvbgBncGF5bG9hZKFmdXBkYXRlWCUBAbHgAgBFruACABh7ImZ1dHVyZSI6InVuc3VwcG9ydGVkIn0AbXBheWxvYWRTaGEyNTZ4R3NoYTI1Njo0NTA5NTdiNjdkNTNiYjM0NmIzNTVkNmFhZDMxNDE0N2YzMjllMTk3NDMzM2RkZTY4MDAzOWZmOTAyMjI3ZDBhbnBheWxvYWRWZXJzaW9uAWlwcm9qZWN0SWR4GHN5bnRoZXRpYy1yZW1vdGUtcHJvamVjdGtjaGFuZ2VTZXRJZHgccmVtb3RlLXdyaXRlcjpyZW1vdGUtZXBvY2g6NGt3cml0ZXJFcG9jaGxyZW1vdGUtZXBvY2htcHJvamVjdFN5bmNJZHgdc3ludGhldGljLXJlbW90ZS1wcm9qZWN0LXN5bmNucGF5bG9hZFZlcnNpb24Bb3Byb3RvY29sVmVyc2lvbgFwc3luY0dlbmVyYXRpb25JZHgbc3ludGhldGljLXJlbW90ZS1nZW5lcmF0aW9u",
+      "reference": {
+        "projectId": "synthetic-remote-project",
+        "projectSyncId": "synthetic-remote-project-sync",
+        "syncGenerationId": "synthetic-remote-generation",
+        "changeSetId": "remote-writer:remote-epoch:4",
+        "originalEnvelopeSha256": "75798208c1fa1bbfae5cb4ca1d77717e32c047f038b64cd0655c6913f5f6a84b"
+      },
+      "updatesBase64": [
+        "AQGv4AIAxK7gAgCt4AICA+i/nAA=",
+        "AQGx4AIARa7gAgAYeyJmdXR1cmUiOiJ1bnN1cHBvcnRlZCJ9AA=="
+      ]
+    }
+  ]
+}

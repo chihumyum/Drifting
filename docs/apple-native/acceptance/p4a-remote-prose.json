@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kind": "native_local_writing_workspace",
+  "kind": "native_remote_prose",
   "status": "passed",
   "source": {
     "files": [
@@ -437,162 +437,6 @@
         "sha256": "d111a6fa2faa8b2791571f305fe160909a1e3b0728b3a8d0f36f9d808ae7b6d3"
       },
       {
-        "path": "native/apple/FFI/drifting.h",
-        "sha256": "7a17c08d313401c12304a68617e88afc89638674d0eaac356dca8207bef3df16"
-      },
-      {
-        "path": "native/apple/FFI/module.modulemap",
-        "sha256": "de5e5256252b44582d8c132d6559cd82518a644fad6580d0053c0d2a82e1d8e5"
-      },
-      {
-        "path": "native/apple/Shared/DocumentBinding.swift",
-        "sha256": "327ba7d3a2d9571e5c1fc9ae463b8a3efde84d87197c47f6141c3a8ecbe1b16a"
-      },
-      {
-        "path": "native/apple/Shared/DocumentStore.swift",
-        "sha256": "0193c3dfe42b09a105d7a8cc87fd9ac6ce312d64ff62135741100ea9394dc420"
-      },
-      {
-        "path": "native/apple/Shared/DocumentStyle.swift",
-        "sha256": "532dc31033526d3d27c51be186f6728ea65ac8c0dccc450bd5db3976eb4ffcca"
-      },
-      {
-        "path": "native/apple/Shared/LabCore.swift",
-        "sha256": "6fdbf0909bdc72c8107ba7c4a7fb8216315fddf0fe93ebec54119e2665b169a7"
-      },
-      {
-        "path": "native/apple/Shared/WorkspaceOutline.swift",
-        "sha256": "29b71477ac10ce1ee8d5422635aa8d21c66e64a4a571da9b2733fbe3b880eff9"
-      },
-      {
-        "path": "native/apple/Shared/WorkspaceSearch.swift",
-        "sha256": "c8261b1a446df91b07618ef574889bdb010a32fc25ea97794673ab8405058d9a"
-      },
-      {
-        "path": "native/apple/Tests/BindingAcceptance.swift",
-        "sha256": "5b077aed2b36465ecb38614bcf2d59545a4a5d335c0cbd9e36624d3c48a5837a"
-      },
-      {
-        "path": "native/apple/Tests/DraftTransportAcceptance.swift",
-        "sha256": "4fe9d73fc3c984bcbb940af82172904de32891341e97b72d8846386b2918d08d"
-      },
-      {
-        "path": "native/apple/Tests/EditorPerformance.swift",
-        "sha256": "b094217706f32c357890becf892b6064a922deadadd83cead94615fd377696e1"
-      },
-      {
-        "path": "native/apple/Tests/FormattingAcceptance.swift",
-        "sha256": "ed9658e151e18130cd508c9832bcb012cf9d03f61115a4d0860f15ec18a49611"
-      },
-      {
-        "path": "native/apple/Tests/InputQueueAcceptance.swift",
-        "sha256": "581ac4cf97111c24106649116b0461f5e499da2812cb1dbf680085909fc86ce6"
-      },
-      {
-        "path": "native/apple/Tests/MultiViewAcceptance.swift",
-        "sha256": "c1880a6f4181d28621086995d29d4d21dcd7cdcb5da9b1b0376e94d96d2453fb"
-      },
-      {
-        "path": "native/apple/Tests/NativeHistoryAcceptance.swift",
-        "sha256": "99bab19e0c00156b4e46496d7142e6b5a3a6dd336964acc15a634372d6f81886"
-      },
-      {
-        "path": "native/apple/Tests/OutlineAcceptance.swift",
-        "sha256": "c1387af90af71b1dfb381af3bea3268029eebb67d123d53f9dd81c92c89b6c05"
-      },
-      {
-        "path": "native/apple/Tests/PartialQuoteHistoryAcceptance.swift",
-        "sha256": "e0640d78aa3237923bae8a5d4c180bdd356ca404e4183786ece2b4d4ccad8df8"
-      },
-      {
-        "path": "native/apple/Tests/RelocationAcceptance.swift",
-        "sha256": "3cfd385dcfe1a7bd2a25d6f4c9642ba2bd396a1deda97820dcd284eee1b09cdc"
-      },
-      {
-        "path": "native/apple/Tests/RemoteBlockAcceptance.swift",
-        "sha256": "bd672c4e0be9c0bacf4628dd7d0696c91fbb47f01e7d69bbbebabcea1e7a4f17"
-      },
-      {
-        "path": "native/apple/Tests/RemoteRecoveryAcceptance.swift",
-        "sha256": "4b1bf6092a5b3159b66e30666faadc3ebe81317e5fec990aedeacc2960527679"
-      },
-      {
-        "path": "native/apple/Tests/SearchAcceptance.swift",
-        "sha256": "d95bc44052c15672eed05ddc9d01f68738ff103c4006bfea87ff817c9fc59239"
-      },
-      {
-        "path": "native/apple/Tests/SelectionAcceptance.swift",
-        "sha256": "2816ebde67d332481b282897aff0fc85543298ebd52200ea2b581bf4c2eb92fe"
-      },
-      {
-        "path": "native/apple/Tests/StyleAcceptance.swift",
-        "sha256": "00fbd25f1e0ad80c05b51511cacfef6143fb0a039c83443d9531d94fc23ae5ee"
-      },
-      {
-        "path": "native/apple/Tests/SystemIMEAcceptance.swift",
-        "sha256": "243ada7a974863af1310ab81f7550557e35633f673bb4b3aad742b56d6488f29"
-      },
-      {
-        "path": "native/apple/Tests/TextIdentityAcceptance.swift",
-        "sha256": "bc2b8029e8da16b79fb302dbcef80eff73980e138f68ebbaec712d011f6260e2"
-      },
-      {
-        "path": "native/apple/Tests/WorkspaceTabsAcceptance.swift",
-        "sha256": "d557216fe26dad8a563c5ae87ea903ed089e0aee07875d1f061a9cf17e8377c0"
-      },
-      {
-        "path": "native/apple/UITests/ProjectPersistenceUITests.swift",
-        "sha256": "d531611f70b095d1ac330f9b46b872c7f99bd40ca1e632f5e2a1544e345187b5"
-      },
-      {
-        "path": "native/apple/iOS/AppDelegate.swift",
-        "sha256": "0a44a3546b8b3ddfffafe029db2e91215404f0e7abb72d025fe333ec90659c3b"
-      },
-      {
-        "path": "native/apple/iOS/BookOutlineViewController.swift",
-        "sha256": "8df7939480f381d0022269e2e0535c839b833839ffc4f18759f4eb6f88288bbf"
-      },
-      {
-        "path": "native/apple/iOS/NativeDocumentView.swift",
-        "sha256": "2c13313dd2076ae09218e9ebd2e64e541cbfe88ec5b2caf1e63e23cdb31b7fc8"
-      },
-      {
-        "path": "native/apple/iOS/WorkspaceSearchViewController.swift",
-        "sha256": "0ee8fbda3624ea57a54f4978f3c43bbf3cb6af9bac41404e417e50ded8d609f1"
-      },
-      {
-        "path": "native/apple/iOSTests/SearchAcceptance.swift",
-        "sha256": "d71bfedb344559474c747f08eff0c79b7616bebb87b5a42e3bd86ad64eb52308"
-      },
-      {
-        "path": "native/apple/iOSTests/UIKitBindingTests.swift",
-        "sha256": "4a8de92c5e6056697c6bd1d0769e6e48e37e3423e6e08c9b2076be9fc2fb9586"
-      },
-      {
-        "path": "native/apple/macOS/AppDelegate.swift",
-        "sha256": "118fc67c76a8f7d60856214cbac2063d179b62d36f86e1c36a21a91ad8cfcac2"
-      },
-      {
-        "path": "native/apple/macOS/BookOutlineViewController.swift",
-        "sha256": "9c669164464a8cccf611a6a751768a77b965d784f9b68b921959597d246d9957"
-      },
-      {
-        "path": "native/apple/macOS/MacChapterWorkspace.swift",
-        "sha256": "17f5443037b2535967c9ae5c694ad41183d0bb4b3e57a639224f115861deb3eb"
-      },
-      {
-        "path": "native/apple/macOS/MacWorkspaceSearchViewController.swift",
-        "sha256": "d8450b20316360b6be87c9b4f616a2597939806c2e6d1dd43186f67069a37b80"
-      },
-      {
-        "path": "native/apple/macOS/NativeDocumentView.swift",
-        "sha256": "ed959b6b2b8376beb74d319fd95233f6eb8a9b497ac95612bed25472140fccbc"
-      },
-      {
-        "path": "native/apple/project.yml",
-        "sha256": "3f8f77a3114f1770f44c7c2159a2ff39159faa9a738c1ab3c2ea7b7dfacf4d48"
-      },
-      {
         "path": "package.json",
         "sha256": "35341b6cf9bbfe50c91a5cb8513e033758bdedf9b0caecaa79e02583fb9e0692"
       },
@@ -601,20 +445,192 @@
         "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
       },
       {
-        "path": "scripts/apple-workspace-acceptance.mjs",
-        "sha256": "ddcb2fa9628bcb4f3eb58d82dbe8903651ff9a6597546877ce880eadcea701e2"
+        "path": "scripts/apple-remote-prose-acceptance.mjs",
+        "sha256": "2f829f849ba5a2d283b40baee22792f1d255c43d3d9379002c728be8d010c9d8"
       },
       {
-        "path": "scripts/apple-workspace-wire-check.ts",
-        "sha256": "f47e572d48859b2648d22436d2a72069ba66921103d690d87d5cf9dc69a70869"
+        "path": "scripts/apple-remote-prose-wire-check.ts",
+        "sha256": "c253089f7fd120f22682d2d968f37fde8bbfe8607cb8f9263a266835e153f3bd"
+      },
+      {
+        "path": "src/renderer/deferred-settings.d.ts",
+        "sha256": "3583b63493873ddcde579ff536a56aac856f42284e1ac544f445cdfda2a55c1f"
+      },
+      {
+        "path": "src/renderer/deferred-super-views.d.ts",
+        "sha256": "9c37ebafe653c74e05702f02c2083a3ead694e5d697980a3f1b4acd0e7a9f8b2"
+      },
+      {
+        "path": "src/renderer/domain/agent-chat-transcript.test.ts",
+        "sha256": "670cf3d1e92c82e03f9da8a336bfd44bd07fb906fdbbcaf324c03e5cbc1495d7"
+      },
+      {
+        "path": "src/renderer/domain/agent-chat-transcript.ts",
+        "sha256": "72d3f005b850d9c7580a80ed1762263bdad6e3328fd81c5975da870aeb9424aa"
+      },
+      {
+        "path": "src/renderer/domain/agent-conversation.ts",
+        "sha256": "b941554a97babbfe4870552d24ebc79d2b01db6339730c5549c1cc2bb5117c7d"
+      },
+      {
+        "path": "src/renderer/domain/agent-extension.ts",
+        "sha256": "9f9a25f67e2155eebcb6bcca86ad30a6feb8ac1deb3891d8c682381149439183"
+      },
+      {
+        "path": "src/renderer/domain/agent-memory.ts",
+        "sha256": "2771942c8039a9da0f70d707a815834902be12fe902708477b79742e0ccf8e69"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-element-patch-receipt.ts",
+        "sha256": "92744c1340c171161b0010349d8e55144acd4fd5a11176b0aab558a6dd30c42d"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-entity-write-receipt.ts",
+        "sha256": "0309566a61cb9955fa43d5ab59e0405fe9675e6e849ac02f8c4403aacd495c9a"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-freshness.ts",
+        "sha256": "59d1c99ebc50397e19d86afda854664e65028c20d1bd21d94a90505f936fefdf"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-long-task.ts",
+        "sha256": "ab8e3969b81719ec9360ff115be6f9dc63acb014217e36576dc2eb54685c24d3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-persistence.ts",
+        "sha256": "448d4c3588310e5c22cb39ac5214e3db1386fd312c133f045d75f607c34dba0f"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-result-artifact.ts",
+        "sha256": "d4013e1a69a316e0350460eaa8ad856c8521e588c9a9354127ede9104a8cb1a3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-write-effect.ts",
+        "sha256": "1aca4c6ac752c072766205d5a7b4c04be82fe84ad2ee8750c1ead76de47f1f77"
+      },
+      {
+        "path": "src/renderer/domain/agent-working-memory.ts",
+        "sha256": "652eb1d9dab4f3faf6511aeaf8a10282268336eb8009c7632e09ce40f98719ef"
+      },
+      {
+        "path": "src/renderer/domain/block-section.ts",
+        "sha256": "cb99c4674b4ae8606e52ea580f36168306f934688d40092fd4d1501dde0112cb"
+      },
+      {
+        "path": "src/renderer/domain/book-act.test.ts",
+        "sha256": "a61c5e47c8cf5a9b87f51db11aa81ecce4906b0421d5842d55d65f129acf3d3c"
       },
       {
         "path": "src/renderer/domain/book-act.ts",
         "sha256": "a57c96c94e6ed71eeed0081f6075cfb02c27af5d035298d8e58829e30f556349"
       },
       {
+        "path": "src/renderer/domain/book-element.ts",
+        "sha256": "fd35bdf9c865be2fbdf73d191771234dcef2c0fbe17be871a0141e295e21d105"
+      },
+      {
+        "path": "src/renderer/domain/book-node.test.ts",
+        "sha256": "1673459490aaa87c2f90ecdd155293e00f46538b45549c9d67aa1b80984a0a58"
+      },
+      {
+        "path": "src/renderer/domain/book-node.ts",
+        "sha256": "7e174a4fa39b665872083010f93f707ae005de8c6e2769532cc7e50320e0cdec"
+      },
+      {
+        "path": "src/renderer/domain/comment.ts",
+        "sha256": "d6aa8e398cde4d3f92b5d6b65a57c5e32e01e4cdf62c37e4feb05c944d0252de"
+      },
+      {
+        "path": "src/renderer/domain/copilot-suggestion.ts",
+        "sha256": "7b5b19fa58c09f4b6a119b8912303e750e85299c70247dae41a0fea8308c22f1"
+      },
+      {
+        "path": "src/renderer/domain/drift-group.ts",
+        "sha256": "af72524323b602602863593416e5cdbe12933e52504b0f0b1ea9312e49a8be89"
+      },
+      {
+        "path": "src/renderer/domain/entity-kinds.ts",
+        "sha256": "67ed43e3352f06131f4a4b73232a1f80afa701166b1ff1d4911a09ea856e8565"
+      },
+      {
+        "path": "src/renderer/domain/entity-kv-entry.ts",
+        "sha256": "ea46e9ea05265a02c620b33fc0e09a68a35246b1ca63e4dd89a13239665fa5ac"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.test.ts",
+        "sha256": "ff0c02e4a150d61b4e1ba7c160fb8fff953a14e009369a144d84c9634fb6f84d"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.ts",
+        "sha256": "a535501b2f8f6ce21c2041c644b3746965cfafc0d9b63b02f4ea91dc73c2e4ae"
+      },
+      {
         "path": "src/renderer/domain/kv.ts",
         "sha256": "e84bf938213fe3722c63042ae1e7e57bad6e3f7374b6eebdf89742cfdea745b8"
+      },
+      {
+        "path": "src/renderer/domain/library-item.ts",
+        "sha256": "a0b49af7acd43425cc853fa568505f90d89a0977b3ead6b039b1a0df8cce9a71"
+      },
+      {
+        "path": "src/renderer/domain/node-content.ts",
+        "sha256": "e1961b35f6f189eb508a005227be62a7fe13841ff942e1b7491d01d06d69fd64"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.test.ts",
+        "sha256": "de26bdb33f1abf2d8949deebd22f97946bbbf3d4160d9f20042e0ec1eeda0434"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.ts",
+        "sha256": "82161332e922034814a299f104729c4acf7cb057589b96d0388132d291be91fe"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.test.ts",
+        "sha256": "49f90887cfd8c12e231add1e205694ebcd03c25234c8e031ae7daca1b5fb85b2"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.ts",
+        "sha256": "dd88fbc8b1234f6c4cb2d279967a84ac11635fd154c11c5faabb608ac1f2ff01"
+      },
+      {
+        "path": "src/renderer/domain/project-asset.ts",
+        "sha256": "d247bc6b78e3d6d05447e03e3ff2dd37566fc338cf6340f10a835eaeaca5b497"
+      },
+      {
+        "path": "src/renderer/domain/project-summary.ts",
+        "sha256": "c184a19c16d2cd59f5b686bda5647912726847fafe95e50fd05a530c1d79f67c"
+      },
+      {
+        "path": "src/renderer/domain/project.ts",
+        "sha256": "0869310d172c773f866822feef08848c06dc07f7ed2233b486b5b8d27e747626"
+      },
+      {
+        "path": "src/renderer/domain/storyline.ts",
+        "sha256": "be20059b6b052409fc178b7ee5ca7fad26f74104ec584887c624224f8be2baef"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.test.ts",
+        "sha256": "ad7323c47dbfa0e1d2bb9f2c5fa95fbca396ff576488d7cc853da6fb86c3ba7a"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.ts",
+        "sha256": "cdd50bc81304e757b2f1fdba1661c060bdf85fafefa3c22802fa24a57caaa205"
+      },
+      {
+        "path": "src/renderer/domain/timeline-marker.ts",
+        "sha256": "986f6661216461cd793649ce2ec976a40ef29f3cd5f1b0cd4d9fcaf13eea0b35"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.test.ts",
+        "sha256": "f049c25dc7e65871da49f7d077d1869e2516165c91855eb291ddb286405f5d71"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.ts",
+        "sha256": "b6f5c7b324f85a8e56df4ff90f80f83ed755863e3f1f252a63cedd713e9601b3"
+      },
+      {
+        "path": "src/renderer/global.d.ts",
+        "sha256": "6c05b59c8e1802fff5f1087ed42ab3b7a71d82ed973962b853fc8f42f1784cfb"
       },
       {
         "path": "src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts",
@@ -623,6 +639,22 @@
       {
         "path": "src/renderer/lib/db.ts",
         "sha256": "a6027028f91cd6f4929b1948ad55e2ac4f48ae2fafdbed6f31cb85041d0e51f5"
+      },
+      {
+        "path": "src/renderer/lib/yjs-doc-id.ts",
+        "sha256": "a1f6385106e15fff96aa6f29405b85ba7aae47c2abc8cad38a0e995b27b3736d"
+      },
+      {
+        "path": "src/renderer/lib/yjs-persistence-origin.ts",
+        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+      },
+      {
+        "path": "src/renderer/platform/database-recovery-store.ts",
+        "sha256": "f1393be917e85c459a16c5e388dba6a537fdd2d07e8c1205bbdb2d69fd14f320"
+      },
+      {
+        "path": "src/renderer/platform/database.ts",
+        "sha256": "57eccac249eccf2a685006ab2ff17e008c155a12d12548ba77487136c24a141e"
       },
       {
         "path": "src/renderer/schema/agent-checkpoint-retention.ts",
@@ -635,6 +667,10 @@
       {
         "path": "src/renderer/schema/sync-engine-schema.integration.test.ts",
         "sha256": "e7e06c97207c3aeddc38778c1933014e80a1a5d347bd39a6ab0c816b1073c091"
+      },
+      {
+        "path": "src/renderer/services/yjs-transaction-evidence.ts",
+        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
       },
       {
         "path": "src/renderer/sqlite-repo/agent-checkpoint-retention.integration.test.ts",
@@ -1529,6 +1565,14 @@
         "sha256": "99ffe43e8a461ceb5bb9ca8380a1c25afe0f46137442c99fe10c0e12fb0ab547"
       },
       {
+        "path": "src/renderer/vite-env.d.ts",
+        "sha256": "9a7a0f23a9aa8743b69c544f4c9d8ee2739637533484f2b9809274fa06596e50"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "101d8d82f8b277474bc5e8625446ed86072256cfdd9ecd475558bf61d19bc01a"
+      },
+      {
         "path": "vendor/yrs/Cargo.lock",
         "sha256": "53a56e3e14693c1ecbde5cc93828fc1c9799cd2a89925a37b9efa999c8990314"
       },
@@ -1801,264 +1845,223 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "774f5c47f7ce27e9ceb9a4d52324647c9a4ddc82d54a1df7cab8a470a8fa84bd"
+    "fingerprint": "6727100e50ac6076f3fa9bec24c709304735f004db10241d9d472a6f9b11f5d5"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)"
   },
   "suites": [
     {
-      "name": "core-workspace",
-      "passed": 14,
+      "name": "core-remote",
+      "passed": 4,
       "failed": 0,
       "cases": [
-        "workspace::outline::tests::workspace_outline_preserves_empty_acts_and_rejects_nonfinite_boundary",
-        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
-        "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
-        "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
-        "workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project",
-        "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
-        "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
-        "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
-        "workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries",
-        "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
-        "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
-        "workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens",
-        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
-        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer"
+        "remote_prose::tests::remote_prose_observes_hlc_without_consuming_local_sequence",
+        "remote_prose::tests::remote_prose_multi_mutation_validates_complete_identity_and_current_scope_atomically",
+        "remote_prose::tests::remote_prose_receives_authored_original_and_deduplicates_after_prune_and_reopen",
+        "remote_prose::tests::remote_prose_receipt_failure_rolls_back_complete_packet_and_preserves_outer_transaction"
       ],
-      "logSha256": "8b40f26895c5c60d704200e9a995adfaac961a39f85fa62face1fd68cd936373"
+      "logSha256": "70d0d8eb2b830f77a05f6d708d3fd1ed7faf15b57fceb18cc258036a4eb2bf2d"
     },
     {
-      "name": "bridge-workspace",
-      "passed": 24,
+      "name": "prose-remote",
+      "passed": 2,
       "failed": 0,
       "cases": [
-        "workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match",
-        "workspace_tests::search::workspace_search_caps_results_and_reports_actual_truncation",
-        "workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database",
-        "workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes",
-        "workspace_tests::search::workspace_search_resolves_cold_unicode_hits_in_live_owner_and_rejects_stale_hits",
+        "remote_sync_accumulates_real_snapshot_tail_and_same_document_mutations",
+        "remote_sync_rejects_invalid_second_mutation_without_writes"
+      ],
+      "logSha256": "23f2b25a2e0fd355d90d300d0a19c491b9eda1c899e50feab783cfd2c326d314"
+    },
+    {
+      "name": "bridge-remote",
+      "passed": 4,
+      "failed": 0,
+      "cases": [
         "workspace_tests::remote_prose::workspace_remote_prose_rejected_original_and_receipt_failure_preserve_owner_and_draft",
         "workspace_tests::remote_prose::workspace_remote_prose_lost_notification_replays_all_owners_after_local_interleave",
-        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
-        "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen",
-        "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
-        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
-        "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
-        "workspace_tests::workspace_fixture_database_and_workspace_owners_remain_separate",
         "workspace_tests::remote_prose::workspace_remote_prose_offline_replicas_converge_all_open_chapters_with_local_history",
-        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
-        "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
-        "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
-        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
-        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
-        "workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once",
-        "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
-        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
-        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
-        "workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry"
+        "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen"
       ],
-      "logSha256": "3a25e60bf1502451dc86bc3733ac7922be8a8b568bcb1289d316eed0fb4b390e"
+      "logSha256": "609e6296365c80eb9c5069dfdfcfc44cff396d2d5e319b24e23ffe5e100f062e"
     }
   ],
   "renderer": {
     "schemaVersion": 1,
     "status": "passed",
+    "inputSha256": "ea47d426155bc91b1b45520e6f143914f8c2eaaa13398f0b61fd383e22292af6",
     "cases": [
       {
-        "changeSetId": "workspace-writer:workspace-epoch:1",
-        "mutationCount": 14,
-        "envelopeSha256": "e4e0d611eb969d31459fdd59ad78d05ce4c6d3b369afa2a4f03ad0fbc7d4e448",
-        "status": "passed"
-      },
-      {
-        "changeSetId": "workspace-writer:workspace-epoch:2",
-        "mutationCount": 3,
-        "envelopeSha256": "00515d629820c6b48acec8bd0fb11d38b2c3117fa58ea748d9266ddf738fd9dd",
-        "status": "passed"
-      },
-      {
-        "changeSetId": "workspace-writer:workspace-epoch:3",
-        "mutationCount": 3,
-        "envelopeSha256": "c921db12e3d133773df46da5866d9f7b964894f74ca1d9c88c101f03cdde3cd0",
-        "status": "passed"
+        "name": "authored-unicode-original-and-duplicate",
+        "status": "passed",
+        "beforeDatabaseSha256": "042b5e94f3779a54409ea13398e3a4b50bf00683d8da4011b19767ce3c56cb41",
+        "afterDatabaseSha256": "f09a7eacbd2266fbb45b091454ad6fa8cfa6d5601ab134a4d3b071671336909c",
+        "deliveries": [
+          {
+            "changeSetId": "lab-2836-1790431057217939000-70-writer:lab-2836-1790431057217939000-70-epoch:1",
+            "envelopeSha256": "2d2b98526b92bd4d3a23ca2fbddd4e77d3c26471436c2484deea400e1136d32b",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-2836-1790431057217939000-70-writer:lab-2836-1790431057217939000-70-epoch:1",
+            "envelopeSha256": "2d2b98526b92bd4d3a23ca2fbddd4e77d3c26471436c2484deea400e1136d32b",
+            "mutationCount": 1,
+            "status": "duplicate"
+          }
+        ],
+        "tables": [
+          {
+            "name": "sync_change_set",
+            "rows": 4,
+            "sha256": "a7eb4cff5f993a09342acfec510a010affbacfa65947079723fd23a326037efa"
+          },
+          {
+            "name": "sync_mutation",
+            "rows": 21,
+            "sha256": "d177219c77e1fcec89c1435fa99097b04e0d8ba60850775438d6c495c9562358"
+          },
+          {
+            "name": "sync_apply_receipt",
+            "rows": 4,
+            "sha256": "3a286fa86755195af84bc46d62b2bf113fe6c0f0eac9e36f3c9104d15d469a1b"
+          },
+          {
+            "name": "sync_yjs_materialization_receipt",
+            "rows": 3,
+            "sha256": "b97b00ec4b7810f265dbde9f67b6ebde6a180a2bfae5531461199c471913fe9e"
+          },
+          {
+            "name": "sync_generation_writer_state",
+            "rows": 2,
+            "sha256": "66a9c16932f9abff96623fccad5829778a4b12630ab975e8b6203e08b908dd1c"
+          },
+          {
+            "name": "yjs_updates",
+            "rows": 2,
+            "sha256": "9b91bf3a1fa15b30cf3b2585d52633394dbd8e2754fe674a4ec2a7cbf258f6f4"
+          },
+          {
+            "name": "yjs_snapshots",
+            "rows": 1,
+            "sha256": "1a8cc99991eca86ae236b8346c0f4a063bf8469cda48b790f42ecd5f1543219d"
+          },
+          {
+            "name": "yjs_document_revision",
+            "rows": 2,
+            "sha256": "cbb4884fa027e30bfe7935fd887bfa01e2f8a699a995a38db54c08d8a8759b36"
+          },
+          {
+            "name": "yjs_document_revision_provenance",
+            "rows": 3,
+            "sha256": "674f136c55d565852a32a19a1ebee8fb776dd3cb51b18ae431e0129f5e4af3dd"
+          },
+          {
+            "name": "node_content",
+            "rows": 2,
+            "sha256": "282454dee3ac6f69eb6282021826e9a414e3dc227eeb98b89e08dac7af78414a"
+          }
+        ],
+        "documents": [
+          {
+            "documentId": "node-content:native-chapter-2836-1790431056207313000-30",
+            "stateSha256": "eaae4e1f546afc654a5fcc83444c9002481551731a9a246ae5ca5e6771be9c3e",
+            "semanticCache": "passed"
+          }
+        ]
       }
     ],
-    "projectDefaults": 6,
-    "chapters": 2,
-    "fieldClocks": 0,
-    "orderTransitions": 0,
-    "rename": {
-      "status": "passed",
-      "cases": [
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:1",
-          "mutationCount": 14,
-          "envelopeSha256": "e4e0d611eb969d31459fdd59ad78d05ce4c6d3b369afa2a4f03ad0fbc7d4e448",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:2",
-          "mutationCount": 3,
-          "envelopeSha256": "00515d629820c6b48acec8bd0fb11d38b2c3117fa58ea748d9266ddf738fd9dd",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:3",
-          "mutationCount": 3,
-          "envelopeSha256": "aa4f3fac92d3cc5bafa658c9281fd6d18cc9df03f6e4b3888d7b2304b0e569b9",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:4",
-          "mutationCount": 1,
-          "envelopeSha256": "bd26a3d670f528256435ba4e2d52a466e8d4a42598fed69c48bc8016c33d59e2",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:5",
-          "mutationCount": 1,
-          "envelopeSha256": "936cd84169e7b244cc3362f664385f96f8264668fe0a777747ac859f8a2a5201",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:6",
-          "mutationCount": 1,
-          "envelopeSha256": "f8ddc8adc3374adb5913294f732d99c9b9183fed2825a4ff1db7b86787a9d18d",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:7",
-          "mutationCount": 1,
-          "envelopeSha256": "d07538347c7e739bcc9d95bedb148f07e1300802d63b4cc890dba17b9cb499b7",
-          "status": "passed"
-        }
+    "scope": "Actual canonical Rust incoming originals replayed through production TS stage, reducer materialization and completion against copies of real native SQLite baselines.",
+    "excludedWallClockColumns": {
+      "yjs_updates": [
+        "created_at"
       ],
-      "projectDefaults": 6,
-      "chapters": 2,
-      "fieldClocks": 4,
-      "orderTransitions": 0
-    },
-    "reorder": {
-      "status": "passed",
-      "cases": [
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:1",
-          "mutationCount": 14,
-          "envelopeSha256": "e4e0d611eb969d31459fdd59ad78d05ce4c6d3b369afa2a4f03ad0fbc7d4e448",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:2",
-          "mutationCount": 3,
-          "envelopeSha256": "978bffec2704d8d308e1fe0552492e34cf8fd6df72f08a16f61a3201a8f3b7fe",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:3",
-          "mutationCount": 3,
-          "envelopeSha256": "bad30c6f25117316f0e6c5221a9869203c9d09d1f14255257ef1d4ad59f56a9d",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:4",
-          "mutationCount": 3,
-          "envelopeSha256": "e63bceee769c31c36eb28eacbc56eb1233989404f7a454beba6c5d7815eacb0c",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:5",
-          "mutationCount": 1,
-          "envelopeSha256": "f4f8ca0fc94434cff82b6f8d4aeb23a8ea7e9b2fe7231ce423a0bb64007601b7",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:6",
-          "mutationCount": 1,
-          "envelopeSha256": "f2ce33743f3efbaae8a95d8712d0eb46741c65159137b3f60ae46fc486ee4240",
-          "status": "passed"
-        },
-        {
-          "changeSetId": "workspace-writer:workspace-epoch:7",
-          "mutationCount": 1,
-          "envelopeSha256": "aeda747ead187557ee7633ad155a713492d0f043e2497f66dff5f39000c88c61",
-          "status": "passed"
-        }
+      "yjs_document_revision": [
+        "updated_at"
       ],
-      "projectDefaults": 6,
-      "chapters": 3,
-      "fieldClocks": 5,
-      "orderTransitions": 3
-    },
-    "outline": {
-      "status": "passed",
-      "cases": [
-        {
-          "name": "finite-first-boundary-empty-act-and-utf8-ties",
-          "status": "passed",
-          "acts": 4,
-          "chapters": 4
-        },
-        {
-          "name": "optional-null-head-boundary",
-          "status": "passed",
-          "acts": 5,
-          "chapters": 4
-        }
+      "yjs_document_revision_provenance": [
+        "created_at"
       ]
     },
-    "scope": "Actual Rust creation, rename and reorder journals decoded and materialized by production renderer on fresh file-backed databases, including exact field clocks and each ordered chapter list; no live synchronization or UI claim"
+    "boundaries": "Compares exact original/mutation/receipts/revision/provenance/HLC and authoritative prose/cache. Does not certify provider transport, live editor notification, physical input or release."
   },
   "strictTypeScript": "passed",
   "boundaries": {
-    "source": "shared Rust workspace and bridge commands; actual renderer decoder and domain materializer",
-    "integration": "temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen; read-only act/chapter outline and lazy scoped prose headings without owner replacement; retained chapter owners with independent history, scoped reopen and close, all-owner close and retained drafts/save failures for retry; project title/prose search over live owners and cold authoritative prose without writes, current-scope CRDT anchor resolution, stale-result refusal, unavailable chapters and explicit result truncation",
-    "nativeUI": "separate native acceptance report",
-    "physicalDevice": "not-run",
-    "physicalIME": "not-run",
-    "realAccount": "not-run",
-    "signedDistribution": "not-run",
-    "fullRemoteSync": "not-certified",
-    "performance": "deferred"
+    "source": "Pure-prose canonical original receive transaction, shared Yrs projection and bridge delivery/replay over synthetic file-backed replicas.",
+    "agreedGroups": [
+      "Independent offline replicas converge and local undo preserves received edits.",
+      "Applied originals deduplicate after covered-tail pruning and independent cold reopen.",
+      "A committed update with no live notification is replayed before later local/remote work across open owners.",
+      "Receipt failure and wrong scope reject atomically while live history and drafts remain available."
+    ],
+    "rendererParity": "Production TypeScript protocol decoder, stage/reducer/complete transaction, exact immutable rows and receipts, prose revision/provenance, local HLC and authoritative semantic cache.",
+    "excludedWallClockColumns": {
+      "yjs_updates": [
+        "created_at"
+      ],
+      "yjs_document_revision": [
+        "updated_at"
+      ],
+      "yjs_document_revision_provenance": [
+        "created_at"
+      ]
+    },
+    "limitations": [
+      "In-process transaction-failure and cold-reopen evidence; this runner does not perform process SIGKILL or certify power-loss behavior.",
+      "Only current-scope pure yjs.update originals for existing prose owners; full domain reducer, project import, provider transport and network retry are not certified.",
+      "No automatic authority is granted to unsupported alias deletions or unresolved source retention.",
+      "No Swift/UI, physical IME, physical device, cloud account, signing or distribution acceptance."
+    ]
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/source-before.json",
-      "sha256": "d2e262613707ba6a37292c27188a7bcc05021d9f440367eeb47d1af49c657467"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/source-before.json",
+      "sha256": "c708c85555d89b962862710cd37629bc1e50c5def39a62062159ad914221bcf1"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/core-workspace.log",
-      "sha256": "8b40f26895c5c60d704200e9a995adfaac961a39f85fa62face1fd68cd936373"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/rustc.log",
+      "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/bridge-workspace.log",
-      "sha256": "3a25e60bf1502451dc86bc3733ac7922be8a8b568bcb1289d316eed0fb4b390e"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/cargo.log",
+      "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/workspace-wire.json",
-      "sha256": "783011b8dfd93fa32498a18a6c59e54bee3b4f1f4c34804437d8fc829bd5fd31"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/core-remote.log",
+      "sha256": "70d0d8eb2b830f77a05f6d708d3fd1ed7faf15b57fceb18cc258036a4eb2bf2d"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/workspace-rename-wire.json",
-      "sha256": "9844ed1b24f39ab7707baa04b0da08a7303750d7de722f5bf18cf01b3526c0cd"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/prose-remote.log",
+      "sha256": "23f2b25a2e0fd355d90d300d0a19c491b9eda1c899e50feab783cfd2c326d314"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/workspace-reorder-wire.json",
-      "sha256": "7eaeff70bba52414b174e663a6b37de3c6590a29f371976ecbd55f4bce4fa469"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/bridge-remote.log",
+      "sha256": "609e6296365c80eb9c5069dfdfcfc44cff396d2d5e319b24e23ffe5e100f062e"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/workspace-outline.json",
-      "sha256": "6ef84b5cf32a6e21c98cbe1ed6aac474929b82a82f5708b7a9328b4854d45abb"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/remote-prose-wire.json",
+      "sha256": "ea47d426155bc91b1b45520e6f143914f8c2eaaa13398f0b61fd383e22292af6"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/renderer.json",
-      "sha256": "0a2f20e96a846303dc873ce8ba2b27ef2c8fae41a5b94f5e2cfa94720760645e"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/renderer.json",
+      "sha256": "8951d3474cd6f8ed42236f0c3a237989fe41717fffda54fba6c755cb8d9f6e6e"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/renderer.log",
-      "sha256": "be4041bc547337caf5be2874f10a1cefc869b2579a8ef225b946a1f2a763eaaa"
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/renderer.log",
+      "sha256": "1900b3721ac2287cf502290374749d177a990e89d8aaab9abefb30350c8bcb54"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-ZGxGyY/typecheck.log",
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/before.db",
+      "sha256": "042b5e94f3779a54409ea13398e3a4b50bf00683d8da4011b19767ce3c56cb41"
+    },
+    {
+      "path": ".local-data/apple-native/remote-prose-acceptance-JjD6Ct/after.db",
+      "sha256": "f09a7eacbd2266fbb45b091454ad6fa8cfa6d5601ab134a4d3b071671336909c"
     }
   ]
 }

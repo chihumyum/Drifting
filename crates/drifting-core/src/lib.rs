@@ -6,6 +6,7 @@ pub mod original_operation;
 pub mod original_operation_store;
 pub mod prose;
 pub mod prose_journal;
+pub mod remote_prose;
 
 pub mod materialization_admission;
 
