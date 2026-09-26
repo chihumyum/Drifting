@@ -202,7 +202,7 @@ impl WorkspaceStore<'_> {
                         VALUES (?,?,?,?,'live',?,?,?,?,?,?,?)
                     "#,values)?;
                 }
-                "entity.trash" | "entity.restore" => {
+                "entity.trash" | "entity.restore" | "entity.purge" => {
                     let (previous_state, state, previous_incarnation) =
                         if mutation.action == "entity.restore" {
                             (
@@ -213,6 +213,13 @@ impl WorkspaceStore<'_> {
                                     .checked_sub(1)
                                     .ok_or("Restored incarnation must advance")?,
                             )
+                        } else if mutation.action == "entity.purge" {
+                            // Only removing a book-axis separator is exposed.
+                            // This must not become a chapter/content purge path.
+                            if mutation.family != "entity" || mutation.kind != "book-act" {
+                                return Err("Unsupported workspace purge target".into());
+                            }
+                            ("live", "purged", mutation.incarnation)
                         } else {
                             ("live", "trashed", mutation.incarnation)
                         };
@@ -239,7 +246,7 @@ impl WorkspaceStore<'_> {
                         self.client.into(),
                     )?;
                     if changed.changes != 1 {
-                        return Err("Chapter lifecycle changed during workspace command".into());
+                        return Err("Entity lifecycle changed during workspace command".into());
                     }
                 }
                 "order.move" => {

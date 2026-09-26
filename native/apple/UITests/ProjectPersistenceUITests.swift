@@ -142,6 +142,55 @@ final class ProjectPersistenceUITests: XCTestCase {
         saved(app)
     }
 
+    private func outlineAction(_ app: XCUIApplication, title: String, act: Bool, action: String) {
+        let label = (act ? "幕操作 " : "章节操作 ") + title
+        press(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch)
+        #if os(macOS)
+        press(app.menuItems.matching(identifier: action).firstMatch)
+        #else
+        press(app.buttons.matching(identifier: action).firstMatch)
+        #endif
+    }
+
+    private func closeOutline(_ app: XCUIApplication) {
+        press(app.buttons["close-outline"])
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.tables["book-outline-list"])
+        waitForExpectations(timeout: 15)
+    }
+
+    private func createAndRenameAct(_ app: XCUIApplication, chapter: String, name: String) {
+        press(app.buttons["show-outline"])
+        XCTAssertTrue(app.tables["book-outline-list"].waitForExistence(timeout: 15))
+        outlineAction(app, title: chapter, act: false, action: "outline-create-act")
+        outlineAction(app, title: "第一幕", act: true, action: "outline-rename-act")
+        let field = app.textFields["rename-act-name"]
+        press(field)
+        XCTAssertEqual(field.value as? String, "第一幕")
+        #if os(macOS)
+        field.typeKey("a", modifierFlags: .command)
+        #else
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "第一幕".count))
+        #endif
+        field.typeText(name)
+        press(app.buttons.matching(identifier: "confirm-rename-act").firstMatch)
+        expectation(for: NSPredicate(format: "label == %@ OR value == %@", "幕名称已保存。", "幕名称已保存。"),
+                    evaluatedWith: app.staticTexts["outline-status"])
+        waitForExpectations(timeout: 15)
+        closeOutline(app)
+    }
+
+    private func removeRestoredAct(_ app: XCUIApplication, name: String) {
+        press(app.buttons["show-outline"])
+        XCTAssertTrue(app.tables["book-outline-list"].waitForExistence(timeout: 15))
+        // Finding its menu after process restart proves the saved boundary and name returned.
+        outlineAction(app, title: name, act: true, action: "outline-remove-act")
+        expectation(for: NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "幕分界已移除", "幕分界已移除"),
+                    evaluatedWith: app.staticTexts["outline-status"])
+        waitForExpectations(timeout: 15)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "幕操作 " + name)).firstMatch.exists)
+        closeOutline(app)
+    }
+
     func testCreateWriteUndoReopenAndProcessRestart() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -150,6 +199,7 @@ final class ProjectPersistenceUITests: XCTestCase {
         let chapter = "First chapter"
         let renamedProject = name + " renamed"
         let renamedChapter = "Renamed chapter"
+        let actName = "Act for restart"
         createProject(app, name: name)
         rename(app, project: true, from: name, to: renamedProject)
         createChapter(app, title: chapter)
@@ -163,6 +213,8 @@ final class ProjectPersistenceUITests: XCTestCase {
         XCTAssertNotEqual(after, before)
         rename(app, project: false, from: chapter, to: renamedChapter)
         currentChapter(app, title: renamedChapter)
+        equalText(app, after)
+        createAndRenameAct(app, chapter: renamedChapter, name: actName)
         equalText(app, after)
         press(app.buttons["undo-prose"]); saved(app)
         let undone = try XCTUnwrap(prose.value as? String)
@@ -185,6 +237,8 @@ final class ProjectPersistenceUITests: XCTestCase {
         currentChapter(app, title: renamedChapter)
         saved(app); equalText(app, after)
         heading2(app, select: false)
+        removeRestoredAct(app, name: actName)
+        equalText(app, after)
         navigateOutline(app, chapter: renamedChapter, heading: "拍 · Native writing")
         equalText(app, after)
         let attachment = XCTAttachment(screenshot: app.screenshot())

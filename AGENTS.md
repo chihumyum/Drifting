@@ -19,6 +19,13 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Shared native correctness lives in `crates/drifting-core`; Tauri adapters and
   `native/apple` must use that owner instead of duplicating migration logic.
 - Native lab builds use synthetic data and separate application/data identity.
+- Current implementation and all routine native acceptance are Mac-only. Finish
+  the Mac front-end migration first; iPhone and iPad work and testing are deferred
+  until the author discusses those platforms afterwards. Preserve shared Rust,
+  existing UIKit code and historical results, but mobile is not a current gate.
+- Native acceptance defaults to Mac. `--with-ios` explicitly adds mobile tests;
+  `--ios-only` explicitly selects mobile-only, and `--include-ipad` also opts into
+  mobile. Do not use these mobile options during the current Mac-only work.
 - Keep P2 document/IME/undo/recovery gates ahead of broad interface construction.
 - Run `pnpm apple:check` and `pnpm apple:core:test` for changes to this boundary.
 - The Yrs document module requires Rust 1.96; run `pnpm apple:document:acceptance`

@@ -1,6 +1,8 @@
 # Milestones and acceptance
 
-The complete P0–P7 migration is authorized for continuous, staged execution.
+The active objective is to complete the Mac front-end migration through
+continuous, staged execution. The P0–P7 map remains below for context; mobile P6
+work is deferred until Mac is complete and the author discusses other platforms.
 Use **make it work, make it right, make it fast** within each functional batch.
 Finish its agreed scenarios, repair demonstrated data errors and then advance
 the main writing workflow. Do not grow an open-ended edge-case matrix or require
@@ -26,18 +28,26 @@ and sync UI are no longer migration exit gates. Keep the accepted shared CRDT,
 local persistence and receiver code, without continuing the old provider's
 snapshot restore work. Native local workflows and Agent integration proceed.
 
+Platform scope update (2026-09-27, latest instruction): current implementation
+and all routine acceptance are Mac-only. Finish the Mac migration before
+returning to the author to discuss iPhone and iPad. Their implementation and
+regression are deferred, not active completion gates. Shared Rust, existing
+UIKit code and historical mobile outcomes/source fingerprints remain intact.
+Desktop XCTest input stays excluded from the default run under the existing
+host-specific restriction.
+
 | Milestone | Deliverable | Exit gate | Current state |
 | --- | --- | --- | --- |
 | P0 | Inventory, ADR, scope, native design and synthetic corpus | Every inventoried surface has sources, dependencies, disposition, target, tests and unresolved decision task | Complete for initial migration scope |
-| P1 | Two buildable native hosts, Swift–Rust ABI, extracted core reused by Tauri | Create/read/rename synthetic project, close/reopen; existing migration/snapshot tests; old client regression | Initial lab acceptance passed; latest desktop XCTest needs input-synthesis repair (see acceptance notes) |
+| P1 | Buildable Mac host, Swift–Rust ABI, extracted core reused by Tauri | Create/read/rename synthetic project, close/reopen; existing migration/snapshot tests; old client regression | Initial two-host lab acceptance remains historical evidence; current gate is Mac; desktop XCTest needs input-synthesis repair (see acceptance notes) |
 | P2a | Headless Yjs/Yrs harness | Incremental, concurrent, reordered and duplicate updates converge without schema/metadata loss | Complete for declared headless scope, including redone-offset, sparse-replay and undo deletion-filter fixes; see source-matched generated evidence |
-| P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
+| P2b | AppKit document binding; existing UITextView work retained | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
-| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename, before-ID move and chapter trash/restore accepted; read-only act/chapter outline, scoped headings and authoritative project title/prose search added; remaining domain commands open |
+| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename, before-ID move and chapter trash/restore accepted; act/chapter outline with boundary editing, scoped headings and authoritative project title/prose search added; remaining domain commands open |
 | P4 | Agent over native prose; accepted receiver foundations retained | Minimal in-process runtime, guarded writes/reviews and durable recovery; Google Drive migration excluded | In progress: canonical prose/chapter receiver, deduplication, field conflicts and shared native delivery accepted as foundations; Agent remains open; Google Drive provider/bootstrap postponed to a separate redesign |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search and local recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; recoverable chapter trash/restore integrated; act editing and wider search parity remain open |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search and local recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; recoverable chapter trash/restore integrated; act boundary editing integrated; wider search parity remains open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
-| P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search and comments; interruptions and keyboard on devices; Google Drive sync deferred | Project/chapter/editor slice and title/prose search integrated; exact simulator outcomes are in the generated native report; remaining auxiliary scope and physical-device acceptance remain open |
+| P6 | Deferred iPhone/iPad auxiliary client | No current migration exit gate; scope and resumption to be discussed after Mac migration completes | Existing project/chapter/editor/search code and historical mobile reports retained; no routine mobile implementation or regression |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
 
 ## Bounded editor gates and functional integration
@@ -54,8 +64,8 @@ Known remote structural/deletion failures must be resolved before enabling the
 affected synchronization path. Physical IME and device evidence remain separate
 gates. A demonstrated data-loss or undo defect in the current slice blocks that
 slice; speculative new cases do not indefinitely block the next one. Mobile
-omission of a UI must never erase underlying desktop information. The P6
-first-release scope above cannot shrink silently.
+omission of a UI must never erase underlying desktop information. P6 is explicitly
+deferred; its future scope will be discussed with the author after Mac completion.
 
 The first P2 durability cases include a remote update committed before live
 replay, a lost replay callback, remote N+1 before local N+2, compaction and
@@ -77,7 +87,8 @@ universal hardware-independent limit. Investigate regressions before exit.
 Evidence dimensions are independent: source tests, file-backed integration,
 macOS native UI, iPhone simulator, iPad simulator, physical device, real account,
 minimum OS, Intel build and distribution package. A skipped dimension is
-`not-run`, never inferred from another. Failure logs and xcresult bundles stay
+`not-run`, never inferred from another. Both iPhone and iPad are currently deferred
+rather than required batch or migration-completion gates. Failure logs and xcresult bundles stay
 in ignored local output; checked-in reports contain relative paths and hashes,
 not personal paths, machine IDs, manuscripts, accounts or signing identities.
 
@@ -133,10 +144,10 @@ Both native hosts receive current workspace lists without replacing live owners.
 Its four file-backed/TypeScript comparison groups and two native groups are
 reported separately from physical-device, account and distribution gates.
 
-Next complete the local chapter trash and restore workflow through shared
-domain commands and native controls, preserving prose and current editor
-ownership. Google Drive and its old snapshot/bootstrap workflow are deferred.
-Act editing, wider search parity and Agent remain further batches. No
+Chapter trash/restore is accepted below. The current batch adds local act
+boundary editing to the existing whole-book outline. Google Drive and its old
+snapshot/bootstrap workflow are deferred. Wider search parity and Agent remain
+further batches. No
 performance measurement or extra historical migration matrix is a prerequisite.
 
 The [chapter trash batch](chapter-trash.md) is accepted for local trash lists and
@@ -147,9 +158,20 @@ owner and all of its Mac tabs; other chapters keep their selections and history.
 Association-bearing chapters remain guarded until those domain workflows are
 integrated. [The generated report](acceptance/p3b-chapter-trash.json) records the
 three fixed core/bridge and production-reducer groups; native evidence is kept
-in the binding and simulator reports. The next local workflow is editing act
-boundaries in the existing whole-book outline, followed by the remaining writing
-and Agent surfaces. Google Drive is not a dependency.
+in the binding and simulator reports. Act boundary editing follows below;
+Google Drive is not a dependency.
+
+The [act boundary batch](act-boundaries.md) connects create-before-chapter,
+rename and remove to both existing outline pages. Rust owns current coordinates,
+default names and transactional originals. Chapters, prose, comments and drift
+notes survive boundary removal; the native metadata queue retains open editors
+and outline expansion. [Its generated report](acceptance/p3c-act-boundaries.json)
+owns the bounded core/bridge/production-reducer evidence, with actual native UI
+results in the separate platform reports. Next, add the current-chapter comment
+workflow: selection capture, list/navigation, body editing and resolve/reopen,
+using shared domain writes and the existing prose anchor owner. This also
+provides a domain service for later Agent integration; it does not certify
+Agent permissions, provider runtime or review recovery.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

@@ -531,13 +531,18 @@ interleaved case adds a later prefix insertion after the safe suffix clock gap.
 Two further UIKit cases exercise stored dependency recovery with queued or marked
 input, the passive view's original suffix selection, accurate recovery status,
 continued native input, local-only history and SQLite reopen.
-The native runner requires thirteen hosted binding cases separately from the two
-simulator UI flows for project/prose save, history and restart. Run a focused
-iteration with `pnpm apple:acceptance --binding-only --output=<report>`;
-add `--ios-only` for iPhone alone. The normal native runner executes both hosted
-binding and UI flows on both device families. These checks do not prove physical
-Chinese/Japanese input-method, keyboard-candidate or background-interruption
-behavior.
+The native runner records hosted binding cases separately from simulator UI
+flows for project/prose save, history and restart; the generated report owns
+current counts. Run a focused iteration with
+`pnpm apple:acceptance --binding-only --output=<report>` for programmatic AppKit
+only. Current implementation and routine acceptance are Mac-only; iPhone and
+iPad are deferred until the Mac migration is complete and the author discusses
+other platforms. For future explicitly requested mobile runs, `--with-ios`
+adds UIKit/iPhone, `--ios-only` selects mobile without Mac, and `--include-ipad`
+also opts into mobile and includes iPad. Historical mobile outcomes remain tied
+to their original sources. These checks do not prove
+physical Chinese/Japanese input-method, keyboard-candidate or
+background-interruption behavior.
 Production remote-commit/replay ordering remains governed by the sync contract.
 
 The fixture ABI now uses `crates/drifting-prose` for exact authored event capture,

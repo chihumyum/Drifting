@@ -8,6 +8,7 @@ final class WorkspaceOutlineModel {
         let heading: NativeOutlineItem?
         let message: String?
         let depth: Int
+        var isAct: Bool { entry.kind == "act" && heading == nil && message == nil }
         var isChapter: Bool { entry.kind == "chapter" && heading == nil && message == nil }
         var navigable: Bool { entry.kind == "chapter" && message == nil }
         var label: String { message ?? heading?.label ?? "\(entry.kind == "act" ? "幕" : "章") · \(entry.title)" }
@@ -27,6 +28,7 @@ final class WorkspaceOutlineModel {
     private var activeChapterID: String?
     private var activeOutline: [NativeOutlineItem] = []
     private var requestID = 0
+    private(set) var busy = false
     private(set) var status = "正在读取整书大纲…"
     var onChange: (() -> Void)?
 
@@ -38,6 +40,7 @@ final class WorkspaceOutlineModel {
     func showStatus(_ message: String) { status = message; onChange?() }
 
     func load() {
+        guard !busy else { return }
         requestID += 1
         let request = requestID
         workspace.outline(projectID: projectID) { [weak self] result in
@@ -49,6 +52,55 @@ final class WorkspaceOutlineModel {
             case .failure(let error): self.status = error.localizedDescription
             }
             self.onChange?()
+        }
+    }
+
+    func createAct(beforeChapterID: String, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        mutate(message: "已在此章节前开始一幕。", completion: completion) {
+            workspace.createAct(projectID: projectID, chapterID: beforeChapterID, completion: $0)
+        }
+    }
+
+    func renameAct(id: String, name: String, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        mutate(message: "幕名称已保存。", completion: completion) {
+            workspace.renameAct(projectID: projectID, actID: id, name: name, completion: $0)
+        }
+    }
+
+    func removeAct(id: String, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        mutate(message: "幕分界已移除，章节和正文保持不变。", completion: completion) {
+            workspace.removeAct(projectID: projectID, actID: id, completion: $0)
+        }
+    }
+
+    private func mutate(message: String, completion: ((Result<WorkspaceAct, Error>) -> Void)?,
+                        operation: (@escaping (Result<WorkspaceAct, Error>) -> Void) -> Void) {
+        guard !busy else {
+            completion?(.failure(LabError.message("正在保存幕分界，请稍后重试"))); return
+        }
+        busy = true
+        requestID += 1 // An older initial read must not overwrite the refreshed hierarchy.
+        status = "正在保存幕分界…"
+        onChange?()
+        operation { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                self.busy = false; self.status = error.localizedDescription
+                self.onChange?(); completion?(.failure(error))
+            case .success(let act):
+                // Only Rust assigns coordinates, names and chapter membership.
+                // Keep disclosures and authoritative heading details in place.
+                self.workspace.outline(projectID: self.projectID) { [weak self] refreshed in
+                    guard let self else { return }
+                    self.busy = false
+                    switch refreshed {
+                    case .success(let entries): self.entries = entries; self.status = message
+                    case .failure(let error): self.status = "幕分界已保存，大纲读取失败：" + error.localizedDescription
+                    }
+                    self.onChange?(); completion?(.success(act))
+                }
+            }
         }
     }
 

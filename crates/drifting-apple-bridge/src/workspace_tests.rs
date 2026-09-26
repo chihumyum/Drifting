@@ -1,5 +1,7 @@
 //! Synthetic file-backed workspace acceptance through the public C ABI.
 use super::*;
+#[path = "workspace_act_tests.rs"]
+mod acts;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
 #[path = "workspace_remote_changes_tests.rs"]

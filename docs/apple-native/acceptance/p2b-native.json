@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T16:04:23.325Z",
+  "generatedAt": "2026-09-26T17:25:22.504Z",
   "status": "passed",
-  "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
+  "scope": "macOS build, core and source-matched programmatic AppKit acceptance; mobile platforms deferred",
+  "simulatorKinds": [],
   "source": {
-    "commit": "f8b75341f49222d978072f35d711a8d5a2852abe",
+    "commit": "b62622f23260f7627b9949b4bc60d862165d30e6",
     "dirty": true,
-    "runtimeFingerprint": "794b22ab65085e1edd663e60d81292d66c90f7dcda8b2d7eaca07db389b1afbc"
+    "runtimeFingerprint": "0c5f737d8c3d632050a1eed0dda296c57c967fa2e7692cc53530faa06b128a7a"
   },
   "checks": [
     {
@@ -17,7 +18,7 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 84
+      "passed": 87
     },
     {
       "name": "prose-durability",
@@ -27,75 +28,19 @@
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 49
+      "passed": 52
     },
     {
       "name": "macos-build",
       "status": "passed"
     },
     {
-      "name": "ios-simulator-build",
-      "status": "passed"
-    },
-    {
-      "name": "iphone-binding",
+      "name": "macos-binding",
       "status": "passed",
-      "passed": 24,
-      "failed": 0,
-      "operation": "chapter trash and restore preserve other owners, guard drafts and cold-open restored prose; complete chapter originals create editable chapters with cold reopen, metadata delivery returns workspace lists while retaining existing owner selection/history and rejects invalid originals atomically; canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
-      "platforms": [
-        {
-          "platform": "iOS Simulator",
-          "osVersion": "27.0",
-          "model": "iPhone 18 Pro"
-        }
-      ]
-    },
-    {
-      "name": "iphone-ui",
-      "status": "passed",
-      "passed": 4,
-      "failed": 0,
-      "operation": "chapter trash survives process restart and restores editable prose through native controls; project search from chapter list and editor, exact match selection and continued editing across chapters; whole-book outline expansion and current/cross-chapter heading navigation; native heading menu and persisted structure after process restart, project/chapter creation and rename, chapter reorder, prose edit and history retained after rename/reorder, save/reopen, two-chapter isolation, names and chapter order after process restart",
-      "platforms": [
-        {
-          "platform": "iOS Simulator",
-          "osVersion": "27.0",
-          "model": "iPhone 18 Pro"
-        }
-      ]
-    },
-    {
-      "name": "ipad-binding",
-      "status": "passed",
-      "passed": 24,
-      "failed": 0,
-      "operation": "chapter trash and restore preserve other owners, guard drafts and cold-open restored prose; complete chapter originals create editable chapters with cold reopen, metadata delivery returns workspace lists while retaining existing owner selection/history and rejects invalid originals atomically; canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
-      "platforms": [
-        {
-          "platform": "iOS Simulator",
-          "osVersion": "27.0",
-          "model": "iPad Pro 13-inch (M5)"
-        }
-      ]
-    },
-    {
-      "name": "ipad-ui",
-      "status": "passed",
-      "passed": 4,
-      "failed": 0,
-      "operation": "chapter trash survives process restart and restores editable prose through native controls; project search from chapter list and editor, exact match selection and continued editing across chapters; whole-book outline expansion and current/cross-chapter heading navigation; native heading menu and persisted structure after process restart, project/chapter creation and rename, chapter reorder, prose edit and history retained after rename/reorder, save/reopen, two-chapter isolation, names and chapter order after process restart",
-      "platforms": [
-        {
-          "platform": "iOS Simulator",
-          "osVersion": "27.0",
-          "model": "iPad Pro 13-inch (M5)"
-        }
-      ]
-    },
-    {
-      "name": "ios-device-unsigned-build",
-      "status": "passed"
+      "passed": 80,
+      "method": "validated-source-matched-report",
+      "evidence": "docs/apple-native/acceptance/p2b-binding.json",
+      "sourceFingerprint": "77493119d6d603642801d3b162eda661c6e46a5da7605f8c673d96d40058f69b"
     },
     {
       "name": "source-still-current",
@@ -111,6 +56,9 @@
     "minimumOSExecution": "not-run",
     "intelBuild": "not-run",
     "desktopXCTest": "not-run",
-    "uikitTextInput": "programmatic-hosted-tests-passed"
+    "programmaticAppKit": "source-matched-report-passed",
+    "uikitTextInput": "deferred",
+    "iPhone": "deferred",
+    "iPad": "deferred"
   }
 }

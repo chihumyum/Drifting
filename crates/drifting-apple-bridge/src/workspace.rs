@@ -132,6 +132,9 @@ pub(super) fn dispatch(
             | Request::WorkspaceRenameProject { .. }
             | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceMoveChapter { .. }
+            | Request::WorkspaceCreateAct { .. }
+            | Request::WorkspaceRenameAct { .. }
+            | Request::WorkspaceRemoveAct { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
             | Request::WorkspaceReceiveProse { .. }
@@ -256,6 +259,51 @@ pub(super) fn dispatch(
                     before_chapter_id.as_deref()
                 )?
             )
+        }
+        Request::WorkspaceCreateAct {
+            handle,
+            project_id,
+            chapter_id,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(
+                WorkspaceStore::new(&workspace.gateway, CLIENT).create_act_before_chapter(
+                    &workspace.context(&project)?,
+                    &identifier("act")?,
+                    chapter_id
+                )?
+            )
+        }
+        Request::WorkspaceRenameAct {
+            handle,
+            project_id,
+            act_id,
+            name,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT).rename_act(
+                &workspace.context(&project)?,
+                act_id,
+                name
+            )?)
+        }
+        Request::WorkspaceRemoveAct {
+            handle,
+            project_id,
+            act_id,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT)
+                .remove_act(&workspace.context(&project)?, act_id)?)
         }
         Request::WorkspaceChapters { handle, project_id } => {
             let workspace = workspaces

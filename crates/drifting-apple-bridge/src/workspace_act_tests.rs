@@ -1,0 +1,342 @@
+//! Actual local act commands and their canonical originals. Optional SQLite
+//! exports feed the production TypeScript reducer; tests always run without it.
+use super::*;
+use std::collections::BTreeMap;
+
+const FILE: &str = "apple-native-workspace.db";
+const FAULT: &str = "CREATE TRIGGER fail_act_receipt BEFORE INSERT ON sync_apply_receipt BEGIN SELECT RAISE(ABORT, 'synthetic act receipt fault'); END";
+
+fn query(db: &DatabaseGateway, sql: &str) -> Vec<Vec<DatabaseValue>> {
+    db.query(sql.into(), vec![], None, CLIENT.into())
+        .unwrap()
+        .rows
+}
+fn rows(db: &DatabaseGateway) -> BTreeMap<String, Vec<Vec<DatabaseValue>>> {
+    [
+        "project",
+        "book_act",
+        "book_node",
+        "node_content",
+        "node_storyline_link",
+        "entity_relation",
+        "comment",
+        "comment_action",
+        "sync_change_set",
+        "sync_mutation",
+        "sync_apply_receipt",
+        "sync_yjs_materialization_receipt",
+        "sync_generation_writer_state",
+        "sync_entity_lifecycle",
+        "sync_field_clock",
+        "sync_conflict",
+        "yjs_updates",
+        "yjs_snapshots",
+        "yjs_document_revision",
+        "yjs_document_revision_provenance",
+    ]
+    .into_iter()
+    .map(|table| {
+        (
+            table.into(),
+            query(db, &format!("SELECT * FROM {table} ORDER BY rowid")),
+        )
+    })
+    .collect()
+}
+fn unchanged(db: &DatabaseGateway, before: &BTreeMap<String, Vec<Vec<DatabaseValue>>>) {
+    let after = rows(db);
+    for (table, expected) in before {
+        assert!(
+            after.get(table) == Some(expected),
+            "table {table} changed on failure"
+        );
+    }
+}
+fn outline(fixture: &Fixture) -> Value {
+    success(
+        json!({"operation":"workspaceOutline","handle":fixture.workspace,"projectId":fixture.project}),
+    )
+}
+fn create_request(fixture: &Fixture, chapter: usize) -> Value {
+    json!({"operation":"workspaceCreateAct","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[chapter]})
+}
+fn act_request(fixture: &Fixture, operation: &str, act: &Value) -> Value {
+    json!({"operation":operation,"handle":fixture.workspace,"projectId":fixture.project,"actId":act["id"]})
+}
+fn rename_request(fixture: &Fixture, act: &Value, name: &str) -> Value {
+    let mut request = act_request(fixture, "workspaceRenameAct", act);
+    request["name"] = json!(name);
+    request
+}
+fn latest(db: &DatabaseGateway) -> Value {
+    let values = query(db, "SELECT encoded_bytes,mutation_count,created_at FROM sync_change_set WHERE origin='local' ORDER BY rowid DESC LIMIT 1");
+    let DatabaseValue::Blob(bytes) = &values[0][0] else {
+        panic!("original bytes")
+    };
+    let DatabaseValue::Integer(count) = &values[0][1] else {
+        panic!("mutation count")
+    };
+    let DatabaseValue::Text(created) = &values[0][2] else {
+        panic!("created at")
+    };
+    json!({"encodedBase64":STANDARD.encode(bytes),"mutationCount":count.parse::<u64>().unwrap(),"createdAt":created})
+}
+struct Export {
+    directory: PathBuf,
+    name: &'static str,
+    fixture: Value,
+}
+impl Export {
+    fn start(name: &'static str, fixture: &Fixture, db: &DatabaseGateway) -> Option<Self> {
+        let directory = PathBuf::from(std::env::var("NATIVE_WORKSPACE_ACT_EXPORT_DIR").ok()?);
+        std::fs::create_dir_all(&directory).unwrap();
+        let file = format!("{name}-before.db");
+        Self::copy(fixture, db, &directory.join(&file));
+        let writer = query(
+            db,
+            "SELECT installation_id,writer_id,writer_epoch FROM sync_generation_writer_state",
+        );
+        assert_eq!(writer.len(), 1);
+        let string = |index| match &writer[0][index] {
+            DatabaseValue::Text(value) => value.clone(),
+            _ => panic!("writer"),
+        };
+        Some(Self {
+            directory,
+            name,
+            fixture: json!({"name":name,"beforeDatabase":file,
+            "projectId":fixture.project,"chapterIds":fixture.chapters,
+            "identity":{"installationId":string(0),"writerId":string(1),"writerEpoch":string(2)},"steps":[]}),
+        })
+    }
+    fn copy(fixture: &Fixture, db: &DatabaseGateway, path: &PathBuf) {
+        assert_eq!(
+            serde_json::to_value(db.checkpoint(CLIENT.into()).unwrap()).unwrap()["busy"],
+            0
+        );
+        std::fs::copy(fixture.directory.join(FILE), path).unwrap();
+    }
+    fn step(
+        &mut self,
+        fixture: &Fixture,
+        db: &DatabaseGateway,
+        operation: &str,
+        act: &Value,
+        fault: bool,
+    ) {
+        let index = self.fixture["steps"].as_array().unwrap().len();
+        let file = format!("{}-after-{index}.db", self.name);
+        Self::copy(fixture, db, &self.directory.join(&file));
+        let mut step = latest(db);
+        step["afterDatabase"] = json!(file);
+        step["operation"] = json!(operation);
+        step["act"] = act.clone();
+        step["outline"] = outline(fixture);
+        step["faultBeforeApply"] = json!(fault);
+        self.fixture["steps"].as_array_mut().unwrap().push(step);
+        std::fs::write(
+            self.directory.join(format!("{}.json", self.name)),
+            serde_json::to_vec_pretty(&self.fixture).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn workspace_act_create_rename_and_cold_outline() {
+    let mut fixture = Fixture::new();
+    let first = fixture.open(0)["handle"].as_u64().unwrap();
+    let second = fixture.open(1)["handle"].as_u64().unwrap();
+    insert(first, "正文🙂 保留章节");
+    let before = state(first);
+    let db = gateway(first);
+    let mut export = Export::start("act-create-rename-and-cold-outline", &fixture, &db);
+    let act = success(create_request(&fixture, 1));
+    assert_eq!(act["name"], "第一幕");
+    assert!(act["startOrder"].as_f64().unwrap().is_finite());
+    assert_eq!(
+        query(
+            &db,
+            "SELECT COUNT(*) FROM book_act WHERE start_order IS NULL"
+        ),
+        vec![vec![DatabaseValue::Integer("0".into())]]
+    );
+    let actual = outline(&fixture);
+    assert_eq!(actual[0]["id"], fixture.chapters[0]);
+    assert_eq!(actual[0]["actId"], Value::Null);
+    assert_eq!(actual[1]["id"], act["id"]);
+    assert_eq!(actual[2]["actId"], act["id"]);
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "create", &act, false);
+    }
+    let renamed = success(rename_request(&fixture, &act, "合成第二航程🙂"));
+    assert_eq!(renamed["id"], act["id"]);
+    assert_eq!(renamed["startOrder"], act["startOrder"]);
+    assert_eq!(renamed["name"], "合成第二航程🙂");
+    assert_eq!(state(first), before);
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "rename", &renamed, false);
+    }
+    assert_eq!(fixture.open(0)["handle"], first);
+    assert_eq!(fixture.open(1)["handle"], second);
+    let expected = outline(&fixture);
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(outline(&fixture), expected);
+    assert_eq!(
+        fixture.open(0)["document"]["projection"]["text"],
+        before["projection"]["text"]
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_act_remove_retains_empty_boundary_chapter_state() {
+    let fixture = Fixture::new();
+    let opened = fixture.open(0);
+    let owner = opened["handle"].as_u64().unwrap();
+    let block = opened["document"]["projection"]["blocks"][0]["id"]
+        .as_str()
+        .unwrap();
+    insert(owner, "正文🙂 保留评论");
+    let db = gateway(owner);
+    // Only synthetic comment setup uses direct SQL. Every act mutation below
+    // goes through the actual workspace command and authored transaction.
+    seed_comment(
+        &db,
+        &fixture.project,
+        &fixture.chapters[0],
+        block,
+        "synthetic-act-comment",
+    );
+    let owner = fixture.reopen(0)["handle"].as_u64().unwrap();
+    insert(owner, "新增 ");
+    let second = fixture.open(1)["handle"].as_u64().unwrap();
+    insert(second, "另一章 e\u{301}🙂");
+    let act = success(create_request(&fixture, 1));
+    success(
+        json!({"operation":"workspaceMoveChapter","handle":fixture.workspace,"projectId":fixture.project,
+        "chapterId":fixture.chapters[1],"beforeChapterId":fixture.chapters[0]}),
+    );
+    let before_outline = outline(&fixture);
+    assert_eq!(
+        before_outline.as_array().unwrap().last().unwrap()["id"],
+        act["id"]
+    );
+    assert!(before_outline
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["kind"] == "chapter")
+        .all(|row| row["actId"].is_null()));
+    let before = rows(&db);
+    let owner_state = state(owner);
+    let other_state = state(second);
+    let mut export = Export::start(
+        "act-remove-retains-empty-boundary-chapter-state",
+        &fixture,
+        &db,
+    );
+    assert_eq!(
+        success(act_request(&fixture, "workspaceRemoveAct", &act)),
+        act
+    );
+    let after = rows(&db);
+    for table in [
+        "book_node",
+        "node_content",
+        "node_storyline_link",
+        "entity_relation",
+        "comment",
+        "comment_action",
+        "sync_yjs_materialization_receipt",
+        "yjs_updates",
+        "yjs_snapshots",
+        "yjs_document_revision",
+        "yjs_document_revision_provenance",
+    ] {
+        assert!(
+            after[table] == before[table],
+            "removing a boundary changed {table}"
+        );
+    }
+    assert_eq!(state(owner), owner_state);
+    assert_eq!(state(second), other_state);
+    assert_eq!(outline(&fixture).as_array().unwrap().len(), 2);
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "remove", &act, false);
+    }
+    assert_eq!(fixture.open(0)["handle"], owner);
+    assert_eq!(fixture.open(1)["handle"], second);
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":owner}))["projection"]["text"],
+        "正文🙂 保留评论"
+    );
+    assert_eq!(
+        success(json!({"operation":"documentRedo","handle":owner}))["projection"]["text"],
+        owner_state["projection"]["text"]
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_act_failure_preserves_owner_and_retries() {
+    let fixture = Fixture::new();
+    let owner = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(owner, "正文 保留失败重试🙂");
+    let db = gateway(owner);
+    let owner_state = state(owner);
+    let mut export = Export::start("act-failure-preserves-owner-and-retries", &fixture, &db);
+    let before = rows(&db);
+    let mut wrong = create_request(&fixture, 1);
+    wrong["projectId"] = json!("synthetic-wrong-project");
+    assert!(!rejected(wrong).is_empty());
+    unchanged(&db, &before);
+    execute(&db, FAULT);
+    assert!(rejected(create_request(&fixture, 1)).contains("synthetic act receipt fault"));
+    unchanged(&db, &before);
+    execute(&db, "DROP TRIGGER fail_act_receipt");
+    let act = success(create_request(&fixture, 1));
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "create", &act, true);
+    }
+    let created = rows(&db);
+    assert!(!rejected(create_request(&fixture, 1)).is_empty());
+    unchanged(&db, &created);
+    let mut wrong = rename_request(&fixture, &act, "不应生效");
+    wrong["projectId"] = json!("synthetic-wrong-project");
+    assert!(!rejected(wrong).is_empty());
+    unchanged(&db, &created);
+    execute(&db, FAULT);
+    assert!(rejected(rename_request(&fixture, &act, "成功后才改名"))
+        .contains("synthetic act receipt fault"));
+    unchanged(&db, &created);
+    execute(&db, "DROP TRIGGER fail_act_receipt");
+    let renamed = success(rename_request(&fixture, &act, "成功后才改名"));
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "rename", &renamed, true);
+    }
+    let renamed_rows = rows(&db);
+    execute(&db, FAULT);
+    assert!(
+        rejected(act_request(&fixture, "workspaceRemoveAct", &renamed))
+            .contains("synthetic act receipt fault")
+    );
+    unchanged(&db, &renamed_rows);
+    execute(&db, "DROP TRIGGER fail_act_receipt");
+    success(act_request(&fixture, "workspaceRemoveAct", &renamed));
+    if let Some(export) = &mut export {
+        export.step(&fixture, &db, "remove", &renamed, true);
+    }
+    assert_eq!(state(owner), owner_state);
+    assert_eq!(fixture.open(0)["handle"], owner);
+    assert_eq!(
+        success(json!({"operation":"documentUndo","handle":owner}))["projection"]["text"],
+        ""
+    );
+    fixture.close();
+}

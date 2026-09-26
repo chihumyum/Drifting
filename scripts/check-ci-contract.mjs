@@ -35,7 +35,7 @@ for (const command of [
   'pnpm ci:contract:check',
   'pnpm public:check',
   'pnpm apple:check',
-  'pnpm apple:acceptance --ios-only',
+  'pnpm apple:acceptance',
   'pnpm apple:document:acceptance',
   'pnpm apple:binding:acceptance',
   'pnpm apple:durability:acceptance',
@@ -48,6 +48,10 @@ for (const command of [
   'pnpm exec vite build --config vite.renderer.config.ts',
 ]) {
   if (!ci.includes(command)) errors.push(`client checks are missing: ${command}`);
+}
+requireMatch(ci, /^\s+- run: pnpm apple:check\s*$/mu, 'CI must retain Apple source evidence validation');
+if (/pnpm apple:acceptance[^\n]*(?:--ios-only|--with-ios|--include-ipad)/u.test(ci)) {
+  errors.push('Routine Apple CI is macOS only; mobile acceptance is deferred');
 }
 
 requireMatch(

@@ -5,6 +5,12 @@ persistence, transaction and domain correctness. Shared Swift owns typed UI
 models and the native adapter; platform Swift owns view composition, input,
 window/scene lifecycle, system file access and user interaction.
 
+Execution scope (2026-09-27, latest author instruction): complete the Mac
+front-end migration first, with Mac-only implementation and routine acceptance.
+iPhone and iPad are deferred until completion and a further discussion with the
+author. The shared-core/host architecture and existing UIKit code are retained;
+they do not require simultaneous mobile work or a current mobile exit gate.
+
 Scope decision (2026-09-26): Google Drive sync is excluded from the native
 migration; the author will redesign synchronization afterwards. Existing
 document/transaction/replay foundations stay in shared Rust, but the old cloud
@@ -82,9 +88,10 @@ MAX(id) can acknowledge unseen remote updates. See [durability](durability.md).
   pending-update discrepancy was reduced to sparse-hole replay and now has
   deterministic native/Yjs regressions, checkpoints and a separate baseline/
   patched stress comparison. Future upgrades must preserve these checks.
-- D2: explicitly select and observe the TextKit engine on both platforms.
-  Measure long paragraphs, wrapping, IME, selection and decorations before
-  accepting TextKit 2 as the final binding.
+- D2: explicitly select and observe the macOS TextKit engine. Revisit the
+  deferred UIKit binding when mobile work resumes. Measure long paragraphs,
+  wrapping, IME, selection and decorations before accepting TextKit 2 as the
+  final binding.
 - D3: specify UTF-16 view offsets, CRDT positions and grapheme boundaries;
   composition is transient UI state and must survive remote changes without
   publishing half-composed text or resetting the input context.

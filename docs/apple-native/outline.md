@@ -3,8 +3,10 @@
 This batch connects the five-level outline to the existing native writing
 workspace. It follows selection and heading formatting (`be701d92`). It provides
 act separators, chapter navigation, lazy chapter-heading expansion and jumps to
-scene/beat/note headings. It does not complete act editing, full outline density
-and folding behavior, tabs/split panes or general remote synchronization.
+scene/beat/note headings. The later [act boundary batch](act-boundaries.md)
+adds creation, rename and removal; [tabs/split panes](tabs-and-split.md) are
+recorded separately. Full outline density, folding parity and general remote
+synchronization remain outside this navigation batch.
 
 ## Authoritative data and ownership
 

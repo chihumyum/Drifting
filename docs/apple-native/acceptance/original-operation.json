@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "71aa1bb35c1dc4f4811721fbc0e1f2f37990c8d2ee124776d525ef21b0c157c9",
+    "fingerprint": "2ad07452334e908fccdcc215ef122e507f81f3d8d229fa03376913e91715d7f9",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -104,11 +104,19 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "7eb077ab77f7376ba90c37bfbfe04264f7a10a190d2d2e6cbc70ad27c25bb12f"
+        "sha256": "0a2ed73fb4ec63c1391ca7ef2824fdb9ea521d3d1c3710bbb5166e8c2bf70604"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/acts.rs",
+        "sha256": "caafd37fb27e86a452fe24ce5bc3a955efaa06cfbf3a85b8aca2449d1662bda1"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/acts/tests.rs",
+        "sha256": "42354087de6a30c67ec4d9cafc629e92d03e68ba81c0bf940148136fec1656d8"
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "bd0cf094bf80f29ef6d4c847e8bdd6827b88e5e27ee133145e26a0be790d431c"
+        "sha256": "2a98a0761c0e196e7d81241721df561798fe83f09a456de60909e87d0d468112"
       },
       {
         "path": "crates/drifting-core/src/workspace/outline.rs",
@@ -324,7 +332,7 @@
       },
       {
         "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "1f62b760947d93bcf2ec04a23a2079d582b96a335237389c3de67fe9ea703451"
+        "sha256": "63ec1636015aac579e0c7c57486515970eaedf93b005f71659c2c19aa6bf4726"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -372,7 +380,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "3acb9bf55cd7b0430f0f5c292416623a02e779f63dccda9ea917ee172fac7347"
+        "sha256": "8d30367ffa43852ee90c24f212963b532f7cf93122346ddc261e888190bf53c4"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -392,7 +400,7 @@
       },
       {
         "path": "scripts/apple-original-operation-acceptance.mjs",
-        "sha256": "5172f5148a6dcd17c2733785d96bbbbc957db9f918ed81ac9d584ece6f46d125"
+        "sha256": "cdeedaa9963efc1c48b00fd75f4807bcb99966ce1f71e717b72a728763547176"
       },
       {
         "path": "scripts/apple-original-operation-oracle.ts",
@@ -784,7 +792,7 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "passed": 84,
+    "passed": 87,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -822,7 +830,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "89088db08c0dbaa9334f10d5149317fe956af7c1cad5cc02c77bd20f38cfb3be"
+    "logSha256": "cae77372012679b0d3066c79deec780d47812590ade89301a01003c52831bedb"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

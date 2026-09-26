@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T16:01:56.916Z",
+  "generatedAt": "2026-09-26T16:34:30.311Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "f8b75341f49222d978072f35d711a8d5a2852abe",
+    "commit": "0e97a995e896df2275552855a5bcdf179645fd00",
     "dirty": true,
-    "fingerprint": "919ef58185919890088b19907ceafffdd0b6ad381ac8c1ce73527a42039aa536"
+    "fingerprint": "77493119d6d603642801d3b162eda661c6e46a5da7605f8c673d96d40058f69b"
   },
   "cases": [
     {
@@ -324,6 +324,10 @@
     },
     {
       "name": "Workspace trash preserves queued marked and failed-save drafts and rolls back a failed lifecycle transaction",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace act boundaries retain outline expansion chapter owners selection and history through create rename remove and cold reopen",
       "status": "passed"
     }
   ],

@@ -138,7 +138,7 @@ jobs:
       - run: cargo test --manifest-path crates/drifting-core/Cargo.toml --locked
 
   apple-native:
-    name: Apple native / simulator
+    name: Apple native / macOS
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -153,7 +153,6 @@ jobs:
         with:
           toolchain: 1.96.0
           components: rustfmt
-          targets: aarch64-apple-ios-sim,x86_64-apple-ios
       - name: Check Yjs and Yrs document compatibility
         run: |
           cargo fmt --manifest-path crates/drifting-document/Cargo.toml --check
@@ -170,8 +169,8 @@ jobs:
           pnpm apple:durability:acceptance --output=.local-data/apple-native/durability/p2c-durability.json
       - name: Ensure XcodeGen is available
         run: command -v xcodegen || brew install xcodegen
-      - name: Exercise native persistence through UIKit and process restart
-        run: pnpm apple:acceptance --ios-only
+      - name: Build macOS and validate native acceptance
+        run: pnpm apple:acceptance
       - name: Retain native evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

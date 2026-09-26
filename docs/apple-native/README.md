@@ -6,12 +6,18 @@ credentials, cloud account or published migration is changed by this experiment.
 
 ## Target and scope
 
-The target client supports macOS, iPhone and iPad. New Android and Windows
-product work is out of scope; existing implementations and checks remain until
-replacement behavior is accepted. The initial native deployment targets are
-macOS 14 and iOS/iPadOS 17. macOS Intel packaging is a separate build gate; the
-first local build is Apple Silicon. Minimum-version execution is also a separate
-gate from building with a newer SDK.
+The active migration target is macOS. At the author's latest direction on
+2026-09-27, implementation and all routine acceptance are Mac-only: finish the
+Mac front-end migration, then discuss iPhone and iPad with the author. Mobile
+work is deferred and does not gate completion of the current migration. Keep
+shared Rust and the existing UIKit implementation; historical mobile results
+remain tied to the sources they actually tested.
+
+New Android and Windows product work remains out of scope. The current native
+macOS deployment target is 14; deferred UIKit code retains its iOS/iPadOS 17
+configuration. macOS Intel packaging is a separate build gate; the first local
+build is Apple Silicon. Minimum-version execution is also separate from building
+with a newer SDK.
 
 The author excluded Google Drive synchronization from this migration on
 2026-09-26 and will redesign it after the native client migration. Do not port
@@ -32,6 +38,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Chapter trash and restore](chapter-trash.md)
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
+- [Act boundary editing](act-boundaries.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
@@ -52,6 +59,7 @@ pnpm apple:check
 pnpm apple:core:test
 pnpm apple:workspace:acceptance
 pnpm apple:workspace-trash:acceptance
+pnpm apple:workspace-act:acceptance
 pnpm apple:remote-prose:acceptance
 pnpm apple:workspace-remote:acceptance
 pnpm apple:document:acceptance
@@ -59,8 +67,6 @@ pnpm apple:authoring:acceptance
 pnpm apple:binding:acceptance
 pnpm apple:durability:acceptance
 pnpm apple:build:macos
-pnpm apple:build:ios
-pnpm apple:build:ios-device
 pnpm apple:acceptance
 ```
 
@@ -74,12 +80,17 @@ The separate physical-iPhone development-signing attempt is currently blocked
 by Xcode's missing account session and an ineligible Native Lab profile; its
 generated diagnostic records installation and device tests as not run.
 
-The default acceptance run does not synthesize macOS desktop input. Desktop
+The default acceptance run is Mac-only. `--binding-only` runs programmatic
+AppKit acceptance by default. Future explicit mobile runs can use `--with-ios`
+to add iPhone, `--ios-only` for mobile-only, or `--include-ipad` to opt into mobile
+and include iPad. None is part of the current routine acceptance.
+The default run does not synthesize macOS desktop input. Desktop
 XCTest requires `--macos-ui` and a suitable test session. On the current host,
 two keyboard-synthesis attempts timed out while System Settings opened; the
 precise OS trigger is unresolved. The user permits desktop interaction; avoid
-repeatedly running the same failing path without fixing it. Targeted native UI inspection, headless checks and simulator tests
-remain available. A default passing report does not imply desktop XCTest passed.
+repeatedly running the same failing path without fixing it. Targeted Mac UI
+inspection and headless checks remain available; mobile simulator runs are
+deferred. A default passing report does not imply desktop XCTest passed.
 
 The two applications now open a separate local workspace with project and chapter
 lists, creation, rename, chapter up/down, recoverable trash and restore, native editing, explicit save and reopen. Both call the shared
@@ -89,6 +100,8 @@ Both editors expose selection bold/italic and paragraph/heading 1–3 through th
 same Rust document transactions; see the bounded [formatting contract](formatting.md).
 The [whole-book outline](outline.md) reads shared act/chapter order and live
 scene/beat/note headings, with lazy expansion and navigation by stable identity.
+[Act boundary controls](act-boundaries.md) create, rename and remove separators
+through shared domain commands while retaining chapter prose and order.
 Ordering submits a destination chapter ID; the core updates only the moved
 chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
 The [local writing slice](workspace.md) records source-matched creation, rename
@@ -119,7 +132,8 @@ CRDT anchor resolution before selecting a match in the editor.
 Local multi-view and overlapping marked-text behavior have programmatic
 AppKit evidence. Hosted UIKit tests cover its real input entry points, remote
 composition, repeated-character identity, Unicode deletion, focus loss and native
-history routes on iPhone/iPad simulators. AppKit responder actions and menu
+history routes. Earlier reports include iPhone/iPad simulator runs; current
+routine regression does not run either mobile platform. AppKit responder actions and menu
 availability also route to the shared Rust history. These do not replace physical IME or desktop UI acceptance.
 The separate CUA/system-Pinyin attempts currently fail before marked composition:
 the observed five keycodes, window focus and input contexts match under both

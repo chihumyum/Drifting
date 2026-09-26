@@ -285,6 +285,28 @@ enum Request {
         #[serde(rename = "beforeChapterId")]
         before_chapter_id: Option<String>,
     },
+    WorkspaceCreateAct {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
+    WorkspaceRenameAct {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "actId")]
+        act_id: String,
+        name: String,
+    },
+    WorkspaceRemoveAct {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "actId")]
+        act_id: String,
+    },
     WorkspaceChapters {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -973,6 +995,9 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceRenameProject { .. }
         | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceMoveChapter { .. }
+        | Request::WorkspaceCreateAct { .. }
+        | Request::WorkspaceRenameAct { .. }
+        | Request::WorkspaceRemoveAct { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
         | Request::WorkspaceReceiveProse { .. }

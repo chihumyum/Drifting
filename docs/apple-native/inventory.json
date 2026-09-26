@@ -197,10 +197,10 @@
         "business"
       ],
       "acceptance": [
-        "five-level semantics, nullable storyline, ordering and drift visibility"
+        "five-level semantics, nullable storyline, ordering and drift visibility; act boundaries created at current chapter coordinates, renamed and removed without changing prose or chapter order"
       ],
       "milestone": "P5/P6",
-      "status": "read-only-five-level-navigation-implemented; act-editing-and-drift-UI-planned",
+      "status": "five-level-navigation-and-act-boundary-create-rename-remove-implemented; drift-UI-and-wider-outline-parity-planned",
       "decisionTask": null
     },
     {

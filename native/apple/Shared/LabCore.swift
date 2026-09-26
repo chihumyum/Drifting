@@ -312,6 +312,17 @@ struct WorkspaceChapter: Decodable {
     let id: String
     let title: String
 }
+struct WorkspaceAct: Decodable {
+    let id: String
+    let projectId: String
+    let name: String
+    let color: String?
+    let startOrder: Double?
+    let driftNodeId: String?
+    let createdAt: String
+    let updatedAt: String
+}
+
 struct ChapterScope: Hashable {
     let projectID: String
     let chapterID: String
@@ -453,6 +464,21 @@ final class LabWorkspaceCore {
 
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
         perform(completion) { try self.request("workspaceOutline", fields: ["projectId": projectID]) }
+    }
+
+    func createAct(projectID: String, chapterID: String,
+                   completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
+        updateMetadata("workspaceCreateAct", fields: ["projectId": projectID, "chapterId": chapterID], completion: completion)
+    }
+
+    func renameAct(projectID: String, actID: String, name: String,
+                   completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
+        updateMetadata("workspaceRenameAct", fields: ["projectId": projectID, "actId": actID, "name": name], completion: completion)
+    }
+
+    func removeAct(projectID: String, actID: String,
+                   completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
+        updateMetadata("workspaceRemoveAct", fields: ["projectId": projectID, "actId": actID], completion: completion)
     }
 
     func chapterOutline(projectID: String, chapterID: String,

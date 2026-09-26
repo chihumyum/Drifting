@@ -1,6 +1,7 @@
 //! Shared project/chapter creation and naming for native hosts. Domain rows, initial prose,
 //! canonical journal and reducer metadata commit together. Hosts supply IDs and
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
+mod acts;
 mod journal;
 mod outline;
 mod trash;
@@ -50,6 +51,19 @@ pub struct WorkspaceChapter {
     pub book_order: f64,
     pub writing_status: String,
     pub document_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAct {
+    pub id: String,
+    pub project_id: String,
+    pub name: String,
+    pub color: Option<String>,
+    pub start_order: Option<f64>,
+    pub drift_node_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
