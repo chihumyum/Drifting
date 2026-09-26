@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T08:26:15.006Z",
+  "generatedAt": "2026-09-26T09:57:16.372Z",
   "status": "passed",
   "source": {
-    "commit": "d983ec6f72531b8a6681bb4818ea5ac11d80c7e0",
+    "commit": "5bc7a9f853495eea3be8daa0ed04087210f2eeae",
     "dirty": true,
-    "fingerprint": "b8cdcafac739eeab3d09358a880e1340638348d904890a7879a77240b39edfa0"
+    "fingerprint": "45756231827f64aa8e3872974ba60083cf5bb95d87971944336573da28d715b9"
   },
   "libraries": {
     "yjs": "13.6.32",
@@ -45,6 +45,11 @@
     }
   ],
   "cases": [
+    {
+      "name": "native formatting exchanges real marks and heading structure with Yjs",
+      "status": "passed",
+      "scope": "two root paragraphs, UTF-16 selection, one undo unit, typed metadata, links, heading 1-3, paragraph clearing, duplicate update and current-structure peer editing"
+    },
     {
       "name": "v1/v2 input and v1 output preserve XML, marks, opaque metadata, shared roots and binary values",
       "status": "passed"
@@ -221,9 +226,33 @@
     "exclusionReason": "Seven upstream trace/dataset tests need assets absent from the published crate; not claimed as passed."
   },
   "unitTests": {
-    "passed": 132,
+    "passed": 138,
     "failed": 0,
     "requiredCases": [
+      {
+        "name": "formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit",
+        "status": "passed"
+      },
+      {
+        "name": "formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen",
+        "status": "passed"
+      },
+      {
+        "name": "formatting_tests::native_format_paragraph_clears_selected_marks_and_level_but_keeps_links",
+        "status": "passed"
+      },
+      {
+        "name": "formatting_tests::native_format_empty_caret_and_container_heading_preserve_parent_and_reject_unwrap",
+        "status": "passed"
+      },
+      {
+        "name": "formatting_tests::native_format_invalid_ranges_or_later_shared_metadata_reject_before_any_mutation",
+        "status": "passed"
+      },
+      {
+        "name": "formatting_tests::native_format_italic_event_replays_on_peer_and_preserves_remote_history",
+        "status": "passed"
+      },
       {
         "name": "relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation",
         "status": "passed"

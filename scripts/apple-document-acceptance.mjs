@@ -15,6 +15,13 @@ const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9)
   ?? 'docs/apple-native/acceptance/p2a-document.json';
 const logDirectory = '.local-data/apple-native/document';
 const requiredUnitTests = [
+  'formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit',
+  'formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen',
+  'formatting_tests::native_format_paragraph_clears_selected_marks_and_level_but_keeps_links',
+  'formatting_tests::native_format_empty_caret_and_container_heading_preserve_parent_and_reject_unwrap',
+  'formatting_tests::native_format_invalid_ranges_or_later_shared_metadata_reject_before_any_mutation',
+  'formatting_tests::native_format_italic_event_replays_on_peer_and_preserves_remote_history',
+
   'relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation',
   'relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history',
   'native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items',
@@ -74,7 +81,8 @@ const report = {
 if (process.argv.includes('--check')) {
   const previous = JSON.parse(readFileSync(output));
   assert.equal(previous.status, 'passed', 'P2a document acceptance must pass');
-  assert(previous.unitTests?.passed >= 132 && previous.unitTests.failed === 0, 'Document unit tests must execute');
+  assert(previous.cases.some(entry => entry.name === 'native formatting exchanges real marks and heading structure with Yjs' && entry.status === 'passed'));
+  assert(previous.unitTests?.passed >= 138 && previous.unitTests.failed === 0, 'Document unit tests must execute');
   assert.deepEqual(previous.unitTests.requiredCases, requiredUnitTests.map(name => ({ name, status: 'passed' })));
   assert.equal(previous.relocationAliasAcceptance?.status, 'passed', 'Original-prefix routing must pass');
   assert.equal(previous.relocationAliasAcceptance.scenarios.length, 2, 'Both supported quote shapes must execute');
@@ -183,7 +191,7 @@ try {
   const testLog = run('cargo', ['test', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked']);
   writeFileSync(`${logDirectory}/rust-tests.log`, testLog);
   const testCount = [...testLog.matchAll(/test result: ok\. (\d+) passed;/g)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert(testCount >= 132, 'Document, comment, selection and sparse-replay unit tests must actually execute');
+  assert(testCount >= 138, 'Document, comment, selection and sparse-replay unit tests must actually execute');
   for (const name of requiredUnitTests) assert(testLog.includes(`test ${name} ... ok`), `Missing document regression: ${name}`);
   report.unitTests = { passed: testCount, failed: 0, requiredCases: requiredUnitTests.map(name => ({ name, status: 'passed' })) };
   run('cargo', ['build', '--manifest-path', 'crates/drifting-document/Cargo.toml', '--locked', '--example', 'document_protocol']);
@@ -197,6 +205,79 @@ try {
   });
   processHandle.on('error', error => { const waiting = pending; pending = null; waiting?.reject(error); });
   processHandle.on('exit', code => { const waiting = pending; pending = null; waiting?.reject(new Error(`Rust process exited ${code}: ${errors}`)); });
+
+  await check('native formatting exchanges real marks and heading structure with Yjs', async () => {
+    const peer = jsDoc(90101, null);
+    const ids = ['format-first', 'format-second'];
+    const strings = ['灯塔 👩🏽‍🚀', '第二段 e\u0301'];
+    const metadata = { keep: true, nested: [1, 'synthetic'] };
+    peer.transact(() => {
+      for (const [index, id] of ids.entries()) {
+        const block = new Y.XmlElement('paragraph');
+        block.setAttribute('id', id); block.setAttribute('nativeUnknownAttribute', metadata);
+        const value = new Y.XmlText(); block.insert(0, [value]);
+        peer.getXmlFragment('default').push([block]);
+        value.insert(0, strings[index]);
+        value.format(0, 2, { entityLink: { targetId: 'synthetic-element', targetKind: 'element' }, strike: {} });
+      }
+      peer.getMap('format-metadata').set('untouched', metadata);
+    });
+    await open('native-format', 90102, Y.encodeStateAsUpdate(peer));
+    const original = semantic(peer);
+    const all = { location: 0, length: strings.join('\n').length };
+    const format = async (action, range = all) => {
+      const projection = await request('native-format', 'projection');
+      return request('native-format', 'formatNative', { edit: { revision: projection.revision, range, action } });
+    };
+    await format('bold');
+    const bold = await state('native-format');
+    await request('native-format', 'undo');
+    assert.deepEqual(await state('native-format'), original, 'one undo must clear both paragraphs');
+    await request('native-format', 'redo');
+    assert.deepEqual(await state('native-format'), bold);
+    await format('italic');
+    await format('bold'); // All selected runs are bold: toggle off, preserving italic and links.
+    let current = await exportToJS('native-format');
+    for (const id of ids) {
+      for (const run of text(current, id).toDelta()) {
+        assert.deepEqual(run.attributes.italic, {});
+        assert.equal(run.attributes.bold, undefined);
+      }
+      assert.deepEqual(text(current, id).toDelta()[0].attributes.entityLink, { targetId: 'synthetic-element', targetKind: 'element' });
+    }
+    current.destroy();
+    for (const level of [1, 2, 3]) {
+      await format(`heading${level}`, { location: 0, length: 0 });
+      current = await exportToJS('native-format');
+      assert.equal(findBlock(current, ids[0]).nodeName, 'heading');
+      assert.equal(findBlock(current, ids[0]).getAttribute('level'), level);
+      assert.equal(plain(current, ids[0]), strings[0]);
+      assert.deepEqual(findBlock(current, ids[0]).getAttribute('nativeUnknownAttribute'), metadata);
+      current.destroy();
+    }
+    await format('paragraph');
+    const update = decoded(await request('native-format', 'export'));
+    Y.applyUpdate(peer, update, 'native'); Y.applyUpdate(peer, update, 'native');
+    assert.deepEqual(semantic(peer), await state('native-format'));
+    assert.deepEqual(peer.getMap('format-metadata').get('untouched'), metadata);
+    for (const id of ids) {
+      assert.equal(findBlock(peer, id).nodeName, 'paragraph');
+      assert.deepEqual(findBlock(peer, id).getAttribute('nativeUnknownAttribute'), metadata);
+      for (const run of text(peer, id).toDelta()) {
+        for (const mark of ['bold', 'italic', 'strike']) assert.equal(run.attributes?.[mark], undefined);
+      }
+      assert.equal(text(peer, id).toDelta()[0].attributes.entityLink.targetId, 'synthetic-element');
+    }
+    // A peer that has received the new structure edits that current structure.
+    // This does not certify late updates addressed to deleted physical parents.
+    const vector = Y.encodeStateVector(peer);
+    jsEdit(peer, { operation: 'insert', block: ids[0], offset: 0, text: '旧端 ' });
+    await request('native-format', 'apply', { update: encoded(Y.encodeStateAsUpdate(peer, vector)) });
+    assert.deepEqual(await state('native-format'), semantic(peer));
+    await open('native-format-reopened', 90103, decoded(await request('native-format', 'export')));
+    assert.deepEqual(await state('native-format-reopened'), semantic(peer));
+    peer.destroy();
+  }, { scope: 'two root paragraphs, UTF-16 selection, one undo unit, typed metadata, links, heading 1-3, paragraph clearing, duplicate update and current-structure peer editing' });
 
   await check('v1/v2 input and v1 output preserve XML, marks, opaque metadata, shared roots and binary values', async () => {
     const js = jsDoc(100);

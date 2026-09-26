@@ -12,6 +12,10 @@ mod concurrent_draft_tests;
 #[cfg(test)]
 mod draft_tests;
 mod drafts;
+mod formatting;
+pub use formatting::{NativeFormatAction, NativeFormatting};
+#[cfg(test)]
+mod formatting_tests;
 mod history;
 mod inputs;
 pub use inputs::NativeInputEdit;

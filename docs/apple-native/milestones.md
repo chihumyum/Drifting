@@ -76,28 +76,30 @@ not personal paths, machine IDs, manuscripts, accounts or signing identities.
 
 ## Current functional slice and next batch
 
-The [local writing slice](workspace.md) covers creation, independent prose, local
-history, save, switch and cold reopen, accepted in `15e298ba`; rename was accepted
-in `5a604200`. The current extension adds shared chapter moves before an ID or to
-the end, exposed as AppKit up/down buttons and a UIKit editor menu. The core writes
-only the moved chapter's scalar `bookOrder` mutation, timestamp and field clock.
-It preserves fixed act boundaries, refuses an unrepresentable strict finite gap
-atomically, and makes already-positioned requests no-ops. Rename and reorder
-retain the current prose owner, selection and history.
+The [local writing slice](workspace.md) covers creation and independent prose
+(`15e298ba`), rename (`5a604200`) and chapter ordering (`5bc7a9f8`). Metadata
+commands retain the same document owner, selection and local history. Ordering
+writes only the moved chapter's scalar `bookOrder`, timestamp and field clock,
+without moving fixed act boundaries or globally reindexing.
 
-Shared-core, bridge and production renderer comparison pass; exact counts and
-source identity belong to the [workspace report](acceptance/p3a-workspace.json).
-Both iPhone and iPad pass 13 hosted binding cases and the two UI scenarios,
-including movement, continued history and cold order recovery. Mac, simulator
-and unsigned device builds pass. Rebuilt-Mac CUA confirms up/down and restart
-recovery separately from desktop XCTest. Completed batches are committed after
-their checks, without pushing.
+The current [formatting batch](formatting.md) adds selection bold/italic and
+real paragraph/heading 1–3 through shared Rust transactions. Each command has one
+undo unit, including multi-paragraph selections. Both native hosts retain their
+selection, share persisted structure and style headings by level. Container
+unwrapping and block indentation remain separate workflow work.
 
-Next expose native editor actions for bold/italic selections and paragraph/heading
-formatting through the existing Rust document transactions and history, then
-connect the outline. Preserve act/chapter/scene/beat/note semantics. Delete, the
-complete outline, sync and Agent are outside this ordering batch. No performance
-measurement or extra historical migration matrix is a prerequisite.
+Source-matched [document](acceptance/p2a-document.json),
+[workspace](acceptance/p3a-workspace.json), [binding](acceptance/p2b-binding.json)
+and [native](acceptance/p2b-native.json) reports own exact counts and outcomes.
+The formatting slice passes both platforms' 14 hosted binding tests and two
+simulator UI workflows; Mac, simulator and unsigned device builds pass. Fresh
+Mac CUA confirms formatting, history and cold recovery separately from XCTest.
+Completed batches are documented, accepted and committed before starting the
+next feature, without pushing.
+
+Next connect the native outline, preserving act/chapter/scene/beat/note semantics.
+Deletion, full workspace parity, sync and Agent remain further batches. No
+performance measurement or extra historical migration matrix is a prerequisite.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

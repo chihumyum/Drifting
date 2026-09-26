@@ -179,7 +179,7 @@ impl NativeEditMap {
     }
 }
 
-struct Parent(XmlOut);
+pub(crate) struct Parent(pub(crate) XmlOut);
 impl AsRef<yrs::branch::Branch> for Parent {
     fn as_ref(&self) -> &yrs::branch::Branch {
         self.0.as_ref()
@@ -315,7 +315,7 @@ fn text_slice(text: &str, start: u32, end: u32) -> Result<String, String> {
         .map_err(|_| "Invalid UTF-16 slice".into())
 }
 
-struct TailRun {
+pub(crate) struct TailRun {
     text: String,
     marks: Attrs,
 }
@@ -344,7 +344,7 @@ fn range_runs<T: ReadTxn>(
     Ok(runs)
 }
 
-fn tail_runs<T: ReadTxn>(
+pub(crate) fn tail_runs<T: ReadTxn>(
     block: &NativeBlock,
     element: &XmlElementRef,
     txn: &T,
@@ -359,7 +359,12 @@ fn tail_runs<T: ReadTxn>(
     )
 }
 
-fn insert_runs(text: &XmlTextRef, txn: &mut yrs::TransactionMut, mut at: u32, runs: Vec<TailRun>) {
+pub(crate) fn insert_runs(
+    text: &XmlTextRef,
+    txn: &mut yrs::TransactionMut,
+    mut at: u32,
+    runs: Vec<TailRun>,
+) {
     for run in runs {
         text.insert_with_attributes(txn, at, &run.text, run.marks);
         at += run.text.encode_utf16().count() as u32;
@@ -369,7 +374,10 @@ fn insert_runs(text: &XmlTextRef, txn: &mut yrs::TransactionMut, mut at: u32, ru
 // XmlText owns a separate attribute map that is not part of inline mark runs
 // or NativeProjection. Preserve typed future metadata when splitting/copying
 // text; conflicting values must be resolved before any LOCAL mutation.
-fn text_attributes<T: ReadTxn>(elements: &[XmlElementRef], txn: &T) -> Result<Attrs, String> {
+pub(crate) fn text_attributes<T: ReadTxn>(
+    elements: &[XmlElementRef],
+    txn: &T,
+) -> Result<Attrs, String> {
     let mut merged = Attrs::new();
     for element in elements {
         if let Some(XmlOut::Text(text)) = element.get(txn, 0) {
@@ -387,7 +395,11 @@ fn text_attributes<T: ReadTxn>(elements: &[XmlElementRef], txn: &T) -> Result<At
     Ok(merged)
 }
 
-fn preserve_text_attributes(text: &XmlTextRef, txn: &mut yrs::TransactionMut, attrs: &Attrs) {
+pub(crate) fn preserve_text_attributes(
+    text: &XmlTextRef,
+    txn: &mut yrs::TransactionMut,
+    attrs: &Attrs,
+) {
     for (key, value) in attrs {
         if !matches!(text.get_attribute(txn, key), Some(Out::Any(old)) if old == *value) {
             text.insert_attribute(txn, key.clone(), value.clone());
@@ -395,7 +407,10 @@ fn preserve_text_attributes(text: &XmlTextRef, txn: &mut yrs::TransactionMut, at
     }
 }
 
-fn block_attributes<T: ReadTxn>(element: &XmlElementRef, txn: &T) -> Result<Attrs, String> {
+pub(crate) fn block_attributes<T: ReadTxn>(
+    element: &XmlElementRef,
+    txn: &T,
+) -> Result<Attrs, String> {
     element
         .attributes(txn)
         .map(|(key, value)| match value {

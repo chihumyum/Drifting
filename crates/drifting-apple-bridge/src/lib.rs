@@ -17,8 +17,8 @@ use drifting_core::original_body_archive::ArchiveScope;
 use drifting_core::prose::{ProseRepository, RevisionSource};
 use drifting_core::prose_journal::{AuthoredProseContext, AuthoredProseJournal};
 use drifting_document::{
-    CommentAnchorRecord, DocumentSession, NativeDraftCommit, NativeDraftStart, NativeInputEdit,
-    NativeReplacement, NativeSelectionRequest,
+    CommentAnchorRecord, DocumentSession, NativeDraftCommit, NativeDraftStart, NativeFormatting,
+    NativeInputEdit, NativeReplacement, NativeSelectionRequest,
 };
 use drifting_prose::{DurabilityPhase, DurableDocument};
 use serde::Deserialize;
@@ -366,6 +366,10 @@ enum Request {
         handle: u64,
         #[serde(rename = "viewId")]
         view_id: String,
+    },
+    DocumentFormat {
+        handle: u64,
+        edit: NativeFormatting,
     },
     DocumentReplace {
         handle: u64,
@@ -840,6 +844,22 @@ fn dispatch(request: Request) -> Result<Value, String> {
                 .drop_selection(&view_id);
             Ok(Value::Null)
         }
+        Request::DocumentFormat { handle, edit } => {
+            let session = sessions
+                .get_mut(&handle)
+                .ok_or("Unknown or closed session")?;
+            if session.write_blocked() {
+                return Err("Retry the pending save before formatting".into());
+            }
+            if session.document.active_drafts() > 0
+                || session.document.active_input_compositions() > 0
+            {
+                return Err("Commit or cancel active drafts before formatting".into());
+            }
+            session.document.format_native(edit)?;
+            session.persist();
+            session.document_state()
+        }
         Request::DocumentReplace { handle, edit } => {
             let session = sessions
                 .get_mut(&handle)
@@ -900,7 +920,20 @@ fn reply(input: &str) -> Value {
         .and_then(dispatch)
     {
         Ok(value) => json!({"abiVersion": 1, "ok": true, "value": value}),
-        Err(error) => json!({"abiVersion": 1, "ok": false, "error": error}),
+        Err(error) => {
+            // Rejected formatting is not a failed save. Classify even malformed
+            // edit payloads so the native queue can retain its current bases.
+            // Successful commands and ordinary replies incur no second parse.
+            let formatting = serde_json::from_str::<Value>(input)
+                .ok()
+                .is_some_and(|request| request["operation"] == "documentFormat");
+            let error = if formatting {
+                format!("NATIVE_FORMATTING_UNAVAILABLE: {error}")
+            } else {
+                error
+            };
+            json!({"abiVersion": 1, "ok": false, "error": error})
+        }
     }
 }
 

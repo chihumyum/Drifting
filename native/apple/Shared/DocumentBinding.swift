@@ -15,6 +15,24 @@ struct NativeRange: Decodable {
     var nsRange: NSRange { NSRange(location: location, length: length) }
 }
 
+enum NativeFormatAction: String, CaseIterable {
+    case bold, italic, paragraph, heading1, heading2, heading3
+
+    var requiresSelection: Bool { self == .bold || self == .italic }
+    var title: String {
+        switch self {
+        case .bold: return "加粗"
+        case .italic: return "斜体"
+        case .paragraph: return "正文"
+        case .heading1: return "标题 1"
+        case .heading2: return "标题 2"
+        case .heading3: return "标题 3"
+        }
+    }
+    var accessibilityID: String { "format-\(rawValue)" }
+    static let blocks: [NativeFormatAction] = [.paragraph, .heading1, .heading2, .heading3]
+}
+
 // Only display hints cross into the view. Unrecognized mark payloads remain in
 // Yrs; attributed strings are never used to reconstruct the document.
 struct NativeMarks: Decodable {
@@ -38,6 +56,16 @@ struct NativeMarks: Decodable {
     }
 }
 struct NativeRun: Decodable { let range: NativeRange; let attributes: NativeMarks }
+struct NativeBlockAttributes: Decodable {
+    let level: Int?
+    private enum CodingKeys: String, CodingKey { case level }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        // Unknown attribute payloads remain in Rust; a display hint must not
+        // prevent opening a document whose metadata this view cannot render.
+        level = try? values.decode(Int.self, forKey: .level)
+    }
+}
 struct NativeBlock: Decodable {
     let id: String?
     var kind: String
@@ -47,6 +75,8 @@ struct NativeBlock: Decodable {
     var range: NativeRange
     let editable: Bool
     var runs: [NativeRun]
+    var attributes: NativeBlockAttributes? = nil
+    var headingLevel: Int { attributes?.level ?? 1 }
 }
 struct NativeProjection: Decodable {
     let revision: UInt64
@@ -306,6 +336,28 @@ final class DocumentBinding {
     }
 
     func history(redo: Bool) { store.history(redo: redo) }
+    func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
+        guard canEdit, !hasPendingWork, !hasUnsubmittedDraft, let projection = store.projection,
+              range.location >= 0, range.length >= 0,
+              range.location <= (projection.text as NSString).length,
+              range.length <= (projection.text as NSString).length - range.location else { return false }
+        return !action.requiresSelection || range.length > 0
+    }
+    func format(_ action: NativeFormatAction, range: NSRange) {
+        guard canFormat(action, range: range), let projection = store.projection else { return }
+        selectionChanged(range, text: projection.text, marked: false)
+        store.format(action, range: range, revision: projection.revision)
+    }
+
+    /// This is a display hint only; Rust decides which blocks a command edits.
+    func blockFormat(at range: NSRange) -> NativeFormatAction? {
+        guard let projection = store.projection,
+              let index = NativeLayout.index(range.location, blocks: projection.blocks) else { return nil }
+        let block = projection.blocks[index]
+        if block.kind == "paragraph" { return .paragraph }
+        guard block.kind == "heading" else { return nil }
+        return NativeFormatAction.blocks.first { $0.rawValue == "heading\(block.headingLevel)" }
+    }
     func retrySave() { store.retrySave() }
 
     /// Called only by the explicit recovery action after a rejected draft.

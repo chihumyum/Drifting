@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T09:32:27.806Z",
+  "generatedAt": "2026-09-26T09:57:16.311Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "5a6042002ec84d76eb3ce12a4097a2764abab62d",
+    "commit": "5bc7a9f853495eea3be8daa0ed04087210f2eeae",
     "dirty": true,
-    "fingerprint": "3db5966d711b71cfe81638ad23b93bf4c8799f996b440c45ee15be63945abb65"
+    "fingerprint": "6e27ad9dcd046e0bda1edc95a993e52f838cb9f1e7946c746a9f0e95e53c680c"
   },
   "cases": [
     {
@@ -252,6 +252,14 @@
     },
     {
       "name": "Remote canonical text refresh and SQLite reopen retain exact storage ranges",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit native multiblock formatting shares styles selection one-step history and persisted structure",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit heading levels body reset and container refusal preserve links comments and usable input",
       "status": "passed"
     }
   ],

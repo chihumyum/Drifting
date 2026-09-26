@@ -22,6 +22,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Capability migration inventory](inventory.json) and [generated coverage](acceptance/inventory.json)
 - [Milestones and acceptance](milestones.md)
 - [Local project and chapter writing slice](workspace.md)
+- [Native editor formatting](formatting.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -69,6 +70,8 @@ The two applications now open a separate local workspace with project and chapte
 lists, creation, rename, chapter up/down, native editing, explicit save and reopen. Both call the shared
 Rust workspace service for domain defaults, transactions and canonical journals.
 Rename and reordering retain the current document, selection and prose history.
+Both editors expose selection bold/italic and paragraph/heading 1–3 through the
+same Rust document transactions; see the bounded [formatting contract](formatting.md).
 Ordering submits a destination chapter ID; the core updates only the moved
 chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
 The [local writing slice](workspace.md) records source-matched creation, rename

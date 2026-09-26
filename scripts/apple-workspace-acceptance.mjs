@@ -36,6 +36,8 @@ const requiredCases = {
     'workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation',
   ],
   'bridge-workspace': [
+    'workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks',
+    'workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once',
     'workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen',
     'workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition',
     'workspace_tests::workspace_failed_save_and_target_load_keep_current_owner',
@@ -49,7 +51,7 @@ const requiredCases = {
 };
 const boundaries = {
   source: 'shared Rust workspace and bridge commands; actual renderer decoder and domain materializer',
-  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, unchanged prose/history, current field clocks, chapter isolation and cold reopen',
+  integration: 'temporary file-backed SQLite creation, rename and chapter reorder, no-op and receipt rollback, selection formatting with history and persistence retry, unchanged prose during metadata commands, current field clocks, chapter isolation and cold reopen',
   nativeUI: 'separate native acceptance report', physicalDevice: 'not-run', physicalIME: 'not-run',
   realAccount: 'not-run', signedDistribution: 'not-run', fullRemoteSync: 'not-certified', performance: 'deferred',
 };

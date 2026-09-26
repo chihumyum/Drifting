@@ -132,6 +132,10 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
     private let redoButton = UIButton(type: .system)
     private let retryButton = UIButton(type: .system)
     private let discardButton = UIButton(type: .system)
+    private let boldButton = UIButton(type: .system)
+    private let italicButton = UIButton(type: .system)
+    private let blockButton = UIButton(type: .system)
+    private var displayedBlockFormat: NativeFormatAction?
     // A second binding can already adopt the shared document before the view
     // installs its projection callback. UIKit setup (including isEditable)
     // may resign its still-empty text view; that is not a user prose deletion.
@@ -178,18 +182,26 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
         discardButton.accessibilityIdentifier = "discard-prose-draft"
         let toolbar = UIStackView(arrangedSubviews: [undoButton, redoButton, retryButton, done])
         toolbar.distribution = .equalSpacing
+        boldButton.setTitle("加粗", for: .normal); boldButton.addTarget(self, action: #selector(boldProse), for: .touchUpInside)
+        italicButton.setTitle("斜体", for: .normal); italicButton.addTarget(self, action: #selector(italicProse), for: .touchUpInside)
+        boldButton.accessibilityIdentifier = "format-bold"; italicButton.accessibilityIdentifier = "format-italic"
+        blockButton.accessibilityIdentifier = "format-block"
+        blockButton.showsMenuAsPrimaryAction = true
+        let formatToolbar = UIStackView(arrangedSubviews: [boldButton, italicButton, blockButton])
+        formatToolbar.distribution = .fillEqually
         status.text = "正在打开正文…"; status.numberOfLines = 0
         status.font = .preferredFont(forTextStyle: .footnote); status.textColor = .secondaryLabel
         status.accessibilityIdentifier = "document-status"
         comments.numberOfLines = 0; comments.font = .preferredFont(forTextStyle: .footnote)
         comments.textColor = .secondaryLabel; comments.accessibilityIdentifier = "document-comments"
-        let stack = UIStackView(arrangedSubviews: [toolbar, textView, comments, status, discardButton])
+        let stack = UIStackView(arrangedSubviews: [toolbar, formatToolbar, textView, comments, status, discardButton])
         stack.axis = .vertical; stack.spacing = 8; stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            toolbar.heightAnchor.constraint(equalToConstant: 44), textView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
+            toolbar.heightAnchor.constraint(equalToConstant: 44), formatToolbar.heightAnchor.constraint(equalToConstant: 36),
+            textView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
         ])
         binding.onProjection = { [weak self] in self?.render($0, changes: $1) }
         binding.onStatus = { [weak self] in self?.status.text = $0 }
@@ -197,6 +209,7 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
             guard let self else { return }
             self.undoButton.isEnabled = self.canPerformHistory(redo: false)
             self.redoButton.isEnabled = self.canPerformHistory(redo: true)
+            self.updateFormatControls()
             self.discardButton.isHidden = !self.binding.hasFailedDraft
             self.discardButton.isEnabled = !self.binding.hasRemoteBlock
             self.retryButton.setTitle(self.binding.hasRemoteBlock ? "重试应用" : "重试保存", for: .normal)
@@ -222,6 +235,7 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
         textView.setContentOffset(offset, animated: false)
         textView.isEditable = binding.canEdit
         rendering = false
+        updateFormatControls()
     }
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
         if self.textView.isPerformingInput {
@@ -250,6 +264,31 @@ final class NativeDocumentView: UIView, UITextViewDelegate {
         guard canPerformHistory(redo: redo) else { return }
         binding.history(redo: redo)
     }
+    private func canPerformFormat(_ action: NativeFormatAction) -> Bool {
+        textView.markedTextRange == nil && binding.canFormat(action, range: textView.selectedRange)
+    }
+    private func updateFormatControls() {
+        boldButton.isEnabled = canPerformFormat(.bold)
+        italicButton.isEnabled = canPerformFormat(.italic)
+        blockButton.isEnabled = canPerformFormat(.paragraph)
+        let current = binding.blockFormat(at: textView.selectedRange)
+        blockButton.setTitle(current?.title ?? "段落样式", for: .normal)
+        guard blockButton.menu == nil || current != displayedBlockFormat else { return }
+        displayedBlockFormat = current
+        blockButton.menu = UIMenu(children: NativeFormatAction.blocks.map { action in
+            let item = UIAction(title: action.title, state: current == action ? .on : .off) { [weak self] _ in
+                self?.performFormat(action)
+            }
+            item.accessibilityIdentifier = action.accessibilityID
+            return item
+        })
+    }
+    private func performFormat(_ action: NativeFormatAction) {
+        guard canPerformFormat(action) else { return }
+        binding.format(action, range: textView.selectedRange)
+    }
+    @objc private func boldProse() { performFormat(.bold) }
+    @objc private func italicProse() { performFormat(.italic) }
     @objc private func undoProse() { performHistory(redo: false) }
     @objc private func redoProse() { performHistory(redo: true) }
     @objc private func retrySave() { binding.retrySave() }

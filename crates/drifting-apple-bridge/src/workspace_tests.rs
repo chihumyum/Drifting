@@ -693,3 +693,180 @@ fn workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner() {
     );
     fixture.close();
 }
+
+fn format_document(handle: u64, action: &str, range: Value) -> Value {
+    let current = state(handle);
+    success(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":range,"action":action
+    }}))
+}
+
+fn all_runs_have_mark(projection: &Value, mark: &str) -> bool {
+    projection["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|block| {
+            block["runs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|run| run["attributes"].as_object().unwrap().contains_key(mark))
+        })
+}
+
+#[test]
+fn workspace_formatting_preserves_multiblock_text_history_and_cold_marks() {
+    let mut fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    let text = "正文甲🙂\n正文乙👩🏽‍🚀";
+    let initial = insert(handle, text);
+    assert_eq!(initial["projection"]["blocks"].as_array().unwrap().len(), 2);
+    let range = json!({"location":0,"length":text.encode_utf16().count()});
+    let bold = format_document(handle, "bold", range.clone());
+    assert_eq!(bold["saved"], true);
+    assert_eq!(bold["projection"]["text"], text);
+    assert!(all_runs_have_mark(&bold["projection"], "bold"));
+    let undone = success(json!({"operation":"documentUndo","handle":handle}));
+    assert_eq!(
+        undone["projection"]["blocks"],
+        initial["projection"]["blocks"]
+    );
+    let redone = success(json!({"operation":"documentRedo","handle":handle}));
+    assert_eq!(redone["projection"]["blocks"], bold["projection"]["blocks"]);
+    let heading = format_document(handle, "heading2", range);
+    assert_eq!(heading["saved"], true);
+    assert_eq!(heading["projection"]["text"], text);
+    for block in heading["projection"]["blocks"].as_array().unwrap() {
+        assert_eq!(block["kind"], "heading");
+        assert_eq!(block["attributes"]["level"], 2);
+    }
+    assert!(all_runs_have_mark(&heading["projection"], "bold"));
+    let undone = success(json!({"operation":"documentUndo","handle":handle}));
+    assert_eq!(undone["projection"]["blocks"], bold["projection"]["blocks"]);
+    let redone = success(json!({"operation":"documentRedo","handle":handle}));
+    assert_eq!(
+        redone["projection"]["blocks"],
+        heading["projection"]["blocks"]
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,
+        "projectId":fixture.project}),
+    );
+    assert_eq!(chapters[0]["title"], "初航");
+    let reopened = fixture.open(0);
+    assert_eq!(reopened["document"]["projection"]["text"], text);
+    assert_eq!(
+        reopened["document"]["projection"]["blocks"],
+        heading["projection"]["blocks"]
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_formatting_rejection_preserves_input_and_save_failure_retries_once() {
+    let fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(handle, "原稿🙂");
+    success(json!({"operation":"documentInputFork","handle":handle,"key":"format-queue"}));
+    let before = state(handle);
+    for edit in [
+        json!({"revision":before["projection"]["revision"].as_u64().unwrap()+1,
+            "range":{"location":0,"length":2},"action":"bold"}),
+        json!({"revision":before["projection"]["revision"],
+            "range":{"location":0,"length":2},"action":"unsupported-format"}),
+        json!({"revision":before["projection"]["revision"],
+            "range":{"location":0,"length":0},"action":"italic"}),
+    ] {
+        assert!(
+            rejected(json!({"operation":"documentFormat","handle":handle,"edit":edit}))
+                .starts_with("NATIVE_FORMATTING_UNAVAILABLE:")
+        );
+        assert_eq!(state(handle), before);
+    }
+    // The same already-forked input base remains usable after each rejection.
+    let queued = success(
+        json!({"operation":"documentInputReplace","handle":handle,"edit":{
+            "key":"format-queue","sequence":0,"range":{"location":0,"length":0},"text":"续"
+        }}),
+    );
+    assert_eq!(queued["state"]["projection"]["text"], "续原稿🙂");
+    success(
+        json!({"operation":"documentInputFork","handle":handle,"key":"format-ime","source":"format-queue"}),
+    );
+    let before = state(handle);
+    assert!(rejected(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":before["projection"]["revision"],"range":{"location":0,"length":2},"action":"bold"
+    }})).starts_with("NATIVE_FORMATTING_UNAVAILABLE:"));
+    assert_eq!(state(handle), before);
+    success(json!({"operation":"documentInputDrop","handle":handle,"key":"format-ime"}));
+    success(json!({"operation":"documentInputDrop","handle":handle,"key":"format-queue"}));
+    success(
+        json!({"operation":"documentBeginDraft","handle":handle,"start":{
+            "key":"format-draft","revision":before["projection"]["revision"],"range":{"location":0,"length":1}
+        }}),
+    );
+    assert!(rejected(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":before["projection"]["revision"],"range":{"location":0,"length":2},"action":"bold"
+    }})).starts_with("NATIVE_FORMATTING_UNAVAILABLE:"));
+    success(json!({"operation":"documentCancelDraft","handle":handle,"key":"format-draft"}));
+    let database = gateway(handle);
+    let counts = || {
+        database.query(
+        "SELECT (SELECT count(*) FROM sync_change_set),(SELECT count(*) FROM sync_yjs_materialization_receipt)".into(),
+        vec![], None, CLIENT.into(),
+    ).unwrap().rows
+    };
+    let counts_before = counts();
+    execute(&database, "CREATE TRIGGER fail_format_receipt BEFORE INSERT ON sync_yjs_materialization_receipt BEGIN SELECT RAISE(ABORT, 'synthetic format receipt failure'); END");
+    let pending = format_document(handle, "bold", json!({"location":0,"length":3}));
+    assert_eq!(pending["saved"], false);
+    assert!(pending["saveError"]
+        .as_str()
+        .unwrap()
+        .contains("synthetic format receipt failure"));
+    assert_eq!(pending["projection"]["text"], "续原稿🙂");
+    assert_eq!(counts(), counts_before);
+    assert!(rejected(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":pending["projection"]["revision"],"range":{"location":0,"length":3},"action":"bold"
+    }})).starts_with("NATIVE_FORMATTING_UNAVAILABLE:"));
+    assert_eq!(state(handle), pending);
+    execute(&database, "DROP TRIGGER fail_format_receipt");
+    let saved = success(json!({"operation":"documentSave","handle":handle}));
+    assert_eq!(saved["saved"], true);
+    // Publishing the committed event through replay may advance the session
+    // revision. The complete display/history/selection projection stays exact.
+    assert!(
+        saved["projection"]["revision"].as_u64().unwrap()
+            >= pending["projection"]["revision"].as_u64().unwrap()
+    );
+    let mut expected_projection = pending["projection"].clone();
+    expected_projection["revision"] = saved["projection"]["revision"].clone();
+    assert_eq!(saved["projection"], expected_projection);
+    let counts_after = counts();
+    for index in 0..2 {
+        let number = |rows: &Vec<Vec<DatabaseValue>>| match &rows[0][index] {
+            DatabaseValue::Integer(value) => value.parse::<u64>().unwrap(),
+            _ => panic!("Expected an integer count"),
+        };
+        assert_eq!(number(&counts_after), number(&counts_before) + 1);
+    }
+    success(json!({"operation":"documentSave","handle":handle}));
+    assert_eq!(counts(), counts_after);
+    let reopened =
+        success(json!({"operation":"workspaceReopenChapter","handle":fixture.workspace}));
+    assert_eq!(
+        reopened["document"]["projection"]["text"],
+        saved["projection"]["text"]
+    );
+    assert_eq!(
+        reopened["document"]["projection"]["blocks"],
+        saved["projection"]["blocks"]
+    );
+    fixture.close();
+}

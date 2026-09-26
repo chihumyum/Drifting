@@ -3,6 +3,8 @@ import AppKit
 final class ProseTextView: NSTextView {
     var canPerformHistory: ((Bool) -> Bool)?
     var performHistory: ((Bool) -> Void)?
+    var canPerformFormat: ((NativeFormatAction) -> Bool)?
+    var performFormat: ((NativeFormatAction) -> Void)?
 
     // Standard responder actions also cover text-system key bindings. Never
     // let NSTextView's independent undo stack replay a CRDT-owned operation.
@@ -14,14 +16,26 @@ final class ProseTextView: NSTextView {
         guard canPerformHistory?(true) == true else { return }
         performHistory?(true)
     }
+    @objc func boldProse(_ sender: Any?) {
+        guard canPerformFormat?(.bold) == true else { return }
+        performFormat?(.bold)
+    }
+    @objc func italicProse(_ sender: Any?) {
+        guard canPerformFormat?(.italic) == true else { return }
+        performFormat?(.italic)
+    }
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
         if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
+        if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
+        if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
         return super.validateUserInterfaceItem(item)
     }
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
         if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
+        if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
+        if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
         return super.validateMenuItem(item)
     }
 }
@@ -35,6 +49,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private let redoButton = NSButton(title: "重做", target: nil, action: nil)
     private let retryButton = NSButton(title: "重试保存", target: nil, action: nil)
     private let discardButton = NSButton(title: "放弃窗口草稿", target: nil, action: nil)
+    private let boldButton = NSButton(title: "加粗", target: nil, action: nil)
+    private let italicButton = NSButton(title: "斜体", target: nil, action: nil)
+    private let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private var rendering = false
     private var styledProjection: NativeProjection?
     private(set) var lastStyleUpdate = DocumentStyle.Update.full
@@ -64,6 +81,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.delegate = self
         textView.canPerformHistory = { [weak self] in self?.canPerformHistory(redo: $0) == true }
         textView.performHistory = { [weak self] in self?.performHistory(redo: $0) }
+        textView.canPerformFormat = { [weak self] in self?.canPerformFormat($0) == true }
+        textView.performFormat = { [weak self] in self?.performFormat($0) }
         scroll.documentView = textView
         undoButton.target = self; undoButton.action = #selector(undoProse)
         redoButton.target = self; redoButton.action = #selector(redoProse)
@@ -72,8 +91,19 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         retryButton.target = self; retryButton.action = #selector(retrySave)
         discardButton.target = self; discardButton.action = #selector(discardDraft); discardButton.isHidden = true
         discardButton.setAccessibilityIdentifier("discard-prose-draft")
-        let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
-        toolbar.spacing = 12
+        boldButton.target = self; boldButton.action = #selector(boldProse)
+        italicButton.target = self; italicButton.action = #selector(italicProse)
+        boldButton.setAccessibilityIdentifier("format-bold")
+        italicButton.setAccessibilityIdentifier("format-italic")
+        blockMenu.addItems(withTitles: NativeFormatAction.blocks.map(\.title))
+        blockMenu.setAccessibilityIdentifier("format-block")
+        blockMenu.setAccessibilityLabel("段落样式")
+        for (index, action) in NativeFormatAction.blocks.enumerated() {
+            blockMenu.item(at: index)?.setAccessibilityIdentifier(action.accessibilityID)
+        }
+        blockMenu.target = self; blockMenu.action = #selector(formatBlock)
+        let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, boldButton, italicButton, blockMenu, discardButton])
+        toolbar.spacing = 8
         status.textColor = .secondaryLabelColor
         status.setAccessibilityIdentifier("document-status")
         comments.textColor = .secondaryLabelColor
@@ -95,6 +125,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             guard let self else { return }
             self.undoButton.isEnabled = self.canPerformHistory(redo: false)
             self.redoButton.isEnabled = self.canPerformHistory(redo: true)
+            self.updateFormatControls()
             self.discardButton.isHidden = !self.binding.hasFailedDraft
             self.discardButton.isEnabled = !self.binding.hasRemoteBlock
             self.retryButton.title = self.binding.hasRemoteBlock ? "重试应用" : "重试保存"
@@ -128,6 +159,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         if let scroll { textView.enclosingScrollView?.contentView.scroll(to: scroll) }
         textView.isEditable = binding.canEdit
         rendering = false
+        updateFormatControls()
     }
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard let replacementString else { return false }
@@ -155,6 +187,32 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private func performHistory(redo: Bool) {
         guard canPerformHistory(redo: redo) else { return }
         binding.history(redo: redo)
+    }
+    private func canPerformFormat(_ action: NativeFormatAction) -> Bool {
+        !textView.hasMarkedText() && binding.canFormat(action, range: textView.selectedRange())
+    }
+    private func updateFormatControls() {
+        boldButton.isEnabled = canPerformFormat(.bold)
+        italicButton.isEnabled = canPerformFormat(.italic)
+        blockMenu.isEnabled = canPerformFormat(.paragraph)
+        if let action = binding.blockFormat(at: textView.selectedRange()) {
+            blockMenu.selectItem(withTitle: action.title)
+        } else {
+            blockMenu.select(nil)
+            blockMenu.title = "段落样式"
+        }
+    }
+    private func performFormat(_ action: NativeFormatAction) {
+        guard canPerformFormat(action) else { return }
+        let range = textView.selectedRange()
+        window?.makeFirstResponder(textView)
+        binding.format(action, range: range)
+    }
+    @objc private func boldProse() { performFormat(.bold) }
+    @objc private func italicProse() { performFormat(.italic) }
+    @objc private func formatBlock() {
+        guard NativeFormatAction.blocks.indices.contains(blockMenu.indexOfSelectedItem) else { return }
+        performFormat(NativeFormatAction.blocks[blockMenu.indexOfSelectedItem])
     }
     @objc func undoProse() { performHistory(redo: false) }
     @objc func redoProse() { performHistory(redo: true) }

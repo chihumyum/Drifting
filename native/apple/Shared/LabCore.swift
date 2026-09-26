@@ -18,12 +18,13 @@ enum LabError: LocalizedError {
     case message(String)
     case pendingRemoteUpdate(reason: String)
     case historyUnavailable(reason: String)
+    case formattingUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
     var diagnosticDescription: String {
         switch self {
-        case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text): return text
+        case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -33,6 +34,8 @@ enum LabError: LocalizedError {
             return "有已保存但尚未应用的远端更新。原始数据已保留，当前暂不打开文档。"
         case .historyUnavailable:
             return "远端修改影响了这次操作，暂时无法撤销或重做。当前文字已保留，可以继续编辑。"
+        case .formattingUnavailable:
+            return "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
         }
     }
 }
@@ -93,6 +96,10 @@ final class LabCore {
             if ["documentUndo", "documentRedo"].contains(request["operation"] as? String ?? ""),
                reason.hasPrefix("NATIVE_HISTORY_UNAVAILABLE:") {
                 throw LabError.historyUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "documentFormat",
+               reason.hasPrefix("NATIVE_FORMATTING_UNAVAILABLE:") {
+                throw LabError.formattingUnavailable(reason: reason)
             }
             if ["open", "workspaceOpenChapter", "workspaceReopenChapter"].contains(request["operation"] as? String ?? ""),
                reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {

@@ -110,6 +110,21 @@ final class ProjectPersistenceUITests: XCTestCase {
         saved(app)
     }
 
+    private func heading2(_ app: XCUIApplication, select: Bool) {
+        #if os(macOS)
+        let control = app.popUpButtons["format-block"]
+        if select { press(control); press(app.menuItems["标题 2"]) }
+        #else
+        let control = app.buttons["format-block"]
+        if select {
+            press(control)
+            press(app.buttons.matching(identifier: "format-heading2").firstMatch)
+        }
+        #endif
+        expectation(for: NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "标题 2", "标题 2"), evaluatedWith: control)
+        waitForExpectations(timeout: 15)
+    }
+
     func testCreateWriteUndoReopenAndProcessRestart() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -136,6 +151,7 @@ final class ProjectPersistenceUITests: XCTestCase {
         let undone = try XCTUnwrap(prose.value as? String)
         XCTAssertNotEqual(undone, after)
         press(app.buttons["redo-prose"]); saved(app); equalText(app, after)
+        heading2(app, select: true); saved(app); equalText(app, after)
         press(app.buttons["save-document"]); saved(app)
         press(app.buttons["reopen-document"])
         let reopened = "已从磁盘重新打开，正文自动保存"
@@ -149,6 +165,7 @@ final class ProjectPersistenceUITests: XCTestCase {
         selectRow(app, title: renamedChapter)
         currentChapter(app, title: renamedChapter)
         saved(app); equalText(app, after)
+        heading2(app, select: false)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Native writing workflow after process restart"
         attachment.lifetime = .keepAlways

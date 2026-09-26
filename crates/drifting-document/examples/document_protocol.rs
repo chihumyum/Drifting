@@ -110,6 +110,12 @@ fn call(sessions: &mut HashMap<String, DocumentSession>, r: Value) -> Result<Val
             result["mapping"] = json!(mapping);
             Ok(result)
         }
+        "formatNative" => {
+            session.format_native(
+                serde_json::from_value(r["edit"].clone()).map_err(|e| e.to_string())?,
+            )?;
+            Ok(json!(session.native_projection()?))
+        }
         "export" => {
             let vector = r
                 .get("stateVector")

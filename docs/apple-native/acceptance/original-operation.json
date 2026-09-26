@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "13fe1fc422cf4bd20851f1684d9d5aaf0aa2525b39024d30df6cde1bf1521326",
+    "fingerprint": "9141b95051d895efd5791135f10b115827fae8f83128b4927eff866bb60ee022",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -132,7 +132,7 @@
       },
       {
         "path": "crates/drifting-document/examples/document_protocol.rs",
-        "sha256": "62747278cd0345f5f3f255ecf646f748861b31274d0062604a02f38b21037a43"
+        "sha256": "1ecf5efe45f523022da242b9fc6d81a591a117ebef45b23740329c42eb788dfb"
       },
       {
         "path": "crates/drifting-document/examples/native-command-fixtures.rs",
@@ -175,6 +175,14 @@
         "sha256": "723aaadbee4efee3da7476256f2db33c813f0364fab25e2f87b706c8d92e89e4"
       },
       {
+        "path": "crates/drifting-document/src/formatting.rs",
+        "sha256": "8f1e2509b46a67f2acf6b79eebf8e19a24ffa5814e5aa3483aaa8ae418efcd0f"
+      },
+      {
+        "path": "crates/drifting-document/src/formatting_tests.rs",
+        "sha256": "39c232edbe8b452df0c486615f963efd15a89518a817274e24459b6124238ed5"
+      },
+      {
         "path": "crates/drifting-document/src/history.rs",
         "sha256": "3ab3fae65724a3c11a5a1e04c790d59c45041850c7d9f7c0a75c0224eccd303e"
       },
@@ -188,7 +196,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "e897fc9fb72f0af4e5d81771e4b453b3281fb44fcd1eb21191f7db2a5520198c"
+        "sha256": "a1b2b5655af6186d1d0fee0bc4da14cbf4a246eefc28b6517fa818bbdb59ed66"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -248,7 +256,7 @@
       },
       {
         "path": "crates/drifting-document/src/structure.rs",
-        "sha256": "f6f177e1560ddba985fdb2328889c080f0e928ae16670605f17b3e85728e56a4"
+        "sha256": "e290c9e2c148dd30ad9f9664a126632f58e01b1d3323087278981aae0b91fb2d"
       },
       {
         "path": "crates/drifting-document/src/structure/containers.rs",
@@ -766,7 +774,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "318872623355163c5a7fe16d15c98776469b4c0a7f4ae0747d40ce3c62a0578c"
+    "logSha256": "9f503e10520abec4c4100c72d2e427cccb98262a376efa01a4ce2f3f16c96e44"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

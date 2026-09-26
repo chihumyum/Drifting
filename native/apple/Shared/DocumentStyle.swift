@@ -10,6 +10,14 @@ private typealias PlatformColor = UIColor
 #endif
 
 enum DocumentStyle {
+    private static func fontSize(_ block: NativeBlock) -> CGFloat {
+        guard block.kind == "heading" else { return 17 }
+        switch block.headingLevel {
+        case 1: return 28
+        case 2: return 24
+        default: return 20
+        }
+    }
     enum Update: Equatable {
         case unchanged
         case block(Int)
@@ -51,14 +59,15 @@ enum DocumentStyle {
             paragraph.headIndent = CGFloat(block.depth) * 12
             paragraph.firstLineHeadIndent = paragraph.headIndent
             var base: [NSAttributedString.Key: Any] = [.paragraphStyle: paragraph]
-            if block.kind == "heading" { base[.font] = PlatformFont.systemFont(ofSize: 24, weight: .semibold) }
+            if block.kind == "heading" { base[.font] = PlatformFont.systemFont(ofSize: fontSize(block), weight: .semibold) }
             if block.kind == "codeBlock" { base[.font] = PlatformFont.monospacedSystemFont(ofSize: 15, weight: .regular) }
             if !block.editable { base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument }
             storage.addAttributes(base, range: block.range.nsRange)
             for run in block.runs {
                 var attrs: [NSAttributedString.Key: Any] = [:]
-                let size: CGFloat = block.kind == "heading" ? 24 : 17
-                var font = PlatformFont.systemFont(ofSize: size, weight: run.attributes.bold ? .bold : .regular)
+                let size = fontSize(block)
+                var font = PlatformFont.systemFont(ofSize: size,
+                    weight: run.attributes.bold ? .bold : (block.kind == "heading" ? .semibold : .regular))
                 if run.attributes.italic {
                     #if os(macOS)
                     font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
@@ -98,6 +107,7 @@ enum DocumentStyle {
         left.id == right.id && left.kind == right.kind && left.depth == right.depth
             && left.container == right.container && left.editable == right.editable
             && left.structuralAttributes == right.structuralAttributes
+            && left.headingLevel == right.headingLevel
     }
 
     private static func sameRuns(_ left: [NativeRun], _ right: [NativeRun], offset: Int = 0) -> Bool {

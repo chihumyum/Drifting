@@ -248,6 +248,22 @@ final class DocumentStore {
             }
         }
     }
+    func format(_ action: NativeFormatAction, range: NSRange, revision: UInt64) {
+        guard !hasPendingWork, canEdit, projection?.revision == revision else { return }
+        sending = true; activity()
+        core.document("documentFormat", edit: ["revision": revision,
+            "range": ["location": range.location, "length": range.length], "action": action.rawValue]) { [weak self] result in
+            guard let self else { return }; self.sending = false
+            switch result {
+            case .success(let value): self.state = value; self.needsRefresh = true; self.reportSave(value); self.pump()
+            case .failure(let error):
+                if let lab = error as? LabError, case .formattingUnavailable = lab {
+                    // Rejected before mutation: keep the existing input bases.
+                    self.status(error.localizedDescription); self.pump()
+                } else { self.fail(error.localizedDescription) }
+            }
+        }
+    }
     func retrySave() {
         guard !sending, failure == nil else { return }
         sending = true; activity()
@@ -393,7 +409,8 @@ enum NativeLayout {
                     : (change.text == "\n" && survivor.kind == "heading" && tail > 0 ? "heading" : "paragraph")
                 let id = headingStart ? (index == 1 ? survivor.id : nil) : (index == 0 ? survivor.id : nil)
                 inserted.append(NativeBlock(id: id, kind: kind, depth: survivor.depth, container: rightParentHint ? last.container : survivor.container,
-                    structuralAttributes: merged, range: NativeRange(location: at, length: length), editable: true, runs: []))
+                    structuralAttributes: merged, range: NativeRange(location: at, length: length), editable: true, runs: [],
+                    attributes: kind == "heading" ? survivor.attributes : nil))
                 at += length + 1
             }
             blocks.replaceSubrange(firstIndex...lastIndex, with: inserted)

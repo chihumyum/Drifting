@@ -2,8 +2,9 @@
 
 This is a functional integration of P3 shared commands with the minimum P5/P6
 native host. Creation and editing were accepted in `15e298ba`; project/chapter
-rename followed in `5a604200`. The current extension adds chapter reordering,
-accepted by shared-core, production renderer comparison and native platform checks.
+rename followed in `5a604200` and chapter ordering in `5bc7a9f8`. The current
+extension adds [native selection and block formatting](formatting.md) through
+the same document owner, history and durable persistence path.
 This slice does not complete P3, P2 remote semantics, desktop parity or
 mobile release. Performance tuning remains deferred.
 
@@ -27,7 +28,7 @@ complete canonical change set commit together. Cold open loads the CRDT snapshot
 and tail; it never seeds from the JSON cache.
 
 AppKit presents project and chapter lists beside the editor. UIKit uses project,
-chapter and editor screens. Both offer creation, rename, ordering, automatic save,
+chapter and editor screens. Both offer creation, rename, ordering, selection and block formatting, automatic save,
 explicit save and reopen. Chapter transitions create a new document handle and
 Swift store only after saving the old owner and opening the candidate successfully.
 Selections and history cannot cross chapters. Pending input, marked composition
@@ -93,16 +94,22 @@ UI/build dimensions separate. Agreed scenarios are:
   a missing numeric gap or failed receipt leave order, clocks and journal unchanged.
 - Actual Rust creation, rename and move journals decode and reproduce the declared
   domain values and field clocks through the existing renderer on fresh SQLite.
+- Formatting shares one history unit across selected blocks, preserves links and
+  comments, and retains edited state through save failure and retry without duplicate writes.
 - Native UI creates, renames and reorders chapters, continues undo/redo on the same
-  prose owner, switches chapters and restores names, order and prose after restart.
+  prose owner, uses the heading menu, switches chapters and restores names, order,
+  prose and heading structure after restart.
 
-The current workspace report passes 11 core and 9 bridge cases. Production
+The current workspace report passes 11 core and 11 bridge cases. Production
 renderer replay accepts the actual creation, rename and reorder journals, including
-all three order transitions and matching field clocks. The source-matched native
-report passes macOS, simulator and unsigned device builds; iPhone and iPad each
-pass 13 hosted binding cases and two complete UI scenarios, including movement,
-continued history and cold order recovery. Existing authoring, binding and
-durability checks are current for their source inputs.
+all three order transitions and matching field clocks. Formatting exchanges real
+marks and XML structure with installed Yjs. The generated native report records
+macOS, simulator and unsigned device build outcomes and separate hosted UIKit and
+UI workflow results. Existing authoring, binding and durability checks retain
+source fingerprints; stale reports must be regenerated before acceptance.
+The formatting run passes 14 hosted cases and two UI workflows on each of iPhone
+and iPad, plus Mac, simulator and unsigned device builds. Its dedicated
+[formatting record](formatting.md) separates these from attended Mac interaction.
 
 Targeted CUA on the rebuilt Mac app confirms up/down, boundary button state,
 selection and history retention, and ordered list/prose recovery after quitting
@@ -116,7 +123,6 @@ distribution remain separate gates. The six known old-peer alias-delete failures
 stay open; this local workflow does not certify general remote convergence.
 No push or release is part of this batch.
 
-Next add native editor actions for bold/italic selections and paragraph/heading
-formatting through the existing Rust document transactions and history, then
-connect the outline. Preserve act/chapter/scene/beat/note semantics; deletion,
-the complete outline and performance testing are outside this ordering batch.
+Next connect the native outline while preserving act/chapter/scene/beat/note
+semantics. Deletion, full outline parity, general remote synchronization and
+performance measurement remain separate batches.

@@ -53,6 +53,11 @@ outside that ABI.
 
 ## Executed acceptance
 
+The [native formatting contract](formatting.md) covers whole-selection inline
+marks and real paragraph/heading conversion in one transaction and history unit.
+Its cross-implementation scenario preserves links and typed metadata through
+Yjs exchange and reopening; container unwrapping remains outside this batch.
+
 `pnpm apple:document:acceptance` builds a real Rust process and drives it next to
 the installed JavaScript Yjs implementation. The machine report is
 [`acceptance/p2a-document.json`](acceptance/p2a-document.json).

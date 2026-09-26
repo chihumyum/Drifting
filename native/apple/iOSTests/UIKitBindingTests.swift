@@ -73,6 +73,52 @@ final class UIKitBindingTests: XCTestCase {
         super.tearDown()
     }
 
+    func testSelectionFormattingHeadingStylesHistoryAndReopen() async throws {
+        try await prepare()
+        let original = try await read().projection
+        let range = NSRange(location: 0, length: NSMaxRange(original.blocks[1].range.nsRange))
+        text.selectedRange = range
+        view.binding.format(.bold, range: range); try await settle("multiblock bold")
+        var projection = try await read().projection
+        XCTAssertTrue(projection.blocks.prefix(2).allSatisfy { $0.runs.allSatisfy { $0.attributes.bold } })
+        XCTAssertEqual(text.selectedRange, range)
+        XCTAssertEqual(text.text, original.text)
+        try await history()
+        projection = try await read().projection
+        XCTAssertTrue(projection.blocks[0].runs.allSatisfy { !$0.attributes.bold })
+        XCTAssertTrue(projection.blocks[1].runs.contains { !$0.attributes.bold })
+        try await history(redo: true)
+        text.selectedRange = range
+        view.binding.format(.italic, range: range); try await settle("multiblock italic")
+        let font = try XCTUnwrap(text.textStorage.attribute(.font, at: original.blocks[1].range.location, effectiveRange: nil) as? UIFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains([.traitBold, .traitItalic]))
+        for (action, level, size) in [(NativeFormatAction.heading1, 1, 28.0), (.heading2, 2, 24.0), (.heading3, 3, 20.0)] {
+            text.selectedRange = NSRange(location: 0, length: 0)
+            view.binding.format(action, range: text.selectedRange); try await settle("heading")
+            projection = try await read().projection
+            XCTAssertEqual(projection.blocks[0].kind, "heading")
+            XCTAssertEqual(projection.blocks[0].headingLevel, level)
+            let headingFont = try XCTUnwrap(text.textStorage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+            XCTAssertEqual(headingFont.pointSize, size)
+        }
+        text.selectedRange = range
+        view.binding.format(.paragraph, range: range); try await settle("body reset")
+        projection = try await read().projection
+        XCTAssertTrue(projection.blocks.prefix(2).allSatisfy { $0.kind == "paragraph" && $0.runs.allSatisfy { !$0.attributes.bold && !$0.attributes.italic && !$0.attributes.strike } })
+        XCTAssertTrue(projection.blocks[1].runs.contains { $0.attributes.entityLink })
+        XCTAssertEqual(projection.comments.first?.quote, original.comments.first?.quote)
+        let _: LabState = try await result { core.reopen(completion: $0) }
+        view.binding.load(); try await settle("format reopen")
+        projection = try await read().projection
+        XCTAssertTrue(projection.blocks.prefix(2).allSatisfy { $0.kind == "paragraph" })
+        XCTAssertEqual(projection.text, original.text)
+        text.selectedRange = NSRange(location: 0, length: 0)
+        text.setMarkedText("zhong", selectedRange: NSRange(location: 5, length: 0))
+        XCTAssertFalse(view.binding.canFormat(.heading1, range: range))
+        text.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        text.unmarkText(); try await settle("format composition guard")
+    }
+
     func testMarkedCommitContinuedUnicodeInputAndCancel() async throws {
         try await prepare()
         let before = try await read()
