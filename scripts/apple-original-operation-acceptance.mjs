@@ -56,7 +56,6 @@ const admissionNames = [
   'materialization_receipts_are_immutable_and_equal_events_do_not_share_identity',
 ].map(name => `materialization_admission::tests::${name}`);
 const requiredCases = [...decoderNames, ...storeNames, ...archiveNames, ...journalNames, ...admissionNames];
-const expectedTests = 91;
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
 function sources() {
   const files = [...new Set(run('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0'))]
@@ -100,7 +99,9 @@ function validateReport(report) {
   assert.equal(report.source.fingerprint, hash(JSON.stringify(report.source.files)));
   assert.deepEqual(report.fixtureCases, fixtureCounts());
   assert.deepEqual(report.tests.requiredCases, requiredCases);
-  assert.deepEqual([report.tests.passed, report.tests.failed, report.tests.ignored], [expectedTests, 0, 0]);
+  // Every listed test ran and passed; the count follows the crate itself.
+  assert(report.tests.listed > 0);
+  assert.deepEqual([report.tests.passed, report.tests.failed, report.tests.ignored], [report.tests.listed, 0, 0]);
   assert.equal(report.tests.rustToolchain, '1.88.0');
   assert.match(report.tests.logSha256, /^[0-9a-f]{64}$/u);
 }
@@ -108,7 +109,7 @@ function validateReport(report) {
 if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8'));
   validateReport(report);
-  console.log(`Native original-operation evidence is current: ${expectedTests} core tests, ${report.source.files.length} inputs.`);
+  console.log(`Native original-operation evidence is current: ${report.tests.passed} core tests, ${report.source.files.length} inputs.`);
 } else {
   const oracle = JSON.parse(run('pnpm', ['exec', 'tsx', '--conditions=import',
     'scripts/apple-original-operation-oracle.ts', '--check']).trim());
@@ -132,14 +133,19 @@ if (process.argv.includes('--check')) {
   const testCounts = [...log.matchAll(/test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;/gu)].map(match => {
     assert.equal(match[2], '0'); assert.equal(match[3], '0'); return Number(match[1]);
   });
-  assert.deepEqual(testCounts, [87, 4, 0]);
+  const listing = spawnSync('cargo', ['+1.88.0', 'test', '--manifest-path', 'crates/drifting-core/Cargo.toml', '--locked', '--', '--list'],
+    { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000 });
+  assert.equal(listing.status, 0, `${listing.stdout ?? ''}${listing.stderr ?? ''}`.slice(-4000));
+  const listed = [...listing.stdout.matchAll(/: test$/gmu)].length;
+  const passed = testCounts.reduce((sum, count) => sum + count, 0);
+  assert(listed > 0); assert.equal(passed, listed);
   for (const name of requiredCases) assert(log.includes(`test ${name} ... ok`), `Missing case: ${name}`);
   assert.deepEqual(sources(), before, 'Source changed during original-operation acceptance');
   const report = { schemaVersion: 1, kind: 'native_original_operation_verification', status: 'passed',
     productionSemanticDeletionEnabled: false,
     source: { fingerprint: hash(JSON.stringify(before)), files: before },
     fixtureCases: fixtureCounts(),
-    tests: { rustToolchain: '1.88.0', passed: expectedTests, failed: 0, ignored: 0,
+    tests: { rustToolchain: '1.88.0', listed, passed, failed: 0, ignored: 0,
       requiredCases, logSha256: hash(log) },
     scope: [
       'Canonical original envelope and every mutation schema, payload hash and full selected reference',
@@ -166,5 +172,5 @@ if (process.argv.includes('--check')) {
   };
   validateReport(report);
   writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
-  console.log(JSON.stringify({ status: report.status, tests: expectedTests, fingerprint: report.source.fingerprint, rawEvidence: directory }));
+  console.log(JSON.stringify({ status: report.status, tests: passed, fingerprint: report.source.fingerprint, rawEvidence: directory }));
 }

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T18:01:04.718Z",
+  "generatedAt": "2026-09-26T20:07:36.962Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "f7109cc68a927248719416c77910d4036021682b",
+    "commit": "dcab132856ee7328254076133ea9fc6975b5a560",
     "dirty": true,
-    "fingerprint": "7aa3005a074c0b38f500c46d79e4f4a127f98756a096ff5b5a1263e0c1f6c14a"
+    "fingerprint": "50e817175e236208e4dd50bc208e4efbd23996bc284f8e88d6b0852e0d698fd7"
   },
   "cases": [
     {
@@ -340,6 +340,18 @@
     },
     {
       "name": "AppKit comment refusals for stale revision blank selection empty body failed commit queued and marked input create nothing and keep composer text",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page tabs beside chapter tabs and in the second pane keep independent owners text selections and history through cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page header edits name aliases summary group and category, refuses conflicts without writing and keeps typed text while tabs follow renames",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element trash closes only that element's tabs after commit and restore reopens its body while chapter tabs stay untouched",
       "status": "passed"
     }
   ],

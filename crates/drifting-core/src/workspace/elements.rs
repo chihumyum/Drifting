@@ -1,0 +1,806 @@
+//! Elements library: categories and elements with the renderer's rows,
+//! alias set and canonical originals. Element and category bodies are Yjs
+//! documents (`element:<id>`, `category:<id>`) seeded like chapters.
+//! Category templates, facts, portraits and relations are refused explicitly
+//! until their own batch ports them.
+use super::*;
+use crate::prose_journal::encoding::Cbor;
+use std::collections::BTreeMap;
+use unicode_normalization::UnicodeNormalization;
+
+#[cfg(test)]
+mod tests;
+
+const DEFAULT_ELEMENT: &str = "New Element";
+const DEFAULT_CATEGORY: &str = "New Category";
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceElementCategory {
+    pub id: String,
+    pub project_id: String,
+    pub name: String,
+    pub color: String,
+    pub document_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceElement {
+    pub id: String,
+    pub project_id: String,
+    pub category_id: Option<String>,
+    pub name: String,
+    pub summary: String,
+    pub aliases: Vec<String>,
+    pub group_name: Option<String>,
+    pub document_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub struct NewElementCategory {
+    pub id: String,
+    pub name: String,
+    /// `#RRGGBB`, chosen by the host like the renderer's random colour.
+    pub color: String,
+    pub seed: ChapterSeed,
+}
+
+pub struct NewElement {
+    pub id: String,
+    pub category_id: String,
+    /// `None` derives "New Element", "New Element 2", ... like the renderer.
+    pub name: Option<String>,
+    pub group_name: Option<String>,
+    pub seed: ChapterSeed,
+}
+
+/// Present fields are written; `Some(None)` clears an optional field.
+#[derive(Default)]
+pub struct ElementChanges {
+    pub name: Option<String>,
+    pub summary: Option<String>,
+    pub group_name: Option<Option<String>>,
+    pub category_id: Option<Option<String>>,
+    pub aliases: Option<Vec<String>>,
+}
+
+struct LiveElement {
+    element: WorkspaceElement,
+    incarnation: u64,
+    portrait: bool,
+}
+
+impl WorkspaceStore<'_> {
+    pub fn element_categories(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<WorkspaceElementCategory>, String> {
+        self.query(None, r#"
+            SELECT c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at FROM element_category c
+            JOIN sync_generation g ON g.project_id=c.project_id AND g.status='active'
+            LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
+                AND l.entity_kind='element-category' AND l.entity_id=c.id
+            WHERE c.project_id=? AND c.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')
+            ORDER BY c.name,c.rowid
+        "#, vec![text(project_id)])?.iter().map(|row| category_from_row(row)).collect()
+    }
+
+    pub fn elements(&self, project_id: &str) -> Result<Vec<WorkspaceElement>, String> {
+        self.element_rows(None, project_id, false)
+    }
+
+    pub fn trashed_elements(&self, project_id: &str) -> Result<Vec<WorkspaceElement>, String> {
+        self.element_rows(None, project_id, true)
+    }
+
+    pub fn element_scope(
+        &self,
+        project_id: &str,
+        element_id: &str,
+    ) -> Result<ArchiveScope, String> {
+        self.transaction(TransactionBehavior::Deferred, |tx| {
+            let element = self
+                .element_rows(Some(tx), project_id, false)?
+                .into_iter()
+                .find(|element| element.id == element_id)
+                .ok_or("Element is not available in this project")?;
+            let rows = self.query(Some(tx), "SELECT project_sync_id,sync_generation_id FROM sync_generation WHERE project_id=? AND status='active'", vec![text(project_id)])?;
+            let row = rows.first().ok_or("Project has no active sync generation")?;
+            let (project_sync_id, sync_generation_id) = (string(row, 0)?, string(row, 1)?);
+            let incarnation = AuthoredProseJournal::new(self.gateway, self.client).current_incarnation(
+                tx, project_id, &project_sync_id, &sync_generation_id, &element.document_id)?;
+            Ok(ArchiveScope { project_id: project_id.into(), project_sync_id, sync_generation_id,
+                document_id: element.document_id, incarnation })
+        })
+    }
+
+    pub fn create_element_category(
+        &self,
+        context: &AuthoredProseContext,
+        input: NewElementCategory,
+    ) -> Result<WorkspaceElementCategory, String> {
+        validate_context(context)?;
+        let doc_id = format!("category:{}", input.id);
+        if !opaque(&input.id) || !opaque(&doc_id) || !color(&input.color) {
+            return Err("Invalid category identity or colour".into());
+        }
+        validate_seed(&input.seed)?;
+        let name = match js_trim(&input.name) {
+            "" => DEFAULT_CATEGORY,
+            name => name,
+        };
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let appended = self.seed_document(tx, context, &doc_id, &input.seed)?;
+            self.execute(tx, r#"
+                INSERT INTO element_category(id,name,content_json,element_template_json,element_template_kv_json,
+                    color,project_id,layout_mode,grid_x,grid_y,deleted_at,created_at,updated_at)
+                VALUES (?,?,?,'{}','[]',?,?,'auto',NULL,NULL,NULL,?,?)
+            "#, vec![text(&input.id), text(name), text(&input.seed.content_json), text(&input.color),
+                text(&context.project_id), text(&context.now_iso), text(&context.now_iso)])?;
+            self.commit_changes(tx, context, &[
+                journal::Mutation::create("element-category", &input.id, json!({
+                    "color": input.color, "elementTemplateJson": "{}", "gridX": null, "gridY": null,
+                    "layoutMode": "auto", "name": name,
+                })),
+                journal::Mutation::yjs(&doc_id, &input.seed.update),
+            ], Some((1, &appended, &input.seed.update)))?;
+            Ok(WorkspaceElementCategory {
+                id: input.id.clone(), project_id: context.project_id.clone(), name: name.into(),
+                color: input.color.clone(), document_id: doc_id.clone(),
+                created_at: context.now_iso.clone(), updated_at: context.now_iso.clone(),
+            })
+        })
+    }
+
+    /// Rename or recolour a live category; unchanged values write nothing.
+    pub fn update_element_category(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+        name: Option<&str>,
+        colour: Option<&str>,
+    ) -> Result<WorkspaceElementCategory, String> {
+        validate_context(context)?;
+        let name = name.map(js_trim);
+        if name == Some("") || colour.is_some_and(|value| !color(value)) {
+            return Err("Category name is empty or colour is invalid".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut category, incarnation) = self.live_category(tx, context, category_id)?;
+            let mut mutations = Vec::new();
+            if let Some(colour) = colour.filter(|value| *value != category.color) {
+                category.color = colour.into();
+                mutations.push(journal::Mutation::field("element-category", category_id, incarnation, "color", json!(colour)));
+            }
+            if let Some(name) = name.filter(|value| *value != category.name) {
+                category.name = name.into();
+                mutations.push(journal::Mutation::field("element-category", category_id, incarnation, "name", json!(name)));
+            }
+            if mutations.is_empty() {
+                return Ok(category);
+            }
+            category.updated_at = context.now_iso.clone();
+            self.execute(tx, "UPDATE element_category SET name=?,color=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&category.name), text(&category.color), text(&context.now_iso),
+                    text(category_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            Ok(category)
+        })
+    }
+
+    pub fn create_element(
+        &self,
+        context: &AuthoredProseContext,
+        input: NewElement,
+    ) -> Result<WorkspaceElement, String> {
+        validate_context(context)?;
+        let doc_id = format!("element:{}", input.id);
+        if !opaque(&input.id) || !opaque(&doc_id) || !opaque(&input.category_id) {
+            return Err("Invalid element or category identity".into());
+        }
+        validate_seed(&input.seed)?;
+        let group_name = input
+            .group_name
+            .as_deref()
+            .map(js_trim)
+            .filter(|v| !v.is_empty());
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            self.live_category(tx, context, &input.category_id)?;
+            let templates = self.query(Some(tx),
+                "SELECT element_template_json,element_template_kv_json FROM element_category WHERE id=?",
+                vec![text(&input.category_id)])?;
+            let template = string(&templates[0], 0)?;
+            let facts: Value = serde_json::from_str(&string(&templates[0], 1)?).unwrap_or(Value::Null);
+            if !matches!(js_trim(&template), "" | "{}") || facts.as_array().is_none_or(|a| !a.is_empty()) {
+                return Err("Category templates are not supported natively yet".into());
+            }
+            let others = self.element_rows(Some(tx), &context.project_id, false)?;
+            let name = match input.name.as_deref().map(js_trim).filter(|v| !v.is_empty()) {
+                Some(name) => {
+                    name_conflict(&[name], &others, None)?;
+                    name.to_owned()
+                }
+                None => {
+                    let mut name = DEFAULT_ELEMENT.to_owned();
+                    let mut n = 2;
+                    while name_conflict(&[&name], &others, None).is_err() {
+                        name = format!("{DEFAULT_ELEMENT} {n}");
+                        n += 1;
+                    }
+                    name
+                }
+            };
+            let appended = self.seed_document(tx, context, &doc_id, &input.seed)?;
+            self.execute(tx, r#"
+                INSERT INTO element(id,project_id,category_id,name,summary,content_json,kv_json,aliases_json,
+                    group_name,portrait_asset_id,deleted_at,created_at,updated_at)
+                VALUES (?,?,?,?,'',?,'[]','[]',?,NULL,NULL,?,?)
+            "#, vec![text(&input.id), text(&context.project_id), text(&input.category_id), text(&name),
+                text(&input.seed.content_json), group_name.map(text).unwrap_or(V::Null),
+                text(&context.now_iso), text(&context.now_iso)])?;
+            self.commit_changes(tx, context, &[
+                journal::Mutation::create("element", &input.id, json!({
+                    "categoryId": input.category_id, "groupName": group_name, "name": name, "summary": "",
+                })),
+                journal::Mutation::yjs(&doc_id, &input.seed.update),
+            ], Some((1, &appended, &input.seed.update)))?;
+            Ok(WorkspaceElement {
+                id: input.id.clone(), project_id: context.project_id.clone(),
+                category_id: Some(input.category_id.clone()), name, summary: String::new(), aliases: Vec::new(),
+                group_name: group_name.map(Into::into), document_id: doc_id.clone(),
+                created_at: context.now_iso.clone(), updated_at: context.now_iso.clone(),
+            })
+        })
+    }
+
+    /// Scalar fields and the alias set in one original: alias `set.remove` /
+    /// `set.add`, then one `field.set` per changed scalar in UTF-8 order.
+    pub fn update_element(
+        &self,
+        context: &AuthoredProseContext,
+        element_id: &str,
+        changes: ElementChanges,
+    ) -> Result<WorkspaceElement, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let LiveElement { element: before, incarnation, .. } = self.live_element(tx, context, element_id)?;
+            let mut after = before.clone();
+            if let Some(name) = &changes.name {
+                after.name = match js_trim(name) { "" => before.name.clone(), name => name.into() };
+            }
+            if let Some(summary) = &changes.summary {
+                after.summary = summary.clone();
+            }
+            if let Some(group) = &changes.group_name {
+                after.group_name = group.as_deref().map(js_trim).filter(|v| !v.is_empty()).map(Into::into);
+            }
+            if let Some(category) = &changes.category_id {
+                if let Some(category) = category {
+                    self.live_category(tx, context, category)?;
+                }
+                after.category_id = category.clone();
+            }
+            let desired = changes.aliases.as_ref().map(|aliases| desired_aliases(aliases));
+            if let Some(desired) = &desired {
+                after.aliases = desired.values().cloned().collect();
+            }
+            if changes.name.is_some() || changes.aliases.is_some() {
+                // As the renderer: the next name plus the submitted (or kept) aliases.
+                let aliases: Vec<&str> = match &changes.aliases {
+                    Some(aliases) => aliases.iter().map(|a| js_trim(a)).filter(|a| !a.is_empty()).collect(),
+                    None => before.aliases.iter().map(String::as_str).collect(),
+                };
+                let candidates: Vec<&str> = std::iter::once(after.name.as_str()).chain(aliases).collect();
+                let others = self.element_rows(Some(tx), &context.project_id, false)?;
+                name_conflict(&candidates, &others, Some(element_id))?;
+            }
+            let mut mutations = Vec::new();
+            if let Some(desired) = &desired {
+                self.alias_mutations(tx, context, element_id, incarnation, desired, &mut mutations)?;
+            }
+            let fields: [(&str, Value, Value); 4] = [
+                ("categoryId", json!(before.category_id), json!(after.category_id)),
+                ("groupName", json!(before.group_name), json!(after.group_name)),
+                ("name", json!(before.name), json!(after.name)),
+                ("summary", json!(before.summary), json!(after.summary)),
+            ];
+            for (field, old, new) in fields {
+                if old != new {
+                    mutations.push(journal::Mutation::field("element", element_id, incarnation, field, new));
+                }
+            }
+            if mutations.is_empty() {
+                return Ok(before);
+            }
+            after.updated_at = context.now_iso.clone();
+            self.execute(tx, r#"
+                UPDATE element SET category_id=?,name=?,summary=?,group_name=?,aliases_json=?,updated_at=?
+                WHERE id=? AND project_id=?
+            "#, vec![after.category_id.as_deref().map(text).unwrap_or(V::Null), text(&after.name),
+                text(&after.summary), after.group_name.as_deref().map(text).unwrap_or(V::Null),
+                text(&json!(after.aliases).to_string()), text(&context.now_iso), text(element_id),
+                text(&context.project_id)])?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            Ok(after)
+        })
+    }
+
+    pub fn trash_element(
+        &self,
+        context: &AuthoredProseContext,
+        element_id: &str,
+    ) -> Result<WorkspaceElement, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let LiveElement {
+                mut element,
+                incarnation,
+                ..
+            } = self.live_element(tx, context, element_id)?;
+            self.guard_element_relations(tx, context, element_id)?;
+            self.execute(
+                tx,
+                "UPDATE element SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    text(&context.now_iso),
+                    text(&context.now_iso),
+                    text(element_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::json(
+                    "entity",
+                    "element",
+                    element_id,
+                    "entity.trash",
+                    json!({}),
+                )
+                .at_incarnation(incarnation)],
+                None,
+            )?;
+            element.updated_at = context.now_iso.clone();
+            Ok(element)
+        })
+    }
+
+    /// Reauthors the element in the next incarnation: restore seed, every
+    /// alias, then the complete body state, like the renderer's restore.
+    pub fn restore_element<F>(
+        &self,
+        context: &AuthoredProseContext,
+        element_id: &str,
+        mut capture_full_state: F,
+    ) -> Result<WorkspaceElement, String>
+    where
+        F: FnMut(&ProseRepository<'_>, u64, &str) -> Result<ChapterSeed, String>,
+    {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let LiveElement {
+                mut element,
+                incarnation,
+                portrait,
+            } = self.trashed_element(tx, context, element_id)?;
+            if portrait {
+                return Err(
+                    "Restoring elements with portraits is not supported natively yet".into(),
+                );
+            }
+            self.guard_element_relations(tx, context, element_id)?;
+            let incarnation = incarnation
+                .checked_add(1)
+                .filter(|n| *n <= MAX_SAFE)
+                .ok_or("Element incarnation overflow")?;
+            let repo = ProseRepository::new(self.gateway, self.client);
+            let revision = repo.get_revision(&element.document_id, Some(tx))?;
+            let state = capture_full_state(&repo, tx, &element.document_id)?;
+            if state.update.is_empty() {
+                return Err("Restore requires a complete prose state".into());
+            }
+            self.execute(
+                tx,
+                "UPDATE element SET deleted_at=NULL,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    text(&context.now_iso),
+                    text(element_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            let appended = repo.append_update(
+                &element.document_id,
+                &state.update,
+                &RevisionSource::System,
+                &context.now_iso,
+                Some(revision),
+                Some(tx),
+            )?;
+            let mut mutations = vec![journal::Mutation::json(
+                "entity",
+                "element",
+                element_id,
+                "entity.restore",
+                json!({"seed": {
+                    "categoryId": element.category_id, "groupName": element.group_name,
+                    "name": element.name, "summary": element.summary,
+                }}),
+            )
+            .at_incarnation(incarnation)];
+            for (member, display) in desired_aliases(&element.aliases) {
+                mutations.push(
+                    journal::Mutation::json(
+                        "set",
+                        "alias",
+                        element_id,
+                        "set.add",
+                        json!({"memberId": member, "value": display}),
+                    )
+                    .at_incarnation(incarnation),
+                );
+            }
+            let seed = mutations.len();
+            mutations.push(
+                journal::Mutation::yjs(&element.document_id, &state.update)
+                    .at_incarnation(incarnation),
+            );
+            self.commit_changes(
+                tx,
+                context,
+                &mutations,
+                Some((seed, &appended, &state.update)),
+            )?;
+            element.updated_at = context.now_iso.clone();
+            Ok(element)
+        })
+    }
+
+    fn seed_document(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        doc_id: &str,
+        seed: &ChapterSeed,
+    ) -> Result<crate::prose::AppendedUpdate, String> {
+        let repository = ProseRepository::new(self.gateway, self.client);
+        if repository.get_snapshot(doc_id, Some(tx))?.is_some()
+            || !repository.list_updates(doc_id, None, Some(tx))?.is_empty()
+            || repository.get_revision(doc_id, Some(tx))? != 0
+        {
+            return Err("New document already has durable prose".into());
+        }
+        repository.append_update(
+            doc_id,
+            &seed.update,
+            &RevisionSource::System,
+            &context.now_iso,
+            Some(0),
+            Some(tx),
+        )
+    }
+
+    /// Current alias members come from the set authority at this incarnation;
+    /// the latest add wins its display, as in the renderer.
+    fn alias_mutations(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        element_id: &str,
+        incarnation: u64,
+        desired: &BTreeMap<String, String>,
+        mutations: &mut Vec<journal::Mutation>,
+    ) -> Result<(), String> {
+        let rows = self.query(Some(tx), r#"
+            SELECT t.value_key,t.value_cbor,t.add_tag FROM sync_set_tag t
+            JOIN sync_change_set c ON c.change_set_id=t.add_change_set_id
+            WHERE t.sync_generation_id=? AND t.owner_kind='alias' AND t.owner_id=? AND t.incarnation=?
+                AND t.set_key='aliases' AND t.removed_by_change_set_id IS NULL
+            ORDER BY t.value_key,c.hlc_wall_ms,c.hlc_counter,c.writer_id,c.writer_epoch,c.device_seq,
+                t.add_mutation_index,t.add_tag
+        "#, vec![text(&context.sync_generation_id), text(element_id), integer(incarnation)])?;
+        let mut current: BTreeMap<String, (Vec<u8>, Vec<String>)> = BTreeMap::new();
+        for row in rows {
+            let V::Blob(value) = &row[1] else {
+                return Err("Invalid alias tag value".into());
+            };
+            let entry = current.entry(string(&row, 0)?).or_default();
+            entry.0 = value.clone();
+            entry.1.push(string(&row, 2)?);
+        }
+        for (member, (value, tags)) in &current {
+            if desired
+                .get(member)
+                .is_some_and(|display| Cbor::Text(display).bytes() == *value)
+            {
+                continue;
+            }
+            mutations.push(
+                journal::Mutation::json(
+                    "set",
+                    "alias",
+                    element_id,
+                    "set.remove",
+                    json!({"memberId": member, "observedAddTags": tags}),
+                )
+                .at_incarnation(incarnation),
+            );
+        }
+        for (member, display) in desired {
+            if current
+                .get(member)
+                .is_some_and(|(value, _)| Cbor::Text(display).bytes() == *value)
+            {
+                continue;
+            }
+            mutations.push(
+                journal::Mutation::json(
+                    "set",
+                    "alias",
+                    element_id,
+                    "set.add",
+                    json!({"memberId": member, "value": display}),
+                )
+                .at_incarnation(incarnation),
+            );
+        }
+        Ok(())
+    }
+
+    fn guard_element_relations(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        element_id: &str,
+    ) -> Result<(), String> {
+        let rows = self.query(
+            Some(tx),
+            r#"
+            SELECT 1 FROM entity_relation WHERE project_id=?
+                AND ((from_kind='element' AND from_id=?) OR (to_kind='element' AND to_id=?)) LIMIT 1
+        "#,
+            vec![
+                text(&context.project_id),
+                text(element_id),
+                text(element_id),
+            ],
+        )?;
+        if rows.is_empty() {
+            Ok(())
+        } else {
+            Err("Element trash and restore do not yet support linked relations".into())
+        }
+    }
+
+    fn live_category(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        category_id: &str,
+    ) -> Result<(WorkspaceElementCategory, u64), String> {
+        let rows = self.query(Some(tx), r#"
+            SELECT c.id,c.project_id,c.name,c.color,c.created_at,c.updated_at,COALESCE(l.incarnation,0)
+            FROM element_category c LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=?
+                AND l.entity_kind='element-category' AND l.entity_id=c.id
+            WHERE c.id=? AND c.project_id=? AND c.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')
+        "#, vec![text(&context.sync_generation_id), text(category_id), text(&context.project_id)])?;
+        let row = rows
+            .first()
+            .ok_or("Category is not available in this project")?;
+        Ok((
+            category_from_row(row)?,
+            safe_integer(&row[6], "category incarnation")?,
+        ))
+    }
+
+    fn live_element(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        element_id: &str,
+    ) -> Result<LiveElement, String> {
+        self.element_lifecycle(tx, context, element_id, false)
+    }
+
+    fn trashed_element(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        element_id: &str,
+    ) -> Result<LiveElement, String> {
+        self.element_lifecycle(tx, context, element_id, true)
+    }
+
+    fn element_lifecycle(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        element_id: &str,
+        trashed: bool,
+    ) -> Result<LiveElement, String> {
+        let rows = self.query(Some(tx), &format!(r#"
+            SELECT {ELEMENT_COLUMNS},l.incarnation,l.state,e.deleted_at,e.portrait_asset_id FROM element e
+            LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=?
+                AND l.entity_kind='element' AND l.entity_id=e.id
+            WHERE e.id=? AND e.project_id=?
+        "#), vec![text(&context.sync_generation_id), text(element_id), text(&context.project_id)])?;
+        let row = rows
+            .first()
+            .ok_or("Element is not available in this project")?;
+        let state = match &row[10] {
+            V::Null => "live".to_string(),
+            _ => string(row, 10)?,
+        };
+        let deleted = row[11] != V::Null;
+        let expected = if trashed { "trashed" } else { "live" };
+        // Only the renderer's own lifecycle proves a restorable trash state.
+        if deleted != trashed || state != expected || (trashed && row[9] == V::Null) {
+            return Err(format!("Element lifecycle must be {expected}"));
+        }
+        let incarnation = if row[9] == V::Null {
+            0
+        } else {
+            safe_integer(&row[9], "element incarnation")?
+        };
+        Ok(LiveElement {
+            element: element_from_row(row)?,
+            incarnation,
+            portrait: row[12] != V::Null,
+        })
+    }
+
+    fn element_rows(
+        &self,
+        tx: Option<u64>,
+        project_id: &str,
+        trashed: bool,
+    ) -> Result<Vec<WorkspaceElement>, String> {
+        let (filter, order) = if trashed {
+            (
+                "e.deleted_at IS NOT NULL AND l.state='trashed'",
+                "e.deleted_at DESC,e.rowid",
+            )
+        } else {
+            (
+                "e.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')",
+                "e.updated_at DESC,e.rowid",
+            )
+        };
+        self.query(
+            tx,
+            &format!(
+                r#"
+            SELECT {ELEMENT_COLUMNS} FROM element e
+            JOIN sync_generation g ON g.project_id=e.project_id AND g.status='active'
+            LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
+                AND l.entity_kind='element' AND l.entity_id=e.id
+            WHERE e.project_id=? AND {filter} ORDER BY {order}
+        "#
+            ),
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| element_from_row(row))
+        .collect()
+    }
+}
+
+const ELEMENT_COLUMNS: &str =
+    "e.id,e.project_id,e.category_id,e.name,e.summary,e.aliases_json,e.group_name,e.created_at,e.updated_at";
+
+/// Renderer `desiredAliases`: display is trimmed NFKC, the member is its
+/// lowercase; the last value of a member wins; members sort by UTF-8 bytes.
+fn desired_aliases(values: &[String]) -> BTreeMap<String, String> {
+    let mut aliases = BTreeMap::new();
+    for value in values {
+        let display: String = js_trim(value).nfkc().collect();
+        let member = js_trim(&display.nfkc().collect::<String>()).to_lowercase();
+        if !member.is_empty() {
+            aliases.insert(member, display);
+        }
+    }
+    aliases
+}
+
+/// Renderer `findElementNameConflict`: trimmed, lowercased candidates against
+/// every other live element's name and aliases.
+fn name_conflict(
+    candidates: &[&str],
+    elements: &[WorkspaceElement],
+    exclude: Option<&str>,
+) -> Result<(), String> {
+    let candidates: Vec<String> = candidates
+        .iter()
+        .map(|name| js_trim(name).to_lowercase())
+        .filter(|name| !name.is_empty())
+        .collect();
+    for element in elements
+        .iter()
+        .filter(|element| Some(element.id.as_str()) != exclude)
+    {
+        for name in std::iter::once(&element.name).chain(&element.aliases) {
+            if candidates.contains(&name.to_lowercase()) {
+                return Err(format!(
+                    "Name \"{name}\" is already used by element \"{}\"",
+                    element.name
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_seed(seed: &ChapterSeed) -> Result<(), String> {
+    let cache: Value =
+        serde_json::from_str(&seed.content_json).map_err(|e| format!("Invalid seed JSON: {e}"))?;
+    let blocks = cache.get("content").and_then(Value::as_array);
+    if cache.get("type").and_then(Value::as_str) != Some("doc")
+        || blocks.is_none_or(|blocks| {
+            blocks.len() != 1
+                || blocks[0].get("type").and_then(Value::as_str) != Some("paragraph")
+                || blocks[0]
+                    .get("content")
+                    .is_some_and(|v| v.as_array().is_none_or(|a| !a.is_empty()))
+        })
+        || seed.update.is_empty()
+    {
+        return Err("A new body must be one empty paragraph and a nonempty Yjs event".into());
+    }
+    Ok(())
+}
+
+fn color(value: &str) -> bool {
+    value.len() == 7 && value.starts_with('#') && value[1..].bytes().all(|c| c.is_ascii_hexdigit())
+}
+
+fn safe_integer(value: &V, label: &str) -> Result<u64, String> {
+    match value {
+        V::Integer(value) => value.parse::<u64>().ok().filter(|n| *n <= MAX_SAFE),
+        _ => None,
+    }
+    .ok_or_else(|| format!("Invalid {label}"))
+}
+
+fn category_from_row(row: &[V]) -> Result<WorkspaceElementCategory, String> {
+    let id = string(row, 0)?;
+    Ok(WorkspaceElementCategory {
+        document_id: format!("category:{id}"),
+        id,
+        project_id: string(row, 1)?,
+        name: string(row, 2)?,
+        color: string(row, 3)?,
+        created_at: string(row, 4)?,
+        updated_at: string(row, 5)?,
+    })
+}
+
+fn element_from_row(row: &[V]) -> Result<WorkspaceElement, String> {
+    let optional = |index: usize| match &row[index] {
+        V::Null => Ok(None),
+        V::Text(value) => Ok(Some(value.clone())),
+        _ => Err("Invalid element optional text".to_string()),
+    };
+    let id = string(row, 0)?;
+    Ok(WorkspaceElement {
+        document_id: format!("element:{id}"),
+        id,
+        project_id: string(row, 1)?,
+        category_id: optional(2)?,
+        name: string(row, 3)?,
+        summary: string(row, 4)?,
+        aliases: serde_json::from_str(&string(row, 5)?).map_err(|_| "Invalid element aliases")?,
+        group_name: optional(6)?,
+        created_at: string(row, 7)?,
+        updated_at: string(row, 8)?,
+    })
+}

@@ -82,9 +82,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             updateActions()
         }
     }
+    /// Comments are a chapter feature. Element bodies never offer or send one.
+    let allowsComments: Bool
 
-    init(core: LabCore) {
+    init(core: LabCore, allowsComments: Bool = true, minimumTextHeight: CGFloat = 220) {
         binding = DocumentBinding(core: core)
+        self.allowsComments = allowsComments
         super.init(frame: .zero)
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -138,6 +141,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         status.setAccessibilityIdentifier("document-status")
         comments.textColor = .secondaryLabelColor
         comments.setAccessibilityIdentifier("document-comments")
+        comments.isHidden = !allowsComments
         let stack = NSStackView(views: [toolbar, formats, scroll, comments, status])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -147,7 +151,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor), status.widthAnchor.constraint(equalTo: stack.widthAnchor),
             comments.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 220),
+            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: minimumTextHeight),
         ])
         binding.onProjection = { [weak self] in self?.render($0, changes: $1) }
         binding.onStatus = { [weak self] in self?.status.stringValue = $0 }
@@ -220,7 +224,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     // MARK: Comments
 
     var canAddComment: Bool {
-        !isInteractionLocked && !textView.hasMarkedText() && binding.canComment(range: textView.selectedRange())
+        allowsComments && !isInteractionLocked && !textView.hasMarkedText() && binding.canComment(range: textView.selectedRange())
     }
 
     /// Opens the composer for the current selection. The range and revision
@@ -247,6 +251,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     func addComment(_ body: String, range: NSRange, revision: UInt64,
                     completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        guard allowsComments else { completion(.failure(LabError.message("设定正文不支持批注。"))); return }
         guard !isInteractionLocked, !textView.hasMarkedText() else {
             completion(.failure(LabError.message("请先完成输入，再添加批注。"))); return
         }
@@ -259,6 +264,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Selects the comment's current anchor in this view only. Returns the
     /// reason when it cannot, leaving the selection unchanged.
     func locateComment(id: String) -> String? {
+        guard allowsComments else { return "设定正文不支持批注。" }
         guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
               let projection = binding.store.projection else { return "请先完成输入，并等待正文保存后再定位批注。" }
         guard let anchor = projection.comments.first(where: { $0.id == id }) else { return "这条批注已不在当前正文中，请刷新批注列表。" }
@@ -269,7 +275,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
 
     func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
-        guard !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) else { return menu }
+        guard allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) else { return menu }
         let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
         item.target = textView
         item.setAccessibilityIdentifier("context-add-comment")

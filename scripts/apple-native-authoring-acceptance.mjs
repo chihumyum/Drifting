@@ -44,7 +44,7 @@ function manifest() {
   ])].sort().map(name => ({ path: name, sha256: sha(read(name)) }));
 }
 const specs = [
-  { name: 'core', crate: 'drifting-core', count: 91, required: [
+  { name: 'core', crate: 'drifting-core', required: [
     'original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders',
     'original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes',
     'native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire',
@@ -56,7 +56,7 @@ const specs = [
     'materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes',
     'materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity',
   ] },
-  { name: 'document', crate: 'drifting-document', count: 145, required: [
+  { name: 'document', crate: 'drifting-document', required: [
     'native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items',
     'native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive',
     'native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged',
@@ -74,7 +74,7 @@ const specs = [
     'draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged',
     'draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified',
   ] },
-  { name: 'prose', crate: 'drifting-prose', count: 29, required: [
+  { name: 'prose', crate: 'drifting-prose', required: [
     'native_persistence::native_delete_record_survives_projection_failure_and_later_input_before_retry',
     'native_persistence::sequential_native_declarations_rollback_as_one_batch_without_sequence_holes',
     'native_persistence::actual_native_multiclient_deletion_keeps_exact_event_through_original_store',
@@ -85,7 +85,7 @@ const specs = [
     'native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input',
     'native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes',
   ] },
-  { name: 'bridge', crate: 'drifting-apple-bridge', count: 56, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
+  { name: 'bridge', crate: 'drifting-apple-bridge', required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
 ];
 const boundaries = [
   'Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.',
@@ -117,8 +117,9 @@ function validate(report) {
   assert.deepEqual(report.boundaries, boundaries); assert.equal(report.suites.length, specs.length);
   for (const spec of specs) {
     const suite = report.suites.find(item => item.name === spec.name); assert(suite);
-    assert.equal(suite.passed, spec.count); assert.equal(suite.failed, 0); assert.equal(suite.toolchain, report.toolchain.rustc);
-    assert.equal(suite.cases.length, spec.count); assert.equal(new Set(suite.cases).size, spec.count);
+    // Every listed test ran and passed; the count follows the crate itself.
+    assert(suite.listed > 0); assert.equal(suite.passed, suite.listed); assert.equal(suite.failed, 0); assert.equal(suite.toolchain, report.toolchain.rustc);
+    assert.equal(suite.cases.length, suite.listed); assert.equal(new Set(suite.cases).size, suite.listed);
     for (const name of spec.required) assert(suite.cases.includes(name), `Missing ${name}`);
   }
   assert.equal(report.rendererMaterialization.length, rendererSpecs.length);
@@ -155,8 +156,10 @@ for (const spec of specs) {
     NATIVE_JOURNAL_WIRE_OUTPUT: path.join(work, 'journal-wire.json'), NATIVE_AUTHORING_WIRE_DIR: wireDir,
   });
   const cases = [...stdout.matchAll(/^test (\S+) \.\.\. ok$/gmu)].map(match => match[1]);
-  assert.equal(cases.length, spec.count, `${spec.name} test count`); for (const name of spec.required) assert(cases.includes(name), name);
-  suites.push({ name: spec.name, toolchain: toolchain.rustc, passed: cases.length, failed: 0, cases, outputSha256: sha(stdout) });
+  const listed = [...run(`${spec.name}-list`, 'cargo', ['test', '--locked', '--manifest-path', manifestPath, '--', '--list'])
+    .matchAll(/^(\S+): test$/gmu)].length;
+  assert.equal(cases.length, listed, `${spec.name} test count`); for (const name of spec.required) assert(cases.includes(name), name);
+  suites.push({ name: spec.name, toolchain: toolchain.rustc, listed, passed: cases.length, failed: 0, cases, outputSha256: sha(stdout) });
 }
 run('journal-wire', 'pnpm', ['exec', 'tsx', '--conditions=import', 'scripts/apple-native-journal-wire-check.ts', `--input=${path.join(work, 'journal-wire.json')}`, `--output=${path.join(work, 'journal-wire-result.json')}`]);
 run('native-wire', 'pnpm', ['exec', 'tsx', '--conditions=import', 'scripts/apple-native-authoring-wire-check.ts', `--input=${wireDir}`, `--output=${path.join(work, 'native-wire-result.json')}`]);

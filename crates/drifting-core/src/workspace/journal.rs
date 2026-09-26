@@ -299,6 +299,57 @@ impl WorkspaceStore<'_> {
                             mutation_index=excluded.mutation_index
                     "#,values)?;
                 }
+                "set.add" | "set.remove" => {
+                    // The reducer's persisted key for the authored alias set.
+                    let set_key = if mutation.kind == "alias" {
+                        "aliases"
+                    } else {
+                        mutation.kind
+                    };
+                    let member = mutation.payload["memberId"]
+                        .as_str()
+                        .ok_or("Missing workspace set member")?;
+                    let owner = vec![
+                        text(&context.sync_generation_id),
+                        text(mutation.kind),
+                        text(&mutation.id),
+                        integer(mutation.incarnation),
+                        text(set_key),
+                        text(member),
+                    ];
+                    if mutation.action == "set.add" {
+                        let value = cbor(&mutation.payload["value"]).bytes();
+                        let mut values = owner;
+                        values.extend([
+                            V::Blob(value),
+                            text(&format!("{change_id}#{index}")),
+                            text(&change_id),
+                            integer(index as u64),
+                        ]);
+                        self.execute(tx, r#"
+                            INSERT INTO sync_set_tag(sync_generation_id,owner_kind,owner_id,incarnation,set_key,
+                                value_key,value_cbor,add_tag,add_change_set_id,add_mutation_index)
+                            VALUES (?,?,?,?,?,?,?,?,?,?)
+                        "#, values)?;
+                    } else {
+                        let tags = mutation.payload["observedAddTags"]
+                            .as_array()
+                            .ok_or("Missing observed set tags")?;
+                        for tag in tags {
+                            let mut values = vec![text(&change_id), integer(index as u64)];
+                            values.extend(owner.iter().cloned());
+                            values.push(text(tag.as_str().ok_or("Invalid observed set tag")?));
+                            let changed = self.gateway.execute(r#"
+                                UPDATE sync_set_tag SET removed_by_change_set_id=?,removed_by_mutation_index=?
+                                WHERE sync_generation_id=? AND owner_kind=? AND owner_id=? AND incarnation=?
+                                    AND set_key=? AND value_key=? AND add_tag=? AND removed_by_change_set_id IS NULL
+                            "#.into(), values, Some(tx), self.client.into())?;
+                            if changed.changes != 1 {
+                                return Err("Set member changed during workspace command".into());
+                            }
+                        }
+                    }
+                }
                 "yjs.update" => {}
                 _ => return Err("Unsupported workspace mutation".into()),
             }

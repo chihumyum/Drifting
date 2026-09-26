@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var commentsButton: NSButton!
     private var commentsPanel: ChapterCommentsPanel?
     private var commentsController: MacChapterCommentsViewController?
+    private var elementsButton: NSButton!
+    private var elementsPanel: ElementLibraryPanel?
+    private var elementsController: MacElementLibraryViewController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -100,6 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let search = editMenu.addItem(withTitle: "项目搜索", action: #selector(showSearch), keyEquivalent: "f")
         search.keyEquivalentModifierMask = [.command, .shift]
         search.target = self
+        let elements = editMenu.addItem(withTitle: "设定库", action: #selector(showElements), keyEquivalent: "e")
+        elements.keyEquivalentModifierMask = [.command, .shift]
+        elements.target = self
         editMenu.addItem(.separator())
         // Nil-targeted: the focused editor pane validates its own selection.
         let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
@@ -147,9 +153,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
         searchButton = button("搜索", id: "show-search", action: #selector(showSearch))
         commentsButton = button("批注", id: "show-comments", action: #selector(showComments))
+        elementsButton = button("设定库", id: "show-elements", action: #selector(showElements))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
-        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, splitButton, closePaneButton])
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
+                                          splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -171,6 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             guard let self else { return }
             self.status.stringValue = "批注已添加"
             if let model = self.commentsController?.model, model.store === view.binding.store { model.reload(after: "批注已添加。") }
+        }
+        chapterWorkspace.onElementLibrary = { [weak self] projectID, library in
+            guard let model = self?.elementsController?.model, model.projectID == projectID else { return }
+            model.apply(library, message: nil)
         }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
@@ -294,7 +306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
         outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         searchButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
-        commentsButton.isEnabled = !loading && documentView != nil
+        commentsButton.isEnabled = !loading && chapterWorkspace.activeChapterView != nil
+        elementsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -329,6 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard canLeaveDocument() else { return }
         closeOutline()
         closeSearch()
+        if elementsController?.model.projectID != project.id { closeElements() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -486,7 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     @objc private func showComments() {
-        guard documentView != nil else { return }
+        guard chapterWorkspace.activeChapterView != nil else { return }
         if let commentsPanel, commentsPanel.isVisible {
             updateComments(); commentsPanel.makeKeyAndOrderFront(nil); return
         }
@@ -514,12 +528,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func updateComments() {
         guard let commentsPanel, let model = commentsController?.model else { return }
         commentsPanel.title = currentChapter.map { "批注 · \($0.title)" } ?? "批注"
-        model.bind(documentView?.binding.store)
+        // Element pages have no comments; the panel waits for a chapter.
+        model.bind(chapterWorkspace.activeChapterView?.binding.store)
     }
 
     private func locateComment(_ id: String) {
         guard let model = commentsController?.model else { return }
-        guard let documentView, documentView.binding.store === model.store else {
+        guard let documentView = chapterWorkspace.activeChapterView, documentView.binding.store === model.store else {
             model.showStatus("当前编辑栏已变化，请重新选择批注。"); return
         }
         if let refusal = documentView.locateComment(id: id) { model.showStatus(refusal); return }
@@ -531,6 +546,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func closeComments() {
         let panel = commentsPanel
         commentsPanel = nil; commentsController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    @objc private func showElements() {
+        guard let project = currentProject ?? selectedProject else { return }
+        if let elementsPanel, elementsPanel.isVisible, elementsController?.model.projectID == project.id {
+            elementsPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeElements()
+        let model = ElementLibraryModel(workspace: workspace, projectID: project.id)
+        let controller = MacElementLibraryViewController(model: model)
+        let panel = ElementLibraryPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 设定库"
+        panel.minSize = NSSize(width: 300, height: 360)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        elementsPanel = panel; elementsController = controller
+        panel.onClose = { [weak self] in self?.elementsPanel = nil; self?.elementsController = nil }
+        model.onLibrary = { [weak self] library in
+            self?.chapterWorkspace.applyElementLibrary(projectID: project.id, library: library)
+        }
+        controller.onClose = { [weak self] in self?.closeElements() }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onOpen = { [weak self] element in self?.openElement(element, project: project, focusName: false) }
+        controller.onCreated = { [weak self] element in self?.openElement(element, project: project, focusName: true) }
+        controller.onTrash = { [weak self] element in self?.trashElement(element, project: project) }
+        window.addChildWindow(panel, ordered: .above)
+        // Beside the editor's leading edge, clear of the text column.
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 24, y: frame.maxY - 90))
+        panel.makeKeyAndOrderFront(nil)
+        model.load()
+    }
+
+    private func openElement(_ element: WorkspaceElement, project: WorkspaceProject, focusName: Bool) {
+        guard canLeaveDocument() else {
+            elementsController?.model.showStatus("请先完成输入，并等待正文保存后再打开设定。"); return
+        }
+        chapterWorkspace.open(project: project, element: element) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.status.stringValue = "设定正文自动保存"
+                self.window.makeKeyAndOrderFront(nil)
+                if focusName { self.chapterWorkspace.focusActiveElementName() }
+                self.documentActivity(!self.chapterWorkspace.canNavigate)
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.elementsController?.model.showStatus(error.localizedDescription)
+                self.activeChapterChanged()
+            }
+        }
+    }
+
+    private func trashElement(_ element: WorkspaceElement, project: WorkspaceProject) {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.trashElement(projectID: project.id, elementID: element.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let reply):
+                self.elementsController?.model.apply(reply.library, message: "“\(element.name)”已移到回收站，可以随时恢复。")
+                self.status.stringValue = "设定已移到回收站"
+                self.activeChapterChanged()
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.elementsController?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    private func closeElements() {
+        let panel = elementsPanel
+        elementsPanel = nil; elementsController = nil
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
@@ -617,6 +705,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 case .success(let updated):
                     self.closeOutline()
                     self.closeSearch()
+                    self.elementsPanel?.title = "\(updated.name) · 设定库"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -666,9 +755,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func updateCurrentTitle() {
-        guard let project = currentProject, let chapter = currentChapter else { return }
-        currentTitle.stringValue = "\(project.name) / \(chapter.title)"
-        window.title = "\(chapter.title) — Drifting Native Lab"
+        guard let project = currentProject else { return }
+        if let chapter = currentChapter {
+            currentTitle.stringValue = "\(project.name) / \(chapter.title)"
+            window.title = "\(chapter.title) — Drifting Native Lab"
+        } else if let element = chapterWorkspace.activeElement {
+            currentTitle.stringValue = "\(project.name) / 设定 · \(element.name)"
+            window.title = "\(element.name) — Drifting Native Lab"
+        }
     }
 
     @objc private func moveChapterUp() { moveChapter(up: true) }
@@ -850,7 +944,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self.closingWorkspace = false
             switch result {
             case .success:
-                self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); completion(true)
+                self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
+                completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
         }
@@ -865,6 +960,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeOutline()
         closeSearch()
         closeComments()
+        closeElements()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

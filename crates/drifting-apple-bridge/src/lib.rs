@@ -38,7 +38,9 @@ static SESSIONS: OnceLock<Mutex<HashMap<u64, LabSession>>> = OnceLock::new();
 
 struct DocumentOwner {
     scope: ArchiveScope,
-    chapter_id: String,
+    /// The body's owning row: `node` (chapter) or `element`.
+    target_kind: &'static str,
+    target_id: String,
     installation_id: String,
     workspace: bool,
 }
@@ -76,7 +78,8 @@ impl LabSession {
             document,
             owner: DocumentOwner {
                 scope,
-                chapter_id: NODE.into(),
+                target_kind: "node",
+                target_id: NODE.into(),
                 installation_id: "native-lab-synthetic-installation".into(),
                 workspace: false,
             },
@@ -96,9 +99,27 @@ impl LabSession {
         chapter_id: String,
         installation_id: String,
     ) -> Result<Self, String> {
+        Self::open_body(
+            directory,
+            gateway,
+            scope,
+            "node",
+            chapter_id,
+            installation_id,
+        )
+    }
+
+    fn open_body(
+        directory: PathBuf,
+        gateway: DatabaseGateway,
+        scope: ArchiveScope,
+        target_kind: &'static str,
+        target_id: String,
+        installation_id: String,
+    ) -> Result<Self, String> {
         let mut document =
             DurableDocument::open_for_replay_with_scope(gateway.clone(), CLIENT, scope.clone())?;
-        let comments = load_comments_for(&gateway, &scope.project_id, &chapter_id)?;
+        let comments = load_comments_for(&gateway, &scope.project_id, target_kind, &target_id)?;
         let persisted_comments = comment_map(comments.clone());
         document.set_comment_anchors(comments)?;
         let mut session = Self {
@@ -107,7 +128,8 @@ impl LabSession {
             document,
             owner: DocumentOwner {
                 scope,
-                chapter_id,
+                target_kind,
+                target_id,
                 installation_id,
                 workspace: true,
             },
@@ -186,7 +208,8 @@ impl LabSession {
                     &records,
                     baseline,
                     &owner.scope.project_id,
-                    &owner.chapter_id,
+                    owner.target_kind,
+                    &owner.target_id,
                 )?;
                 comments = Some(records);
                 Ok(())
@@ -215,7 +238,8 @@ impl LabSession {
                     &records,
                     baseline,
                     &owner.scope.project_id,
-                    &owner.chapter_id,
+                    owner.target_kind,
+                    &owner.target_id,
                 )?;
                 comments = Some(records);
                 Ok(())
@@ -396,6 +420,12 @@ enum Request {
         #[serde(rename = "chapterId")]
         chapter_id: String,
     },
+    WorkspaceElements {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::elements::ElementCommand,
+    },
     WorkspaceClose {
         handle: u64,
     },
@@ -518,7 +548,8 @@ fn persist_comment_anchors(
     comments: &[CommentAnchorRecord],
     baseline: &HashMap<String, CommentAnchorRecord>,
     project_id: &str,
-    chapter_id: &str,
+    target_kind: &str,
+    target_id: &str,
 ) -> Result<(), String> {
     for record in comments {
         let old = baseline
@@ -527,8 +558,8 @@ fn persist_comment_anchors(
         if record == old {
             continue;
         }
-        let result = gateway.execute("UPDATE comment SET anchor_json = ?, target_block_id = ?, target_block_ids_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND project_id = ? AND target_kind = 'node' AND target_id = ? AND anchor_json = ? AND target_block_id IS ? AND target_block_ids_json = ?".into(),
-            vec![text(&record.anchor_json), nullable_text(record.target_block_id.as_deref()), text(&record.target_block_ids_json), text(&record.id), text(project_id), text(chapter_id), text(&old.anchor_json), nullable_text(old.target_block_id.as_deref()), text(&old.target_block_ids_json)], Some(tx), CLIENT.into())?;
+        let result = gateway.execute("UPDATE comment SET anchor_json = ?, target_block_id = ?, target_block_ids_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND project_id = ? AND target_kind = ? AND target_id = ? AND anchor_json = ? AND target_block_id IS ? AND target_block_ids_json = ?".into(),
+            vec![text(&record.anchor_json), nullable_text(record.target_block_id.as_deref()), text(&record.target_block_ids_json), text(&record.id), text(project_id), text(target_kind), text(target_id), text(&old.anchor_json), nullable_text(old.target_block_id.as_deref()), text(&old.target_block_ids_json)], Some(tx), CLIENT.into())?;
         if result.changes != 1 {
             return Err(
                 "Comment anchor changed outside this owner; the checkpoint was not committed"
@@ -701,15 +732,16 @@ fn seed_comments(gateway: &DatabaseGateway, fixture: &Value) -> Result<(), Strin
 }
 
 fn load_comments(gateway: &DatabaseGateway) -> Result<Vec<CommentAnchorRecord>, String> {
-    load_comments_for(gateway, PROJECT, NODE)
+    load_comments_for(gateway, PROJECT, "node", NODE)
 }
 
 fn load_comments_for(
     gateway: &DatabaseGateway,
     project_id: &str,
-    chapter_id: &str,
+    target_kind: &str,
+    target_id: &str,
 ) -> Result<Vec<CommentAnchorRecord>, String> {
-    let result = gateway.query("SELECT id, anchor_json, target_block_id, target_block_ids_json FROM comment WHERE project_id = ? AND target_kind = 'node' AND target_id = ? ORDER BY id".into(), vec![text(project_id),text(chapter_id)],None,CLIENT.into())?;
+    let result = gateway.query("SELECT id, anchor_json, target_block_id, target_block_ids_json FROM comment WHERE project_id = ? AND target_kind = ? AND target_id = ? ORDER BY id".into(), vec![text(project_id),text(target_kind),text(target_id)],None,CLIENT.into())?;
     result.rows.into_iter().map(|row| {
         let [DatabaseValue::Text(id),DatabaseValue::Text(anchor),block,DatabaseValue::Text(ids)] = row.as_slice() else {return Err("Invalid synthetic comment row".into());};
         let target_block_id = match block {DatabaseValue::Null => None, DatabaseValue::Text(id) => Some(id.clone()), _ => return Err("Invalid synthetic comment target".into())};
@@ -1069,6 +1101,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceOpenChapter { .. }
         | Request::WorkspaceReopenChapter { .. }
         | Request::WorkspaceCloseChapter { .. }
+        | Request::WorkspaceElements { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

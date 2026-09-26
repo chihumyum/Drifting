@@ -1,17 +1,42 @@
 import AppKit
 
-/// Two panes own their tab views; the shared workspace owns chapter cores.
-/// Removing a view from the hierarchy never detaches its input/history binding.
+/// What a tab shows: a chapter body, or an element page (fields and body).
+enum WorkspaceTabTarget {
+    case chapter(WorkspaceChapter)
+    case element(WorkspaceElement)
+}
+
+/// Two panes own their tab views; the shared workspace owns chapter and element
+/// cores. Removing a view from the hierarchy never detaches its input/history
+/// binding.
 final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private final class Tab {
         var project: WorkspaceProject
-        var chapter: WorkspaceChapter
+        var target: WorkspaceTabTarget
         let core: LabCore
         let view: NativeDocumentView
-        var scope: ChapterScope { ChapterScope(projectID: project.id, chapterID: chapter.id) }
-        init(project: WorkspaceProject, chapter: WorkspaceChapter, core: LabCore) {
-            self.project = project; self.chapter = chapter; self.core = core
-            view = NativeDocumentView(core: core)
+        /// Element tabs show their page; the body is the page's document view.
+        let page: MacElementPageView?
+        var content: NSView { page ?? view }
+        var chapter: WorkspaceChapter? { if case .chapter(let chapter) = target { return chapter }; return nil }
+        var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
+        var title: String { chapter?.title ?? element?.name ?? "" }
+        var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
+        static func scope(of target: WorkspaceTabTarget, projectID: String) -> DocumentScope {
+            switch target {
+            case .chapter(let chapter): return .chapter(ChapterScope(projectID: projectID, chapterID: chapter.id))
+            case .element(let element): return .element(ElementScope(projectID: projectID, elementID: element.id))
+            }
+        }
+        init(project: WorkspaceProject, target: WorkspaceTabTarget, core: LabCore, categories: [WorkspaceElementCategory]) {
+            self.project = project; self.target = target; self.core = core
+            switch target {
+            case .chapter:
+                view = NativeDocumentView(core: core); page = nil
+            case .element(let element):
+                let page = MacElementPageView(element: element, categories: categories, core: core)
+                self.page = page; view = page.documentView
+            }
         }
     }
     private final class Pane {
@@ -20,7 +45,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let body = NSView()
         let label = NSTextField(labelWithString: "")
         var tabs: [Tab] = []
-        var selected: ChapterScope?
+        var selected: DocumentScope?
         var active: Tab? { tabs.first { $0.scope == selected } }
     }
 
@@ -30,6 +55,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private weak var pendingFocus: NativeDocumentView?
     private var externallyLocked = false
     private var needsInitialSplitLayout = false
+    private var elementCategories: [String: [WorkspaceElementCategory]] = [:]
     private(set) var activePane = 0
     private(set) var isBusy = false
     var onChange: (() -> Void)?
@@ -38,10 +64,17 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// A view rendered different comment anchors, or created a comment.
     var onComments: ((NativeDocumentView) -> Void)?
     var onCommentCreated: ((NativeDocumentView, WorkspaceComment) -> Void)?
+    /// A page edit or element trash returned this project's complete library.
+    var onElementLibrary: ((String, WorkspaceElementLibrary) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
+    /// Nil while an element page is active: chapter features stay disabled.
     var activeChapter: WorkspaceChapter? { panes[activePane].active?.chapter }
+    var activeElement: WorkspaceElement? { panes[activePane].active?.element }
+    var activeElementPage: MacElementPageView? { panes[activePane].active?.page }
+    /// The active view only when it shows a chapter; comments bind to this.
+    var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
     var canNavigate: Bool {
         !isBusy && !externallyLocked && !workspace.isChangingOwners && allTabs.allSatisfy {
@@ -93,8 +126,19 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                    ofSubviewAt dividerIndex: Int) -> CGFloat { min(proposedMaximumPosition, splitView.bounds.width - 300) }
 
     func retainedView(pane: Int, scope: ChapterScope) -> NativeDocumentView? {
+        retainedView(pane: pane, scope: .chapter(scope))
+    }
+    func retainedView(pane: Int, scope: DocumentScope) -> NativeDocumentView? {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == scope }?.view
+    }
+    func retainedElementPage(pane: Int, scope: ElementScope) -> MacElementPageView? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == .element(scope) }?.page
+    }
+    /// Tab titles in display order, for accessibility checks and acceptance.
+    func tabTitles(pane: Int) -> [String] {
+        panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
     }
 
     func activate(pane: Int) {
@@ -107,29 +151,55 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     func open(project: WorkspaceProject, chapter: WorkspaceChapter, in pane: Int? = nil,
               completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
-        let target = pane ?? activePane
-        guard panes.indices.contains(target), canNavigate else { completion(.failure(blocked())); return }
+        open(project: project, target: .chapter(chapter), in: pane, completion: completion)
+    }
+
+    /// Opens an element page as a tab. Its body is an ordinary document owner.
+    func open(project: WorkspaceProject, element: WorkspaceElement, in pane: Int? = nil,
+              completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        open(project: project, target: .element(element), in: pane, completion: completion)
+    }
+
+    private func openCore(_ project: WorkspaceProject, _ target: WorkspaceTabTarget, reopen: Bool,
+                          completion: @escaping (Result<LabCore, Error>) -> Void) {
+        switch (target, reopen) {
+        case (.chapter(let chapter), false): workspace.openChapter(projectID: project.id, chapterID: chapter.id, completion: completion)
+        case (.chapter(let chapter), true): workspace.reopenChapter(projectID: project.id, chapterID: chapter.id, completion: completion)
+        case (.element(let element), false): workspace.openElement(projectID: project.id, elementID: element.id, completion: completion)
+        case (.element(let element), true): workspace.reopenElement(projectID: project.id, elementID: element.id, completion: completion)
+        }
+    }
+
+    private func open(project: WorkspaceProject, target: WorkspaceTabTarget, in pane: Int?,
+                      completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        let index = pane ?? activePane
+        guard panes.indices.contains(index), canNavigate else { completion(.failure(blocked())); return }
         setBusy(true)
-        workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
+        openCore(project, target, reopen: false) { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let core):
-                let scope = ChapterScope(projectID: project.id, chapterID: chapter.id)
+                let scope = Tab.scope(of: target, projectID: project.id)
                 let tab: Tab
                 let isNew: Bool
-                if let retained = self.panes[target].tabs.first(where: { $0.scope == scope }) {
+                if let retained = self.panes[index].tabs.first(where: { $0.scope == scope }) {
                     isNew = false
                     tab = retained
-                    tab.project = project; tab.chapter = chapter
+                    tab.project = project
+                    // A retained element page keeps its own, newer fields:
+                    // library replies already updated it after each save.
+                    if case .chapter = target { tab.target = target }
                 } else {
                     isNew = true
-                    tab = Tab(project: project, chapter: chapter, core: core)
-                    self.panes[target].tabs.append(tab)
-                    self.connect(tab, pane: target)
+                    // Another view of this element may hold newer fields.
+                    let current = self.allTabs.first { $0.scope == scope }?.target ?? target
+                    tab = Tab(project: project, target: current, core: core, categories: self.elementCategories[project.id] ?? [])
+                    self.panes[index].tabs.append(tab)
+                    self.connect(tab, pane: index)
                 }
-                self.panes[target].selected = scope
-                self.activePane = target
-                self.showSelected(in: target)
+                self.panes[index].selected = scope
+                self.activePane = index
+                self.showSelected(in: index)
                 self.pendingFocus = tab.view
                 // A new binding can adopt an already-loaded shared store
                 // before its view installs callbacks. Always render it once.
@@ -137,9 +207,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
+                if isNew, tab.page != nil, self.elementCategories[project.id] == nil { self.loadElementLibrary(projectID: project.id) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
+        }
+    }
+
+    /// A page opened before any library reply still needs the category list.
+    private func loadElementLibrary(projectID: String) {
+        workspace.elementLibrary(projectID: projectID) { [weak self] result in
+            guard let self, case .success(let library) = result, self.elementCategories[projectID] == nil else { return }
+            self.applyElementLibrary(projectID: projectID, library: library)
         }
     }
 
@@ -148,25 +227,35 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let added = panes.count == 1
         if added { addPane() }
         let other = activePane == 0 ? 1 : 0
-        open(project: tab.project, chapter: tab.chapter, in: other) { result in
+        open(project: tab.project, target: tab.target, in: other) { result in
             if case .failure = result, added { self.removeSecondPane() }
             completion(result)
         }
     }
 
     func closeTab(pane: Int, scope: ChapterScope, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeTab(pane: pane, scope: .chapter(scope), completion: completion)
+    }
+
+    func closeTab(pane: Int, scope: DocumentScope, completion: @escaping (Result<Bool, Error>) -> Void) {
         guard canNavigate, panes.indices.contains(pane),
               let tab = panes[pane].tabs.first(where: { $0.scope == scope }) else { completion(.failure(blocked())); return }
+        // A header edit in progress is saved; it needs no document owner.
+        tab.page?.endEditing()
         if allTabs.filter({ $0.scope == scope }).count > 1 {
             remove(tab, from: pane)
             completion(.success(true)); return
         }
         setBusy(true)
-        workspace.closeChapter(projectID: scope.projectID, chapterID: scope.chapterID) { [weak self] result in
+        let finish: (Result<Bool, Error>) -> Void = { [weak self] result in
             guard let self else { return }
             if case .success = result { self.remove(tab, from: pane) }
             self.setBusy(false)
             completion(result)
+        }
+        switch scope {
+        case .chapter(let chapter): workspace.closeChapter(projectID: chapter.projectID, chapterID: chapter.chapterID, completion: finish)
+        case .element(let element): workspace.closeElement(projectID: element.projectID, elementID: element.elementID, completion: finish)
         }
     }
 
@@ -174,21 +263,41 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
         guard canNavigate else { completion(.failure(blocked())); return }
         setBusy(true)
-        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
+        let scope = DocumentScope.chapter(ChapterScope(projectID: projectID, chapterID: chapterID))
         workspace.trashChapter(projectID: projectID, chapterID: chapterID) { [weak self] result in
             guard let self else { return }
-            if case .success = result {
-                // Include hidden tabs and both panes. Do not close the Rust
-                // owner again after it has entered the trash lifecycle.
-                for index in self.panes.indices {
-                    for tab in self.panes[index].tabs.filter({ $0.scope == scope }) {
-                        self.remove(tab, from: index)
-                    }
-                }
+            if case .success = result { self.removeAll(scope) }
+            self.setBusy(false)
+            self.onChange?()
+            completion(result)
+        }
+    }
+
+    /// Trash commits first; only then are this element's tabs removed.
+    func trashElement(projectID: String, elementID: String,
+                      completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let scope = DocumentScope.element(ElementScope(projectID: projectID, elementID: elementID))
+        workspace.trashElement(projectID: projectID, elementID: elementID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result {
+                self.removeAll(scope)
+                self.applyElementLibrary(projectID: projectID, library: reply.library)
+                self.onElementLibrary?(projectID, reply.library)
             }
             self.setBusy(false)
             self.onChange?()
             completion(result)
+        }
+    }
+
+    /// Include hidden tabs and both panes. Do not close the Rust owner again
+    /// after it has entered the trash lifecycle; unsaved header text of a
+    /// trashed element is not committed after the fact.
+    private func removeAll(_ scope: DocumentScope) {
+        for index in panes.indices {
+            for tab in panes[index].tabs.filter({ $0.scope == scope }) { remove(tab, from: index, commitHeader: false) }
         }
     }
 
@@ -213,14 +322,15 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func reopenActive(completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
         guard canReopenActive, let old = panes[activePane].active else { completion(.failure(blocked())); return }
         let pane = activePane
+        old.page?.endEditing()
         setBusy(true)
-        workspace.reopenChapter(projectID: old.project.id, chapterID: old.chapter.id) { [weak self] result in
+        openCore(old.project, old.target, reopen: true) { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let core):
-                let tab = Tab(project: old.project, chapter: old.chapter, core: core)
-                old.view.onActivity = nil; old.view.onFocus = nil; old.view.onComments = nil; _ = old.view.binding.detach()
-                old.view.removeFromSuperview()
+                let tab = Tab(project: old.project, target: old.target, core: core,
+                              categories: self.elementCategories[old.project.id] ?? [])
+                self.disconnect(old)
                 if let at = self.panes[pane].tabs.firstIndex(where: { $0 === old }) { self.panes[pane].tabs[at] = tab }
                 self.connect(tab, pane: pane)
                 self.showSelected(in: pane)
@@ -237,15 +347,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     func close(completion: @escaping (Result<Bool, Error>) -> Void) {
         guard canNavigate else { completion(.failure(blocked())); return }
+        for tab in allTabs { tab.page?.endEditing() }
         setBusy(true)
         workspace.close { [weak self] result in
             guard let self else { return }
             if case .success = result {
                 for pane in self.panes {
-                    for tab in pane.tabs {
-                        tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil
-                        _ = tab.view.binding.detach(); tab.view.removeFromSuperview()
-                    }
+                    for tab in pane.tabs { self.disconnect(tab) }
                     pane.tabs.removeAll(); pane.selected = nil
                 }
             }
@@ -258,19 +366,65 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         refreshTabs(); onChange?()
     }
     func rename(chapter: WorkspaceChapter, projectID: String) {
-        for tab in allTabs where tab.project.id == projectID && tab.chapter.id == chapter.id { tab.chapter = chapter }
+        for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id { tab.target = .chapter(chapter) }
         refreshTabs(); onChange?()
+    }
+
+    /// Adopt a project's complete library: element tab titles and page fields
+    /// follow stored names; uncommitted header text is kept.
+    func applyElementLibrary(projectID: String, library: WorkspaceElementLibrary) {
+        elementCategories[projectID] = library.categories
+        for tab in allTabs where tab.project.id == projectID {
+            guard let element = tab.element, let stored = library.elements.first(where: { $0.id == element.id }) else { continue }
+            tab.target = .element(stored)
+            tab.page?.apply(element: stored, categories: library.categories)
+        }
+        refreshTabs(); onChange?()
+    }
+
+    /// Moves the keyboard to the active element page's name field, e.g. after
+    /// creating an element with a default name.
+    func focusActiveElementName() {
+        guard let page = activeElementPage else { return }
+        pendingFocus = nil
+        page.focusName()
+    }
+
+    private func commitElement(_ tab: Tab, changes: WorkspaceElementChanges,
+                               completion: @escaping (Result<WorkspaceElement, Error>) -> Void) {
+        guard let element = tab.element else { completion(.failure(LabError.message("这个标签不是设定页面。"))); return }
+        let projectID = tab.project.id
+        workspace.updateElement(projectID: projectID, elementID: element.id, changes: changes) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                guard let stored = reply.result else { completion(.failure(LabError.message("设定结果缺失"))); return }
+                if let self {
+                    self.applyElementLibrary(projectID: projectID, library: reply.library)
+                    self.onElementLibrary?(projectID, reply.library)
+                }
+                completion(.success(stored))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
     }
 
     private func blocked() -> LabError { .message("请先完成所有标签中的输入，并保存或处理待恢复草稿。") }
     private func connect(_ tab: Tab, pane: Int) {
         tab.view.isInteractionLocked = isBusy || externallyLocked
         tab.view.onFocus = { [weak self] in self?.activate(pane: pane) }
-        tab.view.onComments = { [weak self, weak view = tab.view] in
-            if let self, let view { self.onComments?(view) }
-        }
-        tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
-            if let self, let view { self.onCommentCreated?(view, comment) }
+        if let page = tab.page {
+            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onCommit = { [weak self, weak tab] changes, done in
+                guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，修改未保存。"))); return }
+                self.commitElement(tab, changes: changes, completion: done)
+            }
+        } else {
+            tab.view.onComments = { [weak self, weak view = tab.view] in
+                if let self, let view { self.onComments?(view) }
+            }
+            tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
+                if let self, let view { self.onCommentCreated?(view, comment) }
+            }
         }
         tab.view.onActivity = { [weak self] _ in
             guard let self else { return }
@@ -278,6 +432,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.focusWhenReady()
             self.onActivity?(!self.canNavigate)
         }
+    }
+    private func disconnect(_ tab: Tab) {
+        tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
+        tab.page?.onFocus = nil; tab.page?.onCommit = nil
+        _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {
         isBusy = value
@@ -339,9 +498,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         activePane = 0; pendingFocus = activeView
         splitView.adjustSubviews(); refreshTabs(); focusWhenReady(); onChange?()
     }
-    private func remove(_ tab: Tab, from index: Int) {
-        tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil
-        _ = tab.view.binding.detach(); tab.view.removeFromSuperview()
+    private func remove(_ tab: Tab, from index: Int, commitHeader: Bool = true) {
+        if commitHeader { tab.page?.endEditing() }
+        disconnect(tab)
         let pane = panes[index]
         pane.tabs.removeAll { $0 === tab }
         if pane.selected == tab.scope { pane.selected = pane.tabs.last?.scope }
@@ -351,8 +510,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
     private func showSelected(in index: Int) {
         let pane = panes[index]
+        // Leaving an element page saves its header edit before the view is hidden.
+        for child in pane.body.subviews where child !== pane.active?.content {
+            (child as? MacElementPageView)?.endEditing()
+        }
         for child in pane.body.subviews { child.removeFromSuperview() }
-        if let view = pane.active?.view {
+        if let view = pane.active?.content {
             view.translatesAutoresizingMaskIntoConstraints = false; pane.body.addSubview(view)
             NSLayoutConstraint.activate([
                 view.leadingAnchor.constraint(equalTo: pane.body.leadingAnchor), view.trailingAnchor.constraint(equalTo: pane.body.trailingAnchor),
@@ -363,17 +526,20 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
     private func refreshTabs() {
         for (index, pane) in panes.enumerated() {
-            pane.label.stringValue = panes.count == 1 ? "章节标签" : "\(index == 0 ? "左栏" : "右栏")\(index == activePane ? " · 当前" : "")"
+            pane.label.stringValue = panes.count == 1 ? "标签" : "\(index == 0 ? "左栏" : "右栏")\(index == activePane ? " · 当前" : "")"
             pane.label.textColor = index == activePane ? .labelColor : .secondaryLabelColor
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
-                let select = ChapterTabButton(title: tab.chapter.title) { [weak self] in
+                let kind = tab.element == nil ? "chapter" : "element"
+                let id = tab.chapter?.id ?? tab.element?.id ?? ""
+                let title = tab.element == nil ? tab.title : "设定 · \(tab.title)"
+                let select = ChapterTabButton(title: title) { [weak self] in
                     guard let self else { return }
-                    self.open(project: tab.project, chapter: tab.chapter, in: index) { result in
+                    self.open(project: tab.project, target: tab.target, in: index) { result in
                         if case .failure(let error) = result { self.onError?(error) }
                     }
                 }
-                select.setAccessibilityIdentifier("chapter-tab-\(tab.chapter.id)")
+                select.setAccessibilityIdentifier("\(kind)-tab-\(id)")
                 select.state = pane.selected == tab.scope ? .on : .off
                 select.isEnabled = canNavigate
                 let close = ChapterTabButton(title: "×") { [weak self] in
@@ -381,8 +547,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                         if case .failure(let error) = result { self?.onError?(error) }
                     }
                 }
-                close.setAccessibilityIdentifier("close-chapter-tab-\(tab.chapter.id)")
-                close.setAccessibilityLabel("关闭 \(tab.chapter.title)")
+                close.setAccessibilityIdentifier("close-\(kind)-tab-\(id)")
+                close.setAccessibilityLabel("关闭 \(tab.title)")
                 close.isEnabled = canNavigate
                 pane.tabsBar.addArrangedSubview(NSStackView(views: [select, close]))
             }

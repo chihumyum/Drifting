@@ -5,6 +5,8 @@ use drifting_core::workspace::{
     ChapterSeed, CreateChapter, CreateProject, WorkspaceProject, WorkspaceStore,
 };
 use drifting_document::Edit;
+#[path = "workspace_elements.rs"]
+pub(super) mod elements;
 #[path = "workspace_remote_prose.rs"]
 mod remote_prose;
 #[path = "workspace_search.rs"]
@@ -21,6 +23,8 @@ struct WorkspaceSession {
     gateway: DatabaseGateway,
     installation_id: String,
     documents: HashMap<(String, String), u64>,
+    /// Element body owners, keyed by (project, element) apart from chapters.
+    elements: HashMap<(String, String), u64>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -113,7 +117,12 @@ impl WorkspaceSession {
     }
 
     fn document_handles(&self) -> Vec<u64> {
-        let mut handles: Vec<_> = self.documents.values().copied().collect();
+        let mut handles: Vec<_> = self
+            .documents
+            .values()
+            .chain(self.elements.values())
+            .copied()
+            .collect();
         handles.sort_unstable();
         handles
     }
@@ -150,6 +159,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceOpenChapter { .. }
             | Request::WorkspaceReopenChapter { .. }
             | Request::WorkspaceCloseChapter { .. }
+            | Request::WorkspaceElements { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -179,6 +189,7 @@ pub(super) fn dispatch(
                     gateway,
                     installation_id: identifier("installation")?,
                     documents: HashMap::new(),
+                    elements: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})
@@ -379,6 +390,14 @@ pub(super) fn dispatch(
             .get(handle)
             .ok_or("Unknown or closed workspace")?
             .restore_chapter(project_id, chapter_id)?,
+        Request::WorkspaceElements {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .elements(documents, project_id, command)?,
         Request::WorkspaceReconcileProse { handle, project_id } => json!(workspaces
             .get(handle)
             .ok_or("Unknown or closed workspace")?
@@ -524,13 +543,14 @@ pub(super) fn document_closed(handle: u64) -> Result<(), String> {
         .lock()
         .map_err(|_| "Workspace registry is unavailable")?;
     for workspace in workspaces.values_mut() {
-        if let Some(key) = workspace
-            .documents
-            .iter()
-            .find_map(|(key, value)| (*value == handle).then(|| key.clone()))
-        {
-            workspace.documents.remove(&key);
-            return Ok(());
+        for map in [&mut workspace.documents, &mut workspace.elements] {
+            if let Some(key) = map
+                .iter()
+                .find_map(|(key, value)| (*value == handle).then(|| key.clone()))
+            {
+                map.remove(&key);
+                return Ok(());
+            }
         }
     }
     Err("Document no longer belongs to an open workspace".into())

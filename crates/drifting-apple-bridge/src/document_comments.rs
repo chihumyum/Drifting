@@ -6,7 +6,7 @@ use drifting_core::workspace::{NewChapterComment, WorkspaceStore};
 use drifting_document::NativeRange;
 
 fn workspace_session(session: &LabSession) -> Result<(), String> {
-    if session.owner.workspace {
+    if session.owner.workspace && session.owner.target_kind == "node" {
         Ok(())
     } else {
         Err("Comments require a workspace chapter".into())
@@ -16,7 +16,7 @@ fn workspace_session(session: &LabSession) -> Result<(), String> {
 pub(super) fn list(session: &LabSession) -> Result<Value, String> {
     workspace_session(session)?;
     let comments = WorkspaceStore::new(&session.gateway, CLIENT)
-        .chapter_comments(&session.owner.scope.project_id, &session.owner.chapter_id)?;
+        .chapter_comments(&session.owner.scope.project_id, &session.owner.target_id)?;
     Ok(json!({ "comments": comments }))
 }
 
@@ -40,7 +40,7 @@ pub(super) fn create(
         &context,
         NewChapterComment {
             id: id.clone(),
-            chapter_id: session.owner.chapter_id.clone(),
+            chapter_id: session.owner.target_id.clone(),
             author_id: workspace::WORKSPACE_USER.into(),
             body_text: body.into(),
             anchor_json: anchor.record.anchor_json.clone(),
@@ -61,7 +61,7 @@ pub(super) fn update_body(
     workspace_session(session)?;
     let comment = WorkspaceStore::new(&session.gateway, CLIENT).update_chapter_comment_body(
         &session.authored_context()?,
-        &session.owner.chapter_id,
+        &session.owner.target_id,
         comment_id,
         body,
     )?;
@@ -76,7 +76,7 @@ pub(super) fn set_resolved(
     workspace_session(session)?;
     let comment = WorkspaceStore::new(&session.gateway, CLIENT).set_chapter_comment_resolved(
         &session.authored_context()?,
-        &session.owner.chapter_id,
+        &session.owner.target_id,
         comment_id,
         resolved,
     )?;

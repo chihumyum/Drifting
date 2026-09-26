@@ -20,13 +20,14 @@ enum LabError: LocalizedError {
     case historyUnavailable(reason: String)
     case formattingUnavailable(reason: String)
     case commentUnavailable(reason: String)
+    case elementUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
     var diagnosticDescription: String {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
-             .commentUnavailable(let text): return text
+             .commentUnavailable(let text), .elementUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -39,7 +40,32 @@ enum LabError: LocalizedError {
         case .formattingUnavailable:
             return "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
         case .commentUnavailable(let reason): return LabError.commentMessage(reason)
+        case .elementUnavailable(let reason): return LabError.elementMessage(reason)
         }
+    }
+
+    /// Element library refusals happen before any row or journal change.
+    /// Name conflicts name both sides; other known reasons get guidance.
+    private static func elementMessage(_ reason: String) -> String {
+        if reason.contains("is already used by element") {
+            let parts = reason.components(separatedBy: "\"")
+            return parts.count >= 5 ? "“\(parts[1])”已被设定“\(parts[3])”使用，请换一个名称或别名。"
+                : "名称或别名已被其他设定使用，请换一个。"
+        }
+        let known: [(String, String)] = [
+            ("Category is not available", "这个分类已不可用，请刷新设定库。"),
+            ("Element is not available", "这个设定已不可用，请刷新设定库。"),
+            ("Category name is empty", "分类名称不能为空，颜色须为有效的颜色值。"),
+            ("Category templates are not supported", "这个分类带有模板，原生版本暂不支持在其中新建设定。"),
+            ("linked relations", "这个设定有关联关系，原生版本暂不支持移入回收站或恢复。"),
+            ("portraits", "这个设定有头像，原生版本暂不支持恢复。"),
+            ("unresolved prose dependencies", "设定正文还有未完成的同步依赖，暂时无法恢复。"),
+            ("live document owner", "请先关闭这个设定的页面，再恢复。"),
+            ("Element is not open", "这个设定页面已关闭，请重新打开。"),
+            ("Element lifecycle must be", "设定状态已变化，请刷新设定库。"),
+            ("scope changed", "设定已变化，请重新打开页面。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "设定操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Comment refusals happen before any row, anchor or prose changes. Known
@@ -157,9 +183,12 @@ final class LabCore {
                 .contains(request["operation"] as? String ?? "") {
                 throw LabError.commentUnavailable(reason: reason)
             }
-            if ["open", "workspaceOpenChapter", "workspaceReopenChapter"].contains(request["operation"] as? String ?? ""),
+            if ["open", "workspaceOpenChapter", "workspaceReopenChapter", "workspaceElements"].contains(request["operation"] as? String ?? ""),
                reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
                 throw LabError.pendingRemoteUpdate(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceElements" {
+                throw LabError.elementUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -390,6 +419,25 @@ struct ChapterScope: Hashable {
     let projectID: String
     let chapterID: String
 }
+
+struct ElementScope: Hashable {
+    let projectID: String
+    let elementID: String
+}
+
+/// One Rust prose owner in the workspace: a chapter body or an element page
+/// body. Rust keys them separately; Swift keeps one wrapper per live handle.
+enum DocumentScope: Hashable {
+    case chapter(ChapterScope)
+    case element(ElementScope)
+
+    var projectID: String {
+        switch self {
+        case .chapter(let scope): return scope.projectID
+        case .element(let scope): return scope.projectID
+        }
+    }
+}
 struct WorkspaceOutlineEntry: Decodable {
     let kind: String
     let id: String
@@ -445,14 +493,16 @@ struct WorkspaceChapterTrashReply: Decodable {
     let trashedChapters: [WorkspaceChapter]
 }
 
-/// Registry of Swift wrappers for Rust's chapter owners. Cache changes belong
-/// to the main thread; the workspace queue owns only FFI requests and its handle.
+/// Registry of Swift wrappers for Rust's chapter and element owners. Cache
+/// changes belong to the main thread; the workspace queue owns only FFI
+/// requests and its handle.
 final class LabWorkspaceCore {
     private let queue = DispatchQueue(label: "cc.drifting.native-lab.workspace")
     private let directory: URL
     private var handle: UInt64?
     private struct Owner { let handle: UInt64; let core: LabCore }
-    private var owners: [ChapterScope: Owner] = [:]
+    private struct OwnerReply: Decodable { let handle: UInt64 }
+    private var owners: [DocumentScope: Owner] = [:]
     private var remoteDeliveryInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
@@ -493,36 +543,109 @@ final class LabWorkspaceCore {
 
     func trashChapter(projectID: String, chapterID: String,
                       completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
-        changeChapterLifecycle("workspaceTrashChapter", projectID: projectID, chapterID: chapterID,
-                               closesOwner: true, completion: completion)
+        changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: true, completion: completion) {
+            try self.request("workspaceTrashChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+        }
     }
 
     func restoreChapter(projectID: String, chapterID: String,
                         completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
-        changeChapterLifecycle("workspaceRestoreChapter", projectID: projectID, chapterID: chapterID,
-                               closesOwner: false, completion: completion)
+        changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: false, completion: completion) {
+            try self.request("workspaceRestoreChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+        }
     }
 
-    private func changeChapterLifecycle(_ operation: String, projectID: String, chapterID: String,
-                                        closesOwner: Bool,
-                                        completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
+    private func changeLifecycle<Payload>(_ scope: DocumentScope, closesOwner: Bool,
+                                          completion: @escaping (Result<Payload, Error>) -> Void,
+                                          _ operation: @escaping () throws -> Payload) {
         precondition(Thread.isMainThread)
         guard beginOwnerChange() else {
             completion(.failure(LabError.message("请先完成输入，并保存或处理所有待恢复草稿"))); return
         }
-        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
-        perform({ (result: Result<WorkspaceChapterTrashReply, Error>) in
+        perform({ (result: Result<Payload, Error>) in
             // Rust saves the live owner before changing its lifecycle. A failed
-            // transaction keeps every wrapper and view; a restored chapter is
+            // transaction keeps every wrapper and view; a restored document is
             // left closed until its new incarnation is opened normally.
             if closesOwner, case .success = result {
                 self.owners.removeValue(forKey: scope)?.core.invalidate()
             }
             self.endOwnerChange()
             completion(result)
-        }) {
-            try self.request(operation, fields: ["projectId": projectID, "chapterId": chapterID])
+        }, operation)
+    }
+
+    // MARK: Elements library
+
+    /// Live categories, live elements and the element trash of one project.
+    func elementLibrary(projectID: String, completion: @escaping (Result<WorkspaceElementLibrary, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceElementReply<WorkspaceElement> = try self.elementRequest(projectID, ["action": "library"])
+            return reply.library
         }
+    }
+
+    /// An empty name becomes the renderer's default; Rust picks the colour.
+    func createElementCategory(projectID: String, name: String,
+                               completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        perform(completion) { try self.elementRequest(projectID, ["action": "createCategory", "name": name]) }
+    }
+
+    func updateElementCategory(projectID: String, categoryID: String, name: String? = nil, color: String? = nil,
+                               completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "updateCategory", "categoryId": categoryID]
+        if let name { command["name"] = name }
+        if let color { command["color"] = color }
+        perform(completion) { try self.elementRequest(projectID, command) }
+    }
+
+    /// Without a name Rust chooses the next free default name.
+    func createElement(projectID: String, categoryID: String, name: String? = nil, groupName: String? = nil,
+                       completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "createElement", "categoryId": categoryID]
+        if let name { command["name"] = name }
+        if let groupName { command["groupName"] = groupName }
+        perform(completion) { try self.elementRequest(projectID, command) }
+    }
+
+    /// Page fields change metadata only; the element's body owner, its
+    /// queued input and history are untouched, so no owner guard applies.
+    func updateElement(projectID: String, elementID: String, changes: WorkspaceElementChanges,
+                       completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateElement"; command["elementId"] = elementID
+        perform(completion) { try self.elementRequest(projectID, command) }
+    }
+
+    /// Rust saves an open body before the trash commits, then retires it.
+    func trashElement(projectID: String, elementID: String,
+                      completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        changeLifecycle(.element(ElementScope(projectID: projectID, elementID: elementID)), closesOwner: true, completion: completion) {
+            try self.elementRequest(projectID, ["action": "trashElement", "elementId": elementID])
+        }
+    }
+
+    /// Restore requires the element to be closed; its page opens normally later.
+    func restoreElement(projectID: String, elementID: String,
+                        completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        changeLifecycle(.element(ElementScope(projectID: projectID, elementID: elementID)), closesOwner: false, completion: completion) {
+            try self.elementRequest(projectID, ["action": "restoreElement", "elementId": elementID])
+        }
+    }
+
+    func openElement(projectID: String, elementID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument(.element(ElementScope(projectID: projectID, elementID: elementID)), reopen: false, completion: completion)
+    }
+
+    func reopenElement(projectID: String, elementID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        reopenDocument(.element(ElementScope(projectID: projectID, elementID: elementID)), completion: completion)
+    }
+
+    func closeElement(projectID: String, elementID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeDocument(.element(ElementScope(projectID: projectID, elementID: elementID)), completion: completion)
+    }
+
+    private func elementRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceElements", fields: ["projectId": projectID, "command": command])
     }
 
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
@@ -619,7 +742,7 @@ final class LabWorkspaceCore {
     private func routeReconciledDocuments(_ documents: [WorkspaceDocumentReply]) {
         precondition(Thread.isMainThread)
         for document in documents {
-            let scope = ChapterScope(projectID: document.projectId, chapterID: document.chapterId)
+            let scope = DocumentScope.chapter(ChapterScope(projectID: document.projectId, chapterID: document.chapterId))
             guard let owner = owners[scope], owner.handle == document.handle, !owner.core.isClosed else { continue }
             owner.core.receiveReconciledState(document.document)
         }
@@ -655,25 +778,30 @@ final class LabWorkspaceCore {
     }
 
     func openChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
-        openDocument("workspaceOpenChapter", scope: ChapterScope(projectID: projectID, chapterID: chapterID), completion: completion)
+        openDocument(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), reopen: false, completion: completion)
     }
 
     func reopenChapter(projectID: String, chapterID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
-        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
-        guard (owners[scope]?.core.documentViewCount ?? 0) <= 1 else {
-            completion(.failure(LabError.message("请先关闭这个章节的另一处显示，再重新打开"))); return
-        }
-        openDocument("workspaceReopenChapter", scope: scope, completion: completion)
+        reopenDocument(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), completion: completion)
     }
 
-    private func openDocument(_ operation: String, scope: ChapterScope,
+    private func reopenDocument(_ scope: DocumentScope, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        guard (owners[scope]?.core.documentViewCount ?? 0) <= 1 else {
+            let kind: String
+            if case .element = scope { kind = "设定" } else { kind = "章节" }
+            completion(.failure(LabError.message("请先关闭这个\(kind)的另一处显示，再重新打开"))); return
+        }
+        openDocument(scope, reopen: true, completion: completion)
+    }
+
+    private func openDocument(_ scope: DocumentScope, reopen: Bool,
                               completion: @escaping (Result<LabCore, Error>) -> Void) {
         precondition(Thread.isMainThread)
         guard beginOwnerChange() else {
             completion(.failure(LabError.message("请先完成输入，并等待正文保存后再切换章节")))
             return
         }
-        perform({ (result: Result<WorkspaceDocumentReply, Error>) in
+        perform({ (result: Result<OwnerReply, Error>) in
             let result = result.map { reply -> LabCore in
                 if let owner = self.owners[scope], owner.handle == reply.handle { return owner.core }
                 // Only a successful explicit reopen invalidates this scope.
@@ -685,22 +813,41 @@ final class LabWorkspaceCore {
             self.endOwnerChange()
             completion(result)
         }) {
-            try self.request(operation, fields: ["projectId": scope.projectID, "chapterId": scope.chapterID])
+            switch scope {
+            case .chapter(let chapter):
+                return try self.request(reopen ? "workspaceReopenChapter" : "workspaceOpenChapter",
+                                        fields: ["projectId": chapter.projectID, "chapterId": chapter.chapterID])
+            case .element(let element):
+                return try self.elementRequest(element.projectID,
+                    ["action": "openElement", "elementId": element.elementID, "reopen": reopen])
+            }
         }
     }
 
     func closeChapter(projectID: String, chapterID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeDocument(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), completion: completion)
+    }
+
+    private func closeDocument(_ scope: DocumentScope, completion: @escaping (Result<Bool, Error>) -> Void) {
         precondition(Thread.isMainThread)
-        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
         guard (owners[scope]?.core.documentViewCount ?? 0) <= 1, beginOwnerChange() else {
-            completion(.failure(LabError.message("请先完成输入、处理草稿，并关闭这个章节的另一处显示"))); return
+            let kind: String
+            if case .element = scope { kind = "设定" } else { kind = "章节" }
+            completion(.failure(LabError.message("请先完成输入、处理草稿，并关闭这个\(kind)的另一处显示"))); return
         }
         perform({ (result: Result<Bool, Error>) in
             if case .success = result { self.owners.removeValue(forKey: scope)?.core.invalidate() }
             self.endOwnerChange()
             completion(result)
         }) {
-            try self.emptyRequest("workspaceCloseChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+            switch scope {
+            case .chapter(let chapter):
+                return try self.emptyRequest("workspaceCloseChapter",
+                                             fields: ["projectId": chapter.projectID, "chapterId": chapter.chapterID])
+            case .element(let element):
+                return try self.emptyRequest("workspaceElements", fields: ["projectId": element.projectID,
+                    "command": ["action": "closeElement", "elementId": element.elementID]])
+            }
         }
     }
 

@@ -34,7 +34,7 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments |
+| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories and elements |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
@@ -54,14 +54,15 @@ architectural redesign.
 | Remote prose and complete chapter receive | `09694c33` `84fb8c92` `12e3f728` | [remote prose](remote-prose-sync.md), [chapter receiver](remote-workspace-sync.md) |
 | Recoverable chapter trash | `0e97a995` | [chapter trash](chapter-trash.md) |
 | Act boundary editing | `ea5d75f3` | [act boundaries](act-boundaries.md) |
-| Chapter selection comments | this batch | [chapter comments](chapter-comments.md) |
+| Chapter selection comments | `dcab1328` | [chapter comments](chapter-comments.md) |
+| Elements library (设定库) | this batch | [element library](element-library.md) |
 
 ## Next batch
 
-Not yet chosen. Candidates: elements and materials (the largest P5b surface
-for daily writing), wider search parity, or the minimal in-process Agent
-runtime (P4), which can reuse the workspace and comment domain services for
-guarded writes.
+Elements library, second half: element facts and category templates (the
+normalized key/value authority with fractional order keys), category trash and
+restore. Portraits follow the asset library; relations follow the relation
+domain. Then the minimal in-process Agent runtime over native prose.
 
 ## Open gates
 
@@ -85,6 +86,10 @@ These stay open; they block only the paths named, not the local writing loop.
   composition has not been established. [Observation](system-ime.md).
 - **Desktop XCTest input**: keyboard synthesis opened System Settings and timed
   out; repair the input path before rerunning it.
+- **JSON body caches**: native writers keep `node_content`, `element` and
+  `element_category` `content_json` as creation seeds; native readers use live
+  Yjs state. Refresh the caches (or port their readers) before metrics and the
+  reference index are ported.
 - **Performance**: the 200k prototype sample and the Tauri baseline are recorded
   but not a workspace-budget certification. [Experiment](performance.md).
 - **Device, account and distribution**: signing and installation are blocked by

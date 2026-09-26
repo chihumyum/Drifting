@@ -14,6 +14,10 @@ and reuses the owner; loading a new chapter does not evict other chapters.
 Each owner keeps its own prose, local undo/redo history and persistence state.
 Outline reads use any already-open chapter owner before loading a temporary
 read-only copy. No database migration or second prose persistence path is added.
+A tab's target is a chapter or an [element page](element-library.md); element
+owners are keyed separately as `(projectId, elementId)` and follow the same
+retained-view, split, close-guard, reopen and save rules. Chapter-only features
+(comments, outline, search, chapter trash) are unavailable on element tabs.
 
 Swift holds exactly one `LabCore` for each live handle. Tabs retain their native
 view and binding when hidden, preserving selection and scroll position. Two

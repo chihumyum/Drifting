@@ -1,0 +1,235 @@
+import Foundation
+
+/// An element category as the shared Rust workspace store returns it.
+struct WorkspaceElementCategory: Decodable, Equatable {
+    let id: String
+    let projectId: String
+    let name: String
+    let color: String
+    let documentId: String
+    let createdAt: String
+    let updatedAt: String
+
+    /// `#RRGGBB` components in 0...1, or nil for a value this view cannot draw.
+    var rgb: (red: Double, green: Double, blue: Double)? {
+        let hex = color.hasPrefix("#") ? String(color.dropFirst()) : color
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        return (Double((value >> 16) & 0xFF) / 255, Double((value >> 8) & 0xFF) / 255, Double(value & 0xFF) / 255)
+    }
+}
+
+/// A live or trashed element. Its prose body is the `element:<id>` document.
+struct WorkspaceElement: Decodable, Equatable {
+    let id: String
+    let projectId: String
+    let categoryId: String?
+    let name: String
+    let summary: String
+    let aliases: [String]
+    let groupName: String?
+    let documentId: String
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct WorkspaceElementLibrary: Decodable, Equatable {
+    var categories: [WorkspaceElementCategory]
+    var elements: [WorkspaceElement]
+    var trashedElements: [WorkspaceElement]
+
+    static let empty = WorkspaceElementLibrary(categories: [], elements: [], trashedElements: [])
+}
+
+/// Every library command returns its own result and the complete library
+/// after it, so no list is patched locally.
+struct WorkspaceElementReply<Value: Decodable>: Decodable {
+    let result: Value?
+    let library: WorkspaceElementLibrary
+}
+
+/// Present fields are written; an explicit nil inside `groupName` or
+/// `categoryID` clears it. Absent fields stay unchanged.
+struct WorkspaceElementChanges {
+    var name: String?
+    var summary: String?
+    var groupName: String??
+    var categoryID: String??
+    var aliases: [String]?
+
+    var fields: [String: Any] {
+        var fields: [String: Any] = [:]
+        if let name { fields["name"] = name }
+        if let summary { fields["summary"] = summary }
+        if let groupName { fields["groupName"] = groupName.map { $0 as Any } ?? NSNull() }
+        if let categoryID { fields["categoryId"] = categoryID.map { $0 as Any } ?? NSNull() }
+        if let aliases { fields["aliases"] = aliases }
+        return fields
+    }
+}
+
+enum ElementText {
+    /// Aliases are typed as one line separated by ASCII or full-width commas.
+    static func aliases(from text: String) -> [String] {
+        text.components(separatedBy: CharacterSet(charactersIn: ",，"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+    static func display(aliases: [String]) -> String { aliases.joined(separator: "，") }
+    static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
+/// Presentation state of one project's 设定库. Rust owns every list and
+/// order-independent identity; this model only groups rows for display.
+final class ElementLibraryModel {
+    enum Row: Equatable {
+        case category(WorkspaceElementCategory, count: Int)
+        case uncategorized(count: Int)
+        case group(name: String, section: String)
+        case element(WorkspaceElement, grouped: Bool)
+        case empty(section: String)
+        case trashHeader(count: Int)
+        case trashed(WorkspaceElement)
+
+        var element: WorkspaceElement? {
+            switch self {
+            case .element(let element, _), .trashed(let element): return element
+            default: return nil
+            }
+        }
+        var identifier: String {
+            switch self {
+            case .category(let category, _): return "element-category-\(category.id)"
+            case .uncategorized: return "element-category-uncategorized"
+            case .group(let name, let section): return "element-group-\(section)-\(name)"
+            case .element(let element, _): return "element-row-\(element.id)"
+            case .empty(let section): return "element-empty-\(section)"
+            case .trashHeader: return "element-trash"
+            case .trashed(let element): return "trashed-element-\(element.id)"
+            }
+        }
+    }
+
+    let projectID: String
+    private let workspace: LabWorkspaceCore
+    private(set) var library = WorkspaceElementLibrary.empty
+    private(set) var loaded = false
+    private(set) var busy = false
+    private(set) var status = "正在读取设定库…"
+    var onChange: (() -> Void)?
+    /// Every successful command's complete library, for open element pages.
+    var onLibrary: ((WorkspaceElementLibrary) -> Void)?
+
+    init(workspace: LabWorkspaceCore, projectID: String) {
+        self.workspace = workspace
+        self.projectID = projectID
+    }
+
+    var rows: [Row] {
+        var rows: [Row] = []
+        let order: (WorkspaceElement, WorkspaceElement) -> Bool = {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        func section(_ members: [WorkspaceElement], id: String) {
+            guard !members.isEmpty else { rows.append(.empty(section: id)); return }
+            rows += members.filter { $0.groupName == nil }.sorted(by: order).map { .element($0, grouped: false) }
+            let groups = Set(members.compactMap(\.groupName)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            for group in groups {
+                rows.append(.group(name: group, section: id))
+                rows += members.filter { $0.groupName == group }.sorted(by: order).map { .element($0, grouped: true) }
+            }
+        }
+        let live = Set(library.categories.map(\.id))
+        for category in library.categories {
+            let members = library.elements.filter { $0.categoryId == category.id }
+            rows.append(.category(category, count: members.count))
+            section(members, id: category.id)
+        }
+        let orphans = library.elements.filter { $0.categoryId.map { !live.contains($0) } ?? true }
+        if !orphans.isEmpty {
+            rows.append(.uncategorized(count: orphans.count))
+            section(orphans, id: "uncategorized")
+        }
+        if !library.trashedElements.isEmpty {
+            rows.append(.trashHeader(count: library.trashedElements.count))
+            rows += library.trashedElements.map { .trashed($0) }
+        }
+        return rows
+    }
+
+    func showStatus(_ message: String) { status = message; onChange?() }
+
+    func load() {
+        guard !busy else { return }
+        busy = true; onChange?()
+        workspace.elementLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.busy = false
+            switch result {
+            case .success(let library): self.apply(library, message: nil); self.onLibrary?(library)
+            case .failure(let error): self.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Adopt a library returned by a command that ran elsewhere, such as a
+    /// page edit or a trash that also closed tabs.
+    func apply(_ library: WorkspaceElementLibrary, message: String?) {
+        self.library = library; loaded = true
+        status = message ?? (library.categories.isEmpty
+            ? "还没有分类。先新建一个分类，例如“人物”或“地点”。"
+            : "点击设定打开页面；右键分类或设定查看更多操作。")
+        onChange?()
+    }
+
+    func createCategory(name: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        mutate(message: "分类已创建。", completion: completion) {
+            workspace.createElementCategory(projectID: projectID, name: name, completion: $0)
+        }
+    }
+
+    func renameCategory(id: String, name: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        mutate(message: "分类名称已保存。", completion: completion) {
+            workspace.updateElementCategory(projectID: projectID, categoryID: id, name: name, completion: $0)
+        }
+    }
+
+    func recolorCategory(id: String, color: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
+        mutate(message: "分类颜色已保存。", completion: completion) {
+            workspace.updateElementCategory(projectID: projectID, categoryID: id, color: color, completion: $0)
+        }
+    }
+
+    func createElement(categoryID: String, completion: ((Result<WorkspaceElement, Error>) -> Void)? = nil) {
+        mutate(message: "设定已创建，可以在页面中填写名称和正文。", completion: completion) {
+            workspace.createElement(projectID: projectID, categoryID: categoryID, completion: $0)
+        }
+    }
+
+    func restore(elementID: String, completion: ((Result<WorkspaceElement, Error>) -> Void)? = nil) {
+        mutate(message: "设定已恢复，点击即可打开。", completion: completion) {
+            workspace.restoreElement(projectID: projectID, elementID: elementID, completion: $0)
+        }
+    }
+
+    private func mutate<Value: Decodable>(message: String, completion: ((Result<Value, Error>) -> Void)?,
+                               operation: (@escaping (Result<WorkspaceElementReply<Value>, Error>) -> Void) -> Void) {
+        guard !busy else {
+            completion?(.failure(LabError.message("正在保存设定库，请稍后重试"))); return
+        }
+        busy = true; onChange?()
+        operation { [weak self] result in
+            guard let self else { return }
+            self.busy = false
+            switch result {
+            case .success(let reply):
+                self.apply(reply.library, message: message)
+                self.onLibrary?(reply.library)
+                if let value = reply.result { completion?(.success(value)) }
+                else { completion?(.failure(LabError.message("设定库结果缺失"))) }
+            case .failure(let error):
+                self.showStatus(error.localizedDescription)
+                completion?(.failure(error))
+            }
+        }
+    }
+}

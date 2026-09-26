@@ -2,7 +2,7 @@
 //! transaction and lifecycle; this adapter supplies the shared Yrs document.
 use drifting_core::database::DatabaseGateway;
 use drifting_core::prose_journal::AuthoredProseContext;
-use drifting_core::workspace::{ChapterSeed, WorkspaceChapter, WorkspaceStore};
+use drifting_core::workspace::{ChapterSeed, WorkspaceChapter, WorkspaceElement, WorkspaceStore};
 
 pub fn restore_chapter(
     gateway: &DatabaseGateway,
@@ -20,6 +20,33 @@ pub fn restore_chapter(
             if document.has_pending() {
                 return Err(
                     "Chapter has unresolved prose dependencies; restore is not ready".into(),
+                );
+            }
+            document.native_projection()?;
+            Ok(ChapterSeed {
+                update: document.update(None, 1)?,
+                content_json: document.semantic()?.to_string(),
+            })
+        },
+    )
+}
+
+/// Element bodies restore exactly like chapter prose: the retained snapshot and
+/// ordered tail are merged and validated inside the core's transaction.
+pub fn restore_element(
+    gateway: &DatabaseGateway,
+    client: &str,
+    context: &AuthoredProseContext,
+    element_id: &str,
+) -> Result<WorkspaceElement, String> {
+    WorkspaceStore::new(gateway, client).restore_element(
+        context,
+        element_id,
+        |repository, tx, document_id| {
+            let (document, _) = crate::load_document(repository, document_id, tx)?;
+            if document.has_pending() {
+                return Err(
+                    "Element has unresolved prose dependencies; restore is not ready".into(),
                 );
             }
             document.native_projection()?;

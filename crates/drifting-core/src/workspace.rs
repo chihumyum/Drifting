@@ -3,10 +3,14 @@
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
 mod acts;
 mod comments;
+mod elements;
 mod journal;
 mod outline;
 mod trash;
 pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
+pub use elements::{
+    ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
+};
 pub use outline::WorkspaceOutlineRow;
 #[cfg(test)]
 mod tests;

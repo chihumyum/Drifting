@@ -4,6 +4,8 @@ use super::*;
 mod acts;
 #[path = "workspace_comment_tests.rs"]
 mod comments;
+#[path = "workspace_element_tests.rs"]
+mod elements;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
 #[path = "workspace_remote_changes_tests.rs"]
@@ -350,7 +352,7 @@ fn workspace_comment_anchors_use_selected_project_and_chapter_scope() {
         "synthetic-comment-b",
     );
     let second_before =
-        load_comments_for(&database, &fixture.project, &fixture.chapters[1]).unwrap();
+        load_comments_for(&database, &fixture.project, "node", &fixture.chapters[1]).unwrap();
     let first = fixture.reopen(0);
     let first_handle = first["handle"].as_u64().unwrap();
     let comments = first["document"]["projection"]["comments"]
@@ -366,10 +368,11 @@ fn workspace_comment_anchors_use_selected_project_and_chapter_scope() {
         json!([{"location":1,"length":2}])
     );
     assert_eq!(
-        load_comments_for(&database, &fixture.project, &fixture.chapters[1]).unwrap(),
+        load_comments_for(&database, &fixture.project, "node", &fixture.chapters[1]).unwrap(),
         second_before
     );
-    let persisted = load_comments_for(&database, &fixture.project, &fixture.chapters[0]).unwrap();
+    let persisted =
+        load_comments_for(&database, &fixture.project, "node", &fixture.chapters[0]).unwrap();
     let payload: Value = serde_json::from_str(&persisted[0].anchor_json).unwrap();
     assert_eq!(payload["syntheticMetadata"]["preserve"], true);
     let second = fixture.reopen(1);
