@@ -43,6 +43,7 @@ const evidence = [
   ['elements', node('apple-workspace-element-acceptance.mjs')],
   ['links', node('apple-workspace-link-acceptance.mjs')],
   ['storylines', node('apple-workspace-storyline-acceptance.mjs')],
+  ['drifts', node('apple-workspace-drift-acceptance.mjs')],
   ['binding', node('apple-binding-acceptance.mjs')],
   ['device-prerequisite', node('apple-device-prerequisite-diagnostic.mjs'), { checkOnly: true }],
 ];

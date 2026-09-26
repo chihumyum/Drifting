@@ -71,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// closed: chapter rows and the outline show each chapter's 主线.
     private var storylineModel: StorylineLibraryModel?
     private var storylineSheet: ChapterStorylinesSheet?
+    private var driftsButton: NSButton!
+    private var driftsPanel: DriftLibraryPanel?
+    private var driftsController: MacDriftLibraryViewController?
+    /// One project's drifts and groups, kept while its panel is closed: the
+    /// outline names each act's notes.
+    private var driftModel: DriftLibraryModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -116,6 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let storylines = editMenu.addItem(withTitle: "故事线", action: #selector(showStorylines), keyEquivalent: "l")
         storylines.keyEquivalentModifierMask = [.command, .shift]
         storylines.target = self
+        let drifts = editMenu.addItem(withTitle: "漂流", action: #selector(showDrifts), keyEquivalent: "d")
+        drifts.keyEquivalentModifierMask = [.command, .shift]
+        drifts.target = self
         editMenu.addItem(.separator())
         // Nil-targeted: the focused editor pane validates its own selection.
         let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
@@ -168,10 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         commentsButton = button("批注", id: "show-comments", action: #selector(showComments))
         elementsButton = button("设定库", id: "show-elements", action: #selector(showElements))
         storylinesButton = button("故事线", id: "show-storylines", action: #selector(showStorylines))
+        driftsButton = button("漂流", id: "show-drifts", action: #selector(showDrifts))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
         let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
-                                          storylinesButton, splitButton, closePaneButton])
+                                          storylinesButton, driftsButton, splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -200,6 +210,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         chapterWorkspace.onStorylineLibrary = { [weak self] projectID, library in
             self?.adoptStorylines(projectID: projectID, library: library, fromWorkspace: true)
+        }
+        chapterWorkspace.onDriftLibrary = { [weak self] projectID, library in
+            self?.adoptDrifts(projectID: projectID, library: library, fromWorkspace: true)
+        }
+        chapterWorkspace.onOutline = { [weak self] projectID, entries in
+            if let model = self?.driftModel, model.projectID == projectID { model.applyActs(entries) }
         }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
@@ -351,6 +367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         commentsButton.isEnabled = !loading && chapterWorkspace.activeChapterView != nil
         elementsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         storylinesButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        driftsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -387,6 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeSearch()
         if elementsController?.model.projectID != project.id { closeElements() }
         if storylinesController?.model.projectID != project.id { closeStorylines() }
+        if driftsController?.model.projectID != project.id { closeDrifts() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -406,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.chapterEmpty.isHidden = !chapters.isEmpty
                 self.status.stringValue = "\(project.name) · \(chapters.count) 个章节"
                 self.ensureStorylineModel(project)
+                self.ensureDriftModel(project)
                 self.updateControls()
             case .failure(let error):
                 self.status.stringValue = error.localizedDescription
@@ -787,6 +806,108 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
+    // MARK: Drifts
+
+    /// Keeps one drift model for the project whose chapters are shown.
+    @discardableResult
+    private func ensureDriftModel(_ project: WorkspaceProject) -> DriftLibraryModel {
+        if let driftModel, driftModel.projectID == project.id { return driftModel }
+        let model = DriftLibraryModel(workspace: workspace, projectID: project.id)
+        driftModel = model
+        model.onLibrary = { [weak self] library in
+            self?.adoptDrifts(projectID: project.id, library: library, fromWorkspace: false)
+        }
+        model.load()
+        // Act names for bound notes in the panel.
+        chapterWorkspace.actsChanged(projectID: project.id)
+        return model
+    }
+
+    /// Every drift reply reaches the panel, open pages, links and the
+    /// outline; the source is not told again.
+    private func adoptDrifts(projectID: String, library: WorkspaceDriftLibrary, fromWorkspace: Bool) {
+        if fromWorkspace {
+            if let model = driftModel, model.projectID == projectID { model.apply(library, message: nil) }
+        } else {
+            chapterWorkspace.applyDriftLibrary(projectID: projectID, library: library)
+        }
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.applyDrifts(library) }
+    }
+
+    @objc private func showDrifts() {
+        guard let project = currentProject ?? selectedProject else { return }
+        if let driftsPanel, driftsPanel.isVisible, driftsController?.model.projectID == project.id {
+            driftsPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeDrifts()
+        let model = ensureDriftModel(project)
+        let controller = MacDriftLibraryViewController(model: model)
+        let panel = DriftLibraryPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 540),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 漂流"
+        panel.minSize = NSSize(width: 280, height: 320)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        driftsPanel = panel; driftsController = controller
+        panel.onClose = { [weak self] in self?.driftsPanel = nil; self?.driftsController = nil }
+        controller.onClose = { [weak self] in self?.closeDrifts() }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onOpen = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: false) }
+        controller.onCreated = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: true) }
+        controller.onTrash = { [weak self] drift in self?.trashDrift(drift, project: project) }
+        window.addChildWindow(panel, ordered: .above)
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 72, y: frame.maxY - 130))
+        panel.makeKeyAndOrderFront(nil)
+        model.load()
+    }
+
+    private func openDrift(_ drift: WorkspaceDrift, project: WorkspaceProject, focusTitle: Bool,
+                           completion: ((Bool) -> Void)? = nil) {
+        guard canLeaveDocument() else {
+            driftsController?.model.showStatus("请先完成输入，并等待正文保存后再打开漂流。"); completion?(false); return
+        }
+        chapterWorkspace.open(project: project, drift: drift) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.status.stringValue = "漂流正文自动保存"
+                self.window.makeKeyAndOrderFront(nil)
+                if focusTitle { self.chapterWorkspace.focusActiveDriftTitle() }
+                self.documentActivity(!self.chapterWorkspace.canNavigate)
+                completion?(true)
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.driftsController?.model.showStatus(error.localizedDescription)
+                self.activeChapterChanged()
+                completion?(false)
+            }
+        }
+    }
+
+    private func trashDrift(_ drift: WorkspaceDrift, project: WorkspaceProject) {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.trashDrift(projectID: project.id, driftID: drift.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let reply):
+                if let model = self.driftModel, model.projectID == project.id {
+                    model.apply(reply.library, message: "“\(drift.title)”已移到回收站，可以随时恢复。")
+                }
+                self.status.stringValue = "漂流已移到回收站"
+                self.activeChapterChanged()
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.driftsController?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    private func closeDrifts() {
+        let panel = driftsPanel
+        driftsPanel = nil; driftsController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
     private func closeSearch() {
         let panel = searchPanel
         searchPanel = nil; searchController = nil; pendingSearch = nil
@@ -805,7 +926,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let storylines = storylineModel, storylines.projectID == project.id, storylines.loaded {
             model.applyStorylines(storylines.library)
         }
+        let drifts = ensureDriftModel(project)
+        if drifts.loaded { model.applyDrifts(drifts.library) }
+        // Act rows name drift pages and the panel; removing an act releases
+        // its notes, so drifts are read again after act changes.
+        model.onEntries = { [weak self] entries in
+            self?.chapterWorkspace.applyOutline(projectID: project.id, entries: entries)
+            self?.chapterWorkspace.driftsChanged(projectID: project.id)
+        }
         let controller = BookOutlineViewController(model: model)
+        controller.onBindDrift = { [weak model] entry, drift in
+            drifts.bindAct(actID: entry.id, driftID: drift?.id) { result in
+                switch result {
+                case .success:
+                    model?.showStatus(drift.map { "“\($0.title)”已绑定为“\(entry.title)”的幕笔记。" }
+                        ?? "已解除“\(entry.title)”的幕笔记，漂流本身保留。")
+                case .failure(let error): model?.showStatus(error.localizedDescription)
+                }
+            }
+        }
+        controller.onOpenDrift = { [weak self] drift in
+            self?.openDrift(drift, project: project, focusTitle: false) { opened in
+                if opened { self?.closeOutline() }
+            }
+        }
         controller.onEditStorylines = { [weak self, weak controller] entry in
             self?.editStorylines(of: WorkspaceChapter(id: entry.id, title: entry.title), project: project,
                                  from: controller?.view.window)
@@ -879,6 +1023,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.closeSearch()
                     self.elementsPanel?.title = "\(updated.name) · 设定库"
                     self.storylinesPanel?.title = "\(updated.name) · 故事线"
+                    self.driftsPanel?.title = "\(updated.name) · 漂流"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -938,6 +1083,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else if let storyline = chapterWorkspace.activeStoryline {
             currentTitle.stringValue = "\(project.name) / 故事线 · \(storyline.name)"
             window.title = "\(storyline.name) — Drifting Native Lab"
+        } else if let drift = chapterWorkspace.activeDrift {
+            currentTitle.stringValue = "\(project.name) / 漂流 · \(drift.title)"
+            window.title = "\(drift.title) — Drifting Native Lab"
         }
     }
 
@@ -1125,7 +1273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success:
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
-                self.closeStorylines()
+                self.closeStorylines(); self.closeDrifts()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
@@ -1143,6 +1291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeComments()
         closeElements()
         closeStorylines()
+        closeDrifts()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

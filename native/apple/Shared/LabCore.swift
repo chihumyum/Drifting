@@ -22,13 +22,15 @@ enum LabError: LocalizedError {
     case commentUnavailable(reason: String)
     case elementUnavailable(reason: String)
     case storylineUnavailable(reason: String)
+    case driftUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
     var diagnosticDescription: String {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
-             .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text): return text
+             .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
+             .driftUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -43,7 +45,30 @@ enum LabError: LocalizedError {
         case .commentUnavailable(let reason): return LabError.commentMessage(reason)
         case .elementUnavailable(let reason): return LabError.elementMessage(reason)
         case .storylineUnavailable(let reason): return LabError.storylineMessage(reason)
+        case .driftUnavailable(let reason): return LabError.driftMessage(reason)
         }
+    }
+
+    /// Drift and drift group refusals happen before any row, binding or
+    /// journal change.
+    private static func driftMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("nest at most one level", "分组最多嵌套一层：子分组中不能再建分组。"),
+            ("Drift group is not available", "这个分组已不可用，请刷新漂流列表。"),
+            ("Drift group name is empty", "分组名称不能为空。"),
+            ("already bound to another act", "这条漂流已是另一幕的笔记，请先在那一幕解除。"),
+            ("Act is not live", "这一幕已不可用，请刷新整书大纲。"),
+            ("linked relations", "这条漂流有关联关系，原生版本暂不支持移入回收站或恢复。"),
+            ("live document owner", "请先关闭这条漂流的页面，再恢复。"),
+            ("Drift lifecycle must be", "漂流状态已变化，请刷新漂流列表。"),
+            ("Drift is not open", "这条漂流的页面已关闭，请重新打开。"),
+            ("Drift is not available", "这条漂流已不可用，请刷新漂流列表。"),
+            ("Drift is not live", "这条漂流已不可用，请刷新漂流列表。"),
+            ("complete prose state", "漂流正文还有未完成的同步依赖，暂时无法恢复。"),
+            ("unresolved prose dependencies", "漂流正文还有未完成的同步依赖，暂时无法恢复。"),
+            ("scope changed", "漂流已变化，请重新打开页面。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "漂流操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Storyline refusals happen before any row, membership or journal change.
@@ -216,7 +241,7 @@ final class LabCore {
                 .contains(request["operation"] as? String ?? "") {
                 throw LabError.commentUnavailable(reason: reason)
             }
-            if ["open", "workspaceOpenChapter", "workspaceReopenChapter", "workspaceElements", "workspaceStorylines"]
+            if ["open", "workspaceOpenChapter", "workspaceReopenChapter", "workspaceElements", "workspaceStorylines", "workspaceDrifts"]
                 .contains(request["operation"] as? String ?? ""),
                reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
                 throw LabError.pendingRemoteUpdate(reason: reason)
@@ -226,6 +251,9 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceStorylines" {
                 throw LabError.storylineUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceDrifts" {
+                throw LabError.driftUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -480,19 +508,26 @@ struct StorylineScope: Hashable {
     let storylineID: String
 }
 
-/// One Rust prose owner in the workspace: a chapter body, or an element or
-/// storyline page body. Rust keys them separately; Swift keeps one wrapper
-/// per live handle.
+struct DriftScope: Hashable {
+    let projectID: String
+    let driftID: String
+}
+
+/// One Rust prose owner in the workspace: a chapter body, or an element,
+/// storyline or drift page body. Rust keys them separately; Swift keeps one
+/// wrapper per live handle.
 enum DocumentScope: Hashable {
     case chapter(ChapterScope)
     case element(ElementScope)
     case storyline(StorylineScope)
+    case drift(DriftScope)
 
     var projectID: String {
         switch self {
         case .chapter(let scope): return scope.projectID
         case .element(let scope): return scope.projectID
         case .storyline(let scope): return scope.projectID
+        case .drift(let scope): return scope.projectID
         }
     }
 
@@ -502,6 +537,7 @@ enum DocumentScope: Hashable {
         case .chapter: return "章节"
         case .element: return "设定"
         case .storyline: return "故事线"
+        case .drift: return "漂流"
         }
     }
 }
@@ -830,6 +866,90 @@ final class LabWorkspaceCore {
         try request("workspaceStorylines", fields: ["projectId": projectID, "command": command])
     }
 
+    // MARK: Drifts
+
+    /// Live and trashed drifts and every drift group of one project.
+    func driftLibrary(projectID: String, completion: @escaping (Result<WorkspaceDriftLibrary, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceDriftReply<WorkspaceDrift> = try self.driftRequest(projectID, ["action": "library"])
+            return reply.library
+        }
+    }
+
+    /// Without a title Rust chooses the next free “New Drift” name.
+    func createDrift(projectID: String, title: String?, groupID: String?,
+                     completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "createDrift"]
+        if let title { command["title"] = title }
+        if let groupID { command["groupId"] = groupID }
+        perform(completion) { try self.driftRequest(projectID, command) }
+    }
+
+    /// Title and group are metadata: an open body owner, its input and
+    /// history are untouched.
+    func updateDrift(projectID: String, driftID: String, changes: WorkspaceDriftChanges,
+                     completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateDrift"; command["driftId"] = driftID
+        perform(completion) { try self.driftRequest(projectID, command) }
+    }
+
+    /// Rust unbinds the drift's act and saves an open body before the trash
+    /// commits, then retires it.
+    func trashDrift(projectID: String, driftID: String,
+                    completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
+        changeLifecycle(.drift(DriftScope(projectID: projectID, driftID: driftID)), closesOwner: true, completion: completion) {
+            try self.driftRequest(projectID, ["action": "trashDrift", "driftId": driftID])
+        }
+    }
+
+    /// Restore requires the page to be closed; the act binding is not restored.
+    func restoreDrift(projectID: String, driftID: String,
+                      completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
+        changeLifecycle(.drift(DriftScope(projectID: projectID, driftID: driftID)), closesOwner: false, completion: completion) {
+            try self.driftRequest(projectID, ["action": "restoreDrift", "driftId": driftID])
+        }
+    }
+
+    /// An empty name becomes “新分组”. Groups nest one level only.
+    func createDriftGroup(projectID: String, name: String, parentGroupID: String?,
+                          completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDriftGroup>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "createGroup", "name": name]
+        if let parentGroupID { command["parentGroupId"] = parentGroupID }
+        perform(completion) { try self.driftRequest(projectID, command) }
+    }
+
+    func renameDriftGroup(projectID: String, groupID: String, name: String,
+                          completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDriftGroup>, Error>) -> Void) {
+        perform(completion) { try self.driftRequest(projectID, ["action": "renameGroup", "groupId": groupID, "name": name]) }
+    }
+
+    /// Its subgroups and drifts move to its parent; the reply has no result.
+    func deleteDriftGroup(projectID: String, groupID: String,
+                          completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDriftGroup>, Error>) -> Void) {
+        perform(completion) { try self.driftRequest(projectID, ["action": "deleteGroup", "groupId": groupID]) }
+    }
+
+    /// Binds a drift as the act's notes, or unbinds the act with nil.
+    func bindActDrift(projectID: String, actID: String, driftID: String?,
+                      completion: @escaping (Result<WorkspaceDriftReply<WorkspaceAct>, Error>) -> Void) {
+        perform(completion) {
+            try self.driftRequest(projectID, ["action": "bindAct", "actId": actID, "driftId": driftID.map { $0 as Any } ?? NSNull()])
+        }
+    }
+
+    func openDrift(projectID: String, driftID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument(.drift(DriftScope(projectID: projectID, driftID: driftID)), reopen: false, completion: completion)
+    }
+
+    func closeDrift(projectID: String, driftID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeDocument(.drift(DriftScope(projectID: projectID, driftID: driftID)), completion: completion)
+    }
+
+    private func driftRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceDrifts", fields: ["projectId": projectID, "command": command])
+    }
+
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
         perform(completion) { try self.request("workspaceOutline", fields: ["projectId": projectID]) }
     }
@@ -1006,6 +1126,10 @@ final class LabWorkspaceCore {
                 guard !reopen else { throw LabError.message("故事线页面暂不支持从磁盘重新打开") }
                 return try self.storylineRequest(storyline.projectID,
                     ["action": "openStoryline", "storylineId": storyline.storylineID])
+            case .drift(let drift):
+                // The drift command has no reopen flag either.
+                guard !reopen else { throw LabError.message("漂流页面暂不支持从磁盘重新打开") }
+                return try self.driftRequest(drift.projectID, ["action": "openDrift", "driftId": drift.driftID])
             }
         }
     }
@@ -1034,6 +1158,9 @@ final class LabWorkspaceCore {
             case .storyline(let storyline):
                 return try self.emptyRequest("workspaceStorylines", fields: ["projectId": storyline.projectID,
                     "command": ["action": "closeStoryline", "storylineId": storyline.storylineID]])
+            case .drift(let drift):
+                return try self.emptyRequest("workspaceDrifts", fields: ["projectId": drift.projectID,
+                    "command": ["action": "closeDrift", "driftId": drift.driftID]])
             }
         }
     }

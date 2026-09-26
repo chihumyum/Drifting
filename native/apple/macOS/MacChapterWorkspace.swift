@@ -1,16 +1,17 @@
 import AppKit
 
-/// What a tab shows: a chapter body, or an element or storyline page
+/// What a tab shows: a chapter body, or an element, storyline or drift page
 /// (fields and body).
 enum WorkspaceTabTarget {
     case chapter(WorkspaceChapter)
     case element(WorkspaceElement)
     case storyline(WorkspaceStoryline)
+    case drift(WorkspaceDrift)
 }
 
-/// Two panes own their tab views; the shared workspace owns chapter, element
-/// and storyline cores. Removing a view from the hierarchy never detaches its
-/// input/history binding.
+/// Two panes own their tab views; the shared workspace owns chapter, element,
+/// storyline and drift cores. Removing a view from the hierarchy never
+/// detaches its input/history binding.
 final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private final class Tab {
         var project: WorkspaceProject
@@ -21,34 +22,41 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         /// page's document view.
         let page: MacElementPageView?
         let storylinePage: MacStorylinePageView?
-        var content: NSView { page ?? storylinePage ?? view }
+        let driftPage: MacDriftPageView?
+        var content: NSView { page ?? storylinePage ?? driftPage ?? view }
         var chapter: WorkspaceChapter? { if case .chapter(let chapter) = target { return chapter }; return nil }
         var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
         var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
-        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? "" }
+        var drift: WorkspaceDrift? { if case .drift(let drift) = target { return drift }; return nil }
+        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? drift?.title ?? "" }
         var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
         static func scope(of target: WorkspaceTabTarget, projectID: String) -> DocumentScope {
             switch target {
             case .chapter(let chapter): return .chapter(ChapterScope(projectID: projectID, chapterID: chapter.id))
             case .element(let element): return .element(ElementScope(projectID: projectID, elementID: element.id))
             case .storyline(let storyline): return .storyline(StorylineScope(projectID: projectID, storylineID: storyline.id))
+            case .drift(let drift): return .drift(DriftScope(projectID: projectID, driftID: drift.id))
             }
         }
-        init(project: WorkspaceProject, target: WorkspaceTabTarget, core: LabCore, categories: [WorkspaceElementCategory]) {
+        init(project: WorkspaceProject, target: WorkspaceTabTarget, core: LabCore, categories: [WorkspaceElementCategory],
+             drifts: WorkspaceDriftLibrary?) {
             self.project = project; self.target = target; self.core = core
             switch target {
             case .chapter:
-                view = NativeDocumentView(core: core); page = nil; storylinePage = nil
+                view = NativeDocumentView(core: core); page = nil; storylinePage = nil; driftPage = nil
             case .element(let element):
                 let page = MacElementPageView(element: element, categories: categories, core: core)
-                self.page = page; storylinePage = nil; view = page.documentView
+                self.page = page; storylinePage = nil; driftPage = nil; view = page.documentView
             case .storyline(let storyline):
                 let page = MacStorylinePageView(storyline: storyline, core: core)
-                self.page = nil; storylinePage = page; view = page.documentView
+                self.page = nil; storylinePage = page; driftPage = nil; view = page.documentView
+            case .drift(let drift):
+                let page = MacDriftPageView(drift: drift, library: drifts ?? .empty, core: core)
+                self.page = nil; storylinePage = nil; driftPage = page; view = page.documentView
             }
         }
-        /// Ends an uncommitted header edit of either page kind.
-        func endEditing() { page?.endEditing(); storylinePage?.endEditing() }
+        /// Ends an uncommitted header edit of any page kind.
+        func endEditing() { page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing() }
     }
     private final class Pane {
         let root = NSView()
@@ -67,12 +75,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var externallyLocked = false
     private var needsInitialSplitLayout = false
     private var elementCategories: [String: [WorkspaceElementCategory]] = [:]
-    /// Per project, what entity links resolve against: the element library
-    /// and the live and trashed chapters. Both come from the workspace store.
+    /// Per project, what entity links resolve against: the element library,
+    /// the live and trashed chapters and the drift library. All come from the
+    /// workspace store.
     private struct LinkSources {
         var library: WorkspaceElementLibrary?
         var chapters: [WorkspaceChapter]?
         var trashedChapters: [WorkspaceChapter]?
+        var drifts: WorkspaceDriftLibrary?
     }
     private var linkSources: [String: LinkSources] = [:]
     private var loadingLibraries: Set<String> = []
@@ -83,6 +93,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var storylineLibraries: [String: WorkspaceStorylineLibrary] = [:]
     private var loadingStorylines: Set<String> = []
     private var storylineRereads: Set<String> = []
+    private var loadingDrifts: Set<String> = []
+    private var driftRereads: Set<String> = []
+    /// Per project, act names by identity; drift pages name their act.
+    private var actNames: [String: [String: String]] = [:]
+    private var loadingActs: Set<String> = []
+    private var actRereads: Set<String> = []
     private var backlinkRefresh: [String: DispatchWorkItem] = [:]
     /// A backlink row opened a chapter; select its first link once shown.
     private var pendingLinkReveal: (view: NativeDocumentView, range: NativeRange, elementID: String)?
@@ -101,6 +117,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// A storyline page edit, storyline trash or membership re-read returned
     /// this project's complete storyline library.
     var onStorylineLibrary: ((String, WorkspaceStorylineLibrary) -> Void)?
+    /// A drift page edit, drift trash or re-read returned this project's
+    /// complete drift library.
+    var onDriftLibrary: ((String, WorkspaceDriftLibrary) -> Void)?
+    /// Act rows were read again (act names for the drift panel).
+    var onOutline: ((String, [WorkspaceOutlineEntry]) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -110,6 +131,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var activeElementPage: MacElementPageView? { panes[activePane].active?.page }
     var activeStoryline: WorkspaceStoryline? { panes[activePane].active?.storyline }
     var activeStorylinePage: MacStorylinePageView? { panes[activePane].active?.storylinePage }
+    var activeDrift: WorkspaceDrift? { panes[activePane].active?.drift }
+    var activeDriftPage: MacDriftPageView? { panes[activePane].active?.driftPage }
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
@@ -119,8 +142,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
     var canReopenActive: Bool {
-        // The storyline command has no reopen from disk.
-        guard canNavigate, let tab = panes[activePane].active, tab.storyline == nil else { return false }
+        // The storyline and drift commands have no reopen from disk.
+        guard canNavigate, let tab = panes[activePane].active, tab.storyline == nil, tab.drift == nil else { return false }
         return allTabs.filter { $0.scope == tab.scope }.count == 1
     }
     private var allTabs: [Tab] { panes.flatMap(\.tabs) }
@@ -178,6 +201,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == .storyline(scope) }?.storylinePage
     }
+    func retainedDriftPage(pane: Int, scope: DriftScope) -> MacDriftPageView? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == .drift(scope) }?.driftPage
+    }
     /// Tab titles in display order, for accessibility checks and acceptance.
     func tabTitles(pane: Int) -> [String] {
         panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
@@ -208,6 +235,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         open(project: project, target: .storyline(storyline), in: pane, completion: completion)
     }
 
+    /// Opens a drift page as a tab. Its body is an ordinary document owner.
+    func open(project: WorkspaceProject, drift: WorkspaceDrift, in pane: Int? = nil,
+              completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        open(project: project, target: .drift(drift), in: pane, completion: completion)
+    }
+
     private func openCore(_ project: WorkspaceProject, _ target: WorkspaceTabTarget, reopen: Bool,
                           completion: @escaping (Result<LabCore, Error>) -> Void) {
         switch (target, reopen) {
@@ -218,6 +251,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         case (.storyline(let storyline), false):
             workspace.openStoryline(projectID: project.id, storylineID: storyline.id, completion: completion)
         case (.storyline, true): completion(.failure(LabError.message("故事线页面暂不支持从磁盘重新打开")))
+        case (.drift(let drift), false): workspace.openDrift(projectID: project.id, driftID: drift.id, completion: completion)
+        case (.drift, true): completion(.failure(LabError.message("漂流页面暂不支持从磁盘重新打开")))
         }
     }
 
@@ -237,14 +272,15 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     isNew = false
                     tab = retained
                     tab.project = project
-                    // A retained element or storyline page keeps its own,
-                    // newer fields: library replies already updated it.
+                    // A retained element, storyline or drift page keeps its
+                    // own, newer fields: library replies already updated it.
                     if case .chapter = target { tab.target = target }
                 } else {
                     isNew = true
                     // Another view of this element may hold newer fields.
                     let current = self.allTabs.first { $0.scope == scope }?.target ?? target
-                    tab = Tab(project: project, target: current, core: core, categories: self.elementCategories[project.id] ?? [])
+                    tab = Tab(project: project, target: current, core: core, categories: self.elementCategories[project.id] ?? [],
+                              drifts: self.linkSources[project.id]?.drifts)
                     self.panes[index].tabs.append(tab)
                     self.connect(tab, pane: index)
                 }
@@ -260,6 +296,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.focusWhenReady()
                 if isNew { self.ensureLinkSources(projectID: project.id) }
                 if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
+                if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -278,6 +315,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             }
         }
         if linkSources[projectID]?.chapters == nil { chaptersChanged(projectID: projectID) }
+        if linkSources[projectID]?.drifts == nil { driftsChanged(projectID: projectID) }
+        if actNames[projectID] == nil, allTabs.contains(where: { $0.project.id == projectID && $0.drift != nil }) {
+            actsChanged(projectID: projectID)
+        }
         if storylineLibraries[projectID] == nil, allTabs.contains(where: { $0.project.id == projectID && $0.storyline != nil }) {
             storylinesChanged(projectID: projectID)
         }
@@ -319,6 +360,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         case .element(let element): workspace.closeElement(projectID: element.projectID, elementID: element.elementID, completion: finish)
         case .storyline(let storyline):
             workspace.closeStoryline(projectID: storyline.projectID, storylineID: storyline.storylineID, completion: finish)
+        case .drift(let drift):
+            workspace.closeDrift(projectID: drift.projectID, driftID: drift.driftID, completion: finish)
         }
     }
 
@@ -375,6 +418,26 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// Trash commits first (Rust unbinds its act); only then are this drift's
+    /// tabs removed.
+    func trashDrift(projectID: String, driftID: String,
+                    completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        workspace.trashDrift(projectID: projectID, driftID: driftID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result {
+                self.removeAll(scope)
+                self.applyDriftLibrary(projectID: projectID, library: reply.library)
+                self.onDriftLibrary?(projectID, reply.library)
+            }
+            self.setBusy(false)
+            self.onChange?()
+            completion(result)
+        }
+    }
+
     /// Include hidden tabs and both panes. Do not close the Rust owner again
     /// after it has entered the trash lifecycle; unsaved header text of a
     /// trashed element is not committed after the fact.
@@ -412,7 +475,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             switch result {
             case .success(let core):
                 let tab = Tab(project: old.project, target: old.target, core: core,
-                              categories: self.elementCategories[old.project.id] ?? [])
+                              categories: self.elementCategories[old.project.id] ?? [], drifts: self.linkSources[old.project.id]?.drifts)
                 self.disconnect(old)
                 if let at = self.panes[pane].tabs.firstIndex(where: { $0 === old }) { self.panes[pane].tabs[at] = tab }
                 self.connect(tab, pane: pane)
@@ -504,6 +567,104 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         })
     }
 
+    // MARK: Drifts
+
+    /// The last drift library read for the project, if any.
+    func driftLibrary(projectID: String) -> WorkspaceDriftLibrary? { linkSources[projectID]?.drifts }
+
+    /// Adopt a project's complete drift library: drift tab titles and page
+    /// fields follow stored values (an uncommitted title is kept), links
+    /// follow drift titles and trash states, and changed titles link every
+    /// open body again.
+    func applyDriftLibrary(projectID: String, library: WorkspaceDriftLibrary) {
+        for tab in allTabs where tab.project.id == projectID {
+            guard let drift = tab.drift, let page = tab.driftPage else { continue }
+            if let stored = library.drift(id: drift.id) {
+                tab.target = .drift(stored)
+                page.apply(drift: stored, library: library)
+            }
+            showAct(of: page, projectID: projectID)
+        }
+        refreshTabs(); onChange?()
+        let previous = linkSources[projectID]?.drifts
+        linkSources[projectID, default: LinkSources()].drifts = library
+        updateLinkDirectory(projectID: projectID)
+        // Rust links drift titles in every pass; a first read with drifts, or
+        // changed titles, link open bodies again (retroactive linking).
+        if previous.map(EntityLinkDirectory.linkNames) ?? [] != EntityLinkDirectory.linkNames(library) {
+            requestEntityLinks(projectID: projectID)
+        }
+    }
+
+    /// Re-reads the project's drifts, e.g. after an act was removed (which
+    /// releases its notes). Observers receive it through `onDriftLibrary`.
+    func driftsChanged(projectID: String) {
+        guard loadingDrifts.insert(projectID).inserted else { driftRereads.insert(projectID); return }
+        workspace.driftLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingDrifts.remove(projectID)
+            if case .success(let library) = result {
+                self.applyDriftLibrary(projectID: projectID, library: library)
+                self.onDriftLibrary?(projectID, library)
+            }
+            if self.driftRereads.remove(projectID) != nil { self.driftsChanged(projectID: projectID) }
+        }
+    }
+
+    /// Adopt the project's outline rows: drift pages name their bound act.
+    func applyOutline(projectID: String, entries: [WorkspaceOutlineEntry]) {
+        actNames[projectID] = Dictionary(entries.filter { $0.kind == "act" }.map { ($0.id, $0.title) },
+                                         uniquingKeysWith: { first, _ in first })
+        for tab in allTabs where tab.project.id == projectID {
+            if let page = tab.driftPage { showAct(of: page, projectID: projectID) }
+        }
+        onOutline?(projectID, entries)
+    }
+
+    /// Re-reads act names, e.g. when a drift page opens or acts change.
+    func actsChanged(projectID: String) {
+        guard loadingActs.insert(projectID).inserted else { actRereads.insert(projectID); return }
+        workspace.outline(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingActs.remove(projectID)
+            if case .success(let entries) = result { self.applyOutline(projectID: projectID, entries: entries) }
+            if self.actRereads.remove(projectID) != nil { self.actsChanged(projectID: projectID) }
+        }
+    }
+
+    /// Nil while act names are still being read; an act missing from the
+    /// last outline read is named generically until the next reply.
+    private func showAct(of page: MacDriftPageView, projectID: String) {
+        page.show(actName: page.drift.actId.flatMap { id in actNames[projectID].map { $0[id] ?? "已绑定的幕" } })
+    }
+
+    /// Moves the keyboard to the active drift page's title, e.g. after
+    /// creating a drift from the panel.
+    func focusActiveDriftTitle() {
+        guard let page = activeDriftPage else { return }
+        pendingFocus = nil
+        page.focusTitle()
+    }
+
+    /// Drift titles and groups are metadata writes. Every open view, the
+    /// panel and the outline adopt the returned library.
+    private func commitDrift(_ tab: Tab, changes: WorkspaceDriftChanges, completion: @escaping (Result<WorkspaceDrift, Error>) -> Void) {
+        guard let drift = tab.drift else { completion(.failure(LabError.message("这个标签不是漂流页面。"))); return }
+        let projectID = tab.project.id
+        workspace.updateDrift(projectID: projectID, driftID: drift.id, changes: changes) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                guard let stored = reply.result else { completion(.failure(LabError.message("漂流结果缺失"))); return }
+                if let self {
+                    self.applyDriftLibrary(projectID: projectID, library: reply.library)
+                    self.onDriftLibrary?(projectID, reply.library)
+                }
+                completion(.success(stored))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
     /// Adopt a project's complete library: element tab titles and page fields
     /// follow stored names; uncommitted header text is kept. Links follow
     /// the new names, colours and trash states; changed names or aliases
@@ -569,8 +730,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     private func updateLinkDirectory(projectID: String) {
-        guard let sources = linkSources[projectID], let library = sources.library, let chapters = sources.chapters else { return }
-        let directory = EntityLinkDirectory(library: library, chapters: chapters, trashedChapters: sources.trashedChapters ?? [])
+        guard let sources = linkSources[projectID], let library = sources.library, let chapters = sources.chapters,
+              let drifts = sources.drifts else { return }
+        let directory = EntityLinkDirectory(library: library, chapters: chapters, trashedChapters: sources.trashedChapters ?? [],
+                                            drifts: drifts)
         guard linkDirectories[projectID] != directory else { return }
         linkDirectories[projectID] = directory
         for tab in allTabs where tab.project.id == projectID { tab.view.linkDirectory = directory }
@@ -588,8 +751,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     private func pane(of tab: Tab) -> Int? { panes.firstIndex { $0.tabs.contains { $0 === tab } } }
 
-    /// ⌘-click or 打开「名称」: an element opens as its page tab, a chapter as
-    /// its chapter tab, in the pane that showed the link.
+    /// ⌘-click or 打开「名称」: an element or drift opens as its page tab, a
+    /// chapter as its chapter tab, in the pane that showed the link.
     private func openLink(_ target: EntityLinkTarget, from tab: Tab) {
         guard let index = pane(of: tab) else { return }
         let project = tab.project
@@ -604,6 +767,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             open(project: project, element: element, in: index, completion: done)
         case .chapter:
             open(project: project, chapter: WorkspaceChapter(id: target.id, title: target.name), in: index, completion: done)
+        case .drift:
+            guard let drift = linkSources[project.id]?.drifts?.drift(id: target.id) else {
+                onError?(LabError.message("「\(target.name)」已不可用，请刷新漂流列表。")); return
+            }
+            open(project: project, drift: drift, in: index, completion: done)
         }
     }
 
@@ -760,6 +928,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     self.workspace.setStorylineFacts(projectID: $0, storylineID: $1, facts: facts, completion: $2)
                 }
             }
+        } else if let page = tab.driftPage {
+            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onCommit = { [weak self, weak tab] changes, done in
+                guard let self, let tab else { done(.failure(LabError.message("漂流页面已关闭，修改未保存。"))); return }
+                self.commitDrift(tab, changes: changes, completion: done)
+            }
         } else {
             tab.view.onComments = { [weak self, weak view = tab.view] in
                 if let self, let view { self.onComments?(view) }
@@ -785,6 +959,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
+        tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {
@@ -863,6 +1038,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         for child in pane.body.subviews where child !== pane.active?.content {
             (child as? MacElementPageView)?.endEditing()
             (child as? MacStorylinePageView)?.endEditing()
+            (child as? MacDriftPageView)?.endEditing()
         }
         for child in pane.body.subviews { child.removeFromSuperview() }
         if let view = pane.active?.content {
@@ -882,9 +1058,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.label.textColor = index == activePane ? .labelColor : .secondaryLabelColor
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
-                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : "chapter"
-                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? ""
-                let title = tab.element != nil ? "设定 · \(tab.title)" : tab.storyline != nil ? "故事线 · \(tab.title)" : tab.title
+                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift" : "chapter"
+                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? tab.drift?.id ?? ""
+                let title = tab.element != nil ? "设定 · \(tab.title)" : tab.storyline != nil ? "故事线 · \(tab.title)"
+                    : tab.drift != nil ? "漂流 · \(tab.title)" : tab.title
                 let select = ChapterTabButton(title: title) { [weak self] in
                     guard let self else { return }
                     self.open(project: tab.project, target: tab.target, in: index) { result in

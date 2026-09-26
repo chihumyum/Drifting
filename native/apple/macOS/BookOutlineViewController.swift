@@ -10,6 +10,13 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
     var onNavigate: ((WorkspaceOutlineEntry, String?) -> Void)?
     /// “故事线…” on a chapter row: edit its storylines and 主线.
     var onEditStorylines: ((WorkspaceOutlineEntry) -> Void)?
+    /// “绑定幕笔记…” chose a drift for the act, or “解除幕笔记” passed nil.
+    var onBindDrift: ((WorkspaceOutlineEntry, WorkspaceDrift?) -> Void)?
+    /// An act row's notes subtitle opens the drift page.
+    var onOpenDrift: ((WorkspaceDrift) -> Void)?
+    /// Presents the drift picker. Nil uses a sheet on the panel; acceptance
+    /// answers here without a window.
+    var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     private let table = NSTableView()
@@ -72,6 +79,14 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         return cellView(item).arrangedSubviews.compactMap { $0 as? StorylineChip }.first
     }
 
+    /// The notes subtitle of an act row, built as the table builds it; nil
+    /// when no drift is bound (or drifts are not yet read).
+    func actDriftButton(actID: String) -> NSButton? {
+        guard let item = rows.first(where: { $0.isAct && $0.entry.id == actID }) else { return nil }
+        return cellView(item).arrangedSubviews.compactMap { $0 as? NSButton }
+            .first { $0.accessibilityIdentifier() == "outline-act-drift-\(actID)" }
+    }
+
     private func cellView(_ item: WorkspaceOutlineModel.Row) -> NSStackView {
         let label = NSTextField(labelWithString: item.label)
         label.lineBreakMode = .byTruncatingTail
@@ -104,6 +119,26 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             button.setAccessibilityLabel("\(expanded ? "收起" : "展开") \(item.entry.title)")
             button.onPress = { [weak self] in self?.model.toggle(item.entry.id) }
             stack.addArrangedSubview(button)
+        }
+        // An act's bound notes follow its name in secondary text; clicking
+        // them opens the drift page.
+        if item.isAct, let drift = model.boundDrift(actID: item.entry.id) {
+            let notes = OutlineDisclosureButton(title: "幕笔记 · \(drift.title)")
+            notes.isBordered = false
+            notes.font = .systemFont(ofSize: 11)
+            notes.contentTintColor = .secondaryLabelColor
+            notes.lineBreakMode = .byTruncatingTail
+            notes.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+            notes.setAccessibilityIdentifier("outline-act-drift-\(item.entry.id)")
+            notes.setAccessibilityLabel("打开幕笔记 \(drift.title)")
+            notes.toolTip = "打开漂流「\(drift.title)」"
+            notes.onPress = { [weak self] in
+                guard let self, self.canNavigate?() == true else {
+                    self?.model.showStatus("请先完成输入，并等待正文保存后再打开幕笔记。"); return
+                }
+                self.onOpenDrift?(drift)
+            }
+            stack.addArrangedSubview(notes)
         }
         if item.isChapter || item.isAct { stack.addArrangedSubview(actions(for: item)) }
         return stack
@@ -141,8 +176,56 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             }
             remove.setAccessibilityIdentifier("outline-remove-act")
             button.menu?.addItem(rename); button.menu?.addItem(remove)
+            button.menu?.addItem(.separator())
+            let bound = model.boundDrift(actID: item.entry.id)
+            let bind = OutlineActionMenuItem(title: bound == nil ? "绑定幕笔记…" : "更换幕笔记…") { [weak self] in
+                self?.chooseDrift(for: item.entry)
+            }
+            bind.setAccessibilityIdentifier("outline-bind-act-drift")
+            bind.isEnabled = onBindDrift != nil && model.drifts?.unboundDrifts.isEmpty == false
+            let unbind = OutlineActionMenuItem(title: "解除幕笔记") { [weak self] in
+                guard let self, self.canBindDrift() else { return }
+                self.onBindDrift?(item.entry, nil)
+            }
+            unbind.setAccessibilityIdentifier("outline-unbind-act-drift")
+            unbind.isEnabled = onBindDrift != nil && bound != nil
+            button.menu?.addItem(bind); button.menu?.addItem(unbind)
         }
         return button
+    }
+
+    private func canBindDrift() -> Bool {
+        guard !model.busy else { model.showStatus("正在保存幕分界，请稍后重试。"); return false }
+        return true
+    }
+
+    /// Picks one of the drifts not yet bound to any act.
+    private func chooseDrift(for entry: WorkspaceOutlineEntry) {
+        guard canBindDrift() else { return }
+        let candidates = model.drifts?.unboundDrifts ?? []
+        guard !candidates.isEmpty else {
+            model.showStatus("没有可绑定的漂流。每条漂流只能作为一幕的笔记；可以先在“漂流”中新建。"); return
+        }
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 26), pullsDown: false)
+        for drift in candidates {
+            popup.addItem(withTitle: drift.title)
+            popup.lastItem?.representedObject = drift.id
+        }
+        popup.setAccessibilityIdentifier("bind-act-drift-choice")
+        let alert = NSAlert()
+        alert.messageText = "绑定幕笔记"
+        alert.informativeText = "选择一条尚未绑定的漂流，作为“\(entry.title)”的笔记。每条漂流只能绑定一幕。"
+        alert.accessoryView = popup
+        alert.addButton(withTitle: "绑定").setAccessibilityIdentifier("confirm-bind-act-drift")
+        alert.addButton(withTitle: "取消")
+        let finish: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn, self.canBindDrift(),
+                  let id = popup.selectedItem?.representedObject as? String,
+                  let drift = candidates.first(where: { $0.id == id }) else { return }
+            self.onBindDrift?(entry, drift)
+        }
+        if let presentAlert { presentAlert(alert, finish) }
+        else if let window = view.window { alert.beginSheetModal(for: window, completionHandler: finish) }
     }
 
     private func canChangeBoundary() -> Bool {

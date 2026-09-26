@@ -32,7 +32,12 @@ final class WorkspaceOutlineModel {
     private(set) var status = "正在读取整书大纲…"
     /// Chapter memberships for each chapter's 主线 colour; nil until read.
     private(set) var storylines: WorkspaceStorylineLibrary?
+    /// Drifts, for each act's bound notes; nil until read.
+    private(set) var drifts: WorkspaceDriftLibrary?
     var onChange: (() -> Void)?
+    /// The rows Rust returned after a read or an act command, for views that
+    /// name acts elsewhere (drift pages and the drift panel).
+    var onEntries: (([WorkspaceOutlineEntry]) -> Void)?
 
     init(workspace: LabWorkspaceCore, projectID: String) {
         self.workspace = workspace
@@ -51,6 +56,16 @@ final class WorkspaceOutlineModel {
     /// The chapter's live 主线, or nil when it is 未归属 (or not yet read).
     func primaryStoryline(chapterID: String) -> WorkspaceStoryline? { storylines?.primary(chapterID: chapterID) }
 
+    /// Adopt the project's drift library; act rows name their bound notes.
+    func applyDrifts(_ library: WorkspaceDriftLibrary) {
+        guard drifts != library else { return }
+        drifts = library
+        onChange?()
+    }
+
+    /// The live drift bound to the act as its notes (not yet read: nil).
+    func boundDrift(actID: String) -> WorkspaceDrift? { drifts?.drift(actID: actID) }
+
     func load() {
         guard !busy else { return }
         requestID += 1
@@ -61,6 +76,7 @@ final class WorkspaceOutlineModel {
             case .success(let entries):
                 self.entries = entries
                 self.status = entries.isEmpty ? "还没有章节。新建章节后，大纲会显示在这里。" : "展开章节查看场、拍、注；点击标题跳转。"
+                self.onEntries?(entries)
             case .failure(let error): self.status = error.localizedDescription
             }
             self.onChange?()
@@ -107,7 +123,7 @@ final class WorkspaceOutlineModel {
                     guard let self else { return }
                     self.busy = false
                     switch refreshed {
-                    case .success(let entries): self.entries = entries; self.status = message
+                    case .success(let entries): self.entries = entries; self.status = message; self.onEntries?(entries)
                     case .failure(let error): self.status = "幕分界已保存，大纲读取失败：" + error.localizedDescription
                     }
                     self.onChange?(); completion?(.success(act))

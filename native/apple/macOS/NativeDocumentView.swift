@@ -394,8 +394,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc private func openLinkItem(_ sender: NSMenuItem) {
         guard !isInteractionLocked, let chosen = sender.representedObject as? EntityLinkTarget, let linkDirectory else { return }
         // Resolve again: the target may have been trashed while the menu was open.
-        let current = chosen.kind == .element ? linkDirectory.elements[chosen.id] : linkDirectory.chapters[chosen.id]
-        guard let target = current, !target.trashed else { return }
+        guard let target = linkDirectory.current(chosen), !target.trashed else { return }
         onOpenLink?(target)
     }
 

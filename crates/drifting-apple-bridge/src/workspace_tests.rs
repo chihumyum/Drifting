@@ -4,6 +4,8 @@ use super::*;
 mod acts;
 #[path = "workspace_comment_tests.rs"]
 mod comments;
+#[path = "workspace_drift_tests.rs"]
+mod drifts;
 #[path = "workspace_element_tests.rs"]
 mod elements;
 #[path = "workspace_link_tests.rs"]

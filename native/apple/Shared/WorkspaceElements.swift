@@ -88,9 +88,11 @@ struct WorkspaceElementBacklinks: Decodable, Equatable {
 }
 
 extension EntityLinkDirectory {
-    /// Live and trashed elements and chapters of one project. An element's
-    /// colour is its live category's; a detached element keeps the default.
-    init(library: WorkspaceElementLibrary, chapters: [WorkspaceChapter], trashedChapters: [WorkspaceChapter]) {
+    /// Live and trashed elements, chapters and drifts of one project. An
+    /// element's colour is its live category's; a detached element keeps the
+    /// default. Chapter and drift links keep the default colour.
+    init(library: WorkspaceElementLibrary, chapters: [WorkspaceChapter], trashedChapters: [WorkspaceChapter],
+         drifts: WorkspaceDriftLibrary = .empty) {
         let categories = Dictionary(library.categories.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         func target(_ element: WorkspaceElement, trashed: Bool) -> EntityLinkTarget {
             let category = element.categoryId.flatMap { categories[$0] }
@@ -100,7 +102,9 @@ extension EntityLinkDirectory {
         self.init(targets: library.trashedElements.map { target($0, trashed: true) }
             + library.elements.map { target($0, trashed: false) }
             + trashedChapters.map { EntityLinkTarget(kind: .chapter, id: $0.id, name: $0.title, trashed: true) }
-            + chapters.map { EntityLinkTarget(kind: .chapter, id: $0.id, name: $0.title) })
+            + chapters.map { EntityLinkTarget(kind: .chapter, id: $0.id, name: $0.title) }
+            + drifts.trashedDrifts.map { EntityLinkTarget(kind: .drift, id: $0.id, name: $0.title, trashed: true) }
+            + drifts.drifts.map { EntityLinkTarget(kind: .drift, id: $0.id, name: $0.title, summary: $0.summary) })
     }
 
     /// What linking reads from the library: live names and aliases.

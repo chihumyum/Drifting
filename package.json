@@ -115,6 +115,8 @@
     "apple:workspace-act:check": "node scripts/apple-workspace-act-acceptance.mjs --check",
     "apple:workspace-comment:acceptance": "node scripts/apple-workspace-comment-acceptance.mjs",
     "apple:workspace-comment:check": "node scripts/apple-workspace-comment-acceptance.mjs --check",
+    "apple:workspace-drift:acceptance": "node scripts/apple-workspace-drift-acceptance.mjs",
+    "apple:workspace-drift:check": "node scripts/apple-workspace-drift-acceptance.mjs --check",
     "apple:workspace-element:acceptance": "node scripts/apple-workspace-element-acceptance.mjs",
     "apple:workspace-element:check": "node scripts/apple-workspace-element-acceptance.mjs --check",
     "apple:workspace-link:acceptance": "node scripts/apple-workspace-link-acceptance.mjs",

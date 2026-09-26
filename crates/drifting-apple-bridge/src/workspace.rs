@@ -5,6 +5,8 @@ use drifting_core::workspace::{
     ChapterSeed, CreateChapter, CreateProject, WorkspaceProject, WorkspaceStore,
 };
 use drifting_document::Edit;
+#[path = "workspace_drifts.rs"]
+pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
 pub(super) mod elements;
 #[path = "workspace_remote_prose.rs"]
@@ -29,6 +31,8 @@ struct WorkspaceSession {
     elements: HashMap<(String, String), u64>,
     /// Storyline body owners, keyed by (project, storyline).
     storyline_bodies: HashMap<(String, String), u64>,
+    /// Drift body owners, keyed by (project, drift).
+    drift_bodies: HashMap<(String, String), u64>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -126,6 +130,7 @@ impl WorkspaceSession {
             .values()
             .chain(self.elements.values())
             .chain(self.storyline_bodies.values())
+            .chain(self.drift_bodies.values())
             .copied()
             .collect();
         handles.sort_unstable();
@@ -166,6 +171,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceCloseChapter { .. }
             | Request::WorkspaceElements { .. }
             | Request::WorkspaceStorylines { .. }
+            | Request::WorkspaceDrifts { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -197,6 +203,7 @@ pub(super) fn dispatch(
                     documents: HashMap::new(),
                     elements: HashMap::new(),
                     storyline_bodies: HashMap::new(),
+                    drift_bodies: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})
@@ -405,6 +412,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .elements(documents, project_id, command)?,
+        Request::WorkspaceDrifts {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .drifts(documents, project_id, command)?,
         Request::WorkspaceStorylines {
             handle,
             project_id,
@@ -562,6 +577,7 @@ pub(super) fn document_closed(handle: u64) -> Result<(), String> {
             &mut workspace.documents,
             &mut workspace.elements,
             &mut workspace.storyline_bodies,
+            &mut workspace.drift_bodies,
         ] {
             if let Some(key) = map
                 .iter()

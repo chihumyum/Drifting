@@ -10,9 +10,10 @@ typealias PlatformColor = UIColor
 #endif
 
 /// A link target as the workspace currently knows it: an element (with its
-/// category colour and hover summary) or a chapter, live or in the trash.
+/// category colour and hover summary), a chapter or a drift, live or in the
+/// trash. Chapters and drifts are both book nodes (`node` marks).
 struct EntityLinkTarget: Equatable {
-    enum Kind: Equatable { case element, chapter }
+    enum Kind: Equatable { case element, chapter, drift }
     let kind: Kind
     let id: String
     let name: String
@@ -26,7 +27,8 @@ struct EntityLinkTarget: Equatable {
     /// Hover preview: name and category, up to three aliases, then the summary.
     var preview: String {
         if trashed { return "\(name)（已在回收站）" }
-        guard kind == .element else { return "章节 · \(name)" }
+        if kind == .chapter { return "章节 · \(name)" }
+        if kind == .drift { return "漂流 · \(name)" }
         var lines = ["\(name) · \(category ?? "未分类")"]
         if !aliases.isEmpty {
             let shown = aliases.prefix(3).joined(separator: "、")
@@ -38,8 +40,8 @@ struct EntityLinkTarget: Equatable {
     }
 }
 
-/// Resolves link marks against the workspace's elements and chapters.
-/// Presentation only: marks stay in Yrs exactly as written.
+/// Resolves link marks against the workspace's elements, chapters and
+/// drifts. Presentation only: marks stay in Yrs exactly as written.
 struct EntityLinkDirectory: Equatable {
     enum Presentation: Equatable {
         /// Styled and openable. Nil is a target this view cannot resolve
@@ -52,12 +54,14 @@ struct EntityLinkDirectory: Equatable {
     }
     private(set) var elements: [String: EntityLinkTarget] = [:]
     private(set) var chapters: [String: EntityLinkTarget] = [:]
+    private(set) var drifts: [String: EntityLinkTarget] = [:]
 
     init(targets: [EntityLinkTarget]) {
         for target in targets {
             switch target.kind {
             case .element: elements[target.id] = target
             case .chapter: chapters[target.id] = target
+            case .drift: drifts[target.id] = target
             }
         }
     }
@@ -67,8 +71,18 @@ struct EntityLinkDirectory: Equatable {
     func target(for link: NativeEntityLink) -> EntityLinkTarget?? {
         switch link.kind {
         case "element": return .some(elements[link.id])
-        case "node": return .some(chapters[link.id])
+        case "node": return .some(chapters[link.id] ?? drifts[link.id])
         default: return nil
+        }
+    }
+
+    /// The directory's current entry for a target resolved earlier, e.g.
+    /// when a menu item is chosen after the target was trashed.
+    func current(_ target: EntityLinkTarget) -> EntityLinkTarget? {
+        switch target.kind {
+        case .element: return elements[target.id]
+        case .chapter: return chapters[target.id]
+        case .drift: return drifts[target.id]
         }
     }
 

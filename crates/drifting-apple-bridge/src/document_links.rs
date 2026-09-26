@@ -1,5 +1,5 @@
 //! Automatic entity links in an open body, with the renderer's name map:
-//! every live element's name and aliases, then chapter titles (a later
+//! every live element's name and aliases, then chapter and drift titles (a later
 //! entry for the same name wins), excluding the body's own element or chapter.
 use super::*;
 use drifting_core::workspace::WorkspaceStore;
@@ -25,14 +25,23 @@ pub(super) fn targets(
             });
         }
     }
-    for chapter in store.list_chapters(project_id)? {
-        if exclude_kind == "node" && chapter.id == exclude_id {
+    // The renderer's node names include drifts as well as chapters.
+    let chapters = store
+        .list_chapters(project_id)?
+        .into_iter()
+        .map(|c| (c.id, c.title));
+    let drifts = store
+        .drifts(project_id)?
+        .into_iter()
+        .map(|d| (d.id, d.title));
+    for (id, title) in chapters.chain(drifts) {
+        if exclude_kind == "node" && id == exclude_id {
             continue;
         }
         targets.push(EntityLinkTarget {
-            name: chapter.title,
+            name: title,
             kind: "node".into(),
-            id: chapter.id,
+            id,
         });
     }
     Ok(targets)

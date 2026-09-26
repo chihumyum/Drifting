@@ -33,8 +33,9 @@ projection while retaining expanded chapters and their heading details. A
 failed refresh reports that the domain command committed, rather than claiming
 it was rolled back.
 
-This batch does not add drag-to-move boundaries, global chapter spreading,
-color editing or notes binding controls. These remain later parity work.
+This batch does not add drag-to-move boundaries, global chapter spreading or
+color editing. These remain later parity work. Binding a drift as an act's notes
+(幕笔记) from the act row's menu is described with [drifts](drifts.md).
 
 ## Acceptance
 

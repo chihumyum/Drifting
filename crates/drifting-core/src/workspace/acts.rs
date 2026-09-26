@@ -140,7 +140,7 @@ impl WorkspaceStore<'_> {
         })
     }
 
-    fn live_act(
+    pub(super) fn live_act(
         &self,
         tx: u64,
         context: &AuthoredProseContext,

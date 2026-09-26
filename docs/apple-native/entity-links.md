@@ -34,11 +34,11 @@ opens, and for every open body after element or chapter names change
 (retroactive linking). Closed chapters are linked when next opened, as in the
 renderer.
 
-Known differences, outside the verified fixture: the renderer's map also holds
-drift titles (native has no drifts until they are ported), and its retroactive
-pass on element creation matches each new name independently, so overlapping
-names can both link (native reuses the auto-detect pass, which is
-leftmost-longest).
+The node names include drift titles after chapter titles, as the renderer's
+map holds every live book node. Known difference, outside the verified fixture:
+the renderer's retroactive pass on element creation matches each new name
+independently, so overlapping names can both link (native reuses the
+auto-detect pass, which is leftmost-longest).
 
 ## Backlinks
 
