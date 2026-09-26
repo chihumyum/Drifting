@@ -26,12 +26,15 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Native acceptance defaults to Mac. `--with-ios` explicitly adds mobile tests;
   `--ios-only` explicitly selects mobile-only, and `--include-ipad` also opts into
   mobile. Do not use these mobile options during the current Mac-only work.
-- Keep P2 document/IME/undo/recovery gates ahead of broad interface construction.
-- Run `pnpm apple:check` and `pnpm apple:core:test` for changes to this boundary.
-- The Yrs document module requires Rust 1.96; run `pnpm apple:document:acceptance`
-  when its protocol, projection, edit or anchor behavior changes.
-- Run `pnpm apple:durability:acceptance` for prose persistence, journal, replay
-  or compaction changes; keep process termination and power-loss evidence distinct.
+- Open P2 document/IME/undo/recovery gates block only the affected editor or
+  sync path, not the local writing loop; see `docs/apple-native/milestones.md`.
+  A demonstrated data-loss or undo defect in the current batch still blocks it.
+- Iterate with targeted tests. Before each batch commit run `pnpm apple:refresh`
+  (regenerates only stale evidence, in dependency order, then macOS acceptance)
+  and `pnpm apple:check`. Related features may share one batch. Keep topic docs
+  short; `milestones.md` holds status and open gates, not history.
+- The Yrs document module requires Rust 1.96. Keep process-termination and
+  power-loss durability evidence distinct.
 - Default native acceptance excludes desktop XCTest input. On this host it
   repeatedly opened System Settings and timed out. The user permits desktop
   interaction, but repair the failing input path before repeatedly rerunning

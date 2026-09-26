@@ -52,105 +52,50 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Physical-device prerequisites and acceptance](device-acceptance.md)
 - [macOS system input-method observation](system-ime.md)
 
-## Reproduce the first batch
+## Working loop
+
+During development run only the affected tests (`cargo test` for the touched
+crate or module, one XCTest class). Before each batch commit:
 
 ```sh
-pnpm apple:check
-pnpm apple:core:test
-pnpm apple:workspace:acceptance
-pnpm apple:workspace-trash:acceptance
-pnpm apple:workspace-act:acceptance
-pnpm apple:remote-prose:acceptance
-pnpm apple:workspace-remote:acceptance
-pnpm apple:document:acceptance
-pnpm apple:authoring:acceptance
-pnpm apple:binding:acceptance
-pnpm apple:durability:acceptance
-pnpm apple:build:macos
-pnpm apple:acceptance
+pnpm apple:refresh        # regenerate only stale evidence, then macOS acceptance
+pnpm apple:check          # verify all evidence is current
 ```
 
-The document and prose crates, Apple bridge and Apple CI lane require Rust 1.96. Application builds require
-Xcode, XcodeGen and the corresponding installed Rust
-Apple targets. The build script generates the Xcode project from
-`native/apple/project.yml`; generated projects and build outputs are ignored.
-The device build is unsigned and does not establish installation or distribution
-acceptance. There is no development-team ID in tracked sources.
-The separate physical-iPhone development-signing attempt is currently blocked
-by Xcode's missing account session and an ineligible Native Lab profile; its
-generated diagnostic records installation and device tests as not run.
+`pnpm apple:refresh --list` shows what is stale; `--all` regenerates everything.
+Each generator's `--check` decides staleness, so an unchanged report is verified
+rather than rerun. Documentation edits never invalidate native acceptance; only
+runtime sources do. The individual `pnpm apple:*:acceptance` commands remain for
+focused iteration.
 
-The default acceptance run is Mac-only. `--binding-only` runs programmatic
-AppKit acceptance by default. Future explicit mobile runs can use `--with-ios`
-to add iPhone, `--ios-only` for mobile-only, or `--include-ipad` to opt into mobile
-and include iPad. None is part of the current routine acceptance.
-The default run does not synthesize macOS desktop input. Desktop
-XCTest requires `--macos-ui` and a suitable test session. On the current host,
-two keyboard-synthesis attempts timed out while System Settings opened; the
-precise OS trigger is unresolved. The user permits desktop interaction; avoid
-repeatedly running the same failing path without fixing it. Targeted Mac UI
-inspection and headless checks remain available; mobile simulator runs are
-deferred. A default passing report does not imply desktop XCTest passed.
+The document and prose crates, Apple bridge and Apple CI lane require Rust 1.96.
+Application builds require Xcode, XcodeGen and the installed Rust Apple targets;
+the build script generates the Xcode project from `native/apple/project.yml`.
+Generated projects and build outputs are ignored. There is no development-team
+ID in tracked sources.
 
-The two applications now open a separate local workspace with project and chapter
-lists, creation, rename, chapter up/down, recoverable trash and restore, native editing, explicit save and reopen. Both call the shared
-Rust workspace service for domain defaults, transactions and canonical journals.
-Rename and reordering retain the current document, selection and prose history.
-Both editors expose selection bold/italic and paragraph/heading 1–3 through the
-same Rust document transactions; see the bounded [formatting contract](formatting.md).
-The [whole-book outline](outline.md) reads shared act/chapter order and live
-scene/beat/note headings, with lazy expansion and navigation by stable identity.
-[Act boundary controls](act-boundaries.md) create, rename and remove separators
-through shared domain commands while retaining chapter prose and order.
-Ordering submits a destination chapter ID; the core updates only the moved
-chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
-The [local writing slice](workspace.md) records source-matched creation, rename
-and reorder acceptance. The [chapter trash slice](chapter-trash.md) preserves
-prose and comments, closes target views only after commit and restores into a
-fresh document owner. Native platform dimensions remain separate.
-The workspace database is `apple-native-lab/apple-native-workspace.db`; the older
-fixed fixture and `native-lab.db` remain test harnesses for the editor binding.
-No production library import or selection is exposed, and neither application
-accesses Keychain or registers the production URL scheme. Use synthetic content
-until the remaining migration and distribution gates pass.
+Native acceptance is Mac-only by default. `--binding-only` runs programmatic
+AppKit acceptance. Mobile flags (`--with-ios`, `--ios-only`, `--include-ipad`)
+exist for later explicit runs and are not part of current acceptance. Desktop
+XCTest requires `--macos-ui`: on this host keyboard synthesis opened System
+Settings and timed out, so repair that path before rerunning it. A passing
+default report does not imply desktop XCTest passed.
 
-Prose uses a shared Rust document owner, one ordered Swift queue across views, local-origin
-undo, original-comment highlights, atomic authored updates/comment anchors/sync
-journal and replay-covered SQLite checkpoints. Creation, rename and chapter ordering use shared domain commands. The [canonical remote prose path](remote-prose-sync.md) now receives complete originals
-and reconciles open Rust owners through the workspace-owned Swift queue.
-The [chapter receiver](remote-workspace-sync.md) also applies complete chapter
-creation, title and order originals while retaining live editors. Google Drive
-bootstrap and provider orchestration are deferred to the author's later sync
-redesign. The older raw-update entry point remains a fixture-only seam. Read
-[the binding contract](document-core.md)
-for current behavior and remaining structural, remote IME, selection and durability gates.
-The Mac [workspace](tabs-and-split.md) retains chapter tabs and supports two
-editor panes; UIKit keeps one visible editor. Views of the same chapter share
-their document owner and history while retaining independent selections.
-Both hosts support [project title and prose search](search.md), with current
-CRDT anchor resolution before selecting a match in the editor.
-Local multi-view and overlapping marked-text behavior have programmatic
-AppKit evidence. Hosted UIKit tests cover its real input entry points, remote
-composition, repeated-character identity, Unicode deletion, focus loss and native
-history routes. Earlier reports include iPhone/iPad simulator runs; current
-routine regression does not run either mobile platform. AppKit responder actions and menu
-availability also route to the shared Rust history. These do not replace physical IME or desktop UI acceptance.
-The separate CUA/system-Pinyin attempts currently fail before marked composition:
-the observed five keycodes, window focus and input contexts match under both
-Doubao and Apple Pinyin, but Latin input commits directly.
-Its generated report is failed, not a replacement for real composition acceptance.
-The current editor is an acceptance prototype, not desktop feature parity.
+## Current state
 
-The P2c durability slice preserves published migrations and adds one local
-materialization-receipt migration. Exact transaction update bytes enter the authored journal; stored tail
-rows are replayed in ID order before snapshot/pruning. The generated
-[process-recovery report](acceptance/p2c-durability.json) records real SIGKILL
-boundaries and two independent restarts per case, separately from native UI
-tests. WAL/NORMAL process recovery is not a power-loss guarantee. Performance,
-the remaining project lifecycle and full remote reducer integration remain open.
+The Mac lab opens a separate synthetic workspace
+(`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
+creation, rename, ordering, recoverable trash, act boundaries, a whole-book
+outline, chapter tabs with a two-pane split, formatting, project search, native
+editing, save and reopen. Every write goes through shared Rust domain commands,
+transactions and canonical journals; views of one chapter share its document
+owner and history while keeping their own selections. Remote prose and chapter
+originals are received through the shared native queue without replacing live
+editors. The Keychain and production URL scheme are not used.
 
-The durable status and next work are in [milestones](milestones.md).
-[Generated P1 evidence](acceptance/p1-native.json) covers the first runnable batch. Generated
-reports distinguish source, integration, macOS UI, simulator, physical device,
-real account and distribution evidence. A compiled application is not evidence
-of a working editor or input method.
+The editor is an acceptance prototype, not desktop feature parity. Physical IME,
+desktop XCTest input, devices, accounts and signed distribution are unaccepted.
+Delivered slices, the next batch and the open gates are in
+[milestones](milestones.md); generated reports distinguish source, integration,
+macOS UI, simulator, device, account and distribution evidence. A compiled
+application is not evidence of a working editor or input method.

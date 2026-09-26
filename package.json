@@ -121,6 +121,7 @@
     "apple:workspace:acceptance": "node scripts/apple-workspace-acceptance.mjs",
     "apple:inventory": "node scripts/check-apple-migration.mjs --write",
     "apple:check": "node scripts/check-apple-migration.mjs",
+    "apple:refresh": "node scripts/apple-refresh.mjs",
     "apple:build:macos": "node scripts/apple-native.mjs macos",
     "apple:build:ios": "node scripts/apple-native.mjs ios",
     "apple:build:ios-device": "node scripts/apple-native.mjs ios-device",

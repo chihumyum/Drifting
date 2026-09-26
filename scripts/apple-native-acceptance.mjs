@@ -104,9 +104,10 @@ try {
     report.limits.uikitTextInput = 'programmatic-hosted-tests-passed';
     if (!iosOnly && !bindingOnly) run('ios-device-unsigned-build', process.execPath, ['scripts/apple-native.mjs', 'ios-device']);
   }
-  run('source-still-current', 'pnpm', ['apple:check']);
-  assert.equal(JSON.parse(readFileSync('docs/apple-native/acceptance/inventory.json', 'utf8')).source.runtimeFingerprint,
-    report.source.runtimeFingerprint, 'Runtime source changed during acceptance; regenerate the report');
+  // Compare only runtime sources: documentation edits during a run do not
+  // change what was tested. apple:refresh rewrites the inventory afterwards.
+  const current = run('source-still-current', process.execPath, ['scripts/check-apple-migration.mjs', '--runtime-fingerprint']).trim();
+  assert.equal(current, report.source.runtimeFingerprint, 'Runtime source changed during acceptance; regenerate the report');
   report.status = 'passed';
 } catch (error) {
   report.status = 'failed';

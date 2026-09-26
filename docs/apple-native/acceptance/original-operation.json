@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "2ad07452334e908fccdcc215ef122e507f81f3d8d229fa03376913e91715d7f9",
+    "fingerprint": "0b3a6dae3092e772ec65927f5817b92c5c43d032335411c67d60ccae94535def",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -332,7 +332,7 @@
       },
       {
         "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "63ec1636015aac579e0c7c57486515970eaedf93b005f71659c2c19aa6bf4726"
+        "sha256": "52a189dbadeab0110b9bbf44463d0768214721676420d1de702aafbaeeed233a"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -380,7 +380,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "8d30367ffa43852ee90c24f212963b532f7cf93122346ddc261e888190bf53c4"
+        "sha256": "76105e530d8f61d5ae263490a4ef6504ca0ed8659fc48ab2aea9bc9247f81712"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -830,7 +830,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "cae77372012679b0d3066c79deec780d47812590ade89301a01003c52831bedb"
+    "logSha256": "c942b44e66a6f3911edd277b744b1e72a68eefa3e943a4b2c2446d6c291eddff"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

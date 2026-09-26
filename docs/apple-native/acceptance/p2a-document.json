@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T16:33:53.167Z",
+  "generatedAt": "2026-09-26T17:28:23.035Z",
   "status": "passed",
   "source": {
-    "commit": "0e97a995e896df2275552855a5bcdf179645fd00",
+    "commit": "ea5d75f38c653ec33a74b891625ad543ef8d0222",
     "dirty": true,
-    "fingerprint": "cb9c28a4a85dcaa17731b9f4007356a1879431597bc72d0e2bb3aee76a114ae6"
+    "fingerprint": "4b9f3a81dbd0c33abab48e661510dcbf88d85fe687f658f197d3a43ce94b5cf6"
   },
   "libraries": {
     "yjs": "13.6.32",
@@ -218,7 +218,7 @@
   },
   "toolchain": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-    "node": "v24.19.0"
+    "node": "v22.23.1"
   },
   "sparseReplayDiagnostic": {
     "path": "yrs-random-array-diagnostic.json",

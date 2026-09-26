@@ -3,20 +3,25 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-execFileSync(process.execPath, ['scripts/generate-apple-fixtures.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/check-yrs-vendor.mjs'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-yrs-diagnostic.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-document-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-binding-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-prose-durability-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-original-operation-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-native-authoring-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-workspace-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-remote-prose-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-workspace-remote-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-workspace-trash-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-workspace-act-acceptance.mjs', '--check'], { stdio: 'pipe' });
-execFileSync(process.execPath, ['scripts/apple-device-prerequisite-diagnostic.mjs', '--check'], { stdio: 'pipe' });
+// --runtime-fingerprint only prints the current runtime fingerprint; native
+// acceptance uses it so documentation edits during a run do not invalidate it.
+const runtimeOnly = process.argv.includes('--runtime-fingerprint');
+if (!runtimeOnly) {
+  execFileSync(process.execPath, ['scripts/generate-apple-fixtures.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/check-yrs-vendor.mjs'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-yrs-diagnostic.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-document-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-binding-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-prose-durability-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-original-operation-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-native-authoring-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-workspace-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-remote-prose-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-workspace-remote-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-workspace-trash-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-workspace-act-acceptance.mjs', '--check'], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts/apple-device-prerequisite-diagnostic.mjs', '--check'], { stdio: 'pipe' });
+}
 const read = path => readFileSync(path, 'utf8');
 const inventory = JSON.parse(read('docs/apple-native/inventory.json'));
 const ids = new Set(inventory.entries.map(entry => entry.id));
@@ -66,6 +71,10 @@ const report = { schemaVersion: 1, kind: 'apple_native_migration_inventory',
       && (!file.path.startsWith('docs/') || file.path.startsWith('docs/apple-native/fixtures/'))))), files: sources },
   openDecisions: inventory.decisionTasks };
 const output = 'docs/apple-native/acceptance/inventory.json';
+if (runtimeOnly) {
+  console.log(report.source.runtimeFingerprint);
+  process.exit(0);
+}
 if (process.argv.includes('--write')) writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 else assert.deepEqual(JSON.parse(read(output)), report, 'Inventory/source evidence is stale: run pnpm apple:inventory');
 console.log(`Apple migration: ${inventory.entries.length} capability groups, ${coverage.length} native/feature surfaces mapped; source ownership checked.`);
