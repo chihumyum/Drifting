@@ -56,7 +56,7 @@ const admissionNames = [
   'materialization_receipts_are_immutable_and_equal_events_do_not_share_identity',
 ].map(name => `materialization_admission::tests::${name}`);
 const requiredCases = [...decoderNames, ...storeNames, ...archiveNames, ...journalNames, ...admissionNames];
-const expectedTests = 79;
+const expectedTests = 81;
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
 function sources() {
   const files = [...new Set(run('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0'))]
@@ -132,7 +132,7 @@ if (process.argv.includes('--check')) {
   const testCounts = [...log.matchAll(/test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;/gu)].map(match => {
     assert.equal(match[2], '0'); assert.equal(match[3], '0'); return Number(match[1]);
   });
-  assert.deepEqual(testCounts, [75, 4, 0]);
+  assert.deepEqual(testCounts, [77, 4, 0]);
   for (const name of requiredCases) assert(log.includes(`test ${name} ... ok`), `Missing case: ${name}`);
   assert.deepEqual(sources(), before, 'Source changed during original-operation acceptance');
   const report = { schemaVersion: 1, kind: 'native_original_operation_verification', status: 'passed',

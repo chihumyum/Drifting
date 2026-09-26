@@ -5,7 +5,7 @@ import SQLite3
 #endif
 
 struct RemoteProseTestPacket {
-    let original: RemoteProseOriginal
+    let original: RemoteChangeOriginal
     let envelope: Data
 }
 
@@ -181,7 +181,7 @@ enum WorkspaceRemoteProseFixture {
                 throw LabError.message("Synthetic original discovery found malformed journal storage")
             }
             guard !excluding.contains(changeSetID) else { return nil }
-            return RemoteProseTestPacket(original: RemoteProseOriginal(
+            return RemoteProseTestPacket(original: RemoteChangeOriginal(
                 projectId: projectID, projectSyncId: projectSyncID, syncGenerationId: generationID,
                 changeSetId: changeSetID, originalEnvelopeSha256: envelopeHash), envelope: envelope)
         }

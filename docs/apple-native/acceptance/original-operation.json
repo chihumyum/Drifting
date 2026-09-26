@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "34a2c064493056025f1a41cc19bf76b5da673dfe8a22780bcf487f36c7380649",
+    "fingerprint": "2081fb6e473bf48227c3335e383fb33cfef681455b17e730e1519bc580eac289",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -24,7 +24,7 @@
       },
       {
         "path": "crates/drifting-core/src/lib.rs",
-        "sha256": "6c082814bee0c826af522a09c250b662719f4a8505ed2c0cb865882215da94b8"
+        "sha256": "7968d8e0194a09970f2209ec7d3e849f22865ba53a6b3913deae22a8855f3ac5"
       },
       {
         "path": "crates/drifting-core/src/materialization_admission.rs",
@@ -44,7 +44,7 @@
       },
       {
         "path": "crates/drifting-core/src/original_operation.rs",
-        "sha256": "82ae0b281a657413bbe193faf934fb5ae9c0a3a547837920db568d8316aaf85d"
+        "sha256": "6531f6364d11b8a48b2f56955a6ad0593921160a5e5a23fe18292a16252ee090"
       },
       {
         "path": "crates/drifting-core/src/original_operation/canonical.rs",
@@ -84,11 +84,23 @@
       },
       {
         "path": "crates/drifting-core/src/remote_prose.rs",
-        "sha256": "7655032e452c1dd297e96a7427a434be2be45cb5aa869ee7e70221ccceee5a33"
+        "sha256": "db4c31d97d0bf4d7873e4fa8a91eb38c15aca23e3b6eceadd36bf081887bdb2c"
       },
       {
         "path": "crates/drifting-core/src/remote_prose/tests.rs",
-        "sha256": "9810ade4e829980eabc46904067f9f66ac8946478d4e14b48086586a9332f24c"
+        "sha256": "7d19a331f0c44ee3015f36e7183b50b79a43bb777141f256d0e72b8b6bec6e3f"
+      },
+      {
+        "path": "crates/drifting-core/src/remote_workspace.rs",
+        "sha256": "b98037ccfdae0cb467e841b49ae48aef45bd65fd1216a800f1d7d6ac9176323b"
+      },
+      {
+        "path": "crates/drifting-core/src/remote_workspace_metadata.rs",
+        "sha256": "d67a053fa33d8820816693f7c13dfdf2da86834a0f24179fb971d48b7be16970"
+      },
+      {
+        "path": "crates/drifting-core/src/remote_workspace_metadata/tests.rs",
+        "sha256": "58f5e178e826eb8c619bef05ccdb56d83b2bd9176d29857085cc60c6f607ef85"
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
@@ -304,7 +316,7 @@
       },
       {
         "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "c310f55e45bef8841e3e369a3c7ea7a2b0d161a8be9189d187f3a64d63e7b286"
+        "sha256": "52885412074ad53311ff813aae7bc1cd2a35cc5847eff1a2917d8503a855653c"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -352,7 +364,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "35341b6cf9bbfe50c91a5cb8513e033758bdedf9b0caecaa79e02583fb9e0692"
+        "sha256": "b58d6e7d1b5e352a0147579e8b7080fcd393950b9f75f310205f63e1f162f848"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -372,7 +384,7 @@
       },
       {
         "path": "scripts/apple-original-operation-acceptance.mjs",
-        "sha256": "d6e00f28313edea82a10ded8441da6b52f5b796a2330d29abf7377503ec6892b"
+        "sha256": "2903b9216c500c3e31572ae30b88804b04f6a70c1d447135c083d85f89502c39"
       },
       {
         "path": "scripts/apple-original-operation-oracle.ts",
@@ -764,7 +776,7 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "passed": 79,
+    "passed": 81,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -802,7 +814,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "8b81f3938d48f25f5b38ec5117c551b6a50773202fb93e4257ac5e0e6dbee253"
+    "logSha256": "d55e372ee9808dc518b6a156903f7d065b51aef6e29d03d489fc89e79cd272a7"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

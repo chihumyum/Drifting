@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T14:31:26.325Z",
+  "generatedAt": "2026-09-26T15:12:20.139Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "09694c33c6c635d6062e5725810c71675556935c",
+    "commit": "84fb8c922c1bbcc510ec6aeddf12988e43a09f9b",
     "dirty": true,
-    "fingerprint": "44ee53e9b49efa17fae7c7c7697e51f691768ca9392f52134ff39bc0c56a496d"
+    "fingerprint": "4feba229d9530636dbf5cf627332a52aed9eb1823505f533c1d40f67d01135fa"
   },
   "cases": [
     {
@@ -308,6 +308,14 @@
     },
     {
       "name": "AppKit rejected originals and committed checkpoint failure retain owners drafts and retry through cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit remote chapter creation refreshes workspace lists and remains editable after cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit remote metadata preserves the live owner selection and history and rejects invalid originals atomically",
       "status": "passed"
     }
   ],

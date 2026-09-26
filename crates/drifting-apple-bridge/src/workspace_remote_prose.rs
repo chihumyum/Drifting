@@ -29,6 +29,31 @@ impl WorkspaceSession {
             "affectedDocuments":receipt.affected_documents,"documents":states}))
     }
 
+    pub(super) fn receive_changes(
+        &self,
+        documents: &mut HashMap<u64, LabSession>,
+        original: &ChangeSetRef,
+        envelope: &[u8],
+    ) -> Result<Value, String> {
+        let project = self.project(&original.project_id)?;
+        let context = self.context(&project)?;
+        let receipt = drifting_prose::remote_sync::receive_remote_workspace(
+            &self.gateway,
+            CLIENT,
+            &context,
+            original,
+            envelope,
+            None,
+        )?;
+        let states = self.reconcile_prose(documents, &project.id)?;
+        let store = WorkspaceStore::new(&self.gateway, CLIENT);
+        Ok(json!({"changeSetId":receipt.change_set_id,
+            "alreadyApplied":receipt.already_applied,
+            "affectedDocuments":receipt.affected_documents,"documents":states,
+            "projectId":project.id,"projects":store.list_projects(WORKSPACE_USER)?,
+            "chapters":store.list_chapters(&project.id)?}))
+    }
+
     pub(super) fn reconcile_prose(
         &self,
         documents: &mut HashMap<u64, LabSession>,

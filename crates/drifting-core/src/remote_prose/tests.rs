@@ -1,4 +1,14 @@
 use super::*;
+use crate::database::{DatabaseValue as V, TransactionBehavior};
+use crate::prose::RevisionSource;
+use crate::prose_journal::AuthoredProseJournal;
+use crate::remote_workspace::utc_iso;
+fn text(value: &str) -> V {
+    V::Text(value.into())
+}
+fn integer(value: u64) -> V {
+    V::Integer(value.to_string())
+}
 use crate::prose_journal::encoding::{hash, Cbor};
 use std::collections::BTreeMap;
 

@@ -128,5 +128,7 @@ Injected transaction faults and cold reopen remain distinct from the separate
 SIGKILL durability harness and from power-loss evidence. Known old-peer
 alias-deletion and general structural gaps remain uncertified.
 
-Next integrate provider orchestration and the remaining domain reducer. Do not
+The [complete chapter receiver](remote-workspace-sync.md) now owns the first
+metadata subset through the same canonical transaction. Next add project
+bootstrap, provider orchestration and the remaining domain reducer. Do not
 filter unsupported metadata originals to skip ahead in a transport frontier.

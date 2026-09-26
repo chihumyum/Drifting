@@ -78,6 +78,32 @@ impl VerifiedMutation {
     pub fn canonical_payload_bytes(&self) -> &[u8] {
         &self.canonical_payload_bytes
     }
+    /// Decode the already verified canonical payload for scalar domain reducers.
+    /// Binary values deliberately have no JSON representation here.
+    pub(crate) fn payload_json(&self) -> Result<serde_json::Value, String> {
+        fn json(node: canonical::Node) -> Result<serde_json::Value, String> {
+            use canonical::Value;
+            Ok(match node.kind {
+                Value::Null => serde_json::Value::Null,
+                Value::Bool(value) => value.into(),
+                Value::Number(value) => serde_json::Number::from_f64(value)
+                    .ok_or("Metadata number is not finite")?
+                    .into(),
+                Value::Text(value) => value.into(),
+                Value::Array(values) => serde_json::Value::Array(
+                    values.into_iter().map(json).collect::<Result<_, _>>()?,
+                ),
+                Value::Map(values) => serde_json::Value::Object(
+                    values
+                        .into_iter()
+                        .map(|(key, value)| Ok((key, json(value)?)))
+                        .collect::<Result<_, String>>()?,
+                ),
+                Value::Bytes(_) => return Err("Metadata payload contains binary data".into()),
+            })
+        }
+        json(canonical::decode(&self.canonical_payload_bytes)?)
+    }
     /// Extract original known Yjs bytes from the immutable canonical payload.
     /// This does not decode CRDT bodies or establish reconstructible history.
     pub fn original_yjs_update(&self) -> Result<Vec<u8>, String> {

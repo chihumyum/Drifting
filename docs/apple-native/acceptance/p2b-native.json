@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-26T14:33:18.219Z",
+  "generatedAt": "2026-09-26T15:14:34.511Z",
   "status": "passed",
   "scope": "builds, core, hosted UIKit binding and simulator UI; desktop XCTest excluded",
   "source": {
-    "commit": "09694c33c6c635d6062e5725810c71675556935c",
+    "commit": "84fb8c922c1bbcc510ec6aeddf12988e43a09f9b",
     "dirty": true,
-    "runtimeFingerprint": "8daf490b357fd3517f1dfeb9624eb66a0cc10caa910efc77037aceefcce13803"
+    "runtimeFingerprint": "d7df57b2a8b04dddfe4c4a93a03f3a9cb4c03ad67adad8b09677e9621380ce0d"
   },
   "checks": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "core",
       "status": "passed",
-      "passed": 79
+      "passed": 81
     },
     {
       "name": "prose-durability",
@@ -27,7 +27,7 @@
     {
       "name": "bridge",
       "status": "passed",
-      "passed": 42
+      "passed": 46
     },
     {
       "name": "macos-build",
@@ -40,9 +40,9 @@
     {
       "name": "iphone-binding",
       "status": "passed",
-      "passed": 21,
+      "passed": 23,
       "failed": 0,
-      "operation": "canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
+      "operation": "complete chapter originals create editable chapters with cold reopen, metadata delivery returns workspace lists while retaining existing owner selection/history and rejects invalid originals atomically; canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
       "platforms": [
         {
           "platform": "iOS Simulator",
@@ -68,9 +68,9 @@
     {
       "name": "ipad-binding",
       "status": "passed",
-      "passed": 21,
+      "passed": 23,
       "failed": 0,
-      "operation": "canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
+      "operation": "complete chapter originals create editable chapters with cold reopen, metadata delivery returns workspace lists while retaining existing owner selection/history and rejects invalid originals atomically; canonical workspace originals through shared serial queue, queued Unicode input and local-only history, marked/failed branch retention, all-owner duplicate/reconcile delivery and committed-save retry; project title/prose search with current anchored UTF-16 match resolution, stale result refusal, selection/history and pending/marked input guards; outline navigation by current heading identity, no authored history, prefix edits and reopen; selection formatting, real heading levels and body reset, native text attributes, one-step history, links/comments and SQLite reopen; stored dependency recovery with held queued or marked input, accurate recovery status, original suffix selection, continued input and SQLite reopen; late original-left quote prefix, mixed original-prefix and safe suffix packet, interleaved Unicode b-d-b source clocks, two-view routed and original-suffix selections, two history cycles, duplicate delivery and SQLite reopen; actual UITextInput marked commit/cancel, remote overlap and continued input, repeated-character identity, NFC/NFD replacement and composition with passive-view refresh, exact UTF-16 storage ranges and SQLite reopen, Unicode backspace, responder resignation, system history selectors/key commands/UndoManager and pending/composition guards; synthetic temporary databases",
       "platforms": [
         {
           "platform": "iOS Simulator",

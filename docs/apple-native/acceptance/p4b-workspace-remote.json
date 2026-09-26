@@ -1,130 +1,8 @@
 {
   "schemaVersion": 1,
+  "kind": "native_workspace_remote",
   "status": "passed",
-  "toolchain": {
-    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)"
-  },
-  "rawEvidence": [
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/bridge-check.log",
-      "sha256": "da5aee02a7fa64846a9cda97a2044bc39c07376fac0a2965f7364f35fbf3aaad"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/bridge-fmt.log",
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/bridge.log",
-      "sha256": "c81a011c534dabf32f5bd36c29b21757b7d3b71dec9e1339d306af0bd920a354"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/cargo.log",
-      "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/core-check.log",
-      "sha256": "2b7e4a9dabec567ec6b6ea6bb6a062a43f20f8aecf429ef9650a7a2644d83463"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/core-fmt.log",
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/core.log",
-      "sha256": "d91d55b91d9a51b3a2d2db520f9993ae33385c63debf60c53a652fcace1d44eb"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/document-check.log",
-      "sha256": "2bbb846f0340dc6d5c03a452e1409c55f856553a5495a43b52c8b931b45c4e61"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/document-fmt.log",
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/document.log",
-      "sha256": "7bbfd317a56df87fc905ce3ab1a853b27e6ec5d690c077984d0d658ab45f71a3"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/event-order.log",
-      "sha256": "0b225a1d36777d8fb5431ef5ed76eec59f243bc7f8fe09a5056829b6eccc7749"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/journal-fixture.log",
-      "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/journal-wire-result.json",
-      "sha256": "54959ec06d713dfb48d05186cec64b5c578dd25e7637da45226de41fe940af01"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/journal-wire.json",
-      "sha256": "f66c17bbbd50f723d7da1d28906eff75a580db806700e8011c613efd1d627b92"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/journal-wire.log",
-      "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire-result.json",
-      "sha256": "7b450a499fc930008a34550245aa6190a106dbcc49faed815891b4f75f142715"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire.log",
-      "sha256": "cd0d3daaaefb9dd7d924a08e76cd23aacf41ccacced3549455746768275b46f9"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire/native-draft.json",
-      "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire/native-multiclient.json",
-      "sha256": "1b598cedef677e57e432c5d79146944e18b195ae37d4a78f8ad660f870521e32"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire/native-plain.json",
-      "sha256": "d7e497d42031f11552193881a1afbf4eea40ef4edae748014d092745313c803c"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/native-wire/native-queued.json",
-      "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/prose-check.log",
-      "sha256": "5315748e0e3514cb2155d048194f4284efe504d5d86a2bb1dac98162bf743898"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/prose-fmt.log",
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/prose.log",
-      "sha256": "b9c57d4dfcdcaea756359c3d1d91b9867774727197ddf095985e799ff62f2af0"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/renderer.json",
-      "sha256": "ee96d568e403fded9eb79cd750f48c705652249821ea27f638b38c4566089782"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/renderer.log",
-      "sha256": "46f6c3dab99a4a5ebd95b2b7d46099b7d354c9b31f061b3f7abe81d922944ec7"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/rustc.log",
-      "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/tsconfig.json",
-      "sha256": "d4457101ea3e9f4e8130393663cc770ce13cef8ca97b9c17f8db8d52506d20af"
-    },
-    {
-      "path": ".local-data/apple-native/authoring-1790435575204/typecheck.log",
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
-    }
-  ],
   "source": {
-    "fingerprint": "a3fdf42e25426945e19c6b651b1f6f992b82bc9a8d67c370df9f28f6a551a77d",
     "files": [
       {
         "path": "crates/drifting-apple-bridge/Cargo.lock",
@@ -173,26 +51,6 @@
       {
         "path": "crates/drifting-apple-bridge/src/workspace_tests.rs",
         "sha256": "56edf0f26e7aee70b770824a15587c0e4e56cdf87115ec387ac7a6a39f9c9a24"
-      },
-      {
-        "path": "crates/drifting-core/.local-data/apple-native/outline-core-export/workspace-outline.json",
-        "sha256": "6ef84b5cf32a6e21c98cbe1ed6aac474929b82a82f5708b7a9328b4854d45abb"
-      },
-      {
-        "path": "crates/drifting-core/.local-data/apple-native/outline-core-export/workspace-rename-wire.json",
-        "sha256": "9844ed1b24f39ab7707baa04b0da08a7303750d7de722f5bf18cf01b3526c0cd"
-      },
-      {
-        "path": "crates/drifting-core/.local-data/apple-native/outline-core-export/workspace-reorder-wire.json",
-        "sha256": "7eaeff70bba52414b174e663a6b37de3c6590a29f371976ecbd55f4bce4fa469"
-      },
-      {
-        "path": "crates/drifting-core/.local-data/apple-native/outline-core-export/workspace-wire.json",
-        "sha256": "783011b8dfd93fa32498a18a6c59e54bee3b4f1f4c34804437d8fc829bd5fd31"
-      },
-      {
-        "path": "crates/drifting-core/.local-data/apple-native/workspace-wire/workspace-wire.json",
-        "sha256": "783011b8dfd93fa32498a18a6c59e54bee3b4f1f4c34804437d8fc829bd5fd31"
       },
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -551,14 +409,6 @@
         "sha256": "f56119a5fbedb7a0a7f97d3ef9d02adf49038effb0e41a1c5107f66cbe49314f"
       },
       {
-        "path": "docs/apple-native/fixtures/document-v1.json",
-        "sha256": "678aff5da470aa30327e9d60b53580c5fd339fd8bc7854dfe6aea5732759a30d"
-      },
-      {
-        "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "52885412074ad53311ff813aae7bc1cd2a35cc5847eff1a2917d8503a855653c"
-      },
-      {
         "path": "drizzle/0000_local_first_baseline.sql",
         "sha256": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2"
       },
@@ -611,24 +461,12 @@
         "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
       },
       {
-        "path": "scripts/apple-native-authoring-acceptance.mjs",
-        "sha256": "6d07383b27ef4082f8a2c80d06fdb977204beaa2471c4ec061b22c4bf0f2d39f"
+        "path": "scripts/apple-workspace-remote-acceptance.mjs",
+        "sha256": "d142c5e70545e24113535bc70928b2347758f0a73888b7ca1da57165df86af15"
       },
       {
-        "path": "scripts/apple-native-authoring-wire-check.ts",
-        "sha256": "6cd2295cdb96c2f95cbb9fb706b648bec8597c1d1c183acb3c7d27effcb06990"
-      },
-      {
-        "path": "scripts/apple-native-event-order-oracle.ts",
-        "sha256": "d47766dd3f61d3e649b557eedcfbdc279b5dedf53dce569fe8dd8f788fb2766f"
-      },
-      {
-        "path": "scripts/apple-native-journal-oracle.ts",
-        "sha256": "8db85d89640b94c31fcf73653bde14f2f86540b3b2f094620744480b34e3a4df"
-      },
-      {
-        "path": "scripts/apple-native-journal-wire-check.ts",
-        "sha256": "1e2482e235076d5e6def1e1a9efb498e6b3887c632fa1c7c04f64e693b244430"
+        "path": "scripts/apple-workspace-remote-check.ts",
+        "sha256": "802139e35e7566a0351b6ef6c278f9648152667326519ae6bc6c7b9325ac0369"
       },
       {
         "path": "src/renderer/deferred-settings.d.ts",
@@ -639,28 +477,180 @@
         "sha256": "9c37ebafe653c74e05702f02c2083a3ead694e5d697980a3f1b4acd0e7a9f8b2"
       },
       {
+        "path": "src/renderer/domain/agent-chat-transcript.test.ts",
+        "sha256": "670cf3d1e92c82e03f9da8a336bfd44bd07fb906fdbbcaf324c03e5cbc1495d7"
+      },
+      {
+        "path": "src/renderer/domain/agent-chat-transcript.ts",
+        "sha256": "72d3f005b850d9c7580a80ed1762263bdad6e3328fd81c5975da870aeb9424aa"
+      },
+      {
+        "path": "src/renderer/domain/agent-conversation.ts",
+        "sha256": "b941554a97babbfe4870552d24ebc79d2b01db6339730c5549c1cc2bb5117c7d"
+      },
+      {
+        "path": "src/renderer/domain/agent-extension.ts",
+        "sha256": "9f9a25f67e2155eebcb6bcca86ad30a6feb8ac1deb3891d8c682381149439183"
+      },
+      {
+        "path": "src/renderer/domain/agent-memory.ts",
+        "sha256": "2771942c8039a9da0f70d707a815834902be12fe902708477b79742e0ccf8e69"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-element-patch-receipt.ts",
+        "sha256": "92744c1340c171161b0010349d8e55144acd4fd5a11176b0aab558a6dd30c42d"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-entity-write-receipt.ts",
+        "sha256": "0309566a61cb9955fa43d5ab59e0405fe9675e6e849ac02f8c4403aacd495c9a"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-freshness.ts",
+        "sha256": "59d1c99ebc50397e19d86afda854664e65028c20d1bd21d94a90505f936fefdf"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-long-task.ts",
+        "sha256": "ab8e3969b81719ec9360ff115be6f9dc63acb014217e36576dc2eb54685c24d3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-persistence.ts",
+        "sha256": "448d4c3588310e5c22cb39ac5214e3db1386fd312c133f045d75f607c34dba0f"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-result-artifact.ts",
+        "sha256": "d4013e1a69a316e0350460eaa8ad856c8521e588c9a9354127ede9104a8cb1a3"
+      },
+      {
+        "path": "src/renderer/domain/agent-runtime-write-effect.ts",
+        "sha256": "1aca4c6ac752c072766205d5a7b4c04be82fe84ad2ee8750c1ead76de47f1f77"
+      },
+      {
+        "path": "src/renderer/domain/agent-working-memory.ts",
+        "sha256": "652eb1d9dab4f3faf6511aeaf8a10282268336eb8009c7632e09ce40f98719ef"
+      },
+      {
+        "path": "src/renderer/domain/block-section.ts",
+        "sha256": "cb99c4674b4ae8606e52ea580f36168306f934688d40092fd4d1501dde0112cb"
+      },
+      {
+        "path": "src/renderer/domain/book-act.test.ts",
+        "sha256": "a61c5e47c8cf5a9b87f51db11aa81ecce4906b0421d5842d55d65f129acf3d3c"
+      },
+      {
+        "path": "src/renderer/domain/book-act.ts",
+        "sha256": "a57c96c94e6ed71eeed0081f6075cfb02c27af5d035298d8e58829e30f556349"
+      },
+      {
+        "path": "src/renderer/domain/book-element.ts",
+        "sha256": "fd35bdf9c865be2fbdf73d191771234dcef2c0fbe17be871a0141e295e21d105"
+      },
+      {
+        "path": "src/renderer/domain/book-node.test.ts",
+        "sha256": "1673459490aaa87c2f90ecdd155293e00f46538b45549c9d67aa1b80984a0a58"
+      },
+      {
+        "path": "src/renderer/domain/book-node.ts",
+        "sha256": "7e174a4fa39b665872083010f93f707ae005de8c6e2769532cc7e50320e0cdec"
+      },
+      {
+        "path": "src/renderer/domain/comment.ts",
+        "sha256": "d6aa8e398cde4d3f92b5d6b65a57c5e32e01e4cdf62c37e4feb05c944d0252de"
+      },
+      {
+        "path": "src/renderer/domain/copilot-suggestion.ts",
+        "sha256": "7b5b19fa58c09f4b6a119b8912303e750e85299c70247dae41a0fea8308c22f1"
+      },
+      {
+        "path": "src/renderer/domain/drift-group.ts",
+        "sha256": "af72524323b602602863593416e5cdbe12933e52504b0f0b1ea9312e49a8be89"
+      },
+      {
+        "path": "src/renderer/domain/entity-kinds.ts",
+        "sha256": "67ed43e3352f06131f4a4b73232a1f80afa701166b1ff1d4911a09ea856e8565"
+      },
+      {
+        "path": "src/renderer/domain/entity-kv-entry.ts",
+        "sha256": "ea46e9ea05265a02c620b33fc0e09a68a35246b1ca63e4dd89a13239665fa5ac"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.test.ts",
+        "sha256": "ff0c02e4a150d61b4e1ba7c160fb8fff953a14e009369a144d84c9634fb6f84d"
+      },
+      {
+        "path": "src/renderer/domain/entity-relation-type.ts",
+        "sha256": "a535501b2f8f6ce21c2041c644b3746965cfafc0d9b63b02f4ea91dc73c2e4ae"
+      },
+      {
+        "path": "src/renderer/domain/kv.ts",
+        "sha256": "e84bf938213fe3722c63042ae1e7e57bad6e3f7374b6eebdf89742cfdea745b8"
+      },
+      {
+        "path": "src/renderer/domain/library-item.ts",
+        "sha256": "a0b49af7acd43425cc853fa568505f90d89a0977b3ead6b039b1a0df8cce9a71"
+      },
+      {
+        "path": "src/renderer/domain/node-content.ts",
+        "sha256": "e1961b35f6f189eb508a005227be62a7fe13841ff942e1b7491d01d06d69fd64"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.test.ts",
+        "sha256": "de26bdb33f1abf2d8949deebd22f97946bbbf3d4160d9f20042e0ec1eeda0434"
+      },
+      {
+        "path": "src/renderer/domain/node-storyline-state.ts",
+        "sha256": "82161332e922034814a299f104729c4acf7cb057589b96d0388132d291be91fe"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.test.ts",
+        "sha256": "49f90887cfd8c12e231add1e205694ebcd03c25234c8e031ae7daca1b5fb85b2"
+      },
+      {
+        "path": "src/renderer/domain/plot-grid.ts",
+        "sha256": "dd88fbc8b1234f6c4cb2d279967a84ac11635fd154c11c5faabb608ac1f2ff01"
+      },
+      {
+        "path": "src/renderer/domain/project-asset.ts",
+        "sha256": "d247bc6b78e3d6d05447e03e3ff2dd37566fc338cf6340f10a835eaeaca5b497"
+      },
+      {
+        "path": "src/renderer/domain/project-summary.ts",
+        "sha256": "c184a19c16d2cd59f5b686bda5647912726847fafe95e50fd05a530c1d79f67c"
+      },
+      {
+        "path": "src/renderer/domain/project.ts",
+        "sha256": "0869310d172c773f866822feef08848c06dc07f7ed2233b486b5b8d27e747626"
+      },
+      {
+        "path": "src/renderer/domain/storyline.ts",
+        "sha256": "be20059b6b052409fc178b7ee5ca7fad26f74104ec584887c624224f8be2baef"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.test.ts",
+        "sha256": "ad7323c47dbfa0e1d2bb9f2c5fa95fbca396ff576488d7cc853da6fb86c3ba7a"
+      },
+      {
+        "path": "src/renderer/domain/timeline-conversion.ts",
+        "sha256": "cdd50bc81304e757b2f1fdba1661c060bdf85fafefa3c22802fa24a57caaa205"
+      },
+      {
+        "path": "src/renderer/domain/timeline-marker.ts",
+        "sha256": "986f6661216461cd793649ce2ec976a40ef29f3cd5f1b0cd4d9fcaf13eea0b35"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.test.ts",
+        "sha256": "f049c25dc7e65871da49f7d077d1869e2516165c91855eb291ddb286405f5d71"
+      },
+      {
+        "path": "src/renderer/domain/timeline-spread.ts",
+        "sha256": "b6f5c7b324f85a8e56df4ff90f80f83ed755863e3f1f252a63cedd713e9601b3"
+      },
+      {
         "path": "src/renderer/global.d.ts",
         "sha256": "6c05b59c8e1802fff5f1087ed42ab3b7a71d82ed973962b853fc8f42f1784cfb"
       },
       {
         "path": "src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts",
         "sha256": "82504cc06e3e913bdc31ac5d13c7b934941014a0ca332cb057245647b093e742"
-      },
-      {
-        "path": "src/renderer/lib/agent/runtime/yjs-prose-command.ts",
-        "sha256": "56522ec64a7f6cc847042e07eff73b829df289e53c7a764341796f5012878e93"
-      },
-      {
-        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts",
-        "sha256": "91c4865e5a6db72ab3c585dcc61ac63a63c22ae4f429852ee27eeb7870435f68"
-      },
-      {
-        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts",
-        "sha256": "c74e4e6e4f8192f3dfef28ad0387a8de38cdba29d2f9c00b04d1402217018f6d"
-      },
-      {
-        "path": "src/renderer/lib/db.test.ts",
-        "sha256": "3f82160978a3c9d035146f30384702b442ac75bf71bfbbd97a3ade2c4758645f"
       },
       {
         "path": "src/renderer/lib/db.ts",
@@ -693,14 +683,6 @@
       {
         "path": "src/renderer/schema/sync-engine-schema.integration.test.ts",
         "sha256": "e7e06c97207c3aeddc38778c1933014e80a1a5d347bd39a6ab0c816b1073c091"
-      },
-      {
-        "path": "src/renderer/services/snapshot-restore-sync-boundary.acceptance.test.ts",
-        "sha256": "1cd1eca0d96c8f7c83933b1f547558268d99e0d6dc45fcea0a5adee943afaec0"
-      },
-      {
-        "path": "src/renderer/services/snapshot-restore.service.ts",
-        "sha256": "39b3a51b01df4831cee092a5a9ac813b5957a64d9a5a6e17951758f5ab13133b"
       },
       {
         "path": "src/renderer/services/yjs-transaction-evidence.ts",
@@ -1615,6 +1597,26 @@
         "sha256": "2085b13775601afe212f93a5fbbe31abfd45e840da0f62c557b91a1ffd0d346a"
       },
       {
+        "path": "vendor/yrs/Cargo.toml.orig",
+        "sha256": "ad560977cdad06a087d94fafcf0a464754fd5f0b2a527b5bafd1471b684b60ba"
+      },
+      {
+        "path": "vendor/yrs/DRIFTING_PATCHES.md",
+        "sha256": "884226c4631161e0cf5d1f75b52d8257ea7ad959885adaaaa09a619fc6ef8204"
+      },
+      {
+        "path": "vendor/yrs/LICENSE",
+        "sha256": "b6d81564e9c46473907bd3c09d4d5ab0f21cfbe6ac35d46daf1bdb0423182a5b"
+      },
+      {
+        "path": "vendor/yrs/README.md",
+        "sha256": "6c56d67ee262839d49c3d5bba0930800274f78d5a3a3aacb7225d9649f019b6c"
+      },
+      {
+        "path": "vendor/yrs/UPSTREAM.json",
+        "sha256": "5c111de893961c4dba309498204d309625db4c1a044005b0187befe5245b8a3d"
+      },
+      {
         "path": "vendor/yrs/benches/benches.rs",
         "sha256": "b3196024b9e3904085a3927e1cfcfee3dce38baeb71c7f259d83384a38bb6784"
       },
@@ -1857,498 +1859,660 @@
       {
         "path": "vendor/yrs/src/utils/mod.rs",
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
-      },
-      {
-        "path": "vitest.config.ts",
-        "sha256": "80186ca061766cdccfe96b38b45f4fc2ebaeddf27248aed4dd8c63892439afeb"
-      },
-      {
-        "path": "vitest.shared.ts",
-        "sha256": "bd0f98a27ad9b750fca3490a3f250fade374bebfb0d8164beb4b0f0e087f9eb4"
       }
-    ]
+    ],
+    "fingerprint": "eea233a83ccd5d1f912deac9f647be7346e3dd6704e9697a9056116bf3fe6af6"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)"
   },
   "suites": [
     {
-      "name": "core",
-      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "passed": 81,
-      "failed": 0,
-      "cases": [
-        "database::tests::database_names_cannot_escape_the_managed_directory",
-        "database::tests::malformed_recovery_receipt_stops_startup_instead_of_guessing",
-        "database::tests::failed_shadow_candidate_never_changes_the_active_database",
-        "database::tests::restart_after_replace_never_migrates_an_incomplete_active_database",
-        "database::tests::shadow_migration_sigkill_worker",
-        "database::tests::agent_runtime_migration_enforces_canonical_journal_constraints",
-        "database::tests::ordinary_requests_wait_until_the_owning_transaction_finishes",
-        "database::tests::round_trips_every_sqlite_storage_class_without_losing_i64_precision",
-        "database::tests::a_fresh_renderer_session_recovers_a_stale_transaction",
-        "database::tests::refuses_a_database_migrated_by_a_newer_client",
-        "database::tests::another_renderer_cannot_take_over_without_explicit_recovery",
-        "database::tests::current_local_first_baseline_is_exactly_recorded_and_idempotent",
-        "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
-        "database::tests::pre_update_safety_snapshot_is_standalone_and_once_per_version",
-        "original_body_archive::tests::archive_generic_envelope_layer_does_not_claim_standalone_deletion_intent",
-        "database::tests::restart_after_replace_completes_marker_only_after_validating_active_database",
-        "database::tests::the_same_renderer_session_cannot_recover_its_own_active_transaction",
-        "original_operation::tests::original_operation_accepts_real_ts_envelopes_and_returns_all_exact_materialized_rows",
-        "original_operation::tests::original_operation_bounds_envelope_before_decode_and_owns_selected_bytes",
-        "original_operation::tests::original_operation_complete_canonical_value_model_matches_production_cborg",
-        "materialization_admission::tests::materialization_native_admission_failure_rolls_back_writer_revision_and_journal",
-        "original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders",
-        "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
-        "original_operation::tests::original_operation_rejects_ts_binding_schema_hash_versions_and_unclassified_event_corpus",
-        "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
-        "original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes",
-        "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity",
-        "original_body_archive::tests::archive_canonical_discovery_rejects_hidden_target_and_unselected_row_tampering",
-        "original_body_archive::tests::archive_bounds_reads_before_copy_and_leaves_caller_transaction_intact",
-        "materialization_admission::tests::materialization_native_journal_records_actual_append_and_survives_prune_cold",
-        "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
-        "original_body_archive::tests::archive_requires_applied_receipt_original_bytes_scope_and_known_references",
-        "original_body_archive::tests::archive_collects_real_seed_insert_delete_originals_and_reopens_without_intent_for_bodies",
-        "original_operation_store::tests::original_store_limits_corrupt_text_cells_before_gateway_allocation",
-        "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
-        "original_operation_store::tests::original_store_leaves_callers_work_intact_after_success_and_failure",
-        "original_operation_store::tests::original_store_refuses_rehashed_companion_insert_with_published_guards_intact",
-        "original_operation_store::tests::original_store_refuses_oversize_envelope_and_row_blobs_before_copying_them",
-        "original_operation_store::tests::original_store_requires_an_actual_matching_apply_receipt",
-        "original_operation_store::tests::original_store_reads_one_wal_snapshot_while_another_connection_commits",
-        "prose::tests::append_revision_provenance_and_cas_share_one_atomic_write",
-        "prose_journal::tests::prose_journal_bytes_and_hashes_match_actual_typescript_encoder",
-        "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
-        "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
-        "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
-        "original_operation_store::tests::original_store_reads_actual_single_and_multi_operation_without_side_effects",
-        "prose::tests::caller_rollback_and_failed_nested_append_leave_no_partial_prose_rows",
-        "prose::tests::invalid_provenance_or_precision_is_rejected_before_any_write",
-        "prose::tests::failed_prune_rolls_back_snapshot_inside_the_callers_transaction",
-        "prose::tests::snapshots_preserve_revision_and_prune_only_exact_document_coverage",
-        "prose_journal::tests::prose_journal_nested_failure_retains_outer_work_and_rejects_invalid_owner_generation_and_clock",
-        "prose_journal::tests::prose_journal_receipt_failure_rolls_back_prose_revision_writer_and_complete_journal",
-        "prose_journal::tests::prose_journal_rejects_utf16_oversized_ids_atomically_and_accepts_unicode_boundary",
-        "prose_journal::tests::prose_journal_writer_rotation_and_clock_rollback_match_authored_writer_contract",
-        "remote_prose::tests::remote_prose_multi_mutation_validates_complete_identity_and_current_scope_atomically",
-        "remote_prose::tests::remote_prose_observes_hlc_without_consuming_local_sequence",
-        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
-        "remote_workspace_metadata::tests::remote_workspace_metadata_rejects_unsupported_and_rolls_back_receipt_failure",
-        "remote_workspace_metadata::tests::remote_workspace_metadata_late_fields_reproject_verified_winners",
-        "workspace::outline::tests::workspace_outline_preserves_empty_acts_and_rejects_nonfinite_boundary",
-        "workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project",
-        "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
-        "workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries",
-        "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
-        "remote_prose::tests::remote_prose_receives_authored_original_and_deduplicates_after_prune_and_reopen",
-        "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
-        "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
-        "workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens",
-        "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
-        "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
-        "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
-        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer",
-        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
-        "remote_prose::tests::remote_prose_receipt_failure_rolls_back_complete_packet_and_preserves_outer_transaction",
-        "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
-        "database::tests::sigkill_matrix_reconciles_to_exactly_old_or_new_database",
-        "database::tests::project_upgrades_preserve_published_prefixes_with_same_version_safety_snapshots",
-        "native_journal_limits_optional_evidence_before_large_encoding_and_keeps_default_append_unchanged",
-        "native_journal_nested_evidence_rejection_and_receipt_failure_rollback_preserve_outer_work",
-        "native_journal_rejects_exact_event_and_schema_mismatches_without_advancing_writer_or_revision",
-        "native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire"
-      ],
-      "outputSha256": "20529b2d4ef6204a22cd84f3252e1de6ac9a7c36d0f50ec68294966c89e9cb42"
-    },
-    {
-      "name": "document",
-      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "passed": 144,
-      "failed": 0,
-      "cases": [
-        "comment_tests::stale_or_malformed_anchors_never_highlight_unrelated_prose_and_unknown_bytes_survive",
-        "capture::tests::capture_is_exact_local_history_and_never_remote_echo",
-        "comment_tests::whole_block_targets_split_and_rejoin_with_their_own_undo_metadata",
-        "comment_tests::deleted_text_and_blocks_keep_anchor_context_until_undo_restores_it",
-        "comment_tests::stale_quote_offsets_recover_nearest_match_and_cross_block_snapshot_fragments",
-        "comment_tests::remote_insert_survives_local_structural_undo_and_adjusts_comment_positions",
-        "concurrent_draft_tests::recreated_domain_block_id_rejects_structural_commit_atomically",
-        "concurrent_draft_tests::concurrent_sibling_insert_rejects_a_join_across_changed_topology_atomically",
-        "comment_tests::external_anchor_revision_and_comments_added_after_edit_are_not_overwritten_by_undo",
-        "comment_tests::split_join_history_and_checkpoint_keep_quote_and_original_snapshots",
-        "concurrent_draft_tests::disjoint_remote_prefix_allows_split_and_followup_input_on_the_old_visible_branch",
-        "concurrent_draft_tests::identical_visible_replacement_with_new_items_rejects_structural_commit_atomically",
-        "concurrent_draft_tests::remote_text_metadata_change_rejects_structure_even_with_equal_visible_text",
-        "draft_evidence_tests::queued_evidence_all_remote_deleted_produces_no_event_but_consumes_successful_sequence_once",
-        "concurrent_draft_tests::same_paragraph_prefix_insert_does_not_relax_text_metadata_or_non_enter_gates",
-        "concurrent_draft_tests::same_paragraph_prefix_insertions_keep_unicode_and_the_queued_author_basis",
-        "draft_evidence_tests::queued_evidence_rapid_followup_uses_visible_branch_ids_and_distinct_live_bases",
-        "draft_tests::draft_replaces_original_items_and_preserves_overlapping_remote_insertion_and_history",
-        "draft_tests::draft_selection_uses_authored_positions_after_remote_prefix_and_delete",
-        "draft_tests::draft_validation_cancel_and_rejected_commit_leave_live_state_untouched",
-        "concurrent_draft_tests::disjoint_structural_commit_maps_live_tail_comments_and_newer_selection_history",
-        "draft_evidence_tests::queued_evidence_interior_remote_insertion_stays_raw_without_deleting_or_claiming_remote_text",
-        "draft_tests::overlapping_local_views_commit_as_separate_authors_without_overwriting_each_other",
-        "draft_evidence_tests::queued_evidence_rebuilds_live_snapshot_offset_and_cross_client_emoji_ids_after_prefix_insert",
-        "draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged",
-        "formatting_tests::native_format_empty_caret_and_container_heading_preserve_parent_and_reject_unwrap",
-        "draft_evidence_tests::queued_evidence_excludes_already_remote_deleted_ids_and_never_undoes_remote_deletion",
-        "formatting_tests::native_format_italic_event_replays_on_peer_and_preserves_remote_history",
-        "formatting_tests::native_format_invalid_ranges_or_later_shared_metadata_reject_before_any_mutation",
-        "formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit",
-        "concurrent_draft_tests::same_paragraph_split_maps_comments_and_new_selection_history_in_live_offsets",
-        "formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen",
-        "draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified",
-        "native::tests::native_replacement_is_one_undo_and_rejects_stale_or_structural_edits",
-        "input_tests::branch_lifetime_sequence_and_rejected_edits_are_atomic",
-        "draft_tests::unchanged_structural_draft_keeps_the_standard_maps_and_remote_structure_is_explicit",
-        "input_tests::queued_inputs_keep_their_visible_basis_across_overlapping_merges",
-        "native_command_tests::native_command_basis_includes_preexisting_deletions_but_event_does_not_reemit_them",
-        "native_command_tests::native_command_observers_cannot_open_a_nested_write_transaction",
-        "native_command_tests::native_command_mutable_after_transaction_expansion_never_inherits_delete_intent",
-        "native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items",
-        "outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent",
-        "concurrent_draft_tests::prefix_deletion_does_not_allow_mixed_items_changed_marks_or_tail",
-        "native_command_tests::native_command_multiple_or_foreign_events_disqualify_without_dropping_authored_bytes",
-        "relocation_alias::gaps::tests::safe_clock_gaps_receipt_key_is_immutable_and_unknown_fields_reject",
-        "relocation_alias::gaps::tests::safe_clock_gaps_source_skip_is_not_canonical_gc_authority",
-        "relocation_alias::gaps::tests::safe_clock_gaps_receipts_normalize_unicode_and_reject_conflicts",
-        "native_command_tests::native_command_origin_is_removed_after_success_and_scope_drop_retains_only_raw_bytes",
-        "formatting_tests::native_format_paragraph_clears_selected_marks_and_level_but_keeps_links",
-        "concurrent_draft_tests::same_paragraph_split_rejects_boundary_tail_deleted_items_marks_and_metadata",
-        "relocation_alias::tests::relocation_alias_collision_and_nonplain_insertions_remain_unapplied",
-        "outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay",
-        "native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged",
-        "native_command_tests::native_command_history_is_raw_and_preserves_existing_local_undo_units",
-        "relocation_alias::tests::relocation_alias_malformed_metadata_leaves_live_unchanged",
-        "relocation_alias::tests::relocation_alias_known_source_clock_prefix_is_gc_covered_but_unknown_holes_are_not",
-        "relocation_alias::tests::relocation_alias_full_state_coalescing_and_v2_keep_original_clock_coverage",
-        "native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive",
-        "relocation_alias::tests::safe_clock_gaps_lost_prefix_with_residual_pending_is_atomic",
-        "relocation_alias::tests::relocation_alias_overlapping_receipt_segmentations_converge_after_exchange",
-        "relocation_alias::tests::relocation_alias_mixed_same_writer_interleaved_safe_clocks_require_exact_proof",
-        "relocation_alias::tests::relocation_alias_maps_immutable_origins_for_opposite_arrival_orders",
-        "relocation_alias::tests::relocation_alias_reactivation_reuses_source_graph_and_commits_activation_with_render",
-        "relocation_alias::tests::relocation_alias_mixed_safe_text_does_not_hide_unmapped_loss_format_or_delete",
-        "relocation_alias::tests::relocation_alias_two_receivers_translate_same_source_without_duplicate_characters",
-        "relocation_alias::tests::safe_clock_gaps_unproved_deleted_or_alias_branch_rejects_atomically",
-        "relocation_history_tests::relocation_history_activation_without_evidence_routes_later_original_update",
-        "relocation_alias::tests::safe_clock_gaps_retained_proof_outlives_safe_delete_without_resurrection",
-        "relocation_alias::tests::relocation_alias_mixed_same_writer_prefix_then_suffix_preserves_safe_clocks",
-        "relocation_alias::tests::safe_clock_gaps_two_receivers_exchange_repairs_and_later_return_to_b",
-        "relocation_history_tests::relocation_history_maps_retained_surrogate_and_combining_item_clocks_exactly",
-        "relocation_history_tests::relocation_history_rejects_activation_replaced_without_retiring_owned_render",
-        "relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation",
-        "relocation_history_tests::relocation_history_preserves_aware_c_tail_and_suffix_items",
-        "relocation_history_tests::relocation_history_rejects_modified_owned_render_without_resurrection",
-        "relocation_history_tests::relocation_history_pending_dependency_rejects_before_any_history_mutation",
-        "relocation_history_tests::relocation_history_rejects_unowned_restored_b_text_before_redo",
-        "remote::tests::prepared_remote_is_pure_and_cannot_apply_after_local_change",
-        "input_tests::one_branch_reuses_its_author_clocks_for_rapid_typing",
-        "replay_tests::separate_holes_and_duplicate_updates_remain_pending_until_dependencies_arrive",
-        "retention::tests::retention_scanner_rejects_clock_overflow_before_building_ranges",
-        "replay_tests::sparse_pending_delete_replays_and_subsequent_native_history_preserves_remote_text",
-        "retention_tests::retention_duplicates_and_partially_known_clock_ranges_are_idempotent",
-        "retention_tests::retention_explicit_deleted_new_text_under_deleted_parent_is_accepted",
-        "retention_tests::retention_explicit_deletes_work_in_the_same_packet_and_before_insert",
-        "retention_tests::retention_pending_text_checks_dependency_only_packets_and_reopen",
-        "retention_tests::retention_mixed_safe_and_unsafe_packet_rejects_the_entire_packet",
-        "relocation_history_tests::relocation_history_handle_resolves_in_owner_after_draft_and_input_forks",
-        "replay_tests::sparse_dependency_replays_in_every_order_and_across_pending_snapshot",
-        "concurrent_draft_tests::same_paragraph_prefix_deletions_keep_tail_history_and_queued_author_offsets",
-        "search_tests::native_search_and_resolution_leave_document_history_and_capture_unchanged",
-        "search_tests::native_search_cold_anchors_relocate_and_reject_changed_original_text",
-        "search_tests::native_search_excludes_ambiguous_placeholder_and_cross_block_matches",
-        "search_tests::native_search_maps_literal_lowercase_matches_to_original_utf16",
-        "retention_tests::retention_styled_rejection_survives_checkpoint_without_undo_history",
-        "relocation_history_tests::relocation_history_selection_on_late_render_follows_logical_b",
-        "selection_tests::invalid_or_stale_capture_is_atomic_and_detached_views_never_return_from_history",
-        "selection_tests::deleted_selection_collapses_and_removed_parent_is_unresolved_until_undo",
-        "relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history",
-        "selection_tests::reading_compressed_lineage_does_not_write_prose_or_add_undo_items",
-        "selection_tests::newest_selection_follows_multiple_reconstructed_ancestors",
-        "selection_tests::selection_metadata_never_enters_checkpoint_or_creates_prose_history",
-        "selection_tests::relative_selections_follow_remote_edits_on_both_sides_without_collapsing",
-        "selection_tests::joined_tail_and_inserted_or_empty_blocks_have_explicit_history_positions",
-        "structure::containers::tests::conflicting_container_metadata_fails_atomically_before_any_text_is_removed",
-        "selection_tests::new_manual_positions_in_copied_tail_survive_repeated_structural_history",
-        "selection_tests::lineage_tracks_fragmented_items_and_remote_prefix_shifts_without_text_search",
-        "selection_tests::structural_selection_history_keeps_live_crdt_positions_and_manual_epochs",
-        "structure::containers::tests::right_survivor_conflicts_reject_before_any_public_identity_changes",
-        "structure::containers::tests::right_survivor_accepts_late_suffix_edits_from_the_original_parent",
-        "structure::containers::tests::consumed_container_keeps_typed_metadata_marks_comments_and_manual_selection_history",
-        "structure::containers::tests::right_survivor_partial_delete_keeps_unsupported_boundaries_atomic",
-        "structure::containers::tests::right_survivor_partial_delete_retains_raw_clipped_marks",
-        "structure::containers::tests::right_survivor_keeps_physical_tail_and_typed_metadata_through_history_and_reopen",
-        "retention_tests::retention_styled_original_prefix_rejects_atomically_with_active_history_and_input",
-        "structure::containers::tests::suffix_relocation_is_rejected_before_it_can_create_duplicate_ids_on_remote_undo",
-        "structure::tests::enter_before_heading_keeps_the_live_heading_and_its_relative_positions",
-        "structure::tests::conflicting_unknown_metadata_rejects_merge_without_mutation_or_history",
-        "structure::containers::tests::right_survivor_partial_delete_queued_typing_has_two_undo_units",
-        "structure::containers::tests::right_survivor_partial_delete_remote_prefix_matches_production_history",
-        "structure::tests::split_keeps_prefix_items_and_maps_tail_then_undo_restores_original_anchors",
-        "structure::tests::structural_block_metadata_keeps_binary_types_and_rejects_shared_values",
-        "structure::tests::xml_text_metadata_conflicts_and_shared_values_reject_before_mutation",
-        "tests::invalid_ranges_leave_content_and_history_unchanged",
-        "tests::malformed_update_and_duplicate_block_ids_are_rejected",
-        "structure::containers::tests::right_survivor_separator_join_still_accepts_empty_right_paragraph",
-        "undo_policy_tests::protected_parent_does_not_disable_regular_attribute_or_local_insert_undo",
-        "wire::tests::deleted_format_payloads_are_validated_before_integration_can_hide_them",
-        "structure::containers::tests::right_survivor_retains_remote_suffix_text_and_metadata_on_undo_redo",
-        "wire::tests::export_rejects_unsafe_raw_in_memory_and_pending_marks",
-        "structure::tests::xml_text_metadata_survives_split_heading_start_join_history_and_checkpoint",
-        "wire::tests::json_marks_and_raw_binary_map_array_values_keep_the_existing_v1_bytes",
-        "wire::tests::ordinary_json_v2_format_update_passes_checked_v1_encoding",
-        "wire::tests::pending_format_structs_are_checked_even_without_their_text_dependencies",
-        "structure::tests::raw_inline_marks_survive_in_memory_inheritance_entity_affinity_split_join_and_history",
-        "wire::tests::v2_non_json_marks_and_embeds_are_rejected_before_v1_conversion",
-        "undo_policy_tests::selection_of_remote_append_stays_in_the_protected_parent_through_history",
-        "undo_policy_tests::remote_deletion_and_format_on_remote_text_and_new_comments_survive_undo",
-        "undo_policy_tests::structural_undo_retains_remote_subtree_text_identity_marks_and_metadata",
-        "relocation_history_tests::relocation_history_original_prefix_survives_two_cycles_one_event_and_reopen",
-        "remote::tests::staging_replay_accepts_the_same_clocks_after_many_independent_writers",
-        "relocation_alias::tests::relocation_alias_mixed_different_writers_preserve_safe_identity_marks_and_history",
-        "structure::containers::tests::right_survivor_partial_delete_preserves_ranges_unicode_comments_and_history",
-        "relocation_alias::tests::safe_clock_gaps_same_writer_complete_split_reversed_and_history"
-      ],
-      "outputSha256": "f419566f56c6dd914ea9436be14fb32ba5e9200ed162c67e1c13a71bcfb2b784"
-    },
-    {
-      "name": "prose",
-      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "passed": 29,
-      "failed": 0,
-      "cases": [
-        "malformed_tail_stops_coverage_before_the_bad_row_and_forbids_compaction",
-        "lookahead_explicit_cancellation_without_derived_repair_remains_atomically_retained_by_owner_scope",
-        "native_persistence::actual_native_multiclient_deletion_keeps_exact_event_through_original_store",
-        "failed_comment_cas_retains_authored_bytes_and_retry_never_duplicates_journal",
-        "derived_repair_snapshot_failure_rolls_back_journal_comments_and_live_then_cold_retry_commits_once",
-        "lookahead_comment_cas_rollback_preserves_raw_receipts_live_state_and_retry",
-        "lookahead_preceding_safe_step_and_pending_local_event_commit_with_one_basis_and_local_only_undo",
-        "lookahead_committed_snapshot_survives_interrupt_before_live_apply_without_repair_echo",
-        "mixed_same_writer_prefix_and_safe_suffix_repair_journals_once_and_survives_history_reopen",
-        "lookahead_releases_first_retained_row_only_after_complete_durable_dependency_and_replays_actual_gapped_ids",
-        "lookahead_cold_recovery_uses_stored_full_closure_without_duplicate_system_journal",
-        "native_persistence::native_captured_deletion_refuses_changed_incarnation_without_losing_record",
-        "native_persistence::native_captured_deletion_rechecks_scope_after_projection_callback_and_retries",
-        "native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes",
-        "native_persistence::native_history_and_generic_delete_do_not_gain_standalone_command_intent",
-        "native_persistence::native_delete_record_survives_projection_failure_and_later_input_before_retry",
-        "native_persistence::sequential_native_declarations_rollback_as_one_batch_without_sequence_holes",
-        "native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input",
-        "prepared_projection_failure_does_not_publish_remote_state_or_consume_local_history",
-        "pending_local_and_derived_repair_commit_together_after_comment_cas_retry_without_undoing_remote_text",
-        "received_late_text_stays_durable_uncovered_and_retry_does_not_duplicate_it",
-        "remote_then_local_replays_actual_gapped_ids_and_recovers_lost_notifications",
-        "snapshot_and_prune_failures_leave_reopenable_rows_and_retry_does_not_rejournal",
-        "lookahead_malformed_formatted_and_still_pending_tail_members_reject_the_entire_candidate",
-        "safe_clock_gap_between_original_prefix_inserts_preserves_two_history_cycles_and_cold_replay",
-        "safe_clock_gap_pending_last_prefix_survives_checkpoint_prune_cold_open_and_dependency_comment_cas",
-        "native_persistence::queued_and_draft_commands_persist_live_basis_without_deleting_remote_insertions",
-        "remote_sync_accumulates_real_snapshot_tail_and_same_document_mutations",
-        "remote_sync_rejects_invalid_second_mutation_without_writes"
-      ],
-      "outputSha256": "85a82eccedd5b03dfbb70b2232263b1a284005543dee651fa50f0ed20f8d732d"
-    },
-    {
-      "name": "bridge",
-      "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "passed": 46,
-      "failed": 0,
-      "cases": [
-        "tests::checkpoint_preserves_comment_body_and_refuses_external_anchor_overwrite",
-        "tests::authored_commit_survives_checkpoint_failure_without_duplicate_journal_or_stale_comment_cas",
-        "tests::comment_split_redo_and_checkpoint_restore_original_quote",
-        "tests::comment_write_failure_rolls_back_prose_and_anchor_until_atomic_retry",
-        "tests::draft_checkpoint_failure_consumes_commit_once_and_retries_only_persistence",
-        "tests::failed_checkpoint_retains_prose_until_retry",
-        "tests::remote_delivery_commits_before_live_replay_and_does_not_author_local_journal",
-        "tests::old_lab_keys_merge_snapshots_and_tail_without_losing_content_or_comment_targets",
-        "tests::sparse_remote_dependencies_survive_checkpoint_reopen_and_later_delivery",
-        "tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen",
-        "tests::rejects_production_directories_and_malformed_requests",
-        "tests::final_close_replays_committed_remote_tail_after_lost_notification",
-        "tests::c_abi_preserves_unicode_across_close_and_reopen_and_rejects_stale_handles",
-        "tests::ephemeral_selection_abi_tracks_history_and_drops_without_checkpoint_writes",
-        "tests::native_prose_unicode_history_and_metadata_survive_sqlite_reopen",
-        "tests::abi_distinguishes_stored_remote_from_applied_and_retains_blocked_owner",
-        "tests::input_branches_checkpoint_once_and_guard_active_composition",
-        "tests::draft_remote_abi_preserves_concurrent_text_and_survives_checkpoint_reopen",
-        "workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database",
-        "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
-        "workspace_tests::search::workspace_search_caps_results_and_reports_actual_truncation",
-        "workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match",
-        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
-        "workspace_tests::remote_changes::workspace_remote_changes_receipt_rollback_and_retry",
-        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
-        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
-        "workspace_tests::remote_prose::workspace_remote_prose_lost_notification_replays_all_owners_after_local_interleave",
-        "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen",
-        "workspace_tests::remote_prose::workspace_remote_prose_rejected_original_and_receipt_failure_preserve_owner_and_draft",
-        "workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes",
-        "workspace_tests::remote_prose::workspace_remote_prose_offline_replicas_converge_all_open_chapters_with_local_history",
-        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
-        "workspace_tests::workspace_fixture_database_and_workspace_owners_remain_separate",
-        "workspace_tests::search::workspace_search_resolves_cold_unicode_hits_in_live_owner_and_rejects_stale_hits",
-        "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
-        "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
-        "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
-        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
-        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
-        "workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once",
-        "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
-        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
-        "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
-        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
-        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
-        "workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry"
-      ],
-      "outputSha256": "aa98d26d9a94a2e5de921ede3ee53841300c144bfb921a4612e0c0936df722fe"
-    }
-  ],
-  "rendererMaterialization": [
-    {
-      "file": "src/renderer/lib/db.test.ts",
-      "passed": 10,
-      "failed": 0,
-      "cases": [
-        "Drizzle Tauri transaction binding notifies only after the outer commit, including successful savepoints",
-        "Drizzle Tauri transaction binding discards notifications registered in a rolled-back savepoint",
-        "Drizzle Tauri transaction binding discards successful-savepoint notifications when the outer transaction rolls back",
-        "Drizzle Tauri transaction binding does not notify when the gateway commit fails",
-        "Drizzle Tauri transaction binding does not turn an observer failure into an apparent author write failure",
-        "Drizzle Tauri transaction binding rejects notification registration outside a live bound transaction",
-        "Drizzle Tauri transaction binding uses the gateway transaction ID and never emits raw top-level transaction SQL",
-        "Drizzle Tauri transaction binding rolls back the owning gateway transaction when the callback fails",
-        "Drizzle Tauri transaction binding serializes concurrent top-level transactions before asking Rust to begin",
-        "Drizzle Tauri transaction binding implements nested Drizzle transactions with transaction-bound savepoints"
-      ]
-    },
-    {
-      "file": "src/renderer/services/snapshot-restore-sync-boundary.acceptance.test.ts",
+      "name": "core-workspace-metadata",
       "passed": 2,
       "failed": 0,
       "cases": [
-        "snapshot history SyncEngine boundary journals every closed-document restore before compaction",
-        "snapshot history SyncEngine boundary flushes an open document and keeps local history off hosted HTTP"
-      ]
+        "remote_workspace_metadata::tests::remote_workspace_metadata_rejects_unsupported_and_rolls_back_receipt_failure",
+        "remote_workspace_metadata::tests::remote_workspace_metadata_late_fields_reproject_verified_winners"
+      ],
+      "logSha256": "d6d9c07120c0133ff1a9543a5f7ff2e14f4f5bcdc89087a5e6b457b423ff1039"
     },
     {
-      "file": "src/renderer/sync/journal/yjs-materialization.integration.test.ts",
-      "passed": 14,
+      "name": "bridge-workspace-remote",
+      "passed": 4,
       "failed": 0,
       "cases": [
-        "positive Yjs materialization admission records stable indices and historical revisions for two actual local appends in one normalized envelope",
-        "positive Yjs materialization admission does not backfill admission for an arbitrary journal mutation with existing identical raw bytes",
-        "positive Yjs materialization admission rejects forged old-row registration and cross-builder or wrong-index tokens",
-        "positive Yjs materialization admission refuses tokens after commit and rollback even when the rolled-back row ID is reused",
-        "positive Yjs materialization admission never rebinds a fresh state-carrier token to a same-bytes suppressed command",
-        "positive Yjs materialization admission rolls all tables back on admission failure and retries at sequence and revision one",
-        "positive Yjs materialization admission rolls the complete batch back when its second receipt fails and retries both appends",
-        "positive Yjs materialization admission rolls admission back when post-journal authored observation fails",
-        "positive Yjs materialization admission retains immutable admission after actual snapshot and raw pruning",
-        "positive Yjs materialization admission gives identical bytes in independent authored originals independent row IDs and admissions",
-        "positive Yjs materialization admission seals an authored append only to its newly inserted original and rejects an old identical unadmitted original",
-        "positive Yjs materialization admission uses the final restored incarnation rather than the provisional prose target zero",
-        "positive Yjs materialization admission preserves per-append revisions when the same restore transaction then advances a snapshot revision",
-        "positive Yjs materialization admission rejects an outer-handle materialized append inside a savepoint before rollback can leave a reusable lease"
-      ]
-    },
-    {
-      "file": "src/renderer/sync/journal/yjs-update.integration.test.ts",
-      "passed": 15,
-      "failed": 0,
-      "cases": [
-        "authored Yjs journal persists actual transaction evidence with identical update and immutable envelope bytes",
-        "authored Yjs journal copies update and evidence before waiting for the SQLite transaction scheduler",
-        "authored Yjs journal keeps user revision labels separate from wire evidence",
-        "authored Yjs journal keeps agent revision labels separate from wire evidence",
-        "authored Yjs journal keeps system revision labels separate from wire evidence",
-        "authored Yjs journal keeps seed and restore state untagged unless an operation supplies evidence",
-        "authored Yjs journal persists explicit state-transfer evidence without transaction delete claims",
-        "authored Yjs journal rolls back evidence and prose together when receipt observation fails after journaling",
-        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":2,\"kind\":\"state-transfer\"}",
-        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"transaction-event\",\"beforeSnapshot\":{\"0\":255},\"transactionDeletes\":[]}",
-        "authored Yjs journal rejects invalid explicit evidence before scheduling any database transaction: {\"version\":1,\"kind\":\"state-transfer\",\"transactionDeletes\":[]}",
-        "authored Yjs journal commits the update, revision, provenance and raw-byte mutation atomically",
-        "authored Yjs journal commits a deterministic create seed with the owner and one complete authored change-set",
-        "authored Yjs journal rolls every Yjs row back when the authored transaction cannot bind a SyncGeneration",
-        "authored Yjs journal enumerates snapshot-only documents for checkpoint capture"
-      ]
-    },
-    {
-      "file": "src/renderer/sync/reducer/production-domain-kernel.integration.test.ts",
-      "passed": 27,
-      "failed": 0,
-      "cases": [
-        "production SyncDomainMaterializationKernel on file-backed SQLite classifies every frozen reducer target as implemented or explicitly fail-closed",
-        "production SyncDomainMaterializationKernel on file-backed SQLite lets a narrative drop update an older chapter lifecycle without revalidating untouched book order",
-        "production SyncDomainMaterializationKernel on file-backed SQLite rejects a newly authored chapter fractional-order register",
-        "production SyncDomainMaterializationKernel on file-backed SQLite replays a locked built-in relation type before applying the next chapter creation bundle",
-        "production SyncDomainMaterializationKernel on file-backed SQLite materializes a classified field and records no authored echo",
-        "production SyncDomainMaterializationKernel on file-backed SQLite keeps invalid effects as deterministic conflicts without touching domain rows",
-        "production SyncDomainMaterializationKernel on file-backed SQLite validates relation invariants before a lifecycle seed reaches SQLite",
-        "production SyncDomainMaterializationKernel on file-backed SQLite materializes membership OR-set state before the independent primary LWW register",
-        "production SyncDomainMaterializationKernel on file-backed SQLite removes storyline memberships before materializing storyline trash",
-        "production SyncDomainMaterializationKernel on file-backed SQLite accepts a local authored membership removal bundled with storyline trash",
-        "production SyncDomainMaterializationKernel on file-backed SQLite blocks a primary register that does not reference a present membership",
-        "production SyncDomainMaterializationKernel on file-backed SQLite materializes trash and full-seed restore as a new incarnation",
-        "production SyncDomainMaterializationKernel on file-backed SQLite fails closed on scalar prose and prose lifecycles without one full Yjs state",
-        "production SyncDomainMaterializationKernel on file-backed SQLite restores rows without deletedAt from physical trash projections at incarnation one",
-        "production SyncDomainMaterializationKernel on file-backed SQLite keeps restored Yjs and asset ownership when late incarnation-zero operations arrive",
-        "production SyncDomainMaterializationKernel on file-backed SQLite applies a valid Yjs update with remote provenance inside the receipt transaction",
-        "production SyncDomainMaterializationKernel on file-backed SQLite preserves transaction-event evidence in the remote envelope while materializing ordinary prose",
-        "production SyncDomainMaterializationKernel on file-backed SQLite preserves state-transfer evidence in the remote envelope while materializing ordinary prose",
-        "production SyncDomainMaterializationKernel on file-backed SQLite rejects present null at the direct kernel validation seam without domain or Yjs writes",
-        "production SyncDomainMaterializationKernel on file-backed SQLite rejects unsupported evidence version at the direct kernel validation seam without domain or Yjs writes",
-        "production SyncDomainMaterializationKernel on file-backed SQLite rejects snapshot with trailing bytes at the direct kernel validation seam without domain or Yjs writes",
-        "production SyncDomainMaterializationKernel on file-backed SQLite rejects overlapping delete ranges at the direct kernel validation seam without domain or Yjs writes",
-        "production SyncDomainMaterializationKernel on file-backed SQLite binds an asset only after verified blob staging and enforces one typed owner",
-        "production SyncDomainMaterializationKernel on file-backed SQLite converges asset bind/unbind when the older bind arrives after the winner",
-        "production SyncDomainMaterializationKernel on file-backed SQLite materializes sync-generation.purge without deleting the immutable sync receipt",
-        "production SyncDomainMaterializationKernel on file-backed SQLite keeps sync-generation.purge absorbing across two-writer reorder, duplicate, and restart replay",
-        "production SyncDomainMaterializationKernel on file-backed SQLite preserves the terminal purge register through checkpoint reducer-state restore"
-      ]
-    },
-    {
-      "file": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.integration.test.ts",
-      "passed": 12,
-      "failed": 0,
-      "cases": [
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc keeps exact user and Agent revision provenance after update compaction",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc commits seed -> closed commands, survives compaction, and replays receipts without a duplicate write",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for persisted prose with 'missing-block-id' without writing a repair update",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for persisted prose with 'duplicate-block-id' without writing a repair update",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for live prose with 'missing-block-id' without mutating Yjs or SQLite",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails closed for live prose with 'duplicate-block-id' without mutating Yjs or SQLite",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc applies a committed command to the live Y.Doc with an already-persisted origin and no second append",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc rolls back Yjs, revision, projection, journal, and receipt when the transaction-bound journal fails",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc detects stale revision/vector/hash before mutation and commits an exact inverse as a new revision",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc rebases an inverse over an unrelated durable block edit and preserves both outcomes",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc refuses a rebased inverse after its affected block changed again",
-        "Yjs prose persistence coordinator against real SQLite + Y.Doc fails the SQL revision CAS when another durable Yjs update wins the race"
-      ]
+        "workspace_tests::remote_changes::workspace_remote_changes_receipt_rollback_and_retry",
+        "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
+        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
+        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order"
+      ],
+      "logSha256": "07f8873caf6fe801905447d478dc252e24e0ada6a0aacd847d271cfef60e73e9"
     }
   ],
-  "checks": {
-    "normalLibraries": true,
-    "strictTypeScript": true,
-    "rustfmt": true,
-    "eventOrderFixtures": {
-      "accepted": 11,
-      "rejected": 21,
-      "actualNativeEvents": 4
+  "renderer": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "inputSha256": "d32ecb63f5aa20fd69c1910941b4fdf18c204ff2cb573fe92bf26d446ef0511b",
+    "cases": [
+      {
+        "name": "chapter-create-and-prose",
+        "status": "passed",
+        "beforeDatabaseSha256": "1207f09082afdd3b0ea0add12293e2371d93f7012af31fab16f6fbcdfb3dbe1d",
+        "afterDatabaseSha256": "cac55ce9007c9e9a413419bdd7ff3eb6db85aa60d74a2ff9a3e6955d60757eb3",
+        "deliveries": [
+          {
+            "changeSetId": "lab-3221-1790435543139724000-69-writer:lab-3221-1790435543139724000-69-epoch:1",
+            "envelopeSha256": "1eccbc527affcbf56b24dd3241cdaac257023484080c45bd5e1102b4f2cf5034",
+            "mutationCount": 3,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543139724000-69-writer:lab-3221-1790435543139724000-69-epoch:2",
+            "envelopeSha256": "1e5989cd38be17c1e7651a888ddb010136923d47b91c380390b60b242bf0b524",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543139724000-69-writer:lab-3221-1790435543139724000-69-epoch:1",
+            "envelopeSha256": "1eccbc527affcbf56b24dd3241cdaac257023484080c45bd5e1102b4f2cf5034",
+            "mutationCount": 3,
+            "status": "duplicate"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543139724000-69-writer:lab-3221-1790435543139724000-69-epoch:2",
+            "envelopeSha256": "1e5989cd38be17c1e7651a888ddb010136923d47b91c380390b60b242bf0b524",
+            "mutationCount": 1,
+            "status": "duplicate"
+          }
+        ],
+        "tables": [
+          {
+            "name": "sync_change_set",
+            "rows": 6,
+            "sha256": "d6e105b452e9008da0937d32dfd28c22c8a666eff7d70186e59f7249c3b08413"
+          },
+          {
+            "name": "sync_mutation",
+            "rows": 25,
+            "sha256": "7338c3fae13cc28b9ec2146d4417c7876b4e095eba1f1e987183bd3ef58f3ceb"
+          },
+          {
+            "name": "sync_apply_receipt",
+            "rows": 6,
+            "sha256": "71614c3469fee6608fd98778cbbc92ec9970973e6bb37b377c371c9648c766ec"
+          },
+          {
+            "name": "sync_yjs_materialization_receipt",
+            "rows": 5,
+            "sha256": "d60a331468ee5481b7f868b637e331eeda34b3c1eac95fd662b24e59dbabbf5f"
+          },
+          {
+            "name": "sync_generation_writer_state",
+            "rows": 3,
+            "sha256": "cfa3d4ef46028ae013825abaf3e140a2fd29ff1c5d4284738f83f08ebc260570"
+          },
+          {
+            "name": "yjs_updates",
+            "rows": 3,
+            "sha256": "76c0cfaa38e388548372be0c9ea501a5baa27aab29b80323c70feed910a752bf"
+          },
+          {
+            "name": "yjs_snapshots",
+            "rows": 1,
+            "sha256": "38825e4886459b7ac8d2bc0f1aa8f8a0f52f6f16ab1c1d19d79eefb7e7eadf26"
+          },
+          {
+            "name": "yjs_document_revision",
+            "rows": 3,
+            "sha256": "08edf417b4e059f4ceb899dccbf61caef5ba3eb0bdc178bc3bc66be10205e1f8"
+          },
+          {
+            "name": "yjs_document_revision_provenance",
+            "rows": 5,
+            "sha256": "ba6f6eb06d234198e17e23aef530b8a2a041459ed38a29dc259788011aa7fda4"
+          },
+          {
+            "name": "node_content",
+            "rows": 3,
+            "sha256": "b064768b480850046a1ac5ff0ded9b38ad2e7e878c49da5030148d0304e6bab0"
+          },
+          {
+            "name": "project",
+            "rows": 1,
+            "sha256": "f226e33932bb0fb786bd82cacb95c17a10d1ff8101f061f40b0f137f5619432f"
+          },
+          {
+            "name": "book_node",
+            "rows": 3,
+            "sha256": "8c09d320fda068e1a983542ac82ce5db52563efafd91dfe08267a13181c56509"
+          },
+          {
+            "name": "node_storyline_link",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "name": "sync_entity_lifecycle",
+            "rows": 11,
+            "sha256": "fdde559c2a450c4eb22f4cf9134debb2bafd9a6f9b2c42f165d686856e05527e"
+          },
+          {
+            "name": "sync_field_clock",
+            "rows": 3,
+            "sha256": "8ba944b014198d4e978589c4f01347d03b9472672d4964f137780d0b95179059"
+          },
+          {
+            "name": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "documents": [
+          {
+            "documentId": "node-content:native-chapter-3221-1790435543139755000-70",
+            "stateSha256": "d02dd811458d51b788dd0317e1b92c9bc011043f21aab812c48e35c1aa30521e",
+            "semanticCache": "passed"
+          }
+        ]
+      },
+      {
+        "name": "competing-fields-and-order",
+        "status": "passed",
+        "beforeDatabaseSha256": "6131c84bb0b0af43e9c914f8bc1974352a00c83de9f9a77926744d0f314d37fb",
+        "afterDatabaseSha256": "f025c68d1637b9363ef5fad5c68cbf9870fde17ac78a4ad8d6bd32d520dbfd5a",
+        "deliveries": [
+          {
+            "changeSetId": "lab-3221-1790435543146726000-75-writer:lab-3221-1790435543146726000-75-epoch:4",
+            "envelopeSha256": "3bcf42b72a399bc49e4e1f1e161dced49cd44402991e445fe8c889130797a422",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543146726000-75-writer:lab-3221-1790435543146726000-75-epoch:3",
+            "envelopeSha256": "46960b1c5ee7c0752f9b87e92adb312c980af828681ac759d1f9c5623ca6ac83",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543146726000-75-writer:lab-3221-1790435543146726000-75-epoch:2",
+            "envelopeSha256": "ca4300030df981387e56c7da182e2647a2dd8feb1ea3e4e8a597bdf6c2434e04",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543146726000-75-writer:lab-3221-1790435543146726000-75-epoch:1",
+            "envelopeSha256": "3d49c4afc73ed04c2a8178c9cee95dcef6594c557df0e82f79ce80999ca3cb14",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543146726000-75-writer:lab-3221-1790435543146726000-75-epoch:1",
+            "envelopeSha256": "3d49c4afc73ed04c2a8178c9cee95dcef6594c557df0e82f79ce80999ca3cb14",
+            "mutationCount": 1,
+            "status": "duplicate"
+          }
+        ],
+        "tables": [
+          {
+            "name": "sync_change_set",
+            "rows": 9,
+            "sha256": "d51cbfc2ec25c428be3179a51893d7b8877b39480f814616dee05eb4d1ade378"
+          },
+          {
+            "name": "sync_mutation",
+            "rows": 26,
+            "sha256": "3f7af79e551786913c5c42797781e6921e401da535cf6ca4a58d49cf34c9d64e"
+          },
+          {
+            "name": "sync_apply_receipt",
+            "rows": 9,
+            "sha256": "83a2bae3367e61e4d7f0edcf6465298233005ad1ce33baeb4ebd43048903cfbb"
+          },
+          {
+            "name": "sync_yjs_materialization_receipt",
+            "rows": 3,
+            "sha256": "6e540b3ae99f088b6d72284a53a4ab3fb2724f6ba89e6d7becb38d5e70faa689"
+          },
+          {
+            "name": "sync_generation_writer_state",
+            "rows": 3,
+            "sha256": "176e60e5bc3c5c6bf429299577c82b226340ac87ff157521d5de8e92610ef77f"
+          },
+          {
+            "name": "yjs_updates",
+            "rows": 2,
+            "sha256": "be14fb522dc0886d68be1d23c4b7cdf789d12314582e2edfdb1c8dd9ec52a093"
+          },
+          {
+            "name": "yjs_snapshots",
+            "rows": 1,
+            "sha256": "662b3db0b91fb43bd2f49dabfeb0e0d2157d917a8ce18c11a86f74482bcd998a"
+          },
+          {
+            "name": "yjs_document_revision",
+            "rows": 2,
+            "sha256": "f9a86ed5be2ba99215248c5a7615946ef52eaf044a5cc056576f0fc53de63614"
+          },
+          {
+            "name": "yjs_document_revision_provenance",
+            "rows": 3,
+            "sha256": "b82a9213509b39500f877f29ca9663a5c97df87d84ae13cc1176422db87311f1"
+          },
+          {
+            "name": "node_content",
+            "rows": 2,
+            "sha256": "699b5a7e7ac08d7e0d31233a082abfe8b54657eeb2dbcc34f2a76e5665c5932f"
+          },
+          {
+            "name": "project",
+            "rows": 1,
+            "sha256": "aa1227420b673d8fb6953c1a13746fb18413107479d1500eaf95de1bd20e6d16"
+          },
+          {
+            "name": "book_node",
+            "rows": 2,
+            "sha256": "6cd1fe72c49d6f529e83c2e1a20a2bbae27b9246b227b9ee58db9284dc572463"
+          },
+          {
+            "name": "node_storyline_link",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "name": "sync_entity_lifecycle",
+            "rows": 10,
+            "sha256": "e4ea53c1d9b537af771dd923cc4b8f79fa77bb8a8de12c9078ed6d31c2fadcaa"
+          },
+          {
+            "name": "sync_field_clock",
+            "rows": 6,
+            "sha256": "5eb7ccd7697f1c1c7a076c6fd96edf144472dfedb12a0dab3ff84a909caea9b7"
+          },
+          {
+            "name": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "documents": [
+          {
+            "documentId": "node-content:native-chapter-3221-1790435542112246000-30",
+            "stateSha256": "b9f18aaa2cebd262cffba7b900504caaed8a2bd36bb5c49d233c6572056f04e0",
+            "semanticCache": "passed"
+          }
+        ]
+      },
+      {
+        "name": "late-fields-before-create",
+        "status": "passed",
+        "beforeDatabaseSha256": "3ee7a4bc566ec052a9d279169b664cf52b7f5b36fa9f7f7c6b8cead63a5cfd1e",
+        "afterDatabaseSha256": "dbe5cbe5080812d6e129ea11d4edff086e79b06d8cb0e594bad0386c57bbe274",
+        "deliveries": [
+          {
+            "changeSetId": "lab-3221-1790435543137538000-66-writer:lab-3221-1790435543137538000-66-epoch:3",
+            "envelopeSha256": "666bec5ba31a9fbd57a8f1d317feebc6fcfb5da3af23402340ce58a8356cfd29",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543137538000-66-writer:lab-3221-1790435543137538000-66-epoch:2",
+            "envelopeSha256": "2d98dccecf3d3bf3adb54aa9ea2fd497da98da41514a8f0fd47886a0395d1a7a",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543137538000-66-writer:lab-3221-1790435543137538000-66-epoch:1",
+            "envelopeSha256": "df62e5d0b7c414bf5dbcc5ec91272a084fda68089a2d9101c61aae138364bc94",
+            "mutationCount": 3,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543137538000-66-writer:lab-3221-1790435543137538000-66-epoch:4",
+            "envelopeSha256": "05e1bec9eb2f0c19b09b6064ee894df1b4e65dda79c9e2a515219592ba3d82ea",
+            "mutationCount": 1,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543137538000-66-writer:lab-3221-1790435543137538000-66-epoch:1",
+            "envelopeSha256": "df62e5d0b7c414bf5dbcc5ec91272a084fda68089a2d9101c61aae138364bc94",
+            "mutationCount": 3,
+            "status": "duplicate"
+          }
+        ],
+        "tables": [
+          {
+            "name": "sync_change_set",
+            "rows": 7,
+            "sha256": "524c17c173ec2b4b271bd2c54d9bed278602fc905acd80db0f8aabdb2d95810a"
+          },
+          {
+            "name": "sync_mutation",
+            "rows": 26,
+            "sha256": "74a87af742fef5808cca9deb28597d674e1180e5bf72cf1fe69c0037d10bba5d"
+          },
+          {
+            "name": "sync_apply_receipt",
+            "rows": 7,
+            "sha256": "f61b2a4cfd1fd28c3005a7ce5ebeb589c498eaf7955b175ee4be86e8b9355e43"
+          },
+          {
+            "name": "sync_yjs_materialization_receipt",
+            "rows": 4,
+            "sha256": "dbd52e81b9b8861bf114f802d12ac1b474d17fff9f39cdaa2c97af629dbb3b7c"
+          },
+          {
+            "name": "sync_generation_writer_state",
+            "rows": 2,
+            "sha256": "cf96e4b48315425617e5469ed85ce19e7e5328f567e97d1d2bc279d30114ecdd"
+          },
+          {
+            "name": "yjs_updates",
+            "rows": 3,
+            "sha256": "bbaa173fad062bc0da2011c631b99d7791a57259e7a1ab88eecdc13a2192e062"
+          },
+          {
+            "name": "yjs_snapshots",
+            "rows": 1,
+            "sha256": "886a1eb1e394bbcddae5e521afe37ea05d781d686d1bc9595063a14475a7326d"
+          },
+          {
+            "name": "yjs_document_revision",
+            "rows": 3,
+            "sha256": "e1a99d3d5089f28018ad88c8ed2077b513c022070fb64f9e8295e6592f3fd9f1"
+          },
+          {
+            "name": "yjs_document_revision_provenance",
+            "rows": 4,
+            "sha256": "dd3e60d2c60ecb87f8bc524bb1ea30d28ba8a387eb8eed1c137edd02a228988b"
+          },
+          {
+            "name": "node_content",
+            "rows": 3,
+            "sha256": "dc6f412f0bfe6295e8399e753472176bfaa9c3641e7a631c54264d95baca0656"
+          },
+          {
+            "name": "project",
+            "rows": 1,
+            "sha256": "17ea6f578c90c2d3e46006768eda6da95c95361a39cca3279be8d3376a50a0a1"
+          },
+          {
+            "name": "book_node",
+            "rows": 3,
+            "sha256": "91a465d623a42a524d05715de865ad3d580ccb064e1969e08dc49b213a19e4be"
+          },
+          {
+            "name": "node_storyline_link",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "name": "sync_entity_lifecycle",
+            "rows": 11,
+            "sha256": "8f453700a554f978f4ff2ec3606adc6f8b8bc37ca521e940c1c3e5fd16ade51d"
+          },
+          {
+            "name": "sync_field_clock",
+            "rows": 5,
+            "sha256": "21a7cea348d31a16515e5bdc00080bd125cd682162eb826c0f435c3cb2093a83"
+          },
+          {
+            "name": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "documents": [
+          {
+            "documentId": "node-content:native-chapter-3221-1790435543137566000-67",
+            "stateSha256": "f9f632a8f496dfe33303ec0e809025118d3bded2f88a6b5ac1b5bac437eb0e93",
+            "semanticCache": "passed"
+          }
+        ]
+      },
+      {
+        "name": "receipt-rollback-and-retry",
+        "status": "passed",
+        "beforeDatabaseSha256": "f1748bd4a936143849443fa272ea466f8874303a878d531fbd8cb61a6da50859",
+        "afterDatabaseSha256": "4f6589720f852cd01d5462576cfe003e9c98379fdac07de03c22e7240f506a36",
+        "deliveries": [
+          {
+            "changeSetId": "lab-3221-1790435543135242000-63-writer:lab-3221-1790435543135242000-63-epoch:1",
+            "envelopeSha256": "2dbd6783ba5ebcea82d1fda3d4b605480aaa780843a73daa8a43c8f0130c6b3c",
+            "mutationCount": 3,
+            "status": "rejected"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543135242000-63-writer:lab-3221-1790435543135242000-63-epoch:1",
+            "envelopeSha256": "2dbd6783ba5ebcea82d1fda3d4b605480aaa780843a73daa8a43c8f0130c6b3c",
+            "mutationCount": 3,
+            "status": "applied"
+          },
+          {
+            "changeSetId": "lab-3221-1790435543135242000-63-writer:lab-3221-1790435543135242000-63-epoch:1",
+            "envelopeSha256": "2dbd6783ba5ebcea82d1fda3d4b605480aaa780843a73daa8a43c8f0130c6b3c",
+            "mutationCount": 3,
+            "status": "duplicate"
+          }
+        ],
+        "tables": [
+          {
+            "name": "sync_change_set",
+            "rows": 4,
+            "sha256": "a20f677e58a24d4c9f73a4b238193c81d3d500331c782863a5de5054dd87615c"
+          },
+          {
+            "name": "sync_mutation",
+            "rows": 23,
+            "sha256": "d55881e7edfaf5aafbcc50f4f398c39b92580e4cd59942e6040457fc95d624c0"
+          },
+          {
+            "name": "sync_apply_receipt",
+            "rows": 4,
+            "sha256": "6f145a56262365426ad840f363aaac28b360e67a6d98c7f3b9f6042b5a0f9d5c"
+          },
+          {
+            "name": "sync_yjs_materialization_receipt",
+            "rows": 3,
+            "sha256": "1bc041848cfa8dac278098a051cba2ec6ed8f3d37f95fa7219e29212a0e59a8a"
+          },
+          {
+            "name": "sync_generation_writer_state",
+            "rows": 2,
+            "sha256": "789f262a2b80355bba35244d4bcaad55385050ecc571d4f391d0dc5bcaeaeb87"
+          },
+          {
+            "name": "yjs_updates",
+            "rows": 2,
+            "sha256": "ba246c3d23c9649356bd8f7446915bb333ebde7b3eacdc8057ed9d419877e4e6"
+          },
+          {
+            "name": "yjs_snapshots",
+            "rows": 1,
+            "sha256": "0be3bff4f228511d3ee96710d8105f91d36b64b8c1222683246bdc4b400ded1a"
+          },
+          {
+            "name": "yjs_document_revision",
+            "rows": 3,
+            "sha256": "588938d45e96c884982e4b1159c5ab188925cf6abd2f1a2014c6d8a649c4fbe9"
+          },
+          {
+            "name": "yjs_document_revision_provenance",
+            "rows": 3,
+            "sha256": "23e190cfee6d270286c5dca9e1a53ae7f345401e33b3a88f1e66d4087dd33c06"
+          },
+          {
+            "name": "node_content",
+            "rows": 3,
+            "sha256": "6afb299fc38b00649ff22f267793c4837909f7fa804b835d7e9aa8aec9bbc843"
+          },
+          {
+            "name": "project",
+            "rows": 1,
+            "sha256": "513fe76eb5a27e8b29690b3f65454a6b8d403b8b4d484de55e91c63d4c5a1599"
+          },
+          {
+            "name": "book_node",
+            "rows": 3,
+            "sha256": "1defa523a771424040fe304ba9708e4b6982b0e96602ed76db5530bd0ef20556"
+          },
+          {
+            "name": "node_storyline_link",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "name": "sync_entity_lifecycle",
+            "rows": 11,
+            "sha256": "04555a5890b58fbb0aad3fe2d5e7905706d11544ffa4201d728060245b215a22"
+          },
+          {
+            "name": "sync_field_clock",
+            "rows": 3,
+            "sha256": "8933961642bd874411e08fd53c2babef9a78253f9220a90aa0db9fac5b691a90"
+          },
+          {
+            "name": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "documents": [
+          {
+            "documentId": "node-content:native-chapter-3221-1790435543135270000-64",
+            "stateSha256": "8542e23828de200a8f500434b27d49834c8a1e509473c2246a18da28f9c90252",
+            "semanticCache": "passed"
+          }
+        ]
+      }
+    ],
+    "scope": "Actual native chapter creation, field and prose originals replayed through production TS stage, reducer materialization and completion against independent copies of native SQLite baselines.",
+    "excludedWallClockColumns": {
+      "yjs_updates": [
+        "created_at"
+      ],
+      "yjs_document_revision": [
+        "updated_at"
+      ],
+      "yjs_document_revision_provenance": [
+        "created_at"
+      ]
     },
-    "journalWireCases": 3,
-    "nativeWireCases": 4
+    "boundaries": "Compares exact originals, all mutations, receipts, lifecycle, winning field clocks, chapter/project metadata, revision/provenance/HLC and authoritative prose/cache. Receipt fault is a real transaction rollback. Native unsupported-scope refusal is tested separately in Rust; this oracle does not equate renderer semantic suppression with whole-envelope rejection. Project bootstrap, provider transport, physical input and release are not certified."
   },
-  "boundaries": [
-    "Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.",
-    "Exact Yrs event bytes are preserved; delete-client groups may be in any order, while minimal varuint, complete consumption, duplicate-client, range overlap and declared-range checks remain enforced.",
-    "NativeLab opens with a complete current scope and revalidates it before persistence; unscoped captured deletion is retained and rejected, never downgraded to an unclassified payload.",
-    "Rust and renderer writers record positive local materialization in the append transaction. Renderer append tokens are bound to the innermost active transaction and exact original; rolled-back or same-bytes foreign originals cannot borrow them. No historical admission is backfilled.",
-    "Renderer tests cover journal, reducer, Agent persistence, transaction/savepoint behavior and source-level snapshot service wiring; they do not establish live editor reconciliation or performance.",
-    "Unsupported noncontiguous/structural/formatted intent remains raw; this evidence does not certify generic deletion intent, semantic alias deletion routing, receiver authority or capability negotiation.",
-    "No OriginalAtomicOwner, isolated semantic authority module, provider/account, UI event synthesis, physical device, signing or release acceptance is included. Actual process-kill evidence is generated by its separate durability runner."
+  "strictTypeScript": "passed",
+  "boundaries": {
+    "source": "Complete chapter create, title/bookOrder/project-name field and prose originals received atomically by the shared native workspace owner over synthetic file-backed replicas.",
+    "agreedGroups": [
+      "Complete node create, Yjs seed and primary-null originals produce an editable chapter without replacing existing live owners or history.",
+      "Independent field writers and reverse delivery converge metadata and order using the production total-order rules.",
+      "Title and bookOrder received before create remain durable registers and reproject when the chapter seed arrives.",
+      "Wrong scope and receipt failure preserve prior metadata, prose, history and drafts; retry and duplicate delivery apply once."
+    ],
+    "rendererParity": "Production TypeScript decoder and stage/reducer/complete transaction, with exact immutable rows, receipts, lifecycle, field clocks, project/chapter metadata, revision/provenance/HLC and authoritative prose/cache compared to Rust receive results.",
+    "excludedWallClockColumns": {
+      "yjs_updates": [
+        "created_at"
+      ],
+      "yjs_document_revision": [
+        "updated_at"
+      ],
+      "yjs_document_revision_provenance": [
+        "created_at"
+      ]
+    },
+    "limitations": [
+      "Existing local project/generation replica baseline; project bootstrap, other metadata actions, trash/restore and generation lifecycle receive are not certified.",
+      "Unsupported native envelopes are refused whole, without receipt or transport-frontier advancement. Renderer semantic suppression is not treated as equivalent to this refusal.",
+      "Synthetic in-process receipt failure and cold reopen; no SIGKILL or power-loss claim.",
+      "No provider transport, network authentication, Swift/UI, physical IME/device, cloud account, signing or distribution acceptance."
+    ]
+  },
+  "rawEvidence": [
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/source-before.json",
+      "sha256": "9dddb6d7733562b4140774060fbbf65ef7cbf329a48df5cd41620733a1fbdffc"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/rustc.log",
+      "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/cargo.log",
+      "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/core-workspace-metadata.log",
+      "sha256": "d6d9c07120c0133ff1a9543a5f7ff2e14f4f5bcdc89087a5e6b457b423ff1039"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/bridge-workspace-remote.log",
+      "sha256": "07f8873caf6fe801905447d478dc252e24e0ada6a0aacd847d271cfef60e73e9"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/workspace-remote-wire.json",
+      "sha256": "d32ecb63f5aa20fd69c1910941b4fdf18c204ff2cb573fe92bf26d446ef0511b"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/renderer.json",
+      "sha256": "5f5e8cc7e2d69e4a842cfc4de3eab7dc3ff2ef7c9b6ff40d1fce12b9c8d244dc"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/renderer.log",
+      "sha256": "e30c5c586ad553b6e6fe4d1a039fba659552b866456ead4ab03a74f311d4425e"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/typecheck.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/chapter-create-and-prose.json",
+      "sha256": "faf8a7122a14604050fac63158295c39ad5f7169c595a5c1a3e65b66fdb5eb18"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/competing-fields-and-order.json",
+      "sha256": "b526a45fbef32215f44b360a64a663c005063f19c683ab72036be153cf5ddc4b"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/late-fields-before-create.json",
+      "sha256": "aad820ed68e875f5f446d8cf5aa0aeacaedb1ae40dff08675063a4e76afbce9c"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/receipt-rollback-and-retry.json",
+      "sha256": "fdb6adf9439fa0098775a488140f445cf8eda60a253269f87a3525f4a5534c47"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/chapter-create-and-prose-before.db",
+      "sha256": "1207f09082afdd3b0ea0add12293e2371d93f7012af31fab16f6fbcdfb3dbe1d"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/chapter-create-and-prose-after.db",
+      "sha256": "cac55ce9007c9e9a413419bdd7ff3eb6db85aa60d74a2ff9a3e6955d60757eb3"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/competing-fields-and-order-before.db",
+      "sha256": "6131c84bb0b0af43e9c914f8bc1974352a00c83de9f9a77926744d0f314d37fb"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/competing-fields-and-order-after.db",
+      "sha256": "f025c68d1637b9363ef5fad5c68cbf9870fde17ac78a4ad8d6bd32d520dbfd5a"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/late-fields-before-create-before.db",
+      "sha256": "3ee7a4bc566ec052a9d279169b664cf52b7f5b36fa9f7f7c6b8cead63a5cfd1e"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/late-fields-before-create-after.db",
+      "sha256": "dbe5cbe5080812d6e129ea11d4edff086e79b06d8cb0e594bad0386c57bbe274"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/receipt-rollback-and-retry-before.db",
+      "sha256": "f1748bd4a936143849443fa272ea466f8874303a878d531fbd8cb61a6da50859"
+    },
+    {
+      "path": ".local-data/apple-native/workspace-remote-acceptance-aFhKUj/receipt-rollback-and-retry-after.db",
+      "sha256": "4f6589720f852cd01d5462576cfe003e9c98379fdac07de03c22e7240f506a36"
+    }
   ]
 }

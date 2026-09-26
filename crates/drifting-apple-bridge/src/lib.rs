@@ -308,6 +308,11 @@ enum Request {
         project_id: String,
         query: String,
     },
+    WorkspaceReceiveChanges {
+        handle: u64,
+        original: drifting_core::original_operation::ChangeSetRef,
+        envelope: String,
+    },
     WorkspaceReceiveProse {
         handle: u64,
         original: drifting_core::original_operation::ChangeSetRef,
@@ -513,13 +518,18 @@ fn context_for_scope(
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?;
+    // SQLite keeps 'now' stable throughout one step. Sample numeric and ISO
+    // forms together so a local original cannot disagree with its own timestamp
+    // by crossing a millisecond between SystemTime and the database query.
     let clock = gateway.query(
-        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')".into(),
+        "SELECT CAST(strftime('%s','now') AS INTEGER)*1000 + CAST(substr(strftime('%f','now'),4,3) AS INTEGER), strftime('%Y-%m-%dT%H:%M:%fZ','now')".into(),
         vec![],
         None,
         CLIENT.into(),
     )?;
-    let Some([DatabaseValue::Text(now_iso)]) = clock.rows.first().map(Vec::as_slice) else {
+    let Some([DatabaseValue::Integer(now_ms), DatabaseValue::Text(now_iso)]) =
+        clock.rows.first().map(Vec::as_slice)
+    else {
         return Err("Invalid lab clock".into());
     };
     let token = format!(
@@ -535,10 +545,7 @@ fn context_for_scope(
         installation_id: installation_id.into(),
         new_writer_id: format!("{token}-writer"),
         new_writer_epoch: format!("{token}-epoch"),
-        now_ms: now
-            .as_millis()
-            .try_into()
-            .map_err(|_| "Lab clock overflow")?,
+        now_ms: now_ms.parse().map_err(|_| "Lab clock overflow")?,
         now_iso: now_iso.clone(),
     })
 }
@@ -950,6 +957,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
         | Request::WorkspaceReceiveProse { .. }
+        | Request::WorkspaceReceiveChanges { .. }
         | Request::WorkspaceReconcileProse { .. }
         | Request::WorkspaceSearch { .. }
         | Request::WorkspaceResolveSearchHit { .. }

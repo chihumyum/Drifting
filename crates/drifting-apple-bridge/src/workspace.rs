@@ -133,6 +133,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
             | Request::WorkspaceReceiveProse { .. }
+            | Request::WorkspaceReceiveChanges { .. }
             | Request::WorkspaceReconcileProse { .. }
             | Request::WorkspaceSearch { .. }
             | Request::WorkspaceResolveSearchHit { .. }
@@ -281,6 +282,20 @@ pub(super) fn dispatch(
             .get(handle)
             .ok_or("Unknown or closed workspace")?
             .receive_prose(
+                documents,
+                original,
+                &STANDARD
+                    .decode(envelope)
+                    .map_err(|_| "Invalid remote envelope base64")?,
+            )?,
+        Request::WorkspaceReceiveChanges {
+            handle,
+            original,
+            envelope,
+        } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .receive_changes(
                 documents,
                 original,
                 &STANDARD

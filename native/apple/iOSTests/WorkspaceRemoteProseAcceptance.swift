@@ -382,7 +382,7 @@ final class WorkspaceRemoteProseAcceptance: XCTestCase {
         let draft = primary.text.text ?? ""
         let inputKey = primary.view.binding.inputKey
         let before = try retainedRows()
-        let wrong = RemoteProseOriginal(projectId: incoming.original.projectId,
+        let wrong = RemoteChangeOriginal(projectId: incoming.original.projectId,
             projectSyncId: "wrong-synthetic-scope", syncGenerationId: incoming.original.syncGenerationId,
             changeSetId: incoming.original.changeSetId, originalEnvelopeSha256: incoming.original.originalEnvelopeSha256)
         do {

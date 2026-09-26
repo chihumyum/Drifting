@@ -335,7 +335,7 @@ struct WorkspaceDocumentReply: Decodable {
     let document: LabDocumentState
 }
 
-struct RemoteProseOriginal: Codable {
+struct RemoteChangeOriginal: Codable {
     let projectId: String
     let projectSyncId: String
     let syncGenerationId: String
@@ -343,11 +343,25 @@ struct RemoteProseOriginal: Codable {
     let originalEnvelopeSha256: String
 }
 
-struct WorkspaceRemoteProseReply: Decodable {
+private protocol WorkspaceRemoteDeliveryReply: Decodable {
+    var documents: [WorkspaceDocumentReply] { get }
+}
+
+struct WorkspaceRemoteProseReply: WorkspaceRemoteDeliveryReply {
     let changeSetId: String
     let alreadyApplied: Bool
     let affectedDocuments: [String]
     let documents: [WorkspaceDocumentReply]
+}
+
+struct WorkspaceRemoteChangesReply: WorkspaceRemoteDeliveryReply {
+    let changeSetId: String
+    let alreadyApplied: Bool
+    let affectedDocuments: [String]
+    let documents: [WorkspaceDocumentReply]
+    let projectId: String
+    let projects: [WorkspaceProject]
+    let chapters: [WorkspaceChapter]
 }
 
 /// Registry of Swift wrappers for Rust's chapter owners. Cache changes belong
@@ -358,7 +372,7 @@ final class LabWorkspaceCore {
     private var handle: UInt64?
     private struct Owner { let handle: UInt64; let core: LabCore }
     private var owners: [ChapterScope: Owner] = [:]
-    private var remoteProseInFlight = 0
+    private var remoteDeliveryInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
 
@@ -417,11 +431,24 @@ final class LabWorkspaceCore {
     /// Completion reports durable acceptance and dispatch to existing stores.
     /// Queued input and marked drafts can keep individual views on their old
     /// input basis until DocumentStore's normal refresh can safely adopt it.
-    func receiveProse(original: RemoteProseOriginal, envelope: Data,
+    func receiveProse(original: RemoteChangeOriginal, envelope: Data,
                       completion: @escaping (Result<WorkspaceRemoteProseReply, Error>) -> Void) {
+        receiveOriginal("workspaceReceiveProse", original: original, envelope: envelope, completion: completion)
+    }
+
+    /// The caller receives fresh project and chapter lists only after the
+    /// complete original succeeds. Existing editor owners stay in place.
+    func receiveChanges(original: RemoteChangeOriginal, envelope: Data,
+                        completion: @escaping (Result<WorkspaceRemoteChangesReply, Error>) -> Void) {
+        receiveOriginal("workspaceReceiveChanges", original: original, envelope: envelope, completion: completion)
+    }
+
+    private func receiveOriginal<Reply: WorkspaceRemoteDeliveryReply>(_ operation: String,
+            original: RemoteChangeOriginal, envelope: Data,
+            completion: @escaping (Result<Reply, Error>) -> Void) {
         precondition(Thread.isMainThread)
         guard !isChangingOwners else {
-            completion(.failure(LabError.message("正在切换章节，请稍后重试接收正文"))); return
+            completion(.failure(LabError.message("正在切换章节，请稍后重试接收更改"))); return
         }
         let fields: [String: Any]
         do {
@@ -430,13 +457,13 @@ final class LabWorkspaceCore {
             fields = ["original": try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)),
                       "envelope": envelope.base64EncodedString()]
         } catch { completion(.failure(error)); return }
-        remoteProseInFlight += 1
-        perform({ (result: Result<WorkspaceRemoteProseReply, Error>) in
+        remoteDeliveryInFlight += 1
+        perform({ (result: Result<Reply, Error>) in
             if case .success(let reply) = result { self.routeReconciledDocuments(reply.documents) }
-            self.remoteProseInFlight -= 1
+            self.remoteDeliveryInFlight -= 1
             completion(result)
         }) {
-            try self.request("workspaceReceiveProse", fields: fields)
+            try self.request(operation, fields: fields)
         }
     }
 
@@ -445,10 +472,10 @@ final class LabWorkspaceCore {
         guard !isChangingOwners else {
             completion(.failure(LabError.message("正在切换章节，请稍后重试恢复正文"))); return
         }
-        remoteProseInFlight += 1
+        remoteDeliveryInFlight += 1
         perform({ (result: Result<[WorkspaceDocumentReply], Error>) in
             if case .success(let documents) = result { self.routeReconciledDocuments(documents) }
-            self.remoteProseInFlight -= 1
+            self.remoteDeliveryInFlight -= 1
             completion(result.map { _ in true })
         }) {
             try self.request("workspaceReconcileProse", fields: ["projectId": projectID])
@@ -564,7 +591,7 @@ final class LabWorkspaceCore {
     }
 
     private func beginOwnerChange() -> Bool {
-        guard !isChangingOwners, remoteProseInFlight == 0, !hasPendingDocuments else { return false }
+        guard !isChangingOwners, remoteDeliveryInFlight == 0, !hasPendingDocuments else { return false }
         isChangingOwners = true
         owners.values.forEach { $0.core.suspend(true) }
         return true

@@ -178,7 +178,7 @@ extension BindingAcceptance {
         let packet = try pair.packet(0, text: "远🙂")
         first.textView.insertText("本", replacementRange: NSRange(location: 6, length: 0)); try wait { !first.binding.hasPendingWork }
         let before = try pair.counts(), original = packet.original
-        let wrong = RemoteProseOriginal(projectId: original.projectId, projectSyncId: "wrong-scope",
+        let wrong = RemoteChangeOriginal(projectId: original.projectId, projectSyncId: "wrong-scope",
             syncGenerationId: original.syncGenerationId, changeSetId: original.changeSetId, originalEnvelopeSha256: original.originalEnvelopeSha256)
         var refused: Result<WorkspaceRemoteProseReply, Error>?
         pair.receiver.receiveProse(original: wrong, envelope: packet.envelope) { refused = $0 }
