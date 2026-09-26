@@ -160,10 +160,10 @@
         "business"
       ],
       "acceptance": [
-        "project home, tabs, split, focus, navigation, mounted session ownership"
+        "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation"
       ],
       "milestone": "P5/P6",
-      "status": "local-writing-tabs-and-two-pane-implemented; remaining-workspace-parity-planned",
+      "status": "local-writing-tabs-two-pane-and-chapter-trash-implemented; remaining-workspace-parity-planned",
       "decisionTask": null
     },
     {

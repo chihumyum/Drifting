@@ -16,6 +16,10 @@ pub(super) struct Mutation {
     update: Option<Vec<u8>>,
 }
 impl Mutation {
+    pub(super) fn at_incarnation(mut self, incarnation: u64) -> Self {
+        self.incarnation = incarnation;
+        self
+    }
     pub(super) fn create(kind: &'static str, id: &str, seed: Value) -> Self {
         Self::json("entity", kind, id, "entity.create", json!({"seed":seed}))
     }
@@ -198,6 +202,46 @@ impl WorkspaceStore<'_> {
                         VALUES (?,?,?,?,'live',?,?,?,?,?,?,?)
                     "#,values)?;
                 }
+                "entity.trash" | "entity.restore" => {
+                    let (previous_state, state, previous_incarnation) =
+                        if mutation.action == "entity.restore" {
+                            (
+                                "trashed",
+                                "live",
+                                mutation
+                                    .incarnation
+                                    .checked_sub(1)
+                                    .ok_or("Restored incarnation must advance")?,
+                            )
+                        } else {
+                            ("live", "trashed", mutation.incarnation)
+                        };
+                    let mut values = vec![integer(mutation.incarnation), text(state)];
+                    values.extend(clock);
+                    values.extend([
+                        text(&context.sync_generation_id),
+                        text(mutation.kind),
+                        text(&mutation.id),
+                        integer(previous_incarnation),
+                        text(previous_state),
+                    ]);
+                    let changed = self.gateway.execute(
+                        r#"
+                        UPDATE sync_entity_lifecycle SET incarnation=?,state=?,
+                            hlc_wall_ms=?,hlc_counter=?,writer_id=?,writer_epoch=?,device_seq=?,
+                            change_set_id=?,mutation_index=?
+                        WHERE sync_generation_id=? AND entity_kind=? AND entity_id=?
+                            AND incarnation=? AND state=?
+                    "#
+                        .into(),
+                        values,
+                        Some(tx),
+                        self.client.into(),
+                    )?;
+                    if changed.changes != 1 {
+                        return Err("Chapter lifecycle changed during workspace command".into());
+                    }
+                }
                 "order.move" => {
                     let scope = mutation.payload["scope"]
                         .as_str()
@@ -220,8 +264,13 @@ impl WorkspaceStore<'_> {
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     "#,values)?;
                 }
-                "field.set" => {
-                    let field = mutation.payload["field"]
+                "field.set" | "tuple.set" => {
+                    let key = if mutation.action == "tuple.set" {
+                        "tuple"
+                    } else {
+                        "field"
+                    };
+                    let field = mutation.payload[key]
                         .as_str()
                         .ok_or("Missing workspace field key")?;
                     let mut values = vec![
@@ -229,7 +278,7 @@ impl WorkspaceStore<'_> {
                         text(mutation.kind),
                         text(&mutation.id),
                         integer(mutation.incarnation),
-                        text(&format!("field:{field}")),
+                        text(&format!("{key}:{field}")),
                     ];
                     values.extend(clock);
                     self.execute(tx,r#"

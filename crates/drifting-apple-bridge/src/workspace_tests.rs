@@ -10,6 +10,8 @@ mod remote_prose;
 mod search;
 #[path = "workspace_tabs_tests.rs"]
 mod tabs;
+#[path = "workspace_trash_tests.rs"]
+mod trash;
 
 fn call(request: Value) -> Value {
     let input = CString::new(request.to_string()).unwrap();

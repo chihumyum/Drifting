@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9) ?? 'docs/apple-native/acceptance/p2b-binding.json';
 const directory = '.local-data/apple-native/binding';
+const workspaceTrashCases = [
+  'Workspace trash removes all chapter displays after commit and restores through a fresh owner',
+  'Workspace trash preserves queued marked and failed-save drafts and rolls back a failed lifecycle transaction',
+];
 const workspaceRemoteChangeCases = [
   'AppKit remote chapter creation refreshes workspace lists and remains editable after cold reopen',
   'AppKit remote metadata preserves the live owner selection and history and rejects invalid originals atomically',
@@ -87,7 +91,8 @@ const report = { schemaVersion: 1, kind: 'apple_native_p2b_first_binding', statu
 if (process.argv.includes('--check')) {
   const previous = JSON.parse(readFileSync(output));
   assert.equal(previous.status, 'passed');
-  assert(previous.cases.length >= 77);
+  assert(previous.cases.length >= 79);
+  for (const name of workspaceTrashCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing chapter trash gate: ${name}`);
   for (const name of workspaceRemoteChangeCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing workspace receive gate: ${name}`);
   for (const name of workspaceRemoteCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing canonical remote gate: ${name}`);
   for (const name of searchCases) assert(previous.cases.some(entry => entry.name === name && entry.status === 'passed'), `Missing search gate: ${name}`);
@@ -114,11 +119,12 @@ try {
     '-target', `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos14.0`,
     '-I', 'native/apple/FFI', '-L', `.local-data/apple-native/rust/${target}/debug`, '-ldrifting_apple_bridge', '-liconv', '-framework', 'AppKit',
     'native/apple/Shared/LabCore.swift', 'native/apple/Shared/DocumentBinding.swift', 'native/apple/Shared/DocumentStore.swift', 'native/apple/Shared/DocumentStyle.swift',
-    'native/apple/macOS/NativeDocumentView.swift', 'native/apple/macOS/MacChapterWorkspace.swift', 'native/apple/Tests/BindingAcceptance.swift', 'native/apple/Tests/MultiViewAcceptance.swift', 'native/apple/Tests/SelectionAcceptance.swift', 'native/apple/Tests/DraftTransportAcceptance.swift', 'native/apple/Tests/InputQueueAcceptance.swift', 'native/apple/Tests/NativeHistoryAcceptance.swift', 'native/apple/Tests/PartialQuoteHistoryAcceptance.swift', 'native/apple/Tests/RemoteBlockAcceptance.swift', 'native/apple/Tests/RemoteRecoveryAcceptance.swift', 'native/apple/Tests/RelocationAcceptance.swift', 'native/apple/Tests/StyleAcceptance.swift', 'native/apple/Tests/TextIdentityAcceptance.swift', 'native/apple/Tests/FormattingAcceptance.swift', 'native/apple/Tests/OutlineAcceptance.swift', 'native/apple/Tests/WorkspaceTabsAcceptance.swift', 'native/apple/Shared/WorkspaceOutline.swift', 'native/apple/Shared/WorkspaceSearch.swift', 'native/apple/Tests/SearchAcceptance.swift', 'native/apple/Tests/WorkspaceRemoteProseAcceptance.swift', 'native/apple/Tests/WorkspaceRemoteChangesAcceptance.swift', 'native/apple/TestSupport/WorkspaceRemoteProseFixture.swift', '-lsqlite3', '-o', `${directory}/binding-acceptance`]));
+    'native/apple/macOS/NativeDocumentView.swift', 'native/apple/macOS/MacChapterWorkspace.swift', 'native/apple/Tests/BindingAcceptance.swift', 'native/apple/Tests/MultiViewAcceptance.swift', 'native/apple/Tests/SelectionAcceptance.swift', 'native/apple/Tests/DraftTransportAcceptance.swift', 'native/apple/Tests/InputQueueAcceptance.swift', 'native/apple/Tests/NativeHistoryAcceptance.swift', 'native/apple/Tests/PartialQuoteHistoryAcceptance.swift', 'native/apple/Tests/RemoteBlockAcceptance.swift', 'native/apple/Tests/RemoteRecoveryAcceptance.swift', 'native/apple/Tests/RelocationAcceptance.swift', 'native/apple/Tests/StyleAcceptance.swift', 'native/apple/Tests/TextIdentityAcceptance.swift', 'native/apple/Tests/FormattingAcceptance.swift', 'native/apple/Tests/OutlineAcceptance.swift', 'native/apple/Tests/WorkspaceTabsAcceptance.swift', 'native/apple/Shared/WorkspaceOutline.swift', 'native/apple/Shared/WorkspaceSearch.swift', 'native/apple/Tests/SearchAcceptance.swift', 'native/apple/Tests/WorkspaceRemoteProseAcceptance.swift', 'native/apple/Tests/WorkspaceRemoteChangesAcceptance.swift', 'native/apple/TestSupport/WorkspaceRemoteProseFixture.swift', 'native/apple/Tests/WorkspaceTrashAcceptance.swift', '-lsqlite3', '-o', `${directory}/binding-acceptance`]));
   const result = run(`${directory}/binding-acceptance`, []);
   writeFileSync(`${directory}/result.log`, result);
   const test = JSON.parse(result.trim().split('\n').at(-1));
-  assert.equal(test.status, 'passed'); assert(test.cases.length >= 77);
+  assert.equal(test.status, 'passed'); assert(test.cases.length >= 79);
+  for (const name of workspaceTrashCases) assert(test.cases.includes(name), `Missing chapter trash gate: ${name}`);
   for (const name of workspaceRemoteChangeCases) assert(test.cases.includes(name), `Missing workspace receive gate: ${name}`);
   for (const name of workspaceRemoteCases) assert(test.cases.includes(name), `Missing canonical remote gate: ${name}`);
   for (const name of searchCases) assert(test.cases.includes(name), `Missing search gate: ${name}`);

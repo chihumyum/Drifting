@@ -3,6 +3,7 @@
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
 mod journal;
 mod outline;
+mod trash;
 pub use outline::WorkspaceOutlineRow;
 #[cfg(test)]
 mod tests;
@@ -59,9 +60,9 @@ pub struct CreateProject {
     pub default_kv_ids: [String; 6],
 }
 
-/// Both values must be exported from the same newly-created empty document.
-/// The bridge validates the actual Yrs state; this layer validates the cache's
-/// empty shape and atomically persists the supplied event as System revision 1.
+/// Both values must be exported from the same document. Creation requires an
+/// empty document; restoration requires its full durable state. The prose
+/// adapter validates Yrs before this layer atomically persists the System event.
 pub struct ChapterSeed {
     pub update: Vec<u8>,
     pub content_json: String,

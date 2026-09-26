@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T15:12:20.139Z",
+  "generatedAt": "2026-09-26T16:01:56.916Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "84fb8c922c1bbcc510ec6aeddf12988e43a09f9b",
+    "commit": "f8b75341f49222d978072f35d711a8d5a2852abe",
     "dirty": true,
-    "fingerprint": "4feba229d9530636dbf5cf627332a52aed9eb1823505f533c1d40f67d01135fa"
+    "fingerprint": "919ef58185919890088b19907ceafffdd0b6ad381ac8c1ce73527a42039aa536"
   },
   "cases": [
     {
@@ -316,6 +316,14 @@
     },
     {
       "name": "AppKit remote metadata preserves the live owner selection and history and rejects invalid originals atomically",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace trash removes all chapter displays after commit and restores through a fresh owner",
+      "status": "passed"
+    },
+    {
+      "name": "Workspace trash preserves queued marked and failed-save drafts and rolls back a failed lifecycle transaction",
       "status": "passed"
     }
   ],

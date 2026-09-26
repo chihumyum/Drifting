@@ -33,9 +33,9 @@ snapshot restore work. Native local workflows and Agent integration proceed.
 | P2a | Headless Yjs/Yrs harness | Incremental, concurrent, reordered and duplicate updates converge without schema/metadata loss | Complete for declared headless scope, including redone-offset, sparse-replay and undo deletion-filter fixes; see source-matched generated evidence |
 | P2b | AppKit/UITextView document binding | Local operations, stable IDs, comments, marks, multi-view ownership, IME and semantic undo | In progress: shared owner/queue/history, disjoint composition, exact TextKit edit ranges, CRDT selection epochs/history, copied/redone sibling-text lineage and atomic prose/comment fixture checkpoints; remote-owned subtree text survives undo; authored input branches pass programmatic AppKit overlapping/remote composition and continued-input queues; hosted UIKit marked input, exact repeated-item edits, Unicode deletion and responder changes tested; system history routes, disjoint structural drafts and scoped quote boundaries implemented; Mac incremental styling passes full-reference checks; strict-prefix same-paragraph Enter passes cross-implementation history/reopen checks; physical IME, general same-block concurrency and subtree relocation gates open |
 | P2c | Durability and measured writing behavior | Crash/reopen/tail replay/compaction pass; compare native and current editor on declared corpus | In progress: exact authored bytes, scoped native command records, atomic SQLite revision/journal/anchor writes, ordered tail replay, bounded stored-dependency recovery and covered snapshot/prune implemented; harness covers 9 original recovery, 3 unapplied styled-update retention, 3 derived-repair, 3 stored-dependency and 5 native deletion SIGKILL boundaries with two independent restarts each; see current generated report; performance comparison open |
-| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename and before-ID move accepted; read-only act/chapter outline, scoped headings and authoritative project title/prose search added; remaining domain commands open |
+| P3 | Shared domain commands and queries | Semantic differential tests preserve journal/transaction/asset effects | In progress: local project/chapter creation, rename, before-ID move and chapter trash/restore accepted; read-only act/chapter outline, scoped headings and authoritative project title/prose search added; remaining domain commands open |
 | P4 | Agent over native prose; accepted receiver foundations retained | Minimal in-process runtime, guarded writes/reviews and durable recovery; Google Drive migration excluded | In progress: canonical prose/chapter receiver, deduplication, field conflicts and shared native delivery accepted as foundations; Agent remains open; Google Drive provider/bootstrap postponed to a separate redesign |
-| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search and local recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; chapter trash/restore and wider search parity remain open |
+| P5a | Daily desktop writing loop | Project/chapter, editor/outline, required split/tabs, search and local recovery usable together | In progress: creation, rename, chapter up/down, native formatting, editing and save/reopen accepted; whole-book outline navigation, retained chapter tabs, two-pane editing and project title/prose search integrated; recoverable chapter trash/restore integrated; act editing and wider search parity remain open |
 | P5b | Required desktop feature parity | Elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
 | P6 | iPhone/iPad auxiliary client | Read/edit, quick capture, search and comments; interruptions and keyboard on devices; Google Drive sync deferred | Project/chapter/editor slice and title/prose search integrated; exact simulator outcomes are in the generated native report; remaining auxiliary scope and physical-device acceptance remain open |
 | P7 | Upgrade and distribution | Supported published-version upgrades, rollback/recovery, signing/notarization/update and exact-source artifact evidence | Not started |
@@ -138,6 +138,18 @@ domain commands and native controls, preserving prose and current editor
 ownership. Google Drive and its old snapshot/bootstrap workflow are deferred.
 Act editing, wider search parity and Agent remain further batches. No
 performance measurement or extra historical migration matrix is a prerequisite.
+
+The [chapter trash batch](chapter-trash.md) is accepted for local trash lists and
+restore in both hosts. Shared transactions preserve chapter prose, comments and placement;
+restoring advances the incarnation with a complete original and authoritative
+full-state System revision. Only a successful trash commit closes the target
+owner and all of its Mac tabs; other chapters keep their selections and history.
+Association-bearing chapters remain guarded until those domain workflows are
+integrated. [The generated report](acceptance/p3b-chapter-trash.json) records the
+three fixed core/bridge and production-reducer groups; native evidence is kept
+in the binding and simulator reports. The next local workflow is editing act
+boundaries in the existing whole-book outline, followed by the remaining writing
+and Agent surfaces. Google Drive is not a dependency.
 
 The six known old-peer alias-delete failures stay explicitly open; the accepted
 local workflow does not certify full P2 or general remote synchronization.

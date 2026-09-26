@@ -313,6 +313,25 @@ enum Request {
         original: drifting_core::original_operation::ChangeSetRef,
         envelope: String,
     },
+    WorkspaceTrashedChapters {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
+    WorkspaceTrashChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
+    WorkspaceRestoreChapter {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "chapterId")]
+        chapter_id: String,
+    },
     WorkspaceReceiveProse {
         handle: u64,
         original: drifting_core::original_operation::ChangeSetRef,
@@ -958,6 +977,9 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceOutline { .. }
         | Request::WorkspaceReceiveProse { .. }
         | Request::WorkspaceReceiveChanges { .. }
+        | Request::WorkspaceTrashedChapters { .. }
+        | Request::WorkspaceTrashChapter { .. }
+        | Request::WorkspaceRestoreChapter { .. }
         | Request::WorkspaceReconcileProse { .. }
         | Request::WorkspaceSearch { .. }
         | Request::WorkspaceResolveSearchHit { .. }

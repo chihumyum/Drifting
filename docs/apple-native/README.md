@@ -29,6 +29,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Capability migration inventory](inventory.json) and [generated coverage](acceptance/inventory.json)
 - [Milestones and acceptance](milestones.md)
 - [Local project and chapter writing slice](workspace.md)
+- [Chapter trash and restore](chapter-trash.md)
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
@@ -50,6 +51,7 @@ snapshot and fail-closed recovery rules apply to every host.
 pnpm apple:check
 pnpm apple:core:test
 pnpm apple:workspace:acceptance
+pnpm apple:workspace-trash:acceptance
 pnpm apple:remote-prose:acceptance
 pnpm apple:workspace-remote:acceptance
 pnpm apple:document:acceptance
@@ -80,7 +82,7 @@ repeatedly running the same failing path without fixing it. Targeted native UI i
 remain available. A default passing report does not imply desktop XCTest passed.
 
 The two applications now open a separate local workspace with project and chapter
-lists, creation, rename, chapter up/down, native editing, explicit save and reopen. Both call the shared
+lists, creation, rename, chapter up/down, recoverable trash and restore, native editing, explicit save and reopen. Both call the shared
 Rust workspace service for domain defaults, transactions and canonical journals.
 Rename and reordering retain the current document, selection and prose history.
 Both editors expose selection bold/italic and paragraph/heading 1–3 through the
@@ -90,7 +92,9 @@ scene/beat/note headings, with lazy expansion and navigation by stable identity.
 Ordering submits a destination chapter ID; the core updates only the moved
 chapter's scalar `bookOrder`, without global reindexing or rewriting act boundaries.
 The [local writing slice](workspace.md) records source-matched creation, rename
-and reorder acceptance, with native platform dimensions kept separate.
+and reorder acceptance. The [chapter trash slice](chapter-trash.md) preserves
+prose and comments, closes target views only after commit and restores into a
+fresh document owner. Native platform dimensions remain separate.
 The workspace database is `apple-native-lab/apple-native-workspace.db`; the older
 fixed fixture and `native-lab.db` remain test harnesses for the editor binding.
 No production library import or selection is exposed, and neither application

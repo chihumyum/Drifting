@@ -16,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private let workspace = LabWorkspaceCore()
     private var projects: [WorkspaceProject] = []
     private var chapters: [WorkspaceChapter] = []
+    private var trashedChapters: [WorkspaceChapter] = []
+    private var showingTrash = false
+    private var displayedChapters: [WorkspaceChapter] { showingTrash ? trashedChapters : chapters }
+    private var trashButton: NSButton!
+    private var trashListButton: NSButton!
     private var selectedProject: WorkspaceProject?
     private var currentChapter: WorkspaceChapter? { chapterWorkspace.activeChapter }
     private var currentProject: WorkspaceProject? { chapterWorkspace.activeProject }
@@ -110,10 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let projectActions = NSStackView(views: [createProjectButton, renameProjectButton])
         let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
         let orderActions = NSStackView(views: [moveUpButton, moveDownButton])
+        trashButton = button("移入回收站", id: "trash-chapter", action: #selector(changeChapterTrash))
+        trashListButton = button("回收站", id: "show-trash", action: #selector(toggleTrash))
+        let trashActions = NSStackView(views: [trashButton, trashListButton])
         let projectScroll = table(projectTable, id: "project-list")
         let chapterScroll = table(chapterTable, id: "chapter-list")
         let sidebar = NSStackView(views: [heading("项目"), projectActions, projectScroll, projectEmpty,
-            heading("章节"), chapterActions, orderActions, chapterScroll, chapterEmpty])
+            heading("章节"), chapterActions, orderActions, trashActions, chapterScroll, chapterEmpty])
         sidebar.orientation = .vertical
         sidebar.alignment = .leading
         sidebar.spacing = 10
@@ -216,11 +224,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        tableView === projectTable ? projects.count : chapters.count
+        tableView === projectTable ? projects.count : displayedChapters.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let title = tableView === projectTable ? projects[row].name : chapters[row].title
+        let title = tableView === projectTable ? projects[row].name : displayedChapters[row].title
         let label = NSTextField(labelWithString: title)
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityLabel(title)
@@ -235,8 +243,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard !updatingSelection, !loading, let table = notification.object as? NSTableView else { return }
         if table === projectTable, projects.indices.contains(table.selectedRow) {
             selectProject(projects[table.selectedRow])
-        } else if table === chapterTable, chapters.indices.contains(table.selectedRow), let selectedProject {
-            openChapter(chapters[table.selectedRow], project: selectedProject)
+        } else if table === chapterTable {
+            updateControls()
+            if !showingTrash, chapters.indices.contains(table.selectedRow), let selectedProject {
+                openChapter(chapters[table.selectedRow], project: selectedProject)
+            }
         }
     }
 
@@ -252,10 +263,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         createProjectButton.isEnabled = ready
         createChapterButton.isEnabled = ready && selectedProject != nil
         renameProjectButton.isEnabled = ready && selectedProject != nil
-        renameChapterButton.isEnabled = ready && chapters.indices.contains(chapterTable.selectedRow)
+        renameChapterButton.isEnabled = ready && !showingTrash && chapters.indices.contains(chapterTable.selectedRow)
         let chapterIndex = chapterTable.selectedRow
-        moveUpButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex > 0
-        moveDownButton.isEnabled = ready && chapters.indices.contains(chapterIndex) && chapterIndex + 1 < chapters.count
+        moveUpButton.isEnabled = ready && !showingTrash && chapters.indices.contains(chapterIndex) && chapterIndex > 0
+        moveDownButton.isEnabled = ready && !showingTrash && chapters.indices.contains(chapterIndex) && chapterIndex + 1 < chapters.count
+        trashListButton.isEnabled = ready && selectedProject != nil
+        trashButton.isEnabled = ready && displayedChapters.indices.contains(chapterTable.selectedRow)
+        trashButton.title = showingTrash ? "恢复章节" : "移入回收站"
+        trashButton.setAccessibilityIdentifier(showingTrash ? "restore-chapter" : "trash-chapter")
+        trashListButton.title = showingTrash ? "返回章节" : "回收站"
         saveButton.isEnabled = ready && documentView != nil
         reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
         outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
@@ -301,6 +317,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success(let chapters):
                 self.selectedProject = project
+                self.showingTrash = false
+                self.chapterTable.setAccessibilityIdentifier("chapter-list")
+                self.trashedChapters = []
                 self.chapters = chapters
                 self.updatingSelection = true
                 self.chapterTable.reloadData()
@@ -345,7 +364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updateCurrentTitle()
         if documentView == nil { currentTitle.stringValue = "开始写作"; window.title = "Drifting Native Lab" }
         updatingSelection = true
-        if currentProject?.id == selectedProject?.id, let chapter = currentChapter,
+        if !showingTrash, currentProject?.id == selectedProject?.id, let chapter = currentChapter,
            let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
             chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else { chapterTable.deselectAll(nil) }
@@ -616,6 +635,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
+    private func refreshChapterList() {
+        updatingSelection = true
+        chapterTable.reloadData()
+        chapterTable.deselectAll(nil)
+        updatingSelection = false
+        chapterTable.setAccessibilityIdentifier(showingTrash ? "trash-list" : "chapter-list")
+        chapterEmpty.stringValue = showingTrash ? "回收站为空。移入回收站的章节可以在这里恢复。" : "还没有章节，点击“新建章节”开始写作。"
+        chapterEmpty.isHidden = !displayedChapters.isEmpty
+        updateControls()
+    }
+
+    @objc private func toggleTrash() {
+        guard canLeaveDocument(), let project = selectedProject else { return }
+        if showingTrash {
+            showingTrash = false
+            refreshChapterList()
+            return
+        }
+        setLoading(true)
+        workspace.trashedChapters(projectID: project.id) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            switch result {
+            case .success(let chapters):
+                self.trashedChapters = chapters
+                self.showingTrash = true
+                self.refreshChapterList()
+                self.status.stringValue = "回收站 · 选择章节后恢复"
+            case .failure(let error): self.status.stringValue = error.localizedDescription
+            }
+        }
+    }
+
+    @objc private func changeChapterTrash() {
+        guard canLeaveDocument(), let project = selectedProject,
+              displayedChapters.indices.contains(chapterTable.selectedRow) else { return }
+        let chapter = displayedChapters[chapterTable.selectedRow]
+        let restoring = showingTrash
+        let completed: (Result<WorkspaceChapterTrashReply, Error>) -> Void = { [weak self] result in
+            guard let self else { return }
+            if restoring { self.setLoading(false) }
+            switch result {
+            case .success(let reply):
+                self.closeOutline(); self.closeSearch()
+                self.chapters = reply.chapters
+                self.trashedChapters = reply.trashedChapters
+                self.refreshChapterList()
+                self.activeChapterChanged()
+                self.status.stringValue = restoring ? "章节已恢复，返回章节列表即可打开。" : "章节已移入回收站，可以随时恢复。"
+            case .failure(let error): self.status.stringValue = error.localizedDescription
+            }
+        }
+        if restoring {
+            setLoading(true)
+            workspace.restoreChapter(projectID: project.id, chapterID: chapter.id, completion: completed)
+        } else {
+            chapterWorkspace.trash(projectID: project.id, chapterID: chapter.id, completion: completed)
+        }
+    }
+
     @objc private func createProject() {
         askName(project: true) { [weak self] name in
             guard let self else { return }
@@ -649,6 +728,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 switch result {
                 case .success(let chapter):
                     self.closeOutline()
+                    self.showingTrash = false
+                    self.chapterTable.setAccessibilityIdentifier("chapter-list")
                     self.chapters.append(chapter)
                     self.chapterEmpty.isHidden = true
                     self.updatingSelection = true

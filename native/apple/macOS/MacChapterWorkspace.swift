@@ -167,6 +167,28 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    func trash(projectID: String, chapterID: String,
+               completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
+        workspace.trashChapter(projectID: projectID, chapterID: chapterID) { [weak self] result in
+            guard let self else { return }
+            if case .success = result {
+                // Include hidden tabs and both panes. Do not close the Rust
+                // owner again after it has entered the trash lifecycle.
+                for index in self.panes.indices {
+                    for tab in self.panes[index].tabs.filter({ $0.scope == scope }) {
+                        self.remove(tab, from: index)
+                    }
+                }
+            }
+            self.setBusy(false)
+            self.onChange?()
+            completion(result)
+        }
+    }
+
     func closeSecondPane(completion: @escaping (Result<Bool, Error>) -> Void) {
         guard canNavigate, panes.count == 2 else { completion(.failure(blocked())); return }
         // Each successful close is durable. A later failure keeps that tab and

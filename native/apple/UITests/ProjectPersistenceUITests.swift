@@ -239,6 +239,42 @@ final class ProjectPersistenceUITests: XCTestCase {
         app.terminate()
     }
 
+    func testChapterTrashRestoreSurvivesProcessRestart() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        let name = "Trash " + UUID().uuidString.prefix(8)
+        let title = "Recoverable chapter"
+        createProject(app, name: name)
+        createChapter(app, title: title)
+        let prose = app.textViews["document-text"]
+        press(prose); prose.typeText("Retained chapter prose"); finishInput(app)
+        let before = try XCTUnwrap(prose.value as? String)
+        press(app.buttons["trash-chapter"])
+        XCTAssertTrue(app.tables["chapter-list"].waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.textViews["document-text"])
+        waitForExpectations(timeout: 15)
+        app.terminate(); app.launch()
+        selectRow(app, title: name)
+        press(app.buttons["show-trash"])
+        XCTAssertTrue(app.tables["trash-list"].waitForExistence(timeout: 15))
+        #if os(macOS)
+        selectRow(app, title: title)
+        #endif
+        press(app.buttons.matching(identifier: "restore-chapter").firstMatch)
+        expectation(for: NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "已恢复", "已恢复"),
+                    evaluatedWith: app.staticTexts["workspace-status"])
+        waitForExpectations(timeout: 15)
+        press(app.buttons["show-trash"])
+        selectRow(app, title: title)
+        currentChapter(app, title: title); saved(app); equalText(app, before)
+        let restored = app.textViews["document-text"]
+        press(restored); restored.typeText(" continued"); finishInput(app)
+        XCTAssertTrue((restored.value as? String ?? "").contains("continued"))
+        XCTAssertTrue((restored.value as? String ?? "").contains("Retained chapter prose"))
+        app.terminate()
+    }
+
     #if !os(macOS)
     func testProjectSearchNavigatesExactCurrentAndOtherChapterMatches() throws {
         continueAfterFailure = false

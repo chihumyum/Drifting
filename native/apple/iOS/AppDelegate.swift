@@ -153,6 +153,10 @@ final class ChaptersViewController: UITableViewController {
     private var project: WorkspaceProject
     var onProjectRenamed: ((WorkspaceProject) -> Void)?
     private var chapters: [WorkspaceChapter] = []
+    private var trashedChapters: [WorkspaceChapter] = []
+    private var showingTrash = false
+    private var displayedChapters: [WorkspaceChapter] { showingTrash ? trashedChapters : chapters }
+    private var trashListButton: UIBarButtonItem!
     private var loading = false
     private let status = UILabel()
     private let empty = UILabel()
@@ -197,8 +201,11 @@ final class ChaptersViewController: UITableViewController {
         outline.accessibilityIdentifier = "show-outline"
         let search = UIBarButtonItem(title: "搜索", style: .plain, target: self, action: #selector(showSearch))
         search.accessibilityIdentifier = "show-search"
+        trashListButton = UIBarButtonItem(title: "回收站", style: .plain, target: self, action: #selector(toggleTrash))
+        trashListButton.accessibilityIdentifier = "show-trash"
         toolbarItems = [UIBarButtonItem(systemItem: .flexibleSpace), outline,
-            UIBarButtonItem(systemItem: .flexibleSpace), search, UIBarButtonItem(systemItem: .flexibleSpace)]
+            UIBarButtonItem(systemItem: .flexibleSpace), search,
+            UIBarButtonItem(systemItem: .flexibleSpace), trashListButton, UIBarButtonItem(systemItem: .flexibleSpace)]
         setLoading(true)
         status.text = "正在读取章节…"
         workspace.chapters(projectID: project.id) { [weak self] result in
@@ -221,24 +228,93 @@ final class ChaptersViewController: UITableViewController {
         toolbarItems?.forEach { $0.isEnabled = !value }
     }
     private func refreshList() {
-        tableView.backgroundView = chapters.isEmpty ? empty : nil
+        title = showingTrash ? "回收站" : project.name
+        tableView.accessibilityIdentifier = showingTrash ? "trash-list" : "chapter-list"
+        trashListButton.title = showingTrash ? "返回章节" : "回收站"
+        empty.text = showingTrash ? "回收站为空\n移入回收站的章节可以在这里恢复。" : "还没有章节\n点击右上角“新建章节”开始写作。"
+        tableView.backgroundView = displayedChapters.isEmpty ? empty : nil
         tableView.reloadData()
     }
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { chapters.count }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { displayedChapters.count }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "chapter", for: indexPath)
         var content = cell.defaultContentConfiguration()
-        content.text = chapters[indexPath.row].title
+        content.text = displayedChapters[indexPath.row].title
         cell.contentConfiguration = content
-        cell.accessoryType = .disclosureIndicator
-        cell.accessibilityLabel = chapters[indexPath.row].title
+        cell.accessoryType = showingTrash ? .none : .disclosureIndicator
+        cell.accessoryView = nil
+        if showingTrash {
+            let chapter = displayedChapters[indexPath.row]
+            let restore = UIButton(type: .system)
+            restore.setTitle("恢复", for: .normal)
+            restore.accessibilityIdentifier = "restore-chapter"
+            restore.accessibilityLabel = "恢复 " + chapter.title
+            restore.addAction(UIAction { [weak self] _ in self?.restoreChapter(chapter) }, for: .touchUpInside)
+            restore.sizeToFit()
+            cell.accessoryView = restore
+        }
+        cell.accessibilityLabel = displayedChapters[indexPath.row].title
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard !loading else { return }
+        guard !loading, !showingTrash else { return }
         openChapter(chapters[indexPath.row])
     }
+    override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        guard !showingTrash, !loading else { return nil }
+        let chapter = chapters[indexPath.row]
+        let trash = UIContextualAction(style: .destructive, title: "移入回收站") { [weak self] _, _, complete in
+            guard let self, !self.loading else { complete(false); return }
+            self.setLoading(true)
+            self.workspace.trashChapter(projectID: self.project.id, chapterID: chapter.id) { [weak self] result in
+                guard let self else { complete(false); return }
+                self.setLoading(false)
+                switch result {
+                case .success(let reply):
+                    self.chapters = reply.chapters; self.trashedChapters = reply.trashedChapters
+                    self.refreshList(); self.status.text = "章节已移入回收站，可以随时恢复。"
+                    complete(true)
+                case .failure(let error): self.status.text = error.localizedDescription; complete(false)
+                }
+            }
+        }
+        return UISwipeActionsConfiguration(actions: [trash])
+    }
+
+    @objc private func toggleTrash() {
+        guard !loading else { return }
+        if showingTrash {
+            showingTrash = false; refreshList(); status.text = "选择章节，正文自动保存。"; return
+        }
+        setLoading(true)
+        workspace.trashedChapters(projectID: project.id) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            switch result {
+            case .success(let chapters):
+                self.trashedChapters = chapters; self.showingTrash = true; self.refreshList()
+                self.status.text = "恢复后可在章节列表重新打开。"
+            case .failure(let error): self.status.text = error.localizedDescription
+            }
+        }
+    }
+
+    private func restoreChapter(_ chapter: WorkspaceChapter) {
+        guard !loading else { return }
+        setLoading(true)
+        workspace.restoreChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
+            guard let self else { return }
+            self.setLoading(false)
+            switch result {
+            case .success(let reply):
+                self.chapters = reply.chapters; self.trashedChapters = reply.trashedChapters
+                self.refreshList(); self.status.text = "章节已恢复，返回章节列表即可打开。"
+            case .failure(let error): self.status.text = error.localizedDescription
+            }
+        }
+    }
+
     private func openChapter(_ chapter: WorkspaceChapter, revealBlockID: String? = nil, searchHit: WorkspaceSearchHit? = nil) {
         setLoading(true)
         workspace.openChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
@@ -265,6 +341,7 @@ final class ChaptersViewController: UITableViewController {
     private func showChapter(_ chapter: WorkspaceChapter, core: LabCore, revealBlockID: String? = nil,
                              searchLocation: WorkspaceSearchLocation? = nil) {
         setLoading(false)
+        showingTrash = false; refreshList()
         let editor = ChapterEditorViewController(workspace: workspace, core: core,
             project: project, chapter: chapter, chapters: chapters, revealBlockID: revealBlockID, searchLocation: searchLocation)
         editor.onChapterRenamed = { [weak self] updated in
@@ -396,7 +473,10 @@ final class ChapterEditorViewController: UIViewController {
         rename.accessibilityIdentifier = "rename-chapter"
         orderButton = UIBarButtonItem(title: "排序", image: nil, primaryAction: nil, menu: UIMenu(children: []))
         orderButton.accessibilityIdentifier = "chapter-order"
-        navigationItem.rightBarButtonItems = [rename, orderButton]
+        let trash = UIBarButtonItem(image: UIImage(systemName: "trash"), style: .plain, target: self, action: #selector(trashChapter))
+        trash.accessibilityIdentifier = "trash-chapter"
+        trash.accessibilityLabel = "移入回收站"
+        navigationItem.rightBarButtonItems = [rename, orderButton, trash]
         updateOrderMenu()
         heading.text = chapter.title
         heading.font = .preferredFont(forTextStyle: .title2)
@@ -727,6 +807,26 @@ final class ChapterEditorViewController: UIViewController {
             }
         }
     }
+    @objc private func trashChapter() {
+        guard canLeaveDocument() else { return }
+        view.endEditing(true)
+        guard canLeaveDocument() else { return }
+        setLoading(true)
+        workspace.trashChapter(projectID: project.id, chapterID: chapter.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let reply):
+                self.onChapterOrderChanged?(reply.chapters)
+                self.documentView.onActivity = nil
+                _ = self.documentView.binding.detach()
+                self.navigationController?.popViewController(animated: true)
+            case .failure(let error):
+                self.setLoading(false)
+                self.status.text = error.localizedDescription
+            }
+        }
+    }
+
     @objc private func backToChapters() {
         guard canLeaveDocument() else { return }
         view.endEditing(true)

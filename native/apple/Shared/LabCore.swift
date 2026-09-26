@@ -364,6 +364,13 @@ struct WorkspaceRemoteChangesReply: WorkspaceRemoteDeliveryReply {
     let chapters: [WorkspaceChapter]
 }
 
+struct WorkspaceChapterTrashReply: Decodable {
+    let projectId: String
+    let chapterId: String
+    let chapters: [WorkspaceChapter]
+    let trashedChapters: [WorkspaceChapter]
+}
+
 /// Registry of Swift wrappers for Rust's chapter owners. Cache changes belong
 /// to the main thread; the workspace queue owns only FFI requests and its handle.
 final class LabWorkspaceCore {
@@ -404,6 +411,44 @@ final class LabWorkspaceCore {
 
     func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
         perform(completion) { try self.request("workspaceChapters", fields: ["projectId": projectID]) }
+    }
+
+    func trashedChapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
+        perform(completion) { try self.request("workspaceTrashedChapters", fields: ["projectId": projectID]) }
+    }
+
+    func trashChapter(projectID: String, chapterID: String,
+                      completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
+        changeChapterLifecycle("workspaceTrashChapter", projectID: projectID, chapterID: chapterID,
+                               closesOwner: true, completion: completion)
+    }
+
+    func restoreChapter(projectID: String, chapterID: String,
+                        completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
+        changeChapterLifecycle("workspaceRestoreChapter", projectID: projectID, chapterID: chapterID,
+                               closesOwner: false, completion: completion)
+    }
+
+    private func changeChapterLifecycle(_ operation: String, projectID: String, chapterID: String,
+                                        closesOwner: Bool,
+                                        completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard beginOwnerChange() else {
+            completion(.failure(LabError.message("请先完成输入，并保存或处理所有待恢复草稿"))); return
+        }
+        let scope = ChapterScope(projectID: projectID, chapterID: chapterID)
+        perform({ (result: Result<WorkspaceChapterTrashReply, Error>) in
+            // Rust saves the live owner before changing its lifecycle. A failed
+            // transaction keeps every wrapper and view; a restored chapter is
+            // left closed until its new incarnation is opened normally.
+            if closesOwner, case .success = result {
+                self.owners.removeValue(forKey: scope)?.core.invalidate()
+            }
+            self.endOwnerChange()
+            completion(result)
+        }) {
+            try self.request(operation, fields: ["projectId": projectID, "chapterId": chapterID])
+        }
     }
 
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {

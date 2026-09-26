@@ -111,6 +111,8 @@
     "release:check": "node scripts/check-alpha-release.mjs",
     "release:sbom": "node scripts/generate-release-sbom.mjs",
     "apple:workspace-remote:acceptance": "node scripts/apple-workspace-remote-acceptance.mjs",
+    "apple:workspace-trash:acceptance": "node scripts/apple-workspace-trash-acceptance.mjs",
+    "apple:workspace-trash:check": "node scripts/apple-workspace-trash-acceptance.mjs --check",
     "apple:workspace-remote:check": "node scripts/apple-workspace-remote-acceptance.mjs --check",
     "apple:remote-prose:acceptance": "node scripts/apple-remote-prose-acceptance.mjs",
     "apple:remote-prose:check": "node scripts/apple-remote-prose-acceptance.mjs --check",

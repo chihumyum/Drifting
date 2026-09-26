@@ -9,6 +9,8 @@ use drifting_document::Edit;
 mod remote_prose;
 #[path = "workspace_search.rs"]
 pub(super) mod search;
+#[path = "workspace_trash.rs"]
+mod trash;
 
 const WORKSPACE_DATABASE: &str = "apple-native-workspace.db";
 const WORKSPACE_USER: &str = "local-user";
@@ -134,6 +136,9 @@ pub(super) fn dispatch(
             | Request::WorkspaceOutline { .. }
             | Request::WorkspaceReceiveProse { .. }
             | Request::WorkspaceReceiveChanges { .. }
+            | Request::WorkspaceTrashedChapters { .. }
+            | Request::WorkspaceTrashChapter { .. }
+            | Request::WorkspaceRestoreChapter { .. }
             | Request::WorkspaceReconcileProse { .. }
             | Request::WorkspaceSearch { .. }
             | Request::WorkspaceResolveSearchHit { .. }
@@ -302,6 +307,30 @@ pub(super) fn dispatch(
                     .decode(envelope)
                     .map_err(|_| "Invalid remote envelope base64")?,
             )?,
+        Request::WorkspaceTrashedChapters { handle, project_id } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT)
+                .list_trashed_chapters(project_id)?)
+        }
+        Request::WorkspaceTrashChapter {
+            handle,
+            project_id,
+            chapter_id,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .trash_chapter(documents, project_id, chapter_id)?,
+        Request::WorkspaceRestoreChapter {
+            handle,
+            project_id,
+            chapter_id,
+        } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .restore_chapter(project_id, chapter_id)?,
         Request::WorkspaceReconcileProse { handle, project_id } => json!(workspaces
             .get(handle)
             .ok_or("Unknown or closed workspace")?
