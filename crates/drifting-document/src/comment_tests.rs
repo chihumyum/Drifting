@@ -251,3 +251,91 @@ fn stale_quote_offsets_recover_nearest_match_and_cross_block_snapshot_fragments(
     );
     assert_eq!(anchor(&doc)["textAnchor"]["startOffset"], 4);
 }
+
+#[test]
+fn native_selection_comment_anchor_tracks_edits_history_and_reopen() {
+    let mut doc = source();
+    let range = |location, length| NativeRange { location, length };
+    // Trailing block separator is excluded, like the renderer's trimmed selection.
+    let single = doc
+        .comment_anchor_for_selection("single", doc.revision, range(1, 11), "t0")
+        .unwrap();
+    let payload: Value = serde_json::from_str(&single.record.anchor_json).unwrap();
+    assert_eq!(payload["selectedText"], "北塔乙👩🏽‍🚀");
+    assert_eq!(
+        (
+            payload["blockSelectionFrom"].clone(),
+            payload["blockSelectionTo"].clone()
+        ),
+        (json!(1), json!(11))
+    );
+    assert_eq!(single.target_block_ids, ["p"]);
+    let multi = doc
+        .comment_anchor_for_selection("multi", doc.revision, range(1, 12), "t0")
+        .unwrap();
+    let payload: Value = serde_json::from_str(&multi.record.anchor_json).unwrap();
+    assert_eq!(
+        payload["textAnchor"],
+        json!({"startBlockId":"p","startOffset":1,"endBlockId":"q","endOffset":1,"text":"北塔乙👩🏽‍🚀\n海"})
+    );
+    assert_eq!(payload["blockSelectionFrom"], -1);
+    assert_eq!(
+        payload["blockSnapshots"],
+        json!([{"blockId":"p","blockText":"甲北塔乙👩🏽‍🚀"},{"blockId":"q","blockText":"海岸"}])
+    );
+    assert_eq!(multi.record.target_block_ids_json, r#"["p","q"]"#);
+    assert!(doc
+        .comment_anchor_for_selection("x", doc.revision + 1, range(1, 2), "t0")
+        .unwrap_err()
+        .contains("changed"));
+    assert!(doc
+        .comment_anchor_for_selection("x", doc.revision, range(11, 1), "t0")
+        .is_err());
+    assert!(
+        doc.comment_anchor_for_selection("x", doc.revision, range(5, 1), "t0")
+            .is_err(),
+        "split surrogate"
+    );
+
+    let revision = doc.revision;
+    doc.add_comment_anchor(multi.record.clone()).unwrap();
+    assert!(doc.revision > revision);
+    assert!(
+        !doc.native_projection().unwrap().can_undo,
+        "comments are not prose history"
+    );
+    let view = |doc: &DocumentSession| {
+        let comment = doc
+            .native_projection()
+            .unwrap()
+            .comments
+            .into_iter()
+            .find(|c| c.id == "multi")
+            .unwrap();
+        (
+            comment.status,
+            comment.ranges.first().map(|r| (r.location, r.length)),
+        )
+    };
+    assert_eq!(view(&doc), ("anchored".into(), Some((1, 12))));
+    replace(&mut doc, 0, 0, "序");
+    assert_eq!(view(&doc), ("anchored".into(), Some((2, 12))));
+    assert!(doc.undo());
+    assert_eq!(view(&doc), ("anchored".into(), Some((1, 12))));
+    assert!(doc.redo());
+    let records = doc.comment_anchor_records();
+    let mut reopened = DocumentSession::new();
+    reopened
+        .apply_remote(&doc.update(None, 1).unwrap(), 1)
+        .unwrap();
+    reopened.set_comment_anchors(records).unwrap();
+    assert_eq!(view(&reopened), ("anchored".into(), Some((2, 12))));
+    // Removing the passage never re-attaches to equal text elsewhere.
+    replace(&mut doc, 2, 12, "");
+    replace(&mut doc, 0, 0, "北塔乙👩🏽‍🚀\n海");
+    let (status, _) = view(&doc);
+    assert_ne!(status, "anchored");
+    assert!(doc.undo() && doc.undo());
+    assert_eq!(view(&doc), ("anchored".into(), Some((2, 12))));
+    assert!(doc.add_comment_anchor(multi.record).is_err());
+}

@@ -1,6 +1,7 @@
 //! Versioned Apple C ABI. The fixture lab remains separate from the minimal
 //! local workspace/project/chapter surface, including metadata changes. Both
 //! reuse the shared prose owner; metadata commands never replace the editor.
+mod document_comments;
 mod workspace;
 #[cfg(test)]
 mod workspace_tests;
@@ -472,6 +473,27 @@ enum Request {
     },
     DocumentSave {
         handle: u64,
+    },
+    DocumentComments {
+        handle: u64,
+    },
+    DocumentCreateComment {
+        handle: u64,
+        revision: u64,
+        range: drifting_document::NativeRange,
+        body: String,
+    },
+    DocumentUpdateCommentBody {
+        handle: u64,
+        #[serde(rename = "commentId")]
+        comment_id: String,
+        body: String,
+    },
+    DocumentSetCommentResolved {
+        handle: u64,
+        #[serde(rename = "commentId")]
+        comment_id: String,
+        resolved: bool,
     },
 }
 
@@ -989,6 +1011,40 @@ fn dispatch(request: Request) -> Result<Value, String> {
             session.persist();
             session.document_state()
         }
+        Request::DocumentComments { handle } => {
+            document_comments::list(sessions.get(&handle).ok_or("Unknown or closed session")?)
+        }
+        Request::DocumentCreateComment {
+            handle,
+            revision,
+            range,
+            body,
+        } => document_comments::create(
+            sessions
+                .get_mut(&handle)
+                .ok_or("Unknown or closed session")?,
+            revision,
+            range,
+            &body,
+        ),
+        Request::DocumentUpdateCommentBody {
+            handle,
+            comment_id,
+            body,
+        } => document_comments::update_body(
+            sessions.get(&handle).ok_or("Unknown or closed session")?,
+            &comment_id,
+            &body,
+        ),
+        Request::DocumentSetCommentResolved {
+            handle,
+            comment_id,
+            resolved,
+        } => document_comments::set_resolved(
+            sessions.get(&handle).ok_or("Unknown or closed session")?,
+            &comment_id,
+            resolved,
+        ),
         Request::WorkspaceOpen { .. }
         | Request::WorkspaceProjects { .. }
         | Request::WorkspaceCreateProject { .. }

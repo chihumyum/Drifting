@@ -44,7 +44,7 @@ function manifest() {
   ])].sort().map(name => ({ path: name, sha256: sha(read(name)) }));
 }
 const specs = [
-  { name: 'core', crate: 'drifting-core', count: 87, required: [
+  { name: 'core', crate: 'drifting-core', count: 91, required: [
     'original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders',
     'original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes',
     'native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire',
@@ -56,7 +56,7 @@ const specs = [
     'materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes',
     'materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity',
   ] },
-  { name: 'document', crate: 'drifting-document', count: 144, required: [
+  { name: 'document', crate: 'drifting-document', count: 145, required: [
     'native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items',
     'native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive',
     'native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged',
@@ -85,7 +85,7 @@ const specs = [
     'native_persistence::unscoped_native_deletion_refuses_persistence_and_retains_complete_record_after_later_input',
     'native_persistence::review_scoped_plain_replay_refuses_changed_incarnation_before_live_or_coverage_changes',
   ] },
-  { name: 'bridge', crate: 'drifting-apple-bridge', count: 52, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
+  { name: 'bridge', crate: 'drifting-apple-bridge', count: 56, required: ['tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen'] },
 ];
 const boundaries = [
   'Accepts actual native command capture, queued live-basis transformation and whole-record journal persistence with immutable original verification, file-backed rollback/retry and scoped lifecycle checks.',

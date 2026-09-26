@@ -58,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var searchController: MacWorkspaceSearchViewController?
     private var pendingSearch: (hit: WorkspaceSearchHit, view: NativeDocumentView)?
     private var resolvingSearch = false
+    private var commentsButton: NSButton!
+    private var commentsPanel: ChapterCommentsPanel?
+    private var commentsController: MacChapterCommentsViewController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -97,6 +100,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let search = editMenu.addItem(withTitle: "项目搜索", action: #selector(showSearch), keyEquivalent: "f")
         search.keyEquivalentModifierMask = [.command, .shift]
         search.target = self
+        editMenu.addItem(.separator())
+        // Nil-targeted: the focused editor pane validates its own selection.
+        let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
+        addComment.keyEquivalentModifierMask = [.command, .option]
+        let comments = editMenu.addItem(withTitle: "批注列表", action: #selector(showComments), keyEquivalent: "")
+        comments.target = self
         let format = NSMenuItem(title: "格式", action: nil, keyEquivalent: ""), formatMenu = NSMenu(title: "格式")
         formatMenu.addItem(withTitle: "加粗", action: #selector(ProseTextView.boldProse(_:)), keyEquivalent: "b")
         formatMenu.addItem(withTitle: "斜体", action: #selector(ProseTextView.italicProse(_:)), keyEquivalent: "i")
@@ -137,9 +146,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         reopenButton = button("重新打开", id: "reopen-document", action: #selector(reopenDocument))
         outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
         searchButton = button("搜索", id: "show-search", action: #selector(showSearch))
+        commentsButton = button("批注", id: "show-comments", action: #selector(showComments))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
-        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, splitButton, closePaneButton])
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -154,6 +164,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onChange = { [weak self] in self?.activeChapterChanged() }
         chapterWorkspace.onActivity = { [weak self] busy in self?.documentActivity(busy) }
         chapterWorkspace.onError = { [weak self] error in self?.status.stringValue = error.localizedDescription }
+        chapterWorkspace.onComments = { [weak self] view in
+            self?.commentsController?.model.updateAnchors(from: view.binding.store)
+        }
+        chapterWorkspace.onCommentCreated = { [weak self] view, _ in
+            guard let self else { return }
+            self.status.stringValue = "批注已添加"
+            if let model = self.commentsController?.model, model.store === view.binding.store { model.reload(after: "批注已添加。") }
+        }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
             chapterWorkspace.trailingAnchor.constraint(equalTo: editorHost.trailingAnchor),
@@ -276,6 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
         outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         searchButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        commentsButton.isEnabled = !loading && documentView != nil
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -369,6 +388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else { chapterTable.deselectAll(nil) }
         updatingSelection = false
+        updateComments()
         let minWidth: CGFloat = chapterWorkspace.paneCount == 2 ? 1100 : 820
         window.minSize = NSSize(width: minWidth, height: 660)
         if window.frame.width < minWidth {
@@ -463,6 +483,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.searchController?.model.showStatus("这条结果已无法定位，请重新搜索。")
             }
         }
+    }
+
+    @objc private func showComments() {
+        guard documentView != nil else { return }
+        if let commentsPanel, commentsPanel.isVisible {
+            updateComments(); commentsPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeComments()
+        let model = ChapterCommentsModel()
+        let controller = MacChapterCommentsViewController(model: model)
+        let panel = ChapterCommentsPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.minSize = NSSize(width: 320, height: 320)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        commentsPanel = panel; commentsController = controller
+        panel.onClose = { [weak self] in self?.commentsPanel = nil; self?.commentsController = nil }
+        controller.onClose = { [weak self] in self?.closeComments() }
+        controller.onLocate = { [weak self] id in self?.locateComment(id) }
+        window.addChildWindow(panel, ordered: .above)
+        // Beside the text rather than over it, so a located passage stays visible.
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: max(frame.minX, frame.maxX - panel.frame.width - 24), y: frame.maxY - 90))
+        panel.makeKeyAndOrderFront(nil)
+        updateComments()
+    }
+
+    /// The panel follows the active pane: a split of the same chapter keeps
+    /// its rows, another chapter reloads them.
+    private func updateComments() {
+        guard let commentsPanel, let model = commentsController?.model else { return }
+        commentsPanel.title = currentChapter.map { "批注 · \($0.title)" } ?? "批注"
+        model.bind(documentView?.binding.store)
+    }
+
+    private func locateComment(_ id: String) {
+        guard let model = commentsController?.model else { return }
+        guard let documentView, documentView.binding.store === model.store else {
+            model.showStatus("当前编辑栏已变化，请重新选择批注。"); return
+        }
+        if let refusal = documentView.locateComment(id: id) { model.showStatus(refusal); return }
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(documentView.textView)
+        status.stringValue = "已定位批注"
+    }
+
+    private func closeComments() {
+        let panel = commentsPanel
+        commentsPanel = nil; commentsController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
     private func closeSearch() {
@@ -781,7 +850,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self.closingWorkspace = false
             switch result {
             case .success:
-                self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); completion(true)
+                self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
         }
@@ -795,6 +864,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard notification.object as? NSWindow === window else { return }
         closeOutline()
         closeSearch()
+        closeComments()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

@@ -39,6 +39,7 @@ const evidence = [
   ['workspace-remote', node('apple-workspace-remote-acceptance.mjs')],
   ['trash', node('apple-workspace-trash-acceptance.mjs')],
   ['act', node('apple-workspace-act-acceptance.mjs')],
+  ['comments', node('apple-workspace-comment-acceptance.mjs')],
   ['binding', node('apple-binding-acceptance.mjs')],
   ['device-prerequisite', node('apple-device-prerequisite-diagnostic.mjs'), { checkOnly: true }],
 ];

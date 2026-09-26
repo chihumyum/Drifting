@@ -19,12 +19,14 @@ enum LabError: LocalizedError {
     case pendingRemoteUpdate(reason: String)
     case historyUnavailable(reason: String)
     case formattingUnavailable(reason: String)
+    case commentUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
     var diagnosticDescription: String {
         switch self {
-        case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text): return text
+        case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
+             .commentUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -36,7 +38,27 @@ enum LabError: LocalizedError {
             return "远端修改影响了这次操作，暂时无法撤销或重做。当前文字已保留，可以继续编辑。"
         case .formattingUnavailable:
             return "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
+        case .commentUnavailable(let reason): return LabError.commentMessage(reason)
         }
+    }
+
+    /// Comment refusals happen before any row, anchor or prose changes. Known
+    /// core reasons get specific guidance; the exact text stays diagnostic.
+    private static func commentMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Document changed", "正文已变化，请重新选择要批注的文字。"),
+            ("active drafts", "请先完成输入，再添加批注。"),
+            ("pending save", "正文尚未保存，请先重试保存。"),
+            ("Select text", "请先选中要批注的文字。"),
+            ("body is empty", "批注内容不能为空。"),
+            ("editable text blocks", "所选内容包含暂不支持批注的段落，请缩小选区。"),
+            ("No text block", "请先选中要批注的文字。"),
+            ("converted suggestion", "已转化的建议不能解决或重新打开。"),
+            ("not on this chapter", "这条批注已不在当前章节，请刷新批注列表。"),
+            ("not live", "这条批注已被删除，请刷新批注列表。"),
+            ("Chapter is not available", "这一章已不可用，请重新打开章节。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "批注操作未能完成。正文和已有批注均未改变，可以稍后重试。"
     }
 }
 
@@ -131,6 +153,10 @@ final class LabCore {
                reason.hasPrefix("NATIVE_FORMATTING_UNAVAILABLE:") {
                 throw LabError.formattingUnavailable(reason: reason)
             }
+            if ["documentComments", "documentCreateComment", "documentUpdateCommentBody", "documentSetCommentResolved"]
+                .contains(request["operation"] as? String ?? "") {
+                throw LabError.commentUnavailable(reason: reason)
+            }
             if ["open", "workspaceOpenChapter", "workspaceReopenChapter"].contains(request["operation"] as? String ?? ""),
                reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
                 throw LabError.pendingRemoteUpdate(reason: reason)
@@ -187,6 +213,43 @@ final class LabCore {
             var request = fields; request["operation"] = operation; request["handle"] = handle
             guard let state: LabDocumentState = try LabCore.call(request) else { throw LabError.message("正文没有返回") }
             return state
+        }
+    }
+
+    /// Direct comments on this workspace chapter, in the renderer's order.
+    func comments(completion: @escaping (Result<[WorkspaceComment], Error>) -> Void) {
+        documentValue("documentComments", fields: [:]) { (result: Result<WorkspaceCommentList, Error>) in
+            completion(result.map(\.comments))
+        }
+    }
+
+    /// Callers route this through DocumentStore so queued input, marked text
+    /// and the projection revision are checked before the core is asked.
+    func createComment(revision: UInt64, range: NSRange, body: String,
+                       completion: @escaping (Result<WorkspaceCommentCreation, Error>) -> Void) {
+        documentValue("documentCreateComment", fields: ["revision": revision,
+            "range": ["location": range.location, "length": range.length], "body": body], completion: completion)
+    }
+
+    func updateCommentBody(id: String, body: String, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        documentValue("documentUpdateCommentBody", fields: ["commentId": id, "body": body]) { (result: Result<WorkspaceCommentReply, Error>) in
+            completion(result.map(\.comment))
+        }
+    }
+
+    func setCommentResolved(id: String, resolved: Bool, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        documentValue("documentSetCommentResolved", fields: ["commentId": id, "resolved": resolved]) { (result: Result<WorkspaceCommentReply, Error>) in
+            completion(result.map(\.comment))
+        }
+    }
+
+    private func documentValue<Payload: Decodable>(_ operation: String, fields: [String: Any],
+                                                   completion: @escaping (Result<Payload, Error>) -> Void) {
+        perform(completion) {
+            guard let handle = self.handle else { throw LabError.message("请先打开项目") }
+            var request = fields; request["operation"] = operation; request["handle"] = handle
+            guard let value: Payload = try LabCore.call(request) else { throw LabError.message("批注结果没有返回") }
+            return value
         }
     }
 

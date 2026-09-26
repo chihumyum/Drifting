@@ -234,10 +234,10 @@
         "business"
       ],
       "acceptance": [
-        "anchor preservation, invalidation and durable review decisions"
+        "anchor preservation, invalidation and durable review decisions; selection comments created, listed, located, edited and resolved/reopened with exact renderer originals"
       ],
       "milestone": "P2/P3/P5",
-      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; production-lifecycle-review-UI-planned",
+      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-implemented; review-panel-relations-TODO-and-suggestions-planned",
       "decisionTask": null
     },
     {

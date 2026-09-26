@@ -113,6 +113,8 @@
     "apple:workspace-remote:acceptance": "node scripts/apple-workspace-remote-acceptance.mjs",
     "apple:workspace-act:acceptance": "node scripts/apple-workspace-act-acceptance.mjs",
     "apple:workspace-act:check": "node scripts/apple-workspace-act-acceptance.mjs --check",
+    "apple:workspace-comment:acceptance": "node scripts/apple-workspace-comment-acceptance.mjs",
+    "apple:workspace-comment:check": "node scripts/apple-workspace-comment-acceptance.mjs --check",
     "apple:workspace-trash:acceptance": "node scripts/apple-workspace-trash-acceptance.mjs",
     "apple:workspace-trash:check": "node scripts/apple-workspace-trash-acceptance.mjs --check",
     "apple:workspace-remote:check": "node scripts/apple-workspace-remote-acceptance.mjs --check",

@@ -35,6 +35,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onChange: (() -> Void)?
     var onActivity: ((Bool) -> Void)?
     var onError: ((Error) -> Void)?
+    /// A view rendered different comment anchors, or created a comment.
+    var onComments: ((NativeDocumentView) -> Void)?
+    var onCommentCreated: ((NativeDocumentView, WorkspaceComment) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -216,7 +219,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             switch result {
             case .success(let core):
                 let tab = Tab(project: old.project, chapter: old.chapter, core: core)
-                old.view.onActivity = nil; old.view.onFocus = nil; _ = old.view.binding.detach()
+                old.view.onActivity = nil; old.view.onFocus = nil; old.view.onComments = nil; _ = old.view.binding.detach()
                 old.view.removeFromSuperview()
                 if let at = self.panes[pane].tabs.firstIndex(where: { $0 === old }) { self.panes[pane].tabs[at] = tab }
                 self.connect(tab, pane: pane)
@@ -240,7 +243,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             if case .success = result {
                 for pane in self.panes {
                     for tab in pane.tabs {
-                        tab.view.onActivity = nil; tab.view.onFocus = nil
+                        tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil
                         _ = tab.view.binding.detach(); tab.view.removeFromSuperview()
                     }
                     pane.tabs.removeAll(); pane.selected = nil
@@ -263,6 +266,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func connect(_ tab: Tab, pane: Int) {
         tab.view.isInteractionLocked = isBusy || externallyLocked
         tab.view.onFocus = { [weak self] in self?.activate(pane: pane) }
+        tab.view.onComments = { [weak self, weak view = tab.view] in
+            if let self, let view { self.onComments?(view) }
+        }
+        tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
+            if let self, let view { self.onCommentCreated?(view, comment) }
+        }
         tab.view.onActivity = { [weak self] _ in
             guard let self else { return }
             self.updateTabAvailability()
@@ -331,7 +340,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         splitView.adjustSubviews(); refreshTabs(); focusWhenReady(); onChange?()
     }
     private func remove(_ tab: Tab, from index: Int) {
-        tab.view.onActivity = nil; tab.view.onFocus = nil
+        tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil
         _ = tab.view.binding.detach(); tab.view.removeFromSuperview()
         let pane = panes[index]
         pane.tabs.removeAll { $0 === tab }

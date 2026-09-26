@@ -277,6 +277,64 @@ final class DocumentStore {
             }
         }
     }
+    /// Comment rows live in SQLite beside this owner. Listing is a read on the
+    /// same serial core queue, ordered after any command already sent.
+    func comments(completion: @escaping (Result<[WorkspaceComment], Error>) -> Void) {
+        core.comments(completion: completion)
+    }
+
+    /// The range must come from the current projection revision. Like
+    /// formatting, commenting waits for queued input and marked drafts; the
+    /// returned state is adopted so every view of this chapter highlights it.
+    func createComment(range: NSRange, revision: UInt64, body: String,
+                       completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        if let refusal = commentRefusal(revision: revision) { completion(.failure(refusal)); return }
+        sending = true; activity()
+        core.createComment(revision: revision, range: range, body: body) { [weak self] result in
+            guard let self else { completion(result.map(\.comment)); return }
+            self.sending = false
+            switch result {
+            case .success(let reply):
+                self.state = reply.state; self.needsRefresh = true; self.reportSave(reply.state); self.pump()
+                completion(.success(reply.comment))
+            case .failure(let error):
+                // The core refused, or rolled the row back before tracking an
+                // anchor. Keep the existing input bases and selections.
+                self.pump()
+                completion(.failure(error))
+            }
+        }
+    }
+
+    /// Body and review state never change prose, anchors or history; they
+    /// still wait behind queued input so commands keep one visible order.
+    func updateCommentBody(id: String, body: String, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        commentCommand(completion) { $0.updateCommentBody(id: id, body: body, completion: $1) }
+    }
+
+    func setCommentResolved(id: String, resolved: Bool, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        commentCommand(completion) { $0.setCommentResolved(id: id, resolved: resolved, completion: $1) }
+    }
+
+    private func commentCommand(_ completion: @escaping (Result<WorkspaceComment, Error>) -> Void,
+                                _ run: (LabCore, @escaping (Result<WorkspaceComment, Error>) -> Void) -> Void) {
+        if let refusal = commentRefusal() { completion(.failure(refusal)); return }
+        sending = true; activity()
+        run(core) { [weak self] result in
+            if let self { self.sending = false; self.pump() }
+            completion(result)
+        }
+    }
+
+    private func commentRefusal(revision: UInt64? = nil) -> Error? {
+        if let message = remoteBlockStatus { return LabError.message(message) }
+        if failure != nil || state?.saved == false { return LabError.message("正文尚未保存，请先重试保存，再操作批注。") }
+        if hasPendingWork { return LabError.message("请先完成输入，并等待正文保存后再操作批注。") }
+        guard canEdit, let projection else { return LabError.message("正文暂时不可编辑，请稍后再操作批注。") }
+        if let revision, projection.revision != revision { return LabError.commentUnavailable(reason: "Document changed") }
+        return nil
+    }
+
     func retrySave() {
         guard !sending, failure == nil else { return }
         sending = true; activity()

@@ -13,7 +13,7 @@ pub(super) mod search;
 mod trash;
 
 const WORKSPACE_DATABASE: &str = "apple-native-workspace.db";
-const WORKSPACE_USER: &str = "local-user";
+pub(super) const WORKSPACE_USER: &str = "local-user";
 static WORKSPACES: OnceLock<Mutex<HashMap<u64, WorkspaceSession>>> = OnceLock::new();
 
 struct WorkspaceSession {
@@ -23,7 +23,7 @@ struct WorkspaceSession {
     documents: HashMap<(String, String), u64>,
 }
 
-fn identifier(kind: &str) -> Result<String, String> {
+pub(super) fn identifier(kind: &str) -> Result<String, String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?;

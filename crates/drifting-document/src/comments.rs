@@ -22,6 +22,14 @@ pub struct CommentAnchorView {
     pub ranges: Vec<NativeRange>,
 }
 
+/// A new comment anchor captured from the current projection: the renderer's
+/// anchor payload (without ProseMirror positions) plus `nativeAnchorV1`.
+#[derive(Clone, Debug)]
+pub struct NewCommentAnchor {
+    pub record: CommentAnchorRecord,
+    pub target_block_ids: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct RelativeRange {
     start: Vec<u8>,
@@ -94,6 +102,119 @@ fn nearest(text: &str, needle: &str, expected: u32) -> Option<u32> {
 }
 
 impl DocumentSession {
+    /// Capture a comment anchor for a selection at `revision`. Surrounding
+    /// whitespace is excluded, like the renderer's trimmed selected text.
+    /// Nothing changes until [`Self::add_comment_anchor`] installs the record.
+    pub fn comment_anchor_for_selection(
+        &self,
+        id: &str,
+        revision: u64,
+        range: NativeRange,
+        now_iso: &str,
+    ) -> Result<NewCommentAnchor, String> {
+        if revision != self.revision {
+            return Err("Document changed; select the passage again".into());
+        }
+        if self.active_drafts() > 0 || self.active_input_compositions() > 0 {
+            return Err("Commit or cancel active drafts before commenting".into());
+        }
+        if id.is_empty() || self.comments.contains_key(id) {
+            return Err("Duplicate or empty comment identity".into());
+        }
+        let view = self.native_projection()?;
+        validate_range(&view.text, range.location, range.length)?;
+        let units: Vec<u16> = view.text.encode_utf16().collect();
+        let blank = |unit: u16| {
+            char::from_u32(unit.into())
+                .is_some_and(|c| c == '\u{feff}' || (c.is_whitespace() && c != '\u{85}'))
+        };
+        let (mut start, mut end) = (range.location, range.location + range.length);
+        while start < end && blank(units[start as usize]) {
+            start += 1;
+        }
+        while end > start && blank(units[end as usize - 1]) {
+            end -= 1;
+        }
+        if start == end {
+            return Err("Select text before adding a comment".into());
+        }
+        let spanned: Vec<_> = view
+            .blocks
+            .iter()
+            .filter(|block| {
+                block.range.location < end && start < block.range.location + block.range.length
+            })
+            .collect();
+        let mut ids = Vec::new();
+        for block in &spanned {
+            let id = block
+                .id
+                .as_deref()
+                .filter(|id| block.editable && global(&view, id, 0).is_some())
+                .ok_or("Comments need editable text blocks with stable identities")?;
+            ids.push(id.to_owned());
+        }
+        let (first, last) = (
+            spanned.first().ok_or("No text block in selection")?,
+            spanned[spanned.len() - 1],
+        );
+        let start_offset = start - first.range.location;
+        let end_offset = end - last.range.location;
+        let block_text = |block: &NativeBlock| {
+            slice(
+                &view.text,
+                block.range.location,
+                block.range.location + block.range.length,
+            )
+            .ok_or_else(|| "Invalid block text".to_string())
+        };
+        let quote = slice(&view.text, start, end).ok_or("Invalid selection text")?;
+        let single = spanned.len() == 1;
+        let mut snapshots = Vec::new();
+        for (block, id) in spanned.iter().zip(&ids) {
+            snapshots.push(json!({"blockId": id, "blockText": block_text(block)?}));
+        }
+        let relative = RelativeRange {
+            start: self.anchor(&ids[0], start_offset, false)?,
+            end: self.anchor(&ids[ids.len() - 1], end_offset, true)?,
+        };
+        let anchor = json!({
+            "selectedText": quote,
+            "createdAt": now_iso,
+            "blockText": block_text(first)?,
+            "blockSelectionFrom": if single { i64::from(start_offset) } else { -1 },
+            "blockSelectionTo": if single { i64::from(end_offset) } else { -1 },
+            "blockSnapshots": snapshots,
+            "textAnchor": {
+                "startBlockId": ids[0], "startOffset": start_offset,
+                "endBlockId": ids[ids.len() - 1], "endOffset": end_offset, "text": quote,
+            },
+            "nativeAnchorV1": relative,
+        });
+        Ok(NewCommentAnchor {
+            record: CommentAnchorRecord {
+                id: id.into(),
+                anchor_json: anchor.to_string(),
+                target_block_id: ids.first().cloned(),
+                target_block_ids_json: json!(ids).to_string(),
+            },
+            target_block_ids: ids,
+        })
+    }
+
+    /// Track a committed comment. Existing anchors keep their epochs and no
+    /// prose history changes; only the projection's comment views do.
+    pub fn add_comment_anchor(&mut self, record: CommentAnchorRecord) -> Result<(), String> {
+        let mut records = self.comment_anchor_records();
+        if records.iter().any(|existing| existing.id == record.id) {
+            return Err("Duplicate or empty comment identity".into());
+        }
+        records.push(record);
+        self.set_comment_anchors(records)?;
+        self.revision += 1;
+        Ok(())
+    }
+
     /// A refreshed external anchor invalidates only its own old history. A
     /// body/status change is outside this record and never overwritten here.
     pub fn set_comment_anchors(&mut self, records: Vec<CommentAnchorRecord>) -> Result<(), String> {

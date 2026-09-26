@@ -57,7 +57,7 @@ mod undo_policy;
 #[cfg(test)]
 mod undo_policy_tests;
 mod wire;
-pub use comments::{CommentAnchorRecord, CommentAnchorView};
+pub use comments::{CommentAnchorRecord, CommentAnchorView, NewCommentAnchor};
 pub use native::{
     NativeBlock, NativeOutlineItem, NativeProjection, NativeRange, NativeReplacement, NativeRun,
 };

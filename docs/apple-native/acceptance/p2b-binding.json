@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T17:31:23.948Z",
+  "generatedAt": "2026-09-26T18:01:04.718Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "ea5d75f38c653ec33a74b891625ad543ef8d0222",
+    "commit": "f7109cc68a927248719416c77910d4036021682b",
     "dirty": true,
-    "fingerprint": "d48ddc7859e5fa05ab4f790c6e21af3ed3832fa72ea0540e8b7328ed163b8291"
+    "fingerprint": "7aa3005a074c0b38f500c46d79e4f4a127f98756a096ff5b5a1263e0c1f6c14a"
   },
   "cases": [
     {
@@ -328,6 +328,18 @@
     },
     {
       "name": "Workspace act boundaries retain outline expansion chapter owners selection and history through create rename remove and cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit selection comment highlights both same-chapter views lists and locates only in the initiating pane without authoring history and survives cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit comment body edit resolve and reopen keep prose selections anchors and undo history and survive cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit comment refusals for stale revision blank selection empty body failed commit queued and marked input create nothing and keep composer text",
       "status": "passed"
     }
   ],

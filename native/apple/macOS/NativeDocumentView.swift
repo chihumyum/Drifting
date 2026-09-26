@@ -11,6 +11,8 @@ final class ProseTextView: NSTextView {
     var performHistory: ((Bool) -> Void)?
     var canPerformFormat: ((NativeFormatAction) -> Bool)?
     var performFormat: ((NativeFormatAction) -> Void)?
+    var canPerformComment: (() -> Bool)?
+    var performComment: (() -> Void)?
 
     // Standard responder actions also cover text-system key bindings. Never
     // let NSTextView's independent undo stack replay a CRDT-owned operation.
@@ -30,11 +32,16 @@ final class ProseTextView: NSTextView {
         guard canPerformFormat?(.italic) == true else { return }
         performFormat?(.italic)
     }
+    @objc func addProseComment(_ sender: Any?) {
+        guard canPerformComment?() == true else { return }
+        performComment?()
+    }
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
         if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
         if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
         if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
+        if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
         return super.validateUserInterfaceItem(item)
     }
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
@@ -42,6 +49,7 @@ final class ProseTextView: NSTextView {
         if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
         if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
         if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
+        if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
         return super.validateMenuItem(item)
     }
 }
@@ -60,10 +68,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private var rendering = false
     private var styledProjection: NativeProjection?
+    private var reportedComments: [NativeComment]?
     private(set) var lastStyleUpdate = DocumentStyle.Update.full
     var onStyleUpdate: ((DocumentStyle.Update) -> Void)?
     var onActivity: ((Bool) -> Void)?
     var onFocus: (() -> Void)?
+    /// Fired when this view renders different comment anchor views.
+    var onComments: (() -> Void)?
+    var onCommentCreated: ((WorkspaceComment) -> Void)?
     var isInteractionLocked = false {
         didSet {
             updateEditability()
@@ -97,6 +109,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performHistory = { [weak self] in self?.performHistory(redo: $0) }
         textView.canPerformFormat = { [weak self] in self?.canPerformFormat($0) == true }
         textView.performFormat = { [weak self] in self?.performFormat($0) }
+        textView.canPerformComment = { [weak self] in self?.canAddComment == true }
+        textView.performComment = { [weak self] in self?.beginComment() }
         scroll.documentView = textView
         undoButton.target = self; undoButton.action = #selector(undoProse)
         redoButton.target = self; redoButton.action = #selector(redoProse)
@@ -192,6 +206,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             onStyleUpdate?(lastStyleUpdate)
         }
         comments.stringValue = projection.comments.map(\.summary).joined(separator: "\n")
+        if reportedComments != projection.comments { reportedComments = projection.comments; onComments?() }
         if let anchored = binding.resolvedSelection(in: projection) { selection = anchored }
         let length = (projection.text as NSString).length
         let start = min(selection.location, length)
@@ -202,6 +217,67 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         rendering = false
         updateFormatControls()
     }
+    // MARK: Comments
+
+    var canAddComment: Bool {
+        !isInteractionLocked && !textView.hasMarkedText() && binding.canComment(range: textView.selectedRange())
+    }
+
+    /// Opens the composer for the current selection. The range and revision
+    /// are captured now; if the prose changes first, the core refuses and the
+    /// composer keeps the typed text with the reason.
+    func beginComment() {
+        guard canAddComment, let projection = binding.store.projection, let window else { return }
+        let range = textView.selectedRange(), revision = projection.revision
+        focus()
+        let composer = MacCommentComposerViewController(title: "添加批注", confirmTitle: "添加",
+            quote: (projection.text as NSString).substring(with: range))
+        composer.onSubmit = { [weak self] body, done in
+            guard let self else { done(LabError.message("编辑栏已关闭，批注未添加。")); return }
+            self.addComment(body, range: range, revision: revision) { result in
+                switch result {
+                case .success: done(nil)
+                case .failure(let error): done(error)
+                }
+            }
+        }
+        composer.onFinish = { [weak self] in self?.focus() }
+        composer.present(on: window)
+    }
+
+    func addComment(_ body: String, range: NSRange, revision: UInt64,
+                    completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        guard !isInteractionLocked, !textView.hasMarkedText() else {
+            completion(.failure(LabError.message("请先完成输入，再添加批注。"))); return
+        }
+        binding.addComment(body, range: range, revision: revision) { [weak self] result in
+            if case .success(let comment) = result { self?.onCommentCreated?(comment) }
+            completion(result)
+        }
+    }
+
+    /// Selects the comment's current anchor in this view only. Returns the
+    /// reason when it cannot, leaving the selection unchanged.
+    func locateComment(id: String) -> String? {
+        guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
+              let projection = binding.store.projection else { return "请先完成输入，并等待正文保存后再定位批注。" }
+        guard let anchor = projection.comments.first(where: { $0.id == id }) else { return "这条批注已不在当前正文中，请刷新批注列表。" }
+        guard let range = anchor.locatableRange else {
+            return anchor.anchorStatus == .collapsed ? "批注的原文已删除，无法定位。" : "未能在正文中找到这条批注的原文。"
+        }
+        return reveal(range: range, revision: projection.revision) ? nil : "正文已变化，请稍后再定位这条批注。"
+    }
+
+    func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
+        guard !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) else { return menu }
+        let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
+        item.target = textView
+        item.setAccessibilityIdentifier("context-add-comment")
+        menu.insertItem(item, at: 0)
+        menu.insertItem(.separator(), at: 1)
+        return menu
+    }
+
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard !isInteractionLocked, let replacementString else { return false }
         return binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())

@@ -111,7 +111,7 @@ struct NativeSelectionCapture: Decodable {
     let revision: UInt64
     let selection: NativeSelection
 }
-struct NativeComment: Decodable {
+struct NativeComment: Decodable, Equatable {
     let id: String
     let quote: String
     let status: String
@@ -362,6 +362,23 @@ final class DocumentBinding {
         guard canFormat(action, range: range), let projection = store.projection else { return }
         selectionChanged(range, text: projection.text, marked: false)
         store.format(action, range: range, revision: projection.revision)
+    }
+
+    /// A comment needs non-blank text in the authoritative display. Rust trims
+    /// surrounding whitespace and validates the anchor against the revision.
+    func canComment(range: NSRange) -> Bool {
+        guard canEdit, !hasPendingWork, !hasUnsubmittedDraft, let projection = store.projection,
+              NativeText.identical(localText, projection.text), range.location >= 0, range.length > 0,
+              range.location <= (projection.text as NSString).length,
+              range.length <= (projection.text as NSString).length - range.location else { return false }
+        return !(projection.text as NSString).substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    func addComment(_ body: String, range: NSRange, revision: UInt64,
+                    completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
+        guard attached, !hasUnsubmittedDraft else {
+            completion(.failure(LabError.message("请先完成输入，再添加批注。"))); return
+        }
+        store.createComment(range: range, revision: revision, body: body, completion: completion)
     }
 
     /// This is a display hint only; Rust decides which blocks a command edits.

@@ -34,7 +34,7 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search |
+| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
@@ -54,14 +54,14 @@ architectural redesign.
 | Remote prose and complete chapter receive | `09694c33` `84fb8c92` `12e3f728` | [remote prose](remote-prose-sync.md), [chapter receiver](remote-workspace-sync.md) |
 | Recoverable chapter trash | `0e97a995` | [chapter trash](chapter-trash.md) |
 | Act boundary editing | `ea5d75f3` | [act boundaries](act-boundaries.md) |
+| Chapter selection comments | this batch | [chapter comments](chapter-comments.md) |
 
 ## Next batch
 
-Current-chapter comments: add a comment on a selection, list and locate
-comments, edit a comment body, resolve and reopen. Use shared domain writes and
-the existing prose anchor owner. This also gives later Agent integration a
-domain service; it does not certify Agent permissions, providers or review
-recovery. After comments: remaining domain commands, then the Agent runtime.
+Not yet chosen. Candidates: elements and materials (the largest P5b surface
+for daily writing), wider search parity, or the minimal in-process Agent
+runtime (P4), which can reuse the workspace and comment domain services for
+guarded writes.
 
 ## Open gates
 
