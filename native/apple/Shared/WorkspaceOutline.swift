@@ -30,6 +30,8 @@ final class WorkspaceOutlineModel {
     private var requestID = 0
     private(set) var busy = false
     private(set) var status = "正在读取整书大纲…"
+    /// Chapter memberships for each chapter's 主线 colour; nil until read.
+    private(set) var storylines: WorkspaceStorylineLibrary?
     var onChange: (() -> Void)?
 
     init(workspace: LabWorkspaceCore, projectID: String) {
@@ -38,6 +40,16 @@ final class WorkspaceOutlineModel {
     }
 
     func showStatus(_ message: String) { status = message; onChange?() }
+
+    /// Adopt the project's storyline library; rows show each chapter's 主线.
+    func applyStorylines(_ library: WorkspaceStorylineLibrary) {
+        guard storylines != library else { return }
+        storylines = library
+        onChange?()
+    }
+
+    /// The chapter's live 主线, or nil when it is 未归属 (or not yet read).
+    func primaryStoryline(chapterID: String) -> WorkspaceStoryline? { storylines?.primary(chapterID: chapterID) }
 
     func load() {
         guard !busy else { return }

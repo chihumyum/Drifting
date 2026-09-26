@@ -16,6 +16,13 @@ pub(super) struct Mutation {
     update: Option<Vec<u8>>,
 }
 impl Mutation {
+    /// The entity this mutation creates or restores, with its incarnation.
+    pub(super) fn lifecycle_target(&self, kind: &str) -> Option<(String, u64)> {
+        (self.family == "entity"
+            && self.kind == kind
+            && matches!(self.action, "entity.create" | "entity.restore"))
+        .then(|| (self.id.clone(), self.incarnation))
+    }
     pub(super) fn at_incarnation(mut self, incarnation: u64) -> Self {
         self.incarnation = incarnation;
         self

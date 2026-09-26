@@ -7,140 +7,140 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/bridge-check.log",
-      "sha256": "8f95c1c4cae25ee79a9d123563510dc14fd298968894b5468c54b7d493abb725"
+      "path": ".local-data/apple-native/authoring-1790460275378/bridge-check.log",
+      "sha256": "fcb3e2999b5bf44b8f807a750891874d7e35875254bdecc130edb441085e5a43"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/bridge-fmt.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/bridge-fmt.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/bridge-list.log",
-      "sha256": "39c6d6a68d61c04909101ec2571d61b63b3e7e5b444fbb06e7ebb5c1fe792a51"
+      "path": ".local-data/apple-native/authoring-1790460275378/bridge-list.log",
+      "sha256": "49e78d5389d4aa92323a96ae3edd8975b5a4dce2dd5c6978efafbc2fe2d8718c"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/bridge.log",
-      "sha256": "7ae114b9313bb439930cdb5202314d60275c5d3549a9c6f0a221c18778623ed7"
+      "path": ".local-data/apple-native/authoring-1790460275378/bridge.log",
+      "sha256": "9158911be9f2df908588c6ac4d1370b24ecb198ae6f900fc81c6981f536af87e"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/cargo.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/cargo.log",
       "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/core-check.log",
-      "sha256": "0b919a598bd07c2d192d61ab2caeef195a525b1a304fada350bd332291735e38"
+      "path": ".local-data/apple-native/authoring-1790460275378/core-check.log",
+      "sha256": "64f17ecdfd654a10edff4ecab0d877c413942a9f36bf7e8f48867f969b616b5e"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/core-fmt.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/core-fmt.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/core-list.log",
-      "sha256": "dd5250009b28f9b320cc1d2b8fdcb350c08ae7d77168f5311c54703b13f22e42"
+      "path": ".local-data/apple-native/authoring-1790460275378/core-list.log",
+      "sha256": "d5693c5d88381a6937ed31b53d981a7cc28bf25ed1eb389eb1e81599d7af7004"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/core.log",
-      "sha256": "9c61f101f8b6256d3c3cba6c3d25ae7207ca789592f7f18720cd6f3fc973e3eb"
+      "path": ".local-data/apple-native/authoring-1790460275378/core.log",
+      "sha256": "36167d72d55a5701e426121a53839dea9dbb5ebdacd5ca7a703f82dcf31a2c14"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/document-check.log",
-      "sha256": "af1023189f721f15f22a28cc48760cf0e86b19e184f98603404355e247c01ade"
+      "path": ".local-data/apple-native/authoring-1790460275378/document-check.log",
+      "sha256": "5315748e0e3514cb2155d048194f4284efe504d5d86a2bb1dac98162bf743898"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/document-fmt.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/document-fmt.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/document-list.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/document-list.log",
       "sha256": "4de7ac036b4ef45dff9b18cb03d6e81aa64d74ef64b2132e510c5532de3db322"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/document.log",
-      "sha256": "1b1aa9600ad35d65152a88ee5072e0473a886ee9a4c8c6df64c8d40b44421286"
+      "path": ".local-data/apple-native/authoring-1790460275378/document.log",
+      "sha256": "dc979be5259104951f99905e1e638ffcce50d0c283b14ca62d25287699ee8872"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/event-order.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/event-order.log",
       "sha256": "0b225a1d36777d8fb5431ef5ed76eec59f243bc7f8fe09a5056829b6eccc7749"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/journal-fixture.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/journal-fixture.log",
       "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/journal-wire-result.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/journal-wire-result.json",
       "sha256": "54959ec06d713dfb48d05186cec64b5c578dd25e7637da45226de41fe940af01"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/journal-wire.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/journal-wire.json",
       "sha256": "f66c17bbbd50f723d7da1d28906eff75a580db806700e8011c613efd1d627b92"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/journal-wire.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/journal-wire.log",
       "sha256": "67b4bdda1f68854294573792888de5355cf52c805db1678d22b65d92b873d3df"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire-result.json",
-      "sha256": "af42bd9494145c9280c4e5ed6fe088b6553a534a4005b1eb19b1f044ec26b0d5"
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire-result.json",
+      "sha256": "57d5dda1f4c1c5b94afa7b4e1539e23292a5466e6e2fa3b144f1f048124e7144"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire.log",
       "sha256": "cd0d3daaaefb9dd7d924a08e76cd23aacf41ccacced3549455746768275b46f9"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire/native-draft.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire/native-draft.json",
       "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire/native-multiclient.json",
-      "sha256": "086ec98338c3ea03157d9b2b19e59ad375b348a66424568e1fc8c6338de2d393"
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire/native-multiclient.json",
+      "sha256": "22aca61951f19df9a1c28dbc157f7c5c23cb668a78dff4515053116a767dd794"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire/native-plain.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire/native-plain.json",
       "sha256": "d7e497d42031f11552193881a1afbf4eea40ef4edae748014d092745313c803c"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/native-wire/native-queued.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/native-wire/native-queued.json",
       "sha256": "e4f80cd3bed05c0fa1b5be5e6725c1da0562bbe31bf97f2e69c0073fde120e2c"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/prose-check.log",
-      "sha256": "f58f9e9f0881b4013a6faa7e7e0695c22f9bc176737f98f6451fabddf0719959"
+      "path": ".local-data/apple-native/authoring-1790460275378/prose-check.log",
+      "sha256": "b39b8abe6faa600f9286fa559e4a60c0ccf1277ac423693a05d4cd03f82dfd2d"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/prose-fmt.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/prose-fmt.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/prose-list.log",
-      "sha256": "a104543450359cc1eba2f2b2d68d055cc0a826ad17594af041e6c52f85868eef"
+      "path": ".local-data/apple-native/authoring-1790460275378/prose-list.log",
+      "sha256": "505736b9bb5afa80882793012a5029f62b516132aea6d5af71f87f2e9ad96c5a"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/prose.log",
-      "sha256": "71cceac83d9a0bbea2d7521aca051209c15f9e3822ff0d49799d25ca4b9b161e"
+      "path": ".local-data/apple-native/authoring-1790460275378/prose.log",
+      "sha256": "3c1a80b3c3556e7b25f4e6934d4140e27e2f691c4d8863dd094f2423f41c3358"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/renderer.json",
-      "sha256": "75040e8240c518b8c26b9234a925445edfe6c09b63b10e3847c301e101e874f9"
+      "path": ".local-data/apple-native/authoring-1790460275378/renderer.json",
+      "sha256": "693912f2a19da754f856782381e05a523e9fda536d099eb6a0e53aa1c95e9881"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/renderer.log",
-      "sha256": "15503dd0cf8c430a35d6dd3f05594210aef539661fba63afb81098897a7d217f"
+      "path": ".local-data/apple-native/authoring-1790460275378/renderer.log",
+      "sha256": "d5943953a39a532a69b6a049b64bb0820c2ef2deee76d76b8c637ea9d16d7b74"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/rustc.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/rustc.log",
       "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/tsconfig.json",
+      "path": ".local-data/apple-native/authoring-1790460275378/tsconfig.json",
       "sha256": "d4457101ea3e9f4e8130393663cc770ce13cef8ca97b9c17f8db8d52506d20af"
     },
     {
-      "path": ".local-data/apple-native/authoring-1790457795668/typecheck.log",
+      "path": ".local-data/apple-native/authoring-1790460275378/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     }
   ],
   "source": {
-    "fingerprint": "8f316f401d218b42fa9494e3916d2b1f5ac73d62213055cf8aab7033eefa02f3",
+    "fingerprint": "4e06b5cbb302ad4c0b06de9688682bfc7f2f15ac1feef5a203a416f668cd5971",
     "files": [
       {
         "path": "crates/drifting-apple-bridge/Cargo.lock",
@@ -160,11 +160,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/lib.rs",
-        "sha256": "9c565811ac2c020270c98c7a538c97a1e1084e1bd394627ee7acbf2de2d00021"
+        "sha256": "59dbeb0950f29b32d8fc4f6cf8a1e05b91ca7ed4e8277ffb4453843dd22552f5"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace.rs",
-        "sha256": "8df0fcdec99b985f9f3b0e80a961778add0577d54837458897e1b8d3b49dc227"
+        "sha256": "7ddd9bcb1980242ec228b1b754a7ef46c6f35cd47e2115f51bc4eaa2d570c846"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_act_tests.rs",
@@ -180,7 +180,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_elements.rs",
-        "sha256": "4e6ce51332fcf68342fc6f8975900a20c40133a4184786dd524ed3df054fb4d4"
+        "sha256": "beca1552bc1be61e476ff4a9081511aaa227005ed2448ce987b84fa85aeb790d"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_link_tests.rs",
@@ -211,12 +211,20 @@
         "sha256": "4adba3195d1b2bbab256a8c56b67ce77fb515a9ff60bb93ab6b37d474fb6e4e7"
       },
       {
+        "path": "crates/drifting-apple-bridge/src/workspace_storyline_tests.rs",
+        "sha256": "1d80859ca9de1297c7b70b5a806332219c26a5a6ad176b63fe25a38f8a39a0b1"
+      },
+      {
+        "path": "crates/drifting-apple-bridge/src/workspace_storylines.rs",
+        "sha256": "f56e0245cfd4a428c1b2e36d9ade943703e69b5fb7b2c309d4e3d774d28a083c"
+      },
+      {
         "path": "crates/drifting-apple-bridge/src/workspace_tabs_tests.rs",
         "sha256": "a883f7ddfc3fd56af067fb2f19ea98fded6d395ea26ee46174ef2ef821c8dfef"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_tests.rs",
-        "sha256": "8abc42bc30b5a05eafd660d660004a4db93ed7fac5dbb2765427c2e8948e8f01"
+        "sha256": "7507f719cf89d458fadf460c2e77ad3a1c49f0b8a841a53d7a5d642d1827edf5"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_trash.rs",
@@ -348,7 +356,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "057b1b5706863872a286b1aaa84e8e848c5a95d5907439da53b49baf02143f49"
+        "sha256": "ff5de89bcf20ee63717d5d80af2dec113352b3c3fc3550442c904c494c05c963"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -376,11 +384,11 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/facts.rs",
-        "sha256": "a1df6c3c044054abb87b9c94190a1a92bb1bd1fbc0e3bd63edfdb1e251c4bad4"
+        "sha256": "557ef5b56e199a79d8ebdaa904d2f539ae1683814cae1552e18a91150e8dadfd"
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "e979d25708f0101b7128de511a74a075305d5db126da2852784488add7ee1761"
+        "sha256": "5693ff0395f8e0096a050dc699784ab7b423749fc1741a386a8186c2fc9e0467"
       },
       {
         "path": "crates/drifting-core/src/workspace/outline.rs",
@@ -399,16 +407,24 @@
         "sha256": "25ef9311506ab544fb13be25d1a1427290ea398d9f0e544f6ec6982fe0f62189"
       },
       {
+        "path": "crates/drifting-core/src/workspace/storylines.rs",
+        "sha256": "088ba471fa885e1551ddb2f67aeff26193ccd648048b11d5a36f54268d1cb6ae"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/storylines/tests.rs",
+        "sha256": "d4f0e8011aa3001e9583db6c60cf676acf0781155590922a55ccae353df14c60"
+      },
+      {
         "path": "crates/drifting-core/src/workspace/tests.rs",
         "sha256": "230e46ae9639e21e7381ac96b7d6c12729ea45be0bcf5e4ab5379dc5d7ab1eae"
       },
       {
         "path": "crates/drifting-core/src/workspace/trash.rs",
-        "sha256": "ab4172d1f7272f07fbfab90450000aaac61a4ccf1a8a21e0be3ea47bd80632a9"
+        "sha256": "1c2b6813bac7bc92fef2820028dc71a893c468f39574309288f4155dd38ad921"
       },
       {
         "path": "crates/drifting-core/src/workspace/trash/tests.rs",
-        "sha256": "b01efbc71388f63562ddba2e729d2be0cfe6d9c1f3ca9826cca83327ab381f2c"
+        "sha256": "b17ccfcd71c7e4703c7f2dac0f49d251d1b09f8cbf37307f77b9187740d03b79"
       },
       {
         "path": "crates/drifting-core/tests/fixtures/event-order.json",
@@ -640,7 +656,7 @@
       },
       {
         "path": "crates/drifting-prose/src/workspace.rs",
-        "sha256": "37049a08c5cc8bb1f5dc447870e0638803cefe76a02fe6b4d609a6a1b5dc4b83"
+        "sha256": "cbe64acf07bce8cdf93c05dffabdb069877c4d8c68cf68b75a9616d83f9740e6"
       },
       {
         "path": "crates/drifting-prose/tests/durability.rs",
@@ -664,7 +680,7 @@
       },
       {
         "path": "docs/apple-native/fixtures/prose-journal-v1.json",
-        "sha256": "e26257845d1c299b2ab647c682cfab5506d8aa44182982db0e2ea412f28ff397"
+        "sha256": "03cccfa93e5c41326dc67dd8f3a2e9b8dced8e1d93da84439ab3453d96a5ca09"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -712,7 +728,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "f94e8fd5d6b4840f6c4e4c467c2f2f66c1fc288f42d14f371ae6aad0d4800490"
+        "sha256": "b1fd915a989d562b080a6258c48f73508151d65afad72086d80bf70eaa456a62"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -1980,8 +1996,8 @@
     {
       "name": "core",
       "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "listed": 99,
-      "passed": 99,
+      "listed": 102,
+      "passed": 102,
       "failed": 0,
       "cases": [
         "database::tests::database_names_cannot_escape_the_managed_directory",
@@ -1991,14 +2007,14 @@
         "database::tests::shadow_migration_sigkill_worker",
         "database::tests::a_fresh_renderer_session_recovers_a_stale_transaction",
         "database::tests::another_renderer_cannot_take_over_without_explicit_recovery",
-        "fractional::tests::matches_the_javascript_package",
         "database::tests::agent_runtime_migration_enforces_canonical_journal_constraints",
+        "fractional::tests::matches_the_javascript_package",
         "database::tests::round_trips_every_sqlite_storage_class_without_losing_i64_precision",
         "database::tests::ordinary_requests_wait_until_the_owning_transaction_finishes",
         "database::tests::refuses_a_database_migrated_by_a_newer_client",
         "database::tests::current_local_first_baseline_is_exactly_recorded_and_idempotent",
-        "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
         "database::tests::pre_update_safety_snapshot_is_standalone_and_once_per_version",
+        "database::tests::refuses_a_tampered_applied_baseline_and_requires_reset",
         "original_body_archive::tests::archive_generic_envelope_layer_does_not_claim_standalone_deletion_intent",
         "database::tests::restart_after_replace_completes_marker_only_after_validating_active_database",
         "database::tests::the_same_renderer_session_cannot_recover_its_own_active_transaction",
@@ -2006,41 +2022,41 @@
         "original_operation::tests::original_operation_bounds_envelope_before_decode_and_owns_selected_bytes",
         "materialization_admission::tests::materialization_native_admission_failure_rolls_back_writer_revision_and_journal",
         "original_operation::tests::original_operation_complete_canonical_value_model_matches_production_cborg",
-        "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity",
-        "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
         "original_operation::tests::original_operation_preserves_actual_native_events_and_accepts_all_client_group_orders",
-        "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
+        "original_operation::tests::original_operation_rejects_hashed_event_trailing_bytes_that_ts_update_decoder_ignores",
         "original_operation::tests::original_operation_rejects_ts_binding_schema_hash_versions_and_unclassified_event_corpus",
+        "original_operation::tests::original_operation_yjs_snapshot_and_event_readers_fail_closed_without_allocating_claimed_collections",
         "original_operation::tests::original_operation_exact_event_parser_still_rejects_malformed_complete_hashed_envelopes",
+        "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity",
         "original_body_archive::tests::archive_canonical_discovery_rejects_hidden_target_and_unselected_row_tampering",
         "materialization_admission::tests::materialization_native_journal_records_actual_append_and_survives_prune_cold",
         "original_body_archive::tests::archive_requires_applied_receipt_original_bytes_scope_and_known_references",
-        "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
         "original_body_archive::tests::archive_bounds_reads_before_copy_and_leaves_caller_transaction_intact",
+        "original_body_archive::tests::archive_reads_one_wal_snapshot_across_original_and_all_materialized_rows",
         "original_body_archive::tests::archive_collects_real_seed_insert_delete_originals_and_reopens_without_intent_for_bodies",
-        "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
         "original_operation_store::tests::original_store_limits_corrupt_text_cells_before_gateway_allocation",
         "original_operation_store::tests::original_store_leaves_callers_work_intact_after_success_and_failure",
+        "original_operation_store::tests::original_store_never_uses_a_foreign_gateway_transaction",
         "original_operation_store::tests::original_store_refuses_oversize_envelope_and_row_blobs_before_copying_them",
         "original_operation_store::tests::original_store_refuses_rehashed_companion_insert_with_published_guards_intact",
         "original_operation_store::tests::original_store_reads_one_wal_snapshot_while_another_connection_commits",
         "original_operation_store::tests::original_store_requires_an_actual_matching_apply_receipt",
-        "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
+        "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
         "prose_journal::tests::prose_journal_bytes_and_hashes_match_actual_typescript_encoder",
         "prose::tests::append_revision_provenance_and_cas_share_one_atomic_write",
-        "original_operation_store::tests::original_store_wrong_reference_and_missing_original_release_own_read_transaction",
+        "original_operation_store::tests::original_store_verifies_envelope_header_and_refuses_unaccepted_originals",
+        "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
         "original_operation_store::tests::original_store_reads_actual_single_and_multi_operation_without_side_effects",
         "prose::tests::caller_rollback_and_failed_nested_append_leave_no_partial_prose_rows",
-        "original_operation_store::tests::original_store_verifies_unselected_mutation_target_action_payload_and_complete_indices",
-        "prose::tests::failed_prune_rolls_back_snapshot_inside_the_callers_transaction",
         "prose::tests::invalid_provenance_or_precision_is_rejected_before_any_write",
+        "prose::tests::failed_prune_rolls_back_snapshot_inside_the_callers_transaction",
         "prose::tests::snapshots_preserve_revision_and_prune_only_exact_document_coverage",
-        "prose_journal::tests::prose_journal_receipt_failure_rolls_back_prose_revision_writer_and_complete_journal",
-        "prose_journal::tests::prose_journal_rejects_utf16_oversized_ids_atomically_and_accepts_unicode_boundary",
         "prose_journal::tests::prose_journal_nested_failure_retains_outer_work_and_rejects_invalid_owner_generation_and_clock",
+        "prose_journal::tests::prose_journal_rejects_utf16_oversized_ids_atomically_and_accepts_unicode_boundary",
+        "prose_journal::tests::prose_journal_receipt_failure_rolls_back_prose_revision_writer_and_complete_journal",
         "prose_journal::tests::prose_journal_writer_rotation_and_clock_rollback_match_authored_writer_contract",
-        "remote_prose::tests::remote_prose_observes_hlc_without_consuming_local_sequence",
         "remote_prose::tests::remote_prose_multi_mutation_validates_complete_identity_and_current_scope_atomically",
+        "remote_prose::tests::remote_prose_observes_hlc_without_consuming_local_sequence",
         "remote_workspace_metadata::tests::remote_workspace_metadata_late_fields_reproject_verified_winners",
         "workspace::comments::tests::workspace_comments_plain_body_matches_renderer_document",
         "remote_workspace_metadata::tests::remote_workspace_metadata_rejects_unsupported_and_rolls_back_receipt_failure",
@@ -2048,34 +2064,37 @@
         "workspace::acts::tests::workspace_acts_create_and_rename_on_current_chapter_axis",
         "workspace::acts::tests::workspace_acts_remove_empty_or_bound_boundary_preserves_all_prose",
         "workspace::comments::tests::workspace_comments_body_and_status_keep_anchor_metadata_and_prose",
-        "workspace::elements::tests::workspace_elements_categories_create_rename_and_recolour",
         "workspace::comments::tests::workspace_comments_create_list_and_cold_reopen",
+        "remote_prose::tests::remote_prose_receives_authored_original_and_deduplicates_after_prune_and_reopen",
+        "workspace::elements::tests::workspace_elements_categories_create_rename_and_recolour",
         "workspace::elements::tests::workspace_elements_category_template_facts_clone_into_new_elements",
         "workspace::comments::tests::workspace_comments_receipt_failures_and_invalid_targets_rollback",
-        "remote_prose::tests::remote_prose_receives_authored_original_and_deduplicates_after_prune_and_reopen",
-        "workspace::elements::tests::workspace_elements_category_trash_detaches_elements_and_restores",
         "workspace::elements::tests::workspace_elements_create_defaults_names_conflicts_and_seed",
+        "workspace::elements::tests::workspace_elements_category_trash_detaches_elements_and_restores",
         "workspace::elements::tests::workspace_elements_facts_reconcile_ids_order_and_projection",
-        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
         "workspace::outline::tests::workspace_outline_preserves_empty_acts_and_rejects_nonfinite_boundary",
+        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
+        "workspace::elements::tests::workspace_elements_update_scalars_and_alias_set",
         "workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project",
         "workspace::elements::tests::workspace_elements_trash_restore_and_failures",
-        "workspace::elements::tests::workspace_elements_update_scalars_and_alias_set",
         "remote_prose::tests::remote_prose_receipt_failure_rolls_back_complete_packet_and_preserves_outer_transaction",
-        "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
+        "workspace::storylines::tests::workspace_storylines_first_storyline_becomes_every_chapter_primary",
+        "workspace::storylines::tests::workspace_storylines_chapter_membership_projection_and_primary",
+        "workspace::storylines::tests::workspace_storylines_trash_restore_and_chapter_restore_reauthor_membership",
         "workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries",
-        "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
+        "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
         "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
         "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
         "workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens",
-        "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
         "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
-        "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
+        "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
         "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
-        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer",
+        "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
+        "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
         "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
-        "workspace::trash::tests::workspace_trash_rejects_wrong_scope_lifecycle_and_associations_without_writes",
+        "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer",
         "workspace::trash::tests::workspace_trash_and_restore_receipt_failures_rollback_and_retry_once",
+        "workspace::trash::tests::workspace_trash_rejects_wrong_scope_lifecycle_and_associations_without_writes",
         "workspace::trash::tests::workspace_trash_preserves_body_comments_and_restores_canonical_next_incarnation",
         "database::tests::sigkill_matrix_reconciles_to_exactly_old_or_new_database",
         "database::tests::project_upgrades_preserve_published_prefixes_with_same_version_safety_snapshots",
@@ -2084,7 +2103,7 @@
         "native_journal_rejects_exact_event_and_schema_mismatches_without_advancing_writer_or_revision",
         "native_journal_optional_evidence_roundtrips_file_original_and_archive_and_exports_real_wire"
       ],
-      "outputSha256": "9af7fffca83ac7737706af4ee2ab8e21e819e8026639ec48510d900532fb9f26"
+      "outputSha256": "75fe70debed83d314288c564e77b2b2ff19882bd0e8dba91d8bf5e8f5f7bfe15"
     },
     {
       "name": "document",
@@ -2093,157 +2112,157 @@
       "passed": 149,
       "failed": 0,
       "cases": [
-        "comment_tests::stale_or_malformed_anchors_never_highlight_unrelated_prose_and_unknown_bytes_survive",
         "capture::tests::capture_is_exact_local_history_and_never_remote_echo",
         "comment_tests::deleted_text_and_blocks_keep_anchor_context_until_undo_restores_it",
-        "concurrent_draft_tests::concurrent_sibling_insert_rejects_a_join_across_changed_topology_atomically",
-        "comment_tests::whole_block_targets_split_and_rejoin_with_their_own_undo_metadata",
-        "comment_tests::remote_insert_survives_local_structural_undo_and_adjusts_comment_positions",
-        "concurrent_draft_tests::identical_visible_replacement_with_new_items_rejects_structural_commit_atomically",
-        "concurrent_draft_tests::remote_text_metadata_change_rejects_structure_even_with_equal_visible_text",
         "comment_tests::external_anchor_revision_and_comments_added_after_edit_are_not_overwritten_by_undo",
-        "comment_tests::native_selection_comment_anchor_tracks_edits_history_and_reopen",
+        "comment_tests::stale_or_malformed_anchors_never_highlight_unrelated_prose_and_unknown_bytes_survive",
+        "comment_tests::whole_block_targets_split_and_rejoin_with_their_own_undo_metadata",
         "comment_tests::stale_quote_offsets_recover_nearest_match_and_cross_block_snapshot_fragments",
+        "concurrent_draft_tests::identical_visible_replacement_with_new_items_rejects_structural_commit_atomically",
         "comment_tests::split_join_history_and_checkpoint_keep_quote_and_original_snapshots",
+        "concurrent_draft_tests::concurrent_sibling_insert_rejects_a_join_across_changed_topology_atomically",
+        "comment_tests::native_selection_comment_anchor_tracks_edits_history_and_reopen",
+        "concurrent_draft_tests::disjoint_remote_prefix_allows_split_and_followup_input_on_the_old_visible_branch",
+        "concurrent_draft_tests::remote_text_metadata_change_rejects_structure_even_with_equal_visible_text",
         "draft_evidence_tests::queued_evidence_all_remote_deleted_produces_no_event_but_consumes_successful_sequence_once",
+        "comment_tests::remote_insert_survives_local_structural_undo_and_adjusts_comment_positions",
         "concurrent_draft_tests::recreated_domain_block_id_rejects_structural_commit_atomically",
-        "concurrent_draft_tests::disjoint_structural_commit_maps_live_tail_comments_and_newer_selection_history",
         "concurrent_draft_tests::same_paragraph_prefix_insert_does_not_relax_text_metadata_or_non_enter_gates",
         "concurrent_draft_tests::same_paragraph_prefix_insertions_keep_unicode_and_the_queued_author_basis",
-        "draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged",
-        "draft_tests::draft_replaces_original_items_and_preserves_overlapping_remote_insertion_and_history",
-        "draft_tests::draft_validation_cancel_and_rejected_commit_leave_live_state_untouched",
-        "draft_tests::draft_selection_uses_authored_positions_after_remote_prefix_and_delete",
-        "concurrent_draft_tests::same_paragraph_split_maps_comments_and_new_selection_history_in_live_offsets",
-        "entity_link_tests::entity_link_detection_matches_the_renderer_matcher",
-        "entity_link_tests::entity_link_key_matches_y_tiptap_overlapping_mark_hash",
-        "draft_tests::overlapping_local_views_commit_as_separate_authors_without_overwriting_each_other",
-        "concurrent_draft_tests::disjoint_remote_prefix_allows_split_and_followup_input_on_the_old_visible_branch",
-        "entity_link_tests::link_entities_waits_for_drafts_and_uses_renderer_name_collisions",
-        "draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified",
-        "entity_link_tests::link_entities_is_idempotent_not_undoable_and_keeps_other_targets",
-        "formatting_tests::native_format_empty_caret_and_container_heading_preserve_parent_and_reject_unwrap",
-        "draft_evidence_tests::queued_evidence_rapid_followup_uses_visible_branch_ids_and_distinct_live_bases",
-        "formatting_tests::native_format_invalid_ranges_or_later_shared_metadata_reject_before_any_mutation",
-        "draft_tests::unchanged_structural_draft_keeps_the_standard_maps_and_remote_structure_is_explicit",
         "draft_evidence_tests::queued_evidence_excludes_already_remote_deleted_ids_and_never_undoes_remote_deletion",
-        "formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit",
+        "concurrent_draft_tests::same_paragraph_split_maps_comments_and_new_selection_history_in_live_offsets",
+        "draft_tests::draft_selection_uses_authored_positions_after_remote_prefix_and_delete",
+        "draft_tests::draft_validation_cancel_and_rejected_commit_leave_live_state_untouched",
+        "draft_evidence_tests::queued_evidence_insert_replace_structural_and_remote_format_changes_are_unclassified",
+        "draft_tests::draft_replaces_original_items_and_preserves_overlapping_remote_insertion_and_history",
+        "draft_tests::overlapping_local_views_commit_as_separate_authors_without_overwriting_each_other",
+        "entity_link_tests::entity_link_detection_matches_the_renderer_matcher",
+        "draft_evidence_tests::queued_evidence_rebuilds_live_snapshot_offset_and_cross_client_emoji_ids_after_prefix_insert",
+        "entity_link_tests::entity_link_key_matches_y_tiptap_overlapping_mark_hash",
+        "entity_link_tests::link_entities_waits_for_drafts_and_uses_renderer_name_collisions",
+        "draft_evidence_tests::queued_evidence_rapid_followup_uses_visible_branch_ids_and_distinct_live_bases",
+        "formatting_tests::native_format_empty_caret_and_container_heading_preserve_parent_and_reject_unwrap",
+        "draft_evidence_tests::queued_evidence_interior_remote_insertion_stays_raw_without_deleting_or_claiming_remote_text",
+        "concurrent_draft_tests::disjoint_structural_commit_maps_live_tail_comments_and_newer_selection_history",
+        "entity_link_tests::link_entities_is_idempotent_not_undoable_and_keeps_other_targets",
+        "concurrent_draft_tests::prefix_deletion_does_not_allow_mixed_items_changed_marks_or_tail",
+        "formatting_tests::native_format_invalid_ranges_or_later_shared_metadata_reject_before_any_mutation",
         "formatting_tests::native_format_italic_event_replays_on_peer_and_preserves_remote_history",
         "input_tests::branch_lifetime_sequence_and_rejected_edits_are_atomic",
-        "draft_evidence_tests::queued_evidence_interior_remote_insertion_stays_raw_without_deleting_or_claiming_remote_text",
-        "native_command_tests::native_command_basis_includes_preexisting_deletions_but_event_does_not_reemit_them",
-        "formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen",
+        "draft_evidence_tests::queued_evidence_failed_sequence_selection_and_half_emoji_leave_live_and_capture_unchanged",
+        "formatting_tests::native_format_inline_multiblock_toggles_preserve_other_marks_and_one_history_unit",
         "native::tests::native_replacement_is_one_undo_and_rejects_stale_or_structural_edits",
-        "concurrent_draft_tests::prefix_deletion_does_not_allow_mixed_items_changed_marks_or_tail",
-        "native_command_tests::native_command_multiple_or_foreign_events_disqualify_without_dropping_authored_bytes",
-        "draft_evidence_tests::queued_evidence_rebuilds_live_snapshot_offset_and_cross_client_emoji_ids_after_prefix_insert",
+        "formatting_tests::native_format_heading_tags_levels_typed_metadata_anchors_history_and_reopen",
+        "native_command_tests::native_command_basis_includes_preexisting_deletions_but_event_does_not_reemit_them",
+        "input_tests::queued_inputs_keep_their_visible_basis_across_overlapping_merges",
         "native_command_tests::native_command_observers_cannot_open_a_nested_write_transaction",
-        "native_command_tests::native_command_origin_is_removed_after_success_and_scope_drop_retains_only_raw_bytes",
+        "native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items",
         "native_command_tests::native_command_history_is_raw_and_preserves_existing_local_undo_units",
         "outline_tests::native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_parent",
+        "concurrent_draft_tests::same_paragraph_split_rejects_boundary_tail_deleted_items_marks_and_metadata",
+        "native_command_tests::native_command_origin_is_removed_after_success_and_scope_drop_retains_only_raw_bytes",
         "relocation_alias::gaps::tests::safe_clock_gaps_receipt_key_is_immutable_and_unknown_fields_reject",
         "relocation_alias::gaps::tests::safe_clock_gaps_receipts_normalize_unicode_and_reject_conflicts",
         "relocation_alias::gaps::tests::safe_clock_gaps_source_skip_is_not_canonical_gc_authority",
-        "native_command_tests::native_command_captures_actual_chinese_emoji_and_multiple_source_items",
+        "native_command_tests::native_command_multiple_or_foreign_events_disqualify_without_dropping_authored_bytes",
+        "native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged",
         "native_command_tests::native_command_mutable_after_transaction_expansion_never_inherits_delete_intent",
+        "draft_tests::unchanged_structural_draft_keeps_the_standard_maps_and_remote_structure_is_explicit",
+        "outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay",
         "formatting_tests::native_format_paragraph_clears_selected_marks_and_level_but_keeps_links",
         "native_command_tests::native_command_does_not_classify_noop_insert_replace_structure_or_private_primitive",
-        "relocation_alias::tests::relocation_alias_collision_and_nonplain_insertions_remain_unapplied",
-        "outline_tests::native_outline_tracks_format_text_history_and_cold_yjs_replay",
-        "input_tests::queued_inputs_keep_their_visible_basis_across_overlapping_merges",
-        "relocation_alias::tests::relocation_alias_known_source_clock_prefix_is_gc_covered_but_unknown_holes_are_not",
-        "native_command_tests::native_command_rejections_leave_bytes_history_and_capture_unchanged",
+        "relocation_alias::tests::relocation_alias_malformed_metadata_leaves_live_unchanged",
         "relocation_alias::tests::relocation_alias_maps_immutable_origins_for_opposite_arrival_orders",
-        "concurrent_draft_tests::same_paragraph_split_rejects_boundary_tail_deleted_items_marks_and_metadata",
+        "relocation_alias::tests::relocation_alias_collision_and_nonplain_insertions_remain_unapplied",
+        "relocation_alias::tests::relocation_alias_known_source_clock_prefix_is_gc_covered_but_unknown_holes_are_not",
+        "relocation_alias::tests::relocation_alias_reactivation_reuses_source_graph_and_commits_activation_with_render",
         "relocation_alias::tests::relocation_alias_mixed_same_writer_interleaved_safe_clocks_require_exact_proof",
         "relocation_alias::tests::relocation_alias_full_state_coalescing_and_v2_keep_original_clock_coverage",
-        "relocation_alias::tests::relocation_alias_malformed_metadata_leaves_live_unchanged",
-        "relocation_alias::tests::safe_clock_gaps_lost_prefix_with_residual_pending_is_atomic",
-        "relocation_alias::tests::relocation_alias_mixed_safe_text_does_not_hide_unmapped_loss_format_or_delete",
         "relocation_alias::tests::relocation_alias_two_receivers_translate_same_source_without_duplicate_characters",
+        "relocation_alias::tests::safe_clock_gaps_lost_prefix_with_residual_pending_is_atomic",
+        "relocation_alias::tests::safe_clock_gaps_two_receivers_exchange_repairs_and_later_return_to_b",
         "relocation_history_tests::relocation_history_activation_without_evidence_routes_later_original_update",
-        "relocation_alias::tests::relocation_alias_reactivation_reuses_source_graph_and_commits_activation_with_render",
-        "relocation_alias::tests::safe_clock_gaps_unproved_deleted_or_alias_branch_rejects_atomically",
         "relocation_alias::tests::relocation_alias_overlapping_receipt_segmentations_converge_after_exchange",
-        "relocation_alias::tests::relocation_alias_mixed_same_writer_prefix_then_suffix_preserves_safe_clocks",
+        "relocation_alias::tests::relocation_alias_mixed_safe_text_does_not_hide_unmapped_loss_format_or_delete",
         "relocation_history_tests::relocation_history_maps_retained_surrogate_and_combining_item_clocks_exactly",
         "relocation_history_tests::relocation_history_gap_receipt_conflict_rejects_before_mutation",
+        "relocation_alias::tests::safe_clock_gaps_unproved_deleted_or_alias_branch_rejects_atomically",
+        "relocation_alias::tests::relocation_alias_mixed_same_writer_prefix_then_suffix_preserves_safe_clocks",
         "relocation_history_tests::relocation_history_pending_dependency_rejects_before_any_history_mutation",
-        "relocation_alias::tests::safe_clock_gaps_two_receivers_exchange_repairs_and_later_return_to_b",
+        "input_tests::one_branch_reuses_its_author_clocks_for_rapid_typing",
         "relocation_history_tests::relocation_history_rejects_activation_replaced_without_retiring_owned_render",
         "relocation_alias::tests::safe_clock_gaps_retained_proof_outlives_safe_delete_without_resurrection",
-        "input_tests::one_branch_reuses_its_author_clocks_for_rapid_typing",
-        "remote::tests::prepared_remote_is_pure_and_cannot_apply_after_local_change",
         "relocation_history_tests::relocation_history_rejects_modified_owned_render_without_resurrection",
-        "replay_tests::separate_holes_and_duplicate_updates_remain_pending_until_dependencies_arrive",
-        "replay_tests::sparse_pending_delete_replays_and_subsequent_native_history_preserves_remote_text",
-        "retention::tests::retention_scanner_rejects_clock_overflow_before_building_ranges",
-        "retention_tests::retention_duplicates_and_partially_known_clock_ranges_are_idempotent",
-        "relocation_history_tests::relocation_history_rejects_unowned_restored_b_text_before_redo",
+        "remote::tests::prepared_remote_is_pure_and_cannot_apply_after_local_change",
         "relocation_history_tests::relocation_history_handle_resolves_in_owner_after_draft_and_input_forks",
-        "retention_tests::retention_explicit_deleted_new_text_under_deleted_parent_is_accepted",
+        "replay_tests::separate_holes_and_duplicate_updates_remain_pending_until_dependencies_arrive",
+        "retention::tests::retention_scanner_rejects_clock_overflow_before_building_ranges",
+        "replay_tests::sparse_pending_delete_replays_and_subsequent_native_history_preserves_remote_text",
+        "retention_tests::retention_duplicates_and_partially_known_clock_ranges_are_idempotent",
+        "relocation_history_tests::relocation_history_selection_on_late_render_follows_logical_b",
+        "relocation_history_tests::relocation_history_rejects_unowned_restored_b_text_before_redo",
         "relocation_history_tests::relocation_history_preserves_aware_c_tail_and_suffix_items",
+        "retention_tests::retention_explicit_deleted_new_text_under_deleted_parent_is_accepted",
+        "retention_tests::retention_mixed_safe_and_unsafe_packet_rejects_the_entire_packet",
+        "relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history",
         "retention_tests::retention_pending_text_checks_dependency_only_packets_and_reopen",
         "retention_tests::retention_explicit_deletes_work_in_the_same_packet_and_before_insert",
-        "retention_tests::retention_mixed_safe_and_unsafe_packet_rejects_the_entire_packet",
-        "search_tests::native_search_and_resolution_leave_document_history_and_capture_unchanged",
-        "relocation_history_tests::relocation_history_gap_second_alias_rejects_without_blocking_contiguous_history",
-        "replay_tests::sparse_dependency_replays_in_every_order_and_across_pending_snapshot",
-        "search_tests::native_search_excludes_ambiguous_placeholder_and_cross_block_matches",
         "search_tests::native_search_cold_anchors_relocate_and_reject_changed_original_text",
-        "search_tests::native_search_maps_literal_lowercase_matches_to_original_utf16",
-        "relocation_history_tests::relocation_history_selection_on_late_render_follows_logical_b",
-        "selection_tests::invalid_or_stale_capture_is_atomic_and_detached_views_never_return_from_history",
+        "search_tests::native_search_and_resolution_leave_document_history_and_capture_unchanged",
+        "search_tests::native_search_excludes_ambiguous_placeholder_and_cross_block_matches",
         "selection_tests::deleted_selection_collapses_and_removed_parent_is_unresolved_until_undo",
-        "retention_tests::retention_styled_rejection_survives_checkpoint_without_undo_history",
+        "replay_tests::sparse_dependency_replays_in_every_order_and_across_pending_snapshot",
+        "search_tests::native_search_maps_literal_lowercase_matches_to_original_utf16",
+        "selection_tests::invalid_or_stale_capture_is_atomic_and_detached_views_never_return_from_history",
+        "selection_tests::newest_selection_follows_multiple_reconstructed_ancestors",
+        "selection_tests::new_manual_positions_in_copied_tail_survive_repeated_structural_history",
+        "selection_tests::relative_selections_follow_remote_edits_on_both_sides_without_collapsing",
         "selection_tests::reading_compressed_lineage_does_not_write_prose_or_add_undo_items",
         "selection_tests::selection_metadata_never_enters_checkpoint_or_creates_prose_history",
-        "selection_tests::joined_tail_and_inserted_or_empty_blocks_have_explicit_history_positions",
         "selection_tests::structural_selection_history_keeps_live_crdt_positions_and_manual_epochs",
-        "selection_tests::newest_selection_follows_multiple_reconstructed_ancestors",
-        "selection_tests::relative_selections_follow_remote_edits_on_both_sides_without_collapsing",
         "structure::containers::tests::conflicting_container_metadata_fails_atomically_before_any_text_is_removed",
-        "selection_tests::new_manual_positions_in_copied_tail_survive_repeated_structural_history",
-        "remote::tests::staging_replay_accepts_the_same_clocks_after_many_independent_writers",
+        "selection_tests::joined_tail_and_inserted_or_empty_blocks_have_explicit_history_positions",
+        "retention_tests::retention_styled_rejection_survives_checkpoint_without_undo_history",
         "selection_tests::lineage_tracks_fragmented_items_and_remote_prefix_shifts_without_text_search",
-        "structure::containers::tests::right_survivor_accepts_late_suffix_edits_from_the_original_parent",
-        "structure::containers::tests::right_survivor_conflicts_reject_before_any_public_identity_changes",
-        "structure::containers::tests::right_survivor_keeps_physical_tail_and_typed_metadata_through_history_and_reopen",
-        "concurrent_draft_tests::same_paragraph_prefix_deletions_keep_tail_history_and_queued_author_offsets",
-        "retention_tests::retention_styled_original_prefix_rejects_atomically_with_active_history_and_input",
-        "structure::containers::tests::right_survivor_separator_join_still_accepts_empty_right_paragraph",
-        "structure::containers::tests::right_survivor_partial_delete_keeps_unsupported_boundaries_atomic",
         "structure::containers::tests::consumed_container_keeps_typed_metadata_marks_comments_and_manual_selection_history",
-        "structure::tests::conflicting_unknown_metadata_rejects_merge_without_mutation_or_history",
-        "structure::containers::tests::right_survivor_partial_delete_retains_raw_clipped_marks",
-        "structure::tests::split_keeps_prefix_items_and_maps_tail_then_undo_restores_original_anchors",
-        "structure::tests::enter_before_heading_keeps_the_live_heading_and_its_relative_positions",
-        "structure::tests::xml_text_metadata_conflicts_and_shared_values_reject_before_mutation",
-        "tests::invalid_ranges_leave_content_and_history_unchanged",
+        "retention_tests::retention_styled_original_prefix_rejects_atomically_with_active_history_and_input",
+        "structure::containers::tests::right_survivor_accepts_late_suffix_edits_from_the_original_parent",
+        "structure::containers::tests::right_survivor_partial_delete_remote_prefix_matches_production_history",
+        "structure::containers::tests::right_survivor_conflicts_reject_before_any_public_identity_changes",
         "structure::containers::tests::right_survivor_partial_delete_queued_typing_has_two_undo_units",
-        "tests::malformed_update_and_duplicate_block_ids_are_rejected",
         "structure::containers::tests::suffix_relocation_is_rejected_before_it_can_create_duplicate_ids_on_remote_undo",
-        "undo_policy_tests::protected_parent_does_not_disable_regular_attribute_or_local_insert_undo",
-        "structure::tests::raw_inline_marks_survive_in_memory_inheritance_entity_affinity_split_join_and_history",
-        "wire::tests::deleted_format_payloads_are_validated_before_integration_can_hide_them",
+        "concurrent_draft_tests::same_paragraph_prefix_deletions_keep_tail_history_and_queued_author_offsets",
+        "remote::tests::staging_replay_accepts_the_same_clocks_after_many_independent_writers",
+        "structure::tests::conflicting_unknown_metadata_rejects_merge_without_mutation_or_history",
+        "structure::tests::enter_before_heading_keeps_the_live_heading_and_its_relative_positions",
+        "structure::tests::split_keeps_prefix_items_and_maps_tail_then_undo_restores_original_anchors",
+        "structure::tests::xml_text_metadata_conflicts_and_shared_values_reject_before_mutation",
         "structure::tests::structural_block_metadata_keeps_binary_types_and_rejects_shared_values",
+        "tests::invalid_ranges_leave_content_and_history_unchanged",
+        "tests::malformed_update_and_duplicate_block_ids_are_rejected",
+        "relocation_history_tests::relocation_history_original_prefix_survives_two_cycles_one_event_and_reopen",
+        "structure::tests::raw_inline_marks_survive_in_memory_inheritance_entity_affinity_split_join_and_history",
+        "undo_policy_tests::protected_parent_does_not_disable_regular_attribute_or_local_insert_undo",
+        "structure::containers::tests::right_survivor_partial_delete_retains_raw_clipped_marks",
+        "wire::tests::deleted_format_payloads_are_validated_before_integration_can_hide_them",
+        "structure::containers::tests::right_survivor_separator_join_still_accepts_empty_right_paragraph",
         "wire::tests::export_rejects_unsafe_raw_in_memory_and_pending_marks",
         "wire::tests::ordinary_json_v2_format_update_passes_checked_v1_encoding",
-        "wire::tests::pending_format_structs_are_checked_even_without_their_text_dependencies",
         "wire::tests::json_marks_and_raw_binary_map_array_values_keep_the_existing_v1_bytes",
-        "wire::tests::v2_non_json_marks_and_embeds_are_rejected_before_v1_conversion",
-        "structure::containers::tests::right_survivor_partial_delete_remote_prefix_matches_production_history",
+        "wire::tests::pending_format_structs_are_checked_even_without_their_text_dependencies",
+        "structure::containers::tests::right_survivor_partial_delete_keeps_unsupported_boundaries_atomic",
         "structure::tests::xml_text_metadata_survives_split_heading_start_join_history_and_checkpoint",
+        "wire::tests::v2_non_json_marks_and_embeds_are_rejected_before_v1_conversion",
         "undo_policy_tests::selection_of_remote_append_stays_in_the_protected_parent_through_history",
-        "relocation_history_tests::relocation_history_original_prefix_survives_two_cycles_one_event_and_reopen",
         "undo_policy_tests::remote_deletion_and_format_on_remote_text_and_new_comments_survive_undo",
-        "undo_policy_tests::structural_undo_retains_remote_subtree_text_identity_marks_and_metadata",
         "structure::containers::tests::right_survivor_retains_remote_suffix_text_and_metadata_on_undo_redo",
+        "structure::containers::tests::right_survivor_keeps_physical_tail_and_typed_metadata_through_history_and_reopen",
+        "undo_policy_tests::structural_undo_retains_remote_subtree_text_identity_marks_and_metadata",
         "relocation_alias::tests::relocation_alias_mixed_different_writers_preserve_safe_identity_marks_and_history",
         "structure::containers::tests::right_survivor_partial_delete_preserves_ranges_unicode_comments_and_history",
         "relocation_alias::tests::safe_clock_gaps_same_writer_complete_split_reversed_and_history"
       ],
-      "outputSha256": "f2aef2ff8e3ec74b34c3515d72ef3b0e06aab9b06037914691df4828f45f4fa7"
+      "outputSha256": "ca8b86703739156ca76a7c5cf63109e87427e473002fdb88f799bfe2a2032329"
     },
     {
       "name": "prose",
@@ -2252,16 +2271,16 @@
       "passed": 29,
       "failed": 0,
       "cases": [
+        "failed_comment_cas_retains_authored_bytes_and_retry_never_duplicates_journal",
         "malformed_tail_stops_coverage_before_the_bad_row_and_forbids_compaction",
         "lookahead_explicit_cancellation_without_derived_repair_remains_atomically_retained_by_owner_scope",
         "native_persistence::actual_native_multiclient_deletion_keeps_exact_event_through_original_store",
-        "failed_comment_cas_retains_authored_bytes_and_retry_never_duplicates_journal",
         "derived_repair_snapshot_failure_rolls_back_journal_comments_and_live_then_cold_retry_commits_once",
         "lookahead_comment_cas_rollback_preserves_raw_receipts_live_state_and_retry",
         "lookahead_preceding_safe_step_and_pending_local_event_commit_with_one_basis_and_local_only_undo",
         "lookahead_committed_snapshot_survives_interrupt_before_live_apply_without_repair_echo",
-        "lookahead_releases_first_retained_row_only_after_complete_durable_dependency_and_replays_actual_gapped_ids",
         "mixed_same_writer_prefix_and_safe_suffix_repair_journals_once_and_survives_history_reopen",
+        "lookahead_releases_first_retained_row_only_after_complete_durable_dependency_and_replays_actual_gapped_ids",
         "lookahead_cold_recovery_uses_stored_full_closure_without_duplicate_system_journal",
         "native_persistence::native_captured_deletion_refuses_changed_incarnation_without_losing_record",
         "native_persistence::native_captured_deletion_rechecks_scope_after_projection_callback_and_retries",
@@ -2274,21 +2293,21 @@
         "pending_local_and_derived_repair_commit_together_after_comment_cas_retry_without_undoing_remote_text",
         "received_late_text_stays_durable_uncovered_and_retry_does_not_duplicate_it",
         "remote_then_local_replays_actual_gapped_ids_and_recovers_lost_notifications",
-        "lookahead_malformed_formatted_and_still_pending_tail_members_reject_the_entire_candidate",
         "snapshot_and_prune_failures_leave_reopenable_rows_and_retry_does_not_rejournal",
-        "safe_clock_gap_between_original_prefix_inserts_preserves_two_history_cycles_and_cold_replay",
+        "lookahead_malformed_formatted_and_still_pending_tail_members_reject_the_entire_candidate",
         "safe_clock_gap_pending_last_prefix_survives_checkpoint_prune_cold_open_and_dependency_comment_cas",
+        "safe_clock_gap_between_original_prefix_inserts_preserves_two_history_cycles_and_cold_replay",
         "native_persistence::queued_and_draft_commands_persist_live_basis_without_deleting_remote_insertions",
         "remote_sync_accumulates_real_snapshot_tail_and_same_document_mutations",
         "remote_sync_rejects_invalid_second_mutation_without_writes"
       ],
-      "outputSha256": "ad687c65487757f7b68c3fa921d5a711478129cf2b66240b444375d91b02c34d"
+      "outputSha256": "bac1006da4f25b50c57a80179bd4dcae450e2243a28f38a83d72a2ff4cad6fbc"
     },
     {
       "name": "bridge",
       "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
-      "listed": 61,
-      "passed": 61,
+      "listed": 64,
+      "passed": 64,
       "failed": 0,
       "cases": [
         "tests::checkpoint_preserves_comment_body_and_refuses_external_anchor_overwrite",
@@ -2297,24 +2316,24 @@
         "tests::comment_split_redo_and_checkpoint_restore_original_quote",
         "tests::draft_checkpoint_failure_consumes_commit_once_and_retries_only_persistence",
         "tests::failed_checkpoint_retains_prose_until_retry",
-        "tests::remote_delivery_commits_before_live_replay_and_does_not_author_local_journal",
         "tests::old_lab_keys_merge_snapshots_and_tail_without_losing_content_or_comment_targets",
+        "tests::remote_delivery_commits_before_live_replay_and_does_not_author_local_journal",
         "tests::sparse_remote_dependencies_survive_checkpoint_reopen_and_later_delivery",
         "tests::native_lab_scoped_deletion_persists_original_for_current_incarnation_and_cold_reopen",
         "tests::rejects_production_directories_and_malformed_requests",
         "tests::final_close_replays_committed_remote_tail_after_lost_notification",
         "tests::c_abi_preserves_unicode_across_close_and_reopen_and_rejects_stale_handles",
-        "tests::native_prose_unicode_history_and_metadata_survive_sqlite_reopen",
         "tests::ephemeral_selection_abi_tracks_history_and_drops_without_checkpoint_writes",
+        "tests::native_prose_unicode_history_and_metadata_survive_sqlite_reopen",
         "tests::abi_distinguishes_stored_remote_from_applied_and_retains_blocked_owner",
         "tests::input_branches_checkpoint_once_and_guard_active_composition",
         "tests::draft_remote_abi_preserves_concurrent_text_and_survives_checkpoint_reopen",
-        "workspace_tests::comments::workspace_comment_body_and_status_keep_anchor_and_history",
-        "workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries",
         "workspace_tests::acts::workspace_act_create_rename_and_cold_outline",
+        "workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries",
+        "workspace_tests::comments::workspace_comment_body_and_status_keep_anchor_and_history",
+        "workspace_tests::elements::workspace_element_facts_templates_and_category_trash",
         "workspace_tests::comments::workspace_comment_create_highlights_and_cold_reopen",
         "workspace_tests::acts::workspace_act_remove_retains_empty_boundary_chapter_state",
-        "workspace_tests::elements::workspace_element_facts_templates_and_category_trash",
         "workspace_tests::comments::workspace_comment_anchor_follows_edits_history_and_removal",
         "workspace_tests::elements::workspace_element_failures_roll_back_and_retry",
         "workspace_tests::elements::workspace_element_trash_retires_owner_and_restore_reopens_body",
@@ -2322,38 +2341,41 @@
         "workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database",
         "workspace_tests::comments::workspace_comment_failures_leave_owner_unchanged_and_retry",
         "workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks",
+        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
         "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
         "workspace_tests::search::workspace_search_caps_results_and_reports_actual_truncation",
         "workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match",
-        "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
-        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
         "workspace_tests::remote_changes::workspace_remote_changes_receipt_rollback_and_retry",
+        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
         "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen",
-        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
         "workspace_tests::remote_prose::workspace_remote_prose_lost_notification_replays_all_owners_after_local_interleave",
+        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
         "workspace_tests::remote_prose::workspace_remote_prose_rejected_original_and_receipt_failure_preserve_owner_and_draft",
         "workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes",
+        "workspace_tests::storylines::workspace_storylines_trash_restore_and_chapter_membership_restore",
+        "workspace_tests::storylines::workspace_storylines_create_assign_order_and_cold_reopen",
+        "workspace_tests::storylines::workspace_storylines_failures_roll_back_and_retry",
         "workspace_tests::remote_prose::workspace_remote_prose_offline_replicas_converge_all_open_chapters_with_local_history",
-        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
         "workspace_tests::search::workspace_search_resolves_cold_unicode_hits_in_live_owner_and_rejects_stale_hits",
         "workspace_tests::trash::workspace_chapter_restore_reincarnates_and_remains_editable",
         "workspace_tests::workspace_fixture_database_and_workspace_owners_remain_separate",
-        "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
-        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
+        "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
         "workspace_tests::trash::workspace_chapter_trash_preserves_prose_and_placement",
+        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
         "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
+        "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
         "workspace_tests::trash::workspace_chapter_trash_restore_rollback_and_owner_retention",
         "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
-        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
-        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
         "workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once",
-        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
+        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
+        "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
         "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
-        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
         "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
+        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
+        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
         "workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry"
       ],
-      "outputSha256": "de456cd357b9a6f789e3c8afcaa86e58f63541aa033db20eaecd3f7a2399a00b"
+      "outputSha256": "35c0b97b5807c794c9ab5fa7c52f4faafa52f4d4e4d96701be87c5777a338a29"
     }
   ],
   "rendererMaterialization": [

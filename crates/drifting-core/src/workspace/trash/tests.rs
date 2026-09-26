@@ -338,17 +338,6 @@ fn workspace_trash_rejects_wrong_scope_lifecycle_and_associations_without_writes
     let trashed = state(&g);
     assert!(store.trash_chapter(&c, "trash-chapter").is_err());
     assert_eq!(state(&g), trashed);
-    exec(&g, "INSERT INTO storylines(id,project_id,name,color,order_key,created_at,updated_at) VALUES ('story','trash-project','关联线','#000000',1,'now','now')");
-    exec(&g, "INSERT INTO node_storyline_link(node_id,storyline_id,is_primary) VALUES ('trash-chapter','story',1)");
-    let linked = state(&g);
-    assert!(store
-        .restore_chapter(&c, "trash-chapter", |_, _, _| panic!(
-            "linked cannot capture"
-        ))
-        .unwrap_err()
-        .contains("storylines"));
-    assert_eq!(state(&g), linked);
-    exec(&g, "DELETE FROM node_storyline_link");
     exec(
         &g,
         "UPDATE sync_generation SET status='retired',retired_at='now' WHERE sync_generation_id='trash-generation'",

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-26T21:19:34.574Z",
+  "generatedAt": "2026-09-26T22:06:38.608Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "d7056fba396fdba5a2751361c144da0f2bc4e549",
+    "commit": "6e189fd524d0c2c77030127dd02d431dae1a511a",
     "dirty": true,
-    "fingerprint": "52374615d7535b11858ac47511506116b6d7761bb6f78fdb6688a8a141a4fa49"
+    "fingerprint": "ddc7ea5127f5ff450d6de3cb1423faa4c35e7fd5f4dbdbdb621ef316621a9cdb"
   },
   "cases": [
     {
@@ -376,6 +376,18 @@
     },
     {
       "name": "AppKit element page 被引用 lists open and closed chapters with block and link counts, follows edits and selects the first link only while it is still linked",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit first storyline created in the panel becomes every chapter's 主线 with its colour in the outline, and a second storyline, suffixed renames, recolour, summary and drag or menu reorders follow in the panel, pages and tabs",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit chapter 故事线 sheet from the outline adds and removes storylines and moves 主线, reflected in outline dots and storyline page chapter lists in book order, and survives cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit storyline trash after confirmation clears chapters whose 主线 it was and removes it elsewhere, restore keeps chapters unlinked, chapter trash and restore keep storylines, a stale sheet is refused, and page facts and body survive cold reopen",
       "status": "passed"
     }
   ],

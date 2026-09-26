@@ -4,6 +4,7 @@ use drifting_core::database::DatabaseGateway;
 use drifting_core::prose_journal::AuthoredProseContext;
 use drifting_core::workspace::{
     ChapterSeed, WorkspaceChapter, WorkspaceElement, WorkspaceElementCategory, WorkspaceStore,
+    WorkspaceStoryline,
 };
 
 pub fn restore_chapter(
@@ -75,6 +76,32 @@ pub fn restore_element_category(
             if document.has_pending() {
                 return Err(
                     "Category has unresolved prose dependencies; restore is not ready".into(),
+                );
+            }
+            document.native_projection()?;
+            Ok(ChapterSeed {
+                update: document.update(None, 1)?,
+                content_json: document.semantic()?.to_string(),
+            })
+        },
+    )
+}
+
+/// Storyline bodies restore the same way as chapter and element bodies.
+pub fn restore_storyline(
+    gateway: &DatabaseGateway,
+    client: &str,
+    context: &AuthoredProseContext,
+    storyline_id: &str,
+) -> Result<WorkspaceStoryline, String> {
+    WorkspaceStore::new(gateway, client).restore_storyline(
+        context,
+        storyline_id,
+        |repository, tx, document_id| {
+            let (document, _) = crate::load_document(repository, document_id, tx)?;
+            if document.has_pending() {
+                return Err(
+                    "Storyline has unresolved prose dependencies; restore is not ready".into(),
                 );
             }
             document.native_projection()?;

@@ -427,6 +427,12 @@ enum Request {
         project_id: String,
         command: workspace::elements::ElementCommand,
     },
+    WorkspaceStorylines {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::storylines::StorylineCommand,
+    },
     WorkspaceClose {
         handle: u64,
     },
@@ -1111,6 +1117,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceReopenChapter { .. }
         | Request::WorkspaceCloseChapter { .. }
         | Request::WorkspaceElements { .. }
+        | Request::WorkspaceStorylines { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

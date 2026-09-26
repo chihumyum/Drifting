@@ -16,6 +16,8 @@ mod remote_changes;
 mod remote_prose;
 #[path = "workspace_search_tests.rs"]
 mod search;
+#[path = "workspace_storyline_tests.rs"]
+mod storylines;
 #[path = "workspace_tabs_tests.rs"]
 mod tabs;
 #[path = "workspace_trash_tests.rs"]

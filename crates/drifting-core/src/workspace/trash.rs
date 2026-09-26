@@ -128,9 +128,10 @@ impl WorkspaceStore<'_> {
                 Some(revision),
                 Some(tx),
             )?;
-            // Match the renderer's authored restore order and owner incarnation.
-            // node_content remains the existing cache; full Yjs state is truth.
-            let mutations = vec![
+            // Match the renderer's authored restore order and owner incarnation:
+            // restore, graph position, the chapter's memberships re-added in
+            // this incarnation with its primary, then the full body state.
+            let mut mutations = vec![
                 journal::Mutation::json(
                     "entity",
                     "node",
@@ -147,16 +148,24 @@ impl WorkspaceStore<'_> {
                     json!({"tuple":"graph.position","value":current.position}),
                 )
                 .at_incarnation(incarnation),
-                journal::Mutation::field(
-                    "node-storyline-primary",
-                    chapter_id,
-                    incarnation,
-                    "storylineId",
-                    Value::Null,
-                ),
-                journal::Mutation::yjs(doc_id, &state.update).at_incarnation(incarnation),
             ];
-            self.commit_changes(tx, context, &mutations, Some((3, &appended, &state.update)))?;
+            self.membership_projection(
+                tx,
+                context,
+                chapter_id,
+                true,
+                Some(incarnation),
+                &mut mutations,
+            )?;
+            let seed = mutations.len();
+            mutations
+                .push(journal::Mutation::yjs(doc_id, &state.update).at_incarnation(incarnation));
+            self.commit_changes(
+                tx,
+                context,
+                &mutations,
+                Some((seed, &appended, &state.update)),
+            )?;
             current.chapter.updated_at = context.now_iso.clone();
             Ok(current.chapter)
         })
@@ -218,29 +227,21 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Storyline links survive chapter trash and are re-authored on restore;
+    /// linked relations are not yet supported natively.
     fn guard_trash_associations(
         &self,
         tx: u64,
-        context: &AuthoredProseContext,
+        _context: &AuthoredProseContext,
         chapter_id: &str,
     ) -> Result<(), String> {
-        let rows = self.query(Some(tx), r#"
-            SELECT 1 FROM entity_relation WHERE (from_kind='node' AND from_id=?) OR (to_kind='node' AND to_id=?)
-            UNION ALL SELECT 1 FROM node_storyline_link WHERE node_id=?
-            UNION ALL SELECT 1 FROM sync_set_tag t
-                LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=t.sync_generation_id
-                    AND l.entity_kind='storyline' AND l.entity_id=t.owner_id
-                WHERE t.sync_generation_id=? AND t.owner_kind='membership' AND t.set_key='membership'
-                    AND t.value_key=? AND t.removed_by_change_set_id IS NULL
-                    AND t.incarnation=COALESCE(l.incarnation,0) AND (l.state IS NULL OR l.state='live')
-            LIMIT 1
-        "#, vec![text(chapter_id), text(chapter_id), text(chapter_id),
-            text(&context.sync_generation_id), text(chapter_id)])?;
+        let rows = self.query(
+            Some(tx),
+            "SELECT 1 FROM entity_relation WHERE (from_kind='node' AND from_id=?) OR (to_kind='node' AND to_id=?) LIMIT 1",
+            vec![text(chapter_id), text(chapter_id)],
+        )?;
         if !rows.is_empty() {
-            return Err(
-                "Chapter trash and restore do not yet support linked relations or storylines"
-                    .into(),
-            );
+            return Err("Chapter trash and restore do not yet support linked relations".into());
         }
         Ok(())
     }

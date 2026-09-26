@@ -7,6 +7,7 @@ mod elements;
 mod facts;
 mod journal;
 mod outline;
+mod storylines;
 mod trash;
 pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
 pub use elements::{
@@ -14,6 +15,7 @@ pub use elements::{
 };
 pub use facts::Fact;
 pub use outline::WorkspaceOutlineRow;
+pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
 #[cfg(test)]
 mod tests;
 

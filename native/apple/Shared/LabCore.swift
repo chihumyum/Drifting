@@ -21,13 +21,14 @@ enum LabError: LocalizedError {
     case formattingUnavailable(reason: String)
     case commentUnavailable(reason: String)
     case elementUnavailable(reason: String)
+    case storylineUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
     var diagnosticDescription: String {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
-             .commentUnavailable(let text), .elementUnavailable(let text): return text
+             .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -41,7 +42,28 @@ enum LabError: LocalizedError {
             return "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
         case .commentUnavailable(let reason): return LabError.commentMessage(reason)
         case .elementUnavailable(let reason): return LabError.elementMessage(reason)
+        case .storylineUnavailable(let reason): return LabError.storylineMessage(reason)
         }
+    }
+
+    /// Storyline refusals happen before any row, membership or journal change.
+    private static func storylineMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Storyline is not available", "这条故事线已不可用，请刷新故事线列表。"),
+            ("Chapter is not available", "这一章已不可用，请刷新章节列表。"),
+            ("primary storyline must be one of", "主线必须是已勾选的故事线之一。"),
+            ("Invalid storyline colour", "颜色须为有效的颜色值。"),
+            ("linked relations", "这条故事线有关联关系，原生版本暂不支持移入回收站或恢复。"),
+            ("live document owner", "请先关闭这条故事线的页面，再恢复。"),
+            ("Storyline lifecycle must be", "故事线状态已变化，请刷新故事线列表。"),
+            ("Unknown storyline position", "故事线顺序已变化，请刷新后重试。"),
+            ("Storyline is not open", "这条故事线页面已关闭，请重新打开。"),
+            ("Facts have rows without order registers", "字段数据不完整，暂时无法保存。已输入的内容仍保留。"),
+            ("unresolved prose dependencies", "故事线正文还有未完成的同步依赖，暂时无法恢复。"),
+            ("more than one primary storyline", "章节的主线数据不一致，暂时无法保存。"),
+            ("scope changed", "故事线已变化，请重新打开页面。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "故事线操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Element library refusals happen before any row or journal change.
@@ -194,12 +216,16 @@ final class LabCore {
                 .contains(request["operation"] as? String ?? "") {
                 throw LabError.commentUnavailable(reason: reason)
             }
-            if ["open", "workspaceOpenChapter", "workspaceReopenChapter", "workspaceElements"].contains(request["operation"] as? String ?? ""),
+            if ["open", "workspaceOpenChapter", "workspaceReopenChapter", "workspaceElements", "workspaceStorylines"]
+                .contains(request["operation"] as? String ?? ""),
                reason.contains("REMOTE_TEXT_RETENTION_REQUIRED:") {
                 throw LabError.pendingRemoteUpdate(reason: reason)
             }
             if request["operation"] as? String == "workspaceElements" {
                 throw LabError.elementUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceStorylines" {
+                throw LabError.storylineUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -449,16 +475,33 @@ struct ElementScope: Hashable {
     let elementID: String
 }
 
-/// One Rust prose owner in the workspace: a chapter body or an element page
-/// body. Rust keys them separately; Swift keeps one wrapper per live handle.
+struct StorylineScope: Hashable {
+    let projectID: String
+    let storylineID: String
+}
+
+/// One Rust prose owner in the workspace: a chapter body, or an element or
+/// storyline page body. Rust keys them separately; Swift keeps one wrapper
+/// per live handle.
 enum DocumentScope: Hashable {
     case chapter(ChapterScope)
     case element(ElementScope)
+    case storyline(StorylineScope)
 
     var projectID: String {
         switch self {
         case .chapter(let scope): return scope.projectID
         case .element(let scope): return scope.projectID
+        case .storyline(let scope): return scope.projectID
+        }
+    }
+
+    /// How refusals name the document to the author.
+    var kindName: String {
+        switch self {
+        case .chapter: return "章节"
+        case .element: return "设定"
+        case .storyline: return "故事线"
         }
     }
 }
@@ -707,6 +750,86 @@ final class LabWorkspaceCore {
         try request("workspaceElements", fields: ["projectId": projectID, "command": command])
     }
 
+    // MARK: Storylines
+
+    /// Live and trashed storylines and every live chapter's memberships.
+    func storylineLibrary(projectID: String, completion: @escaping (Result<WorkspaceStorylineLibrary, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceStorylineReply<WorkspaceStoryline> = try self.storylineRequest(projectID, ["action": "library"])
+            return reply.library
+        }
+    }
+
+    /// An empty name becomes “New Storyline”; Rust picks the colour. The
+    /// first live storyline becomes every live chapter's primary.
+    func createStoryline(projectID: String, name: String,
+                         completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        perform(completion) { try self.storylineRequest(projectID, ["action": "createStoryline", "name": name]) }
+    }
+
+    /// Metadata only: an open body owner, its input and history are untouched.
+    func updateStoryline(projectID: String, storylineID: String, changes: WorkspaceStorylineChanges,
+                         completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateStoryline"; command["storylineId"] = storylineID
+        perform(completion) { try self.storylineRequest(projectID, command) }
+    }
+
+    /// Places the storyline before another one, or last with nil.
+    func moveStoryline(projectID: String, storylineID: String, beforeStorylineID: String?,
+                       completion: @escaping (Result<WorkspaceStorylineReply<[WorkspaceStoryline]>, Error>) -> Void) {
+        perform(completion) {
+            try self.storylineRequest(projectID, ["action": "moveStoryline", "storylineId": storylineID,
+                "beforeStorylineId": beforeStorylineID.map { $0 as Any } ?? NSNull()])
+        }
+    }
+
+    func setStorylineFacts(projectID: String, storylineID: String, facts: [WorkspaceFact],
+                           completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        perform(completion) {
+            try self.storylineRequest(projectID, ["action": "setStorylineFacts", "storylineId": storylineID, "facts": facts.map(\.payload)])
+        }
+    }
+
+    /// Replaces the chapter's storylines. Without a primary Rust chooses the
+    /// lowest-ordered one; an empty list leaves the chapter 未归属.
+    func setChapterStorylines(projectID: String, chapterID: String, storylineIDs: [String], primary: String?,
+                              completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceChapterStorylines>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "setChapterStorylines", "chapterId": chapterID, "storylineIds": storylineIDs]
+        // Always explicit: an absent primary would keep the chapter's current one.
+        command["primary"] = primary ?? NSNull()
+        perform(completion) { try self.storylineRequest(projectID, command) }
+    }
+
+    /// Rust saves an open body before the trash commits, then retires it.
+    /// Chapters whose primary it was lose all their storylines.
+    func trashStoryline(projectID: String, storylineID: String,
+                        completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        changeLifecycle(.storyline(StorylineScope(projectID: projectID, storylineID: storylineID)), closesOwner: true, completion: completion) {
+            try self.storylineRequest(projectID, ["action": "trashStoryline", "storylineId": storylineID])
+        }
+    }
+
+    /// Restore requires the page to be closed; chapters are not linked again.
+    func restoreStoryline(projectID: String, storylineID: String,
+                          completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        changeLifecycle(.storyline(StorylineScope(projectID: projectID, storylineID: storylineID)), closesOwner: false, completion: completion) {
+            try self.storylineRequest(projectID, ["action": "restoreStoryline", "storylineId": storylineID])
+        }
+    }
+
+    func openStoryline(projectID: String, storylineID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument(.storyline(StorylineScope(projectID: projectID, storylineID: storylineID)), reopen: false, completion: completion)
+    }
+
+    func closeStoryline(projectID: String, storylineID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeDocument(.storyline(StorylineScope(projectID: projectID, storylineID: storylineID)), completion: completion)
+    }
+
+    private func storylineRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceStorylines", fields: ["projectId": projectID, "command": command])
+    }
+
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
         perform(completion) { try self.request("workspaceOutline", fields: ["projectId": projectID]) }
     }
@@ -846,9 +969,7 @@ final class LabWorkspaceCore {
 
     private func reopenDocument(_ scope: DocumentScope, completion: @escaping (Result<LabCore, Error>) -> Void) {
         guard (owners[scope]?.core.documentViewCount ?? 0) <= 1 else {
-            let kind: String
-            if case .element = scope { kind = "设定" } else { kind = "章节" }
-            completion(.failure(LabError.message("请先关闭这个\(kind)的另一处显示，再重新打开"))); return
+            completion(.failure(LabError.message("请先关闭这个\(scope.kindName)的另一处显示，再重新打开"))); return
         }
         openDocument(scope, reopen: true, completion: completion)
     }
@@ -879,6 +1000,12 @@ final class LabWorkspaceCore {
             case .element(let element):
                 return try self.elementRequest(element.projectID,
                     ["action": "openElement", "elementId": element.elementID, "reopen": reopen])
+            case .storyline(let storyline):
+                // The storyline command has no reopen flag; callers never
+                // ask for one (see `MacChapterWorkspace.canReopenActive`).
+                guard !reopen else { throw LabError.message("故事线页面暂不支持从磁盘重新打开") }
+                return try self.storylineRequest(storyline.projectID,
+                    ["action": "openStoryline", "storylineId": storyline.storylineID])
             }
         }
     }
@@ -890,9 +1017,7 @@ final class LabWorkspaceCore {
     private func closeDocument(_ scope: DocumentScope, completion: @escaping (Result<Bool, Error>) -> Void) {
         precondition(Thread.isMainThread)
         guard (owners[scope]?.core.documentViewCount ?? 0) <= 1, beginOwnerChange() else {
-            let kind: String
-            if case .element = scope { kind = "设定" } else { kind = "章节" }
-            completion(.failure(LabError.message("请先完成输入、处理草稿，并关闭这个\(kind)的另一处显示"))); return
+            completion(.failure(LabError.message("请先完成输入、处理草稿，并关闭这个\(scope.kindName)的另一处显示"))); return
         }
         perform({ (result: Result<Bool, Error>) in
             if case .success = result { self.owners.removeValue(forKey: scope)?.core.invalidate() }
@@ -906,6 +1031,9 @@ final class LabWorkspaceCore {
             case .element(let element):
                 return try self.emptyRequest("workspaceElements", fields: ["projectId": element.projectID,
                     "command": ["action": "closeElement", "elementId": element.elementID]])
+            case .storyline(let storyline):
+                return try self.emptyRequest("workspaceStorylines", fields: ["projectId": storyline.projectID,
+                    "command": ["action": "closeStoryline", "storylineId": storyline.storylineID]])
             }
         }
     }

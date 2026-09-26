@@ -11,6 +11,8 @@ pub(super) mod elements;
 mod remote_prose;
 #[path = "workspace_search.rs"]
 pub(super) mod search;
+#[path = "workspace_storylines.rs"]
+pub(super) mod storylines;
 #[path = "workspace_trash.rs"]
 mod trash;
 
@@ -25,6 +27,8 @@ struct WorkspaceSession {
     documents: HashMap<(String, String), u64>,
     /// Element body owners, keyed by (project, element) apart from chapters.
     elements: HashMap<(String, String), u64>,
+    /// Storyline body owners, keyed by (project, storyline).
+    storyline_bodies: HashMap<(String, String), u64>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -121,6 +125,7 @@ impl WorkspaceSession {
             .documents
             .values()
             .chain(self.elements.values())
+            .chain(self.storyline_bodies.values())
             .copied()
             .collect();
         handles.sort_unstable();
@@ -160,6 +165,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceReopenChapter { .. }
             | Request::WorkspaceCloseChapter { .. }
             | Request::WorkspaceElements { .. }
+            | Request::WorkspaceStorylines { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -190,6 +196,7 @@ pub(super) fn dispatch(
                     installation_id: identifier("installation")?,
                     documents: HashMap::new(),
                     elements: HashMap::new(),
+                    storyline_bodies: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})
@@ -398,6 +405,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .elements(documents, project_id, command)?,
+        Request::WorkspaceStorylines {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .storylines(documents, project_id, command)?,
         Request::WorkspaceReconcileProse { handle, project_id } => json!(workspaces
             .get(handle)
             .ok_or("Unknown or closed workspace")?
@@ -543,7 +558,11 @@ pub(super) fn document_closed(handle: u64) -> Result<(), String> {
         .lock()
         .map_err(|_| "Workspace registry is unavailable")?;
     for workspace in workspaces.values_mut() {
-        for map in [&mut workspace.documents, &mut workspace.elements] {
+        for map in [
+            &mut workspace.documents,
+            &mut workspace.elements,
+            &mut workspace.storyline_bodies,
+        ] {
             if let Some(key) = map
                 .iter()
                 .find_map(|(key, value)| (*value == handle).then(|| key.clone()))

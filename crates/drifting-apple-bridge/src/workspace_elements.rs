@@ -71,11 +71,13 @@ pub(crate) enum ElementCommand {
 }
 
 /// Distinguishes an absent optional field from an explicit `null`.
-fn present<'de, D: Deserializer<'de>>(value: D) -> Result<Option<Option<String>>, D::Error> {
+pub(super) fn present<'de, D: Deserializer<'de>>(
+    value: D,
+) -> Result<Option<Option<String>>, D::Error> {
     Option::<String>::deserialize(value).map(Some)
 }
 
-fn empty_body() -> Result<ChapterSeed, String> {
+pub(super) fn empty_body() -> Result<ChapterSeed, String> {
     let mut seed = DocumentSession::new();
     seed.edit(Edit::AppendParagraph {
         id: identifier("paragraph")?,
@@ -88,7 +90,7 @@ fn empty_body() -> Result<ChapterSeed, String> {
 }
 
 /// An uppercase `#RRGGBB`, like the renderer's random category colour.
-fn category_colour() -> Result<String, String> {
+pub(super) fn category_colour() -> Result<String, String> {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?

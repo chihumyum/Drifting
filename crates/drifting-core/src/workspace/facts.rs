@@ -224,31 +224,14 @@ impl WorkspaceStore<'_> {
                 Some(_) => {}
             }
         }
-        let scope = owner.scope();
-        match order_plan(&positions, &ids)? {
-            OrderPlan::Moves(entries) => {
-                for (id, key) in entries {
-                    mutations.push(journal::Mutation::json(
-                        "order",
-                        "kv-entry",
-                        &id,
-                        "order.move",
-                        json!({"scope": scope, "positionKey": key}),
-                    ));
-                }
-            }
-            OrderPlan::Rebalance(entries) => {
-                for (id, key) in entries {
-                    mutations.push(journal::Mutation::json(
-                        "order",
-                        "kv-entry",
-                        &id,
-                        "order.rebalance",
-                        json!({"scope": scope, "entries": [{"entityId": id, "positionKey": key}]}),
-                    ));
-                }
-            }
-        }
+        push_order(
+            "kv-entry",
+            &owner.scope(),
+            &positions,
+            &ids,
+            &|_| 0,
+            mutations,
+        )?;
         Ok(facts_json(&desired))
     }
 
@@ -266,6 +249,50 @@ impl WorkspaceStore<'_> {
             .map(|entry| entry.fact)
             .collect())
     }
+}
+
+/// Append the renderer's planned order originals for one scope:
+/// `order.move` for inserted runs, or one `order.rebalance` per entry after a
+/// reorder. `incarnation` gives each ordered entity's current incarnation.
+pub(super) fn push_order(
+    list_kind: &'static str,
+    scope: &str,
+    positions: &HashMap<String, String>,
+    desired: &[String],
+    incarnation: &dyn Fn(&str) -> u64,
+    mutations: &mut Vec<journal::Mutation>,
+) -> Result<(), String> {
+    match order_plan(positions, desired)? {
+        OrderPlan::Moves(entries) => {
+            for (id, key) in entries {
+                mutations.push(
+                    journal::Mutation::json(
+                        "order",
+                        list_kind,
+                        &id,
+                        "order.move",
+                        json!({"scope": scope, "positionKey": key}),
+                    )
+                    .at_incarnation(incarnation(&id)),
+                );
+            }
+        }
+        OrderPlan::Rebalance(entries) => {
+            for (id, key) in entries {
+                mutations.push(
+                    journal::Mutation::json(
+                        "order",
+                        list_kind,
+                        &id,
+                        "order.rebalance",
+                        json!({"scope": scope, "entries": [{"entityId": id, "positionKey": key}]}),
+                    )
+                    .at_incarnation(incarnation(&id)),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 enum OrderPlan {

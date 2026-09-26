@@ -1,43 +1,54 @@
 import AppKit
 
-/// What a tab shows: a chapter body, or an element page (fields and body).
+/// What a tab shows: a chapter body, or an element or storyline page
+/// (fields and body).
 enum WorkspaceTabTarget {
     case chapter(WorkspaceChapter)
     case element(WorkspaceElement)
+    case storyline(WorkspaceStoryline)
 }
 
-/// Two panes own their tab views; the shared workspace owns chapter and element
-/// cores. Removing a view from the hierarchy never detaches its input/history
-/// binding.
+/// Two panes own their tab views; the shared workspace owns chapter, element
+/// and storyline cores. Removing a view from the hierarchy never detaches its
+/// input/history binding.
 final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private final class Tab {
         var project: WorkspaceProject
         var target: WorkspaceTabTarget
         let core: LabCore
         let view: NativeDocumentView
-        /// Element tabs show their page; the body is the page's document view.
+        /// Element and storyline tabs show their page; the body is the
+        /// page's document view.
         let page: MacElementPageView?
-        var content: NSView { page ?? view }
+        let storylinePage: MacStorylinePageView?
+        var content: NSView { page ?? storylinePage ?? view }
         var chapter: WorkspaceChapter? { if case .chapter(let chapter) = target { return chapter }; return nil }
         var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
-        var title: String { chapter?.title ?? element?.name ?? "" }
+        var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
+        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? "" }
         var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
         static func scope(of target: WorkspaceTabTarget, projectID: String) -> DocumentScope {
             switch target {
             case .chapter(let chapter): return .chapter(ChapterScope(projectID: projectID, chapterID: chapter.id))
             case .element(let element): return .element(ElementScope(projectID: projectID, elementID: element.id))
+            case .storyline(let storyline): return .storyline(StorylineScope(projectID: projectID, storylineID: storyline.id))
             }
         }
         init(project: WorkspaceProject, target: WorkspaceTabTarget, core: LabCore, categories: [WorkspaceElementCategory]) {
             self.project = project; self.target = target; self.core = core
             switch target {
             case .chapter:
-                view = NativeDocumentView(core: core); page = nil
+                view = NativeDocumentView(core: core); page = nil; storylinePage = nil
             case .element(let element):
                 let page = MacElementPageView(element: element, categories: categories, core: core)
-                self.page = page; view = page.documentView
+                self.page = page; storylinePage = nil; view = page.documentView
+            case .storyline(let storyline):
+                let page = MacStorylinePageView(storyline: storyline, core: core)
+                self.page = nil; storylinePage = page; view = page.documentView
             }
         }
+        /// Ends an uncommitted header edit of either page kind.
+        func endEditing() { page?.endEditing(); storylinePage?.endEditing() }
     }
     private final class Pane {
         let root = NSView()
@@ -68,6 +79,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var loadingChapters: Set<String> = []
     private var chapterRereads: Set<String> = []
     private var linkDirectories: [String: EntityLinkDirectory] = [:]
+    /// Per project, the storylines and memberships storyline pages list.
+    private var storylineLibraries: [String: WorkspaceStorylineLibrary] = [:]
+    private var loadingStorylines: Set<String> = []
+    private var storylineRereads: Set<String> = []
     private var backlinkRefresh: [String: DispatchWorkItem] = [:]
     /// A backlink row opened a chapter; select its first link once shown.
     private var pendingLinkReveal: (view: NativeDocumentView, range: NativeRange, elementID: String)?
@@ -83,6 +98,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onCommentCreated: ((NativeDocumentView, WorkspaceComment) -> Void)?
     /// A page edit or element trash returned this project's complete library.
     var onElementLibrary: ((String, WorkspaceElementLibrary) -> Void)?
+    /// A storyline page edit, storyline trash or membership re-read returned
+    /// this project's complete storyline library.
+    var onStorylineLibrary: ((String, WorkspaceStorylineLibrary) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -90,6 +108,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var activeChapter: WorkspaceChapter? { panes[activePane].active?.chapter }
     var activeElement: WorkspaceElement? { panes[activePane].active?.element }
     var activeElementPage: MacElementPageView? { panes[activePane].active?.page }
+    var activeStoryline: WorkspaceStoryline? { panes[activePane].active?.storyline }
+    var activeStorylinePage: MacStorylinePageView? { panes[activePane].active?.storylinePage }
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
@@ -99,7 +119,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
     var canReopenActive: Bool {
-        guard canNavigate, let tab = panes[activePane].active else { return false }
+        // The storyline command has no reopen from disk.
+        guard canNavigate, let tab = panes[activePane].active, tab.storyline == nil else { return false }
         return allTabs.filter { $0.scope == tab.scope }.count == 1
     }
     private var allTabs: [Tab] { panes.flatMap(\.tabs) }
@@ -153,6 +174,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == .element(scope) }?.page
     }
+    func retainedStorylinePage(pane: Int, scope: StorylineScope) -> MacStorylinePageView? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == .storyline(scope) }?.storylinePage
+    }
     /// Tab titles in display order, for accessibility checks and acceptance.
     func tabTitles(pane: Int) -> [String] {
         panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
@@ -177,6 +202,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         open(project: project, target: .element(element), in: pane, completion: completion)
     }
 
+    /// Opens a storyline page as a tab. Its body is an ordinary document owner.
+    func open(project: WorkspaceProject, storyline: WorkspaceStoryline, in pane: Int? = nil,
+              completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        open(project: project, target: .storyline(storyline), in: pane, completion: completion)
+    }
+
     private func openCore(_ project: WorkspaceProject, _ target: WorkspaceTabTarget, reopen: Bool,
                           completion: @escaping (Result<LabCore, Error>) -> Void) {
         switch (target, reopen) {
@@ -184,6 +215,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         case (.chapter(let chapter), true): workspace.reopenChapter(projectID: project.id, chapterID: chapter.id, completion: completion)
         case (.element(let element), false): workspace.openElement(projectID: project.id, elementID: element.id, completion: completion)
         case (.element(let element), true): workspace.reopenElement(projectID: project.id, elementID: element.id, completion: completion)
+        case (.storyline(let storyline), false):
+            workspace.openStoryline(projectID: project.id, storylineID: storyline.id, completion: completion)
+        case (.storyline, true): completion(.failure(LabError.message("故事线页面暂不支持从磁盘重新打开")))
         }
     }
 
@@ -203,8 +237,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     isNew = false
                     tab = retained
                     tab.project = project
-                    // A retained element page keeps its own, newer fields:
-                    // library replies already updated it after each save.
+                    // A retained element or storyline page keeps its own,
+                    // newer fields: library replies already updated it.
                     if case .chapter = target { tab.target = target }
                 } else {
                     isNew = true
@@ -225,6 +259,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.onChange?()
                 self.focusWhenReady()
                 if isNew { self.ensureLinkSources(projectID: project.id) }
+                if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -243,6 +278,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             }
         }
         if linkSources[projectID]?.chapters == nil { chaptersChanged(projectID: projectID) }
+        if storylineLibraries[projectID] == nil, allTabs.contains(where: { $0.project.id == projectID && $0.storyline != nil }) {
+            storylinesChanged(projectID: projectID)
+        }
     }
 
     func split(completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
@@ -264,7 +302,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard canNavigate, panes.indices.contains(pane),
               let tab = panes[pane].tabs.first(where: { $0.scope == scope }) else { completion(.failure(blocked())); return }
         // A header edit in progress is saved; it needs no document owner.
-        tab.page?.endEditing()
+        tab.endEditing()
         if allTabs.filter({ $0.scope == scope }).count > 1 {
             remove(tab, from: pane)
             completion(.success(true)); return
@@ -279,6 +317,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         switch scope {
         case .chapter(let chapter): workspace.closeChapter(projectID: chapter.projectID, chapterID: chapter.chapterID, completion: finish)
         case .element(let element): workspace.closeElement(projectID: element.projectID, elementID: element.elementID, completion: finish)
+        case .storyline(let storyline):
+            workspace.closeStoryline(projectID: storyline.projectID, storylineID: storyline.storylineID, completion: finish)
         }
     }
 
@@ -308,6 +348,26 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.removeAll(scope)
                 self.applyElementLibrary(projectID: projectID, library: reply.library)
                 self.onElementLibrary?(projectID, reply.library)
+            }
+            self.setBusy(false)
+            self.onChange?()
+            completion(result)
+        }
+    }
+
+    /// Trash commits first; only then are this storyline's tabs removed.
+    /// Chapters whose 主线 it was lose all their storylines.
+    func trashStoryline(projectID: String, storylineID: String,
+                        completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let scope = DocumentScope.storyline(StorylineScope(projectID: projectID, storylineID: storylineID))
+        workspace.trashStoryline(projectID: projectID, storylineID: storylineID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result {
+                self.removeAll(scope)
+                self.applyStorylineLibrary(projectID: projectID, library: reply.library)
+                self.onStorylineLibrary?(projectID, reply.library)
             }
             self.setBusy(false)
             self.onChange?()
@@ -345,7 +405,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func reopenActive(completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
         guard canReopenActive, let old = panes[activePane].active else { completion(.failure(blocked())); return }
         let pane = activePane
-        old.page?.endEditing()
+        old.endEditing()
         setBusy(true)
         openCore(old.project, old.target, reopen: true) { [weak self] result in
             guard let self else { return }
@@ -370,7 +430,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     func close(completion: @escaping (Result<Bool, Error>) -> Void) {
         guard canNavigate else { completion(.failure(blocked())); return }
-        for tab in allTabs { tab.page?.endEditing() }
+        for tab in allTabs { tab.endEditing() }
         setBusy(true)
         workspace.close { [weak self] result in
             guard let self else { return }
@@ -392,6 +452,56 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id { tab.target = .chapter(chapter) }
         refreshTabs(); onChange?()
         chaptersChanged(projectID: projectID)
+    }
+
+    // MARK: Storylines
+
+    /// The last storyline library read for the project, if any.
+    func storylineLibrary(projectID: String) -> WorkspaceStorylineLibrary? { storylineLibraries[projectID] }
+
+    /// Adopt a project's complete storyline library: storyline tab titles and
+    /// page fields follow stored values (uncommitted text is kept), and every
+    /// storyline page lists its chapters again.
+    func applyStorylineLibrary(projectID: String, library: WorkspaceStorylineLibrary) {
+        storylineLibraries[projectID] = library
+        for tab in allTabs where tab.project.id == projectID {
+            guard let storyline = tab.storyline, let page = tab.storylinePage else { continue }
+            if let stored = library.storyline(id: storyline.id) {
+                tab.target = .storyline(stored)
+                page.apply(storyline: stored)
+            }
+            showChapters(of: page, projectID: projectID)
+        }
+        refreshTabs(); onChange?()
+    }
+
+    /// Re-reads the project's storylines and memberships, e.g. after a
+    /// chapter was created, moved, trashed or restored. Observers receive the
+    /// library through `onStorylineLibrary`.
+    func storylinesChanged(projectID: String) {
+        guard loadingStorylines.insert(projectID).inserted else { storylineRereads.insert(projectID); return }
+        workspace.storylineLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingStorylines.remove(projectID)
+            if case .success(let library) = result {
+                self.applyStorylineLibrary(projectID: projectID, library: library)
+                self.onStorylineLibrary?(projectID, library)
+            }
+            if self.storylineRereads.remove(projectID) != nil { self.storylinesChanged(projectID: projectID) }
+        }
+    }
+
+    /// Lists the page's chapters in book order once both the storyline
+    /// library and the chapter titles are known.
+    private func showChapters(of page: MacStorylinePageView, projectID: String) {
+        guard let library = storylineLibraries[projectID], let chapters = linkSources[projectID]?.chapters else {
+            page.showChapters(nil); return
+        }
+        let titles = Dictionary(chapters.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let id = page.storyline.id
+        page.showChapters(library.chapters(storylineID: id).compactMap { membership in
+            titles[membership.chapterId].map { StorylineChaptersView.Entry(chapter: $0, primary: membership.primary == id) }
+        })
     }
 
     /// Adopt a project's complete library: element tab titles and page fields
@@ -448,6 +558,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         updateLinkDirectory(projectID: projectID)
         if previous.map(titles) != titles(chapters) { requestEntityLinks(projectID: projectID) }
         scheduleBacklinks(projectID: projectID)
+        for tab in allTabs where tab.project.id == projectID {
+            if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
+        }
+        // Memberships list live chapters in book order: a created, moved,
+        // trashed or restored chapter changes them.
+        if previous?.map(\.id) != chapters.map(\.id), storylineLibraries[projectID] != nil || onStorylineLibrary != nil {
+            storylinesChanged(projectID: projectID)
+        }
     }
 
     private func updateLinkDirectory(projectID: String) {
@@ -539,6 +657,35 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         page.focusName()
     }
 
+    /// Moves the keyboard to the active storyline page's name field, e.g.
+    /// after creating a storyline from the panel.
+    func focusActiveStorylineName() {
+        guard let page = activeStorylinePage else { return }
+        pendingFocus = nil
+        page.focusName()
+    }
+
+    /// Storyline header fields and facts are metadata writes like element
+    /// ones. Every open view and the panel adopt the returned library.
+    private func commitStoryline(_ tab: Tab, completion: @escaping (Result<WorkspaceStoryline, Error>) -> Void,
+                                 write: (_ projectID: String, _ storylineID: String,
+                                         _ done: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) -> Void) {
+        guard let storyline = tab.storyline else { completion(.failure(LabError.message("这个标签不是故事线页面。"))); return }
+        let projectID = tab.project.id
+        write(projectID, storyline.id) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                guard let stored = reply.result else { completion(.failure(LabError.message("故事线结果缺失"))); return }
+                if let self {
+                    self.applyStorylineLibrary(projectID: projectID, library: reply.library)
+                    self.onStorylineLibrary?(projectID, reply.library)
+                }
+                completion(.success(stored))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
     /// Header fields and facts are metadata writes: the body owner, its queued
     /// input and history are untouched. Every open view adopts the library.
     private func commitElement(_ tab: Tab, completion: @escaping (Result<WorkspaceElement, Error>) -> Void,
@@ -593,6 +740,26 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     self.workspace.setElementFacts(projectID: $0, elementID: $1, facts: facts, completion: $2)
                 }
             }
+        } else if let page = tab.storylinePage {
+            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onOpenChapter = { [weak self, weak tab] chapter in
+                guard let self, let tab, let index = self.pane(of: tab) else { return }
+                self.open(project: tab.project, chapter: chapter, in: index) { [weak self] result in
+                    if case .failure(let error) = result { self?.onError?(error) }
+                }
+            }
+            page.onCommit = { [weak self, weak tab] changes, done in
+                guard let self, let tab else { done(.failure(LabError.message("故事线页面已关闭，修改未保存。"))); return }
+                self.commitStoryline(tab, completion: done) {
+                    self.workspace.updateStoryline(projectID: $0, storylineID: $1, changes: changes, completion: $2)
+                }
+            }
+            page.onCommitFacts = { [weak self, weak tab] facts, done in
+                guard let self, let tab else { done(.failure(LabError.message("故事线页面已关闭，字段未保存。"))); return }
+                self.commitStoryline(tab, completion: done) {
+                    self.workspace.setStorylineFacts(projectID: $0, storylineID: $1, facts: facts, completion: $2)
+                }
+            }
         } else {
             tab.view.onComments = { [weak self, weak view = tab.view] in
                 if let self, let view { self.onComments?(view) }
@@ -616,6 +783,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil
+        tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
+        tab.storylinePage?.onOpenChapter = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
     private func setBusy(_ value: Bool) {
@@ -679,7 +848,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         splitView.adjustSubviews(); refreshTabs(); focusWhenReady(); onChange?()
     }
     private func remove(_ tab: Tab, from index: Int, commitHeader: Bool = true) {
-        if commitHeader { tab.page?.endEditing() }
+        if commitHeader { tab.endEditing() }
         disconnect(tab)
         let pane = panes[index]
         pane.tabs.removeAll { $0 === tab }
@@ -690,9 +859,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
     private func showSelected(in index: Int) {
         let pane = panes[index]
-        // Leaving an element page saves its header edit before the view is hidden.
+        // Leaving a page saves its header edit before the view is hidden.
         for child in pane.body.subviews where child !== pane.active?.content {
             (child as? MacElementPageView)?.endEditing()
+            (child as? MacStorylinePageView)?.endEditing()
         }
         for child in pane.body.subviews { child.removeFromSuperview() }
         if let view = pane.active?.content {
@@ -712,9 +882,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.label.textColor = index == activePane ? .labelColor : .secondaryLabelColor
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
-                let kind = tab.element == nil ? "chapter" : "element"
-                let id = tab.chapter?.id ?? tab.element?.id ?? ""
-                let title = tab.element == nil ? tab.title : "设定 · \(tab.title)"
+                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : "chapter"
+                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? ""
+                let title = tab.element != nil ? "设定 · \(tab.title)" : tab.storyline != nil ? "故事线 · \(tab.title)" : tab.title
                 let select = ChapterTabButton(title: title) { [weak self] in
                     guard let self else { return }
                     self.open(project: tab.project, target: tab.target, in: index) { result in

@@ -8,6 +8,8 @@ final class BookOutlinePanel: NSPanel {
 final class BookOutlineViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     let model: WorkspaceOutlineModel
     var onNavigate: ((WorkspaceOutlineEntry, String?) -> Void)?
+    /// “故事线…” on a chapter row: edit its storylines and 主线.
+    var onEditStorylines: ((WorkspaceOutlineEntry) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     private let table = NSTableView()
@@ -60,7 +62,17 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let item = rows[row]
+        cellView(rows[row])
+    }
+
+    /// The 主线 chip a chapter row shows, built as the table builds it; nil
+    /// before memberships are read or when the chapter is not listed.
+    func storylineChip(chapterID: String) -> StorylineChip? {
+        guard let item = rows.first(where: { $0.isChapter && $0.entry.id == chapterID }) else { return nil }
+        return cellView(item).arrangedSubviews.compactMap { $0 as? StorylineChip }.first
+    }
+
+    private func cellView(_ item: WorkspaceOutlineModel.Row) -> NSStackView {
         let label = NSTextField(labelWithString: item.label)
         label.lineBreakMode = .byTruncatingTail
         label.textColor = item.navigable ? .labelColor : .secondaryLabelColor
@@ -70,6 +82,20 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         let stack = NSStackView(views: [label])
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 0, left: CGFloat(item.depth) * 14, bottom: 0, right: 4)
+        // A leading dot in the 主线 colour, hollow for 未归属, and the
+        // storyline's name in secondary text after the title; no edge accent.
+        if item.isChapter, model.storylines != nil {
+            let chip = StorylineChip(storyline: model.primaryStoryline(chapterID: item.entry.id), showsName: false)
+            chip.setAccessibilityIdentifier("outline-storyline-\(item.entry.id)")
+            stack.insertArrangedSubview(chip, at: 0)
+            let name = NSTextField(labelWithString: chip.text)
+            name.font = .systemFont(ofSize: 11)
+            name.textColor = chip.storyline == nil ? .tertiaryLabelColor : .secondaryLabelColor
+            name.lineBreakMode = .byTruncatingTail
+            name.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+            name.setAccessibilityIdentifier("outline-storyline-name-\(item.entry.id)")
+            stack.addArrangedSubview(name)
+        }
         if item.isChapter {
             let expanded = model.expanded.contains(item.entry.id)
             let button = OutlineDisclosureButton(title: expanded ? "▾" : "▸")
@@ -81,6 +107,12 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         }
         if item.isChapter || item.isAct { stack.addArrangedSubview(actions(for: item)) }
         return stack
+    }
+
+    /// The 操作 menu items of a chapter or act row, as the table builds them.
+    func actionItems(entryID: String) -> [NSMenuItem] {
+        guard let item = rows.first(where: { ($0.isChapter || $0.isAct) && $0.entry.id == entryID }) else { return [] }
+        return Array(actions(for: item).itemArray.dropFirst())
     }
 
     private func actions(for item: WorkspaceOutlineModel.Row) -> NSPopUpButton {
@@ -96,6 +128,10 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             }
             create.setAccessibilityIdentifier("outline-create-act")
             button.menu?.addItem(create)
+            let storylines = OutlineActionMenuItem(title: "故事线…") { [weak self] in self?.onEditStorylines?(item.entry) }
+            storylines.setAccessibilityIdentifier("outline-chapter-storylines")
+            storylines.isEnabled = onEditStorylines != nil
+            button.menu?.addItem(storylines)
         } else {
             let rename = OutlineActionMenuItem(title: "改名") { [weak self] in self?.renameAct(item.entry) }
             rename.setAccessibilityIdentifier("outline-rename-act")

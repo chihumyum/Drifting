@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -47,8 +47,11 @@ if (process.argv.includes('--prepare')) {
   writeFileSync(path.join(owned, 'swift.log'), run('xcrun', ['swiftc', '-parse-as-library', '-swift-version', '5',
     '-target', `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos14.0`, '-I', 'native/apple/FFI',
     '-L', `${targetDir}/${target}/debug`, '-ldrifting_apple_bridge', '-liconv', '-framework', 'AppKit', '-framework', 'Carbon',
-    'native/apple/Shared/LabCore.swift', 'native/apple/Shared/DocumentBinding.swift', 'native/apple/Shared/DocumentStore.swift',
-    'native/apple/Shared/DocumentStyle.swift', 'native/apple/macOS/NativeDocumentView.swift',
+    // Every shared and Mac view source (not the app entry point): the editor
+    // view and LabCore depend on the workspace models and panels beside them.
+    ...['Shared', 'macOS'].flatMap(folder => readdirSync(`native/apple/${folder}`)
+      .filter(name => name.endsWith('.swift') && name !== 'AppDelegate.swift').sort()
+      .map(name => `native/apple/${folder}/${name}`)),
     'native/apple/Tests/SystemIMEAcceptance.swift', '-o', binary]));
   run('/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', bundle]);
   assert.equal(fingerprint(), sourceFingerprint, 'Source changed during system IME preparation');

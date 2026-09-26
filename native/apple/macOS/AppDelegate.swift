@@ -11,7 +11,7 @@ struct NativeMacMain {
 }
 
 /// One window owns a chapter workspace with retained tabs and at most two panes.
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     private var window: NSWindow!
     private let workspace = LabWorkspaceCore()
     private var projects: [WorkspaceProject] = []
@@ -64,6 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var elementsButton: NSButton!
     private var elementsPanel: ElementLibraryPanel?
     private var elementsController: MacElementLibraryViewController?
+    private var storylinesButton: NSButton!
+    private var storylinesPanel: StorylineLibraryPanel?
+    private var storylinesController: MacStorylineLibraryViewController?
+    /// One project's storylines and memberships, kept while its panel is
+    /// closed: chapter rows and the outline show each chapter's 主线.
+    private var storylineModel: StorylineLibraryModel?
+    private var storylineSheet: ChapterStorylinesSheet?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -106,6 +113,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let elements = editMenu.addItem(withTitle: "设定库", action: #selector(showElements), keyEquivalent: "e")
         elements.keyEquivalentModifierMask = [.command, .shift]
         elements.target = self
+        let storylines = editMenu.addItem(withTitle: "故事线", action: #selector(showStorylines), keyEquivalent: "l")
+        storylines.keyEquivalentModifierMask = [.command, .shift]
+        storylines.target = self
         editMenu.addItem(.separator())
         // Nil-targeted: the focused editor pane validates its own selection.
         let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
@@ -135,6 +145,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let trashActions = NSStackView(views: [trashButton, trashListButton])
         let projectScroll = table(projectTable, id: "project-list")
         let chapterScroll = table(chapterTable, id: "chapter-list")
+        let chapterMenu = NSMenu()
+        chapterMenu.delegate = self
+        chapterTable.menu = chapterMenu
         let sidebar = NSStackView(views: [heading("项目"), projectActions, projectScroll, projectEmpty,
             heading("章节"), chapterActions, orderActions, trashActions, chapterScroll, chapterEmpty])
         sidebar.orientation = .vertical
@@ -154,10 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         searchButton = button("搜索", id: "show-search", action: #selector(showSearch))
         commentsButton = button("批注", id: "show-comments", action: #selector(showComments))
         elementsButton = button("设定库", id: "show-elements", action: #selector(showElements))
+        storylinesButton = button("故事线", id: "show-storylines", action: #selector(showStorylines))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
         let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
-                                          splitButton, closePaneButton])
+                                          storylinesButton, splitButton, closePaneButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -183,6 +197,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onElementLibrary = { [weak self] projectID, library in
             guard let model = self?.elementsController?.model, model.projectID == projectID else { return }
             model.apply(library, message: nil)
+        }
+        chapterWorkspace.onStorylineLibrary = { [weak self] projectID, library in
+            self?.adoptStorylines(projectID: projectID, library: library, fromWorkspace: true)
         }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
@@ -262,7 +279,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let label = NSTextField(labelWithString: title)
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityLabel(title)
-        return label
+        // Live chapters lead with their 主线 dot once memberships are read.
+        guard tableView === chapterTable, !showingTrash, let library = sidebarStorylines else { return label }
+        let chapter = displayedChapters[row]
+        let chip = StorylineChip(storyline: library.primary(chapterID: chapter.id), showsName: false)
+        chip.setAccessibilityIdentifier("chapter-row-storyline-\(chapter.id)")
+        label.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        let stack = NSStackView(views: [chip, label])
+        stack.spacing = 6
+        return stack
+    }
+
+    /// The selected project's storyline library, once read.
+    private var sidebarStorylines: WorkspaceStorylineLibrary? {
+        guard let model = storylineModel, model.loaded, model.projectID == selectedProject?.id else { return nil }
+        return model.library
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let row = chapterTable.clickedRow
+        guard menu === chapterTable.menu, !showingTrash, chapters.indices.contains(row), let project = selectedProject else { return }
+        let chapter = chapters[row]
+        let item = LibraryMenuItem(title: "故事线…", identifier: "chapter-storylines") { [weak self] in
+            self?.editStorylines(of: chapter, project: project, from: self?.window)
+        }
+        menu.addItem(item)
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
@@ -308,6 +350,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         searchButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         commentsButton.isEnabled = !loading && chapterWorkspace.activeChapterView != nil
         elementsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        storylinesButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -343,6 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeOutline()
         closeSearch()
         if elementsController?.model.projectID != project.id { closeElements() }
+        if storylinesController?.model.projectID != project.id { closeStorylines() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -361,6 +405,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
                 self.chapterEmpty.isHidden = !chapters.isEmpty
                 self.status.stringValue = "\(project.name) · \(chapters.count) 个章节"
+                self.ensureStorylineModel(project)
                 self.updateControls()
             case .failure(let error):
                 self.status.stringValue = error.localizedDescription
@@ -622,6 +667,126 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
+    // MARK: Storylines
+
+    /// Keeps one storyline model for the project whose chapters are shown.
+    @discardableResult
+    private func ensureStorylineModel(_ project: WorkspaceProject) -> StorylineLibraryModel {
+        if let storylineModel, storylineModel.projectID == project.id { return storylineModel }
+        let model = StorylineLibraryModel(workspace: workspace, projectID: project.id)
+        storylineModel = model
+        model.onLibrary = { [weak self] library in
+            self?.adoptStorylines(projectID: project.id, library: library, fromWorkspace: false)
+        }
+        model.load()
+        return model
+    }
+
+    /// Every storyline reply reaches the panel, open pages, the outline and
+    /// the chapter list; the source is not told again.
+    private func adoptStorylines(projectID: String, library: WorkspaceStorylineLibrary, fromWorkspace: Bool) {
+        if fromWorkspace {
+            if let model = storylineModel, model.projectID == projectID { model.apply(library, message: nil) }
+        } else {
+            chapterWorkspace.applyStorylineLibrary(projectID: projectID, library: library)
+        }
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.applyStorylines(library) }
+        if selectedProject?.id == projectID, !showingTrash {
+            updatingSelection = true
+            let selected = chapterTable.selectedRowIndexes
+            chapterTable.reloadData()
+            chapterTable.selectRowIndexes(selected, byExtendingSelection: false)
+            updatingSelection = false
+        }
+    }
+
+    @objc private func showStorylines() {
+        guard let project = currentProject ?? selectedProject else { return }
+        if let storylinesPanel, storylinesPanel.isVisible, storylinesController?.model.projectID == project.id {
+            storylinesPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeStorylines()
+        let model = ensureStorylineModel(project)
+        let controller = MacStorylineLibraryViewController(model: model)
+        let panel = StorylineLibraryPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 520),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 故事线"
+        panel.minSize = NSSize(width: 280, height: 320)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        storylinesPanel = panel; storylinesController = controller
+        panel.onClose = { [weak self] in self?.storylinesPanel = nil; self?.storylinesController = nil }
+        controller.onClose = { [weak self] in self?.closeStorylines() }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onOpen = { [weak self] storyline in self?.openStoryline(storyline, project: project, focusName: false) }
+        controller.onCreated = { [weak self] storyline in self?.openStoryline(storyline, project: project, focusName: true) }
+        controller.onTrash = { [weak self] storyline in self?.trashStoryline(storyline, project: project) }
+        window.addChildWindow(panel, ordered: .above)
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 48, y: frame.maxY - 110))
+        panel.makeKeyAndOrderFront(nil)
+        model.load()
+    }
+
+    private func openStoryline(_ storyline: WorkspaceStoryline, project: WorkspaceProject, focusName: Bool) {
+        guard canLeaveDocument() else {
+            storylinesController?.model.showStatus("请先完成输入，并等待正文保存后再打开故事线。"); return
+        }
+        chapterWorkspace.open(project: project, storyline: storyline) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.status.stringValue = "故事线正文自动保存"
+                self.window.makeKeyAndOrderFront(nil)
+                if focusName { self.chapterWorkspace.focusActiveStorylineName() }
+                self.documentActivity(!self.chapterWorkspace.canNavigate)
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.storylinesController?.model.showStatus(error.localizedDescription)
+                self.activeChapterChanged()
+            }
+        }
+    }
+
+    private func trashStoryline(_ storyline: WorkspaceStoryline, project: WorkspaceProject) {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.trashStoryline(projectID: project.id, storylineID: storyline.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let reply):
+                if let model = self.storylineModel, model.projectID == project.id {
+                    model.apply(reply.library, message: "“\(storyline.name)”已移到回收站，可以随时恢复。")
+                }
+                self.status.stringValue = "故事线已移到回收站"
+                self.activeChapterChanged()
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.storylinesController?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    /// “故事线…” on a chapter: a sheet over the window that asked for it.
+    private func editStorylines(of chapter: WorkspaceChapter, project: WorkspaceProject, from parent: NSWindow?) {
+        guard storylineSheet == nil else { return }
+        let model = ensureStorylineModel(project)
+        guard model.loaded, !model.busy else {
+            status.stringValue = "正在读取故事线，请稍后再试。"; return
+        }
+        let sheet = ChapterStorylinesSheet(chapter: chapter, model: model)
+        storylineSheet = sheet
+        sheet.onFinish = { [weak self] saved in
+            self?.storylineSheet = nil
+            if saved { self?.status.stringValue = "“\(chapter.title)”的故事线已保存" }
+        }
+        sheet.begin(in: parent ?? window)
+    }
+
+    private func closeStorylines() {
+        let panel = storylinesPanel
+        storylinesPanel = nil; storylinesController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
     private func closeSearch() {
         let panel = searchPanel
         searchPanel = nil; searchController = nil; pendingSearch = nil
@@ -637,7 +802,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
            let projection = documentView?.binding.store.projection {
             model.updateActive(chapterID: chapter.id, outline: projection.outline)
         }
+        if let storylines = storylineModel, storylines.projectID == project.id, storylines.loaded {
+            model.applyStorylines(storylines.library)
+        }
         let controller = BookOutlineViewController(model: model)
+        controller.onEditStorylines = { [weak self, weak controller] entry in
+            self?.editStorylines(of: WorkspaceChapter(id: entry.id, title: entry.title), project: project,
+                                 from: controller?.view.window)
+        }
         let panel = BookOutlinePanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 570),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         panel.title = "\(project.name) · 整书大纲"
@@ -706,6 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.closeOutline()
                     self.closeSearch()
                     self.elementsPanel?.title = "\(updated.name) · 设定库"
+                    self.storylinesPanel?.title = "\(updated.name) · 故事线"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -762,6 +935,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else if let element = chapterWorkspace.activeElement {
             currentTitle.stringValue = "\(project.name) / 设定 · \(element.name)"
             window.title = "\(element.name) — Drifting Native Lab"
+        } else if let storyline = chapterWorkspace.activeStoryline {
+            currentTitle.stringValue = "\(project.name) / 故事线 · \(storyline.name)"
+            window.title = "\(storyline.name) — Drifting Native Lab"
         }
     }
 
@@ -785,6 +961,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             case .success(let chapters):
                 self.closeOutline()
                 self.chapters = chapters
+                // Memberships follow book order.
+                self.chapterWorkspace.applyChapters(projectID: project.id, chapters: chapters, trashed: nil)
                 self.updatingSelection = true
                 self.chapterTable.reloadData()
                 if let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
@@ -947,6 +1125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success:
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
+                self.closeStorylines()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
@@ -963,6 +1142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeSearch()
         closeComments()
         closeElements()
+        closeStorylines()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

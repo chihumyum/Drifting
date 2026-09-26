@@ -14,14 +14,16 @@ book order, prose bytes and comments remain in the local database.
 Restoring captures the authoritative full state from the retained SQLite
 snapshot and update tail inside the core transaction. `content_json` does not
 replace that source. The restored chapter enters the next incarnation and emits
-one complete local original: domain seed, graph position, primary-storyline
-register and full prose state. Its System revision, provenance, original and
-materialization receipt commit together. No published migration changes.
+one complete local original: domain seed, graph position, its storyline
+memberships re-added in the new incarnation (the renderer's
+`forceReincarnation` projection: observed tags removed, then added again),
+the primary-storyline register and full prose state. Its System revision,
+provenance, original and materialization receipt commit together. No published
+migration changes.
 
-The initial native workspace has no storyline or entity-relation editing yet.
-Chapters with unsupported associations are refused explicitly; this slice must
-not silently delete their relationships. Wider domain integration can extend
-that rule in its own accepted batch.
+Trash keeps a chapter's [storyline](storylines.md) links, as the renderer does.
+Chapters with entity relations are still refused explicitly until relations are
+ported; this must not silently delete their relationships.
 
 ## Native editor ownership
 

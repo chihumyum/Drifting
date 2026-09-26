@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as Y from 'yjs';
@@ -75,8 +75,11 @@ try {
   command('swift-build', 'xcrun', ['swiftc', '-O', '-parse-as-library', '-swift-version', '5', '-target',
     `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos14.0`, '-I', 'native/apple/FFI', '-L', `${targetDir}/${rustTarget}/release`,
     '-ldrifting_apple_bridge', '-liconv', '-framework', 'AppKit', '-framework', 'QuartzCore',
-    'native/apple/Shared/LabCore.swift', 'native/apple/Shared/DocumentBinding.swift', 'native/apple/Shared/DocumentStore.swift',
-    'native/apple/Shared/DocumentStyle.swift', 'native/apple/macOS/NativeDocumentView.swift',
+    // Every shared and Mac view source (not the app entry point): the editor
+    // view and LabCore depend on the workspace models and panels beside them.
+    ...['Shared', 'macOS'].flatMap(folder => readdirSync(`native/apple/${folder}`)
+      .filter(name => name.endsWith('.swift') && name !== 'AppDelegate.swift').sort()
+      .map(name => `native/apple/${folder}/${name}`)),
     'native/apple/Tests/EditorPerformance.swift', '-o', binary]);
   command('adhoc-sign', '/usr/bin/codesign', ['--force', '--sign', '-', '--timestamp=none', bundle]);
   const binarySha256 = hash(readFileSync(binary));

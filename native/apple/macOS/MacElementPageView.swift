@@ -484,8 +484,8 @@ final class ElementBacklinksView: NSView {
     }
 }
 
-/// The header's soft wash takes the category colour; no edge accent.
-private final class ElementHeaderWash: NSView {
+/// The header's soft wash takes the category (or storyline) colour; no edge accent.
+final class ElementHeaderWash: NSView {
     var tint: NSColor? { didSet { needsDisplay = true } }
     override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
