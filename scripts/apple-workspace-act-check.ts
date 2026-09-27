@@ -97,6 +97,11 @@ function acts(db: DatabaseSync, projectId: string): BookAct[] {
     drift_node_id AS driftNodeId,created_at AS createdAt,updated_at AS updatedAt
     FROM book_act WHERE project_id=?`).all(projectId) as unknown as BookAct[];
 }
+// Native act rows also carry colour and boundary (native-only fields since
+// the 2026-09-27 no-interop decision); parity covers the renderer's shape.
+function rendererShape(rows: OutlineRow[]): OutlineRow[] {
+  return rows.map(({ kind, id, title, actId }) => ({ kind, id, title, actId }));
+}
 function outline(db: DatabaseSync, projectId: string): OutlineRow[] {
   const chapters = db.prepare(`SELECT id,title,book_order AS bookOrder FROM book_node
     WHERE project_id=? AND kind='chapter' AND deleted_at IS NULL ORDER BY book_order,id COLLATE BINARY`)
@@ -248,8 +253,8 @@ async function verify(fixture: Case, ordinal: number) {
         assert.equal(remoteWriter[0]!.next_device_seq, writerBefore[0]!.next_device_seq);
         assert.equal(nativeWriter[0]!.next_device_seq, changeSet.deviceSeq + 1);
         assert(Number(remoteWriter[0]!.hlc_wall_ms) >= changeSet.hlc.wallMs);
-        assert.deepEqual(outline(gateway.database, fixture.projectId), step.outline);
-        assert.deepEqual(outline(expected, fixture.projectId), step.outline);
+        assert.deepEqual(outline(gateway.database, fixture.projectId), rendererShape(step.outline));
+        assert.deepEqual(outline(expected, fixture.projectId), rendererShape(step.outline));
         const documents = fixture.chapterIds.map(id => {
           const state = fullState(expected, `node-content:${id}`);
           assert.deepEqual(fullState(gateway.database, `node-content:${id}`), state);

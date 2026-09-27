@@ -48,9 +48,10 @@ coordinate.
 The 幕 rail of the [bottom timeline](timeline.md#bottom-timeline-底部时间轴)
 drags a boundary between chapter slots: a boundary before a chapter takes
 that chapter's coordinate (as 在此开始一幕 does), one after the last chapter
-one step beyond it. Outline rows carry no coordinates, so the rail derives
-each act's first chapter slot from the outline's reading order and the
-chapter list's `bookOrder`. The drag is clamped to slots strictly after the
+one step beyond it. `workspaceOutline` act rows carry their `startOrder`
+(absent for a head-anchored act), and the rail places each act before the
+first chapter whose `bookOrder` is at least that coordinate, as Rust assigns
+membership; a head-anchored act starts at the first slot. The drag is clamped to slots strictly after the
 previous act's start and before the next act's; a view made stale by an act
 created elsewhere is refused by Rust and reads acts again. The rail also
 renames (double-click or 重命名…), starts a new act at a chapter (在此处开始新幕),

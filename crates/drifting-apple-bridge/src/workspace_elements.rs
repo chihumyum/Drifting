@@ -359,8 +359,10 @@ impl WorkspaceSession {
 
     /// Chapters whose prose links this element, in book order, read from
     /// live owners or a cold durable read; unreadable chapters are reported.
+    /// `sources` lists the drift, element, category and storyline pages that
+    /// link it, read the same way with a per-revision cache for cold bodies.
     fn element_backlinks(
-        &self,
+        &mut self,
         documents: &HashMap<u64, LabSession>,
         project_id: &str,
         element_id: &str,
@@ -401,7 +403,92 @@ impl WorkspaceSession {
                     .push(json!({"chapterId": chapter.id, "chapterTitle": chapter.title})),
             }
         }
-        Ok(json!({"elementId": element_id, "chapters": chapters, "unavailable": unavailable}))
+        let mut pages: Vec<(&str, String, String, String)> = Vec::new();
+        for drift in store.drifts(project_id)? {
+            pages.push(("drift", drift.id, drift.title, drift.document_id));
+        }
+        for element in store.elements(project_id)? {
+            if element.id != element_id {
+                pages.push(("element", element.id, element.name, element.document_id));
+            }
+        }
+        for category in store.element_categories(project_id)? {
+            pages.push(("category", category.id, category.name, category.document_id));
+        }
+        for storyline in store.storylines(project_id)? {
+            pages.push((
+                "storyline",
+                storyline.id,
+                storyline.name,
+                storyline.document_id,
+            ));
+        }
+        let revisions: HashMap<String, i64> = self
+            .gateway
+            .query(
+                "SELECT document_id,revision FROM yjs_document_revision".into(),
+                vec![],
+                None,
+                CLIENT.into(),
+            )?
+            .rows
+            .iter()
+            .filter_map(|row| match (&row[0], &row[1]) {
+                (DatabaseValue::Text(id), DatabaseValue::Integer(revision)) => {
+                    revision.parse().ok().map(|revision| (id.clone(), revision))
+                }
+                _ => None,
+            })
+            .collect();
+        let mut cache = std::mem::take(&mut self.link_spans);
+        let mut sources = Vec::new();
+        let mut unavailable_sources = Vec::new();
+        for (kind, id, title, document_id) in pages {
+            let read = (|| -> Result<Vec<drifting_document::EntityLinkSpan>, String> {
+                let key = (project_id.to_owned(), id.clone());
+                if let Some(owner) = self
+                    .body_owner(kind, &key)
+                    .and_then(|handle| documents.get(&handle))
+                {
+                    return owner.document.entity_link_spans();
+                }
+                let revision = revisions.get(&document_id).copied().unwrap_or(-1);
+                if let Some((cached, spans)) = cache.get(&document_id) {
+                    if *cached == revision {
+                        return Ok(spans.clone());
+                    }
+                }
+                let scope = store.document_scope(project_id, &document_id)?;
+                let reader = DurableDocument::open_with_scope(self.gateway.clone(), CLIENT, scope)?;
+                if reader.has_pending() {
+                    return Err("Body prose dependencies are unresolved".into());
+                }
+                let spans = reader.entity_link_spans()?;
+                cache.insert(document_id.clone(), (revision, spans.clone()));
+                Ok(spans)
+            })();
+            match read {
+                Ok(spans) => {
+                    let spans: Vec<_> = spans
+                        .into_iter()
+                        .filter(|span| span.kind == "element" && span.id == element_id)
+                        .collect();
+                    if let Some(first) = spans.first() {
+                        let mut blocks: Vec<_> =
+                            spans.iter().map(|span| span.block_id.clone()).collect();
+                        blocks.dedup();
+                        sources.push(json!({"kind": kind, "id": id, "title": title,
+                            "spans": spans.len(), "blocks": blocks.len(), "first": first.range}));
+                    }
+                }
+                Err(_) => unavailable_sources.push(json!({"kind": kind, "id": id, "title": title})),
+            }
+        }
+        self.link_spans = cache;
+        Ok(
+            json!({"elementId": element_id, "chapters": chapters, "sources": sources,
+            "unavailable": unavailable, "unavailableSources": unavailable_sources}),
+        )
     }
 
     fn open_element(

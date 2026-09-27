@@ -12,6 +12,10 @@ pub struct WorkspaceOutlineRow {
     /// An act's stored colour; absent for chapters and uncoloured acts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// An act's boundary on the book axis; absent for chapters and a
+    /// head-anchored act.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_order: Option<f64>,
 }
 
 struct Act {
@@ -29,6 +33,7 @@ impl Act {
             title: self.title.clone(),
             act_id: None,
             color: self.color.clone(),
+            start_order: self.start_order,
         }
     }
 }
@@ -108,6 +113,7 @@ impl WorkspaceStore<'_> {
                     title: chapter.title,
                     act_id: active_act.clone(),
                     color: None,
+                    start_order: None,
                 });
             }
             rows.extend(acts.map(Act::row));

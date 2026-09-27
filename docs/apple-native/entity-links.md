@@ -45,10 +45,13 @@ auto-detect pass, which is leftmost-longest).
 
 `workspaceElements` `backlinks` reads every live chapter's links from its open
 owner or a cold durable read and reports, in book order, the chapters that link
-the element with span and block counts and the first occurrence. It reads live
-Yjs state; the renderer's local-only `inline_mention` index is not written
-natively (the renderer rebuilds it from Yjs on start). Element and category
-bodies as backlink sources are later work.
+the element with span and block counts and the first occurrence. `sources`
+lists the drift, element, category and storyline pages whose bodies link it
+(`{kind, id, title, spans, blocks, first}`, the element's own body excluded),
+and `unavailableSources` the bodies that could not be read. Cold page bodies
+are cached per Yjs revision. It reads live Yjs state; the renderer's
+local-only `inline_mention` index is not written natively (the renderer
+rebuilds it from Yjs on start).
 
 ## Mac interaction
 
@@ -74,7 +77,9 @@ page tab or the chapter in the pane that showed the link. Resting on a link for
 aliases and the summary. An element page lists 被引用 under its fields: each
 chapter as “N 处 · M 次” (blocks · links), opening the chapter and selecting the
 first link while that range still links the element (otherwise it only opens),
-and unreadable chapters as a muted line. The list is read when the page is
+and unreadable chapters as a muted line; then each linking page as
+“漂流 · 标题 N 处 · M 次”, opening that page and selecting its first link the
+same way, and unreadable pages muted. The list is read when the page is
 shown and, while visible, shortly after chapter edits, link passes or chapter
 list changes.
 
@@ -87,5 +92,6 @@ keys compared with y-tiptap's, the renderer's own auto-detect is rerun on the
 unlinked text and must produce identical links, and the renderer's reference
 projection must agree with native backlinks. AppKit cases in the
 [binding report](acceptance/p2b-binding.json) cover typing, retroactive linking,
-navigation, target states and the backlinks section; `--editing-regressions-only`
+navigation, target states and the backlinks section (page sources in
+`--agent-tools-only`); `--editing-regressions-only`
 covers Enter typed right after a linkable name while its pass is scheduled.

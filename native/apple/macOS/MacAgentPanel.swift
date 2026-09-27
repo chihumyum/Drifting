@@ -25,6 +25,10 @@ final class MacAgentPanelView: NSView {
     private let scroll = NSScrollView()
     private let documentView = AgentFlippedView()
     private var streamingRow: AgentMessageRow?
+    /// What the transcript shows: its conversation, messages in order and
+    /// each shown proposal as drawn. Appends and proposal changes update
+    /// only the rows they touch.
+    private var rendered: (conversation: String, messages: [String], proposals: [String: AgentProposal])?
     /// Alerts are sheets on the window by default; acceptance answers them directly.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
     var onOpenSettings: (() -> Void)?
@@ -168,12 +172,24 @@ final class MacAgentPanelView: NSView {
     func reload() {
         reloadConversations()
         reloadChoice()
+        if let controller, let conversation = controller.current, let rendered, rendered.conversation == conversation.id,
+           !rendered.messages.isEmpty, conversation.messages.count >= rendered.messages.count,
+           zip(rendered.messages, conversation.messages).allSatisfy({ $0 == $1.id }) {
+            update(conversation, from: rendered)
+        } else {
+            rebuild()
+        }
+        updateStreaming()
+        scrollToEnd()
+    }
+
+    private func rebuild() {
         for child in transcript.arrangedSubviews { transcript.removeArrangedSubview(child); child.removeFromSuperview() }
         streamingRow = nil
+        rendered = nil
         guard let controller else {
             emptyLabel.stringValue = "选择一个项目后，写作助手会在这里工作。"
             add(emptyLabel)
-            updateControls()
             return
         }
         let conversation = controller.current
@@ -182,34 +198,68 @@ final class MacAgentPanelView: NSView {
             emptyLabel.stringValue = "向写作助手提问，或请它修改正文。它提出的每处修改都会先显示在这里，由你接受或拒绝。"
             add(emptyLabel)
         }
-        var shownProposals = Set<String>()
-        for message in messages {
-            switch message.role {
-            case .user:
-                add(AgentMessageRow(identifier: "agent-message-\(message.id)", heading: "你", text: message.text, markdown: false, wash: true))
-            case .assistant:
-                if !message.text.isEmpty {
-                    add(AgentMessageRow(identifier: "agent-message-\(message.id)", heading: nil, text: message.text, markdown: true, wash: false))
-                }
-            case .tool:
-                if let activity = message.activity {
-                    add(AgentActivityRow(identifier: "agent-activity-\(message.callID ?? message.id)", text: activity, failed: message.ok == false))
-                }
-                if let id = message.proposalID, let proposal = conversation?.proposal(id), shownProposals.insert(id).inserted {
-                    add(AgentProposalCard(proposal: proposal, accept: { [weak self] in self?.controller?.accept(id) },
-                                          reject: { [weak self] in self?.controller?.reject(id) }))
-                }
-            case .notice:
-                add(AgentActivityRow(identifier: "agent-notice-\(message.id)", text: message.text, failed: message.isError == true))
+        var shown: [String: AgentProposal] = [:]
+        if let conversation {
+            for message in messages { rows(for: message, in: conversation, shown: &shown).forEach(add) }
+            rendered = (conversation.id, messages.map(\.id), shown)
+        }
+        addStreamingRow()
+    }
+
+    /// Appends rows for new messages and redraws proposals that changed.
+    private func update(_ conversation: AgentConversation, from previous: (conversation: String, messages: [String], proposals: [String: AgentProposal])) {
+        var shown = previous.proposals
+        for (id, drawn) in previous.proposals {
+            guard let proposal = conversation.proposal(id), proposal != drawn,
+                  let old = transcript.arrangedSubviews.first(where: { $0.accessibilityIdentifier() == "agent-proposal-\(id)" }),
+                  let index = transcript.arrangedSubviews.firstIndex(of: old) else { continue }
+            let card = self.card(proposal)
+            transcript.insertArrangedSubview(card, at: index)
+            card.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
+            transcript.removeArrangedSubview(old); old.removeFromSuperview()
+            shown[id] = proposal
+        }
+        if let streamingRow { transcript.removeArrangedSubview(streamingRow); streamingRow.removeFromSuperview(); self.streamingRow = nil }
+        for message in conversation.messages.dropFirst(previous.messages.count) {
+            rows(for: message, in: conversation, shown: &shown).forEach(add)
+        }
+        rendered = (conversation.id, conversation.messages.map(\.id), shown)
+        addStreamingRow()
+    }
+
+    private func rows(for message: AgentMessage, in conversation: AgentConversation, shown: inout [String: AgentProposal]) -> [NSView] {
+        switch message.role {
+        case .user:
+            return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: "你", text: message.text, markdown: false, wash: true)]
+        case .assistant:
+            guard !message.text.isEmpty else { return [] }
+            return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: nil, text: message.text, markdown: true, wash: false)]
+        case .tool:
+            var views: [NSView] = []
+            if let activity = message.activity {
+                views.append(AgentActivityRow(identifier: "agent-activity-\(message.callID ?? message.id)", text: activity, failed: message.ok == false))
             }
+            if let id = message.proposalID, let proposal = conversation.proposal(id), shown[id] == nil {
+                shown[id] = proposal
+                views.append(card(proposal))
+            }
+            return views
+        case .notice:
+            return [AgentActivityRow(identifier: "agent-notice-\(message.id)", text: message.text, failed: message.isError == true)]
         }
-        if controller.isRunning {
-            let row = AgentMessageRow(identifier: "agent-streaming", heading: nil, text: "", markdown: true, wash: false)
-            streamingRow = row
-            add(row)
-        }
-        updateStreaming()
-        scrollToEnd()
+    }
+
+    private func card(_ proposal: AgentProposal) -> AgentProposalCard {
+        let id = proposal.id
+        return AgentProposalCard(proposal: proposal, accept: { [weak self] in self?.controller?.accept(id) },
+                                 reject: { [weak self] in self?.controller?.reject(id) })
+    }
+
+    private func addStreamingRow() {
+        guard controller?.isRunning == true else { return }
+        let row = AgentMessageRow(identifier: "agent-streaming", heading: nil, text: "", markdown: true, wash: false)
+        streamingRow = row
+        add(row)
     }
 
     private func add(_ view: NSView) {
@@ -561,6 +611,26 @@ final class AgentProposalCard: NSView, AgentTranscriptRow {
             let summary = proposal.summary ?? ""
             views.append(Self.block(summary.isEmpty ? "（清空摘要）" : summary, removed: false, identifier: "agent-proposal-after-\(id)-0"))
             lines.append(summary)
+        case .domain:
+            // Each field: its name, the value before (struck) and after.
+            if let text = proposal.note, !text.isEmpty {
+                let note = Self.note(text, identifier: "agent-proposal-note-\(id)")
+                views.append(note); lines.append(text)
+            }
+            for (index, field) in (proposal.fields ?? []).enumerated() {
+                let label = NSTextField(labelWithString: field.label)
+                label.font = .systemFont(ofSize: 11, weight: .semibold)
+                label.textColor = .secondaryLabelColor
+                label.setAccessibilityIdentifier("agent-proposal-field-\(id)-\(index)")
+                views.append(label); lines.append(field.label)
+                if let before = field.before, !before.isEmpty {
+                    views.append(Self.block(before, removed: true, identifier: "agent-proposal-before-\(id)-\(index)"))
+                    lines.append(before)
+                }
+                let after = field.after.isEmpty ? "（清空）" : field.after
+                views.append(Self.block(after, removed: false, identifier: "agent-proposal-after-\(id)-\(index)"))
+                lines.append(after)
+            }
         }
         if let message = proposal.message, !message.isEmpty {
             messageLabel.stringValue = message
@@ -854,8 +924,22 @@ extension MacChapterWorkspace {
         return nil
     }
 
+    /// Trash from the writing assistant goes through the tab host, so the
+    /// page's tabs close once Rust commits, as they do for the author's trash.
+    func agentLifecycle(projectID: String) -> AgentPageLifecycle {
+        AgentPageLifecycle(
+            trashChapter: { [weak self] id, done in
+                guard let self else { done(.failure(LabError.message("窗口已关闭。"))); return }
+                self.trash(projectID: projectID, chapterID: id, completion: done)
+            },
+            trashElement: { [weak self] id, done in
+                guard let self else { done(.failure(LabError.message("窗口已关闭。"))); return }
+                self.trashElement(projectID: projectID, elementID: id, completion: done)
+            })
+    }
+
     /// An accepted proposal: open owners already adopted a revision; counts,
-    /// chapter lists and summaries follow here.
+    /// chapter lists, libraries and summaries follow here.
     func adoptAgentEffect(_ effect: AgentWorkspaceEffect) {
         switch effect {
         case .prose(let projectID, let kind, let id, let live):
@@ -880,6 +964,28 @@ extension MacChapterWorkspace {
         case .nodeMetadata(let projectID, let metadata):
             applyNodeMetadata(projectID: projectID, metadata: metadata)
             onNodeMetadata?(projectID, metadata)
+            if metadata.kind == "drift" { driftsChanged(projectID: projectID) }
+        case .elements(let projectID, let library):
+            applyElementLibrary(projectID: projectID, library: library)
+            onElementLibrary?(projectID, library)
+        case .storylines(let projectID, let library):
+            applyStorylineLibrary(projectID: projectID, library: library)
+            onStorylineLibrary?(projectID, library)
+        case .drifts(let projectID, let library):
+            applyDriftLibrary(projectID: projectID, library: library)
+            onDriftLibrary?(projectID, library)
+        case .relations(let projectID):
+            relations.reload(projectID: projectID)
+        case .comments:
+            break
+        case .patches(let projectID, _):
+            patches.reload(projectID: projectID)
+        case .chapterRenamed(let projectID, let chapter):
+            rename(chapter: chapter, projectID: projectID)
+        case .chapterTrashed(let projectID, let reply):
+            applyChapters(projectID: projectID, chapters: reply.chapters, trashed: reply.trashedChapters)
+        case .project:
+            break
         }
     }
 }

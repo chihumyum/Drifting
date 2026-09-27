@@ -629,6 +629,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                                              credentials: agentCredentials)
         controller.editorContext = { [weak self] in self?.chapterWorkspace.agentContext(projectID: project.id) }
         controller.onWorkspaceEffect = { [weak self] effect in self?.adoptAgentEffect(effect) }
+        controller.tools.lifecycle = chapterWorkspace.agentLifecycle(projectID: project.id)
         agentController = controller
         agentPanel.bind(controller)
     }
@@ -647,6 +648,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             graphChaptersChanged(projectID: projectID)
             status.stringValue = "写作助手新建了章节《\(chapter.title)》"
         case .nodeMetadata: status.stringValue = "写作助手的摘要修改已保存"
+        case .elements: status.stringValue = "写作助手的设定修改已保存"
+        case .storylines: status.stringValue = "写作助手的故事线修改已保存"
+        case .drifts: status.stringValue = "写作助手的漂流修改已保存"
+        case .relations: status.stringValue = "写作助手的关系修改已保存"
+        case .patches: status.stringValue = "写作助手的设定补丁修改已保存"
+        case .project: status.stringValue = "写作助手的项目资料修改已保存"
+        case .comments(let projectID, _):
+            reviewModels[projectID]?.load()
+            status.stringValue = "写作助手的批注或待办修改已保存"
+        case .chapterRenamed(let projectID, let chapter):
+            if selectedProject?.id == projectID, let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
+                chapters[index] = chapter
+                if !showingTrash { reloadChapterRows() }
+            }
+            if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
+            graphChaptersChanged(projectID: projectID)
+            updateCurrentTitle()
+            status.stringValue = "写作助手把章节改名为《\(chapter.title)》"
+        case .chapterTrashed(let projectID, let reply):
+            if selectedProject?.id == projectID {
+                chapters = reply.chapters
+                trashedChapters = reply.trashedChapters
+                refreshChapterList()
+            }
+            if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
+            graphChaptersChanged(projectID: projectID)
+            activeChapterChanged()
+            status.stringValue = "写作助手把章节移到了回收站，可以随时恢复。"
         }
     }
 

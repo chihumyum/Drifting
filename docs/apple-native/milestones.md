@@ -44,7 +44,7 @@ architectural redesign.
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
 | P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash, acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
-| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
+| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
@@ -81,12 +81,15 @@ architectural redesign.
 | Element overview (设定总览), atomic story graph drops, version reasons and word counts, one-read node metadata | `9e4e8960` | [element overview](element-overview.md), [timeline](timeline.md), [history](history.md), [metadata](metadata.md) |
 | Review panel, TODOs, memo board, act colours and project deletion | `9624e834` | [review](review.md), [library](library.md), [act boundaries](act-boundaries.md), [chapter comments](chapter-comments.md), [workspace](workspace.md) |
 | Global search and today's words | `92569a46` | [search](search.md), [whole book](whole-book.md), [timeline](timeline.md) |
-| Element patches and the bottom timeline | this batch | [patches](patches.md), [timeline](timeline.md), [act boundaries](act-boundaries.md) |
+| Element patches and the bottom timeline | `0fd6f68a` | [patches](patches.md), [timeline](timeline.md), [act boundaries](act-boundaries.md) |
+| Writing assistant tools | this batch | [agent](agent.md), [entity links](entity-links.md), [act boundaries](act-boundaries.md) |
 
 ## Next batch
 
-Writing-assistant tools for elements, patches, storylines, relations,
-comments/TODOs, drifts, materials and project facts, and page backlinks.
+The unified trash with permanent deletion, entity hover cards, typewriter
+scrolling, the project shelf, Markdown folder export and the diagnostic
+summary; then the assistant's rules, working memory, task plans, compaction
+and retries; Copilot suggestions; MCP extensions.
 
 ## Open gates
 

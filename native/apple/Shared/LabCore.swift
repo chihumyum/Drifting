@@ -791,6 +791,10 @@ struct WorkspaceOutlineEntry: Decodable, Equatable {
     /// An act's stored colour (`#rrggbb`); nil for chapters and for acts
     /// that follow the default hue cycle.
     let color: String?
+    /// An act's boundary on the book axis: it starts at the first chapter
+    /// whose book order is at least this. Nil for chapters and for an act
+    /// anchored at the head of the book.
+    var startOrder: Double? = nil
 }
 
 private struct WorkspaceState: Decodable {

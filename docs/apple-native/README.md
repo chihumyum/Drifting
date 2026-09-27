@@ -99,8 +99,10 @@ The Mac lab opens a separate synthetic workspace
 (`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
 creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages, element patches anchored to
-chapter text and automatic entity links, storylines with chapter membership, drifts with groups and act notes, a writing
-assistant whose proposals the author reviews, a whole-book
+chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, drifts with groups and act notes, a writing
+assistant whose 53 tools read the project and propose prose, element, patch,
+storyline, relation, note/TODO, chapter, drift and project changes the author
+reviews, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with

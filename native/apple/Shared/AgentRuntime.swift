@@ -6,6 +6,19 @@ enum AgentWorkspaceEffect {
     case prose(projectID: String, kind: String, id: String, live: Bool)
     case chapterCreated(projectID: String, chapter: WorkspaceChapter)
     case nodeMetadata(projectID: String, metadata: WorkspaceNodeMetadata)
+    /// The complete library after an element or category write.
+    case elements(projectID: String, library: WorkspaceElementLibrary)
+    case storylines(projectID: String, library: WorkspaceStorylineLibrary)
+    case drifts(projectID: String, library: WorkspaceDriftLibrary)
+    /// Relations or relation types changed; relation views read them again.
+    case relations(projectID: String)
+    case comments(projectID: String, comments: [WorkspaceComment])
+    /// One element's 设定补丁 changed.
+    case patches(projectID: String, elementID: String)
+    case chapterRenamed(projectID: String, chapter: WorkspaceChapter)
+    /// A chapter moved to the trash; its tabs were closed by the tab host.
+    case chapterTrashed(projectID: String, reply: WorkspaceChapterTrashReply)
+    case project(projectID: String, details: WorkspaceProjectDetails)
 }
 
 enum AgentChange {
@@ -314,6 +327,7 @@ final class AgentChatController {
                     proposal.state = .accepted; proposal.message = outcome.message; proposal.decidedAt = Date(); proposal.reported = false
                     proposal.partial = outcome.partial ? true : nil
                     if case .chapter(let chapter, _, _) = outcome { proposal.targetID = chapter.id }
+                    if case .domain(_, let created?, _, _) = outcome { proposal.targetID = created }
                 }
                 switch outcome {
                 case .prose(_, let live, _):
@@ -321,6 +335,7 @@ final class AgentChatController {
                                                    id: proposal.targetID ?? "", live: live))
                 case .chapter(let chapter, _, _): self.onWorkspaceEffect?(.chapterCreated(projectID: self.projectID, chapter: chapter))
                 case .metadata(let metadata): self.onWorkspaceEffect?(.nodeMetadata(projectID: self.projectID, metadata: metadata))
+                case .domain(_, _, _, let effects): effects.forEach { self.onWorkspaceEffect?($0) }
                 }
             case .failure(let refusal) where refusal.transient:
                 self.setProposal(id, proposalID) { $0.state = .pending; $0.message = refusal.message }

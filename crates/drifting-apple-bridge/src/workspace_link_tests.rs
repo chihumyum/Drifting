@@ -159,6 +159,19 @@ fn workspace_links_chapters_and_element_bodies_and_reports_backlinks() {
         )
         .unwrap();
     }
+    // Pages link too: the open 林凯 body links 北塔, live and then cold.
+    let tower_sources = |fixture: &Fixture| {
+        command(fixture, json!({"action":"backlinks","elementId":tower_id}))["sources"].clone()
+    };
+    let expected = json!([{"kind":"element","id":hero["id"],"title":"林凯","spans":1,"blocks":1,
+        "first":{"location":4,"length":2}}]);
+    assert_eq!(tower_sources(&fixture), expected);
+    command(
+        &fixture,
+        json!({"action":"closeElement","elementId":hero["id"]}),
+    );
+    assert_eq!(tower_sources(&fixture), expected);
+    assert_eq!(tower_sources(&fixture), expected, "cached cold read");
     // Links persist across a cold reopen.
     fixture.close();
     fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))

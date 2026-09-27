@@ -432,6 +432,21 @@ fn workspace_act_move_boundary_between_neighbours() {
     };
     let first = success(create_request(&fixture, 1));
     assert_eq!(chapter_act(0), Value::Null);
+    // Outline act rows carry their boundary; chapter rows do not.
+    let rows = outline(&fixture);
+    let act_row = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == first["id"])
+        .unwrap();
+    assert_eq!(act_row["startOrder"], first["startOrder"]);
+    assert!(rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["kind"] == "chapter")
+        .all(|row| row.get("startOrder").is_none()));
     // Moving the boundary before the first chapter brings it into the act.
     let early = order(0) - 1.0;
     assert_eq!(

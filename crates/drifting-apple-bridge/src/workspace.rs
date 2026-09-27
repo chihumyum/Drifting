@@ -60,6 +60,9 @@ struct WorkspaceSession {
     /// Plain text of cold bodies by document id and Yjs revision, so entity
     /// search skips bodies that cannot match without reading them again.
     search_texts: HashMap<String, (i64, String)>,
+    /// Entity links of cold bodies by document id and Yjs revision, for
+    /// backlinks from pages other than chapters.
+    link_spans: HashMap<String, (i64, Vec<drifting_document::EntityLinkSpan>)>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -256,6 +259,7 @@ pub(super) fn dispatch(
                     drift_bodies: HashMap::new(),
                     category_bodies: HashMap::new(),
                     search_texts: HashMap::new(),
+                    link_spans: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})

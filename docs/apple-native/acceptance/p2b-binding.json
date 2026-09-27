@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T17:38:48.271Z",
+  "generatedAt": "2026-09-27T18:42:41.538Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "92569a46702b4ed1c443e575ca1bb0377c33196f",
+    "commit": "0fd6f68a83f00817bf17c92c32251fa8ca2b3a5d",
     "dirty": true,
-    "fingerprint": "f7d12323571f18b1861b677fe9b488a49fb5b3eda32a03fd719246085ecae756"
+    "fingerprint": "13405bafa472f07db3e09d70d4a2f49c892a47561267d5c8bfad24e3d98f7a8d"
   },
   "cases": [
     {
@@ -447,7 +447,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, seventeen tools and the key only in its auth header",
+      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 53 tools and the key only in its auth header",
       "status": "passed"
     },
     {
@@ -472,6 +472,26 @@
     },
     {
       "name": "AppKit conversations persist per project as atomic JSON beside the lab workspace and survive a cold reopen of the panel with messages, proposal states and model choice; rename, delete after confirmation and a pending proposal accepted after reopen work, and the key sheet stores and clears keys showing only a masked tail",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 registers 53 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page 被引用 lists the drift, element, category and storyline pages that link the element after its chapters, opens a page at its first link, and find_element_appearances reports the same chapters and pages",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 domain proposals for elements, categories, patches, storylines, relations, relation types, notes and TODOs, chapters, drifts and project details resolve names exactly, refuse ambiguous names with the candidates, show each changed field on the card, write nothing before 接受, apply exactly the expected originals through Rust on 接受, write nothing on 拒绝, and report each outcome to the model once",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 domain proposals whose target changed before 接受 fail with Rust's Chinese reason and write nothing, pending input keeps a chapter rename pending until it settles, and after the project is deleted every write tool's proposal fails without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 幕 rail places each act by its stored book-axis boundary from workspaceOutline",
       "status": "passed"
     },
     {

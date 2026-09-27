@@ -169,7 +169,10 @@ function verifyOutline() {
       expected.push({ kind: 'act', id: segment.act.id, title: segment.act.name, actId: null });
       expected.push(...segment.chapters.map(chapter => chapterRow(chapter, segment.act.id)));
     }
-    assert.deepEqual(rows, expected, `Native outline differs from production act boundaries: ${name}`);
+    // Native act rows also carry colour and boundary (native-only since the
+    // 2026-09-27 no-interop decision); parity covers the renderer's shape.
+    const rendererRows = rows.map(({ kind, id, title, actId }) => ({ kind, id, title, actId }));
+    assert.deepEqual(rendererRows, expected, `Native outline differs from production act boundaries: ${name}`);
     return { name, status: 'passed', acts: acts.length, chapters: chapters.length };
   });
   return { status: 'passed', cases };

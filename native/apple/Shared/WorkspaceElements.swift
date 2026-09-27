@@ -103,9 +103,45 @@ struct WorkspaceElementBacklinks: Decodable, Equatable {
         let chapterId: String
         let chapterTitle: String
     }
+    /// A drift, element, category or storyline page whose body links the
+    /// element. `first` is in that body's projection UTF-16 coordinates.
+    struct Source: Decodable, Equatable {
+        /// `drift`, `element`, `category` or `storyline`.
+        let kind: String
+        let id: String
+        let title: String
+        let spans: Int
+        let blocks: Int
+        let first: NativeRange
+
+        /// 漂流, 设定, 分类 or 故事线.
+        var kindLabel: String { WorkspaceElementBacklinks.label(kind) }
+        /// The page as a relation endpoint, which the tab host opens.
+        var endpoint: RelationEndpoint { RelationEndpoint(kind: kind == "drift" ? "node" : kind, id: id) }
+    }
+    /// A page whose body could not be read; listed so it is not taken for none.
+    struct UnavailableSource: Decodable, Equatable {
+        let kind: String
+        let id: String
+        let title: String
+
+        var kindLabel: String { WorkspaceElementBacklinks.label(kind) }
+    }
     let elementId: String
     let chapters: [Chapter]
+    var sources: [Source] = []
     let unavailable: [Unavailable]
+    var unavailableSources: [UnavailableSource] = []
+
+    static func label(_ kind: String) -> String {
+        switch kind {
+        case "drift": return "漂流"
+        case "element": return "设定"
+        case "category": return "分类"
+        case "storyline": return "故事线"
+        default: return "页面"
+        }
+    }
 }
 
 extension EntityLinkDirectory {

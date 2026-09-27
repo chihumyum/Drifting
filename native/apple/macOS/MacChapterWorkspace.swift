@@ -1613,6 +1613,26 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// A 被引用 page row: open the drift, element, category or storyline page
+    /// in the element page's pane and select its first link when that range
+    /// still links the element; otherwise just open it.
+    private func openBacklink(_ source: WorkspaceElementBacklinks.Source, elementID: String, from tab: Tab) {
+        guard let index = pane(of: tab) else { return }
+        pendingLinkReveal = nil
+        open(endpoint: source.endpoint, project: tab.project, in: index) { [weak self, weak tab] result in
+            guard let self else { return }
+            switch result {
+            case .success(let view):
+                self.pendingLinkReveal = (view, source.first, elementID)
+                self.resolveLinkReveal()
+            case .failure(let error):
+                // The page may have left since the list was read.
+                tab?.page?.reloadBacklinks()
+                self.onError?(error)
+            }
+        }
+    }
+
     private func resolveLinkReveal() {
         guard let pending = pendingLinkReveal, !isBusy else { return }
         guard pending.view === activeView else { pendingLinkReveal = nil; return }
@@ -1772,6 +1792,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 guard let self, let tab, let element = tab.element else { return }
                 self.openBacklink(chapter, elementID: element.id, from: tab)
             }
+            page.onOpenBacklinkSource = { [weak self, weak tab] source in
+                guard let self, let tab, let element = tab.element else { return }
+                self.openBacklink(source, elementID: element.id, from: tab)
+            }
             page.onFocus = { [weak self] in self?.activate(pane: pane) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，修改未保存。"))); return }
@@ -1870,7 +1894,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
-        tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onSetPortrait = nil
+        tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onOpenBacklinkSource = nil; tab.page?.onSetPortrait = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
         tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil

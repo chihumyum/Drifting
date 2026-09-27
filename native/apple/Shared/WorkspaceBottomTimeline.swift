@@ -117,19 +117,28 @@ final class BottomTimelineModel {
 
     // MARK: Act rail
 
-    /// Each act's first chapter slot, from the outline's reading order and
-    /// the chapters' book order. A chapter the outline has not listed yet is
-    /// skipped until both are read again.
+    /// Each act's first chapter slot. An act row's stored boundary places it
+    /// before the first chapter at or after that book-axis coordinate, as
+    /// Rust assigns membership; a head-anchored act (no boundary) starts at
+    /// slot 0. Only when a chapter lacks its book order is the slot taken
+    /// from the next chapter the outline lists after the act.
     private func recompute() {
         let chapters = graph.chapters
         let slots = Dictionary(chapters.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let orders = chapters.compactMap(\.bookOrder)
+        let ordered = orders.count == chapters.count
         let entries = outline.entries
         let layout = BookLayout(entries: entries, statuses: nil)
         var starts: [(act: BookAct, start: Int)] = []
         for (position, entry) in entries.enumerated() where entry.kind == "act" {
             guard starts.count < layout.acts.count else { break }
-            let next = entries[(position + 1)...].lazy.compactMap { $0.kind == "chapter" ? slots[$0.id] : nil }.first
-            starts.append((layout.acts[starts.count], max(next ?? chapters.count, starts.last?.start ?? 0)))
+            let start: Int
+            if ordered {
+                start = entry.startOrder.map { boundary in orders.firstIndex { $0 >= boundary } ?? chapters.count } ?? 0
+            } else {
+                start = entries[(position + 1)...].lazy.compactMap { $0.kind == "chapter" ? slots[$0.id] : nil }.first ?? chapters.count
+            }
+            starts.append((layout.acts[starts.count], max(start, starts.last?.start ?? 0)))
         }
         acts = starts.enumerated().map { index, entry in
             BottomTimelineAct(act: entry.act, start: entry.start,

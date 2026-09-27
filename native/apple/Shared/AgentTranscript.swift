@@ -157,9 +157,20 @@ struct AgentProseChange: Codable, Equatable {
     }
 }
 
+/// One field a domain proposal changes, as its card shows it: the value
+/// before (nil when the proposal creates it) and after (empty clears it).
+struct AgentFieldChange: Codable, Equatable {
+    var label: String
+    var before: String?
+    var after: String
+}
+
 /// A write the model proposed. Nothing is written until the author accepts.
 struct AgentProposal: Codable, Equatable {
-    enum Kind: String, Codable { case revise, append, createChapter, chapterSummary }
+    /// `domain` is a metadata write (elements, patches, storylines,
+    /// relations, notes and TODOs, chapters, drifts, project details) that
+    /// `tool` names and `arguments` carries, with resolved identities.
+    enum Kind: String, Codable { case revise, append, createChapter, chapterSummary, domain }
     enum State: String, Codable { case pending, applying, accepted, rejected, failed }
 
     /// The tool call's identity: `callId` of the Agent provenance.
@@ -185,12 +196,21 @@ struct AgentProposal: Codable, Equatable {
     var reported: Bool
     var createdAt: Date
     var decidedAt: Date?
+    /// A domain proposal's headline, e.g. 新建设定「林岚」.
+    var label: String?
+    /// A domain proposal's explanation on its card, e.g. what trash means.
+    var note: String?
+    /// What a domain proposal changes, field by field.
+    var fields: [AgentFieldChange]?
+    /// The resolved arguments an accepted domain proposal applies.
+    var arguments: [String: AgentJSON]?
 
     var kindName: String {
         switch targetKind {
         case "element": return "设定"
         case "category": return "分类"
         case "drift": return "漂流"
+        case "storyline": return "故事线"
         default: return "章节"
         }
     }
@@ -202,6 +222,7 @@ struct AgentProposal: Codable, Equatable {
         case .append: return targetKind == "chapter" ? "续写《\(targetTitle)》" : "续写\(kindName)「\(targetTitle)」"
         case .createChapter: return "新建章节《\(targetTitle)》"
         case .chapterSummary: return "修改《\(targetTitle)》的摘要"
+        case .domain: return label ?? tool
         }
     }
 
@@ -209,7 +230,7 @@ struct AgentProposal: Codable, Equatable {
         switch state {
         case .pending: return "等待你的决定"
         case .applying: return "正在应用…"
-        case .accepted: return partial == true ? "已接受 · 正文未写入" : "已接受"
+        case .accepted: return partial == true ? (kind == .domain ? "已接受 · 部分未写入" : "已接受 · 正文未写入") : "已接受"
         case .rejected: return "已拒绝"
         case .failed: return "应用失败"
         }

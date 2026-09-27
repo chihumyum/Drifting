@@ -45,7 +45,7 @@ struct Paper {
 }
 
 impl WorkspaceSession {
-    fn body_owner(&self, kind: &str, key: &(String, String)) -> Option<u64> {
+    pub(super) fn body_owner(&self, kind: &str, key: &(String, String)) -> Option<u64> {
         match kind {
             "drift" => self.drift_bodies.get(key),
             "element" => self.elements.get(key),
