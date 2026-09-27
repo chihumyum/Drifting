@@ -202,8 +202,8 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "263fcc6af7833ebd445df511cb074a0c62aa47b975738fcb0e9cddeae65b3af8",
-    "runtimeFingerprint": "2c12392c19eda1d125538c820779ad7d9173458ad363a817958e2571ae46e033",
+    "fingerprint": "8674da467c4939071290f4636c57b01853e1e92cba40db8f4968034ce62211d4",
+    "runtimeFingerprint": "6e31aebf44b22efef377392edc8678835916f368dec6762ea98e853a47acca87",
     "files": [
       {
         "path": ".github/workflows/ci.yml",
@@ -403,7 +403,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_todo_tests.rs",
-        "sha256": "9185ca6aec411f14b0b9e98ccc54ad75e8d0beda96dbf7242e0a3e7339c5c5be"
+        "sha256": "0be89b72833d4b509992bc0b2dea8c5825b0353c5d948d209c2f263ff6a26a0b"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_transfer.rs",
@@ -527,7 +527,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "d84c530887d2ac31d3f3cf2dc16ddbb1a8999395f07198412be4560183832084"
+        "sha256": "d5711716b6a3651a0e009ba7846c7527183f0eb1559d24a71237d35f96ae1606"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -539,7 +539,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/comments.rs",
-        "sha256": "fd512efc5fb29f0bb7bc7dab725aa467aca9132b883fa8a6f278cd847f94fd7c"
+        "sha256": "abb54447b6ac215a3af2b7f0b16418c07103512121bc1d3e5eba09df5b438c54"
       },
       {
         "path": "crates/drifting-core/src/workspace/comments/tests.rs",
@@ -983,7 +983,7 @@
       },
       {
         "path": "docs/apple-native/copilot.md",
-        "sha256": "f808aeb25ac99a74a41eb925c32bef19fcf599e45fa9ff882fb66a54142f178f"
+        "sha256": "6cddd2decbfc72ed1ad5a7a3891d04080d58eeeb6ae1f6a03348a9234457aa5d"
       },
       {
         "path": "docs/apple-native/design.md",
@@ -1051,7 +1051,7 @@
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "061723440a2691584a3b855389a98c8a95da21e31a764991e2122ebbb99d6921"
+        "sha256": "fdd2aeff097cba76a3c2c83c63d3f1858348ad3123084b6d8f9686212db19524"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -1243,7 +1243,7 @@
       },
       {
         "path": "native/apple/Shared/Copilot.swift",
-        "sha256": "bd23f7a187b3257f51cb9fe1fc8f9347d50ad2c7964586b2d1bff7d6c4ec6bf9"
+        "sha256": "6d62ec95088b0a522cee447d883475b7bb952e445bbf3e76a99b21e550e070cd"
       },
       {
         "path": "native/apple/Shared/DocumentBinding.swift",
@@ -1371,7 +1371,7 @@
       },
       {
         "path": "native/apple/Tests/CategoryAcceptance.swift",
-        "sha256": "e39511c98c1ae291d280675b12d52cc2d1878cfc41ae6512df533e5134ae63d6"
+        "sha256": "e948154b31648ea12972c415daed5dcc5793f663d07155977f474d68a7e83e82"
       },
       {
         "path": "native/apple/Tests/CommentAcceptance.swift",
@@ -1379,7 +1379,7 @@
       },
       {
         "path": "native/apple/Tests/CopilotAcceptance.swift",
-        "sha256": "77ba432972bf2c181025e3cad9bae6b8cfee7e2f3fff37ee36bdf706f19213bf"
+        "sha256": "b48f66de9e789d167e9f5c649c8318fc6045e9dd9de10c0e725b208a69e7af6d"
       },
       {
         "path": "native/apple/Tests/DraftTransportAcceptance.swift",
@@ -1779,7 +1779,7 @@
       },
       {
         "path": "scripts/apple-binding-acceptance.mjs",
-        "sha256": "99da6ede6eda5db877a4e35b2b44d5c5913b960e02e4189225096f92bb5a15df"
+        "sha256": "bc2825dd85f2404a8666eede40b67ab9ea6f0cecefa1add9909e6813ec592112"
       },
       {
         "path": "scripts/apple-comment-oracle.ts",

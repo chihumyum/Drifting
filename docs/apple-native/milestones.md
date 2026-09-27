@@ -115,10 +115,6 @@ These stay open; they block only the paths named, not the local writing loop.
   composition has not been established. [Observation](system-ime.md).
 - **Desktop XCTest input**: keyboard synthesis opened System Settings and timed
   out; repair the input path before rerunning it.
-- **Copilot in drifts**: Rust anchors suggestions in chapters only
-  (`documentCreateComment` on a drift owner is refused), so with 在灵感中启用
-  drift paragraphs are analysed but their suggestions are not stored.
-  [Copilot](copilot.md#known-gap).
 - **JSON body caches**: chapter and drift caches follow every save
   ([word counts](word-counts.md)); `element`, `element_category` and
   `storylines` `content_json` remain creation seeds, and native readers use

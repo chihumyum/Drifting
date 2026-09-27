@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T23:05:51.384Z",
+  "generatedAt": "2026-09-27T23:37:27.412Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "bea818b825ea2f64828f694c616eacb29b251ad3",
+    "commit": "c2d4ab428aea240d49e69178478ad174114ba975",
     "dirty": true,
-    "fingerprint": "9b6276a2218084893a83c1352b5e4a82f6579be6729b136fac987284f0f7a224"
+    "fingerprint": "7eaf71cce9a06774d8c5b796884e588cb8d1fa025688aececad57f10f0a6482c"
   },
   "cases": [
     {
@@ -811,7 +811,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent, and while Rust anchors suggestions in chapters only its refusal is shown and nothing is written; turning it off stops a drift run",
+      "name": "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
       "status": "passed"
     }
   ],

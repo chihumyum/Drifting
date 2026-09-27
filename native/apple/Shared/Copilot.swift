@@ -970,9 +970,7 @@ final class CopilotController {
                 if next.attempts < 20, let store, store.hasPendingWork || store.projection?.revision != revision {
                     next.attempts += 1; wait(); return
                 }
-                // Rust anchors suggestions in chapters only for now.
-                let reason = body.kind == .drift ? "灵感正文暂时不能挂载 Copilot 建议（核心只接受章节中的建议）。"
-                                                 : error.localizedDescription
+                let reason = error.localizedDescription
                 self.run?.record.dropped.append("\(next.proposal.label)：\(reason)")
                 self.run?.record.refusal = reason
                 self.create(run, key: key, choice: choice, preferring: blockIDs, pending: rest)

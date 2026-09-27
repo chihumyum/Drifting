@@ -178,7 +178,7 @@ const copilotCases = [
   "AppKit Copilot element suggestions leave out existing names, aliases and names the author rejected (sent in the prompt too), map unknown categories to 未分类, drop proposals whose evidence is not in the chapter, anchor each to its evidence, list under 审阅's Copilot filter and in the chapter's 批注 panel with 接受 and 拒绝, record usage beside the assistant's and show it in 设置 › 写作助手 › 用量",
   "AppKit Copilot patch suggestions cover elements named in the changed paragraphs, skip existing valid patches and rejected ones; 接受 creates the element (choosing a category for 未分类) or the patch anchored to the evidence and records accept_suggestion with its elementId or patchId, 拒绝 records reject_suggestion, both in one original each, decided suggestions leave the open lists, and a refused create leaves the suggestion open with the reason and writes nothing",
   "AppKit Copilot never holds typing while a request is out, runs one request at a time per project, stops its request when the chapter's tab closes without adding anything, retries 503 with the assistant's policy, does not retry 401, and reports a missing key in its quiet status",
-  "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent, and while Rust anchors suggestions in chapters only its refusal is shown and nothing is written; turning it off stops a drift run",
+  "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
 ];
 const workspaceTrashCases = [
   'Workspace trash removes all chapter displays after commit and restores through a fresh owner',

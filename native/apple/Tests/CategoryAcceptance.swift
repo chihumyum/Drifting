@@ -636,7 +636,7 @@ extension BindingAcceptance {
         let titles = host.tabTitles(pane: 0)
 
         // 取消 in the confirmation changes nothing.
-        var mark = try journal.mark()
+        let mark = try journal.mark()
         try harness.categoryItem(people, "trash-element-category").press()
         try require(harness.lastAlert?.informativeText.contains("1 个设定会移到“未分类”") == true
             && harness.lastAlert?.informativeText.contains("打开的分类页会随之关闭") == true && harness.trashed == nil

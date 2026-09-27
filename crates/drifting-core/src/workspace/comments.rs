@@ -202,7 +202,7 @@ impl WorkspaceStore<'_> {
         };
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
-            self.live_chapter(tx, context, comment.target_id.as_deref().unwrap())?;
+            self.live_body_node(tx, context, comment.target_id.as_deref().unwrap())?;
             self.insert_comment(tx, context, &comment)?;
             Ok(comment.clone())
         })
@@ -727,20 +727,23 @@ impl WorkspaceStore<'_> {
         }
     }
 
-    fn live_chapter(
+    /// Anchored notes live on a live chapter or drift body of this project.
+    fn live_body_node(
         &self,
         tx: u64,
         context: &AuthoredProseContext,
-        chapter_id: &str,
+        node_id: &str,
     ) -> Result<(), String> {
-        if self
-            .chapters(Some(tx), &context.project_id)?
-            .iter()
-            .any(|chapter| chapter.id == chapter_id)
-        {
-            Ok(())
-        } else {
+        let live = self.query(Some(tx), r#"
+            SELECT 1 FROM book_node n
+            LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=? AND l.entity_kind='node' AND l.entity_id=n.id
+            WHERE n.id=? AND n.project_id=? AND n.kind IN ('chapter','drift') AND n.deleted_at IS NULL
+                AND (l.state IS NULL OR l.state='live')
+        "#, vec![text(&context.sync_generation_id), text(node_id), text(&context.project_id)])?;
+        if live.is_empty() {
             Err("Chapter is not available in this project".into())
+        } else {
+            Ok(())
         }
     }
 
@@ -755,7 +758,7 @@ impl WorkspaceStore<'_> {
         comment_id: &str,
     ) -> Result<(WorkspaceComment, u64), String> {
         self.guard_project(tx, context)?;
-        self.live_chapter(tx, context, chapter_id)?;
+        self.live_body_node(tx, context, chapter_id)?;
         let rows = self.query(Some(tx),
             &format!("SELECT {COLUMNS} FROM comment WHERE id=? AND project_id=? AND target_kind='node' AND target_id=?"),
             vec![text(comment_id), text(&context.project_id), text(chapter_id)])?;

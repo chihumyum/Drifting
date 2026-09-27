@@ -23,7 +23,7 @@ extension BindingAcceptance {
             "AppKit Copilot element suggestions leave out existing names, aliases and names the author rejected (sent in the prompt too), map unknown categories to 未分类, drop proposals whose evidence is not in the chapter, anchor each to its evidence, list under 审阅's Copilot filter and in the chapter's 批注 panel with 接受 and 拒绝, record usage beside the assistant's and show it in 设置 › 写作助手 › 用量",
             "AppKit Copilot patch suggestions cover elements named in the changed paragraphs, skip existing valid patches and rejected ones; 接受 creates the element (choosing a category for 未分类) or the patch anchored to the evidence and records accept_suggestion with its elementId or patchId, 拒绝 records reject_suggestion, both in one original each, decided suggestions leave the open lists, and a refused create leaves the suggestion open with the reason and writes nothing",
             "AppKit Copilot never holds typing while a request is out, runs one request at a time per project, stops its request when the chapter's tab closes without adding anything, retries 503 with the assistant's policy, does not retry 401, and reports a missing key in its quiet status",
-            "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent, and while Rust anchors suggestions in chapters only its refusal is shown and nothing is written; turning it off stops a drift run",
+            "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
         ]
     }
 
@@ -784,10 +784,11 @@ extension BindingAcceptance {
         let user = copilotPrompt(0).user
         try require(user.contains("[1] 周渡住在河对岸。") && !user.contains("[2]"), "The drift's changed paragraph was not sent: \(user)")
         try require(harness.controller.lastRun?.kind == .drift && harness.controller.lastRun?.bodyID == drift.id, "The run was not the drift's")
-        // Rust anchors suggestions in chapters only: the refusal is shown and nothing is written.
-        try require(harness.controller.lastRun?.created.isEmpty == true && (try harness.suggestions()).isEmpty
-            && harness.host.copilotStatus == "Copilot 出错：灵感正文暂时不能挂载 Copilot 建议（核心只接受章节中的建议）。",
-            "The drift suggestion's outcome differs: \(harness.host.copilotStatus ?? "")")
+        // The suggestion is anchored in the drift body like a chapter's.
+        let stored = try harness.suggestions()
+        try require(harness.controller.lastRun?.created.count == 1 && stored.count == 1
+            && stored[0].targetId == drift.id && harness.host.copilotStatus == "Copilot 已提出 1 条建议",
+            "The drift suggestion's outcome differs: \(harness.host.copilotStatus ?? "") \(stored.map(\.targetId))")
         // Turning it off stops a drift run.
         var held = copilotElements([])
         held.hold = true

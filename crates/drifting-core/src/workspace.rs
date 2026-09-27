@@ -622,7 +622,7 @@ impl<'a> WorkspaceStore<'a> {
 
     /// Moves a chapter before another (or last) on the book axis inside the
     /// caller's transaction; `None` when the chapter already sits there.
-    pub(super) fn book_move(
+    fn book_move(
         &self,
         tx: u64,
         context: &AuthoredProseContext,

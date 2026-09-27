@@ -81,12 +81,11 @@ the chapter's 批注 panel, with 定位, 接受 and 拒绝 ([review](review.md))
 - Decided suggestions are `converted` and leave the open lists; the 批注 panel
   shows them under 显示已解决.
 
-## Known gap
+## Drifts
 
-Rust anchors suggestions in chapters only: `documentCreateComment` on a drift
-owner is refused (`Chapter is not available in this project`), so with
-在灵感中启用 on, drift paragraphs are analysed but their suggestions are not
-stored; the status says so. The Swift path is the chapter's.
+With 在灵感中启用, drift paragraphs are analysed and their suggestions are
+anchored in the drift body exactly as in chapters: Rust accepts anchored
+notes and suggestions on any live chapter or drift body.
 
 ## Acceptance
 

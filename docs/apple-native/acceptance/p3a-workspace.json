@@ -194,7 +194,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_todo_tests.rs",
-        "sha256": "9185ca6aec411f14b0b9e98ccc54ad75e8d0beda96dbf7242e0a3e7339c5c5be"
+        "sha256": "0be89b72833d4b509992bc0b2dea8c5825b0353c5d948d209c2f263ff6a26a0b"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_transfer.rs",
@@ -318,7 +318,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "d84c530887d2ac31d3f3cf2dc16ddbb1a8999395f07198412be4560183832084"
+        "sha256": "d5711716b6a3651a0e009ba7846c7527183f0eb1559d24a71237d35f96ae1606"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -330,7 +330,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/comments.rs",
-        "sha256": "fd512efc5fb29f0bb7bc7dab725aa467aca9132b883fa8a6f278cd847f94fd7c"
+        "sha256": "abb54447b6ac215a3af2b7f0b16418c07103512121bc1d3e5eba09df5b438c54"
       },
       {
         "path": "crates/drifting-core/src/workspace/comments/tests.rs",
@@ -854,7 +854,7 @@
       },
       {
         "path": "native/apple/Shared/Copilot.swift",
-        "sha256": "bd23f7a187b3257f51cb9fe1fc8f9347d50ad2c7964586b2d1bff7d6c4ec6bf9"
+        "sha256": "6d62ec95088b0a522cee447d883475b7bb952e445bbf3e76a99b21e550e070cd"
       },
       {
         "path": "native/apple/Shared/DocumentBinding.swift",
@@ -982,7 +982,7 @@
       },
       {
         "path": "native/apple/Tests/CategoryAcceptance.swift",
-        "sha256": "e39511c98c1ae291d280675b12d52cc2d1878cfc41ae6512df533e5134ae63d6"
+        "sha256": "e948154b31648ea12972c415daed5dcc5793f663d07155977f474d68a7e83e82"
       },
       {
         "path": "native/apple/Tests/CommentAcceptance.swift",
@@ -990,7 +990,7 @@
       },
       {
         "path": "native/apple/Tests/CopilotAcceptance.swift",
-        "sha256": "77ba432972bf2c181025e3cad9bae6b8cfee7e2f3fff37ee36bdf706f19213bf"
+        "sha256": "b48f66de9e789d167e9f5c649c8318fc6045e9dd9de10c0e725b208a69e7af6d"
       },
       {
         "path": "native/apple/Tests/DraftTransportAcceptance.swift",
@@ -2593,7 +2593,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "5dcd3ea8c53dc859cad03ba1b626ceba6ae79728783a621dc043f50cf4d20d3c"
+    "fingerprint": "6b944774b6d56757466550b0eae5c34372359c738997a6bdd278b74b4e4d09e6"
   },
   "suites": [
     {
@@ -2604,49 +2604,49 @@
         "workspace::comments::tests::workspace_comments_plain_body_matches_renderer_document",
         "remote_workspace_metadata::tests::remote_workspace_metadata_rejects_unsupported_and_rolls_back_receipt_failure",
         "workspace::acts::tests::workspace_acts_remove_empty_or_bound_boundary_preserves_all_prose",
-        "workspace::comments::tests::workspace_comments_body_and_status_keep_anchor_metadata_and_prose",
         "workspace::drifts::tests::workspace_drifts_create_rename_and_group_moves",
         "workspace::comments::tests::workspace_comments_receipt_failures_and_invalid_targets_rollback",
         "workspace::acts::tests::workspace_acts_receipt_failures_and_invalid_scope_rollback",
-        "workspace::drifts::tests::workspace_drifts_act_binding_trash_and_restore",
         "workspace::drifts::tests::workspace_drifts_groups_nest_once_and_delete_lifts_children",
+        "workspace::comments::tests::workspace_comments_body_and_status_keep_anchor_metadata_and_prose",
+        "workspace::drifts::tests::workspace_drifts_act_binding_trash_and_restore",
         "remote_workspace_metadata::tests::remote_workspace_metadata_late_fields_reproject_verified_winners",
         "workspace::deletion::tests::workspace_project_deletion_purges_one_project_and_keeps_the_journal",
         "workspace::comments::tests::workspace_comments_create_list_and_cold_reopen",
         "workspace::acts::tests::workspace_acts_create_and_rename_on_current_chapter_axis",
         "workspace::elements::tests::workspace_elements_categories_create_rename_and_recolour",
         "workspace::elements::tests::workspace_elements_category_template_facts_clone_into_new_elements",
+        "workspace::elements::tests::workspace_elements_facts_reconcile_ids_order_and_projection",
         "workspace::elements::tests::workspace_elements_category_trash_detaches_elements_and_restores",
-        "workspace::elements::tests::workspace_elements_create_defaults_names_conflicts_and_seed",
         "workspace::patches::tests::patch_bodies_anchors_and_whitespace",
         "workspace::purge::tests::purge_targets_cover_trashable_content_only",
-        "workspace::elements::tests::workspace_elements_facts_reconcile_ids_order_and_projection",
-        "workspace::elements::tests::workspace_elements_trash_restore_and_failures",
-        "workspace::history::tests::workspace_history_captures_thins_and_reads_versions",
+        "workspace::elements::tests::workspace_elements_create_defaults_names_conflicts_and_seed",
         "workspace::elements::tests::workspace_elements_update_scalars_and_alias_set",
+        "workspace::history::tests::workspace_history_captures_thins_and_reads_versions",
+        "workspace::elements::tests::workspace_elements_trash_restore_and_failures",
         "workspace::metadata::tests::workspace_metadata_node_summary_and_status",
-        "workspace::metadata::tests::workspace_metadata_project_summary_facts_and_template",
         "workspace::metrics::tests::workspace_metrics_materialize_reuse_and_stale_revision",
+        "workspace::metadata::tests::workspace_metadata_project_summary_facts_and_template",
         "workspace::library::tests::workspace_library_items_assets_and_portraits",
-        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
         "workspace::outline::tests::workspace_outline_preserves_empty_acts_and_rejects_nonfinite_boundary",
+        "workspace::outline::tests::workspace_outline_matches_boundaries_and_utf8_ties_without_writes",
         "workspace::outline::tests::workspace_outline_uses_current_lifecycle_and_rejects_unavailable_project",
+        "workspace::storylines::tests::workspace_storylines_chapter_membership_projection_and_primary",
         "workspace::relations::tests::workspace_relation_types_create_update_and_delete",
         "workspace::relations::tests::workspace_relations_add_canonicalize_retype_and_remove",
-        "workspace::storylines::tests::workspace_storylines_chapter_membership_projection_and_primary",
-        "workspace::storylines::tests::workspace_storylines_first_storyline_becomes_every_chapter_primary",
         "workspace::relations::tests::workspace_relations_are_purged_by_trash_and_not_restored",
-        "workspace::storylines::tests::workspace_storylines_trash_restore_and_chapter_restore_reauthor_membership",
+        "workspace::storylines::tests::workspace_storylines_first_storyline_becomes_every_chapter_primary",
         "workspace::tests::rename_tests::workspace_rename_excludes_self_deduplicates_nodes_and_uses_live_incarnation",
         "workspace::tests::rename_tests::workspace_rename_receipt_failure_rolls_back_names_clocks_and_writer_then_retries",
-        "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
+        "workspace::storylines::tests::workspace_storylines_trash_restore_and_chapter_restore_reauthor_membership",
         "workspace::tests::rename_tests::workspace_rename_updates_current_field_clocks_without_prose_and_cold_reopens",
+        "workspace::tests::reorder_tests::workspace_move_noops_and_invalid_destinations_or_numeric_gaps_never_write",
         "workspace::tests::reorder_tests::workspace_move_receipt_failure_rolls_back_coordinate_and_retries_live_incarnation",
         "workspace::tests::workspace_chapter_materialization_failure_retains_prior_journal_and_retries_once",
         "workspace::tests::workspace_creates_defaults_and_atomic_canonical_chapter_seed",
+        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
         "workspace::tests::workspace_project_receipt_failure_rolls_back_defaults_generation_and_writer",
         "workspace::tests::reorder_tests::workspace_move_preserves_continuous_axis_acts_prose_and_cold_order",
-        "workspace::tests::workspace_rejects_wrong_scope_invalid_seed_and_existing_prose_without_writes",
         "workspace::tests::workspace_cold_lists_preserve_fractional_order_and_project_unique_titles",
         "workspace::timeline::tests::workspace_timeline_moves_order_and_lane_in_one_original",
         "workspace::trash::tests::workspace_trash_and_restore_receipt_failures_rollback_and_retry_once",
@@ -2654,84 +2654,85 @@
         "workspace::trash::tests::workspace_trash_rejects_wrong_scope_lifecycle_and_associations_without_writes",
         "workspace::trash::tests::workspace_trash_preserves_body_comments_and_restores_canonical_next_incarnation"
       ],
-      "logSha256": "f1a7b805e04426b6da747a8dd78658c5bb1e3544cd702156ee969cec51e91d17"
+      "logSha256": "e3f24fa8a583a99855366388229fe748a7b2cc7c919f786861891a212cefbab1"
     },
     {
       "name": "bridge-workspace",
-      "passed": 69,
+      "passed": 70,
       "failed": 0,
       "cases": [
         "workspace_tests::diagnostics_tests::workspace_diagnostics_count_without_names_ids_or_prose",
-        "workspace_tests::acts::workspace_act_move_boundary_between_neighbours",
-        "workspace_tests::acts::workspace_act_create_rename_and_cold_outline",
-        "workspace_tests::comments::workspace_comment_body_and_status_keep_anchor_and_history",
         "workspace_tests::acts::workspace_act_color_set_clear_and_cold_outline",
+        "workspace_tests::acts::workspace_act_create_rename_and_cold_outline",
+        "workspace_tests::acts::workspace_act_move_boundary_between_neighbours",
+        "workspace_tests::comments::workspace_comment_body_and_status_keep_anchor_and_history",
         "workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries",
         "workspace_tests::comments::workspace_comment_create_highlights_and_cold_reopen",
         "workspace_tests::acts::workspace_act_remove_retains_empty_boundary_chapter_state",
         "workspace_tests::comments::workspace_comment_anchor_follows_edits_history_and_removal",
         "workspace_tests::drifts::workspace_drifts_act_binding_trash_restore_and_failures",
-        "workspace_tests::category_tests::workspace_category_bodies_and_element_templates",
         "workspace_tests::comments::workspace_comment_failures_leave_owner_unchanged_and_retry",
+        "workspace_tests::category_tests::workspace_category_bodies_and_element_templates",
         "workspace_tests::agent_tests::workspace_agent_reads_and_applies_revisions_through_owners",
         "workspace_tests::elements::workspace_element_facts_templates_and_category_trash",
         "workspace_tests::elements::workspace_element_trash_retires_owner_and_restore_reopens_body",
         "workspace_tests::elements::workspace_element_failures_roll_back_and_retry",
         "workspace_tests::drifts::workspace_drifts_groups_bodies_links_and_cold_reopen",
-        "workspace_tests::library_tests::workspace_library_imports_edits_deletes_and_collects",
         "workspace_tests::elements::workspace_element_library_create_update_and_cold_reopen",
+        "workspace_tests::library_tests::workspace_library_imports_edits_deletes_and_collects",
         "workspace_tests::library_tests::workspace_library_reorders_items_in_authored_order",
         "workspace_tests::history_tests::workspace_history_captures_lists_and_restores_versions",
         "workspace_tests::outline::workspace_outline_rejects_foreign_chapters_and_unsafe_tail_without_touching_database",
         "workspace_tests::project_tests::workspace_project_deletion_closes_nothing_silently_and_removes_bytes",
         "workspace_tests::metadata::workspace_metadata_project_facts_template_and_node_edits",
         "workspace_tests::metrics::workspace_metrics_follow_saves_reconcile_and_cold_reopen",
-        "workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks",
         "workspace_tests::outline::workspace_outline_reads_live_and_lazy_chapters_without_sql_writes_or_owner_switch",
-        "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
+        "workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks",
         "workspace_tests::patch_tests::workspace_patches_create_edit_order_follow_text_and_delete",
-        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
+        "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
         "workspace_tests::search::workspace_search_caps_results_and_reports_actual_truncation",
+        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
         "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
         "workspace_tests::remote_changes::workspace_remote_changes_receipt_rollback_and_retry",
-        "workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match",
         "workspace_tests::purge_tests::workspace_purge_removes_trashed_content_and_what_it_owns",
         "workspace_tests::relation_tests::workspace_relations_types_edges_trash_and_cold_reopen",
+        "workspace_tests::search::workspace_search_distinguishes_unavailable_prose_from_no_match",
         "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen",
         "workspace_tests::remote_prose::workspace_remote_prose_lost_notification_replays_all_owners_after_local_interleave",
         "workspace_tests::remote_prose::workspace_remote_prose_rejected_original_and_receipt_failure_preserve_owner_and_draft",
-        "workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes",
         "workspace_tests::storylines::workspace_storylines_trash_restore_and_chapter_membership_restore",
+        "workspace_tests::search::workspace_search_reads_live_and_cold_prose_without_writes_or_owner_changes",
         "workspace_tests::remote_prose::workspace_remote_prose_offline_replicas_converge_all_open_chapters_with_local_history",
         "workspace_tests::storylines::workspace_storylines_failures_roll_back_and_retry",
         "workspace_tests::storylines::workspace_storylines_create_assign_order_and_cold_reopen",
         "workspace_tests::search::workspace_search_resolves_cold_unicode_hits_in_live_owner_and_rejects_stale_hits",
+        "workspace_tests::todo_tests::workspace_drift_bodies_take_notes_and_suggestions",
         "workspace_tests::search_entities::workspace_search_entities_reads_fields_bodies_and_resolves",
-        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
         "workspace_tests::tabs::workspace_tabs_close_one_owner_preserves_other_live_outline_and_writes",
+        "workspace_tests::tabs::workspace_tabs_reuse_each_chapter_owner_and_independent_history",
         "workspace_tests::todo_tests::workspace_todos_delete_an_anchored_comment_under_an_open_owner",
+        "workspace_tests::transfer_tests::workspace_transfer_imports_bodies_and_exports_the_book",
         "workspace_tests::transfer_tests::workspace_transfer_exports_a_relational_markdown_archive",
         "workspace_tests::todo_tests::workspace_suggestions_create_resolve_list_and_delete",
-        "workspace_tests::transfer_tests::workspace_transfer_imports_bodies_and_exports_the_book",
         "workspace_tests::timeline_tests::workspace_timeline_orders_markers_positions_and_cold_reopen",
-        "workspace_tests::trash::workspace_chapter_restore_reincarnates_and_remains_editable",
         "workspace_tests::workspace_fixture_database_and_workspace_owners_remain_separate",
+        "workspace_tests::trash::workspace_chapter_restore_reincarnates_and_remains_editable",
         "workspace_tests::todo_tests::workspace_todos_create_update_associate_and_delete",
         "workspace_tests::workspace_comment_anchors_use_selected_project_and_chapter_scope",
         "workspace_tests::trash::workspace_chapter_trash_preserves_prose_and_placement",
         "workspace_tests::workspace_failed_save_and_target_load_keep_current_owner",
-        "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
         "workspace_tests::trash::workspace_chapter_trash_restore_rollback_and_owner_retention",
-        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
+        "workspace_tests::workspace_formatting_preserves_multiblock_text_history_and_cold_marks",
         "workspace_tests::tabs::workspace_tabs_failed_close_and_reopen_retain_all_owners_for_retry",
+        "workspace_tests::workspace_move_failure_and_invalid_anchor_preserve_order_and_live_owner",
+        "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
         "workspace_tests::workspace_formatting_rejection_preserves_input_and_save_failure_retries_once",
         "workspace_tests::workspace_rename_preserves_selected_document_history_and_cold_metadata",
-        "workspace_tests::workspace_move_preserves_selected_document_history_and_cold_order",
+        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen",
         "workspace_tests::workspace_switch_and_close_preserve_active_draft_and_composition",
-        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner",
-        "workspace_tests::workspace_two_chapters_edit_history_switch_and_cold_reopen"
+        "workspace_tests::workspace_rename_failure_rolls_back_metadata_and_preserves_live_owner"
       ],
-      "logSha256": "2caeb75a6c44c6b93ae888ba6a1936300c815f8bf053dd77d22c050ad4424bde"
+      "logSha256": "b45f87d14677eae846b82a6f4a6ac99e811e8e938145d5b00240fd3fc0061ebe"
     }
   ],
   "renderer": {
@@ -2896,43 +2897,43 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/source-before.json",
-      "sha256": "b6f85f7acb28b8ef49a7ca5fb17cb77c96080c1a27838853d69f2ca3b8deb0ed"
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/source-before.json",
+      "sha256": "c87f485dd1544b8b78a7f655e07c676417756602efbb46bd83bab543a45d9543"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/core-workspace.log",
-      "sha256": "f1a7b805e04426b6da747a8dd78658c5bb1e3544cd702156ee969cec51e91d17"
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/core-workspace.log",
+      "sha256": "e3f24fa8a583a99855366388229fe748a7b2cc7c919f786861891a212cefbab1"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/bridge-workspace.log",
-      "sha256": "2caeb75a6c44c6b93ae888ba6a1936300c815f8bf053dd77d22c050ad4424bde"
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/bridge-workspace.log",
+      "sha256": "b45f87d14677eae846b82a6f4a6ac99e811e8e938145d5b00240fd3fc0061ebe"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/workspace-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/workspace-wire.json",
       "sha256": "783011b8dfd93fa32498a18a6c59e54bee3b4f1f4c34804437d8fc829bd5fd31"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/workspace-rename-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/workspace-rename-wire.json",
       "sha256": "9844ed1b24f39ab7707baa04b0da08a7303750d7de722f5bf18cf01b3526c0cd"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/workspace-reorder-wire.json",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/workspace-reorder-wire.json",
       "sha256": "7eaeff70bba52414b174e663a6b37de3c6590a29f371976ecbd55f4bce4fa469"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/workspace-outline.json",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/workspace-outline.json",
       "sha256": "77ef00f48a446dbc0be848b91d678771205f4f8c8ebcc5e36176a174b95e2311"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/renderer.json",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/renderer.json",
       "sha256": "0a2f20e96a846303dc873ce8ba2b27ef2c8fae41a5b94f5e2cfa94720760645e"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/renderer.log",
-      "sha256": "4375b6a1c0220c66ce5bd914eeea4dfc4d111b50d4a6b2d56038815bf25d3b2d"
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/renderer.log",
+      "sha256": "0a768a7e5d8f4e165249a532251854cb9dd47415efa0b8a1e6d9374c45e859b9"
     },
     {
-      "path": ".local-data/apple-native/workspace-acceptance-wm4ZYp/typecheck.log",
+      "path": ".local-data/apple-native/workspace-acceptance-BECxXR/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     }
   ]

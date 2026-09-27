@@ -343,3 +343,45 @@ fn workspace_suggestions_create_resolve_list_and_delete() {
     );
     fixture.close();
 }
+
+#[test]
+fn workspace_drift_bodies_take_notes_and_suggestions() {
+    let fixture = Fixture::new();
+    let drifts = |command: Value| {
+        success(
+            json!({"operation":"workspaceDrifts","handle":fixture.workspace,
+            "projectId":fixture.project,"command":command}),
+        )
+    };
+    let drift = drifts(json!({"action":"createDrift","title":"梦"}))["result"]["id"].clone();
+    let handle = drifts(json!({"action":"openDrift","driftId":drift}))["handle"]
+        .as_u64()
+        .unwrap();
+    let current = state(handle);
+    success(
+        json!({"operation":"documentReplace","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":0,"length":0},"text":"梦里的北塔在下雪。"}}),
+    );
+    let note = success(json!({"operation":"documentCreateComment","handle":handle,
+        "revision":state(handle)["projection"]["revision"],
+        "range":{"location":3,"length":2},"body":"北塔为何下雪？"}))["comment"]
+        .clone();
+    assert_eq!(
+        (&note["targetKind"], &note["targetId"]),
+        (&json!("node"), &drift)
+    );
+    let suggestion = success(json!({"operation":"documentCreateComment","handle":handle,
+        "revision":state(handle)["projection"]["revision"],
+        "range":{"location":3,"length":2},"body":"新地点？",
+        "suggestion":{"metadata":{"type":"element","name":"北塔"}}}))["comment"]
+        .clone();
+    assert_eq!(suggestion["source"], "copilot");
+    success(comments(
+        &fixture,
+        json!({"action":"resolveSuggestion","commentId":suggestion["id"],"accepted":false}),
+    ));
+    let listed =
+        success(json!({"operation":"documentComments","handle":handle}))["comments"].clone();
+    assert_eq!(listed.as_array().unwrap().len(), 2);
+    fixture.close();
+}
