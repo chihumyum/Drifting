@@ -12,6 +12,8 @@ mod elements;
 mod links;
 #[path = "workspace_metadata_tests.rs"]
 mod metadata;
+#[path = "workspace_metrics_tests.rs"]
+mod metrics;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
 #[path = "workspace_relation_tests.rs"]

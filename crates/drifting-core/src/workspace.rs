@@ -8,6 +8,7 @@ mod elements;
 mod facts;
 mod journal;
 mod metadata;
+mod metrics;
 mod outline;
 mod relations;
 mod storylines;
@@ -19,6 +20,7 @@ pub use elements::{
 };
 pub use facts::Fact;
 pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetails};
+pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;
 pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};

@@ -148,6 +148,9 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
             }
             text.setContentCompressionResistancePriority(.init(1), for: .horizontal)
             var views: [NSView] = [text, NSView()]
+            if let words = MacWordCount.rowLabel(model.wordCount(of: drift), identifier: "drift-words-\(drift.id)") {
+                views.append(words)
+            }
             if resting {
                 let status = NSTextField(labelWithString: WritingStatus.resting.label)
                 status.font = .systemFont(ofSize: 11); status.textColor = .tertiaryLabelColor

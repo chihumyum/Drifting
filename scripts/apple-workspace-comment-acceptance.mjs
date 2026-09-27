@@ -19,6 +19,14 @@ const groups = [
 const operations = [['create'], ['body', 'resolve', 'reopen'], ['create', 'body', 'resolve']];
 // The failure group's retried create follows one native prose edit.
 const carriedProseOriginals = [[0], [0, 0, 0], [1, 0, 0]];
+// Chapter projections (cache, outline, count, basis) a native save or open
+// rewrote since the previous step: the prose edit, then the other chapter's
+// creation cache rewritten when it was opened.
+const carriedProjections = [[0], [0, 0, 0], [1, 1, 0]];
+// Chapters whose book_node.updated_at holds a saved local prose edit's stamp on
+// the authoring side (native, like the renderer editor save) while a receiver
+// re-stamps it from its field registers; carried per row with exact values.
+const proseSaveStamps = [[[0, 1]], [[0], [0], [0]], [[0], [0], [0]]];
 const specs = [
   { name: 'core-chapter-comments', crate: 'drifting-core', filter: 'workspace::comments::tests::', required: [
     'workspace::comments::tests::workspace_comments_plain_body_matches_renderer_document',
@@ -39,10 +47,12 @@ const expectedTables = [
   'sync_entity_lifecycle', 'sync_field_clock', 'sync_conflict', 'yjs_updates', 'yjs_snapshots',
   'yjs_document_revision', 'yjs_document_revision_provenance',
 ];
-const roleDifferences = ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation'];
+const roleDifferences = ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation',
+  'Prose-save node stamp: authoring side versus receiver field-register stamp'];
 const carriedOwnerState = [
   'Live prose owner rows (yjs_updates, yjs_snapshots, yjs_document_revision, yjs_document_revision_provenance, sync_yjs_materialization_receipt) are carried from each native after-database before replay; the comment reducer must leave them untouched.',
   'Intermediate native prose originals between exported steps are carried with their journal rows only after decoding as yjs.update on a fixture chapter and reproducing its authoritative Yjs state; a receipt whose update row the owner already compacted is admitted against a transient row holding the carried update, then compacted again.',
+  'The local projection of those prose saves (node_content content_json, outline_json and updated_at; book_node word count, basis and updated_at) is carried only after its count, basis hash and revision equal @drifting/prose-metrics over y-prosemirror\'s projection of the native Yjs state and its cache equals that projection; preserved tables are compared against the receiver state after carrying.',
 ];
 const boundaries = {
   source: 'Real native chapter comment create, body edit, resolve and reopen commands over synthetic file-backed workspaces.',
@@ -65,7 +75,7 @@ const boundaries = {
 function sources() {
   const files = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0'))]
     .filter(name => name && existsSync(name) && (
-      /^(?:crates\/|vendor\/yrs\/|drizzle\/|src\/renderer\/(?:sync|sqlite-repo|schema|domain)\/)/u.test(name)
+      /^(?:crates\/|vendor\/yrs\/|drizzle\/|packages\/prose-metrics\/src\/|src\/renderer\/(?:sync|sqlite-repo|schema|domain)\/)/u.test(name)
       || [
         'scripts/apple-workspace-comment-acceptance.mjs', 'scripts/apple-workspace-comment-check.ts',
         'src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts',
@@ -120,6 +130,9 @@ function validate(report) {
       assert.equal(step.incarnation, 0);
       assert.equal(step.faultRollback, index === 2);
       assert.equal(step.carriedProseOriginals, carriedProseOriginals[index][stepIndex]);
+      assert.equal(step.carriedProjections, carriedProjections[index][stepIndex]);
+      assert.deepEqual(step.proseSaveStamps.map(stamp => stamp.chapter), proseSaveStamps[index][stepIndex]);
+      for (const stamp of step.proseSaveStamps) assert(stamp.receiver < stamp.native, 'A receiver holds the older register stamp');
       assert.match(step.originalSha256, /^[a-f0-9]{64}$/u);
       assert.equal(step.documents.length, 2);
       for (const [documentIndex, document] of step.documents.entries()) {

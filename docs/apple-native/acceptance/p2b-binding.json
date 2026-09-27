@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T00:13:28.856Z",
+  "generatedAt": "2026-09-27T07:09:42.400Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "034c6d7c8e47d9523fd2dc61776a516ed34774a0",
+    "commit": "9b4432b16ab35eb8c5b1749e1f4eac5f04ac497c",
     "dirty": true,
-    "fingerprint": "ad699b9935580734494ce0e3f7b73797fc646742bc909d98e2310d4049b49312"
+    "fingerprint": "63ecfa08e248de4ccc61af038142785f2ca8f9129139837205e4068e7e1734a0"
   },
   "cases": [
     {
@@ -428,6 +428,22 @@
     },
     {
       "name": "AppKit element trash purges its relations inside the trash original and from the other entities' open sections, restore does not bring them back, the freed type deletes, and types and relations survive cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit CJK and Latin typing in a chapter page updates its header, the outline row, the status line and the project sheet total after one debounced read per burst, an unchanged save reads nothing, undo and redo follow, a 1,234-word chapter reads 1.2k in rows, and counting and reconcile write no journal rows or stamps",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit drift page and 漂流 panel rows show the drift's count while the book total counts chapters only, and drift trash and restore remove and return it without journal rows from counting",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit project open reconciles stale and uncounted chapters that were never opened, showing 统计中… until every chapter is counted and nothing for an uncounted row, without journal rows or stamp changes",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit chapter trash removes its count from the book total and outline and restore returns it, and a cold reopen shows 统计中… in the page header until the reconciled counts match",
       "status": "passed"
     }
   ],

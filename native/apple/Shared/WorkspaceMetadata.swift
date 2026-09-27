@@ -106,6 +106,18 @@ final class ProjectProfileModel {
 
     var chapterSummary: String? { chapters.map(WorkspaceChapter.statusSummary) }
 
+    /// The project's word counts, supplied by the window; nil until read.
+    private(set) var wordCounts: WordCountLibrary?
+
+    /// “全书 1,234 字”, or 统计中… until every chapter is counted.
+    var wordSummary: String { WordCountText.book(wordCounts) }
+
+    func applyWordCounts(_ library: WordCountLibrary) {
+        guard wordCounts != library else { return }
+        wordCounts = library
+        onChange?()
+    }
+
     /// Reads the project's details, then its chapters for the status counts.
     func load() {
         guard !loading else { return }

@@ -194,6 +194,7 @@ impl LabSession {
 
     fn persist_checkpoint(&mut self) -> Result<(), String> {
         let context = self.authored_context()?;
+        let edited = self.document.has_uncommitted_updates();
         let mut committed = false;
         let mut comments = None;
         let baseline = &self.persisted_comments;
@@ -248,7 +249,34 @@ impl LabSession {
             &mut |_| {},
         )?;
         self.persisted_comments = comment_map(comments.ok_or("Checkpoint comments missing")?);
+        if self.owner.workspace && self.owner.target_kind == "node" {
+            // As the renderer's editor save: the derived projection follows
+            // the durable save and never fails it; reconciliation retries.
+            let _ = self.materialize_projection(&context.now_iso, edited);
+        }
         Ok(())
+    }
+
+    /// The node body's canonical projection (body cache, outline, word count)
+    /// of this exact durable state; `touch` stamps `updated_at` for edits.
+    fn materialize_projection(&self, now: &str, touch: bool) -> Result<bool, String> {
+        let projection = self.document.prose_projection()?;
+        let doc_id = format!("node-content:{}", self.owner.target_id);
+        let revision = ProseRepository::new(&self.gateway, CLIENT).get_revision(&doc_id, None)?;
+        drifting_core::workspace::WorkspaceStore::new(&self.gateway, CLIENT)
+            .materialize_node_projection(
+                &self.owner.scope.project_id,
+                &self.owner.target_id,
+                &drifting_core::workspace::NodeProjection {
+                    content_json: projection.content_json,
+                    outline_json: projection.outline_json,
+                    word_count: projection.word_count,
+                    basis_hash: projection.basis_hash,
+                    revision,
+                },
+                now,
+                touch,
+            )
     }
 
     /// Lab delivery only: it does not implement the production remote reducer,
@@ -450,6 +478,12 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         command: workspace::relations::RelationCommand,
+    },
+    WorkspaceMetrics {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::metrics::MetricsCommand,
     },
     WorkspaceClose {
         handle: u64,
@@ -1139,6 +1173,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceDrifts { .. }
         | Request::WorkspaceMetadata { .. }
         | Request::WorkspaceRelations { .. }
+        | Request::WorkspaceMetrics { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

@@ -11,6 +11,8 @@ pub(super) mod drifts;
 pub(super) mod elements;
 #[path = "workspace_metadata.rs"]
 pub(super) mod metadata;
+#[path = "workspace_metrics.rs"]
+pub(super) mod metrics;
 #[path = "workspace_relations.rs"]
 pub(super) mod relations;
 #[path = "workspace_remote_prose.rs"]
@@ -178,6 +180,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceDrifts { .. }
             | Request::WorkspaceMetadata { .. }
             | Request::WorkspaceRelations { .. }
+            | Request::WorkspaceMetrics { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -426,6 +429,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .drifts(documents, project_id, command)?,
+        Request::WorkspaceMetrics {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .metrics(project_id, command)?,
         Request::WorkspaceRelations {
             handle,
             project_id,

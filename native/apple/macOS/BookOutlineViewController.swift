@@ -117,6 +117,11 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             if status == WritingStatus.discarded.rawValue { label.textColor = .secondaryLabelColor }
             label.setAccessibilityLabel("\(item.label)，\(WritingStatus.label(status))")
         }
+        // The chapter's compact word count; nothing until it has one.
+        if item.isChapter, let words = MacWordCount.rowLabel(model.wordCount(chapterID: item.entry.id),
+                                                             identifier: "outline-words-\(item.entry.id)") {
+            stack.addArrangedSubview(words)
+        }
         // A leading dot in the 主线 colour, hollow for 未归属, and the
         // storyline's name in secondary text after the title; no edge accent.
         if item.isChapter, model.storylines != nil {

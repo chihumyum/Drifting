@@ -1,7 +1,7 @@
 import AppKit
 
 /// 项目资料: one project's 本书简介, 本书字段 and 故事线字段模版 in a sheet, with its
-/// chapters counted by status. Each part is written on its own, as page
+/// chapters counted by status and the book's word total. Each part is written on its own, as page
 /// fields are: the summary (trimmed) on end-editing when it changed, and each
 /// facts list after a row ended editing or was added, removed or moved.
 /// Commands run one at a time. A refusal keeps the typed text and rows and
@@ -19,6 +19,8 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
     let doneButton = NSButton(title: "完成", target: nil, action: nil)
     /// “共 3 章 · 草稿 1 · 已完成 2”.
     let chaptersLabel = NSTextField(labelWithString: "正在统计章节…")
+    /// “全书 1,234 字”, or 统计中… until every chapter is counted.
+    let wordsLabel = NSTextField(labelWithString: WordCountText.pending)
     private let message = NSTextField(wrappingLabelWithString: "")
     private(set) var stored: WorkspaceProjectDetails?
     private(set) var isCommitting = false
@@ -46,6 +48,9 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
         chaptersLabel.textColor = .secondaryLabelColor
         chaptersLabel.font = .systemFont(ofSize: 12)
         chaptersLabel.setAccessibilityIdentifier("project-chapter-counts")
+        wordsLabel.textColor = .secondaryLabelColor
+        wordsLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        wordsLabel.setAccessibilityIdentifier("project-word-count")
         summaryView.isRichText = false
         summaryView.allowsUndo = true
         summaryView.font = .systemFont(ofSize: 13)
@@ -76,12 +81,13 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
         let buttons = NSStackView(views: [NSView(), doneButton])
 
         let summaryHeading = heading("本书简介"), factsHeading = heading("本书字段"), templateHeading = heading("故事线字段模版")
-        let stack = NSStackView(views: [title, chaptersLabel, summaryHeading, summaryScroll, factsHeading, factsEditor,
+        let stack = NSStackView(views: [title, chaptersLabel, wordsLabel, summaryHeading, summaryScroll, factsHeading, factsEditor,
                                         templateHeading, templateHint, templateEditor, message, buttons])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
         stack.setCustomSpacing(4, after: title)
+        stack.setCustomSpacing(2, after: chaptersLabel)
         // Sections are set apart by spacing and weight only.
-        for view in [chaptersLabel, summaryScroll, factsEditor, templateEditor] { stack.setCustomSpacing(18, after: view) }
+        for view in [wordsLabel, summaryScroll, factsEditor, templateEditor] { stack.setCustomSpacing(18, after: view) }
         stack.setCustomSpacing(4, after: templateHeading)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let content = NSView()
@@ -95,6 +101,7 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
             content.widthAnchor.constraint(equalToConstant: 520),
             title.widthAnchor.constraint(equalTo: stack.widthAnchor),
             chaptersLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            wordsLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             summaryScroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
             summaryScroll.heightAnchor.constraint(equalToConstant: 72),
             factsEditor.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -127,9 +134,10 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
     }
 
     /// The first read fills every part; later model changes only update the
-    /// chapter counts, since each commit adopts its own reply.
+    /// chapter and word counts, since each commit adopts its own reply.
     private func refresh() {
         chaptersLabel.stringValue = model.chapterSummary ?? (model.loading ? "正在统计章节…" : "")
+        wordsLabel.stringValue = model.wordSummary
         if stored == nil, let details = model.details {
             apply(details)
             summaryView.isEditable = true

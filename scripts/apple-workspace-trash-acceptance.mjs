@@ -38,7 +38,14 @@ const roleDifferences = [
   'New original origin local/remote', 'Restored revision provenance System/Remote',
   'Local cache and timestamp preservation versus remote Yjs/winning-HLC projection',
   'Local sequence allocation versus remote HLC observation',
+  'Prose-save node stamp: authoring side versus receiver field-register stamp',
 ];
+// Per step, the chapters (true: the trashed or restored chapter) whose
+// book_node.updated_at holds a saved local prose edit's stamp on the authoring
+// side (native, like the renderer editor save, stamps the node and its body
+// cache at the saved Yjs revision) while a receiver re-stamps it from its field
+// registers; carried per row with exact values.
+const proseSaveStamps = [[[false]], [[], []], [[], []]];
 const boundaries = {
   source: 'Real native local chapter trash and restore commands over synthetic file-backed workspaces.',
   agreedGroups: [
@@ -46,7 +53,7 @@ const boundaries = {
     'Restore authors the complete four-mutation next-incarnation original, retains full Yjs state and supports fresh edit, undo and cold reopen.',
     'Composition/drafts block trash; receipt failure preserves domain/prose and owner recovery, while retry commits exactly once.',
   ],
-  rendererParity: 'Production TypeScript canonical decoder and reducer transaction replay actual local originals on independent SQLite copies. Eighteen tables, authoritative Yjs state and semantic cache are compared; writer sequence and HLC are checked separately.',
+  rendererParity: 'Production TypeScript canonical decoder and reducer transaction replay actual local originals on independent SQLite copies. Eighteen tables, authoritative Yjs state and semantic cache are compared (a saved prose edit\'s node stamp is carried per row with exact values); writer sequence and HLC are checked separately.',
   roleDifferences,
   excludedWallClockColumns: {
     yjs_updates: ['created_at'], yjs_document_revision: ['updated_at'],
@@ -108,8 +115,10 @@ function validate(report) {
     assert.equal(item.status, 'passed');
     assert.match(item.beforeDatabaseSha256, /^[a-f0-9]{64}$/u);
     assert.deepEqual(item.steps.map(step => step.operation), index === 0 ? ['trash'] : ['trash', 'restore']);
-    for (const step of item.steps) {
+    for (const [stepIndex, step] of item.steps.entries()) {
       assert.equal(step.mutationCount, step.operation === 'trash' ? 1 : 4);
+      assert.deepEqual(step.proseSaveStamps.map(stamp => stamp.target), proseSaveStamps[index][stepIndex]);
+      for (const stamp of step.proseSaveStamps) assert(stamp.receiver < stamp.native, 'A receiver holds the older register stamp');
       assert.equal(step.incarnation, step.operation === 'trash' ? 0 : 1);
       assert.equal(step.faultRollback, index === 2);
       assert.equal(step.duplicate, 'passed');

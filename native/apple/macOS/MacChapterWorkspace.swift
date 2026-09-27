@@ -121,6 +121,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var pendingLinkReveal: (view: NativeDocumentView, range: NativeRange, elementID: String)?
     /// Debounce before visible 被引用 sections read again after edits.
     static var backlinkDelay: TimeInterval = 0.3
+    /// Per project, the word counts pages, lists and the status line show.
+    private var wordCountModels: [String: WordCountModel] = [:]
+    /// The body revision each chapter or drift scope was last counted at.
+    private var countedRevisions: [DocumentScope: UInt64] = [:]
     private(set) var activePane = 0
     private(set) var isBusy = false
     var onChange: (() -> Void)?
@@ -142,6 +146,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onNodeMetadata: ((String, WorkspaceNodeMetadata) -> Void)?
     /// Act rows were read again (act names for the drift panel).
     var onOutline: ((String, [WorkspaceOutlineEntry]) -> Void)?
+    /// A project's word counts changed: lists, the outline, the 漂流 panel,
+    /// the project sheet and the status line follow.
+    var onWordCounts: ((String, WordCountLibrary) -> Void)?
     /// Each project's relation library and every page's 关系 section.
     let relations: RelationCoordinator
     /// A 关系 row named a category; categories have no page of their own.
@@ -197,6 +204,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             guard let self, let project = self.allTabs.first(where: { $0.project.id == projectID })?.project else { return }
             self.onManageRelationTypes?(project)
         }
+        // A remote original may change bodies without an open owner, whose
+        // projections only a reconcile writes.
+        workspace.onRemoteOriginal = { [weak self] projectID in self?.wordCountModels[projectID]?.reconcile() }
         splitView.isVertical = true
         splitView.dividerStyle = .thin
         splitView.delegate = self
@@ -341,7 +351,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if isNew { self.ensureLinkSources(projectID: project.id) }
                 if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
                 if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
-                if isNew { self.loadMetadata(of: tab) }
+                if isNew { self.loadMetadata(of: tab); self.showWordCount(of: tab) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -417,8 +427,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let scope = DocumentScope.chapter(ChapterScope(projectID: projectID, chapterID: chapterID))
         workspace.trashChapter(projectID: projectID, chapterID: chapterID) { [weak self] result in
             guard let self else { return }
-            // Rust removed the chapter's relations inside the trash.
-            if case .success = result { self.removeAll(scope); self.relations.reload(projectID: projectID) }
+            // Rust removed the chapter's relations inside the trash; the
+            // chapter leaves the counts and the book total.
+            if case .success = result {
+                self.removeAll(scope); self.relations.reload(projectID: projectID)
+                self.wordCountModels[projectID]?.scheduleRefresh()
+            }
             self.setBusy(false)
             self.onChange?()
             completion(result)
@@ -491,6 +505,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// after it has entered the trash lifecycle; unsaved header text of a
     /// trashed element is not committed after the fact.
     private func removeAll(_ scope: DocumentScope) {
+        countedRevisions.removeValue(forKey: scope)
         for index in panes.indices {
             for tab in panes[index].tabs.filter({ $0.scope == scope }) { remove(tab, from: index, commitHeader: false) }
         }
@@ -532,6 +547,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.pendingFocus = tab.view
                 tab.view.binding.load()
                 self.loadMetadata(of: tab)
+                self.showWordCount(of: tab)
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
@@ -548,6 +564,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         workspace.close { [weak self] result in
             guard let self else { return }
             if case .success = result {
+                self.wordCountModels.values.forEach { $0.cancel() }
+                self.countedRevisions.removeAll()
                 for pane in self.panes {
                     for tab in pane.tabs { self.disconnect(tab) }
                     pane.tabs.removeAll(); pane.selected = nil
@@ -628,6 +646,52 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if summaryChanged, metadata.kind == "drift" { driftsChanged(projectID: projectID) }
     }
 
+    // MARK: Word counts
+
+    /// The project's counts. The first call reconciles every live chapter and
+    /// drift, as opening a project does in the renderer; `refresh` reads the
+    /// counts again when the model already exists.
+    @discardableResult
+    func wordCounts(projectID: String, refresh: Bool = false) -> WordCountModel {
+        if let model = wordCountModels[projectID] {
+            if refresh { model.scheduleRefresh() }
+            return model
+        }
+        let model = WordCountModel(workspace: workspace, projectID: projectID)
+        wordCountModels[projectID] = model
+        model.onLibrary = { [weak self] library in self?.applyWordCounts(projectID: projectID, library: library) }
+        model.load()
+        return model
+    }
+
+    /// The project's last counts, if read; never starts a read.
+    func wordCountLibrary(projectID: String) -> WordCountLibrary? { wordCountModels[projectID]?.library }
+
+    /// Every open chapter and drift page of the project shows its count.
+    private func applyWordCounts(projectID: String, library: WordCountLibrary) {
+        for tab in allTabs where tab.project.id == projectID { showWordCount(of: tab) }
+        onWordCounts?(projectID, library)
+    }
+
+    private func showWordCount(of tab: Tab) {
+        guard let nodeID = tab.nodeID else { return }
+        let model = wordCounts(projectID: tab.project.id)
+        let count = model.library?.count(nodeID: nodeID)
+        tab.chapterPage?.showWordCount(count, loaded: model.loaded)
+        tab.driftPage?.showWordCount(count, loaded: model.loaded)
+    }
+
+    /// Rust stores a chapter's or drift's count with every body save (and
+    /// when a body opens). Once its owner settles at a revision not yet
+    /// counted, the counts are read again, debounced; idle moments that keep
+    /// the revision read nothing.
+    private func countSavedBody(of tab: Tab) {
+        guard tab.nodeID != nil, let revision = tab.view.binding.state?.projection.revision,
+              countedRevisions[tab.scope] != revision else { return }
+        countedRevisions[tab.scope] = revision
+        wordCounts(projectID: tab.project.id).scheduleRefresh()
+    }
+
     // MARK: Storylines
 
     /// The last storyline library read for the project, if any.
@@ -692,6 +756,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func applyDriftLibrary(projectID: String, library: WorkspaceDriftLibrary) {
         let lost = lostIDs(linkSources[projectID]?.drifts?.drifts.map(\.id), library.drifts.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
+        // A created, trashed or restored drift changes the counted nodes.
+        if linkSources[projectID]?.drifts?.drifts.map(\.id) != library.drifts.map(\.id) {
+            wordCountModels[projectID]?.scheduleRefresh()
+        }
         for tab in allTabs where tab.project.id == projectID {
             guard let drift = tab.drift, let page = tab.driftPage else { continue }
             if let stored = library.drift(id: drift.id) {
@@ -894,6 +962,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         func titles(_ list: [WorkspaceChapter]) -> [[String]] { list.map { [$0.id, $0.title] }.sorted { $0[0] < $1[0] } }
         let previous = linkSources[projectID]?.chapters
         defer { relationSourcesChanged(projectID: projectID, lost: lostIDs(previous?.map(\.id), chapters.map(\.id))) }
+        // A created, trashed or restored chapter changes the book total.
+        if previous?.map(\.id) != chapters.map(\.id) { wordCountModels[projectID]?.scheduleRefresh() }
         linkSources[projectID, default: LinkSources()].chapters = chapters
         if let trashed { linkSources[projectID]?.trashedChapters = trashed }
         updateLinkDirectory(projectID: projectID)
@@ -1137,6 +1207,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.resolveLinkReveal()
             // Settled chapter prose may add or remove references.
             if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
+            if !busy, let tab { self.countSavedBody(of: tab) }
             self.onActivity?(!self.canNavigate)
         }
     }

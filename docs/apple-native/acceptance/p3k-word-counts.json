@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kind": "native_remote_prose",
+  "kind": "native_word_counts",
   "status": "passed",
   "source": {
     "files": [
@@ -637,16 +637,20 @@
         "sha256": "f939ac6ff91c22f016a52d5d7704fcd5bc0c085eef209294cab34ec50961fcf0"
       },
       {
+        "path": "packages/prose-metrics/src/index.ts",
+        "sha256": "23ed450d9f5b2abb401db733b44b9e41546b35dc6389fa7e3402165c9abe244e"
+      },
+      {
         "path": "pnpm-lock.yaml",
         "sha256": "eded956d49c753713776153ce7fde990a9cc553f121b8bb76f764efcf60c0be9"
       },
       {
-        "path": "scripts/apple-remote-prose-acceptance.mjs",
-        "sha256": "2f829f849ba5a2d283b40baee22792f1d255c43d3d9379002c728be8d010c9d8"
+        "path": "scripts/apple-workspace-metrics-acceptance.mjs",
+        "sha256": "496f9563fb21a026eb3a9a48a8d1f821cb2040e49614768de19152a32820a520"
       },
       {
-        "path": "scripts/apple-remote-prose-wire-check.ts",
-        "sha256": "c253089f7fd120f22682d2d968f37fde8bbfe8607cb8f9263a266835e153f3bd"
+        "path": "scripts/apple-workspace-metrics-check.ts",
+        "sha256": "681a580863e6a566d469477781f2c912d61ac5a8f9318baff212439f48e6c2c6"
       },
       {
         "path": "src/renderer/deferred-settings.d.ts",
@@ -829,20 +833,48 @@
         "sha256": "6c05b59c8e1802fff5f1087ed42ab3b7a71d82ed973962b853fc8f42f1784cfb"
       },
       {
+        "path": "src/renderer/hooks/useEntityEditor.ts",
+        "sha256": "c45eb374c1224f384119fced8c9cd6b5840d1a3aba63389b0268f4184162e55b"
+      },
+      {
+        "path": "src/renderer/hooks/useEntityYjsDoc.ts",
+        "sha256": "98ef7079190f75a7b29e18a6afbc7388599b5abb73708ff08ec2bdfa8c5dab0e"
+      },
+      {
         "path": "src/renderer/lib/agent/runtime/acceptance/p3-file-backed-sqlite.ts",
         "sha256": "82504cc06e3e913bdc31ac5d13c7b934941014a0ca332cb057245647b093e742"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-command.ts",
+        "sha256": "56522ec64a7f6cc847042e07eff73b829df289e53c7a764341796f5012878e93"
+      },
+      {
+        "path": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts",
+        "sha256": "c74e4e6e4f8192f3dfef28ad0387a8de38cdba29d2f9c00b04d1402217018f6d"
       },
       {
         "path": "src/renderer/lib/db.ts",
         "sha256": "a6027028f91cd6f4929b1948ad55e2ac4f48ae2fafdbed6f31cb85041d0e51f5"
       },
       {
-        "path": "src/renderer/lib/yjs-doc-id.ts",
-        "sha256": "a1f6385106e15fff96aa6f29405b85ba7aae47c2abc8cad38a0e995b27b3736d"
+        "path": "src/renderer/lib/extensions/block-id.ts",
+        "sha256": "25af725dda6b1d663328ee80d713c8326663efe67d2267f83fdc1312c807a38e"
       },
       {
-        "path": "src/renderer/lib/yjs-persistence-origin.ts",
-        "sha256": "0811d6d96aa6339eeea4480231efac4e2f692187ec3298f3c809ce7dd0d7d911"
+        "path": "src/renderer/lib/extensions/entity-link.ts",
+        "sha256": "34686301e0d75c5fd6d97e518d2cb3c227eae9859af300d9eaa3020b04de92ac"
+      },
+      {
+        "path": "src/renderer/lib/extensions/paragraph-indent.ts",
+        "sha256": "55cdb75682917e13fe24bfb0fd27c00d08cc67cecb0d2e0168a0dbafe498059e"
+      },
+      {
+        "path": "src/renderer/lib/outline.ts",
+        "sha256": "021a1a2425c2f15d1bfe8e411966488f249084d91e0805c55267012db6c352a7"
+      },
+      {
+        "path": "src/renderer/lib/yjs-doc-id.ts",
+        "sha256": "a1f6385106e15fff96aa6f29405b85ba7aae47c2abc8cad38a0e995b27b3736d"
       },
       {
         "path": "src/renderer/platform/database-recovery-store.ts",
@@ -865,8 +897,8 @@
         "sha256": "e7e06c97207c3aeddc38778c1933014e80a1a5d347bd39a6ab0c816b1073c091"
       },
       {
-        "path": "src/renderer/services/yjs-transaction-evidence.ts",
-        "sha256": "329a1c4d0a3d1841c38b236d8a80b17b40ffb2ba0e2ba33e87c0a2ac5d160073"
+        "path": "src/renderer/services/node-prose-metrics.service.ts",
+        "sha256": "32880572b556d7b53346aad2a4c5470fed2253c47a63e556d0c93ff258c0861c"
       },
       {
         "path": "src/renderer/sqlite-repo/agent-checkpoint-retention.integration.test.ts",
@@ -2041,7 +2073,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "d58b9abbec335ddbc4470ef33a7796c55efb7276b73b536d06c832775f979b30"
+    "fingerprint": "450c3c2561379d960dcc14a1b4418e8dd3ea7d2b2ce13dc7997b35051f004751"
   },
   "toolchain": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -2049,215 +2081,1095 @@
   },
   "suites": [
     {
-      "name": "core-remote",
-      "passed": 4,
+      "name": "document-metrics",
+      "passed": 3,
       "failed": 0,
       "cases": [
-        "remote_prose::tests::remote_prose_observes_hlc_without_consuming_local_sequence",
-        "remote_prose::tests::remote_prose_multi_mutation_validates_complete_identity_and_current_scope_atomically",
-        "remote_prose::tests::remote_prose_receives_authored_original_and_deduplicates_after_prune_and_reopen",
-        "remote_prose::tests::remote_prose_receipt_failure_rolls_back_complete_packet_and_preserves_outer_transaction"
+        "prose_metrics_tests::prose_word_count_matches_prose_metrics",
+        "prose_metrics_tests::prose_projection_handles_large_numbers_and_non_ascii_format_keys",
+        "prose_metrics_tests::prose_projection_follows_y_prosemirror_and_prose_metrics"
       ],
-      "logSha256": "fdd71e355fa3b69d617ff66488c305327d2ce3da2489c381108372003cfc1f16"
+      "logSha256": "a2b09452f0f849e9d493ed7b3060461b2d3a1cbd73efd2ef66f0f29ccd59080a"
     },
     {
-      "name": "prose-remote",
-      "passed": 2,
+      "name": "core-metrics",
+      "passed": 1,
       "failed": 0,
       "cases": [
-        "remote_sync_accumulates_real_snapshot_tail_and_same_document_mutations",
-        "remote_sync_rejects_invalid_second_mutation_without_writes"
+        "workspace::metrics::tests::workspace_metrics_materialize_reuse_and_stale_revision"
       ],
-      "logSha256": "e45ecad99868b4cfe3bdadfec2bc43b3123c11569f9146d77e83ea6b0f9079b6"
+      "logSha256": "7fe42153425545e1eae280aa3f75f530d55c09b2feabe11ce4a9a279b16ab0c8"
     },
     {
-      "name": "bridge-remote",
-      "passed": 4,
+      "name": "bridge-metrics",
+      "passed": 1,
       "failed": 0,
       "cases": [
-        "workspace_tests::remote_prose::workspace_remote_prose_rejected_original_and_receipt_failure_preserve_owner_and_draft",
-        "workspace_tests::remote_prose::workspace_remote_prose_lost_notification_replays_all_owners_after_local_interleave",
-        "workspace_tests::remote_prose::workspace_remote_prose_offline_replicas_converge_all_open_chapters_with_local_history",
-        "workspace_tests::remote_prose::workspace_remote_prose_duplicate_survives_prune_and_cold_reopen"
+        "workspace_tests::metrics::workspace_metrics_follow_saves_reconcile_and_cold_reopen"
       ],
-      "logSha256": "be2aa9c309a78e6ef4094eb468a4a1fb0b5db276b51807ac7450e1497128ef12"
+      "logSha256": "bbc50f4e3370850c151e00e98a475accd9c782af62816f1aaf6ce0b608db5d09"
     }
   ],
+  "harness": {
+    "status": "passed",
+    "cases": 24,
+    "manifestSha256": "9456221284795e31bfa82b9ce4b85e8bc02c94d5a1f00e6cb165b6cea17dfe75",
+    "mainSha256": "f7e3ee7a87346f828335c0f9843ecc5f281fe80a6fadd161f4bdca62d187bf7c",
+    "logSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
   "renderer": {
     "schemaVersion": 1,
     "status": "passed",
-    "inputSha256": "6fe6f2f8fe70044d945f7fd57feec23b1ec28113c0c676bb7e6ce2d023e4ab34",
-    "cases": [
+    "inputSha256": "3e01b70e4e78e5c45073f84bac8ecc6c778131d30556f9ce50544b10e02f50de",
+    "corpusSha256": "dd0fc4c20661b51bbc0627b7c6f676c67598014a1bfd3065c51c5e1678a2102f",
+    "nativeCorpusSha256": "bf40e997ce0799435c7c41d04c75f5be19db136df9f7466b4de66b4efcefcce2",
+    "exports": [
       {
-        "name": "authored-unicode-original-and-duplicate",
-        "status": "passed",
-        "beforeDatabaseSha256": "ff3dc256a26f9a39d08cdacd40139da14d9bbc96f09a72ff1496bfb13451f5db",
-        "afterDatabaseSha256": "95c73c90c0b3b21051532fbd2bcddeb08e861203c3342f3b7dbea4d48c24cc84",
-        "deliveries": [
+        "name": "metrics-after-saves",
+        "databaseSha256": "f73c09a94e75b79e7cab3a274dad3311cb1b4e4824d551fc59e0ba8d81c69ee3",
+        "nodes": [
           {
-            "changeSetId": "lab-11191-1790492860167243000-72-writer:lab-11191-1790492860167243000-72-epoch:1",
-            "envelopeSha256": "6ae72ed1f75065231c5f2a9a305daa0a4b789d429a96bff57d53bad81fd5ae19",
-            "mutationCount": 1,
-            "status": "applied"
+            "kind": "chapter",
+            "wordCount": 13,
+            "basisKind": "yjs",
+            "basisRevision": 5,
+            "durableRevision": 5,
+            "content": "equal",
+            "differences": [],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": true,
+            "reuseRefusals": [],
+            "touched": true,
+            "stampsAgree": true,
+            "contentSha256": "b85eb67d3729f85f18a33a209f81dca12251d2ddff6cab991d5bb97c2c3ba22d",
+            "outlineSha256": "3f953aed07f3178f2f209084afa854ebf2ce3eefc9da12a560ceb517d9275f5f"
           },
           {
-            "changeSetId": "lab-11191-1790492860167243000-72-writer:lab-11191-1790492860167243000-72-epoch:1",
-            "envelopeSha256": "6ae72ed1f75065231c5f2a9a305daa0a4b789d429a96bff57d53bad81fd5ae19",
-            "mutationCount": 1,
-            "status": "duplicate"
+            "kind": "chapter",
+            "wordCount": 0,
+            "basisKind": "yjs",
+            "basisRevision": 1,
+            "durableRevision": 1,
+            "content": "keyOrder",
+            "differences": [
+              {
+                "kind": "keyOrder",
+                "path": "$",
+                "native": [
+                  "content",
+                  "type"
+                ],
+                "renderer": [
+                  "type",
+                  "content"
+                ]
+              },
+              {
+                "kind": "keyOrder",
+                "path": "$.content[0]",
+                "native": [
+                  "attrs",
+                  "content",
+                  "type"
+                ],
+                "renderer": [
+                  "type",
+                  "attrs",
+                  "content"
+                ]
+              }
+            ],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": false,
+            "reuseRefusals": [
+              "content_json"
+            ],
+            "touched": false,
+            "stampsAgree": true,
+            "contentSha256": "5c66361dbb49fb1cecd6207d717fa399cd79a2634f9dc37fb886edeab3291222",
+            "outlineSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "kind": "drift",
+            "wordCount": 4,
+            "basisKind": "yjs",
+            "basisRevision": 2,
+            "durableRevision": 2,
+            "content": "equal",
+            "differences": [],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": true,
+            "reuseRefusals": [],
+            "touched": true,
+            "stampsAgree": true,
+            "contentSha256": "281de2e60bdb6d6aac4a0dfe4c2a73b1948235d548de25024e2ee1fe6ebc0ebc",
+            "outlineSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           }
         ],
+        "journal": {
+          "changeSets": 9,
+          "mutations": 27,
+          "perDocument": [
+            {
+              "revision": 5,
+              "yjsUpdates": 5
+            },
+            {
+              "revision": 1,
+              "yjsUpdates": 1
+            },
+            {
+              "revision": 2,
+              "yjsUpdates": 2
+            }
+          ]
+        },
         "tables": [
           {
-            "name": "sync_change_set",
-            "rows": 4,
-            "sha256": "42688f4ab960d5c8028ea852534bd385eace53cadc7dd736fa40be86a53f44b1"
+            "table": "sync_change_set",
+            "rows": 9,
+            "sha256": "06e3733e3306e6a8a23b1df1a91a97a1a4f562c64daf648bc1a505911b5143e0"
           },
           {
-            "name": "sync_mutation",
-            "rows": 21,
-            "sha256": "deb157ecc3cac874b63df26e7e3a001ad4801c129f28eb40f99457e8d5ce76de"
+            "table": "sync_mutation",
+            "rows": 27,
+            "sha256": "d6a3dc45551f15a17c842fcc102a5c91a6dedfa2756b328b2ca2e512b564238d"
           },
           {
-            "name": "sync_apply_receipt",
-            "rows": 4,
-            "sha256": "1786618c64198e1193e43761821264cb234bbf00df1da590c3381d43ac822017"
+            "table": "sync_apply_receipt",
+            "rows": 9,
+            "sha256": "0e30efb78029c82d3ee30455afe510fd93f051961777df5a478b90fafe97b784"
           },
           {
-            "name": "sync_yjs_materialization_receipt",
-            "rows": 3,
-            "sha256": "a2644dad10493e8a2b347f90adda0e5c3e07c6868f3ef2a41abf3f68a3ac89a5"
+            "table": "sync_yjs_materialization_receipt",
+            "rows": 8,
+            "sha256": "8fe720640383a92979cebf95407c5ed1bf4ba69f67f96bec8b6c4779320af2ba"
           },
           {
-            "name": "sync_generation_writer_state",
+            "table": "sync_entity_lifecycle",
+            "rows": 11,
+            "sha256": "4b912e28baaa9eac1be35492e960ecb560e3b90e9d517805a4ee01fa11d98e18"
+          },
+          {
+            "table": "sync_field_clock",
             "rows": 2,
-            "sha256": "96e526b105a4b121f97de55f7cd48eb4fda402c05049cfd5178310754821683c"
+            "sha256": "7687ab6f2950b0ed66cb018ed2889e5e348ef9d99d67aa860beb6a0faa3b38a2"
           },
           {
-            "name": "yjs_updates",
-            "rows": 2,
-            "sha256": "a68f47ca7faec011ec9bcb9cdc933430dfe2de37a30f67037eb5ffe4351ccd28"
+            "table": "sync_set_tag",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
           {
-            "name": "yjs_snapshots",
+            "table": "sync_order_register",
+            "rows": 6,
+            "sha256": "fbdf865cee3b70bac13581611850403c42dc367ef2ff3bf85582a364e6e0cb08"
+          },
+          {
+            "table": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "table": "sync_generation_writer_state",
             "rows": 1,
-            "sha256": "4b61e5a623d1939513cb74477b0ce91123989ee0e4683ceee74f04eb1428fd89"
+            "sha256": "8818288e77f9ea4fe4ed73df93d22c5d65588bd6d9171746c961293218aca487"
           },
           {
-            "name": "yjs_document_revision",
+            "table": "yjs_updates",
+            "rows": 1,
+            "sha256": "287056350fc2297d677c5395ebb95b3e52272a66df90b0002480015d3d777228"
+          },
+          {
+            "table": "yjs_snapshots",
             "rows": 2,
-            "sha256": "34aa4f4ac2cd5809db91ff11e76b5bd599c0b65aecc851e42b9661a515f6f528"
+            "sha256": "ffc7dc9d6243e0a125ae0112a7dfdd636627c5d8167f8b02406d5e91e9053def"
           },
           {
-            "name": "yjs_document_revision_provenance",
+            "table": "yjs_document_revision",
             "rows": 3,
-            "sha256": "8bff592f026f82fdc97b5e1878831949584c29161e845a66c5a8d21fe5539b11"
+            "sha256": "d2a8e885ed4076333be88edfec0736d8ba3caf61ec58e9ba4c2b7dace598097b"
           },
           {
-            "name": "node_content",
-            "rows": 2,
-            "sha256": "865841e92dd29aa3de363f48cfc14c274df8279a88a1803ce98dd35355631f17"
+            "table": "yjs_document_revision_provenance",
+            "rows": 8,
+            "sha256": "333731a3bb971446f069c8c69ae6cabf8aef6f71d7c5b3f5ae36ffd2c01f93da"
+          },
+          {
+            "table": "book_node",
+            "rows": 3,
+            "sha256": "e6bb246a5a92ffa47ed344eb40b33a70774710157ce47b6ce6d70d3be7560292"
+          },
+          {
+            "table": "node_content",
+            "rows": 3,
+            "sha256": "bdda363235801bb084ca83a909e91d0faf2ba51465c18b78e51c641ad5b0a5b7"
+          }
+        ]
+      },
+      {
+        "name": "metrics-after-reconcile",
+        "databaseSha256": "ca021dac34f453d141d446f15fe9fd301b55137220c1d90be4f8291f5670aaf3",
+        "nodes": [
+          {
+            "kind": "chapter",
+            "wordCount": 13,
+            "basisKind": "yjs",
+            "basisRevision": 5,
+            "durableRevision": 5,
+            "content": "equal",
+            "differences": [],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": true,
+            "reuseRefusals": [],
+            "touched": true,
+            "stampsAgree": true,
+            "contentSha256": "b85eb67d3729f85f18a33a209f81dca12251d2ddff6cab991d5bb97c2c3ba22d",
+            "outlineSha256": "3f953aed07f3178f2f209084afa854ebf2ce3eefc9da12a560ceb517d9275f5f"
+          },
+          {
+            "kind": "chapter",
+            "wordCount": 0,
+            "basisKind": "yjs",
+            "basisRevision": 1,
+            "durableRevision": 1,
+            "content": "equal",
+            "differences": [],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": true,
+            "reuseRefusals": [],
+            "touched": false,
+            "stampsAgree": true,
+            "contentSha256": "00b9fb8947ec6a3ac31d33ca208bcb010d1ff301b214953d727ac613d49aa427",
+            "outlineSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "kind": "drift",
+            "wordCount": 4,
+            "basisKind": "yjs",
+            "basisRevision": 2,
+            "durableRevision": 2,
+            "content": "equal",
+            "differences": [],
+            "outline": "equal",
+            "drawnOutlineIds": 0,
+            "reducerBodyCache": "equal",
+            "canReuse": true,
+            "reuseRefusals": [],
+            "touched": true,
+            "stampsAgree": true,
+            "contentSha256": "281de2e60bdb6d6aac4a0dfe4c2a73b1948235d548de25024e2ee1fe6ebc0ebc",
+            "outlineSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           }
         ],
-        "documents": [
+        "journal": {
+          "changeSets": 9,
+          "mutations": 27,
+          "perDocument": [
+            {
+              "revision": 5,
+              "yjsUpdates": 5
+            },
+            {
+              "revision": 1,
+              "yjsUpdates": 1
+            },
+            {
+              "revision": 2,
+              "yjsUpdates": 2
+            }
+          ]
+        },
+        "tables": [
           {
-            "documentId": "node-content:native-chapter-11191-1790492859182713000-33",
-            "stateSha256": "c9138ca2fa92e552c1f905dc81f2d86003b9a31cc6ad2f75149c7758172d9005",
-            "semanticCache": "passed"
+            "table": "sync_change_set",
+            "rows": 9,
+            "sha256": "06e3733e3306e6a8a23b1df1a91a97a1a4f562c64daf648bc1a505911b5143e0"
+          },
+          {
+            "table": "sync_mutation",
+            "rows": 27,
+            "sha256": "d6a3dc45551f15a17c842fcc102a5c91a6dedfa2756b328b2ca2e512b564238d"
+          },
+          {
+            "table": "sync_apply_receipt",
+            "rows": 9,
+            "sha256": "0e30efb78029c82d3ee30455afe510fd93f051961777df5a478b90fafe97b784"
+          },
+          {
+            "table": "sync_yjs_materialization_receipt",
+            "rows": 8,
+            "sha256": "8fe720640383a92979cebf95407c5ed1bf4ba69f67f96bec8b6c4779320af2ba"
+          },
+          {
+            "table": "sync_entity_lifecycle",
+            "rows": 11,
+            "sha256": "4b912e28baaa9eac1be35492e960ecb560e3b90e9d517805a4ee01fa11d98e18"
+          },
+          {
+            "table": "sync_field_clock",
+            "rows": 2,
+            "sha256": "7687ab6f2950b0ed66cb018ed2889e5e348ef9d99d67aa860beb6a0faa3b38a2"
+          },
+          {
+            "table": "sync_set_tag",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "table": "sync_order_register",
+            "rows": 6,
+            "sha256": "fbdf865cee3b70bac13581611850403c42dc367ef2ff3bf85582a364e6e0cb08"
+          },
+          {
+            "table": "sync_conflict",
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "table": "sync_generation_writer_state",
+            "rows": 1,
+            "sha256": "8818288e77f9ea4fe4ed73df93d22c5d65588bd6d9171746c961293218aca487"
+          },
+          {
+            "table": "yjs_updates",
+            "rows": 1,
+            "sha256": "287056350fc2297d677c5395ebb95b3e52272a66df90b0002480015d3d777228"
+          },
+          {
+            "table": "yjs_snapshots",
+            "rows": 2,
+            "sha256": "ffc7dc9d6243e0a125ae0112a7dfdd636627c5d8167f8b02406d5e91e9053def"
+          },
+          {
+            "table": "yjs_document_revision",
+            "rows": 3,
+            "sha256": "d2a8e885ed4076333be88edfec0736d8ba3caf61ec58e9ba4c2b7dace598097b"
+          },
+          {
+            "table": "yjs_document_revision_provenance",
+            "rows": 8,
+            "sha256": "333731a3bb971446f069c8c69ae6cabf8aef6f71d7c5b3f5ae36ffd2c01f93da"
+          },
+          {
+            "table": "book_node",
+            "rows": 3,
+            "sha256": "e6bb246a5a92ffa47ed344eb40b33a70774710157ce47b6ce6d70d3be7560292"
+          },
+          {
+            "table": "node_content",
+            "rows": 3,
+            "sha256": "6187313896372f73e82ebb278f35b36f72a34d7db8989d3a64f4a4bea54e459d"
           }
         ]
       }
     ],
-    "scope": "Actual canonical Rust incoming originals replayed through production TS stage, reducer materialization and completion against copies of real native SQLite baselines.",
-    "excludedWallClockColumns": {
-      "yjs_updates": [
-        "created_at"
-      ],
-      "yjs_document_revision": [
-        "updated_at"
-      ],
-      "yjs_document_revision_provenance": [
-        "created_at"
-      ]
-    },
-    "boundaries": "Compares exact original/mutation/receipts/revision/provenance/HLC and authoritative prose/cache. Does not certify provider transport, live editor notification, physical input or release."
+    "transitions": [
+      {
+        "from": "metrics-after-saves",
+        "to": "metrics-after-reconcile",
+        "journal": "unchanged",
+        "yjs": "unchanged",
+        "changedCells": [
+          "node_content.content_json@1"
+        ]
+      }
+    ],
+    "corpus": [
+      {
+        "name": "seed-marks-open-together",
+        "updateSha256": "7d8af12c724e09f9a9722e516e9a38f439a9d375232f2ea188b85049e8b67894",
+        "rendererWordCount": 5,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "seed-italic-then-bold-italic",
+        "updateSha256": "bc71cb836efe2b7bbcf63bcfd0762eb1ff98c54885dfe066c17981f898ba89e6",
+        "rendererWordCount": 2,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[1].marks",
+            "native": [
+              "italic",
+              "bold"
+            ],
+            "renderer": [
+              "bold",
+              "italic"
+            ]
+          }
+        ],
+        "nativeContentSha256": "9040c4bd9bb5438010e6e80bfa9a808de89ed74f3848897597f5de1421c46d83",
+        "rendererContentSha256": "1eaa59b65443168f2046be7bfe9db3bdf79da66ee8e02ead106ca0eb80ca7d91"
+      },
+      {
+        "name": "seed-marks-close-and-reopen",
+        "updateSha256": "a0230f42cc1c14444ba7639dc18dd3c89f8cdf441df49195b2e84b1f27e58cd2",
+        "rendererWordCount": 4,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[1].marks",
+            "native": [
+              "underline",
+              "bold"
+            ],
+            "renderer": [
+              "bold",
+              "underline"
+            ]
+          },
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[2].marks",
+            "native": [
+              "underline",
+              "bold",
+              "italic"
+            ],
+            "renderer": [
+              "bold",
+              "italic",
+              "underline"
+            ]
+          }
+        ],
+        "nativeContentSha256": "35a06a6e461c214e251f08f77af00fc64ec9eec8b5c11735a5b91a6f8cdd2521",
+        "rendererContentSha256": "28a885ca2b7c49ee330f6f49f20de371c16e485bb2ba74ff0fa671d05eaa63a0"
+      },
+      {
+        "name": "seed-marks-staggered",
+        "updateSha256": "5f39886d7969e819feaccccbdfa524e8acb54c137ed4cd981382d043b2d46571",
+        "rendererWordCount": 7,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[4].marks",
+            "native": [
+              "italic",
+              "underline",
+              "strike"
+            ],
+            "renderer": [
+              "italic",
+              "strike",
+              "underline"
+            ]
+          }
+        ],
+        "nativeContentSha256": "a7dfdf3858c7132265ae3a894ee25eaf962d78218845899214124ae4fc1f95f2",
+        "rendererContentSha256": "32138369fab40cb85288c3230d3ae7a073747795580ef555aed685156b37e29a"
+      },
+      {
+        "name": "seed-entity-links-overlap",
+        "updateSha256": "02204cfbcd929717868326e406002d41e70c79ac88715d4f85ec3fad940fb8c0",
+        "rendererWordCount": 6,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[1].marks",
+            "native": [
+              "entityLink:el-a",
+              "bold",
+              "entityLink:el-b"
+            ],
+            "renderer": [
+              "bold",
+              "entityLink:el-a",
+              "entityLink:el-b"
+            ]
+          }
+        ],
+        "nativeContentSha256": "39ba55b4104e0d3f853ec8c9216975758cf820558008115974ac62191849477f",
+        "rendererContentSha256": "588978f442d1f2685547c6feff807b21e5e4b471d5c419b25c8e8bdbd9b5f63b"
+      },
+      {
+        "name": "seed-adjacent-links",
+        "updateSha256": "6b55590474d43aca3583d1d51197e38077e7432c6e89cdc363081217878ae9ad",
+        "rendererWordCount": 3,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "seed-headings-and-outline",
+        "updateSha256": "9b6ea1ece5b767a3f1c82c2a0d3009f871998fb7e5d32f38b7da6ccc8d2afe23",
+        "rendererWordCount": 17,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 2,
+        "differences": []
+      },
+      {
+        "name": "seed-blockquote-hardbreak-empty",
+        "updateSha256": "fa12f87bd310102da43928a85e3e50da52f44340b674061e3fd7a68b6014019e",
+        "rendererWordCount": 4,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "seed-lists-and-code",
+        "updateSha256": "bc8c234fd3e701ab8baab1658d57f3c776b63a5db1755383925924fcd97f7ee8",
+        "rendererWordCount": 8,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "seed-word-count-unicode",
+        "updateSha256": "c77e013b1b2ddf76a10482685f80931f2c3ea4cb1b33d7833d46466fad76e314",
+        "rendererWordCount": 23,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "editor-block-attributes",
+        "updateSha256": "f0e0380683e9c5e03d154b2fff45dc66d101ac9a680e75418f69249f4301217a",
+        "rendererWordCount": 3,
+        "content": "keyOrder",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          },
+          {
+            "kind": "keyOrder",
+            "path": "$.content[1].attrs",
+            "native": [
+              "id",
+              "level",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent",
+              "level"
+            ]
+          },
+          {
+            "kind": "keyOrder",
+            "path": "$.content[2].content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          },
+          {
+            "kind": "keyOrder",
+            "path": "$.content[3].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          }
+        ],
+        "nativeContentSha256": "6a45adf942c9708ca99f4808e3cbcde479551dfc5fb8d361adad38701e0406b2",
+        "rendererContentSha256": "abf0930814e0a298dc28e89e952776a33b75e2603d9916e54743ba728ccbb015"
+      },
+      {
+        "name": "editor-late-id-and-level",
+        "updateSha256": "09fce3160ac37270b68cf0dd16eafc76cf4f0b1b352d06c927ade067e456305a",
+        "rendererWordCount": 4,
+        "content": "keyOrder",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "indent",
+              "id"
+            ]
+          },
+          {
+            "kind": "keyOrder",
+            "path": "$.content[1].attrs",
+            "native": [
+              "id",
+              "level",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent",
+              "level"
+            ]
+          }
+        ],
+        "nativeContentSha256": "f16caddfc07ea30b7f7bf3c8ed7a35ddbbdd074395c1064f02f6942b2ca96663",
+        "rendererContentSha256": "8d7195c25146e4711be433ea014bd637fedb4a486d4111bb56028929a2239009"
+      },
+      {
+        "name": "editor-mark-applied-later",
+        "updateSha256": "0272ac1db886a7be201c6e22e7d0731c48fde97d0f344b1738fb25057fdaaf31",
+        "rendererWordCount": 4,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          },
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[1].marks",
+            "native": [
+              "link:https://example.invalid/w",
+              "bold",
+              "italic",
+              "underline"
+            ],
+            "renderer": [
+              "bold",
+              "italic",
+              "underline",
+              "link:https://example.invalid/w"
+            ]
+          }
+        ],
+        "nativeContentSha256": "0387badc8f5917aa011a7cc14cd1f8c8bb72e218c8ac4c6a90a074cc4479d143",
+        "rendererContentSha256": "cc75326c9b5c457d47935d90722e7ea25c46281bcf6c1bacd194b64edc81529d"
+      },
+      {
+        "name": "editor-mark-removed-and-reapplied",
+        "updateSha256": "ce9cbee4afeb81ccdfa2237ddb605e739c77849aed48be111498e168c9b16c3d",
+        "rendererWordCount": 2,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          },
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[0].marks",
+            "native": [
+              "bold",
+              "italic"
+            ],
+            "renderer": [
+              "italic",
+              "bold"
+            ]
+          }
+        ],
+        "nativeContentSha256": "7230d7e00c51737b3f0b226cdd8d05cd487708e72a2c1d57705de9dd586fb685",
+        "rendererContentSha256": "36edd514a1afd6fc060f237ec8f990996b61495eaa0c528e57e7018a2746ac59"
+      },
+      {
+        "name": "editor-entity-link-added-later",
+        "updateSha256": "76e6736ee8360293367a47d9e47857ce35ded49128606ff7d511274d92e4c9c0",
+        "rendererWordCount": 5,
+        "content": "keyOrder",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          }
+        ],
+        "nativeContentSha256": "a16efa8f90fc090016acef157f5a8c53fd740a45742056040e0991c2e5fae3ad",
+        "rendererContentSha256": "5dc86c416eefdccd0e8837eb700674eeba14a23a5ef798bcb76c07ad4007116d"
+      },
+      {
+        "name": "yjs-format-later-same-start",
+        "updateSha256": "590ccbfba1522468241a3036d8c3a6a5a3f9dd3659a52f8871cee6131ecac678",
+        "rendererWordCount": 3,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[0].marks",
+            "native": [
+              "bold",
+              "italic"
+            ],
+            "renderer": [
+              "italic",
+              "bold"
+            ]
+          }
+        ],
+        "nativeContentSha256": "f3db1920d8d9e1c387da2a5837cf859f863a54f724f820e751e8c0480e7281c0",
+        "rendererContentSha256": "f4b95ff0bd3ade2419a671b05df46f7e7bb8105f183af6240c6e77562419e484"
+      },
+      {
+        "name": "concurrent-format-same-start",
+        "updateSha256": "0b46a180988faa156f05a5bb57f1bd5b5b7af8af94a640b33884a932fd0fe5ea",
+        "rendererWordCount": 3,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "concurrent-format-same-key",
+        "updateSha256": "00f6661bbe16731e4c0a0266a2038132cf17bf41f09af2b396f7d077b547b5c6",
+        "rendererWordCount": 3,
+        "content": "differs",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "differs",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "markOrder",
+            "path": "$.content[0].content[0].marks",
+            "native": [
+              "bold",
+              "underline"
+            ],
+            "renderer": [
+              "underline",
+              "bold"
+            ]
+          }
+        ],
+        "nativeContentSha256": "b067da1987d16dcaf236efa3daf0e07603c726ab753ad5a009736c0f79fa23d2",
+        "rendererContentSha256": "3705730a6e5e12f4014ad7dce16794b53b2a5c0925243002bbbd697e70aec097"
+      },
+      {
+        "name": "concurrent-attributes-two-clients",
+        "updateSha256": "aa215ba564ea19d6dce08eaed35443409c215416229a32873df58c005d68ce6f",
+        "rendererWordCount": 1,
+        "content": "keyOrder",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "textAlign",
+              "indent"
+            ],
+            "renderer": [
+              "textAlign",
+              "id",
+              "indent"
+            ]
+          }
+        ],
+        "nativeContentSha256": "b9ac27d9c4214f9358d2b798614d38630550d02e28b1933e2e71864cd6210847",
+        "rendererContentSha256": "da9ac99fa59d2917dccf544d81e96172e41bd46c1a4d0a9f78c4e94163fa1ce6"
+      },
+      {
+        "name": "raw-top-level-text-and-empty-text",
+        "updateSha256": "a2a233ed1b87a75492919d001cb86be54c36edbaea1b8eb0de44524eae8409de",
+        "rendererWordCount": 0,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "raw-fractional-numbers",
+        "updateSha256": "38c1343d4b37d11aa83e53acdd4d26c668657e01c61bdebbf09d9094410e2375",
+        "rendererWordCount": 1,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "raw-large-number",
+        "updateSha256": "62b620b22bc7ff889e397a222b02652d286e0a7dfd419cd954985d70d29ed33c",
+        "rendererWordCount": 0,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      },
+      {
+        "name": "raw-integer-like-keys",
+        "updateSha256": "856f45d7d0e4c00a48b67f2bc3d542c54bea498a0ccb3125525fe99ed38b0f91",
+        "rendererWordCount": 0,
+        "content": "keyOrder",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": [
+          {
+            "kind": "keyOrder",
+            "path": "$.content[0].attrs",
+            "native": [
+              "id",
+              "10",
+              "2",
+              "zeta"
+            ],
+            "renderer": [
+              "2",
+              "10",
+              "id",
+              "zeta"
+            ]
+          }
+        ],
+        "nativeContentSha256": "a2b9e0db2ee590c92268b1d32b30865e933b56ac9efc8d4f6362cf3fdc4afe0f",
+        "rendererContentSha256": "629ca2067100b334bf6d1ecc796be68a1c319540c0de3fb88373bf40f2cc3615"
+      },
+      {
+        "name": "raw-non-ascii-format-key",
+        "updateSha256": "cdc28102bf9a88ef8ed0b4286bc90f85336d2a5214642eb71ce28f14788ce761",
+        "rendererWordCount": 1,
+        "content": "equal",
+        "outline": "equal",
+        "wordCount": "equal",
+        "basisHash": "equal",
+        "drawnOutlineIds": 0,
+        "differences": []
+      }
+    ]
   },
   "strictTypeScript": "passed",
   "boundaries": {
-    "source": "Pure-prose canonical original receive transaction, shared Yrs projection and bridge delivery/replay over synthetic file-backed replicas.",
+    "source": "Real native chapter and drift body saves, workspaceMetrics reconcile and cold reopen over a synthetic file-backed workspace, plus a synthetic y-prosemirror corpus replayed into fresh native document sessions.",
     "agreedGroups": [
-      "Independent offline replicas converge and local undo preserves received edits.",
-      "Applied originals deduplicate after covered-tail pruning and independent cold reopen.",
-      "A committed update with no live notification is replayed before later local/remote work across open owners.",
-      "Receipt failure and wrong scope reject atomically while live history and drafts remain available."
+      "Edit a chapter (heading, bold and italic runs, CJK, Latin and emoji) and a drift (CJK and Latin), then save each: the save materializes the body cache, outline and canonical word count at the saved Yjs revision (basis kind yjs, no server sequence) and stamps both updated_at values; an unchanged save rewrites nothing; no save writes an original.",
+      "Reconcile projects every live chapter and drift at its current revision without touching updated_at or writing an original: the saved bodies are reused as exact and the untouched chapter's creation cache is rewritten in renderer key order. Counts survive cold reopen; an unknown action is refused."
     ],
-    "rendererParity": "Production TypeScript protocol decoder, stage/reducer/complete transaction, exact immutable rows and receipts, prose revision/provenance, local HLC and authoritative semantic cache.",
-    "excludedWallClockColumns": {
-      "yjs_updates": [
-        "created_at"
-      ],
-      "yjs_document_revision": [
-        "updated_at"
-      ],
-      "yjs_document_revision_provenance": [
-        "created_at"
-      ]
-    },
+    "rendererParity": "For every exported node, the production persistence coordinator (readBase, closed durable state: snapshot then ordered updates) and deriveCanonicalNodeProseProjection (real yjs, y-prosemirror yDocToProsemirrorJSON, @drifting/prose-metrics and serializeOutline(extractOutline)) reproduce the native word_count, basis hash, basis kind and revision exactly, outline_json byte for byte and content_json byte for byte (structurally, with exact pinned key orders otherwise); the production reducer's own body-cache projection (snapshot and updates applied in turn) yields the same bytes; and canReuseCanonicalProjection, over the native rows read through the renderer repositories, reuses every saved or reconciled projection. Between the exports the journal, receipts, lifecycle, field clocks, writer state and Yjs rows are identical and only pinned derived cells change; every original of the saves export is a creation original or the one yjs.update of an authored Yjs revision. The corpus (y-prosemirror seed and live-editor schemas, later editor syncs, concurrent peers and raw Yjs structures, including numbers of 1e21 or more and non-ASCII format keys) projects in every fresh native session and matches the renderer's word counts and outlines case by case; content bytes and hashes match except for the pinned attribute key order and mark order differences.",
+    "roleDifferences": [
+      "Creation body cache: until its body is saved or reconciled, a native chapter keeps its creation cache in serde_json key order (same canonical document, count and hash); the renderer, like native, refuses to reuse it and reconcile rewrites only content_json. Pinned per node with exact key orders.",
+      "Block attribute key order (hash-neutral): native writes attributes in schema declaration order (id, level, …, textAlign, indent), while the renderer keeps Yjs attribute integration order: live-editor blocks carry textAlign, id, indent(, level), a key set later (a late block ID) comes last, and integer-like keys come first in JavaScript. Bodies authored in the renderer editor therefore never byte-equal the native cache and each side's canReuseCanonicalProjection refuses the other's cache (derived rewrite only). Pinned per corpus case with exact key orders."
+    ],
+    "exemptions": [
+      "A heading without a block ID gets outline_<uuidv7>_<position> from the renderer and outline_native_<position> natively; outline_json is compared byte for byte after that substitution, the drawn IDs are counted per case, and canReuseCanonicalProjection is evaluated with and without it."
+    ],
+    "nativeDifferences": [
+      "Mark order (accepted; changes content_json and word_count_basis_hash): native lists the marks of each text run in run-boundary order (a mark keeps its place while it stays active) with schema rank (link, bold, code, italic, strike, underline, entityLink) breaking ties among marks opening together. It is deterministic but not byte-compatible with the renderer, whose yDocToProsemirrorJSON follows the raw Yjs format items (y-prosemirror reopens every mark at each seeded run boundary, later formatting at the same start comes first, and Yjs cleans the leading format gap on receive). Native and renderer bodies with such runs therefore differ in content_json and basis hash, and each side's canReuseCanonicalProjection refuses the other's cache (derived rewrite only). Pinned per corpus case with exact mark orders; for example a seeded paragraph [a{italic}, b{bold,italic}] lists b as [italic, bold] natively and [bold, italic] in the renderer."
+    ],
     "limitations": [
-      "In-process transaction-failure and cold-reopen evidence; this runner does not perform process SIGKILL or certify power-loss behavior.",
-      "Only current-scope pure yjs.update originals for existing prose owners; full domain reducer, project import, provider transport and network retry are not certified.",
-      "No automatic authority is granted to unsupported alias deletions or unresolved source retention.",
-      "No Swift/UI, physical IME, physical device, cloud account, signing or distribution acceptance."
+      "The exports hold no drawn outline ID, remote or seed-only body and no concurrent formatting; those are corpus evidence only. The corpus is a scratch harness over drifting-document, not the bridge or the Mac UI.",
+      "Saves are checked by journal accounting against authored Yjs revisions; the exports carry no pre-save baseline.",
+      "Element, category and storyline body caches remain creation seeds and are not covered; word counts are not transported to or compared with the hosted service.",
+      "Synthetic in-process saves and cold reopen; no SIGKILL, power loss, UI, physical device, cloud account or release acceptance."
     ]
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/source-before.json",
-      "sha256": "792002d1a6675fa467891c00c2528220793181d053870ee996f054f0ea5d6dec"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/source-before.json",
+      "sha256": "927baffe4a42c843019210b3ca1b5c3fa30c74922ade7dcc16570611674915f7"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/rustc.log",
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/rustc.log",
       "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/cargo.log",
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/cargo.log",
       "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/core-remote.log",
-      "sha256": "fdd71e355fa3b69d617ff66488c305327d2ce3da2489c381108372003cfc1f16"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/document-metrics.log",
+      "sha256": "a2b09452f0f849e9d493ed7b3060461b2d3a1cbd73efd2ef66f0f29ccd59080a"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/prose-remote.log",
-      "sha256": "e45ecad99868b4cfe3bdadfec2bc43b3123c11569f9146d77e83ea6b0f9079b6"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/core-metrics.log",
+      "sha256": "7fe42153425545e1eae280aa3f75f530d55c09b2feabe11ce4a9a279b16ab0c8"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/bridge-remote.log",
-      "sha256": "be2aa9c309a78e6ef4094eb468a4a1fb0b5db276b51807ac7450e1497128ef12"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/bridge-metrics.log",
+      "sha256": "bbc50f4e3370850c151e00e98a475accd9c782af62816f1aaf6ce0b608db5d09"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/remote-prose-wire.json",
-      "sha256": "6fe6f2f8fe70044d945f7fd57feec23b1ec28113c0c676bb7e6ce2d023e4ab34"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/workspace-metrics-wire.json",
+      "sha256": "3e01b70e4e78e5c45073f84bac8ecc6c778131d30556f9ce50544b10e02f50de"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/renderer.json",
-      "sha256": "cd0a4a8488d5b803a8a24fe8febf8b5fd9996e2da18a1e1e44be76edb3244388"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/prose-corpus.json",
+      "sha256": "dd0fc4c20661b51bbc0627b7c6f676c67598014a1bfd3065c51c5e1678a2102f"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/renderer.log",
-      "sha256": "a5b5339807623dbf0e682a217874ad1c0d971d5755abfb27cd5ba3a2a079f72f"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/native-corpus.json",
+      "sha256": "bf40e997ce0799435c7c41d04c75f5be19db136df9f7466b4de66b4efcefcce2"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/typecheck.log",
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/corpus.log",
+      "sha256": "1a99fcc399602ed556a74f9cee6ced74b048c1513678e38ad28f2f3977fa78db"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/harness-build.log",
+      "sha256": "1f197b35876394f36d75a48daaf4a5cb56a979c93ea362a5ef3605ac1e797fab"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/harness.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/before.db",
-      "sha256": "ff3dc256a26f9a39d08cdacd40139da14d9bbc96f09a72ff1496bfb13451f5db"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/renderer.json",
+      "sha256": "ea586987ff144bc5360db4a8102cb0c0562564dc227753fea73c2e48722f1570"
     },
     {
-      "path": ".local-data/apple-native/remote-prose-acceptance-tOZg5V/after.db",
-      "sha256": "95c73c90c0b3b21051532fbd2bcddeb08e861203c3342f3b7dbea4d48c24cc84"
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/renderer.log",
+      "sha256": "3fea83d757f58557200559e0ae78ade4741bc8063f8f0cc926ca1cc99c8d7470"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/typecheck.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/metrics-after-saves.json",
+      "sha256": "559246a11a014c317116f24401c1dad8745465180da647b9942bbfae9f6351c9"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/metrics-after-saves.db",
+      "sha256": "f73c09a94e75b79e7cab3a274dad3311cb1b4e4824d551fc59e0ba8d81c69ee3"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/metrics-after-reconcile.json",
+      "sha256": "fd4618c8dc60db304a5d6c2125b08ff4cd48e548466b13101c2684a319b8dccf"
+    },
+    {
+      "path": ".local-data/apple-native/metrics-acceptance-t84rKV/metrics-after-reconcile.db",
+      "sha256": "ca021dac34f453d141d446f15fe9fd301b55137220c1d90be4f8291f5670aaf3"
     }
   ]
 }

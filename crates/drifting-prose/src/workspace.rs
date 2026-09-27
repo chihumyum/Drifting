@@ -136,3 +136,61 @@ pub fn restore_drift(
         },
     )
 }
+
+/// `reconcileProjectProseMetrics`: every live chapter and drift with durable
+/// prose gets its canonical projection at its current revision, without
+/// touching `updated_at`. Returns each node whose projection failed.
+pub fn reconcile_node_projections(
+    gateway: &DatabaseGateway,
+    client: &str,
+    project_id: &str,
+    now: &str,
+) -> Result<Vec<(String, String)>, String> {
+    use drifting_core::database::TransactionBehavior;
+    use drifting_core::prose::ProseRepository;
+    use drifting_core::workspace::NodeProjection;
+    let store = WorkspaceStore::new(gateway, client);
+    let repository = ProseRepository::new(gateway, client);
+    let mut failures = Vec::new();
+    for node in store.node_word_counts(project_id)? {
+        let doc_id = format!("node-content:{}", node.node_id);
+        let result = (|| {
+            let tx = gateway.begin(TransactionBehavior::Deferred, client.into())?;
+            let captured = (|| {
+                let revision = repository.get_revision(&doc_id, Some(tx))?;
+                if revision == 0 {
+                    // A body without Yjs state keeps its renderer seed basis.
+                    return Ok(None);
+                }
+                let (document, _) = crate::load_document(&repository, &doc_id, tx)?;
+                if document.has_pending() {
+                    return Err("Node prose has unresolved dependencies".to_string());
+                }
+                Ok(Some((document.prose_projection()?, revision)))
+            })();
+            let _ = gateway.rollback(tx, client.into());
+            let Some((projection, revision)) = captured? else {
+                return Ok(());
+            };
+            store
+                .materialize_node_projection(
+                    project_id,
+                    &node.node_id,
+                    &NodeProjection {
+                        content_json: projection.content_json,
+                        outline_json: projection.outline_json,
+                        word_count: projection.word_count,
+                        basis_hash: projection.basis_hash,
+                        revision,
+                    },
+                    now,
+                    false,
+                )
+                .map(|_| ())
+        })();
+        if let Err(error) = result {
+            failures.push((node.node_id, error));
+        }
+    }
+    Ok(failures)
+}

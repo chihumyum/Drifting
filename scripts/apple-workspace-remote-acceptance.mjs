@@ -35,6 +35,9 @@ const expectedTables = [
   'project', 'book_node', 'node_storyline_link',
   'sync_entity_lifecycle', 'sync_field_clock', 'sync_conflict',
 ];
+// Per group, baseline chapters whose book_node.updated_at holds a local prose
+// save's stamp that Rust receive keeps and the TS reducer re-stamps.
+const proseSaveStamps = [1, 0, 0, 0];
 const boundaries = {
   source: 'Complete chapter create, title/bookOrder/project-name field and prose originals received atomically by the shared native workspace owner over synthetic file-backed replicas.',
   agreedGroups: [
@@ -43,7 +46,7 @@ const boundaries = {
     'Title and bookOrder received before create remain durable registers and reproject when the chapter seed arrives.',
     'Wrong scope and receipt failure preserve prior metadata, prose, history and drafts; retry and duplicate delivery apply once.',
   ],
-  rendererParity: 'Production TypeScript decoder and stage/reducer/complete transaction, with exact immutable rows, receipts, lifecycle, field clocks, project/chapter metadata, revision/provenance/HLC and authoritative prose/cache compared to Rust receive results.',
+  rendererParity: 'Production TypeScript decoder and stage/reducer/complete transaction, with exact immutable rows, receipts, lifecycle, field clocks, project/chapter metadata, revision/provenance/HLC and authoritative prose/cache compared to Rust receive results. A baseline chapter\'s local prose-save stamp (node, body cache and revision alike), which Rust receive keeps and the TS reducer re-stamps from its field registers, is carried per row with exact values.',
   excludedWallClockColumns: {
     yjs_updates: ['created_at'], yjs_document_revision: ['updated_at'],
     yjs_document_revision_provenance: ['created_at'],
@@ -100,10 +103,12 @@ function validate(report) {
   assert.match(report.renderer.inputSha256, /^[a-f0-9]{64}$/u);
   assert.deepEqual(report.renderer.excludedWallClockColumns, boundaries.excludedWallClockColumns);
   assert.deepEqual(report.renderer.cases.map(item => item.name), groups);
-  for (const item of report.renderer.cases) {
+  for (const [index, item] of report.renderer.cases.entries()) {
     assert.equal(item.status, 'passed');
     assert.match(item.beforeDatabaseSha256, /^[a-f0-9]{64}$/u);
     assert.match(item.afterDatabaseSha256, /^[a-f0-9]{64}$/u);
+    assert.equal(item.proseSaveStamps.length, proseSaveStamps[index]);
+    for (const stamp of item.proseSaveStamps) assert(stamp.receiver < stamp.native, 'The TS reducer holds the older register stamp');
     assert.deepEqual(item.tables.map(table => table.name), expectedTables);
     assert(item.documents.length > 0);
     assert(item.documents.every(document => document.semanticCache === 'passed'));

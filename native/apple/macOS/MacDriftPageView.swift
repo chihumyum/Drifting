@@ -1,7 +1,8 @@
 import AppKit
 
-/// One drift's page: 标题, 摘要, 状态 and 分组 on a neutral wash, the act whose
-/// notes it is (幕笔记), then 关系 and the drift's prose body. The title commits on
+/// One drift's page: 标题 with its word count, 摘要, 状态 and 分组 on a neutral
+/// wash, the act whose notes it is (幕笔记), then 关系 and the drift's prose
+/// body. The title commits on
 /// end-editing or Return and the group on a popup choice, through `onCommit`;
 /// 摘要 and 状态 commit through `metadataEditor`. A refusal keeps the typed
 /// text and shows the reason. The body is an ordinary native editor bound to
@@ -13,6 +14,8 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
     let titleField = NSTextField()
     let groupPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let metadataEditor = NodeMetadataEditor(kind: "drift", prefix: "drift", summaryHeight: 48)
+    /// The drift's word count after its title, set by the tab host.
+    let wordCountLabel = MacWordCount.headerLabel(identifier: "drift-word-count")
     /// The bound act's name, or a hint when the drift is not an act's notes.
     let actLabel = NSTextField(labelWithString: "")
     /// 关系, filled and driven by the tab host's relation coordinator.
@@ -67,7 +70,11 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         grid.cell(for: metadataEditor.statusPopup)?.xPlacement = .leading
         grid.cell(for: groupPopup)?.xPlacement = .leading
         grid.cell(for: actLabel)?.xPlacement = .leading
-        let headerStack = NSStackView(views: [titleField, grid, message])
+        titleField.setContentHuggingPriority(.init(1), for: .horizontal)
+        titleField.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        let titleRow = NSStackView(views: [titleField, wordCountLabel])
+        titleRow.spacing = 10
+        let headerStack = NSStackView(views: [titleRow, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
@@ -86,7 +93,7 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             headerStack.topAnchor.constraint(equalTo: header.topAnchor, constant: 12),
             headerStack.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -12),
-            titleField.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
+            titleRow.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             grid.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             message.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             groupPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
@@ -173,6 +180,9 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
 
     /// The stored 摘要 and 状态; a summary being typed is kept.
     func show(metadata: WorkspaceNodeMetadata) { metadataEditor.show(metadata) }
+
+    /// 统计中… until counts are read, then “1,234 字”; nothing without a count.
+    func showWordCount(_ count: Int?, loaded: Bool) { MacWordCount.show(count, loaded: loaded, in: wordCountLabel) }
 
     /// The bound act's current name; nil while acts are being read.
     func show(actName: String?) {

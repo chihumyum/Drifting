@@ -143,6 +143,29 @@ function isReceiptFault(error: unknown): boolean {
   return false;
 }
 
+/**
+ * A saved local prose edit stamps its node (with its body cache, at the saved
+ * Yjs revision) on the replica that authored it, as the renderer editor save
+ * does. Native receive keeps a node row no original touches, while the TS
+ * reducer re-stamps every node row from its field registers. Returns each such
+ * row of the receiving baseline with exact values.
+ */
+function proseSaveStamps(baseline: DatabaseSync, native: DatabaseSync, receiver: DatabaseSync) {
+  const stamps: { nodeId: string; native: string; receiver: string }[] = [];
+  for (const row of rows(native, 'SELECT id,updated_at FROM book_node')) {
+    const received = rows(receiver, 'SELECT updated_at FROM book_node WHERE id=?', String(row.id))[0];
+    if (!received || received.updated_at === row.updated_at) continue;
+    const prior = rows(baseline, 'SELECT n.updated_at AS node,c.updated_at AS body,r.updated_at AS revision FROM book_node n '
+      + 'JOIN node_content c ON c.node_id=n.id JOIN yjs_document_revision r ON r.document_id=\'node-content:\'||n.id WHERE n.id=?', String(row.id))[0];
+    assert(prior, 'Only a baseline node with a saved body can keep a local stamp');
+    assert.deepEqual([prior.node, prior.body, prior.revision], [row.updated_at, row.updated_at, row.updated_at],
+      'Native keeps the baseline prose-save stamp of the node, its body cache and revision');
+    assert(String(received.updated_at) < String(row.updated_at), 'The TS reducer holds an older register stamp');
+    stamps.push({ nodeId: String(row.id), native: String(row.updated_at), receiver: String(received.updated_at) });
+  }
+  return stamps;
+}
+
 async function verify(fixture: WireCase, index: number) {
   assert(fixture.name.length > 0);
   assert(fixture.deliveries.length > 0);
@@ -212,8 +235,16 @@ async function verify(fixture: WireCase, index: number) {
       deliveries.push({ changeSetId: decoded.value.changeSetId, envelopeSha256: sha(bytes),
         mutationCount: decoded.value.mutations.length, status });
     }
+    const baseline = new DatabaseSync(beforePath, { readOnly: true });
+    let proseStamps: ReturnType<typeof proseSaveStamps>;
+    try { proseStamps = proseSaveStamps(baseline, expected, gateway.database); } finally { baseline.close(); }
     const tables = comparedTables.map(table => {
-      const actualRows = tableRows(gateway.database, table);
+      const actualRows = tableRows(gateway.database, table).map(row => {
+        const stamp = table === 'book_node' ? proseStamps.find(item => item.nodeId === row.id) : undefined;
+        if (!stamp) return row;
+        assert.equal(row.updated_at, stamp.receiver);
+        return { ...row, updated_at: stamp.native };
+      }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
       const expectedRows = tableRows(expected, table);
       assertTableParity(table, actualRows, expectedRows);
       return { name: table, rows: actualRows.length, sha256: sha(JSON.stringify(actualRows)) };
@@ -233,7 +264,8 @@ async function verify(fixture: WireCase, index: number) {
       } finally { actual.destroy(); native.destroy(); }
     });
     return { name: fixture.name, status: 'passed', beforeDatabaseSha256: sha(readFileSync(beforePath)),
-      afterDatabaseSha256: sha(readFileSync(afterPath)), deliveries, tables, documents };
+      afterDatabaseSha256: sha(readFileSync(afterPath)), deliveries, tables, documents,
+      proseSaveStamps: proseStamps.map(stamp => ({ native: stamp.native, receiver: stamp.receiver })) };
   } finally {
     expected.close();
     invalidateSqliteReducerStateCache();
@@ -258,7 +290,7 @@ async function main() {
   const report = { schemaVersion: 1, status: 'passed', inputSha256: sha(readFileSync(input)), cases,
     scope: 'Actual native chapter creation, field and prose originals replayed through production TS stage, reducer materialization and completion against independent copies of native SQLite baselines.',
     excludedWallClockColumns: wallClockColumns,
-    boundaries: 'Compares exact originals, all mutations, receipts, lifecycle, winning field clocks, chapter/project metadata, revision/provenance/HLC and authoritative prose/cache. Receipt fault is a real transaction rollback. Native unsupported-scope refusal is tested separately in Rust; this oracle does not equate renderer semantic suppression with whole-envelope rejection. Project bootstrap, provider transport, physical input and release are not certified.',
+    boundaries: 'Compares exact originals, all mutations, receipts, lifecycle, winning field clocks, chapter/project metadata, revision/provenance/HLC and authoritative prose/cache. A baseline node\'s local prose-save stamp, which native receive keeps and the TS reducer re-stamps from its field registers, is carried per row with exact values. Receipt fault is a real transaction rollback. Native unsupported-scope refusal is tested separately in Rust; this oracle does not equate renderer semantic suppression with whole-envelope rejection. Project bootstrap, provider transport, physical input and release are not certified.',
   };
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ status: 'passed', cases: cases.length, deliveries: cases.reduce((sum, item) => sum + item.deliveries.length, 0) }));

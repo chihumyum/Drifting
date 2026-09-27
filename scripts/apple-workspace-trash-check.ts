@@ -108,6 +108,27 @@ function causedByFault(error: unknown): boolean {
   return false;
 }
 
+/**
+ * A saved local prose edit stamps its node on the authoring side (native, like
+ * the renderer editor's materializeCanonicalNodeProse) together with its body
+ * cache at the saved Yjs revision; a receiving reducer re-stamps node rows from
+ * their field registers. Returns each such row with exact values.
+ */
+function proseSaveStamps(native: DatabaseSync, receiver: DatabaseSync) {
+  const stamps: { chapterId: string; native: string; receiver: string }[] = [];
+  for (const row of raw(native, 'book_node')) {
+    const received = receiver.prepare('SELECT updated_at FROM book_node WHERE id=?').get(String(row.id));
+    if (!received || received.updated_at === row.updated_at) continue;
+    const body = native.prepare('SELECT updated_at FROM node_content WHERE node_id=?').get(String(row.id));
+    const revision = native.prepare('SELECT updated_at FROM yjs_document_revision WHERE document_id=?').get(`node-content:${String(row.id)}`);
+    assert.equal(body?.updated_at, row.updated_at, 'A prose save stamps the node and its body cache together');
+    assert.equal(revision?.updated_at, row.updated_at, 'A prose save stamps at its saved Yjs revision');
+    assert(String(received.updated_at) < String(row.updated_at), 'The receiver holds an older register stamp');
+    stamps.push({ chapterId: String(row.id), native: String(row.updated_at), receiver: String(received.updated_at) });
+  }
+  return stamps;
+}
+
 async function verify(fixture: Case, ordinal: number) {
   const temporary = mkdtempSync(path.join(path.dirname(output), `trash-receiver-${ordinal}-`));
   const file = path.join(temporary, 'receiver.db');
@@ -173,9 +194,15 @@ async function verify(fixture: Case, ordinal: number) {
           assert.equal(nativeTimestamp, beforeTimestamp, 'Local restore preserves the existing prose cache timestamp');
           restoredDocuments.set(fixture.chapterId, { nativeTimestamp, remoteTimestamp: new Date(changeSet.hlc.wallMs).toISOString() });
         }
+        const proseStamps = proseSaveStamps(expected, gateway.database);
         const parity = tables.map(table => {
           const adjusted = (db: DatabaseSync, native: boolean) => canonicalRows(raw(db, table).map(row => {
             const value = { ...row };
+            const stamp = table === 'book_node' ? proseStamps.find(item => item.chapterId === value.id) : undefined;
+            if (stamp && !native) {
+              assert.equal(value.updated_at, stamp.receiver);
+              value.updated_at = stamp.native;
+            }
             for (const key of wallClockColumns[table] ?? []) {
               assert.equal(typeof value[key], 'string'); assert(Number.isFinite(Date.parse(value[key] as string))); delete value[key];
             }
@@ -233,6 +260,8 @@ async function verify(fixture: Case, ordinal: number) {
         assert.equal(gateway.database.prepare('SELECT total_changes() AS count').get()!.count, totalChanges);
         steps.push({ operation: step.operation, originalSha256: sha(bytes), mutationCount: step.mutationCount,
           incarnation, faultRollback: step.faultBeforeApply, duplicate: 'passed', tables: parity,
+          proseSaveStamps: proseStamps.map(stamp => ({ target: stamp.chapterId === fixture.chapterId, native: stamp.native,
+            receiver: stamp.receiver })),
           stateSha256: sha(nativeState), afterDatabaseSha256: sha(readFileSync(database(step.afterDatabase))) });
       } finally { expected.close(); }
     }
@@ -253,7 +282,8 @@ async function main() {
   writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, status: 'passed', inputSha256: sha(readFileSync(input)), cases,
     excludedWallClockColumns: wallClockColumns,
     roleDifferences: ['New original origin local/remote', 'Restored revision provenance System/Remote',
-      'Local cache and timestamp preservation versus remote Yjs/winning-HLC projection', 'Local sequence allocation versus remote HLC observation'],
+      'Local cache and timestamp preservation versus remote Yjs/winning-HLC projection', 'Local sequence allocation versus remote HLC observation',
+      'Prose-save node stamp: authoring side versus receiver field-register stamp'],
     scope: 'Actual native local chapter trash/restore originals through production TS remote materialization on real file-backed SQLite copies. No native remote receiver, provider, account or permanent deletion acceptance.',
   }, null, 2)}\n`);
   console.log(JSON.stringify({ status: 'passed', cases: cases.length, lifecycleSteps: cases.reduce((sum, item) => sum + item.steps.length, 0) }));

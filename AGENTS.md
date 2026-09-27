@@ -29,6 +29,11 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Open P2 document/IME/undo/recovery gates block only the affected editor or
   sync path, not the local writing loop; see `docs/apple-native/milestones.md`.
   A demonstrated data-loss or undo defect in the current batch still blocks it.
+- The native client need not stay compatible or interoperable with the Tauri
+  client for any feature (2026-09-27). New batches use native tests and Mac UI
+  acceptance; do not add renderer parity oracles. Existing parity reports stay
+  as regression evidence; retire or narrow one when native intentionally
+  diverges.
 - Iterate with targeted tests. Before each batch commit run `pnpm apple:refresh`
   (regenerates only stale evidence, in dependency order, then macOS acceptance)
   and `pnpm apple:check`. Related features may share one batch. Keep topic docs

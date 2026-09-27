@@ -5,6 +5,8 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } fro
 import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { isDeepStrictEqual } from 'node:util';
+import { deriveProseMetric } from '@drifting/prose-metrics';
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 import {
   commentBlockIds, createPlainCommentDoc, getBlockSnapshotFromAnchor, getBlockSnapshotsFromAnchor,
@@ -201,6 +203,43 @@ function causedByFault(error: unknown): boolean {
   }
   return false;
 }
+const nodeProjection = ['word_count', 'word_count_basis_kind', 'word_count_basis_hash', 'word_count_basis_revision',
+  'word_count_basis_server_seq', 'updated_at'];
+const bodyProjection = ['content_json', 'outline_json', 'updated_at'];
+/**
+ * The owner's saves also materialize their local projection (body cache,
+ * outline, word count and basis, and both stamps), which no original carries.
+ * Carry it after checking it is the canonical projection of the native Yjs
+ * state. Returns whether more than the node stamp (see proseSaveStamps) moved.
+ */
+async function carryProjection(receiver: DatabaseSync, native: DatabaseSync, chapterId: string): Promise<boolean> {
+  const pick = (db: DatabaseSync, table: string, key: string, columns: string[]) =>
+    db.prepare(`SELECT ${columns.join(',')} FROM "${table}" WHERE ${key}=?`).get(chapterId) as Row;
+  const nativeNode = pick(native, 'book_node', 'id', nodeProjection);
+  const nativeBody = pick(native, 'node_content', 'node_id', bodyProjection);
+  const receivedNode = pick(receiver, 'book_node', 'id', nodeProjection);
+  const projected = !isDeepStrictEqual({ ...nativeNode, updated_at: null }, { ...receivedNode, updated_at: null })
+    || !isDeepStrictEqual(nativeBody, pick(receiver, 'node_content', 'node_id', bodyProjection));
+  if (!projected && isDeepStrictEqual(nativeNode, receivedNode)) return false;
+  const docId = `node-content:${chapterId}`;
+  const doc = new Y.Doc();
+  let document: unknown;
+  try {
+    Y.applyUpdate(doc, fullState(native, docId));
+    document = yDocToProsemirrorJSON(doc, 'default');
+  } finally { doc.destroy(); }
+  const metric = await deriveProseMetric(document);
+  const revision = native.prepare('SELECT revision FROM yjs_document_revision WHERE document_id=?').get(docId)!;
+  assert.deepEqual([Number(nativeNode.word_count), nativeNode.word_count_basis_kind, nativeNode.word_count_basis_hash,
+    Number(nativeNode.word_count_basis_revision), nativeNode.word_count_basis_server_seq],
+  [metric.wordCount, 'yjs', metric.basisHash, Number(revision.revision), null], 'The carried count is the canonical prose metric');
+  assert.deepEqual(JSON.parse(String(nativeBody.content_json)), document, 'The carried cache is the canonical Yjs projection');
+  for (const [table, key, columns, values] of [['book_node', 'id', nodeProjection, nativeNode], ['node_content', 'node_id', bodyProjection, nativeBody]] as const) {
+    receiver.prepare(`UPDATE "${table}" SET ${columns.map(column => `${column}=?`).join(',')} WHERE ${key}=?`)
+      .run(...columns.map(column => values[column] as SQLInputValue), chapterId);
+  }
+  return projected;
+}
 /**
  * Carry native owner state that no comment original owns: intermediate local
  * prose originals (decoded and bounded to fixture chapters) and the live owner's
@@ -235,6 +274,7 @@ async function carryOwnerState(receiver: DatabaseSync, native: DatabaseSync, fix
   const missingReceipts = nativeReceipts.filter(row => !receipts.has(receiptKey(row)));
   assert.equal(nativeReceipts.length - missingReceipts.length, receipts.size, 'Receiver receipts must be a subset of native owner receipts');
   assert(missingReceipts.every(row => ids.has(String(row.change_set_id))), 'Only carried prose originals add owner receipts');
+  let projections = 0;
   receiver.exec('BEGIN IMMEDIATE');
   try {
     insert(receiver, 'sync_change_set', carried);
@@ -261,13 +301,37 @@ async function carryOwnerState(receiver: DatabaseSync, native: DatabaseSync, fix
       if (transient) receiver.prepare('DELETE FROM yjs_updates WHERE id=?').run(receipt.update_row_id as SQLInputValue);
     }
     insert(receiver, 'sync_apply_receipt', raw(native, 'sync_apply_receipt').filter(row => ids.has(String(row.change_set_id))));
+    for (const chapterId of fixture.chapterIds) {
+      if (await carryProjection(receiver, native, chapterId)) projections += 1;
+    }
     receiver.exec('COMMIT');
   } catch (error) {
     receiver.exec('ROLLBACK');
     throw error;
   }
   invalidateSqliteReducerStateCache();
-  return { originals: carried.length, updates };
+  return { originals: carried.length, updates, projections };
+}
+
+/**
+ * A saved local prose edit stamps its node on the authoring side (native, like
+ * the renderer editor's materializeCanonicalNodeProse) together with its body
+ * cache at the saved Yjs revision; a receiving reducer re-stamps node rows from
+ * their field registers. Returns each such row with exact values.
+ */
+function proseSaveStamps(native: DatabaseSync, receiver: DatabaseSync) {
+  const stamps: { chapterId: string; native: string; receiver: string }[] = [];
+  for (const row of raw(native, 'book_node')) {
+    const received = receiver.prepare('SELECT updated_at FROM book_node WHERE id=?').get(String(row.id));
+    if (!received || received.updated_at === row.updated_at) continue;
+    const body = native.prepare('SELECT updated_at FROM node_content WHERE node_id=?').get(String(row.id));
+    const revision = native.prepare('SELECT updated_at FROM yjs_document_revision WHERE document_id=?').get(`node-content:${String(row.id)}`);
+    assert.equal(body?.updated_at, row.updated_at, 'A prose save stamps the node and its body cache together');
+    assert.equal(revision?.updated_at, row.updated_at, 'A prose save stamps at its saved Yjs revision');
+    assert(String(received.updated_at) < String(row.updated_at), 'The receiver holds an older register stamp');
+    stamps.push({ chapterId: String(row.id), native: String(row.updated_at), receiver: String(received.updated_at) });
+  }
+  return stamps;
 }
 
 async function verify(fixture: Case, ordinal: number) {
@@ -282,7 +346,6 @@ async function verify(fixture: Case, ordinal: number) {
   const originalIds = new Set<string>();
   const writerBefore = raw(initial, 'sync_generation_writer_state');
   assert.equal(writerBefore.length, 1);
-  const before = snapshot(initial);
   const columns = (initial.prepare('PRAGMA table_info(comment)').all() as unknown as { name: string }[])
     .map(column => column.name.replace(/_([a-z])/gu, (_, letter: string) => letter.toUpperCase())).sort();
   const steps = [];
@@ -323,6 +386,7 @@ async function verify(fixture: Case, ordinal: number) {
       const prior = new DatabaseSync(database(index === 0 ? fixture.beforeDatabase : fixture.steps[index - 1]!.afterDatabase), { readOnly: true });
       try {
         const carried = await carryOwnerState(gateway.database, expected, fixture, changeSet.changeSetId);
+        const baseline = snapshot(gateway.database, preservedTables);
         const previous = commentRow(gateway.database, comment.id);
         assert.equal(comment.updatedAt, step.createdAt);
         if (step.operation === 'create') {
@@ -358,6 +422,7 @@ async function verify(fixture: Case, ordinal: number) {
         assert.deepEqual(result.conflicts, []);
         assert.deepEqual(snapshot(gateway.database, [...ownerTables, ownerReceipts]), owner, 'Comment reducer must not touch prose owner state');
         originalIds.add(changeSet.changeSetId);
+        const proseStamps = proseSaveStamps(expected, gateway.database);
         const parity = tables.map(table => {
           const adjusted = (db: DatabaseSync, native: boolean) => canonicalRows(raw(db, table).map(row => {
             const value = { ...row };
@@ -365,12 +430,17 @@ async function verify(fixture: Case, ordinal: number) {
               assert.equal(value.origin, native ? 'local' : 'remote');
               value.origin = 'compared-original';
             }
+            const stamp = table === 'book_node' ? proseStamps.find(item => item.chapterId === value.id) : undefined;
+            if (stamp && !native) {
+              assert.equal(value.updated_at, stamp.receiver);
+              value.updated_at = stamp.native;
+            }
             return value;
           }));
           const actualRows = adjusted(gateway.database, false);
           equalRows(table, actualRows, adjusted(expected, true));
           if (preservedTables.includes(table)) {
-            equalRows(`${table} unchanged from baseline`, actualRows, before[table]!);
+            equalRows(`${table} unchanged from baseline`, actualRows, baseline[table]!);
           }
           return { table, rows: actualRows.length, sha256: sha(JSON.stringify(actualRows)) };
         });
@@ -410,7 +480,9 @@ async function verify(fixture: Case, ordinal: number) {
           actions: changeSet.mutations.map(mutation => mutation.action), incarnation: 0, localDomainWire: 'passed',
           faultRollback: step.faultBeforeApply, duplicate: 'passed', row: 'passed', body: 'passed',
           anchor: 'passed', ownerUntouched: 'passed',
-          carriedProseOriginals: carried.originals, tables: parity, documents,
+          carriedProseOriginals: carried.originals, carriedProjections: carried.projections, tables: parity, documents,
+          proseSaveStamps: proseStamps.map(stamp => ({ chapter: fixture.chapterIds.indexOf(stamp.chapterId), native: stamp.native,
+            receiver: stamp.receiver })),
           afterDatabaseSha256: sha(readFileSync(database(step.afterDatabase))) });
       } finally {
         prior.close();
@@ -432,11 +504,13 @@ async function main() {
   const cases = [];
   for (const [index, item] of fixture.cases.entries()) cases.push(await verify(item, index));
   writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, status: 'passed', inputSha256: sha(readFileSync(input)), cases,
-    roleDifferences: ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation'],
+    roleDifferences: ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation',
+      'Prose-save node stamp: authoring side versus receiver field-register stamp'],
     excludedColumns: [],
     carriedOwnerState: [
       'Live prose owner rows (yjs_updates, yjs_snapshots, yjs_document_revision, yjs_document_revision_provenance, sync_yjs_materialization_receipt) are carried from each native after-database before replay; the comment reducer must leave them untouched.',
       'Intermediate native prose originals between exported steps are carried with their journal rows only after decoding as yjs.update on a fixture chapter and reproducing its authoritative Yjs state; a receipt whose update row the owner already compacted is admitted against a transient row holding the carried update, then compacted again.',
+      'The local projection of those prose saves (node_content content_json, outline_json and updated_at; book_node word count, basis and updated_at) is carried only after its count, basis hash and revision equal @drifting/prose-metrics over y-prosemirror\'s projection of the native Yjs state and its cache equals that projection; preserved tables are compared against the receiver state after carrying.',
     ],
     scope: 'Native chapter comment create/body/resolve/reopen originals match production domain-to-wire conversion, reducer SQLite effects, the production comment row mapping, body document and anchor helpers. Chapters, prose caches, acts and comment actions remain unchanged. No native remote receive, provider transport or UI acceptance.',
   }, null, 2)}\n`);

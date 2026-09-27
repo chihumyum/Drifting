@@ -156,14 +156,16 @@ final class NodeMetadataEditor: NSObject, NSTextViewDelegate {
     @objc private func statusChosen() { onFocus?(); commit(.status) }
 }
 
-/// One chapter's page: its title with 状态 beside it and 摘要 below on a
-/// neutral wash, then 关系, above the chapter's prose body. The title is renamed from
+/// One chapter's page: its title and word count with 状态 beside them and 摘要
+/// below on a neutral wash, then 关系, above the chapter's prose body. The title is renamed from
 /// the chapter list; the body is the chapter's ordinary native editor with
 /// comments.
 final class MacChapterPageView: NSView {
     let documentView: NativeDocumentView
     let titleLabel = NSTextField(labelWithString: "")
     let metadataEditor = NodeMetadataEditor(kind: "chapter", prefix: "chapter", summaryHeight: 40)
+    /// The chapter's word count after its title, set by the tab host.
+    let wordCountLabel = MacWordCount.headerLabel(identifier: "chapter-word-count")
     /// 关系, filled and driven by the tab host's relation coordinator.
     let relationsView = RelationsSectionView()
     private let message = NSTextField(wrappingLabelWithString: "")
@@ -189,8 +191,9 @@ final class MacChapterPageView: NSView {
         metadataEditor.onMessage = { [weak self] in self?.showMessage($0) }
 
         let statusLabel = label("状态")
-        let titleRow = NSStackView(views: [titleLabel, NSView(), statusLabel, metadataEditor.statusPopup])
+        let titleRow = NSStackView(views: [titleLabel, wordCountLabel, NSView(), statusLabel, metadataEditor.statusPopup])
         titleRow.spacing = 8
+        titleRow.setCustomSpacing(10, after: titleLabel)
         let summaryLabel = label("摘要")
         let summaryRow = NSStackView(views: [summaryLabel, metadataEditor.summaryScroll])
         summaryRow.alignment = .top; summaryRow.spacing = 10
@@ -237,6 +240,9 @@ final class MacChapterPageView: NSView {
     }
 
     func show(metadata: WorkspaceNodeMetadata) { metadataEditor.show(metadata) }
+
+    /// 统计中… until counts are read, then “1,234 字”; nothing without a count.
+    func showWordCount(_ count: Int?, loaded: Bool) { MacWordCount.show(count, loaded: loaded, in: wordCountLabel) }
 
     /// Shown when the stored summary and status could not be read.
     func showMessage(_ text: String?) {

@@ -654,6 +654,9 @@ final class LabWorkspaceCore {
     private var remoteDeliveryInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
+    /// A remote original was accepted for this project. Open owners were
+    /// saved again; bodies without an owner changed only in durable prose.
+    var onRemoteOriginal: ((String) -> Void)?
 
     init(directory: URL? = nil) {
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -1109,6 +1112,24 @@ final class LabWorkspaceCore {
         return reply.result
     }
 
+    // MARK: Word counts
+
+    /// Every live chapter's and drift's canonical word count. A read only.
+    /// Each body save already stored its own count in Rust.
+    func wordCounts(projectID: String, completion: @escaping (Result<WorkspaceWordCounts, Error>) -> Void) {
+        perform(completion) { try self.metricsRequest(projectID, "counts") }
+    }
+
+    /// Projects every live chapter and drift body with durable prose, then
+    /// reads the counts. Derived rows only: no original, no `updated_at`.
+    func reconcileWordCounts(projectID: String, completion: @escaping (Result<WorkspaceWordCounts, Error>) -> Void) {
+        perform(completion) { try self.metricsRequest(projectID, "reconcile") }
+    }
+
+    private func metricsRequest(_ projectID: String, _ action: String) throws -> WorkspaceWordCounts {
+        try request("workspaceMetrics", fields: ["projectId": projectID, "command": ["action": action]])
+    }
+
     func outline(projectID: String, completion: @escaping (Result<[WorkspaceOutlineEntry], Error>) -> Void) {
         perform(completion) { try self.request("workspaceOutline", fields: ["projectId": projectID]) }
     }
@@ -1179,6 +1200,7 @@ final class LabWorkspaceCore {
         perform({ (result: Result<Reply, Error>) in
             if case .success(let reply) = result { self.routeReconciledDocuments(reply.documents) }
             self.remoteDeliveryInFlight -= 1
+            if case .success = result { self.onRemoteOriginal?(original.projectId) }
             completion(result)
         }) {
             try self.request(operation, fields: fields)

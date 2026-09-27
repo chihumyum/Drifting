@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private let chapterEmpty = NSTextField(wrappingLabelWithString: "选择项目后，在这里管理章节。")
     private let currentTitle = NSTextField(labelWithString: "开始写作")
     private let status = NSTextField(wrappingLabelWithString: "正在打开工作区…")
+    /// The renderer's bottom status line: the active page's count and the book total.
+    private let wordStatus = NSTextField(labelWithString: "")
     private let editorHost = NSView()
     private let emptyEditor = NSTextField(wrappingLabelWithString: "新建或选择一个章节，开始写作。\n正文会自动保存。")
     private var createProjectButton: NSButton!
@@ -233,6 +235,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onNodeMetadata = { [weak self] projectID, metadata in
             self?.adoptNodeMetadata(projectID: projectID, metadata: metadata)
         }
+        chapterWorkspace.onWordCounts = { [weak self] projectID, library in
+            self?.adoptWordCounts(projectID: projectID, library: library)
+        }
         chapterWorkspace.onManageRelationTypes = { [weak self] project in self?.openRelationTypes(project: project) }
         // Categories have no page: a 关系 row opens the 设定库 at the category.
         chapterWorkspace.onOpenCategory = { [weak self] project, categoryID in
@@ -251,7 +256,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             emptyEditor.centerYAnchor.constraint(equalTo: editorHost.centerYAnchor),
             emptyEditor.leadingAnchor.constraint(greaterThanOrEqualTo: editorHost.leadingAnchor, constant: 20),
         ])
-        let editor = NSStackView(views: [currentTitle, subtitle, actions, editorHost, status])
+        wordStatus.textColor = .secondaryLabelColor
+        wordStatus.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        wordStatus.lineBreakMode = .byTruncatingHead
+        wordStatus.setContentHuggingPriority(.required, for: .horizontal)
+        wordStatus.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        wordStatus.setAccessibilityIdentifier("word-count-status")
+        status.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        // Messages fill the line; the counts sit quietly at its trailing edge.
+        let footer = NSStackView(views: [status, wordStatus])
+        footer.distribution = .fill
+        footer.alignment = .firstBaseline
+        footer.spacing = 16
+        let editor = NSStackView(views: [currentTitle, subtitle, actions, editorHost, footer])
         editor.orientation = .vertical
         editor.alignment = .leading
         editor.spacing = 12
@@ -277,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             currentTitle.widthAnchor.constraint(equalTo: editor.widthAnchor),
             editorHost.widthAnchor.constraint(equalTo: editor.widthAnchor),
             editorHost.heightAnchor.constraint(greaterThanOrEqualToConstant: 360),
-            status.widthAnchor.constraint(equalTo: editor.widthAnchor),
+            footer.widthAnchor.constraint(equalTo: editor.widthAnchor),
         ])
     }
 
@@ -318,15 +336,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let label = NSTextField(labelWithString: title)
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityLabel(title)
-        // Live chapters lead with their 主线 dot once memberships are read.
-        guard tableView === chapterTable, !showingTrash, let library = sidebarStorylines else { return label }
+        guard tableView === chapterTable, !showingTrash else { return label }
+        // Live chapters lead with their 主线 dot once memberships are read,
+        // and end with their word count once counted.
         let chapter = displayedChapters[row]
-        let chip = StorylineChip(storyline: library.primary(chapterID: chapter.id), showsName: false)
-        chip.setAccessibilityIdentifier("chapter-row-storyline-\(chapter.id)")
+        var leading: [NSView] = [label]
+        if let library = sidebarStorylines {
+            let chip = StorylineChip(storyline: library.primary(chapterID: chapter.id), showsName: false)
+            chip.setAccessibilityIdentifier("chapter-row-storyline-\(chapter.id)")
+            leading.insert(chip, at: 0)
+        }
+        let words = MacWordCount.rowLabel(sidebarWordCounts?.count(nodeID: chapter.id), identifier: "chapter-row-words-\(chapter.id)")
+        guard leading.count > 1 || words != nil else { return label }
         label.setContentCompressionResistancePriority(.init(1), for: .horizontal)
-        let stack = NSStackView(views: [chip, label])
+        let stack = NSStackView()
         stack.spacing = 6
+        stack.setViews(leading, in: .leading)
+        if let words { stack.setViews([words], in: .trailing) }
         return stack
+    }
+
+    /// The selected project's word counts, once read.
+    private var sidebarWordCounts: WordCountLibrary? {
+        selectedProject.flatMap { chapterWorkspace.wordCountLibrary(projectID: $0.id) }
     }
 
     /// The selected project's storyline library, once read.
@@ -377,13 +409,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let model = driftModel, model.projectID == projectID { model.applyNodeMetadata(metadata) }
     }
 
+    // MARK: Word counts
+
+    /// Every count change reaches the chapter list, the outline, the 漂流
+    /// panel, the project sheet and the status line; open pages already
+    /// follow through the tab host.
+    private func adoptWordCounts(projectID: String, library: WordCountLibrary) {
+        if selectedProject?.id == projectID, !showingTrash { reloadChapterRows() }
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.applyWordCounts(library) }
+        if let model = driftModel, model.projectID == projectID { model.applyWordCounts(library) }
+        if let profile = profileSheet?.model, profile.projectID == projectID { profile.applyWordCounts(library) }
+        updateWordStatus()
+    }
+
+    /// Redraws chapter rows and keeps the selection.
+    private func reloadChapterRows() {
+        updatingSelection = true
+        let selected = chapterTable.selectedRowIndexes
+        chapterTable.reloadData()
+        chapterTable.selectRowIndexes(selected, byExtendingSelection: false)
+        updatingSelection = false
+    }
+
+    /// “当前 1,234 字 · 全书 5,678 字” for the active chapter or drift page, the
+    /// storyline's chapters on a storyline page, otherwise the book alone.
+    private func updateWordStatus() {
+        guard let project = currentProject ?? selectedProject else { wordStatus.stringValue = ""; return }
+        var focus = WordCountFocus.none
+        if currentProject?.id == project.id {
+            if let id = currentChapter?.id ?? chapterWorkspace.activeDrift?.id {
+                focus = .node(id)
+            } else if let storyline = chapterWorkspace.activeStoryline,
+                      let memberships = chapterWorkspace.storylineLibrary(projectID: project.id) {
+                focus = .storyline(memberships.chapters(storylineID: storyline.id).map(\.chapterId))
+            }
+        }
+        wordStatus.stringValue = WordCountText.statusLine(chapterWorkspace.wordCountLibrary(projectID: project.id), focus: focus)
+    }
+
     // MARK: Project profile
 
     /// 项目资料: a sheet over the window; each part saves as it is edited.
     @objc private func showProjectProfile() {
         guard !loading, profileSheet == nil, let project = currentProject ?? selectedProject else { return }
         let name = projects.first { $0.id == project.id }?.name ?? project.name
-        let sheet = ProjectProfileSheet(model: ProjectProfileModel(workspace: workspace, projectID: project.id), projectName: name)
+        let profile = ProjectProfileModel(workspace: workspace, projectID: project.id)
+        if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { profile.applyWordCounts(counts) }
+        let sheet = ProjectProfileSheet(model: profile, projectName: name)
         profileSheet = sheet
         sheet.onFinish = { [weak self] in
             self?.profileSheet = nil
@@ -496,6 +568,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.status.stringValue = "\(project.name) · \(chapters.count) 个章节"
                 self.ensureStorylineModel(project)
                 self.ensureDriftModel(project)
+                // Opening a project reconciles its counts once per session.
+                self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
+                self.updateWordStatus()
                 self.updateControls()
             case .failure(let error):
                 self.status.stringValue = error.localizedDescription
@@ -538,6 +613,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else { chapterTable.deselectAll(nil) }
         updatingSelection = false
         updateComments()
+        updateWordStatus()
         let minWidth: CGFloat = chapterWorkspace.paneCount == 2 ? 1100 : 820
         window.minSize = NSSize(width: minWidth, height: 660)
         if window.frame.width < minWidth {
@@ -781,13 +857,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             chapterWorkspace.applyStorylineLibrary(projectID: projectID, library: library)
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyStorylines(library) }
-        if selectedProject?.id == projectID, !showingTrash {
-            updatingSelection = true
-            let selected = chapterTable.selectedRowIndexes
-            chapterTable.reloadData()
-            chapterTable.selectRowIndexes(selected, byExtendingSelection: false)
-            updatingSelection = false
-        }
+        if selectedProject?.id == projectID, !showingTrash { reloadChapterRows() }
+        // A storyline page counts its chapters.
+        updateWordStatus()
     }
 
     @objc private func showStorylines() {
@@ -888,6 +960,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         model.onLibrary = { [weak self] library in
             self?.adoptDrifts(projectID: project.id, library: library, fromWorkspace: false)
         }
+        if let counts = chapterWorkspace.wordCountLibrary(projectID: project.id) { model.applyWordCounts(counts) }
         model.load()
         // Act names for bound notes in the panel.
         chapterWorkspace.actsChanged(projectID: project.id)
@@ -1040,6 +1113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         let drifts = ensureDriftModel(project)
         if drifts.loaded { model.applyDrifts(drifts.library) }
+        if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { model.applyWordCounts(counts) }
         // Act rows name drift pages and the panel; removing an act releases
         // its notes, so drifts are read again after act changes.
         model.onEntries = { [weak self] entries in

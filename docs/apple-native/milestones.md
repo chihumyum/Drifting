@@ -20,6 +20,12 @@ architectural redesign.
   bootstrap, account recovery, sync UI) is excluded. The author will redesign
   sync after the migration. Accepted shared CRDT, persistence and receiver code
   stays; the old provider's snapshot restore is not continued.
+- 2026-09-27: the native client need not stay compatible or interoperable
+  with the Tauri client for any feature (data formats, Agent history, sync).
+  New batches use native tests and Mac UI acceptance only; renderer parity
+  oracles are not extended. Existing parity reports stay as regression
+  evidence while they pass; retire or narrow one when native intentionally
+  diverges. The Agent follows the renderer's provider configuration.
 - 2026-09-27: implementation and routine acceptance are Mac-only. iPhone and
   iPad resume only after the Mac migration and a discussion with the author.
   Shared Rust, existing UIKit code and historical mobile reports are kept.
@@ -34,7 +40,7 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations |
+| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
@@ -61,15 +67,15 @@ architectural redesign.
 | Storylines and chapter membership | `aaffcdd5` | [storylines](storylines.md) |
 | Drifts, drift groups and act notes | `c4cfcdb0` | [drifts](drifts.md) |
 | Chapter, drift and project metadata | `034c6d7c` | [metadata](metadata.md) |
-| Relation types and relations | this batch | [relations](relations.md) |
+| Relation types and relations | `9b4432b1` | [relations](relations.md) |
+| Word counts and body projections | this batch | [word counts](word-counts.md) |
 
 ## Next batch
 
-Word counts and body projections: the renderer's ProseMirror projection,
-outline and prose metrics after every chapter or drift save and on project
-open, which also refreshes the node body caches. Then the asset library
-(portraits, materials), import/export and settings as P5b parity. The
-in-process Agent (P4) waits for the author's decision on its approach.
+The native Agent (P4): a Mac-only writing assistant with the renderer's
+provider configuration, reading and revising prose through the native domain
+services with author review. Then the asset library (portraits, materials),
+import/export and settings.
 
 ## Open gates
 
@@ -93,10 +99,10 @@ These stay open; they block only the paths named, not the local writing loop.
   composition has not been established. [Observation](system-ime.md).
 - **Desktop XCTest input**: keyboard synthesis opened System Settings and timed
   out; repair the input path before rerunning it.
-- **JSON body caches**: native writers keep `node_content`, `element` and
-  `element_category` `content_json` as creation seeds; native readers use live
-  Yjs state. Refresh the caches (or port their readers) before metrics and the
-  reference index are ported.
+- **JSON body caches**: chapter and drift caches follow every save
+  ([word counts](word-counts.md)); `element`, `element_category` and
+  `storylines` `content_json` remain creation seeds, and native readers use
+  live Yjs state.
 - **Performance**: the 200k prototype sample and the Tauri baseline are recorded
   but not a workspace-budget certification. [Experiment](performance.md).
 - **Device, account and distribution**: signing and installation are blocked by

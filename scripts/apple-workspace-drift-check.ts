@@ -79,7 +79,7 @@ const roleDifferences = [
 const exemptions = [
   'Seed yjs.update payloads differ by design: native seeds one empty paragraph with a stable block id and caches it; the renderer seeds DEFAULT_TIPTAP_DOC_JSON as an empty fragment and caches it. Seeds are compared by decoded Yjs structure; every other byte of the original and every renderer authority row match.',
   'A new drift\'s word_count_basis_hash is the prose metric of its own seed cache on each side (verified as deriveProseMetricFromJson of that cache); word count, basis kind and revision match.',
-  'node_content.content_json compares as parsed JSON (native key-sorted, reducer ProseMirror key order). A restore re-projects the reducer cache (and node_content.updated_at from the winning HLC) from authoritative Yjs while native, like the renderer restore, preserves the existing cache; each role is verified.',
+  'node_content.content_json compares as parsed JSON (a native creation cache key-sorted; a body native has opened or saved, and the reducer cache, in ProseMirror key order). A restore re-projects the reducer cache (and node_content.updated_at from the winning HLC) from authoritative Yjs while native, like the renderer restore, preserves the existing cache; each role is verified.',
   'The renderer content repository create and node softDelete/restore stamp created_at/updated_at/deleted_at with the wall clock; native and the originals use the authored clock.',
   'Host-chosen drift and drift-group IDs (renderer uuidv7) and the use-case clock are injected from the native result; the renderer computes every title, name, sibling order, order key, act unbind and wire byte itself.',
 ];
@@ -87,6 +87,7 @@ const localOnlyEffects = [
   'A new drift\'s graph position is local-only: no create mutation carries it, native and a receiver hold 0,0, and the renderer keeps its random scatter (pinned: Math.random 0.25, 0.75 gives -150,150); a later restore authors the stored position.',
   'Prose metrics are local projections the remote materializer never writes: a created drift keeps its seed word-count basis (kind, hash, revision 1) on the authoring side while a receiver holds none. Tracked per row with exact values.',
   'A drift title edit (renameNode/updateNode) within the millisecond of the drift\'s previous stamp floors updated_at at that stamp + 1 ms on the authoring side (native and the renderer alike) while a receiver stamps the winning HLC; when it occurs it is tracked per row with exact values.',
+  'A saved local prose edit stamps its node with its body cache at the saved Yjs revision on the authoring side (native, like the renderer editor save) while a receiver keeps its UTF-8-last field register or create stamp. Tracked per row with exact values.',
 ];
 assert.deepEqual(PINNED_POSITION, { x: -150, y: 150 });
 const carriedOwnerState = [
@@ -1133,6 +1134,7 @@ async function verify(fixture: Case, ordinal: number) {
         // order, so a node's updated_at ends at the time of its UTF-8-last
         // field register rather than its newest authored write. Pinned per row.
         let receiverNodeStamps = 0;
+        let proseSaveStamps = 0;
         for (const nativeRow of raw(expectedAfter, 'book_node')) {
           const id = String(nativeRow.id);
           const key = cell('book_node', id, 'updated_at');
@@ -1144,6 +1146,19 @@ async function verify(fixture: Case, ordinal: number) {
           const clocks = gateway.database.prepare(`SELECT field_key,hlc_wall_ms FROM sync_field_clock WHERE sync_generation_id=?
             AND target_kind='node' AND target_id=? AND incarnation=?`).all(generation, id, incarnationOf(gateway.database, generation, 'node', id))
             .sort((a, b) => compareUtf8Bytewise(String(a.field_key), String(b.field_key)));
+          // A saved local prose edit stamps the node with its body cache at the
+          // saved Yjs revision (native, like the renderer editor save); a
+          // receiver keeps its register or create stamp. Pinned per row.
+          const body = expectedAfter.prepare('SELECT updated_at FROM node_content WHERE node_id=?').get(id);
+          const revision = expectedAfter.prepare('SELECT updated_at FROM yjs_document_revision WHERE document_id=?').get(`node-content:${id}`);
+          if (body?.updated_at === nativeRow.updated_at && revision?.updated_at === nativeRow.updated_at) {
+            const held = clocks.length > 0 ? new Date(Number(clocks[clocks.length - 1]!.hlc_wall_ms)).toISOString() : String(nativeRow.created_at);
+            assert.equal(received, held, 'A receiver keeps its UTF-8-last field register or create stamp');
+            assert(String(nativeRow.updated_at) > received, 'Native keeps the prose-save stamp');
+            divergent.set(key, { native: nativeRow.updated_at, receiver: received });
+            proseSaveStamps += 1;
+            continue;
+          }
           assert(clocks.length > 0, `Only a field register can hold back ${id}`);
           assert.equal(received, new Date(Number(clocks[clocks.length - 1]!.hlc_wall_ms)).toISOString(),
             'A receiver ends at the time of the UTF-8-last field register');
@@ -1315,7 +1330,7 @@ async function verify(fixture: Case, ordinal: number) {
           incarnation, orderPlan, groups, localDomainWire: 'passed', rendererAuthority: 'passed', rendererRow: 'passed', seed,
           position: step.operation === 'createDrift'
             ? { native: positionOf(expectedAfter), renderer: renderer.position, receiver: positionOf(gateway.database) } : null,
-          actUnbinds: renderer.unbinds.acts, flooredStamp, receiverNodeStamps, faultRollback: step.faultBeforeApply ? faults : 0, duplicate: 'passed', rankProjection: 'passed',
+          actUnbinds: renderer.unbinds.acts, flooredStamp, receiverNodeStamps, proseSaveStamps, faultRollback: step.faultBeforeApply ? faults : 0, duplicate: 'passed', rankProjection: 'passed',
           hierarchy: 'passed', library: 'passed', command: 'passed', carriedCheckpoints: carried.map(id => id.replace(/:.*/u, ':<id>')),
           cacheProjection: projected,
           localOnly: [...new Set([...divergent.keys()].map(key => {

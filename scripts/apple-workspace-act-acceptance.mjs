@@ -34,7 +34,13 @@ const expectedTables = [
   'sync_entity_lifecycle', 'sync_field_clock', 'sync_conflict', 'yjs_updates', 'yjs_snapshots',
   'yjs_document_revision', 'yjs_document_revision_provenance',
 ];
-const roleDifferences = ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation'];
+const roleDifferences = ['New original origin local/remote', 'Local sequence allocation versus remote HLC observation',
+  'Prose-save node stamp: authoring side versus receiver field-register stamp'];
+// Chapters whose book_node.updated_at holds a saved local prose edit's stamp on
+// the authoring side (native, like the renderer editor save, stamps the node
+// and its body cache at the saved Yjs revision) while a receiver re-stamps it
+// from its field registers; carried per row with exact values.
+const proseSaveStamps = [[[0], [0]], [[0]], [[0], [0], [0]]];
 const boundaries = {
   source: 'Real native local act create, rename and remove commands over synthetic file-backed workspaces.',
   agreedGroups: [
@@ -42,7 +48,7 @@ const boundaries = {
     'Remove an empty act boundary while retaining chapter order, comments, prose and both live document owners and history.',
     'Wrong scope, duplicate coordinate and receipt failure leave state intact; retry creates exactly one canonical original per command.',
   ],
-  rendererParity: 'Production domain-to-wire conversion, canonical decoder and reducer transaction consume actual native originals. Nineteen tables and authoritative Yjs state match, and production act derivation reproduces each native outline.',
+  rendererParity: 'Production domain-to-wire conversion, canonical decoder and reducer transaction consume actual native originals. Nineteen tables and authoritative Yjs state match (a saved prose edit\'s node stamp is carried per row with exact values), and production act derivation reproduces each native outline.',
   roleDifferences,
   excludedColumns: [],
   limitations: [
@@ -100,8 +106,10 @@ function validate(report) {
     assert.equal(item.status, 'passed');
     assert.match(item.beforeDatabaseSha256, /^[a-f0-9]{64}$/u);
     assert.deepEqual(item.steps.map(step => step.operation), [['create', 'rename'], ['remove'], ['create', 'rename', 'remove']][index]);
-    for (const step of item.steps) {
+    for (const [stepIndex, step] of item.steps.entries()) {
       assert.equal(step.mutationCount, 1);
+      assert.deepEqual(step.proseSaveStamps.map(stamp => stamp.chapter), proseSaveStamps[index][stepIndex]);
+      for (const stamp of step.proseSaveStamps) assert(stamp.receiver < stamp.native, 'A receiver holds the older register stamp');
       assert.equal(step.action, { create: 'entity.create', rename: 'field.set', remove: 'entity.purge' }[step.operation]);
       assert.equal(step.localDomainWire, 'passed');
       assert.equal(step.outline, 'passed');

@@ -162,6 +162,8 @@ final class DriftLibraryModel {
     private(set) var statuses: [String: String] = [:]
     private var readingStatuses: Set<String> = []
     private var rereadAfterCommand = false
+    /// Each drift's word count; nil until read.
+    private(set) var wordCounts: WordCountLibrary?
     var onChange: (() -> Void)?
     /// Every successful read or command's complete library, for pages, the
     /// outline and entity links.
@@ -209,6 +211,16 @@ final class DriftLibraryModel {
     func status(of drift: WorkspaceDrift) -> String? { statuses[drift.id] }
     /// 休眠 drifts stay in place and are muted, as in the renderer's panel.
     func isResting(_ drift: WorkspaceDrift) -> Bool { statuses[drift.id] == WritingStatus.resting.rawValue }
+
+    /// Adopt the project's word counts; drift rows show theirs.
+    func applyWordCounts(_ library: WordCountLibrary) {
+        guard wordCounts != library else { return }
+        wordCounts = library
+        onChange?()
+    }
+
+    /// The drift's canonical count; nil before counts are read or while it has none.
+    func wordCount(of drift: WorkspaceDrift) -> Int? { wordCounts?.count(nodeID: drift.id) }
 
     /// Adopt a drift's stored metadata, e.g. after its page or a menu wrote it.
     func applyNodeMetadata(_ metadata: WorkspaceNodeMetadata) {

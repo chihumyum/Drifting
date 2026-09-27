@@ -36,6 +36,9 @@ const actUnbinds = [[null, null, null, null, null, null, null, null], [null, 1, 
 // Receiver node stamps held back by the field-register order (reducerDefects):
 // the moved drift after moveDrift and after the group delete lifts it again.
 const heldStamps = [[0, 0, 0, 0, 0, 0, 1, 1], [0, 0, 0]];
+// Receiver node stamps behind a saved local prose edit's stamp: the drift body
+// edited before the act-binding group's first export.
+const proseSaveStamps = [[0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0]];
 // Only title edits may floor updated_at at the previous stamp + 1 ms (timing-dependent).
 const floorable = ['renameDrift', 'updateDrift'];
 // Local-only cells carried after each step (exact values are checked by the oracle).
@@ -76,7 +79,7 @@ const roleDifferences = [
 const exemptions = [
   'Seed yjs.update payloads differ by design: native seeds one empty paragraph with a stable block id and caches it; the renderer seeds DEFAULT_TIPTAP_DOC_JSON as an empty fragment and caches it. Seeds are compared by decoded Yjs structure; every other byte of the original and every renderer authority row match.',
   'A new drift\'s word_count_basis_hash is the prose metric of its own seed cache on each side (verified as deriveProseMetricFromJson of that cache); word count, basis kind and revision match.',
-  'node_content.content_json compares as parsed JSON (native key-sorted, reducer ProseMirror key order). A restore re-projects the reducer cache (and node_content.updated_at from the winning HLC) from authoritative Yjs while native, like the renderer restore, preserves the existing cache; each role is verified.',
+  'node_content.content_json compares as parsed JSON (a native creation cache key-sorted; a body native has opened or saved, and the reducer cache, in ProseMirror key order). A restore re-projects the reducer cache (and node_content.updated_at from the winning HLC) from authoritative Yjs while native, like the renderer restore, preserves the existing cache; each role is verified.',
   'The renderer content repository create and node softDelete/restore stamp created_at/updated_at/deleted_at with the wall clock; native and the originals use the authored clock.',
   'Host-chosen drift and drift-group IDs (renderer uuidv7) and the use-case clock are injected from the native result; the renderer computes every title, name, sibling order, order key, act unbind and wire byte itself.',
 ];
@@ -84,6 +87,7 @@ const localOnlyEffects = [
   'A new drift\'s graph position is local-only: no create mutation carries it, native and a receiver hold 0,0, and the renderer keeps its random scatter (pinned: Math.random 0.25, 0.75 gives -150,150); a later restore authors the stored position.',
   'Prose metrics are local projections the remote materializer never writes: a created drift keeps its seed word-count basis (kind, hash, revision 1) on the authoring side while a receiver holds none. Tracked per row with exact values.',
   'A drift title edit (renameNode/updateNode) within the millisecond of the drift\'s previous stamp floors updated_at at that stamp + 1 ms on the authoring side (native and the renderer alike) while a receiver stamps the winning HLC; when it occurs it is tracked per row with exact values.',
+  'A saved local prose edit stamps its node with its body cache at the saved Yjs revision on the authoring side (native, like the renderer editor save) while a receiver keeps its UTF-8-last field register or create stamp. Tracked per row with exact values.',
 ];
 const carriedOwnerState = [
   'A retired body owner re-stamps its checkpoint (yjs_snapshots.updated_at, identical bytes) while trashing; for documents no mutation of the step targets, that row is carried from the native after-database, and every other owner row must be unchanged.',
@@ -199,7 +203,8 @@ function validate(report) {
       assert.equal(typeof step.flooredStamp, 'boolean');
       assert(!step.flooredStamp || floorable.includes(step.operation), 'Only a title edit floors its stamp');
       assert.equal(step.receiverNodeStamps, heldStamps[index][stepIndex] + (step.flooredStamp ? 1 : 0));
-      const heldLocally = step.receiverNodeStamps > 0 ? ['book_node.updated_at'] : [];
+      assert.equal(step.proseSaveStamps, proseSaveStamps[index][stepIndex]);
+      const heldLocally = step.receiverNodeStamps + step.proseSaveStamps > 0 ? ['book_node.updated_at'] : [];
       assert.deepEqual(step.localOnly, [...heldLocally, ...localOnly[index][stepIndex]].sort());
       assert.deepEqual(step.cacheProjection, cacheProjection[index][stepIndex]);
       assert.deepEqual(step.carriedCheckpoints, carriedCheckpoints[index][stepIndex]);

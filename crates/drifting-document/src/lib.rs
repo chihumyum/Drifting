@@ -29,9 +29,13 @@ pub use drafts::{NativeDraftCommit, NativeDraftSelection, NativeDraftStart};
 mod draft_evidence_tests;
 mod lineage;
 mod native;
+mod prose_metrics;
+pub use prose_metrics::{count_words, ProseProjection};
 mod native_command;
 #[cfg(test)]
 mod native_command_tests;
+#[cfg(test)]
+mod prose_metrics_tests;
 pub use native_command::{
     CapturedAuthoredUpdate, NativeDeletionEvidence, NativeSourceId, NativeSourceRange,
     NativeTextDeleteIntent, NativeTransactionEvidence,

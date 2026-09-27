@@ -37,6 +37,8 @@ final class WorkspaceOutlineModel {
     /// Each chapter's writing status, from the chapter list (outline rows
     /// carry none); nil until read.
     private(set) var chapterStatuses: [String: String]?
+    /// Each chapter's word count; nil until read.
+    private(set) var wordCounts: WordCountLibrary?
     var onChange: (() -> Void)?
     /// The rows Rust returned after a read or an act command, for views that
     /// name acts elsewhere (drift pages and the drift panel).
@@ -71,6 +73,16 @@ final class WorkspaceOutlineModel {
 
     /// `draft`, `finished` or `discarded`; nil until the chapters were read.
     func writingStatus(chapterID: String) -> String? { chapterStatuses?[chapterID] }
+
+    /// Adopt the project's word counts; chapter rows show theirs.
+    func applyWordCounts(_ library: WordCountLibrary) {
+        guard wordCounts != library else { return }
+        wordCounts = library
+        onChange?()
+    }
+
+    /// The chapter's canonical count; nil before counts are read or while it has none.
+    func wordCount(chapterID: String) -> Int? { wordCounts?.count(nodeID: chapterID) }
 
     /// Adopt chapter statuses from a chapter list.
     func applyChapters(_ chapters: [WorkspaceChapter]) {
