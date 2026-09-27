@@ -283,7 +283,7 @@ extension BindingAcceptance {
             "AppKit 故事图谱 shows one lane per storyline in authored order and 未归属 for chapters without a primary, each chapter card in its primary's lane at its book position with its § number, status and word count, and card menus open a chapter and set its status with one field.set",
             "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters through the chapter move with one original that the chapter list and memberships follow, and a drop back in its slot writes nothing",
             "AppKit 故事图谱 drag across lanes and 移到轨道 make the target storyline primary, drop the previous primary's membership, keep other memberships and clear them all in 未归属, matching the storyline library and the tab host",
-            "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
+            "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original whose reply carries the storyline library, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
             "AppKit 故事图谱 markers are created from 添加标记… and the marker row, renamed, bound to a drift that captions a label-less marker, dragged to a new narrative order, unbound keeping the caption and deleted after confirmation, numeric labels convert story time and an unnamed unbound marker is refused without writing",
             "AppKit 故事图谱 drift cards flow until placed, a drag stores the position inside the area as one tuple.set, a click-sized drag writes nothing and double-click or 打开 opens the drift",
             "AppKit 故事图谱 narrative orders, lanes, book order, markers with their bindings and drift positions survive a cold reopen into a new graph",
@@ -470,7 +470,7 @@ extension BindingAcceptance {
         try require(try harness.storedOrder("北塔") == 3, "北塔 was not moved after 序章")
         try require(model.placedChapters.map(\.title) == ["雨夜", "序章", "北塔"], "Story order differs: \(model.placedChapters.map(\.title))")
         // One drop changes lane and order: 钟声 (暗线) into 主线 at the start,
-        // as one moveChapter original followed by one storyline read.
+        // as one moveChapter original whose reply carries the storyline library.
         mark = try harness.journal.mark()
         var requests = model.requests
         try harness.drag(try harness.card("钟声"), to: NSPoint(x: StoryGraphMetrics.slotCenter(0) - 60, y: harness.laneY(0)))
@@ -479,8 +479,10 @@ extension BindingAcceptance {
             "The combined drop differs: \(String(describing: try harness.storedOrder("钟声"))), \(String(describing: model.primary(of: bellID)))")
         try harness.expect(journal: [["set.remove membership", "field.set node-storyline-primary", "field.set node"]],
                            since: mark, "The combined drop")
-        try require(model.requests == requests + 2 && harness.host.storylineLibrary(projectID: harness.project.id) == model.storylines,
+        try require(model.requests == requests + 1 && harness.host.storylineLibrary(projectID: harness.project.id) == model.storylines,
             "The combined drop sent \(model.requests - requests) requests or the tab host missed the library")
+        let separate: WorkspaceStorylineLibrary = try elementResult { harness.workspace.storylineLibrary(projectID: harness.project.id, completion: $0) }
+        try require(model.storylines == separate, "The library in the moveChapter reply differs from a separate read")
         try require(model.status == "“钟声”的主线已改为“主线”，在故事时间中的位置已保存。", "The combined status differs: \(model.status)")
 
         // A storyline trashed elsewhere while the graph still shows its lane:

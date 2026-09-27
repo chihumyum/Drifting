@@ -126,11 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var editorBesideAgent: NSLayoutConstraint!
     /// 设置: stored in the lab's own data directory, applied before any editor opens.
     private lazy var settingsStore = LabSettingsStore(directory: workspace.dataDirectory)
+    /// 今日字数: attributes this device's saves to today, kept in `settings.json`.
+    private lazy var dailyWords = DailyWordLedger(store: settingsStore)
     private var settingsWindow: MacSettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         settingsStore.apply()
+        dailyWords.attach(to: workspace)
         installMenu()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1020, height: 740),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -664,6 +667,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let controller = MacBookStatsViewController(model: model)
         controller.counts = { [weak self] in self?.chapterWorkspace.wordCountLibrary(projectID: project.id) }
         controller.plan = { [weak self] in self?.settingsStore.writingPlan(projectID: project.id) ?? WritingPlan() }
+        controller.today = { [weak self] in self?.settingsStore.todayWords(projectID: project.id) }
         controller.onSelectChapter = { [weak self] chapter in self?.openFromStats(chapterID: chapter.id, title: chapter.title, project: project) }
         controller.onSelectAct = { [weak self, weak model] act in
             guard let first = act.chapterIDs.first, let chapter = model?.layout.chapter(id: first) else { return }
@@ -892,7 +896,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             searchPanel.makeKeyAndOrderFront(nil); searchController?.focusQuery(); return
         }
         closeSearch()
-        let model = WorkspaceSearchModel(workspace: workspace, projectID: project.id)
+        let model = WorkspaceSearchModel(workspace: workspace, projectID: project.id, includesEntities: true)
         let controller = MacWorkspaceSearchViewController(model: model)
         let panel = WorkspaceSearchPanel(contentRect: NSRect(x: 0, y: 0, width: 430, height: 580),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -916,6 +920,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.resolvePendingSearch()
                 case .failure(let error): model.showStatus(error.localizedDescription)
                 }
+            }
+        }
+        controller.onOpenEntity = { [weak self] hit in
+            guard let self, self.canLeaveDocument() else { return }
+            self.pendingSearch = nil
+            if hit.kind == "library" {
+                self.closeSearch()
+                self.showMaterials()
+                self.materialsController?.reveal(itemID: hit.id)
+                return
+            }
+            self.chapterWorkspace.reveal(searchHit: hit, project: self.namedProject(project)) { [weak self] refusal in
+                guard let self else { return }
+                if let refusal { self.searchController?.model.showStatus(refusal); return }
+                self.closeSearch()
+                self.status.stringValue = "已打开搜索结果"
+                self.window.makeKeyAndOrderFront(nil)
             }
         }
         window.addChildWindow(panel, ordered: .above)
@@ -1633,6 +1654,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let model = WholeBookModel(workspace: workspace, projectID: project.id)
         let controller = MacWholeBookViewController(project: named, model: model, workspace: workspace, host: chapterWorkspace)
         controller.plan = { [weak self] in self?.settingsStore.writingPlan(projectID: project.id) ?? WritingPlan() }
+        controller.todayWords = { [weak self] in self?.settingsStore.todayWords(projectID: project.id) }
         controller.onClose = { [weak self] in self?.closeWholeBook() }
         // A linked page opens as a tab in the window under the panel.
         controller.onOpenLink = { [weak self] target in
@@ -1870,7 +1892,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             guard let self else { done(nil); return }
             self.closePanels(of: projectID, completion: done)
         }
-        projectDeletion.forgetSettings = { [weak self] projectID in self?.settingsStore.forgetProject(projectID) }
+        projectDeletion.forgetSettings = { [weak self] projectID in
+            self?.dailyWords.forget(projectID: projectID)
+            self?.settingsStore.forgetProject(projectID)
+        }
         sheet.onConfirm = { [weak self] done in
             guard let self else { done(LabError.message("窗口已关闭，项目未删除。")); return }
             self.status.stringValue = "正在关闭“\(named.name)”的标签页和面板…"

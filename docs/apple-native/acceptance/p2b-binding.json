@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T15:41:36.464Z",
+  "generatedAt": "2026-09-27T16:32:40.197Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "9e4e896074bcef5ac139718efee206b8ccfb4bf4",
+    "commit": "9624e83423858f46c2440e410ea4b1a6a3a143ea",
     "dirty": true,
-    "fingerprint": "790553f504b9b353d25c555ae86cc12ba13e20d7c8545c639fa381663d4b704b"
+    "fingerprint": "dd8ac8c273470830af14d2f4a3d8da651c30bf39e53079da37dd7ac5463ad93d"
   },
   "cases": [
     {
@@ -503,7 +503,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
+      "name": "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original whose reply carries the storyline library, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
       "status": "passed"
     },
     {
@@ -603,6 +603,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 30 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
+      "status": "passed"
+    },
+    {
       "name": "Swift 设定总览 solver packs automatic category boxes largest first on the side that keeps them lowest while balancing area above and below the band, routes them around pinned boxes, snaps a pinned box that crosses the band to the nearer side, sizes and groups boxes as the renderer does and places the same boxes identically in any input order",
       "status": "passed"
     },
@@ -656,6 +660,18 @@
     },
     {
       "name": "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input or an owner outside the tabs is open, closes the 全书长卷 and every tab of the project first, deletes with one sync-generation purge and the asset bytes, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全局搜索 lists chapter results, then 章节摘要, 漂流, 设定, 分类, 故事线 and 素材 sections naming each entity and its field (名称, 别名, 摘要, 设定项, 正文, 文字, 备注) with the match emphasised in the preview, reads live page bodies and closed cold bodies without opening owners, and writes nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全局搜索 opens element, storyline, drift and category body hits as tabs and selects the match through workspaceResolveEntityHit once the owner is idle, also after text typed before the match and in an open page, opens field hits and a chapter summary as tabs and a material in the 素材库, without authoring history",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全局搜索 refuses a replaced match and a body whose scope changed with Rust's Chinese reason keeping the selection, refuses a draft in Rust and marked input at selection, lists an unreadable body and truncation explicitly, and discards superseded and cleared queries",
       "status": "passed"
     }
   ],

@@ -616,6 +616,18 @@ enum Request {
         handle: u64,
         hit: workspace::search::SearchHit,
     },
+    WorkspaceSearchEntities {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        query: String,
+    },
+    WorkspaceResolveEntityHit {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        hit: workspace::search_entities::EntityHit,
+    },
     WorkspaceCreateChapter {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -1395,6 +1407,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceReconcileProse { .. }
         | Request::WorkspaceSearch { .. }
         | Request::WorkspaceResolveSearchHit { .. }
+        | Request::WorkspaceSearchEntities { .. }
+        | Request::WorkspaceResolveEntityHit { .. }
         | Request::WorkspaceChapterOutline { .. }
         | Request::WorkspaceCreateChapter { .. }
         | Request::WorkspaceOpenChapter { .. }

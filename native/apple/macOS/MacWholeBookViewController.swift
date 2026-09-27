@@ -352,6 +352,8 @@ final class MacWholeBookViewController: NSViewController {
     private weak var host: MacChapterWorkspace?
     /// The project's 写作计划, for 统计.
     var plan: () -> WritingPlan = { WritingPlan() }
+    /// 统计's 今日 row: this device's net words today; nil hides it.
+    var todayWords: () -> Int? = { nil }
     var onClose: (() -> Void)?
     /// ⌘-click or 打开「名称」 in a chapter; nil opens it in the host's active pane.
     var onOpenLink: ((EntityLinkTarget) -> Void)?
@@ -1187,6 +1189,7 @@ final class MacWholeBookViewController: NSViewController {
         let controller = MacBookStatsViewController(model: model)
         controller.counts = { [weak self] in self?.counts }
         controller.plan = { [weak self] in self?.plan() ?? WritingPlan() }
+        controller.today = { [weak self] in self?.todayWords() }
         controller.onSelectChapter = { [weak self] chapter in
             self?.statsPopover.performClose(nil)
             self?.scroll(toChapter: chapter.id)

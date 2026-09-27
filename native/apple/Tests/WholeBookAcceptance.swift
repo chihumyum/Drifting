@@ -21,12 +21,14 @@ extension BindingAcceptance {
         try wholeBookNavigates()
         try wholeBookStatistics()
         try wholeBookPlanPersists()
+        try wholeBookTodayWords()
         return [
             "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved, its owner closed and shown again on return",
             "AppKit 全书长卷 edits, undo and redo in an attached chapter go through the owner a tab of that chapter shares, typed element names link, a comment reaches the tab, word counts follow in the header and 统计, a closed tab leaves the owner to the long page, ⌘-click opens the element, and releasing closes only owners no tab shows",
             "AppKit 全书长卷 scrolls to a chapter or a heading chosen in the 整书大纲 and to chapters and acts in the 跳到 menu, attaching the chapter's editor at the top of the viewport with the caret on the heading",
             "AppKit 统计 reads 统计中… until every chapter is counted, then the total, chapter count, average, completion and written/target progress of a synthetic book, colours each chapter bar by its act, lists each act's chapters and words, and a click on a bar scrolls the 全书长卷 to its chapter",
             "AppKit 写作计划 in 项目资料 parses and stores the target and daily goal per project in settings.json with the book's progress, refuses unreadable input without saving, writes nothing to the journal, and restores both after a cold relaunch of the workspace and settings",
+            "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 30 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
         ]
     }
 
@@ -152,13 +154,15 @@ extension BindingAcceptance {
             bookWindow.close()
         }
 
-        /// A fresh process: new workspace, tab host and settings over the same directories.
-        func relaunch() throws {
+        /// A fresh process: new workspace, tab host and settings over the same
+        /// directories. `whileClosed` runs after the workspace closed.
+        func relaunch(whileClosed: (() throws -> Void)? = nil) throws {
             if controller?.isShutDown == false { try closeBook() }
             try BindingAcceptance.wait { self.host.canNavigate && !self.host.isBusy }
             let closed: Bool = try BindingAcceptance.elementResult { host.close(completion: $0) }
             try BindingAcceptance.require(closed, "The workspace failed to close")
             window.close()
+            try whileClosed?()
             let reopened = LabWorkspaceCore(directory: directory)
             workspace = reopened
             let projects: [WorkspaceProject] = try BindingAcceptance.elementResult { reopened.projects(completion: $0) }
@@ -628,5 +632,206 @@ extension BindingAcceptance {
         try require(harness.controller.statsController?.targetValue.stringValue == "2,000 / 150,000 字 · 1%",
             "The relaunched 统计 reads \(harness.controller.statsController?.targetValue.stringValue ?? "")")
         try harness.journal.expect([], since: mark, "Relaunching with the writing plan")
+    }
+
+    // MARK: (f) Today's words
+
+    private static func wholeBookTodayWords() throws {
+        let harness = try BookHarness(name: "今日字数合成项目")
+        defer { try? harness.close() }
+        let chapters = try statsBook(harness)
+        let projectID = harness.project.id
+        // A second replica of the closed book authors the received originals.
+        let peerDirectory = harness.root.appendingPathComponent("peer/apple-native-lab")
+        try harness.relaunch { try WorkspaceRemoteProseFixture.copyClosedBaseline(from: harness.directory, to: [peerDirectory]) }
+        let peer = LabWorkspaceCore(directory: peerDirectory)
+        let _: [WorkspaceProject] = try elementResult { peer.projects(completion: $0) }
+
+        let calendar = Calendar.current
+        var clock = calendar.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 23, minute: 40))!
+        var ledger: DailyWordLedger!
+        func attach() {
+            harness.settings.now = { clock }
+            ledger = DailyWordLedger(store: harness.settings)
+            ledger.attach(to: harness.workspace)
+        }
+        attach()
+        harness.settings.setWritingPlan(WritingPlan(projectWordTarget: 10_000, dailyWordGoal: 100), projectID: projectID)
+        /// Reads counts until the model and every bracketing read are idle.
+        func settleCounts(file: String = #fileID, line: Int = #line) throws {
+            let model = harness.host.wordCounts(projectID: projectID)
+            try wait(file: file, line: line) { model.isIdle && harness.host.canNavigate && !harness.host.isBusy }
+            let _: WorkspaceWordCounts = try elementResult { harness.workspace.wordCounts(projectID: projectID, completion: $0) }
+            try wait(file: file, line: line) { model.isIdle }
+        }
+        func today() -> Int { harness.settings.todayWords(projectID: projectID) }
+        func sheet() throws -> ProjectProfileSheet {
+            let model = ProjectProfileModel(workspace: harness.workspace, projectID: projectID)
+            let sheet = ProjectProfileSheet(model: model, projectName: harness.project.name, plans: harness.settings)
+            model.load()
+            try wait { !model.loading && model.details != nil }
+            return sheet
+        }
+        func stats() throws -> MacBookStatsViewController {
+            let book = WholeBookModel(workspace: harness.workspace, projectID: projectID)
+            let stats = MacBookStatsViewController(model: book)
+            let settings = harness.settings, host = harness.host
+            stats.counts = { host.wordCountLibrary(projectID: projectID) }
+            stats.plan = { settings.writingPlan(projectID: projectID) }
+            stats.today = { settings.todayWords(projectID: projectID) }
+            _ = stats.view
+            book.load()
+            try wait { book.loaded }
+            return stats
+        }
+        func open(_ chapter: WorkspaceChapter) throws -> NativeDocumentView {
+            let view: NativeDocumentView = try elementResult { harness.host.open(project: harness.project, chapter: chapter, completion: $0) }
+            try elementSettled(harness.host, view)
+            return view
+        }
+        func write(_ text: String, in view: NativeDocumentView) throws {
+            view.textView.setSelectedRange(NSRange(location: 0, length: 0))
+            view.textView.insertText(text, replacementRange: NSRange(location: 0, length: 0))
+            try elementSettled(harness.host, view)
+            try settleCounts()
+        }
+
+        // The first read of the session is the baseline: nothing counts.
+        try settleCounts()
+        let profile = try sheet(), statsView = try stats()
+        try require(today() == 0 && profile.todayLabel.stringValue == "今日 0 / 100 字 · 0%" && !profile.todayBar.isHidden
+            && statsView.todayValue.stringValue == "0 / 100 字 · 0%", "Today starts at \(profile.todayLabel.stringValue)")
+
+        // Typing, undo and redo in a chapter page.
+        let first = try open(chapters[0])
+        try write(ideographs(12, seed: 40), in: first)
+        try require(today() == 12 && profile.todayLabel.stringValue == "今日 12 / 100 字 · 12%" && profile.todayBar.fraction == 0.12
+            && statsView.todayValue.stringValue == "12 / 100 字 · 12%" && statsView.todayBar.fraction == 0.12,
+            "Typing counted \(today()): \(profile.todayLabel.stringValue) / \(statsView.todayValue.stringValue)")
+        first.undoProse(); try elementSettled(harness.host, first); try settleCounts()
+        try require(today() == 0, "Undo left \(today())")
+        first.redoProse(); try elementSettled(harness.host, first); try settleCounts()
+        try require(today() == 12, "Redo left \(today())")
+
+        // An accepted writing-assistant change to a closed chapter, applied
+        // as the panel applies it, and an import.
+        let agent = ["sessionId": "conversation-synthetic", "turnId": "turn-synthetic", "callId": "call-synthetic"]
+        let _: WorkspaceAgentApplied = try elementResult {
+            harness.workspace.agentApplyChanges(projectID: projectID, kind: "chapter", id: chapters[1].id,
+                changes: [AgentProseChange.appending(ideographs(8, seed: 41)).payload], agent: agent, completion: $0)
+        }
+        harness.host.wordCounts(projectID: projectID, refresh: true)
+        try settleCounts()
+        try require(today() == 20, "The accepted change counted \(today() - 12)")
+        let imported = try harness.chapter("导入章节", [.paragraph(ideographs(30, seed: 42))])
+        harness.host.chaptersChanged(projectID: projectID)
+        try wait { harness.host.wordCountLibrary(projectID: projectID)?.contains(nodeID: imported.id) == true }
+        try settleCounts()
+        try require(today() == 50 && harness.host.wordCountLibrary(projectID: projectID)?.count(nodeID: imported.id) == 30,
+            "The import counted \(today() - 20)")
+
+        // Received originals: one into the open chapter, one into a closed chapter.
+        for (chapter, words) in [(chapters[0], 15), (chapters[3], 25)] {
+            let documentID = "node-content:" + chapter.id
+            let old = Set(try WorkspaceRemoteProseFixture.localPackets(in: peerDirectory, documentID: documentID).map { $0.original.changeSetId })
+            let core: LabCore = try elementResult { peer.openChapter(projectID: projectID, chapterID: chapter.id, completion: $0) }
+            let state = try read(core)
+            let edited: LabDocumentState = try elementResult { core.document("documentReplace", edit: [
+                "revision": state.projection.revision, "range": ["location": 0, "length": 0], "text": ideographs(words, seed: 43 + words),
+            ], completion: $0) }
+            try require(edited.saved, "The peer edit was not saved")
+            let packets = try WorkspaceRemoteProseFixture.localPackets(in: peerDirectory, documentID: documentID, excluding: old)
+            try require(packets.count == 1, "The peer edit made \(packets.count) originals")
+            let before = harness.host.wordCountLibrary(projectID: projectID)?.count(nodeID: chapter.id) ?? 0
+            let _: WorkspaceRemoteProseReply = try elementResult {
+                harness.workspace.receiveProse(original: packets[0].original, envelope: packets[0].envelope, completion: $0)
+            }
+            try elementSettled(harness.host, first)
+            try settleCounts()
+            try require(harness.host.wordCountLibrary(projectID: projectID)?.count(nodeID: chapter.id) == before + words,
+                "The received original did not change \(chapter.title)'s count")
+        }
+        try require(today() == 50 && first.textView.string.contains(ideographs(15, seed: 58)), "Received text counted: \(today())")
+
+        // A version restore: the text since the version left is not counted.
+        let scope = DocumentScope.chapter(ChapterScope(projectID: projectID, chapterID: chapters[0].id))
+        let _: Bool = try elementResult { harness.host.closeTab(pane: 0, scope: scope, completion: $0) }
+        let reopened = try open(chapters[0])
+        try write(ideographs(5, seed: 44), in: reopened)
+        try require(today() == 55, "Typing after reopening counted \(today() - 50)")
+        let history = VersionHistoryModel(workspace: harness.workspace,
+                                          target: VersionHistoryTarget(projectID: projectID, kind: "chapter", id: chapters[0].id, title: chapters[0].title))
+        history.load()
+        try wait { history.loaded && !history.busy }
+        guard let closed = history.entries.first(where: { $0.meta?.reason == "close" }) else {
+            throw LabError.message("No version kept on close: \(history.entries.map { $0.meta?.reason ?? "" })")
+        }
+        var restored: Result<WorkspaceHistoryRestored, Error>?
+        history.restore(snapshotID: closed.id) { restored = $0 }
+        try wait { restored != nil }
+        _ = try restored!.get()
+        try elementSettled(harness.host, reopened)
+        try settleCounts()
+        try require(!reopened.textView.string.hasPrefix(ideographs(5, seed: 44)) && today() == 55, "The version restore counted: \(today())")
+
+        // Chapter trash and restore change the book, not today's words.
+        let _: WorkspaceChapterTrashReply = try elementResult { harness.host.trash(projectID: projectID, chapterID: imported.id, completion: $0) }
+        try settleCounts()
+        let _: WorkspaceChapterTrashReply = try elementResult { harness.workspace.restoreChapter(projectID: projectID, chapterID: imported.id, completion: $0) }
+        harness.host.chaptersChanged(projectID: projectID)
+        harness.host.wordCounts(projectID: projectID, refresh: true)
+        try wait { harness.host.wordCountLibrary(projectID: projectID)?.contains(nodeID: imported.id) == true }
+        try settleCounts()
+        try require(today() == 55 && harness.host.wordCountLibrary(projectID: projectID)?.count(nodeID: imported.id) == 30,
+            "Trash and restore counted: \(today())")
+
+        // Midnight: today starts again; yesterday stays in settings.json.
+        clock = calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 0, minute: 0, second: 10))!
+        harness.settings.checkDay()
+        try require(today() == 0 && profile.todayLabel.stringValue == "今日 0 / 100 字 · 0%" && statsView.todayValue.stringValue == "0 / 100 字 · 0%",
+            "Midnight did not roll over: \(profile.todayLabel.stringValue)")
+        try require(harness.settings.nextRollover == calendar.date(from: DateComponents(year: 2026, month: 9, day: 29)),
+            "The next rollover is \(String(describing: harness.settings.nextRollover))")
+        try write(ideographs(7, seed: 45), in: reopened)
+        try require(today() == 7 && profile.todayLabel.stringValue == "今日 7 / 100 字 · 7%", "The new day counted \(today())")
+        let file = harness.root.appendingPathComponent(LabSettingsStore.fileName)
+        func storedDays() throws -> [String: Int] {
+            let json = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any]
+            return ((json?["dailyWords"] as? [String: Any])?[projectID] as? [String: Int]) ?? [:]
+        }
+        try require(try storedDays() == ["2026-09-27": 55, "2026-09-28": 7], "settings.json holds \(try storedDays())")
+        // Reads, brackets and the rollover write nothing to the journal.
+        let mark = try harness.journal.mark()
+        let _: WorkspaceWordCounts = try elementResult { harness.workspace.reconcileWordCounts(projectID: projectID, completion: $0) }
+        try settleCounts()
+        harness.settings.checkDay()
+        try harness.journal.expect([], since: mark, "Counting today's words")
+        profile.window.close()
+
+        // A cold relaunch keeps the day and counts only what follows.
+        let _: Bool = try elementResult { peer.close(completion: $0) }
+        try harness.relaunch()
+        clock = calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 0, minute: 5))!
+        attach()
+        try settleCounts()
+        let relaunched = try sheet()
+        try require(today() == 7 && relaunched.todayLabel.stringValue == "今日 7 / 100 字 · 7%", "The relaunch reads \(relaunched.todayLabel.stringValue)")
+        let again = try open(chapters[0])
+        try write(ideographs(3, seed: 46), in: again)
+        try require(today() == 10 && relaunched.todayLabel.stringValue == "今日 10 / 100 字 · 10%", "After the relaunch today reads \(today())")
+        relaunched.window.close()
+
+        // 30 days are kept: a synthetic project observed on 35 days in a row.
+        let start = clock
+        for day in 0..<35 {
+            clock = calendar.date(byAdding: .day, value: day, to: start)!
+            ledger.observe(projectID: "synthetic-days", counts: WorkspaceWordCounts(
+                counts: [WorkspaceNodeWordCount(nodeId: "chapter-synthetic", kind: "chapter", wordCount: day)], failures: []), authored: true)
+        }
+        let kept = harness.settings.dailyWords(projectID: "synthetic-days")
+        let oldest = harness.settings.dayKey(calendar.date(byAdding: .day, value: 5, to: start)!)
+        try require(kept.count == 30 && kept.keys.min() == oldest && kept.values.allSatisfy { $0 == 1 }
+            && harness.settings.dailyWords(projectID: projectID).isEmpty,
+            "Pruning kept \(kept.count) days from \(kept.keys.min() ?? "")")
     }
 }

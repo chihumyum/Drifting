@@ -49,6 +49,10 @@ struct LabSettings: Codable, Equatable {
     var writingPlans: [String: WritingPlan] = [:]
     /// Each project's 设定总览 viewport, keyed by project identity.
     var elementOverviewViewports: [String: ElementOverviewViewport] = [:]
+    /// 今日字数: per project, the net change in canonical chapter word
+    /// counts this device's own saves made on each local calendar day
+    /// (`yyyy-MM-dd`), for the last 30 days. See `DailyWordLedger`.
+    var dailyWords: [String: [String: Int]] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -60,7 +64,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
-        case writingPlans, elementOverviewViewports
+        case writingPlans, elementOverviewViewports, dailyWords
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -79,6 +83,7 @@ struct LabSettings: Codable, Equatable {
         writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
+        dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
         self = normalized()
     }
 
@@ -142,6 +147,8 @@ final class LabSettingsStore {
             storageMessage = "设置文件无法读取，已使用默认设置。修改任一设置后会重新保存。"
         }
     }
+
+    deinit { rolloverTimer?.invalidate() }
 
     var importedFontURL: URL? { settings.importedFont.map { fontsDirectory.appendingPathComponent($0.storedName) } }
 
@@ -275,13 +282,98 @@ final class LabSettingsStore {
         changed()
     }
 
+    // MARK: Today's words
+
+    /// A project's 今日字数 changed, or the local day rolled over; `object`
+    /// is the store, `userInfo["projectID"]` the project (absent on rollover).
+    static let dailyWordsDidChange = Notification.Name("LabSettingsStoreDailyWordsDidChange")
+    /// Days kept, today included.
+    static let dailyWordDays = 30
+    /// The clock the ledger's days follow; acceptance injects one and then
+    /// calls `checkDay()`, as the midnight timer does.
+    var now: () -> Date = Date.init
+    /// Local calendar days.
+    var calendar = Calendar.current
+    /// When the next local midnight fires `checkDay()`.
+    private(set) var nextRollover: Date?
+    private var rolloverTimer: Timer?
+    private var shownDay: String?
+
+    /// `yyyy-MM-dd` of the local calendar day of `date`.
+    func dayKey(_ date: Date) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// The net words this device wrote in the project today; 0 for none.
+    func todayWords(projectID: String) -> Int {
+        if rolloverTimer == nil { scheduleRollover() }
+        return settings.dailyWords[projectID]?[dayKey(now())] ?? 0
+    }
+
+    /// The stored days of a project, for acceptance and diagnostics.
+    func dailyWords(projectID: String) -> [String: Int] { settings.dailyWords[projectID] ?? [:] }
+
+    /// Adds a net change to today's entry, drops days older than 30 and
+    /// saves at once. Editors and the settings window are not told.
+    func recordWords(_ delta: Int, projectID: String) {
+        guard delta != 0 else { return }
+        let today = dayKey(now())
+        settings.dailyWords[projectID, default: [:]][today, default: 0] += delta
+        pruneDailyWords()
+        save()
+        if rolloverTimer == nil { scheduleRollover() }
+        NotificationCenter.default.post(name: Self.dailyWordsDidChange, object: self, userInfo: ["projectID": projectID])
+    }
+
+    /// At local midnight: today's words start again from 0 and days beyond
+    /// the 30 kept are dropped. Views showing 今日 read again.
+    func checkDay() {
+        let today = dayKey(now())
+        if shownDay != today {
+            shownDay = today
+            if pruneDailyWords() { save() }
+            NotificationCenter.default.post(name: Self.dailyWordsDidChange, object: self)
+        }
+        scheduleRollover()
+    }
+
+    @discardableResult
+    private func pruneDailyWords() -> Bool {
+        let start = calendar.startOfDay(for: now())
+        guard let first = calendar.date(byAdding: .day, value: -(Self.dailyWordDays - 1), to: start) else { return false }
+        let oldest = dayKey(first)
+        var pruned = false
+        for (projectID, days) in settings.dailyWords {
+            let kept = days.filter { $0.key >= oldest }
+            if kept.count != days.count { pruned = true; settings.dailyWords[projectID] = kept.isEmpty ? nil : kept }
+        }
+        return pruned
+    }
+
+    private func scheduleRollover() {
+        rolloverTimer?.invalidate()
+        let current = now()
+        if shownDay == nil { shownDay = dayKey(current) }
+        guard let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: current)) else { return }
+        nextRollover = midnight
+        // A little past midnight, so the new day has begun on any clock.
+        let timer = Timer(timeInterval: max(1, midnight.timeIntervalSince(current) + 1), repeats: false) { [weak self] _ in
+            self?.checkDay()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        rolloverTimer = timer
+    }
+
     // MARK: Deleted projects
 
-    /// A deleted project leaves no 写作计划 or 设定总览 viewport behind.
+    /// A deleted project leaves no 写作计划, 设定总览 viewport or 今日字数 behind.
     func forgetProject(_ projectID: String) {
-        guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil else { return }
+        guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
+            || settings.dailyWords[projectID] != nil else { return }
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
+        settings.dailyWords.removeValue(forKey: projectID)
         save()
     }
 

@@ -1,9 +1,10 @@
 # Whole book, statistics and writing plan
 
 The 全书长卷 shows every live chapter in reading order in one scroll, with
-act separators. 统计 describes the book on that axis, and the writing plan
-(写作计划) sets its word target. Native only; no Tauri interoperability is
-kept. There is no new Rust command or SQLite migration.
+act separators. 统计 describes the book on that axis, the writing plan
+(写作计划) sets its word target and daily goal, and 今日字数 counts today's
+writing against that goal. Native only; no Tauri interoperability is kept.
+There is no new Rust command or SQLite migration.
 
 ## Native interaction
 
@@ -48,6 +49,7 @@ Right-clicking a chapter offers its 写作状态.
 - 全书概览: 总字数 (chapters only, from the word-count model), 章节,
   平均每章, 完成度 (the share of chapters 已完成) and the status counts;
 - 已写 / 目标 and a progress track, from the writing plan;
+- 今日: today's words against the daily goal, with a progress track;
 - 幕节奏: a strip and one row per act with its chapters, words and share;
 - 章节长度节奏: one bar per chapter in book order, scaled to the longest, in
   its act's colour (neutral before the first act). Hovering names the
@@ -63,23 +65,45 @@ rhythm sections stay hidden.
 typed text. Plans are stored per project in the lab's `settings.json`
 (`writingPlans`), never in user defaults, and write nothing to the journal.
 The sheet shows the progress towards the target beside the chapter counts by
-status.
+status, and “今日 523 / 1,500 字 · 34%” with its track below it.
+
+## Today's words (今日字数)
+
+Today's words are the net change in canonical chapter word counts that this
+device's own saves made on the current local calendar day: typing and
+deleting, undo and redo, the writing assistant's accepted changes and
+imports (a new chapter counts from zero). They can be negative. Drifts and
+other bodies do not count. Received remote originals, reconciliations,
+version restores, and chapter trash and restore do not count.
+
+- **Ledger.** Rust stores a chapter's count with every body save, and all
+  saves and count reads run in order on the one workspace queue. The Mac's
+  ledger (`DailyWordLedger`) compares each count read with the previous one
+  and adds the change to today. Around each change it must not count,
+  `LabWorkspaceCore` sends a count read directly before it and an unauthored
+  read directly after it (a reconcile after a receipt, which may change
+  closed bodies), so the ledger re-bases over it. The first read of a project
+  in a session is only a baseline; words saved but never read before quitting
+  are not counted.
+- **Storage.** `settings.json` keeps `dailyWords` per project and
+  `yyyy-MM-dd` day, for the last 30 days (today included); older days are
+  dropped when a day is written or rolls over. The ledger writes nothing
+  else: no journal row, nothing that leaves the device. Deleting a project
+  removes its days.
+- **Days.** A change counts on the local day its read runs. A timer at the
+  next local midnight starts today again from 0 in open sheets and 统计.
+- **Limits.** Undoing a version restore counts as an edit. There is no
+  streak or weekly total yet.
 
 ## Not ported
 
-- **Today's words.** The renderer derives them from client-side daily
-  snapshots of the book total. Version-history snapshots are not a daily
-  baseline, and a first-observation baseline would count received and
-  imported text as the author's, so the daily goal is stored but no progress
-  is shown for it.
-- **Other features.** Find in the long view (`AllChaptersFindPanel`), the
-  outline rail, remembering the reading position across launches, and a
-  shared toolbar for the focused chapter are not ported. Each attached
-  chapter keeps its own editor controls.
+Find in the long view (`AllChaptersFindPanel`), the outline rail, remembering
+the reading position across launches, and a shared toolbar for the focused
+chapter are not ported. Each attached chapter keeps its own editor controls.
 
 ## Acceptance
 
-Five programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
+Six programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
 (`--whole-book-only`; [binding report](acceptance/p2b-binding.json)) drive the
 real controllers, tab host, Rust workspace and SQLite:
 
@@ -97,5 +121,10 @@ real controllers, tab host, Rust workspace and SQLite:
   bar click that scrolls; statuses written elsewhere follow.
 - 写作计划 parsing, refusal, `settings.json`, no journal writes, and a cold
   relaunch.
+- 今日字数 with an injected clock: typing, undo and redo, an accepted
+  writing-assistant change and an import count in 项目资料 and 统计; received
+  originals into an open and a closed chapter (from a second replica), a
+  version restore, and chapter trash and restore do not; midnight rollover,
+  30 kept days, no journal writes, and a cold relaunch that counts nothing twice.
 
 Physical input, desktop XCTest and a visible panel on screen are not covered.

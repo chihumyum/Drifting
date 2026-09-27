@@ -3,7 +3,7 @@ import AppKit
 /// 项目资料: one project's 本书简介, 本书字段 and 故事线字段模版 in a sheet, with its
 /// chapters counted by status and the book's word total, and its 写作计划
 /// (target and daily goal, kept in the lab's settings.json) with the book's
-/// progress towards the target. Each part is written on its own, as page
+/// progress towards the target and today's words towards the daily goal. Each part is written on its own, as page
 /// fields are: the summary (trimmed) on end-editing when it changed, and each
 /// facts list after a row ended editing or was added, removed or moved.
 /// Commands run one at a time. A refusal keeps the typed text and rows and
@@ -34,6 +34,10 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
     let dailyField = NSTextField(string: "")
     let planLabel = NSTextField(labelWithString: "")
     let planBar = BookProgressBar()
+    /// “今日 523 / 1,500 字 · 34%”: this device's net words today against
+    /// the daily goal (今日字数), with its track.
+    let todayLabel = NSTextField(labelWithString: "")
+    let todayBar = BookProgressBar()
     let planMessage = NSTextField(wrappingLabelWithString: "")
     let statsButton = NSButton(title: "节奏统计…", target: nil, action: nil)
     /// 节奏统计… shows the book's 统计 beside the button.
@@ -139,6 +143,7 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         model.onChange = { [weak self] in self?.refresh() }
         if plans != nil {
             NotificationCenter.default.addObserver(self, selector: #selector(planStored(_:)), name: LabSettingsStore.writingPlanDidChange, object: plans)
+            NotificationCenter.default.addObserver(self, selector: #selector(todayChanged(_:)), name: LabSettingsStore.dailyWordsDidChange, object: plans)
             showPlan()
         }
         refresh()
@@ -178,6 +183,10 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         planLabel.textColor = .secondaryLabelColor
         planLabel.setAccessibilityIdentifier("writing-plan-progress")
         planBar.setAccessibilityIdentifier("writing-plan-bar")
+        todayLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        todayLabel.textColor = .secondaryLabelColor
+        todayLabel.setAccessibilityIdentifier("writing-plan-today")
+        todayBar.setAccessibilityIdentifier("writing-plan-today-bar")
         planMessage.textColor = .systemRed
         planMessage.font = .systemFont(ofSize: 12)
         planMessage.isHidden = true
@@ -189,11 +198,13 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         statsButton.toolTip = "全书概览、幕节奏和章节长度节奏"
         let progress = NSStackView(views: [planLabel, NSView(), statsButton])
         progress.spacing = 8
-        let section = NSStackView(views: [heading("写作计划"), fields, progress, planBar, planMessage])
+        let section = NSStackView(views: [heading("写作计划"), fields, progress, planBar, todayLabel, todayBar, planMessage])
         section.orientation = .vertical; section.alignment = .leading; section.spacing = 6
+        section.setCustomSpacing(10, after: planBar)
         NSLayoutConstraint.activate([
             fields.widthAnchor.constraint(equalTo: section.widthAnchor), progress.widthAnchor.constraint(equalTo: section.widthAnchor),
             planBar.widthAnchor.constraint(equalTo: section.widthAnchor), planMessage.widthAnchor.constraint(equalTo: section.widthAnchor),
+            todayLabel.widthAnchor.constraint(equalTo: section.widthAnchor), todayBar.widthAnchor.constraint(equalTo: section.widthAnchor),
         ])
         return section
     }
@@ -207,9 +218,26 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         refreshPlanProgress()
     }
 
+    /// “今日 523 / 1,500 字 · 34%” with its track; no track without a daily goal.
+    func refreshToday() {
+        guard let plans else { return }
+        let goal = plans.writingPlan(projectID: model.projectID).dailyWordGoal
+        let today = plans.todayWords(projectID: model.projectID)
+        todayLabel.stringValue = DailyWordText.line(today: today, goal: goal)
+        let fraction = DailyWordText.fraction(today: today, goal: goal)
+        todayBar.fraction = fraction ?? 0
+        todayBar.isHidden = fraction == nil
+    }
+
+    @objc private func todayChanged(_ notification: Notification) {
+        guard let project = notification.userInfo?["projectID"] as? String else { refreshToday(); return }
+        if project == model.projectID { refreshToday() }
+    }
+
     /// “已写 12,345 / 120,000 字 · 10%”, 统计中… until every chapter is counted.
     private func refreshPlanProgress() {
         guard let plans else { return }
+        refreshToday()
         let plan = plans.writingPlan(projectID: model.projectID)
         guard plan.projectWordTarget > 0 else { planLabel.stringValue = "未设目标"; planBar.isHidden = true; return }
         guard let counts = model.wordCounts, counts.ready else {

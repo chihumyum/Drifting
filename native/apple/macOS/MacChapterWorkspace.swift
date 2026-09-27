@@ -1226,6 +1226,95 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    // MARK: Global search
+
+    /// A global search hit opens its page as a tab in the active pane: a
+    /// chapter (for its 摘要), drift, element, category or storyline. A body
+    /// hit then selects its match once the owner is idle, resolved again by
+    /// `workspaceResolveEntityHit` against current prose. An entity not yet
+    /// in the project's libraries is read first. Reports nil, or why not.
+    func reveal(searchHit hit: WorkspaceEntitySearchHit, project: WorkspaceProject, completion: @escaping (String?) -> Void) {
+        pendingSearchReveal?.done("已选择另一条搜索结果。")
+        pendingSearchReveal = nil
+        let endpoint: RelationEndpoint
+        switch hit.kind {
+        case "chapter", "drift": endpoint = RelationEndpoint(kind: "node", id: hit.id)
+        case "element", "category", "storyline": endpoint = RelationEndpoint(kind: hit.kind, id: hit.id)
+        default: completion("这种搜索结果不在页面中打开。"); return
+        }
+        let open: () -> Void = { [weak self] in
+            guard let self else { return }
+            let opened: (Result<NativeDocumentView, Error>) -> Void = { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let view):
+                    guard hit.isBody else { completion(nil); return }
+                    self.pendingSearchReveal = (view, hit, project.id, completion)
+                    self.resolveSearchReveal()
+                case .failure(let error): completion(error.localizedDescription)
+                }
+            }
+            if hit.kind == "chapter" {
+                self.open(project: project, chapter: WorkspaceChapter(id: hit.id, title: hit.title), completion: opened)
+            } else {
+                self.open(endpoint: endpoint, project: project, completion: opened)
+            }
+        }
+        guard hit.kind != "chapter", case .failure = tabTarget(for: endpoint, projectID: project.id) else { open(); return }
+        // Not in the libraries read so far: read the one it belongs to.
+        switch hit.kind {
+        case "element", "category":
+            workspace.elementLibrary(projectID: project.id) { [weak self] result in
+                if case .success(let library) = result { self?.applyElementLibrary(projectID: project.id, library: library) }
+                open()
+            }
+        case "drift":
+            workspace.driftLibrary(projectID: project.id) { [weak self] result in
+                if case .success(let library) = result { self?.applyDriftLibrary(projectID: project.id, library: library) }
+                open()
+            }
+        default:
+            workspace.storylineLibrary(projectID: project.id) { [weak self] result in
+                if case .success(let library) = result { self?.applyStorylineLibrary(projectID: project.id, library: library) }
+                open()
+            }
+        }
+    }
+
+    private var pendingSearchReveal: (view: NativeDocumentView, hit: WorkspaceEntitySearchHit, projectID: String, done: (String?) -> Void)?
+    private var resolvingSearchReveal = false
+
+    /// Waits for the opened page's owner to be idle (no queued or marked
+    /// input, the view showing current prose), then resolves the anchors and
+    /// selects the match only if nothing changed in between.
+    private func resolveSearchReveal() {
+        guard !resolvingSearchReveal, let pending = pendingSearchReveal, !isBusy else { return }
+        guard pending.view === activeView else {
+            pendingSearchReveal = nil; pending.done("当前编辑栏已变化，请重新选择搜索结果。"); return
+        }
+        let binding = pending.view.binding
+        guard binding.canEdit, !binding.hasPendingWork, !pending.view.textView.hasMarkedText(),
+              let projection = binding.store.projection,
+              NativeText.identical(pending.view.textView.string, projection.text) else { return }
+        pendingSearchReveal = nil
+        resolvingSearchReveal = true
+        workspace.resolveEntityHit(projectID: pending.projectID, hit: pending.hit) { [weak self] result in
+            guard let self else { return }
+            self.resolvingSearchReveal = false
+            switch result {
+            case .success(let location):
+                guard pending.view === self.activeView else { pending.done("当前编辑栏已变化，请重新选择搜索结果。"); return }
+                guard let range = location.range, pending.view.reveal(range: range, revision: location.revision) else {
+                    pending.done("正文已变化，请重新搜索后再定位。"); return
+                }
+                pending.done(nil)
+            case .failure(let error): pending.done(error.localizedDescription)
+            }
+            // Another hit may have been chosen meanwhile.
+            self.resolveSearchReveal()
+        }
+    }
+
     // MARK: Review
 
     /// The active tab's page for 审阅's 当前: a chapter, drift, element,
@@ -1686,6 +1775,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.focusWhenReady()
             self.resolveLinkReveal()
             self.resolveCommentLocate()
+            self.resolveSearchReveal()
             // Settled chapter prose may add or remove references.
             if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
             if !busy, let tab { self.countSavedBody(of: tab) }
@@ -1713,7 +1803,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.view.isInteractionLocked = value || externallyLocked
         }
         updateTabAvailability()
-        if !value { focusWhenReady(); resolveCommentLocate() }
+        if !value { focusWhenReady(); resolveCommentLocate(); resolveSearchReveal() }
         onActivity?(!canNavigate)
     }
     private func focusWhenReady() {

@@ -900,15 +900,19 @@ final class LabWorkspaceCore {
 
     func trashChapter(projectID: String, chapterID: String,
                       completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
-        changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: true, completion: completion) {
-            try self.request("workspaceTrashChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+        notAuthored(projectID) {
+            changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: true, completion: completion) {
+                try self.request("workspaceTrashChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+            }
         }
     }
 
     func restoreChapter(projectID: String, chapterID: String,
                         completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
-        changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: false, completion: completion) {
-            try self.request("workspaceRestoreChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+        notAuthored(projectID) {
+            changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: false, completion: completion) {
+                try self.request("workspaceRestoreChapter", fields: ["projectId": projectID, "chapterId": chapterID])
+            }
         }
     }
 
@@ -1463,13 +1467,43 @@ final class LabWorkspaceCore {
     /// Every live chapter's and drift's canonical word count. A read only.
     /// Each body save already stored its own count in Rust.
     func wordCounts(projectID: String, completion: @escaping (Result<WorkspaceWordCounts, Error>) -> Void) {
-        perform(completion) { try self.metricsRequest(projectID, "counts") }
+        readWordCounts(projectID, "counts", authored: true, completion: completion)
     }
 
     /// Projects every live chapter and drift body with durable prose, then
     /// reads the counts. Derived rows only: no original, no `updated_at`.
+    /// A reconcile only corrects projections no save wrote, so for 今日字数
+    /// it is never the author's: it is bracketed like a receipt.
     func reconcileWordCounts(projectID: String, completion: @escaping (Result<WorkspaceWordCounts, Error>) -> Void) {
-        perform(completion) { try self.metricsRequest(projectID, "reconcile") }
+        if onWordCountRead != nil { readWordCounts(projectID, "counts", authored: true) }
+        readWordCounts(projectID, "reconcile", authored: false, completion: completion)
+    }
+
+    /// Every word-count read of a project, reported in the order Rust ran it
+    /// on the workspace queue (the order of every body save). `authored` is
+    /// false for the read that closes a change this device did not write: a
+    /// received original, a version restore, chapter trash and restore, or a
+    /// reconcile. Set by the Mac's 今日字数 ledger; nil sends no extra reads.
+    var onWordCountRead: ((_ projectID: String, _ counts: WorkspaceWordCounts, _ authored: Bool) -> Void)?
+
+    private func readWordCounts(_ projectID: String, _ action: String, authored: Bool,
+                                completion: ((Result<WorkspaceWordCounts, Error>) -> Void)? = nil) {
+        perform({ (result: Result<WorkspaceWordCounts, Error>) in
+            if case .success(let counts) = result { self.onWordCountRead?(projectID, counts, authored) }
+            completion?(result)
+        }) { try self.metricsRequest(projectID, action) }
+    }
+
+    /// Brackets a change this device did not write with word-count reads,
+    /// enqueued directly before and after it on the serial workspace queue:
+    /// what changed before it is the author's, what it changed is not. A
+    /// receipt may change bodies without an owner, so its closing read reconciles.
+    private func notAuthored(_ projectID: String, reconcile: Bool = false, _ enqueue: () -> Void) {
+        precondition(Thread.isMainThread)
+        guard onWordCountRead != nil else { enqueue(); return }
+        readWordCounts(projectID, "counts", authored: true)
+        enqueue()
+        readWordCounts(projectID, reconcile ? "reconcile" : "counts", authored: false)
     }
 
     private func metricsRequest(_ projectID: String, _ action: String) throws -> WorkspaceWordCounts {
@@ -1571,6 +1605,33 @@ final class LabWorkspaceCore {
         }
     }
 
+    /// Summaries, drifts, elements (name, aliases, summary, facts, body),
+    /// categories, storylines and materials. Bodies are read from their live
+    /// owner (unsaved text included) or a cold reader. A read only.
+    func searchEntities(projectID: String, query: String,
+                        completion: @escaping (Result<WorkspaceEntitySearchResult, Error>) -> Void) {
+        perform(completion) { try self.request("workspaceSearchEntities", fields: ["projectId": projectID, "query": query]) }
+    }
+
+    /// The current range of a body hit in its open owner. Rust refuses when
+    /// the page is not open, the body's scope changed, input is pending or
+    /// the matched text changed.
+    func resolveEntityHit(projectID: String, hit: WorkspaceEntitySearchHit,
+                          completion: @escaping (Result<WorkspaceSearchLocation, Error>) -> Void) {
+        perform(completion) {
+            let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hit))
+            do {
+                return try self.request("workspaceResolveEntityHit", fields: ["projectId": projectID, "hit": payload])
+            } catch LabError.message(let reason) {
+                // Rust's refusals are Chinese; anything else is not shown raw.
+                guard reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) else {
+                    throw LabError.message("这条结果已无法定位，请重新搜索。")
+                }
+                throw LabError.message(reason)
+            }
+        }
+    }
+
     /// Completion reports durable acceptance and dispatch to existing stores.
     /// Queued input and marked drafts can keep individual views on their old
     /// input basis until DocumentStore's normal refresh can safely adopt it.
@@ -1601,13 +1662,15 @@ final class LabWorkspaceCore {
                       "envelope": envelope.base64EncodedString()]
         } catch { completion(.failure(error)); return }
         remoteDeliveryInFlight += 1
-        perform({ (result: Result<Reply, Error>) in
-            if case .success(let reply) = result { self.routeReconciledDocuments(reply.documents) }
-            self.remoteDeliveryInFlight -= 1
-            if case .success = result { self.onRemoteOriginal?(original.projectId) }
-            completion(result)
-        }) {
-            try self.request(operation, fields: fields)
+        notAuthored(original.projectId, reconcile: true) {
+            perform({ (result: Result<Reply, Error>) in
+                if case .success(let reply) = result { self.routeReconciledDocuments(reply.documents) }
+                self.remoteDeliveryInFlight -= 1
+                if case .success = result { self.onRemoteOriginal?(original.projectId) }
+                completion(result)
+            }) {
+                try self.request(operation, fields: fields)
+            }
         }
     }
 
@@ -1617,12 +1680,14 @@ final class LabWorkspaceCore {
             completion(.failure(LabError.message("正在切换章节，请稍后重试恢复正文"))); return
         }
         remoteDeliveryInFlight += 1
-        perform({ (result: Result<[WorkspaceDocumentReply], Error>) in
-            if case .success(let documents) = result { self.routeReconciledDocuments(documents) }
-            self.remoteDeliveryInFlight -= 1
-            completion(result.map { _ in true })
-        }) {
-            try self.request("workspaceReconcileProse", fields: ["projectId": projectID])
+        notAuthored(projectID, reconcile: true) {
+            perform({ (result: Result<[WorkspaceDocumentReply], Error>) in
+                if case .success(let documents) = result { self.routeReconciledDocuments(documents) }
+                self.remoteDeliveryInFlight -= 1
+                completion(result.map { _ in true })
+            }) {
+                try self.request("workspaceReconcileProse", fields: ["projectId": projectID])
+            }
         }
     }
 
@@ -1782,15 +1847,17 @@ final class LabWorkspaceCore {
         if owners[target.scope]?.core.hasPendingDocumentWork == true {
             completion(.failure(LabError.message("正在输入或保存正文，请结束输入并等待保存后再恢复历史版本。"))); return
         }
-        perform({ (result: Result<WorkspaceHistoryRestored, Error>) in
-            if case .success(let reply) = result, let handle = reply.handle,
-               let owner = self.owners.values.first(where: { $0.handle == handle }), !owner.core.isClosed {
-                owner.core.receiveReconciledState(reply.document)
+        notAuthored(projectID) {
+            perform({ (result: Result<WorkspaceHistoryRestored, Error>) in
+                if case .success(let reply) = result, let handle = reply.handle,
+                   let owner = self.owners.values.first(where: { $0.handle == handle }), !owner.core.isClosed {
+                    owner.core.receiveReconciledState(reply.document)
+                }
+                completion(result)
+            }) {
+                try self.request("workspaceHistory", fields: ["projectId": projectID, "command": [
+                    "action": "restore", "target": target.payload, "snapshotId": snapshotID]])
             }
-            completion(result)
-        }) {
-            try self.request("workspaceHistory", fields: ["projectId": projectID, "command": [
-                "action": "restore", "target": target.payload, "snapshotId": snapshotID]])
         }
     }
 

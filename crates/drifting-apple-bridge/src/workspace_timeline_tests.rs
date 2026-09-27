@@ -54,6 +54,20 @@ fn workspace_timeline_orders_markers_positions_and_cold_reopen() {
         json!({"action":"moveChapter","chapterId":chapter,"order":4.5,"lane":storyline}),
     ));
     assert_eq!(moved["result"]["narrativeOrder"], 4.5);
+    // A lane change returns the storyline library; an order-only move does not.
+    let membership = moved["storylines"]["memberships"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["chapterId"] == json!(chapter))
+        .unwrap()
+        .clone();
+    assert_eq!(membership["primary"], storyline);
+    let order_only = success(timeline(
+        &fixture,
+        json!({"action":"moveChapter","chapterId":chapter,"order":4.75}),
+    ));
+    assert!(order_only.get("storylines").is_none());
     let nodes = success(json!({"operation":"workspaceMetadata","handle":fixture.workspace,"projectId":fixture.project,
         "command":{"action":"nodes"}}))["result"].clone();
     assert!(nodes

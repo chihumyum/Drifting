@@ -180,10 +180,10 @@
         "project-workspace"
       ],
       "acceptance": [
-        "current project title/prose matches over live and cold owners without cache writes; exact current anchored selection; stale, unavailable and truncated results are explicit; summaries, replacement and wider entity search remain later parity gates"
+        "current project title/prose matches over live and cold owners without cache writes; exact current anchored selection; stale, unavailable and truncated results are explicit; Mac global search over summaries, drifts, elements, categories, storylines and materials with anchored body hits; replacement remains a later parity gate"
       ],
       "milestone": "P3/P5/P6",
-      "status": "chapter-title-and-prose-navigation-implemented; wider-search-parity-planned",
+      "status": "chapter-title-and-prose-navigation-and-Mac-global-entity-search-implemented; replacement-planned",
       "decisionTask": null
     },
     {
@@ -298,7 +298,7 @@
         "synthetic corpus counting parity; preserve Apache-2.0 provenance"
       ],
       "milestone": "P3",
-      "status": "Rust-word-count-port-and-whole-book-statistics-implemented",
+      "status": "Rust-word-count-port-whole-book-statistics-and-Mac-today's-words-implemented",
       "decisionTask": "D6"
     },
     {

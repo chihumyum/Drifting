@@ -58,7 +58,7 @@ mod replay_tests;
 #[cfg(test)]
 mod retention_tests;
 mod search;
-pub use search::{native_search_ranges, NativeSearchHit, NativeSearchMatch};
+pub use search::{native_search_preview, native_search_ranges, NativeSearchHit, NativeSearchMatch};
 #[cfg(test)]
 mod search_tests;
 #[cfg(test)]

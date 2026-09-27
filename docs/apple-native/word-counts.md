@@ -68,7 +68,8 @@ The wording and number formats follow the renderer's zh-CN strings:
   before the first read.
 - 项目资料 shows “全书 1,234 字” under the status counts.
 - A node without a canonical count shows nothing in rows or on its page.
-  Today's word count is not shown: writing history belongs to the renderer.
+  Today's words (今日字数) are derived from these counts on the Mac; see
+  [whole book](whole-book.md).
 
 ## Acceptance
 

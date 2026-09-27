@@ -12,7 +12,7 @@ pub(crate) struct SearchScope {
     project_id: String,
     project_sync_id: String,
     sync_generation_id: String,
-    document_id: String,
+    pub(super) document_id: String,
     incarnation: u64,
 }
 
@@ -29,7 +29,7 @@ impl From<&ArchiveScope> for SearchScope {
 }
 
 impl SearchScope {
-    fn matches(&self, scope: &ArchiveScope) -> bool {
+    pub(super) fn matches(&self, scope: &ArchiveScope) -> bool {
         self.project_id == scope.project_id
             && self.project_sync_id == scope.project_sync_id
             && self.sync_generation_id == scope.sync_generation_id

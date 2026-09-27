@@ -47,7 +47,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
-- [Whole book (全书长卷), statistics and writing plan](whole-book.md)
+- [Whole book (全书长卷), statistics, writing plan and today's words](whole-book.md)
 - [Element overview (设定总览)](element-overview.md)
 - [Review (审阅), TODOs and the 备忘与素材 board](review.md)
 - [Native interaction specification](design.md)
@@ -102,10 +102,12 @@ outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
 library ordering, act colours, project deletion,
-chapter tabs with a two-pane split, formatting, project search, native
-editing, save and reopen. Every write goes through shared Rust domain commands,
-transactions and canonical journals; views of one chapter share its document
-owner and history while keeping their own selections. Remote prose and chapter
+chapter tabs with a two-pane split, formatting, project search over chapters,
+summaries, drifts, elements, categories, storylines and materials, today's
+words against the daily goal, native editing, save and reopen. Every write
+goes through shared Rust domain commands, transactions and canonical journals;
+views of one chapter share its document owner and history while keeping their
+own selections. Remote prose and chapter
 originals are received through the shared native queue without replacing live
 editors. The writing assistant keeps provider API keys in the lab's own Keychain
 service (`Drifting Native Lab`); the production Keychain service and URL scheme

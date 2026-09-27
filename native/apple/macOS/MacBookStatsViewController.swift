@@ -124,13 +124,16 @@ final class BookRhythmChart: NSView {
 }
 
 /// 统计: the book overview (total, chapters, average, completion), the
-/// writing plan's written/target progress, act rhythm with each act's words,
-/// and chapter-length rhythm. Values come from the book layout, the word
-/// count model and the plan; 统计中… stands until every chapter is counted.
+/// writing plan's written/target progress and today's words against the
+/// daily goal, act rhythm with each act's words, and chapter-length rhythm.
+/// Values come from the book layout, the word count model, the plan and the
+/// 今日字数 ledger; 统计中… stands until every chapter is counted.
 final class MacBookStatsViewController: NSViewController {
     let model: WholeBookModel
     var counts: () -> WordCountLibrary? = { nil }
     var plan: () -> WritingPlan = { WritingPlan() }
+    /// This device's net words today (今日字数); nil hides the row.
+    var today: () -> Int? = { nil }
     var onSelectChapter: ((BookChapter) -> Void)?
     var onSelectAct: ((BookAct) -> Void)?
 
@@ -141,6 +144,9 @@ final class MacBookStatsViewController: NSViewController {
     let statusValue = MacBookStatsViewController.value("book-stats-statuses")
     let targetValue = MacBookStatsViewController.value("book-stats-target")
     let targetBar = BookProgressBar()
+    let todayValue = MacBookStatsViewController.value("book-stats-today")
+    let todayBar = BookProgressBar()
+    private var todayRow: NSGridRow!
     let actStrip = BookActStrip()
     let actRows = NSStackView()
     let rhythm = BookRhythmChart()
@@ -182,10 +188,13 @@ final class MacBookStatsViewController: NSViewController {
         let grid = NSGridView(views: [
             [Self.key("总字数"), totalValue], [Self.key("章节"), chaptersValue], [Self.key("平均每章"), averageValue],
             [Self.key("完成度"), completionValue], [Self.key("写作状态"), statusValue], [Self.key("已写 / 目标"), targetValue],
+            [Self.key("今日"), todayValue],
         ])
         grid.rowSpacing = 6
         grid.column(at: 1).xPlacement = .trailing
+        todayRow = grid.row(at: grid.numberOfRows - 1)
         targetBar.setAccessibilityIdentifier("book-stats-target-bar")
+        todayBar.setAccessibilityIdentifier("book-stats-today-bar")
         actStrip.setAccessibilityIdentifier("book-stats-act-strip")
         actRows.orientation = .vertical; actRows.alignment = .leading; actRows.spacing = 2
         actSection.orientation = .vertical; actSection.alignment = .leading; actSection.spacing = 8
@@ -204,11 +213,11 @@ final class MacBookStatsViewController: NSViewController {
         caption.setAccessibilityIdentifier("book-stats-caption")
         rhythmSection.orientation = .vertical; rhythmSection.alignment = .leading; rhythmSection.spacing = 8
         for view in [Self.heading("章节长度节奏"), rhythmScroll, caption] { rhythmSection.addArrangedSubview(view) }
-        let stack = NSStackView(views: [Self.heading("全书概览"), grid, targetBar, actSection, rhythmSection])
+        let stack = NSStackView(views: [Self.heading("全书概览"), grid, targetBar, todayBar, actSection, rhythmSection])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
         stack.setCustomSpacing(10, after: grid)
         // Sections are set apart by spacing and weight only.
-        stack.setCustomSpacing(20, after: targetBar)
+        stack.setCustomSpacing(20, after: todayBar)
         stack.setCustomSpacing(20, after: actSection)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let root = NSView()
@@ -222,6 +231,7 @@ final class MacBookStatsViewController: NSViewController {
             root.widthAnchor.constraint(equalToConstant: 360),
             grid.widthAnchor.constraint(equalTo: stack.widthAnchor),
             targetBar.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            todayBar.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actSection.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actStrip.widthAnchor.constraint(equalTo: actSection.widthAnchor),
             actRows.widthAnchor.constraint(equalTo: actSection.widthAnchor),
@@ -235,6 +245,7 @@ final class MacBookStatsViewController: NSViewController {
         view = root
         model.observe(self) { [weak self] in self?.reload() }
         NotificationCenter.default.addObserver(self, selector: #selector(planChanged(_:)), name: LabSettingsStore.writingPlanDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(todayChanged(_:)), name: LabSettingsStore.dailyWordsDidChange, object: nil)
         reload()
     }
 
@@ -244,9 +255,28 @@ final class MacBookStatsViewController: NSViewController {
         if notification.userInfo?["projectID"] as? String == model.projectID { reload() }
     }
 
+    /// A save changed today's words, or the day rolled over (no project).
+    @objc private func todayChanged(_ notification: Notification) {
+        let project = notification.userInfo?["projectID"] as? String
+        if project == nil || project == model.projectID { showToday() }
+    }
+
+    /// “523 / 1,500 字 · 34%” after 今日, with its track.
+    func showToday() {
+        guard isViewLoaded else { return }
+        guard let today = today() else { todayRow.isHidden = true; todayBar.isHidden = true; return }
+        let goal = plan().dailyWordGoal
+        todayRow.isHidden = false
+        todayValue.stringValue = DailyWordText.value(today: today, goal: goal)
+        let fraction = DailyWordText.fraction(today: today, goal: goal)
+        todayBar.fraction = fraction ?? 0
+        todayBar.isHidden = fraction == nil
+    }
+
     /// Recomputes every value from the current book, counts and plan.
     func reload() {
         guard isViewLoaded else { return }
+        showToday()
         guard model.loaded else {
             for label in [totalValue, averageValue, targetValue] { label.stringValue = WordCountText.counting }
             chaptersValue.stringValue = "—"; completionValue.stringValue = "—"; statusValue.stringValue = "—"

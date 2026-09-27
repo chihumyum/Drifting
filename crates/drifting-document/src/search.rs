@@ -66,7 +66,8 @@ pub fn native_search_ranges(text: &str, query: &str, limit: usize) -> Vec<Native
     ranges
 }
 
-fn preview(text: &str, range: &NativeRange) -> String {
+/// A one-line excerpt around a match: up to 24 characters each side.
+pub fn native_search_preview(text: &str, range: &NativeRange) -> String {
     let mut start = text.len();
     let mut end = text.len();
     let mut offset = 0;
@@ -132,7 +133,7 @@ impl DocumentSession {
                 let start = range.location as usize;
                 let end = start + range.length as usize;
                 hits.push(NativeSearchHit {
-                    preview: preview(&text, &range),
+                    preview: native_search_preview(&text, &range),
                     matched: NativeSearchMatch {
                         start_anchor: self.anchor(id, range.location, false)?,
                         end_anchor: self.anchor(id, range.location + range.length, true)?,

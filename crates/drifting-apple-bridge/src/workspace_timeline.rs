@@ -109,6 +109,16 @@ impl WorkspaceSession {
                 Value::Null
             }
         };
-        Ok(json!({"result": result, "timeline": store.timeline(project_id)?}))
+        let mut reply = json!({"result": result, "timeline": store.timeline(project_id)?});
+        // A lane change rewrites memberships; the storyline library comes
+        // with the reply so the host needs no second read.
+        if matches!(command, TimelineCommand::MoveChapter { lane: Some(_), .. }) {
+            reply["storylines"] = json!({
+                "storylines": store.storylines(project_id)?,
+                "trashedStorylines": store.trashed_storylines(project_id)?,
+                "memberships": store.chapter_memberships(project_id)?,
+            });
+        }
+        Ok(reply)
     }
 }

@@ -43,10 +43,10 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash, acts and act colours, outline, search, comments and TODOs, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
+| P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash, acts and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -79,14 +79,13 @@ architectural redesign.
 | Category pages and element body templates | `f251cf7b` | [categories](categories.md) |
 | Whole-book editor, statistics and writing plan | `38d5e4e7` | [whole book](whole-book.md) |
 | Element overview (设定总览), atomic story graph drops, version reasons and word counts, one-read node metadata | `9e4e8960` | [element overview](element-overview.md), [timeline](timeline.md), [history](history.md), [metadata](metadata.md) |
-| Review panel, TODOs, memo board, act colours and project deletion | this batch | [review](review.md), [library](library.md), [act boundaries](act-boundaries.md), [chapter comments](chapter-comments.md), [workspace](workspace.md) |
+| Review panel, TODOs, memo board, act colours and project deletion | `9624e834` | [review](review.md), [library](library.md), [act boundaries](act-boundaries.md), [chapter comments](chapter-comments.md), [workspace](workspace.md) |
+| Global search and today's words | this batch | [search](search.md), [whole book](whole-book.md), [timeline](timeline.md) |
 
 ## Next batch
 
-Global search (summaries, drifts, elements, categories, storylines,
-materials) and today's words for the daily goal; then element patches
-(设定补丁), the bottom timeline with its act rail, and more writing-assistant
-tools.
+Element patches (设定补丁) and the bottom timeline with its act rail; then
+more writing-assistant tools.
 
 ## Open gates
 

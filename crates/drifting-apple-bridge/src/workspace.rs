@@ -27,6 +27,8 @@ pub(super) mod relations;
 mod remote_prose;
 #[path = "workspace_search.rs"]
 pub(super) mod search;
+#[path = "workspace_search_entities.rs"]
+pub(super) mod search_entities;
 #[path = "workspace_storylines.rs"]
 pub(super) mod storylines;
 #[path = "workspace_timeline.rs"]
@@ -53,6 +55,9 @@ struct WorkspaceSession {
     drift_bodies: HashMap<(String, String), u64>,
     /// Category body owners, keyed by (project, category).
     category_bodies: HashMap<(String, String), u64>,
+    /// Plain text of cold bodies by document id and Yjs revision, so entity
+    /// search skips bodies that cannot match without reading them again.
+    search_texts: HashMap<String, (i64, String)>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -187,6 +192,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceReconcileProse { .. }
             | Request::WorkspaceSearch { .. }
             | Request::WorkspaceResolveSearchHit { .. }
+            | Request::WorkspaceSearchEntities { .. }
+            | Request::WorkspaceResolveEntityHit { .. }
             | Request::WorkspaceChapterOutline { .. }
             | Request::WorkspaceCreateChapter { .. }
             | Request::WorkspaceOpenChapter { .. }
@@ -244,6 +251,7 @@ pub(super) fn dispatch(
                     storyline_bodies: HashMap::new(),
                     drift_bodies: HashMap::new(),
                     category_bodies: HashMap::new(),
+                    search_texts: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})
@@ -429,6 +437,22 @@ pub(super) fn dispatch(
             workspace.project(project_id)?;
             json!(WorkspaceStore::new(&workspace.gateway, CLIENT).outline(project_id)?)
         }
+        Request::WorkspaceSearchEntities {
+            handle,
+            project_id,
+            query,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .search_entities(documents, project_id, query)?,
+        Request::WorkspaceResolveEntityHit {
+            handle,
+            project_id,
+            hit,
+        } => workspaces
+            .get(handle)
+            .ok_or("Unknown or closed workspace")?
+            .resolve_entity_hit(documents, project_id, hit)?,
         Request::WorkspaceSearch {
             handle,
             project_id,

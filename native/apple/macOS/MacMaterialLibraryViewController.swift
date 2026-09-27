@@ -124,6 +124,7 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
         if let selected, let row = items.firstIndex(where: { $0.id == selected }) {
             table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
+        resolveReveal()
         if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible,
            QLPreviewPanel.shared().dataSource === self {
             // A deleted file leaves the preview.
@@ -239,12 +240,34 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
         return table.view(atColumn: 0, row: row, makeIfNecessary: true) as? MaterialCardView
     }
 
-    private var selectedItem: WorkspaceMaterialItem? { items.indices.contains(table.selectedRow) ? items[table.selectedRow] : nil }
+    var selectedItem: WorkspaceMaterialItem? { items.indices.contains(table.selectedRow) ? items[table.selectedRow] : nil }
 
     func select(itemID: String) {
         guard let row = items.firstIndex(where: { $0.id == itemID }) else { return }
         table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         table.scrollRowToVisible(row)
+    }
+
+    /// An item to select once the list has loaded, e.g. a global search hit.
+    private var pendingReveal: String?
+
+    /// Selects and scrolls to the item, after the list loads if needed. An
+    /// item that is gone or hidden by a kind filter says so.
+    func reveal(itemID: String) {
+        pendingReveal = itemID
+        resolveReveal()
+    }
+
+    private func resolveReveal() {
+        guard isViewLoaded, let id = pendingReveal, model.loaded, !model.busy else { return }
+        pendingReveal = nil
+        if items.contains(where: { $0.id == id }) {
+            select(itemID: id)
+            view.window?.makeFirstResponder(table)
+        } else {
+            status.stringValue = model.items.contains(where: { $0.id == id })
+                ? "这条素材被筛选隐藏了，请显示它的类型。" : "这条素材已不在素材库中，可能已被删除。"
+        }
     }
 
     // MARK: Drop

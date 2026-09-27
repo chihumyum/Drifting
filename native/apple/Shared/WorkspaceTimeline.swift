@@ -39,10 +39,12 @@ struct WorkspaceTimeline: Decodable, Equatable {
 }
 
 /// Every timeline command returns its own result (nil for the read and a
-/// deletion) and the complete timeline after it.
+/// deletion) and the complete timeline after it. A `moveChapter` with a lane
+/// also returns the storyline library, since it rewrote memberships.
 struct WorkspaceTimelineReply<Value: Decodable>: Decodable {
     let result: Value?
     let timeline: WorkspaceTimeline
+    var storylines: WorkspaceStorylineLibrary? = nil
 }
 
 /// Present fields are written; an explicit nil inside `driftID` unbinds the
@@ -535,8 +537,8 @@ final class StoryGraphModel {
     }
 
     /// One `moveChapter` original: the order and the lane together. A lane
-    /// change reads the storyline library again, as a membership reply
-    /// would carry it.
+    /// change's reply carries the storyline library, as a membership reply
+    /// does; no second read is sent.
     private func moveOnTimeline(chapterID: String, order: Double??, lane: String??, message: String,
                                 completion: @escaping (Bool) -> Void) {
         beginCommand()
@@ -546,16 +548,11 @@ final class StoryGraphModel {
             case .success(let reply):
                 self.timeline = reply.timeline
                 self.status = message
-                guard lane != nil else { completion(true); return }
-                self.requests += 1
-                self.workspace.storylineLibrary(projectID: self.projectID) { [weak self] library in
-                    guard let self else { return }
-                    if case .success(let library) = library {
-                        self.storylines = library
-                        self.onStorylineLibrary?(library)
-                    }
-                    completion(true)
+                if lane != nil, let library = reply.storylines {
+                    self.storylines = library
+                    self.onStorylineLibrary?(library)
                 }
+                completion(true)
             case .failure(let error): self.status = error.localizedDescription; completion(false)
             }
         }
