@@ -43,7 +43,7 @@ architectural redesign.
 | P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -69,14 +69,14 @@ architectural redesign.
 | Chapter, drift and project metadata | `034c6d7c` | [metadata](metadata.md) |
 | Relation types and relations | `9b4432b1` | [relations](relations.md) |
 | Word counts and body projections | `abff994a` | [word counts](word-counts.md) |
-| Writing assistant (写作助手) | this batch | [agent](agent.md) |
+| Writing assistant (写作助手) | `fcd813f4` | [agent](agent.md) |
+| Materials library, portraits, import and export | this batch | [library](library.md) |
 
 ## Next batch
 
-The materials library (images, PDFs, links, notes in an app-owned asset store)
-and element portraits, with text import into new bodies and book export as
-Markdown or plain text; then settings (fonts, editor preferences) and the
-story graph and timeline.
+The story graph and timeline (narrative order, markers, drift card positions)
+and version history (snapshots, preview and restore); then settings (fonts,
+editor preferences).
 
 ## Open gates
 

@@ -83,6 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var profileSheet: ProjectProfileSheet?
     private var relationTypesPanel: RelationTypesPanel?
     private var relationTypesController: MacRelationTypesViewController?
+    private var materialsButton: NSButton!
+    private var materialsPanel: MaterialLibraryPanel?
+    private var materialsController: MacMaterialLibraryViewController?
+    /// One project's 素材库, kept while its panel is closed.
+    private var materialModel: MaterialLibraryModel?
+    /// 文件 › 导入… and 导出全书….
+    private lazy var transfer = MacBookTransfer(workspace: workspace, host: chapterWorkspace)
     /// 写作助手: a right-side panel beside the editor, one controller per project.
     private let agentPanel = MacAgentPanelView()
     private let agentCredentials = AgentKeychainCredentialStore()
@@ -121,6 +128,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let profile = fileMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "i")
         profile.keyEquivalentModifierMask = [.command, .shift]
         profile.target = self
+        fileMenu.addItem(.separator())
+        let importItem = fileMenu.addItem(withTitle: "导入…", action: #selector(importFile), keyEquivalent: "o")
+        importItem.keyEquivalentModifierMask = [.command, .shift]
+        importItem.target = self
+        let exportItem = fileMenu.addItem(withTitle: "导出全书…", action: #selector(exportBook), keyEquivalent: "")
+        exportItem.target = self
         file.submenu = fileMenu
         menu.addItem(file)
         let edit = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""), editMenu = NSMenu(title: "编辑")
@@ -163,6 +176,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         agent.keyEquivalentModifierMask = [.command, .option]
         agent.target = self
         agentMenuItem = agent
+        let materials = viewMenu.addItem(withTitle: "素材库", action: #selector(showMaterials), keyEquivalent: "m")
+        materials.keyEquivalentModifierMask = [.command, .shift]
+        materials.target = self
         view.submenu = viewMenu
         menu.addItem(view)
         NSApp.mainMenu = menu
@@ -209,13 +225,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         elementsButton = button("设定库", id: "show-elements", action: #selector(showElements))
         storylinesButton = button("故事线", id: "show-storylines", action: #selector(showStorylines))
         driftsButton = button("漂流", id: "show-drifts", action: #selector(showDrifts))
+        materialsButton = button("素材库", id: "show-materials", action: #selector(showMaterials))
+        materialsButton.toolTip = "图片、PDF、链接和笔记（⇧⌘M）"
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
         agentButton = button("写作助手", id: "toggle-agent", action: #selector(toggleAgent))
         agentButton.setButtonType(.pushOnPushOff)
         agentButton.toolTip = "显示或隐藏写作助手（⌥⌘A）"
         let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
-                                          storylinesButton, driftsButton, splitButton, closePaneButton, agentButton])
+                                          storylinesButton, driftsButton, materialsButton, splitButton, closePaneButton, agentButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -258,6 +276,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.adoptWordCounts(projectID: projectID, library: library)
         }
         chapterWorkspace.onManageRelationTypes = { [weak self] project in self?.openRelationTypes(project: project) }
+        chapterWorkspace.onMaterialLibrary = { [weak self] projectID, library in
+            self?.adoptMaterials(projectID: projectID, library: library, fromWorkspace: true)
+        }
+        transfer.onStatus = { [weak self] message in self?.status.stringValue = message }
+        transfer.onImported = { [weak self] project, entity in self?.adoptImported(entity, project: project) }
         // Categories have no page: a 关系 row opens the 设定库 at the category.
         chapterWorkspace.onOpenCategory = { [weak self] project, categoryID in
             guard let self else { return }
@@ -594,6 +617,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         elementsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         storylinesButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         driftsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
+        materialsButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -632,6 +656,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if storylinesController?.model.projectID != project.id { closeStorylines() }
         if driftsController?.model.projectID != project.id { closeDrifts() }
         if relationTypesController?.model.projectID != project.id { closeRelationTypes() }
+        if materialsController?.model.projectID != project.id { closeMaterials() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -868,6 +893,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.onOpen = { [weak self] element in self?.openElement(element, project: project, focusName: false) }
         controller.onCreated = { [weak self] element in self?.openElement(element, project: project, focusName: true) }
         controller.onTrash = { [weak self] element in self?.trashElement(element, project: project) }
+        // Rows show small portraits once the 素材库 has been read.
+        controller.portraitPath = { [weak self] id in
+            self?.chapterWorkspace.materialLibrary(projectID: project.id)?.portrait(elementID: id)?.assetPath
+        }
+        if chapterWorkspace.materialLibrary(projectID: project.id) == nil { chapterWorkspace.materialsChanged(projectID: project.id) }
         window.addChildWindow(panel, ordered: .above)
         // Beside the editor's leading edge, clear of the text column.
         let frame = window.frame
@@ -1142,6 +1172,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
+    // MARK: Materials library
+
+    /// Keeps one 素材库 model for the project whose panel is shown.
+    @discardableResult
+    private func ensureMaterialModel(_ project: WorkspaceProject) -> MaterialLibraryModel {
+        if let materialModel, materialModel.projectID == project.id { return materialModel }
+        let model = MaterialLibraryModel(workspace: workspace, projectID: project.id)
+        materialModel = model
+        model.onLibrary = { [weak self] library in
+            self?.adoptMaterials(projectID: project.id, library: library, fromWorkspace: false)
+        }
+        if let library = chapterWorkspace.materialLibrary(projectID: project.id) { model.apply(library, message: nil) }
+        model.load()
+        return model
+    }
+
+    /// Every 素材库 reply reaches the panel, element pages and the 设定库
+    /// rows' portraits; the source is not told again.
+    private func adoptMaterials(projectID: String, library: WorkspaceMaterialLibrary, fromWorkspace: Bool) {
+        if fromWorkspace {
+            if let model = materialModel, model.projectID == projectID, !model.busy { model.apply(library, message: nil) }
+        } else {
+            chapterWorkspace.applyMaterialLibrary(projectID: projectID, library: library)
+        }
+        if let elements = elementsController, elements.model.projectID == projectID { elements.reload() }
+    }
+
+    /// 素材库 (action row and 视图 › 素材库, ⇧⌘M): a panel beside the editor.
+    @objc private func showMaterials() {
+        guard let project = currentProject ?? selectedProject else { return }
+        if let materialsPanel, materialsPanel.isVisible, materialsController?.model.projectID == project.id {
+            materialsPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeMaterials()
+        let model = ensureMaterialModel(project)
+        let controller = MacMaterialLibraryViewController(model: model)
+        let panel = MaterialLibraryPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 600),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(project.name) · 素材库"
+        panel.minSize = NSSize(width: 320, height: 360)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        materialsPanel = panel; materialsController = controller
+        panel.onClose = { [weak self] in self?.materialsPanel = nil; self?.materialsController = nil }
+        controller.onClose = { [weak self] in self?.closeMaterials() }
+        window.addChildWindow(panel, ordered: .above)
+        // At the trailing edge, clear of the text column.
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: max(frame.minX, frame.maxX - panel.frame.width - 24), y: frame.maxY - 90))
+        panel.makeKeyAndOrderFront(nil)
+        if !model.busy { model.load() }
+    }
+
+    private func closeMaterials() {
+        let panel = materialsPanel
+        materialsPanel = nil; materialsController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: Import and export
+
+    /// 文件 › 导入…: a Markdown, text or Word file becomes a new chapter,
+    /// element or drift of the current project.
+    @objc private func importFile() {
+        guard !loading, let project = currentProject ?? selectedProject else {
+            status.stringValue = "请先选择一个项目，再导入文件。"; return
+        }
+        transfer.beginImport(project: project, window: window)
+    }
+
+    /// 文件 › 导出全书…: Markdown or plain text through a save panel.
+    @objc private func exportBook() {
+        guard canLeaveDocument(), let project = currentProject ?? selectedProject else {
+            if currentProject == nil && selectedProject == nil { status.stringValue = "请先选择一个项目，再导出。" }
+            return
+        }
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        transfer.beginExport(project: WorkspaceProject(id: project.id, name: name), window: window)
+    }
+
+    /// An imported chapter joins the chapter list before its page opens.
+    private func adoptImported(_ entity: WorkspaceImportedEntity, project: WorkspaceProject) {
+        guard case .chapter(let chapter) = entity, selectedProject?.id == project.id,
+              !chapters.contains(where: { $0.id == chapter.id }) else { return }
+        chapters.append(chapter)
+        if !showingTrash { reloadChapterRows() }
+        chapterEmpty.isHidden = !displayedChapters.isEmpty
+    }
+
     // MARK: Relation types
 
     @objc private func showRelationTypes() {
@@ -1301,6 +1419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.storylinesPanel?.title = "\(updated.name) · 故事线"
                     self.driftsPanel?.title = "\(updated.name) · 漂流"
                     self.relationTypesPanel?.title = "\(updated.name) · 关系类型"
+                    self.materialsPanel?.title = "\(updated.name) · 素材库"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -1551,7 +1670,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             case .success:
                 self.agentController?.stop()
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
-                self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes()
+                self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
+                self.transfer.endImport()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
@@ -1571,6 +1691,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeStorylines()
         closeDrifts()
         closeRelationTypes()
+        closeMaterials()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

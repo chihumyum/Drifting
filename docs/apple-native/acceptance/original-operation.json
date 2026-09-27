@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "dcadd3dfab46975b55db80c5196912080f689a54b7196b4246553e077cd73be7",
+    "fingerprint": "61167a3807f2d2e3115d3d89d0d9d30e84a119112cb08c8f7d5bc162766431f5",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -13,6 +13,10 @@
       {
         "path": "crates/drifting-core/Cargo.toml",
         "sha256": "82f8a632efc8c359cab6c2be703cbffaa2017edc8827c6da12b58d85ca752d06"
+      },
+      {
+        "path": "crates/drifting-core/src/asset_store.rs",
+        "sha256": "e4edde902139428c8b25ec7fa03a011470a03be557e7c6d997833d32f6325a4e"
       },
       {
         "path": "crates/drifting-core/src/database.rs",
@@ -28,7 +32,7 @@
       },
       {
         "path": "crates/drifting-core/src/lib.rs",
-        "sha256": "7a0484260e3caca585cbdb10fe9f482481b809193208d0dc87a68228cb7b3964"
+        "sha256": "86deb10efe02088db3670559b0532d115a298d30ceb9b6acdc316b6e859b5b27"
       },
       {
         "path": "crates/drifting-core/src/materialization_admission.rs",
@@ -108,7 +112,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "a28b13490a0e97b6c23e4179abedd5bb342fbff2597c8c50580605647f6e5cf5"
+        "sha256": "110cf5f2d36b1084277259f7d83a0d9dfabf7ba9b7f15318bda9762b7970b59a"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -136,7 +140,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/elements.rs",
-        "sha256": "d8c0b4f4d5b613945115feba9f213979d8517a829975e99d2339fc70a0f41191"
+        "sha256": "33e51b1e2d332bf9897164e828356c3a8498e6d19512b540277a1c2c788998da"
       },
       {
         "path": "crates/drifting-core/src/workspace/elements/tests.rs",
@@ -148,7 +152,15 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "61d20f538daf199272cc0a027c1b85caef896f3c087f42fb4ef63ae3dd005319"
+        "sha256": "b10fb31701b5bd790a1ef84cc4511369be3e51edb8b4410638088bda9d664989"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/library.rs",
+        "sha256": "006b91d15e5bce75cb104c34db25ffafa74d305dfaeca47426934288e56246f6"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/library/tests.rs",
+        "sha256": "184a008053678479423fbb7afd9ce46bed6fef5177ba80e2d45ec5d758956ef5"
       },
       {
         "path": "crates/drifting-core/src/workspace/metadata.rs",
@@ -316,7 +328,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "1160ac4464b162117e492e73a279e26a4ca457c3cf6b8c4f8dc9d76dae6130f3"
+        "sha256": "0442faab837bce3ded4c5db1a8cd3536c37f2b2ddf9074ae375f228bc3401787"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -337,6 +349,10 @@
       {
         "path": "crates/drifting-document/src/outline_tests.rs",
         "sha256": "6ebaf5c9da9920453bc93e7c649d300fef9edbc31af1891a11f999af30aef123"
+      },
+      {
+        "path": "crates/drifting-document/src/prose_export.rs",
+        "sha256": "552bce9364944488443e3024eba3edcecf9ed715c05a4db594e0354000257e5d"
       },
       {
         "path": "crates/drifting-document/src/prose_metrics.rs",
@@ -876,8 +892,8 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "listed": 111,
-    "passed": 111,
+    "listed": 113,
+    "passed": 113,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -915,7 +931,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "a9916cc9ae28616006b5f4ab5d0b8dd5154043ea64bdb97367e13cb6beb49706"
+    "logSha256": "175c33352f7ebce1c95a9ed4ea116023c348009d4a15cdf860ad9144678f6446"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

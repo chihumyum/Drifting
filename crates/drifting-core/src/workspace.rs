@@ -7,6 +7,7 @@ mod drifts;
 mod elements;
 mod facts;
 mod journal;
+mod library;
 mod metadata;
 mod metrics;
 mod outline;
@@ -19,6 +20,9 @@ pub use elements::{
     ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
 };
 pub use facts::Fact;
+pub use library::{
+    ElementPortrait, NewAssetFile, WorkspaceAsset, WorkspaceLibraryItem, MAX_ASSET_BYTES,
+};
 pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetails};
 pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;

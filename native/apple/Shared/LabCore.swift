@@ -25,6 +25,8 @@ enum LabError: LocalizedError {
     case driftUnavailable(reason: String)
     case metadataUnavailable(reason: String)
     case relationUnavailable(reason: String)
+    case libraryUnavailable(reason: String)
+    case transferUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -32,7 +34,8 @@ enum LabError: LocalizedError {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
              .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
-             .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text): return text
+             .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
+             .libraryUnavailable(let text), .transferUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -50,7 +53,48 @@ enum LabError: LocalizedError {
         case .driftUnavailable(let reason): return LabError.driftMessage(reason)
         case .metadataUnavailable(let reason): return LabError.metadataMessage(reason)
         case .relationUnavailable(let reason): return LabError.relationMessage(reason)
+        case .libraryUnavailable(let reason): return LabError.libraryMessage(reason)
+        case .transferUnavailable(let reason): return LabError.transferMessage(reason)
         }
+    }
+
+    /// Materials library and portrait refusals leave rows and stored bytes
+    /// unchanged. Rust's own messages are Chinese; store and file-system
+    /// reasons are restated.
+    private static func libraryMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("exceeds size limit", "文件超过 200 MiB 素材上限，无法复制到本地素材库。"),
+            ("source path is not a file", "只能导入文件，不能导入文件夹。"),
+            ("No such file", "找不到这个文件，它可能已被移动或删除。"),
+            ("Permission denied", "没有权限读取这个文件。"),
+            ("Operation not permitted", "没有权限读取这个文件。"),
+            ("symlink", "素材库目录中有符号链接，已拒绝写入。"),
+            ("Invalid asset extension", "这种文件类型暂不支持。"),
+            ("Asset directory already exists", "素材保存冲突，请重试。"),
+            ("Asset import failed", "文件未能复制到素材库，请重试。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        // Rust's own messages, e.g. 链接必须以 http:// 或 https:// 开头.
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "素材操作未能完成。已有内容未改变，可以稍后重试。"
+    }
+
+    /// Import refusals happen before the entity is created, except a failed
+    /// body save, which is reported as such.
+    private static func transferMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("导入的正文尚未保存", "页面已创建，但导入的正文尚未保存。请打开这一页检查后重试。"),
+            ("Category is not available", "这个分类已不可用，请刷新设定库后重新选择。"),
+            ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持导入到其中。"),
+            ("Imported bodies must start empty", "导入目标的正文不是空的，已停止导入。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "导入或导出未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Relation refusals happen before any row or journal change. Rust gives
@@ -141,7 +185,6 @@ enum LabError: LocalizedError {
             ("Element is not available", "这个设定已不可用，请刷新设定库。"),
             ("Category name is empty", "分类名称不能为空，颜色须为有效的颜色值。"),
             ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持在其中新建设定。"),
-            ("portraits", "这个设定有头像，原生版本暂不支持恢复。"),
             ("Category has unresolved prose dependencies", "分类正文还有未完成的同步依赖，暂时无法恢复。"),
             ("unresolved prose dependencies", "设定正文还有未完成的同步依赖，暂时无法恢复。"),
             ("Category lifecycle must be", "分类状态已变化，请刷新设定库。"),
@@ -296,6 +339,12 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceRelations" {
                 throw LabError.relationUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceLibrary" {
+                throw LabError.libraryUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceTransfer" {
+                throw LabError.transferUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -1072,6 +1121,91 @@ final class LabWorkspaceCore {
 
     private func relationRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
         try request("workspaceRelations", fields: ["projectId": projectID, "command": command])
+    }
+
+    // MARK: Materials library
+
+    /// Library items and element portraits of one project. A read only.
+    func materialLibrary(projectID: String, completion: @escaping (Result<WorkspaceMaterialLibrary, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceMaterialReply<WorkspaceMaterialItem> = try self.libraryRequest(projectID, ["action": "library"])
+            return reply.library
+        }
+    }
+
+    /// Rust copies the file into the asset store under its 200 MB cap, then
+    /// commits the asset and item rows; the source is never modified.
+    func importMaterial(projectID: String, title: String, file: MaterialSourceFile,
+                        completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        perform(completion) {
+            try self.libraryRequest(projectID, ["action": "importFile", "title": title, "file": file.payload])
+        }
+    }
+
+    /// Rust accepts http and https only.
+    func createMaterialLink(projectID: String, title: String, url: String,
+                            completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        perform(completion) { try self.libraryRequest(projectID, ["action": "createLink", "title": title, "url": url]) }
+    }
+
+    func createMaterialText(projectID: String, title: String, body: String,
+                            completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        perform(completion) { try self.libraryRequest(projectID, ["action": "createText", "title": title, "body": body]) }
+    }
+
+    /// One `field.set` per changed field in one original; unchanged fields
+    /// write nothing.
+    func updateMaterial(projectID: String, itemID: String, changes: WorkspaceMaterialChanges,
+                        completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateItem"; command["itemId"] = itemID
+        perform(completion) { try self.libraryRequest(projectID, command) }
+    }
+
+    /// Rows first, then the stored bytes; the reply has no result.
+    func deleteMaterial(projectID: String, itemID: String,
+                        completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        perform(completion) { try self.libraryRequest(projectID, ["action": "deleteItem", "itemId": itemID]) }
+    }
+
+    /// Imports an image as the element's portrait, or clears it with nil;
+    /// the previous portrait's row and bytes are released. Metadata only:
+    /// the element's body owner is untouched.
+    func setElementPortrait(projectID: String, elementID: String, file: MaterialSourceFile?,
+                            completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceElementPortrait>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "setPortrait", "elementId": elementID]
+        if let file { command["file"] = file.payload }
+        perform(completion) { try self.libraryRequest(projectID, command) }
+    }
+
+    private func libraryRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceLibrary", fields: ["projectId": projectID, "command": command])
+    }
+
+    // MARK: Import and export
+
+    /// Creates the chapter, drift or element and fills its empty body with
+    /// one paragraph per block through a temporary owner, saved as the
+    /// author's input. No open owner changes.
+    func importBlocks(projectID: String, title: String, target: BookImportTarget, blocks: [BookImportBlock],
+                      completion: @escaping (Result<WorkspaceImportedEntity, Error>) -> Void) {
+        let command: [String: Any] = ["action": "importBlocks", "target": target.payload(title: title),
+                                      "blocks": blocks.map(\.payload)]
+        perform(completion) { try self.request("workspaceTransfer", fields: ["projectId": projectID, "command": command]) }
+    }
+
+    /// The whole book, reading open chapters from their live owners. Queued
+    /// input would be missing, so it is refused until every body is saved.
+    func exportBook(projectID: String, format: BookExportFormat, completion: @escaping (Result<String, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners, !hasPendingDocuments else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再导出。"))); return
+        }
+        struct Exported: Decodable { let text: String }
+        perform({ (result: Result<Exported, Error>) in completion(result.map(\.text)) }) {
+            try self.request("workspaceTransfer", fields: ["projectId": projectID,
+                "command": ["action": "exportBook", "format": format.rawValue]])
+        }
     }
 
     // MARK: Metadata

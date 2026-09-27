@@ -22,6 +22,8 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     var onCreated: ((WorkspaceElement) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
+    /// The stored portrait of an element, shown small beside its name.
+    var portraitPath: ((String) -> String?)?
     /// Presents a confirmation. Nil uses a sheet on the panel; acceptance
     /// answers here without a window.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
@@ -122,16 +124,28 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
             stack.setViews([label], in: .leading)
             stack.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 0)
         case .element(let element, let grouped):
-            stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 1
+            let text = NSStackView()
+            text.orientation = .vertical; text.alignment = .leading; text.spacing = 1
             let name = NSTextField(labelWithString: element.name)
             name.lineBreakMode = .byTruncatingTail
             name.setAccessibilityLabel(element.name)
-            stack.addArrangedSubview(name)
+            text.addArrangedSubview(name)
             if !element.summary.isEmpty {
                 let summary = NSTextField(labelWithString: MacChapterCommentsViewController.flatten(element.summary))
                 summary.font = .systemFont(ofSize: 11); summary.textColor = .secondaryLabelColor
                 summary.lineBreakMode = .byTruncatingTail
-                stack.addArrangedSubview(summary)
+                text.addArrangedSubview(summary)
+            }
+            if let path = portraitPath?(element.id) {
+                let well = MaterialPreviewWell()
+                well.setAccessibilityIdentifier("element-row-portrait-\(element.id)")
+                well.setAccessibilityLabel("肖像")
+                well.widthAnchor.constraint(equalToConstant: 22).isActive = true
+                well.heightAnchor.constraint(equalToConstant: 22).isActive = true
+                well.showFile(path: path, kind: "image", side: 22, placeholderSymbol: "person.crop.square")
+                stack.setViews([well, text], in: .leading)
+            } else {
+                stack.setViews([text], in: .leading)
             }
             stack.edgeInsets = NSEdgeInsets(top: 0, left: grouped ? 32 : 20, bottom: 0, right: 4)
         case .empty:

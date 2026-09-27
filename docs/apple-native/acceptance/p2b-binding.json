@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T08:00:41.471Z",
+  "generatedAt": "2026-09-27T08:48:47.598Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "abff994a61f6db084996e2d3683d77ed987352d8",
+    "commit": "fcd813f48a3223c239e2def7c926072ccc4b2a5f",
     "dirty": true,
-    "fingerprint": "6e6a6c7bd31a4758980581ee0b83a06703210cf64467c7d05f9d94e87be3ba5b"
+    "fingerprint": "fd845540ed709718d1df5c07755b8d3b489f400ad1cf4e2a30235d1c3f5358b1"
   },
   "cases": [
     {
@@ -472,6 +472,22 @@
     },
     {
       "name": "AppKit conversations persist per project as atomic JSON beside the lab workspace and survive a cold reopen of the panel with messages, proposal states and model choice; rename, delete after confirmation and a pending proposal accepted after reopen work, and the key sheet stores and clears keys showing only a masked tail",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file and a javascript: link in Chinese without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 素材库 renames through 重命名… and edits an image's notes and a note's body and notes through the sheet with one field.set per changed field, writes nothing for unchanged or empty titles, and deletes after confirmation, removing the card, the stored bytes and the item with one purge",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page 肖像 shows the placeholder, sets a generated PNG through 设置肖像…, replaces it by a dropped JPEG releasing the previous bytes, follows in the second pane and the 设定库 row, refuses a PDF without writing and 移除肖像 clears it back to the placeholder",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs; 导出全书… writes UTF-8 Markdown and plain text; and the library, portrait and imported bodies survive a cold reopen",
       "status": "passed"
     }
   ],

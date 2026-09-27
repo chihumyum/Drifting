@@ -2,7 +2,8 @@
 //! alias set and canonical originals. Element and category bodies are Yjs
 //! documents (`element:<id>`, `category:<id>`) seeded like chapters.
 //! Facts use the normalized key/value authority. Trash purges relations
-//! first; category body templates and portraits are not yet ported.
+//! first; portraits live in the materials library. Category body templates
+//! are not yet ported.
 use super::facts::{Fact, FactOwner};
 use super::*;
 use crate::prose_journal::encoding::Cbor;
@@ -428,11 +429,8 @@ impl WorkspaceStore<'_> {
                 incarnation,
                 portrait,
             } = self.trashed_element(tx, context, element_id)?;
-            if portrait {
-                return Err(
-                    "Restoring elements with portraits is not supported natively yet".into(),
-                );
-            }
+            // A trashed element keeps its portrait binding and bytes.
+            let _ = portrait;
             let incarnation = incarnation
                 .checked_add(1)
                 .filter(|n| *n <= MAX_SAFE)

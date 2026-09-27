@@ -231,6 +231,7 @@ impl WorkspaceStore<'_> {
                                         | "drift-group"
                                         | "entity-relation"
                                         | "entity-relation-type"
+                                        | "library-item"
                                 )
                             {
                                 return Err("Unsupported workspace purge target".into());

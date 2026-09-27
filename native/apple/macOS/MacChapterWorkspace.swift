@@ -121,6 +121,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var pendingLinkReveal: (view: NativeDocumentView, range: NativeRange, elementID: String)?
     /// Debounce before visible 被引用 sections read again after edits.
     static var backlinkDelay: TimeInterval = 0.3
+    /// Per project, the 素材库 and element portraits element pages show.
+    private var materialLibraries: [String: WorkspaceMaterialLibrary] = [:]
+    private var loadingMaterials: Set<String> = []
+    private var materialRereads: Set<String> = []
+    private var loadingElements: Set<String> = []
+    private var elementRereads: Set<String> = []
     /// Per project, the word counts pages, lists and the status line show.
     private var wordCountModels: [String: WordCountModel] = [:]
     /// The body revision each chapter or drift scope was last counted at.
@@ -146,6 +152,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onNodeMetadata: ((String, WorkspaceNodeMetadata) -> Void)?
     /// Act rows were read again (act names for the drift panel).
     var onOutline: ((String, [WorkspaceOutlineEntry]) -> Void)?
+    /// A portrait change or re-read returned this project's complete 素材库.
+    var onMaterialLibrary: ((String, WorkspaceMaterialLibrary) -> Void)?
     /// A project's word counts changed: lists, the outline, the 漂流 panel,
     /// the project sheet and the status line follow.
     var onWordCounts: ((String, WordCountLibrary) -> Void)?
@@ -352,6 +360,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
                 if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
                 if isNew { self.loadMetadata(of: tab); self.showWordCount(of: tab) }
+                if isNew, tab.page != nil { self.showPortrait(of: tab) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -872,6 +881,74 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// Re-reads the project's element library, e.g. after an import created
+    /// an element. Observers receive it through `onElementLibrary`.
+    func elementsChanged(projectID: String) {
+        guard loadingElements.insert(projectID).inserted else { elementRereads.insert(projectID); return }
+        workspace.elementLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingElements.remove(projectID)
+            if case .success(let library) = result {
+                self.applyElementLibrary(projectID: projectID, library: library)
+                self.onElementLibrary?(projectID, library)
+            }
+            if self.elementRereads.remove(projectID) != nil { self.elementsChanged(projectID: projectID) }
+        }
+    }
+
+    // MARK: Materials and portraits
+
+    /// The last 素材库 read for the project, if any.
+    func materialLibrary(projectID: String) -> WorkspaceMaterialLibrary? { materialLibraries[projectID] }
+
+    /// Adopt a project's complete 素材库: element pages show their portraits.
+    func applyMaterialLibrary(projectID: String, library: WorkspaceMaterialLibrary) {
+        materialLibraries[projectID] = library
+        for tab in allTabs where tab.project.id == projectID && tab.page != nil { showPortrait(of: tab) }
+    }
+
+    /// Re-reads the project's 素材库. Observers receive it through `onMaterialLibrary`.
+    func materialsChanged(projectID: String) {
+        guard loadingMaterials.insert(projectID).inserted else { materialRereads.insert(projectID); return }
+        workspace.materialLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingMaterials.remove(projectID)
+            if case .success(let library) = result {
+                self.applyMaterialLibrary(projectID: projectID, library: library)
+                self.onMaterialLibrary?(projectID, library)
+            }
+            if self.materialRereads.remove(projectID) != nil { self.materialsChanged(projectID: projectID) }
+        }
+    }
+
+    private func showPortrait(of tab: Tab) {
+        guard let page = tab.page, let element = tab.element else { return }
+        guard let library = materialLibraries[tab.project.id] else { materialsChanged(projectID: tab.project.id); return }
+        page.showPortrait(path: library.portrait(elementID: element.id)?.assetPath)
+    }
+
+    /// Imports or clears the portrait. Metadata only: the body owner, its
+    /// input and history are untouched. Every element page and the 素材库 follow.
+    private func setPortrait(_ tab: Tab, file url: URL?, completion: @escaping (Result<String?, Error>) -> Void) {
+        guard let element = tab.element else { completion(.failure(LabError.message("这个标签不是设定页面。"))); return }
+        let file: MaterialSourceFile?
+        do { file = try url.map { try MaterialSourceFile.inspect($0, imagesOnly: true) } } catch {
+            completion(.failure(error)); return
+        }
+        let projectID = tab.project.id
+        workspace.setElementPortrait(projectID: projectID, elementID: element.id, file: file) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                if let self {
+                    self.applyMaterialLibrary(projectID: projectID, library: reply.library)
+                    self.onMaterialLibrary?(projectID, reply.library)
+                }
+                completion(.success(reply.library.portrait(elementID: element.id)?.assetPath))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
     // MARK: Relations
 
     /// The names relation rows and the add sheet resolve against.
@@ -1161,6 +1238,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     self.workspace.setElementFacts(projectID: $0, elementID: $1, facts: facts, completion: $2)
                 }
             }
+            page.onSetPortrait = { [weak self, weak tab] url, done in
+                guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，肖像未保存。"))); return }
+                self.setPortrait(tab, file: url, completion: done)
+            }
         } else if let page = tab.storylinePage {
             page.onFocus = { [weak self] in self?.activate(pane: pane) }
             page.onOpenChapter = { [weak self, weak tab] chapter in
@@ -1216,7 +1297,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
-        tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil
+        tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onSetPortrait = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
         tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil

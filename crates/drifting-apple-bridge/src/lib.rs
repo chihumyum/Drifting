@@ -604,6 +604,18 @@ enum Request {
         project_id: String,
         command: workspace::agent::AgentCommand,
     },
+    WorkspaceLibrary {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::library::LibraryCommand,
+    },
+    WorkspaceTransfer {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::transfer::TransferCommand,
+    },
     WorkspaceClose {
         handle: u64,
     },
@@ -1294,6 +1306,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceRelations { .. }
         | Request::WorkspaceMetrics { .. }
         | Request::WorkspaceAgent { .. }
+        | Request::WorkspaceLibrary { .. }
+        | Request::WorkspaceTransfer { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

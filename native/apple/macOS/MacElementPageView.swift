@@ -1,6 +1,6 @@
 import AppKit
 
-/// One element's page: editable fields and ordered facts, then 关系 (curated
+/// One element's page: its 肖像, editable fields and ordered facts, then 关系 (curated
 /// relations) and 被引用 (the chapters that link it), above the element's
 /// prose body. Each field commits
 /// on end-editing or Return through `onCommit`; the facts list commits as a
@@ -17,6 +17,9 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     let summaryView = NSTextView()
     let categoryPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let factsEditor = ElementFactsEditor(prefix: "element-fact", emptyText: "还没有字段。可以添加“年龄”“身份”这类要点。")
+    /// 肖像: the stored image or the name's initial; set, replaced by a drop
+    /// and removed through `onSetPortrait`.
+    let portraitView = ElementPortraitView()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     let backlinksView = ElementBacklinksView()
@@ -38,6 +41,9 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     var onCommit: ((WorkspaceElementChanges, @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
     /// Receives the complete ordered facts list exactly as typed.
     var onCommitFacts: (([WorkspaceFact], @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
+    /// Imports an image as the portrait, or clears it with nil; reports the
+    /// stored portrait's path or the refusal.
+    var onSetPortrait: ((URL?, @escaping (Result<String?, Error>) -> Void) -> Void)?
     var onFocus: (() -> Void)?
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
@@ -95,8 +101,11 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         grid.row(at: 3).yPlacement = .top
         grid.row(at: 3).topPadding = 4
         grid.cell(for: factsEditor)?.xPlacement = .fill
-        let headerStack = NSStackView(views: [nameField, grid, message])
-        headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
+        let fieldsStack = NSStackView(views: [nameField, grid, message])
+        fieldsStack.orientation = .vertical; fieldsStack.alignment = .leading; fieldsStack.spacing = 10
+        portraitView.onChange = { [weak self] url in self?.setPortrait(url) }
+        let headerStack = NSStackView(views: [portraitView, fieldsStack])
+        headerStack.orientation = .horizontal; headerStack.alignment = .top; headerStack.spacing = 16
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
         backlinksView.onOpen = { [weak self] in self?.onOpenBacklink?($0) }
@@ -123,9 +132,10 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             headerStack.topAnchor.constraint(equalTo: header.topAnchor, constant: 12),
             headerStack.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -12),
-            nameField.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
-            grid.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
-            message.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
+            nameField.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
+            grid.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
+            message.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
+            fieldsStack.trailingAnchor.constraint(equalTo: headerStack.trailingAnchor),
             summaryScroll.heightAnchor.constraint(equalToConstant: 48),
             groupField.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             factsLabel.topAnchor.constraint(equalTo: factsEditor.topAnchor, constant: 3),
@@ -133,9 +143,37 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         rebuildCategories(selecting: element.categoryId)
         for field in Field.allCases { show(display(field, of: element), in: field) }
         factsEditor.show(element.facts)
+        portraitView.show(path: nil, name: element.name)
         updateWash()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    // MARK: Portrait
+
+    /// Shows the stored portrait, or the placeholder for nil.
+    func showPortrait(path: String?) {
+        guard portraitView.shownPath != path || !portraitLoaded else { return }
+        portraitLoaded = true
+        portraitView.show(path: path, name: element.name)
+    }
+    /// False until the library was first read; the placeholder shows meanwhile.
+    private(set) var portraitLoaded = false
+
+    /// The host and Rust read the file; a refusal keeps the current portrait.
+    private func setPortrait(_ url: URL?) {
+        guard let onSetPortrait, !portraitView.isBusy else { return }
+        onFocus?()
+        portraitView.isBusy = true
+        showMessage(nil)
+        onSetPortrait(url) { [weak self] result in
+            guard let self else { return }
+            self.portraitView.isBusy = false
+            switch result {
+            case .success(let path): self.portraitLoaded = true; self.portraitView.show(path: path, name: self.element.name)
+            case .failure(let error): self.showMessage(error.localizedDescription)
+            }
+        }
+    }
 
     private func label(_ text: String) -> NSTextField {
         let value = NSTextField(labelWithString: text)
@@ -230,6 +268,8 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         // Rows already equal to the stored list stay as they are, including a
         // blank row the author has just added.
         if typedFacts == previous.facts, typedFacts != updated.facts { factsEditor.show(updated.facts) }
+        // The placeholder shows the stored name's initial.
+        if updated.name != previous.name { portraitView.show(path: portraitView.shownPath, name: updated.name) }
         updateWash()
     }
 

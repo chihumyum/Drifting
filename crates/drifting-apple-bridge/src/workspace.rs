@@ -11,6 +11,8 @@ pub(super) mod agent;
 pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
 pub(super) mod elements;
+#[path = "workspace_library.rs"]
+pub(super) mod library;
 #[path = "workspace_metadata.rs"]
 pub(super) mod metadata;
 #[path = "workspace_metrics.rs"]
@@ -23,6 +25,8 @@ mod remote_prose;
 pub(super) mod search;
 #[path = "workspace_storylines.rs"]
 pub(super) mod storylines;
+#[path = "workspace_transfer.rs"]
+pub(super) mod transfer;
 #[path = "workspace_trash.rs"]
 mod trash;
 
@@ -184,6 +188,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceRelations { .. }
             | Request::WorkspaceMetrics { .. }
             | Request::WorkspaceAgent { .. }
+            | Request::WorkspaceLibrary { .. }
+            | Request::WorkspaceTransfer { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -205,13 +211,20 @@ pub(super) fn dispatch(
             let gateway = DatabaseGateway::new(directory.clone())?;
             gateway.open(WORKSPACE_DATABASE.into(), CLIENT.into(), false)?;
             let projects = WorkspaceStore::new(&gateway, CLIENT).list_projects(WORKSPACE_USER)?;
+            let installation_id = identifier("installation")?;
+            // Interrupted imports and deletions of earlier sessions converge.
+            drifting_core::asset_store::AssetStore::new(
+                directory.join("assets"),
+                installation_id.clone(),
+            )
+            .collect_garbage(&WorkspaceStore::new(&gateway, CLIENT).retained_assets()?)?;
             let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
             workspaces.insert(
                 handle,
                 WorkspaceSession {
                     directory,
                     gateway,
-                    installation_id: identifier("installation")?,
+                    installation_id,
                     documents: HashMap::new(),
                     elements: HashMap::new(),
                     storyline_bodies: HashMap::new(),
@@ -432,6 +445,22 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .drifts(documents, project_id, command)?,
+        Request::WorkspaceTransfer {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .transfer(documents, project_id, command)?,
+        Request::WorkspaceLibrary {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .library(project_id, command)?,
         Request::WorkspaceAgent {
             handle,
             project_id,
