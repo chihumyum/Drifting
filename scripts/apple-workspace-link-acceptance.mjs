@@ -17,6 +17,7 @@ const specs = [
     'entity_link_tests::entity_link_detection_matches_the_renderer_matcher',
     'entity_link_tests::link_entities_is_idempotent_not_undoable_and_keeps_other_targets',
     'entity_link_tests::link_entities_waits_for_drafts_and_uses_renderer_name_collisions',
+    'concurrent_draft_tests::entity_link_pass_under_open_input_keeps_a_structural_newline',
   ] },
   { name: 'bridge-entity-links', crate: 'drifting-apple-bridge', filter: 'workspace_tests::links::', required: [
     'workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks',

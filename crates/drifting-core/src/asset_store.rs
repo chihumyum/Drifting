@@ -129,7 +129,7 @@ impl AssetStore {
     ) -> Result<ImportedAsset, String> {
         let directory = self.directory(project, asset)?;
         if real_directory(&directory).map_err(|e| e.to_string())? {
-            return Err("Asset directory already exists".into());
+            return Err("素材已存在，不能覆盖".into());
         }
         let path = directory.join(format!("source.{}", extension(ext)?));
         let result = (|| {
@@ -161,7 +161,13 @@ impl AssetStore {
         })();
         result.map_err(|error| {
             let _ = remove_directory(&directory);
-            format!("Asset import failed: {error}")
+            match error.kind() {
+                io::ErrorKind::NotFound => "找不到要导入的文件".to_string(),
+                io::ErrorKind::InvalidInput => "只能导入文件，不能导入文件夹".to_string(),
+                io::ErrorKind::InvalidData => format!("文件超过 {} MB 的上限", limit / 1024 / 1024),
+                io::ErrorKind::PermissionDenied => "素材库目录不能包含符号链接".to_string(),
+                _ => format!("素材导入失败：{error}"),
+            }
         })
     }
 

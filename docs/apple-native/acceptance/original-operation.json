@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "2d9f35ecc953f3a465c0cf6cc616012290fba58dd32986329e9b85d0e2916efe",
+    "fingerprint": "9086bd5c8240487462951565619ae6e6d4be99436fc2788f5e3aeb12ebb0940a",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -16,7 +16,7 @@
       },
       {
         "path": "crates/drifting-core/src/asset_store.rs",
-        "sha256": "e4edde902139428c8b25ec7fa03a011470a03be557e7c6d997833d32f6325a4e"
+        "sha256": "8ace56b7c1e2e8f2c137ee94f3eb11cd84a048ac6aeb43e2c85f8eb64e11bb58"
       },
       {
         "path": "crates/drifting-core/src/database.rs",
@@ -296,11 +296,11 @@
       },
       {
         "path": "crates/drifting-document/src/concurrent.rs",
-        "sha256": "3713bbad72e89891c5fae50967b9e767de1aa1c7426e1e41eddb42ecd12e945b"
+        "sha256": "e7414fbd7da15baae3863826795c30d39fabd1e5413b15fb927b06f0d62e1eda"
       },
       {
         "path": "crates/drifting-document/src/concurrent_draft_tests.rs",
-        "sha256": "b0f5ce6bf6a45d2c925d6277fdd8612c1e14143013ee8e293f42d92db7e71fa0"
+        "sha256": "53a056908f77b281d01fc211150949cf1d06a644fcf8cb4a816921969c5f76c5"
       },
       {
         "path": "crates/drifting-document/src/draft_evidence_tests.rs",
@@ -324,7 +324,7 @@
       },
       {
         "path": "crates/drifting-document/src/formatting.rs",
-        "sha256": "8f1e2509b46a67f2acf6b79eebf8e19a24ffa5814e5aa3483aaa8ae418efcd0f"
+        "sha256": "b6b22f74f851b2a73ddec8d8208909261aa46343ca877012c2ae9c81266dc4d5"
       },
       {
         "path": "crates/drifting-document/src/formatting_tests.rs",
@@ -955,7 +955,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "d6a4b93c2ddf1d6a0ee1d71718096f4dfbe629abf592fa2875af58e47d755cd6"
+    "logSha256": "506d7699fc67e6fe706cd891220b83ff0039c8f0dfceb239344d5a399b5e3940"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

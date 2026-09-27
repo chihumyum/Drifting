@@ -58,8 +58,9 @@ final class RelationsSectionView: NSView {
             button.target = self; button.action = action
             button.setAccessibilityIdentifier(identifier)
         }
-        addButton.contentTintColor = .controlAccentColor
+        addButton.contentTintColor = .labAccent
         typesButton.contentTintColor = .secondaryLabelColor
+        NotificationCenter.default.addObserver(self, selector: #selector(accentChanged), name: MacEditorPreferences.didChange, object: nil)
         let header = NSStackView(views: [title, NSView(), addButton, typesButton])
         header.spacing = 10
         rowsStack.orientation = .vertical; rowsStack.alignment = .leading; rowsStack.spacing = 2
@@ -80,6 +81,7 @@ final class RelationsSectionView: NSView {
         ])
         show(nil)
     }
+    @objc private func accentChanged() { addButton.contentTintColor = .labAccent }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// Wraps the section with the page's side margins, like 被引用.

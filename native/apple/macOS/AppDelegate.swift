@@ -107,9 +107,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var agentMenuItem: NSMenuItem!
     private var editorTrailing: NSLayoutConstraint!
     private var editorBesideAgent: NSLayoutConstraint!
+    /// 设置: stored in the lab's own data directory, applied before any editor opens.
+    private lazy var settingsStore = LabSettingsStore(directory: workspace.dataDirectory)
+    private var settingsWindow: MacSettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        settingsStore.apply()
         installMenu()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1020, height: 740),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -126,6 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     private func installMenu() {
         let menu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu()
+        let settings = appMenu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
+        settings.target = self
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出 Drifting Native Lab", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         menu.addItem(appItem)
@@ -664,7 +671,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.projects = projects
                 self.projectTable.reloadData()
                 self.projectEmpty.isHidden = !projects.isEmpty
-                self.status.stringValue = "选择项目，或新建一个项目。"
+                // A chosen font that could not be used says so once at launch.
+                self.status.stringValue = self.settingsStore.fontFallback ?? "选择项目，或新建一个项目。"
             case .failure(let error): self.status.stringValue = error.localizedDescription
             }
         }
@@ -1769,6 +1777,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 }
             }
         }
+    }
+
+    // MARK: Settings
+
+    @objc private func showSettings() {
+        let controller = settingsWindow ?? MacSettingsWindowController(store: settingsStore)
+        settingsWindow = controller
+        if controller.window?.isVisible != true { controller.window?.center() }
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func saveDocument() {

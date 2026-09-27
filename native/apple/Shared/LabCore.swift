@@ -98,26 +98,20 @@ enum LabError: LocalizedError {
     }
 
     /// Materials library and portrait refusals leave rows and stored bytes
-    /// unchanged. Rust's own messages are Chinese; store and file-system
-    /// reasons are restated.
+    /// unchanged. Rust's asset store and library answer in Chinese (文件超过
+    /// 200 MB 的上限, 找不到要导入的文件, 只能导入文件，不能导入文件夹,
+    /// 素材已存在，不能覆盖, 链接必须以 http:// 或 https:// 开头), which pass
+    /// through; its few remaining English diagnostics are restated, and
+    /// anything else unexpected gets a generic sentence.
     private static func libraryMessage(_ reason: String) -> String {
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
         let known: [(String, String)] = [
-            ("exceeds size limit", "文件超过 200 MiB 素材上限，无法复制到本地素材库。"),
-            ("source path is not a file", "只能导入文件，不能导入文件夹。"),
-            ("No such file", "找不到这个文件，它可能已被移动或删除。"),
-            ("Permission denied", "没有权限读取这个文件。"),
-            ("Operation not permitted", "没有权限读取这个文件。"),
             ("symlink", "素材库目录中有符号链接，已拒绝写入。"),
             ("Invalid asset extension", "这种文件类型暂不支持。"),
-            ("Asset directory already exists", "素材保存冲突，请重试。"),
-            ("Asset import failed", "文件未能复制到素材库，请重试。"),
             ("Project does not", "这个项目已不可用，请重新选择项目。"),
             ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
         ]
-        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
-        // Rust's own messages, e.g. 链接必须以 http:// 或 https:// 开头.
-        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
-        return "素材操作未能完成。已有内容未改变，可以稍后重试。"
+        return known.first { reason.contains($0.0) }?.1 ?? "素材操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Import refusals happen before the entity is created, except a failed
@@ -1426,9 +1420,13 @@ final class LabWorkspaceCore {
 
     // MARK: Writing Agent
 
+    /// The lab's own data directory (keyed by its bundle identifier): the
+    /// workspace directory, `agent/` and 设置 (`settings.json`, `fonts/`).
+    var dataDirectory: URL { directory.deletingLastPathComponent() }
+
     /// The native Agent's conversations live beside the lab workspace
     /// directory, in `agent/<projectId>/`.
-    var agentDirectory: URL { directory.deletingLastPathComponent().appendingPathComponent("agent", isDirectory: true) }
+    var agentDirectory: URL { dataDirectory.appendingPathComponent("agent", isDirectory: true) }
 
     /// A body's live text when its owner is open, otherwise its stored text.
     /// A read only: no owner, history or journal changes.

@@ -154,11 +154,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_transfer.rs",
-        "sha256": "0c3591dd7957740a28b68f5d701543aeb3b648aeab9c1a0e2d263cb4e4aa95ff"
+        "sha256": "22835919fe6bf0ccd2e6372905333fc38ffdcb7af870ffa6186eaaf81c6b5e0b"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_transfer_tests.rs",
-        "sha256": "7fdd84208f3ca2b7c3ed963104da01bd48387280a1205be03fbb9f0aa7af342e"
+        "sha256": "8446ddeab3d6eec355f747271933a43d1638a5f6120d4adb3c76455b41511867"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_trash.rs",
@@ -178,7 +178,7 @@
       },
       {
         "path": "crates/drifting-core/src/asset_store.rs",
-        "sha256": "e4edde902139428c8b25ec7fa03a011470a03be557e7c6d997833d32f6325a4e"
+        "sha256": "8ace56b7c1e2e8f2c137ee94f3eb11cd84a048ac6aeb43e2c85f8eb64e11bb58"
       },
       {
         "path": "crates/drifting-core/src/database.rs",
@@ -458,11 +458,11 @@
       },
       {
         "path": "crates/drifting-document/src/concurrent.rs",
-        "sha256": "3713bbad72e89891c5fae50967b9e767de1aa1c7426e1e41eddb42ecd12e945b"
+        "sha256": "e7414fbd7da15baae3863826795c30d39fabd1e5413b15fb927b06f0d62e1eda"
       },
       {
         "path": "crates/drifting-document/src/concurrent_draft_tests.rs",
-        "sha256": "b0f5ce6bf6a45d2c925d6277fdd8612c1e14143013ee8e293f42d92db7e71fa0"
+        "sha256": "53a056908f77b281d01fc211150949cf1d06a644fcf8cb4a816921969c5f76c5"
       },
       {
         "path": "crates/drifting-document/src/draft_evidence_tests.rs",
@@ -486,7 +486,7 @@
       },
       {
         "path": "crates/drifting-document/src/formatting.rs",
-        "sha256": "8f1e2509b46a67f2acf6b79eebf8e19a24ffa5814e5aa3483aaa8ae418efcd0f"
+        "sha256": "b6b22f74f851b2a73ddec8d8208909261aa46343ca877012c2ae9c81266dc4d5"
       },
       {
         "path": "crates/drifting-document/src/formatting_tests.rs",
@@ -2129,7 +2129,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "f2d759a1aa09370c045e3743bf4f3634bb438471dda9b129a1500096fe321022"
+    "fingerprint": "7825794d6db1281b3817798d2df181b32a5de547307bfc1f40aa168504bfcbea"
   },
   "toolchain": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -2141,11 +2141,11 @@
       "passed": 3,
       "failed": 0,
       "cases": [
-        "workspace::acts::tests::workspace_acts_receipt_failures_and_invalid_scope_rollback",
         "workspace::acts::tests::workspace_acts_remove_empty_or_bound_boundary_preserves_all_prose",
+        "workspace::acts::tests::workspace_acts_receipt_failures_and_invalid_scope_rollback",
         "workspace::acts::tests::workspace_acts_create_and_rename_on_current_chapter_axis"
       ],
-      "logSha256": "ecfd403216000b79fc0807df19073ed4b0f1e7937092df6ed1d2ecebebcb2b6a"
+      "logSha256": "1d7f754e9d8ec8e063e644b2e59ca504ec3cb7cba9bc6cfe59ebea6ea7ab2261"
     },
     {
       "name": "bridge-act-boundaries",
@@ -2153,25 +2153,25 @@
       "failed": 0,
       "cases": [
         "workspace_tests::acts::workspace_act_create_rename_and_cold_outline",
-        "workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries",
-        "workspace_tests::acts::workspace_act_remove_retains_empty_boundary_chapter_state"
+        "workspace_tests::acts::workspace_act_remove_retains_empty_boundary_chapter_state",
+        "workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries"
       ],
-      "logSha256": "239ac248b7cfe5d0b7ff55f929523ed708fca8a22f6a8940ac0976a3331ef363"
+      "logSha256": "f68c0ff2518298814632618aefc2908fc353c1da0072b8e869fa5cc4df2779fd"
     }
   ],
   "renderer": {
     "schemaVersion": 1,
     "status": "passed",
-    "inputSha256": "6fc20637fece97a10eba61294e898a26edd09da225cfb427e14c2992ee7ca782",
+    "inputSha256": "74e802cf6e1c454c1b8fa1b86af09bee32a263cde60a210abe1f23f423c56243",
     "cases": [
       {
         "name": "act-create-rename-and-cold-outline",
         "status": "passed",
-        "beforeDatabaseSha256": "3174ebac65512b74cff60924ad2dbf9d988c7f53dd03d244b650de4fdff54a26",
+        "beforeDatabaseSha256": "64669d9b79f79f6d407665abf327b0575e1c67a8814dd3c20aa21545032a862d",
         "steps": [
           {
             "operation": "create",
-            "originalSha256": "ea6e8aaa524f993a9259325b85905c7893102080ea57daa48885d365d6901d45",
+            "originalSha256": "52ae044f00c4d65f9bad73899c06975b8df5ef30818ffa479e8480b1aedfd0cf",
             "mutationCount": 1,
             "action": "entity.create",
             "incarnation": 0,
@@ -2183,22 +2183,22 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "01eca5366d0a973c2ca634ababf7e597c7572200dbfcbda0516c105caffdc765"
+                "sha256": "c7dc8f36ef7ce0164fda808006922bd189d939f8ba97b20f007e11d80fcce759"
               },
               {
                 "table": "book_act",
                 "rows": 1,
-                "sha256": "84468b06327c57f4180dbd000afb3aa5dfa91a73eb30c7aa86feff744259bf4e"
+                "sha256": "dcab5125d593d1e37480b66bf243c759d3d5c1670e947ff6ba5b853d4caf7c7a"
               },
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "102e8c28cc5464d1875e6135572d3185f445486226bd7fdcb0efccccc9489c82"
+                "sha256": "9acc9ee0d3541cd1e6275a6b35a454517d2dd94dd85e99ebfe13a8ab1304ca5d"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "e525a07e9aea2b3b8ea4abdb4ad8068561d2d6b96fd4ebfbf6e4e0dc2aecda1d"
+                "sha256": "e262b6262004f7e6ef11de6f6ac0722d78f48081c91d52d8147e0e54a614cff6"
               },
               {
                 "table": "node_storyline_link",
@@ -2223,32 +2223,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 5,
-                "sha256": "8429f95d081d0c2908c9fbbbd7224c420448ac7bdc2d7520eeaf994808661f27"
+                "sha256": "78ff04e0baee5d8c6244539f4e44c85f6b430190c41bd618fb38dd92102e8eb5"
               },
               {
                 "table": "sync_mutation",
                 "rows": 22,
-                "sha256": "e0b150a590c3bb0bddbf69edb169d890ecc454127cddd7a6c324a3cb143bbe90"
+                "sha256": "1317320e8b110f91f4e012b24725186dba8a953225687040da0cf3b9986f89f2"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 5,
-                "sha256": "d73c750df9a11ec21c8c3ffa5f43fe80de233899ed4f2d6c956abae0f30f36ae"
+                "sha256": "b340c1d599cccc8a7dacf761483f9a816ef2c14257c56dde509854eb921bf79c"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 3,
-                "sha256": "a590554d3765280a7e5e2437399f591ad1f7c38ec12b955e4dac17cb911f611d"
+                "sha256": "d984ad0f8a0accc70a73eb181f303493d7cca9502b438ac080168afc7cfa3eb9"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "39e9299a883d25db8eb3f0549f3fac3072769f9861cc6910158f4cb1db93bf74"
+                "sha256": "1604f39a747c6414bc9855bad5772a67d520d2ab521ecf915429a7971641e2a2"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 2,
-                "sha256": "b8fcf9b6e6f026ba4400c05e15c429e380ec1ff69c82dc696e796f4535ac5da0"
+                "sha256": "73893638ec71c4451a35730b6c27ccebdf98690f2a240650c3889cf8afe7db55"
               },
               {
                 "table": "sync_conflict",
@@ -2263,43 +2263,43 @@
               {
                 "table": "yjs_snapshots",
                 "rows": 2,
-                "sha256": "f47efc71d9d7b852f9ed40886ae463154fac776831288c96e93315d53cfb313f"
+                "sha256": "2edf393f647b173502c890cf0bd62b8cb1bd26024a1328aa7eb2803728d909b5"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "4ed79755573ac268ebebe20cd4ee30a683c67c87f02d415b798e6d68694096a9"
+                "sha256": "40e6b8dfd207262e625d008bea46d76257ea6c5c6ca6acb662198f891f94980e"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 3,
-                "sha256": "9cf1892e237964cd47ed972550c62ec098e68d2909f3faf0f7e32422f38d1a35"
+                "sha256": "c17e0abfd9feda04fb7c8fd6831b23d3c6a6cf7e448a308d34f408aac86d855b"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759222238000-27",
+                "chapterId": "native-chapter-26657-1790507383804866000-24",
                 "unchanged": true,
-                "stateSha256": "a21fe41b58d78945a55629f51e309e4fca672caea063afb5318ec382a0f6ce79"
+                "stateSha256": "f76fb34bdca6739514fe231d7e33c0fe6e22488b05d645f0cbac6761a4afa1aa"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759227596000-36",
+                "chapterId": "native-chapter-26657-1790507383810233000-33",
                 "unchanged": true,
-                "stateSha256": "88ccee56b333c0f7d2f546bffc3bef04bafd6af9c8e1134de9ec5e8fc34b8a18"
+                "stateSha256": "8dd26ca226ec075d1361f66f3116c08b57d1ab69b638253164c31446512ffa29"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.242Z",
-                "receiver": "2026-09-27T09:52:39.222Z"
+                "native": "2026-09-27T11:09:43.826Z",
+                "receiver": "2026-09-27T11:09:43.804Z"
               }
             ],
-            "afterDatabaseSha256": "6cfa547006641a13252d6b21609e569797fe44b4148f0857960301b53c203cf8"
+            "afterDatabaseSha256": "2f2f5ecc155f34c9ab789f3576b5c61a0c020f18752ec02132cd2e328a67e5df"
           },
           {
             "operation": "rename",
-            "originalSha256": "123ef605484f74651c50d2239f03856f39d0cf82a9cfabb8b8ddfdaa3affe516",
+            "originalSha256": "1c1625096b5152f24fbf7213f403f2996cf2fe9c656c2d5d484bccca1a19fa62",
             "mutationCount": 1,
             "action": "field.set",
             "incarnation": 0,
@@ -2311,22 +2311,22 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "01eca5366d0a973c2ca634ababf7e597c7572200dbfcbda0516c105caffdc765"
+                "sha256": "c7dc8f36ef7ce0164fda808006922bd189d939f8ba97b20f007e11d80fcce759"
               },
               {
                 "table": "book_act",
                 "rows": 1,
-                "sha256": "08e1743e384a77bc034aa99cccc17fd892ecd0f12e858b87ff4ee1fcf2cabe65"
+                "sha256": "ad017f8e6914e6a01964142d636fdb109424462ea45674a61e10a7004c255b09"
               },
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "102e8c28cc5464d1875e6135572d3185f445486226bd7fdcb0efccccc9489c82"
+                "sha256": "9acc9ee0d3541cd1e6275a6b35a454517d2dd94dd85e99ebfe13a8ab1304ca5d"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "e525a07e9aea2b3b8ea4abdb4ad8068561d2d6b96fd4ebfbf6e4e0dc2aecda1d"
+                "sha256": "e262b6262004f7e6ef11de6f6ac0722d78f48081c91d52d8147e0e54a614cff6"
               },
               {
                 "table": "node_storyline_link",
@@ -2351,32 +2351,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 6,
-                "sha256": "1f470dae4a1cbb08bf56af445fdeb370edd07384388691b4965ea8f19521919c"
+                "sha256": "b2b0aefa5a3e94da5d9ec99fe34109a3ce6c58f09f830b10e8e91a706d7027b8"
               },
               {
                 "table": "sync_mutation",
                 "rows": 23,
-                "sha256": "1e015bc243ce9826c723373128379d515830305f122d1a4dddd9f1f612b82db0"
+                "sha256": "8de84f43ce7455aacbd008e147057fa46a22e32fc7d6761ba001539bfa8ffae6"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 6,
-                "sha256": "94fde97bfc8d1b0e931d79793c514cd7f74158d25da5976a5dc02f45436dcad4"
+                "sha256": "209d5d524935674e204ba39cec912dd5d4edc47e5ce27acbeb86110e92914824"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 3,
-                "sha256": "a590554d3765280a7e5e2437399f591ad1f7c38ec12b955e4dac17cb911f611d"
+                "sha256": "d984ad0f8a0accc70a73eb181f303493d7cca9502b438ac080168afc7cfa3eb9"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "39e9299a883d25db8eb3f0549f3fac3072769f9861cc6910158f4cb1db93bf74"
+                "sha256": "1604f39a747c6414bc9855bad5772a67d520d2ab521ecf915429a7971641e2a2"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 3,
-                "sha256": "2d6f684ba74f44dab799eb731fe130beacb3abd8aa1997486df526ae126ec0c0"
+                "sha256": "59dcb4788430423e6c04e33bd9fe5f9aaad98afc678e62755a7133457a739ced"
               },
               {
                 "table": "sync_conflict",
@@ -2391,50 +2391,50 @@
               {
                 "table": "yjs_snapshots",
                 "rows": 2,
-                "sha256": "f47efc71d9d7b852f9ed40886ae463154fac776831288c96e93315d53cfb313f"
+                "sha256": "2edf393f647b173502c890cf0bd62b8cb1bd26024a1328aa7eb2803728d909b5"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "4ed79755573ac268ebebe20cd4ee30a683c67c87f02d415b798e6d68694096a9"
+                "sha256": "40e6b8dfd207262e625d008bea46d76257ea6c5c6ca6acb662198f891f94980e"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 3,
-                "sha256": "9cf1892e237964cd47ed972550c62ec098e68d2909f3faf0f7e32422f38d1a35"
+                "sha256": "c17e0abfd9feda04fb7c8fd6831b23d3c6a6cf7e448a308d34f408aac86d855b"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759222238000-27",
+                "chapterId": "native-chapter-26657-1790507383804866000-24",
                 "unchanged": true,
-                "stateSha256": "a21fe41b58d78945a55629f51e309e4fca672caea063afb5318ec382a0f6ce79"
+                "stateSha256": "f76fb34bdca6739514fe231d7e33c0fe6e22488b05d645f0cbac6761a4afa1aa"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759227596000-36",
+                "chapterId": "native-chapter-26657-1790507383810233000-33",
                 "unchanged": true,
-                "stateSha256": "88ccee56b333c0f7d2f546bffc3bef04bafd6af9c8e1134de9ec5e8fc34b8a18"
+                "stateSha256": "8dd26ca226ec075d1361f66f3116c08b57d1ab69b638253164c31446512ffa29"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.242Z",
-                "receiver": "2026-09-27T09:52:39.222Z"
+                "native": "2026-09-27T11:09:43.826Z",
+                "receiver": "2026-09-27T11:09:43.804Z"
               }
             ],
-            "afterDatabaseSha256": "7cf9beb3d14e1d85c1d2c0cceaa23e1292f74be804eb1fd2cc9f71d49c71caf8"
+            "afterDatabaseSha256": "18b05623c8c233c997bdab752b17f8175adeee7385c034c494c49098a439081b"
           }
         ]
       },
       {
         "name": "act-remove-retains-empty-boundary-chapter-state",
         "status": "passed",
-        "beforeDatabaseSha256": "bc16920f12385326f4da7757f386b3ae3b31a52c76f96a8e3b80ae2d22152ebd",
+        "beforeDatabaseSha256": "649077623f9f5e57f1428db275148b280002a1a0a44713619a88278d75185bdb",
         "steps": [
           {
             "operation": "remove",
-            "originalSha256": "13a033ae8c2994eb3a53fc07d240ccc4ca52f940cf50a7961ec816f523d0948b",
+            "originalSha256": "1dc8f6ac05e93a7291e2cfc495c5b24e29f0091c094b2257c5297182df8efd70",
             "mutationCount": 1,
             "action": "entity.purge",
             "incarnation": 0,
@@ -2446,7 +2446,7 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "67ea715945a0625cd1bb419474f868ff81b4a8cf43bcb6c07ec04ffb845b44ea"
+                "sha256": "4591332a79bee3c87eda457717eb8483603a4e92b4ef2f5f6c34055477daa55e"
               },
               {
                 "table": "book_act",
@@ -2456,12 +2456,12 @@
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "339b7f352253b889f1100f03e672fff1502f44bc5f594ead81307d2ef13e8bb8"
+                "sha256": "7924f432aff978e7a23dbfb05803c323cf8432a26d07f0e45fb5630b28ecbb5e"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "ff83ac888a584111b7a6b4d6510f71ed0fa74d053a0f1a6c6d402a5db8783ebf"
+                "sha256": "ffec5b8f89e5d91b8acf391fe922ce5bfe4a9a2b27cc243d42c2bb284a906005"
               },
               {
                 "table": "node_storyline_link",
@@ -2476,7 +2476,7 @@
               {
                 "table": "comment",
                 "rows": 1,
-                "sha256": "6a3ad52bc347fadefefc190e16397347d4c69dc0c167cfef7e49a5982c1766e7"
+                "sha256": "b1ceb8ab7da89fe1557dff403a0289508dbea1e90421eec68c445f2a6bb0b83e"
               },
               {
                 "table": "comment_action",
@@ -2486,32 +2486,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 9,
-                "sha256": "46ab480d626c789a656bfb54787d3dff609a713309371a7c12ed6595115e0f8d"
+                "sha256": "1ee876447f8b717844e3fc4274adb5d7139acbacb2434d3ea60745cc900a0063"
               },
               {
                 "table": "sync_mutation",
                 "rows": 26,
-                "sha256": "e11b2af29d304a12e0d0368d16bd87d57b795e1209bd01d7bfd696969118a9d0"
+                "sha256": "96d9b74fbd28457cce5fdf251453a632f7f0c899245c3fb8a8dae9ab7a979ac6"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 9,
-                "sha256": "27d14d4008658048debbed758632b975ac73d56044ca355d085f995ad08467a8"
+                "sha256": "14020786d737e16672a558fb7d59eef5305142a4fcc57779efba910e7d9deac4"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 5,
-                "sha256": "9008823dcb77a02654334b51dd6bdf6d7c418a5fcd923e86e783499687e1b194"
+                "sha256": "2332b9cb3810856f5856adbf1c310480b6b02702c1229c6ed73e9eb77f858f4f"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "c79756aac077400f0c79b14df1a9680dd2a9c21b0a7fb9d3b8fb26de0ffd7c1a"
+                "sha256": "f4b49a1ca265b83574552458df53e5903006e4a6df53ba2754e635401c383635"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 3,
-                "sha256": "91bf173e7a79dc64ca792e5fd2f68cdb4c2738be5ee93db0bd67af61d9100278"
+                "sha256": "4b2c79e34f8c417f9080d2fd359455537b6c5883fbf652f7fb3eb4b7c772f407"
               },
               {
                 "table": "sync_conflict",
@@ -2526,50 +2526,50 @@
               {
                 "table": "yjs_snapshots",
                 "rows": 2,
-                "sha256": "c399b8b3a05a203a588d53ecc3f8dbcb103610f8438f2f60add2ddcdd0329a86"
+                "sha256": "72dddbeb62b82459c6e9b1fe2602838663db84fbca33b417d16027f3e983463c"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "532ecf9e33821f91d7e8ba750117aa3dc90a6034e381eeefc037cb959f0051ec"
+                "sha256": "2f5700df23269c3e5ed95bc66a10437dd8bda2b97e80b537e01b8682bdcc3ca7"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 5,
-                "sha256": "ed2296a3c97c2f9567891202aff8ef108aaedeff258c609d3b00d0dc090625c7"
+                "sha256": "24cd80263805ce4d82cc733df2b09b3e2edea62b54dc47326693b5696afdad27"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759220349000-24",
+                "chapterId": "native-chapter-26657-1790507383802993000-21",
                 "unchanged": true,
-                "stateSha256": "83900883e05f599dd898503427d08fb33daaffb9df050f6d2a6a00bd221928c0"
+                "stateSha256": "e5df1f410454f7569f895ce51e73efe993140e974da425868d1204c67280c8db"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759225770000-33",
+                "chapterId": "native-chapter-26657-1790507383808447000-30",
                 "unchanged": true,
-                "stateSha256": "21998eeb4d671ded51276b14732b3cb722fb7b4c325604c5e54aec051215974c"
+                "stateSha256": "b25685119acb0ffab60ed469cdb25ef62b9c8ca0e5926af7e21f36ea8167b0e0"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.247Z",
-                "receiver": "2026-09-27T09:52:39.220Z"
+                "native": "2026-09-27T11:09:43.831Z",
+                "receiver": "2026-09-27T11:09:43.802Z"
               }
             ],
-            "afterDatabaseSha256": "db9523f6bbee862e1760570781409faa3f84db1377a3b200460cb6029caea578"
+            "afterDatabaseSha256": "d6d3f7ce9c151a97755b2270785512222fffc6abe1c608ccca8f53c9b2fa6013"
           }
         ]
       },
       {
         "name": "act-failure-preserves-owner-and-retries",
         "status": "passed",
-        "beforeDatabaseSha256": "6e23419d495618b3645a521295e986818043b205fe11a9685a700277833f031c",
+        "beforeDatabaseSha256": "ed45a779efdea9eb62a73727b236244e35e4e62eba938a4e8eaf7de50c6b0350",
         "steps": [
           {
             "operation": "create",
-            "originalSha256": "6ecaeaf5463ad1bd706fd0141bd28b830036b21aa79d282b45c011813f1f01b8",
+            "originalSha256": "0ae640a4b036cbad368dfa47709fce0c15a99e24a9ec4bb2292b62b0b716c6b7",
             "mutationCount": 1,
             "action": "entity.create",
             "incarnation": 0,
@@ -2581,22 +2581,22 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "73265351c9f47fd83582fc2d4b6ceb69df8a8b4c77d16543b01b7c96e9a80583"
+                "sha256": "de72eaeb4d456a242b28c21060eb9b4ee04096f6c131ad28295792bc62b95c3c"
               },
               {
                 "table": "book_act",
                 "rows": 1,
-                "sha256": "0fb0ad255d1e4c50045ce355515af5bed57a87f59a7a3d0f5af629bcd87c4d06"
+                "sha256": "a4db52cfb39b7b85b40fed2093b1d1ae83fbd978f6429e1dc759c2a8f10f71ea"
               },
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "cde1fbf5b378c31254580e79d0ffb63a0be59af60bf84116b05c6cc83f82da0e"
+                "sha256": "b5192ce76d4ba2cc6ecd79a01b6bc809502627009569107a07098753d2750833"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "52547085bb5e501efbe0d56b9f19d021b33f90c5b13d623c80ecf8c6044b87a5"
+                "sha256": "d5bb494fefd656a68503dd8a776cb79838bc035107e27b87e64edd2a5d5f86f3"
               },
               {
                 "table": "node_storyline_link",
@@ -2621,32 +2621,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 5,
-                "sha256": "a2bf6bba63c9aa1b2260f80781e6c19c15560b73c09cf2876d41b514e76e410a"
+                "sha256": "499c135b004af4e59b096871b234fbb9808e16aa7ba1022aaaa5fe4ace4f717a"
               },
               {
                 "table": "sync_mutation",
                 "rows": 22,
-                "sha256": "ad881d1a998492f787b7d8cf02eb25e29cc0ef578a096c9c85d1019e56336725"
+                "sha256": "c48bb1e891cca9b2177ca18fd425d3ee8c8f28143bf0eb39fd49b26802e896b8"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 5,
-                "sha256": "565ffcb1fdc314050f8b9ad15f4d9b77de4a929bcb5f7b52f48944e52d5c2fb3"
+                "sha256": "d52ab8cc365490d0197b22b06c9a898b4ab572afa2ba7c7ba0569dfa8dd8de8f"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 3,
-                "sha256": "34c3a80ff521720205d39b223d745b2b0ffac5748ab4431f756c694a85d27701"
+                "sha256": "3559d7cc190960461e7b00c7f8ee0f47b43f1626742c9fed99fa2aebc9fd0f0b"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "184db68d56748a76405030910c370681f54b3a8652d55eeffa970a75c4ee5625"
+                "sha256": "e52d62560f631be4ef39d29cd632e08a8a26d7af3f60d24131e0b5768551559d"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 2,
-                "sha256": "2ea5f94a76bf354f151ab9856e27b3abb46bd38807c8f658dfc9dfab76ca627f"
+                "sha256": "e8ff53b006b9346b95d5d532b33f907b35d05d47b162ad54d8bf6f01e415e133"
               },
               {
                 "table": "sync_conflict",
@@ -2656,48 +2656,48 @@
               {
                 "table": "yjs_updates",
                 "rows": 1,
-                "sha256": "e44dd631ada994f14934b6315055bcc533b720c012d1c4de89eaa3bd9890ce81"
+                "sha256": "a0b2d6ae0893373530edee9830d681c25f2dc50d68fbcdb18659713e370ea5fe"
               },
               {
                 "table": "yjs_snapshots",
                 "rows": 1,
-                "sha256": "36f088ac60863216ee739d3130c8666b0e18b56351c20e01e86136fa2e18937f"
+                "sha256": "aa89fd78b1f8f8cfb3fec7ae078638fc28f1a7e4b6c48e81a2b703e1b676c529"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "3cdd29d5caed4ca51374bef605552bed546bd692b8a245425872e11d69e16d8f"
+                "sha256": "e4aafdb34009c2a7a86434a616a10eaae8b18e07ed698dafa6e21cc23323994e"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 3,
-                "sha256": "93181786eb6856e554b37f0130f44ed5108ace8338a8c70e4ddad04da7aec5e5"
+                "sha256": "7c15c1bf7b9f9947560325689fa29512bb83130ec2b63980d95de31a34c146bd"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759218537000-21",
+                "chapterId": "native-chapter-26657-1790507383806672000-27",
                 "unchanged": true,
-                "stateSha256": "e3211e9ade8a0bf425fbb856e0bccfc36ace2048e1d177432f1c4792309a8f41"
+                "stateSha256": "36fc8e9069b9eaf7c64f80244562a4f2be69f23bbafcf8cc5089daf8de1b6b55"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759223954000-30",
+                "chapterId": "native-chapter-26657-1790507383811986000-36",
                 "unchanged": true,
-                "stateSha256": "439af0da0b1df8ff21de74000df8b672181c96b9566f08d8d5207c8708704dc3"
+                "stateSha256": "6cd58c496c5aee3c82c94f1fb31b12a307dce69a1a18e18b31d4192583de2e8e"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.237Z",
-                "receiver": "2026-09-27T09:52:39.218Z"
+                "native": "2026-09-27T11:09:43.824Z",
+                "receiver": "2026-09-27T11:09:43.806Z"
               }
             ],
-            "afterDatabaseSha256": "35ce1a6ec7771901cd083886b5a4ecad8d17fed3a921cfceee39dafa9e7f439b"
+            "afterDatabaseSha256": "168679fc7e7806410bbdaaf106dcf15e26ded4d13bd515dd17169a5eb511a0d2"
           },
           {
             "operation": "rename",
-            "originalSha256": "f605e53a5c8967911ca75a53b6cc8bea704c16ff8bc499c229ed0b1ef7baf01a",
+            "originalSha256": "fb2d991e1e7fc4fd84fea71064dac1da246f99ed359f7a2ff10752ad0391f5ad",
             "mutationCount": 1,
             "action": "field.set",
             "incarnation": 0,
@@ -2709,22 +2709,22 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "73265351c9f47fd83582fc2d4b6ceb69df8a8b4c77d16543b01b7c96e9a80583"
+                "sha256": "de72eaeb4d456a242b28c21060eb9b4ee04096f6c131ad28295792bc62b95c3c"
               },
               {
                 "table": "book_act",
                 "rows": 1,
-                "sha256": "bdbf13d16b9e7a2272fddbadd230b7fcb967b6ae00e2142ab44fcf24c07cc08e"
+                "sha256": "44a8b8ca1eabd2b19805613efa7b0da66fda904525541c46effe13d4b6a4d4a3"
               },
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "cde1fbf5b378c31254580e79d0ffb63a0be59af60bf84116b05c6cc83f82da0e"
+                "sha256": "b5192ce76d4ba2cc6ecd79a01b6bc809502627009569107a07098753d2750833"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "52547085bb5e501efbe0d56b9f19d021b33f90c5b13d623c80ecf8c6044b87a5"
+                "sha256": "d5bb494fefd656a68503dd8a776cb79838bc035107e27b87e64edd2a5d5f86f3"
               },
               {
                 "table": "node_storyline_link",
@@ -2749,32 +2749,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 6,
-                "sha256": "955892b38dea64c961ec70b6debe4755b600576d1609960829fb83a94db54e9e"
+                "sha256": "24da367e333115f36d2562ad8f5857921ba2dbe9a7958ce494641b66bf5f26c2"
               },
               {
                 "table": "sync_mutation",
                 "rows": 23,
-                "sha256": "1f5b4b16b3eb2074eb6f6bf67fd59f9ead2fd5dd1a552105d2bad683fc973784"
+                "sha256": "5bdd22bbc75231dad7ba1c1bc593a616f1f29a682f2b482b1984f312cc0a06b0"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 6,
-                "sha256": "ab41ca09fa0994c5a4bbf6d78d1e91a3974cdf4c45c3ac6d5d843ef068ea96d9"
+                "sha256": "ae6b3ab1cb2cd88bfcfafa7e4aa768fef651ac9f9ee5aaa89a9e0026b6d7a7b6"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 3,
-                "sha256": "34c3a80ff521720205d39b223d745b2b0ffac5748ab4431f756c694a85d27701"
+                "sha256": "3559d7cc190960461e7b00c7f8ee0f47b43f1626742c9fed99fa2aebc9fd0f0b"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "184db68d56748a76405030910c370681f54b3a8652d55eeffa970a75c4ee5625"
+                "sha256": "e52d62560f631be4ef39d29cd632e08a8a26d7af3f60d24131e0b5768551559d"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 3,
-                "sha256": "c7312fe9cfa8e58e0164942de778a8ba74b42d802f06cefbc39c9b56003ff323"
+                "sha256": "3451de3f4839dae366271d7fe0349300c7de6ca028c93e03b0e895b7b1b5081e"
               },
               {
                 "table": "sync_conflict",
@@ -2784,48 +2784,48 @@
               {
                 "table": "yjs_updates",
                 "rows": 1,
-                "sha256": "e44dd631ada994f14934b6315055bcc533b720c012d1c4de89eaa3bd9890ce81"
+                "sha256": "a0b2d6ae0893373530edee9830d681c25f2dc50d68fbcdb18659713e370ea5fe"
               },
               {
                 "table": "yjs_snapshots",
                 "rows": 1,
-                "sha256": "36f088ac60863216ee739d3130c8666b0e18b56351c20e01e86136fa2e18937f"
+                "sha256": "aa89fd78b1f8f8cfb3fec7ae078638fc28f1a7e4b6c48e81a2b703e1b676c529"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "3cdd29d5caed4ca51374bef605552bed546bd692b8a245425872e11d69e16d8f"
+                "sha256": "e4aafdb34009c2a7a86434a616a10eaae8b18e07ed698dafa6e21cc23323994e"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 3,
-                "sha256": "93181786eb6856e554b37f0130f44ed5108ace8338a8c70e4ddad04da7aec5e5"
+                "sha256": "7c15c1bf7b9f9947560325689fa29512bb83130ec2b63980d95de31a34c146bd"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759218537000-21",
+                "chapterId": "native-chapter-26657-1790507383806672000-27",
                 "unchanged": true,
-                "stateSha256": "e3211e9ade8a0bf425fbb856e0bccfc36ace2048e1d177432f1c4792309a8f41"
+                "stateSha256": "36fc8e9069b9eaf7c64f80244562a4f2be69f23bbafcf8cc5089daf8de1b6b55"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759223954000-30",
+                "chapterId": "native-chapter-26657-1790507383811986000-36",
                 "unchanged": true,
-                "stateSha256": "439af0da0b1df8ff21de74000df8b672181c96b9566f08d8d5207c8708704dc3"
+                "stateSha256": "6cd58c496c5aee3c82c94f1fb31b12a307dce69a1a18e18b31d4192583de2e8e"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.237Z",
-                "receiver": "2026-09-27T09:52:39.218Z"
+                "native": "2026-09-27T11:09:43.824Z",
+                "receiver": "2026-09-27T11:09:43.806Z"
               }
             ],
-            "afterDatabaseSha256": "00930c1358ea280cec40447aff1729570cf0197e6695585660e6f73b70a4dc4b"
+            "afterDatabaseSha256": "28e785383da0c29e69221e96b96d006d12e4c383105471697f62a2328cd620c4"
           },
           {
             "operation": "remove",
-            "originalSha256": "4a44704cb8cb483108eb3bca9f193fb711a5b01af9ff9619cef719cb06834a4f",
+            "originalSha256": "ff3e4fb7ccae71e607de6457b741a0f5cedef1dd718f5eaa5416c257d4621797",
             "mutationCount": 1,
             "action": "entity.purge",
             "incarnation": 0,
@@ -2837,7 +2837,7 @@
               {
                 "table": "project",
                 "rows": 1,
-                "sha256": "73265351c9f47fd83582fc2d4b6ceb69df8a8b4c77d16543b01b7c96e9a80583"
+                "sha256": "de72eaeb4d456a242b28c21060eb9b4ee04096f6c131ad28295792bc62b95c3c"
               },
               {
                 "table": "book_act",
@@ -2847,12 +2847,12 @@
               {
                 "table": "book_node",
                 "rows": 2,
-                "sha256": "cde1fbf5b378c31254580e79d0ffb63a0be59af60bf84116b05c6cc83f82da0e"
+                "sha256": "b5192ce76d4ba2cc6ecd79a01b6bc809502627009569107a07098753d2750833"
               },
               {
                 "table": "node_content",
                 "rows": 2,
-                "sha256": "52547085bb5e501efbe0d56b9f19d021b33f90c5b13d623c80ecf8c6044b87a5"
+                "sha256": "d5bb494fefd656a68503dd8a776cb79838bc035107e27b87e64edd2a5d5f86f3"
               },
               {
                 "table": "node_storyline_link",
@@ -2877,32 +2877,32 @@
               {
                 "table": "sync_change_set",
                 "rows": 7,
-                "sha256": "70d5be17ca187acc5c4400a2b0aed14c3b0665af581da3e8dd6b723b3bbb9f88"
+                "sha256": "cf55810c603631990ee7e5984ccf7bbb77baada6873597259f6f5467ec0379d6"
               },
               {
                 "table": "sync_mutation",
                 "rows": 24,
-                "sha256": "ef3c2b6f0c345097b254ece61e6146f93b149d2eeeae1403cf2cf3b81817c87f"
+                "sha256": "ccda6f4642b45e4b054e4b8c8ce873c9c572ae911f88ab25191c6fe7ae8f16b3"
               },
               {
                 "table": "sync_apply_receipt",
                 "rows": 7,
-                "sha256": "345d4fc2205676e9a466377f0c2d55dd4a3aae0acaec66dee8744c675c53a7ca"
+                "sha256": "da6f4b263009c86258a658bdad2427beecc31a1d20e49e1c2ab911803a8f3fe2"
               },
               {
                 "table": "sync_yjs_materialization_receipt",
                 "rows": 3,
-                "sha256": "34c3a80ff521720205d39b223d745b2b0ffac5748ab4431f756c694a85d27701"
+                "sha256": "3559d7cc190960461e7b00c7f8ee0f47b43f1626742c9fed99fa2aebc9fd0f0b"
               },
               {
                 "table": "sync_entity_lifecycle",
                 "rows": 11,
-                "sha256": "e5a5eb85d57d8eded186fe9f966c750ed9aac5e41ab4c0e292ca0708a0a61c2d"
+                "sha256": "cf5a66945cdc36cd47b2e62405a2e3fd9880a4523c3c083005486134d500e213"
               },
               {
                 "table": "sync_field_clock",
                 "rows": 3,
-                "sha256": "c7312fe9cfa8e58e0164942de778a8ba74b42d802f06cefbc39c9b56003ff323"
+                "sha256": "3451de3f4839dae366271d7fe0349300c7de6ca028c93e03b0e895b7b1b5081e"
               },
               {
                 "table": "sync_conflict",
@@ -2912,44 +2912,44 @@
               {
                 "table": "yjs_updates",
                 "rows": 1,
-                "sha256": "e44dd631ada994f14934b6315055bcc533b720c012d1c4de89eaa3bd9890ce81"
+                "sha256": "a0b2d6ae0893373530edee9830d681c25f2dc50d68fbcdb18659713e370ea5fe"
               },
               {
                 "table": "yjs_snapshots",
                 "rows": 1,
-                "sha256": "36f088ac60863216ee739d3130c8666b0e18b56351c20e01e86136fa2e18937f"
+                "sha256": "aa89fd78b1f8f8cfb3fec7ae078638fc28f1a7e4b6c48e81a2b703e1b676c529"
               },
               {
                 "table": "yjs_document_revision",
                 "rows": 2,
-                "sha256": "3cdd29d5caed4ca51374bef605552bed546bd692b8a245425872e11d69e16d8f"
+                "sha256": "e4aafdb34009c2a7a86434a616a10eaae8b18e07ed698dafa6e21cc23323994e"
               },
               {
                 "table": "yjs_document_revision_provenance",
                 "rows": 3,
-                "sha256": "93181786eb6856e554b37f0130f44ed5108ace8338a8c70e4ddad04da7aec5e5"
+                "sha256": "7c15c1bf7b9f9947560325689fa29512bb83130ec2b63980d95de31a34c146bd"
               }
             ],
             "documents": [
               {
-                "chapterId": "native-chapter-27377-1790502759218537000-21",
+                "chapterId": "native-chapter-26657-1790507383806672000-27",
                 "unchanged": true,
-                "stateSha256": "e3211e9ade8a0bf425fbb856e0bccfc36ace2048e1d177432f1c4792309a8f41"
+                "stateSha256": "36fc8e9069b9eaf7c64f80244562a4f2be69f23bbafcf8cc5089daf8de1b6b55"
               },
               {
-                "chapterId": "native-chapter-27377-1790502759223954000-30",
+                "chapterId": "native-chapter-26657-1790507383811986000-36",
                 "unchanged": true,
-                "stateSha256": "439af0da0b1df8ff21de74000df8b672181c96b9566f08d8d5207c8708704dc3"
+                "stateSha256": "6cd58c496c5aee3c82c94f1fb31b12a307dce69a1a18e18b31d4192583de2e8e"
               }
             ],
             "proseSaveStamps": [
               {
                 "chapter": 0,
-                "native": "2026-09-27T09:52:39.237Z",
-                "receiver": "2026-09-27T09:52:39.218Z"
+                "native": "2026-09-27T11:09:43.824Z",
+                "receiver": "2026-09-27T11:09:43.806Z"
               }
             ],
-            "afterDatabaseSha256": "9c6a4e52cd6fb96552785c10ab61c6a8221cc3b625656f6d2c0022fe3c24c2df"
+            "afterDatabaseSha256": "b8dd4df1990b3009b5eb22c24010738fce1743fc4fb227410dbfd02f6538a549"
           }
         ]
       }
@@ -2985,88 +2985,88 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/source-before.json",
-      "sha256": "582a9c1f0d5e546d127f4f8bc5d9e6d8753ac6fe2d893ab00df5a2e3ea3a2536"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/source-before.json",
+      "sha256": "77f2a186697da15610c05de552b866263ccf4f4fc7aac2132ca75f9bc685ad6a"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/rustc.log",
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/rustc.log",
       "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/cargo.log",
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/cargo.log",
       "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/core-act-boundaries.log",
-      "sha256": "ecfd403216000b79fc0807df19073ed4b0f1e7937092df6ed1d2ecebebcb2b6a"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/core-act-boundaries.log",
+      "sha256": "1d7f754e9d8ec8e063e644b2e59ca504ec3cb7cba9bc6cfe59ebea6ea7ab2261"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/bridge-act-boundaries.log",
-      "sha256": "239ac248b7cfe5d0b7ff55f929523ed708fca8a22f6a8940ac0976a3331ef363"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/bridge-act-boundaries.log",
+      "sha256": "f68c0ff2518298814632618aefc2908fc353c1da0072b8e869fa5cc4df2779fd"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/workspace-act-wire.json",
-      "sha256": "6fc20637fece97a10eba61294e898a26edd09da225cfb427e14c2992ee7ca782"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/workspace-act-wire.json",
+      "sha256": "74e802cf6e1c454c1b8fa1b86af09bee32a263cde60a210abe1f23f423c56243"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/renderer.json",
-      "sha256": "4a9c455c08d7f447254ba57620937f8cc401eb3b427b6e0c7b38862300fc2186"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/renderer.json",
+      "sha256": "17db9e8da026e27dd447929d753974af290cd44a60591e11322dbffad253bbe2"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/renderer.log",
-      "sha256": "37320af150a7403e20c996b526d2efdd46b41ad8d647925b649f6bec412d490f"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/renderer.log",
+      "sha256": "bb92cf83d750630ddf67ceb2d2781c556a861f67b25b849a93a07f28b092c54d"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/typecheck.log",
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-create-rename-and-cold-outline.json",
-      "sha256": "cc8116db6a510f216431148809516b86dcaaff4cab27fe3f5c4d335114da7c70"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-create-rename-and-cold-outline.json",
+      "sha256": "75f640aa504d0c1e1c4794ff6f72b172cdedc109a97872b4d8abbd616934a0c6"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-remove-retains-empty-boundary-chapter-state.json",
-      "sha256": "d1334c710fcf8a3df9d72edefe3b15d21184bac9312937f02e160cd38449b207"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-remove-retains-empty-boundary-chapter-state.json",
+      "sha256": "1f77f84742e6f38b1de6819f4721a72cd2463a34e8399b2dc7fca0539e33ca32"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-failure-preserves-owner-and-retries.json",
-      "sha256": "be30baecf3c2dab744abb1c381c8b796299d8e5efe16b52efc639188de2b6c69"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-failure-preserves-owner-and-retries.json",
+      "sha256": "469bac2951d4d840b6d70cf3d0fec3176b501b195fdebc86001e45d790cdae49"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-create-rename-and-cold-outline-before.db",
-      "sha256": "3174ebac65512b74cff60924ad2dbf9d988c7f53dd03d244b650de4fdff54a26"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-create-rename-and-cold-outline-before.db",
+      "sha256": "64669d9b79f79f6d407665abf327b0575e1c67a8814dd3c20aa21545032a862d"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-create-rename-and-cold-outline-after-0.db",
-      "sha256": "6cfa547006641a13252d6b21609e569797fe44b4148f0857960301b53c203cf8"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-create-rename-and-cold-outline-after-0.db",
+      "sha256": "2f2f5ecc155f34c9ab789f3576b5c61a0c020f18752ec02132cd2e328a67e5df"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-create-rename-and-cold-outline-after-1.db",
-      "sha256": "7cf9beb3d14e1d85c1d2c0cceaa23e1292f74be804eb1fd2cc9f71d49c71caf8"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-create-rename-and-cold-outline-after-1.db",
+      "sha256": "18b05623c8c233c997bdab752b17f8175adeee7385c034c494c49098a439081b"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-remove-retains-empty-boundary-chapter-state-before.db",
-      "sha256": "bc16920f12385326f4da7757f386b3ae3b31a52c76f96a8e3b80ae2d22152ebd"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-remove-retains-empty-boundary-chapter-state-before.db",
+      "sha256": "649077623f9f5e57f1428db275148b280002a1a0a44713619a88278d75185bdb"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-remove-retains-empty-boundary-chapter-state-after-0.db",
-      "sha256": "db9523f6bbee862e1760570781409faa3f84db1377a3b200460cb6029caea578"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-remove-retains-empty-boundary-chapter-state-after-0.db",
+      "sha256": "d6d3f7ce9c151a97755b2270785512222fffc6abe1c608ccca8f53c9b2fa6013"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-failure-preserves-owner-and-retries-before.db",
-      "sha256": "6e23419d495618b3645a521295e986818043b205fe11a9685a700277833f031c"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-failure-preserves-owner-and-retries-before.db",
+      "sha256": "ed45a779efdea9eb62a73727b236244e35e4e62eba938a4e8eaf7de50c6b0350"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-failure-preserves-owner-and-retries-after-0.db",
-      "sha256": "35ce1a6ec7771901cd083886b5a4ecad8d17fed3a921cfceee39dafa9e7f439b"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-failure-preserves-owner-and-retries-after-0.db",
+      "sha256": "168679fc7e7806410bbdaaf106dcf15e26ded4d13bd515dd17169a5eb511a0d2"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-failure-preserves-owner-and-retries-after-1.db",
-      "sha256": "00930c1358ea280cec40447aff1729570cf0197e6695585660e6f73b70a4dc4b"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-failure-preserves-owner-and-retries-after-1.db",
+      "sha256": "28e785383da0c29e69221e96b96d006d12e4c383105471697f62a2328cd620c4"
     },
     {
-      "path": ".local-data/apple-native/act-acceptance-ZcRqJ4/act-failure-preserves-owner-and-retries-after-2.db",
-      "sha256": "9c6a4e52cd6fb96552785c10ab61c6a8221cc3b625656f6d2c0022fe3c24c2df"
+      "path": ".local-data/apple-native/act-acceptance-6KhPMS/act-failure-preserves-owner-and-retries-after-2.db",
+      "sha256": "b8dd4df1990b3009b5eb22c24010738fce1743fc4fb227410dbfd02f6538a549"
     }
   ]
 }

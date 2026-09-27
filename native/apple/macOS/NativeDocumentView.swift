@@ -112,6 +112,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private let italicButton = NSButton(title: "斜体", target: nil, action: nil)
     private let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     private var rendering = false
+    /// The text system's own selection colours, used without an accent.
+    private lazy var defaultSelection = textView.selectedTextAttributes
     private var styledProjection: NativeProjection?
     private var reportedComments: [NativeComment]?
     private(set) var lastStyleUpdate = DocumentStyle.Update.full
@@ -221,6 +223,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             comments.widthAnchor.constraint(equalTo: stack.widthAnchor),
             scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: minimumTextHeight),
         ])
+        applyEditorPreferences()
+        NotificationCenter.default.addObserver(self, selector: #selector(typographyChanged),
+                                               name: DocumentStyle.typographyDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(editorPreferencesChanged),
+                                               name: MacEditorPreferences.didChange, object: nil)
         binding.onProjection = { [weak self] in self?.render($0, changes: $1) }
         binding.onStatus = { [weak self] in self?.status.stringValue = $0 }
         binding.onEntityLinks = { [weak self] in self?.onEntityLinks?() }
@@ -291,10 +298,32 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         rendering = false
         updateFormatControls()
     }
+    // MARK: Settings
+
+    /// 设置 changed the typography: restyle the displayed prose in place.
+    /// Text, selection, history and the binding are untouched.
+    @objc private func typographyChanged() {
+        restyleLinks()
+        if !textView.hasMarkedText() { textView.typingAttributes = DocumentStyle.bodyAttributes }
+    }
+
+    @objc private func editorPreferencesChanged() { applyEditorPreferences() }
+
+    /// Spelling and the selection wash follow 设置.
+    private func applyEditorPreferences() {
+        if let spelling = MacEditorPreferences.spellChecking, textView.isContinuousSpellCheckingEnabled != spelling {
+            textView.isContinuousSpellCheckingEnabled = spelling
+        }
+        var selected = defaultSelection
+        if let accent = MacEditorPreferences.accentColor { selected[.backgroundColor] = accent.withAlphaComponent(0.28) }
+        textView.selectedTextAttributes = selected
+    }
+
     // MARK: Entity links
 
-    /// Restyle the displayed prose after the directory changed. Marked text
-    /// keeps its temporary styling; the next render after commit is full.
+    /// Restyle the displayed prose after the directory or the typography
+    /// changed. Marked text keeps its temporary styling; the next render
+    /// after commit is full.
     private func restyleLinks() {
         guard let projection = styledProjection, let storage = textView.textStorage else { return }
         guard !textView.hasMarkedText(), NativeText.identical(textView.string, projection.text) else { styledProjection = nil; return }

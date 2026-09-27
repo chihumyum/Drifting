@@ -1,0 +1,67 @@
+# Settings
+
+设置 (app menu, ⌘,) holds the Mac lab's appearance, editor typesetting and
+language preferences, following the renderer's 外观, 编辑器 and 语言 panels.
+Settings are device-local and never synchronized. Native only; no Tauri
+interoperability is kept.
+
+## Storage
+
+- `settings.json` lives in the lab's own data directory
+  (`~/Library/Application Support/<lab bundle id>/`, beside `apple-native-lab/`
+  and `agent/`). No user defaults domain is used, so the production app's
+  settings are never read or written. Values are read one by one: an unknown
+  or out-of-range value falls back to its default (size 12–28 pt, line height
+  1.0–2.0); an unreadable file means defaults and a message in 设置.
+- An imported font is copied to `fonts/<uuid>.ttf|otf` in the same directory and
+  registered with CTFontManager for this process only; nothing is installed.
+  Prose is set from the copy's own descriptor, so a re-registered font never
+  waits for the system font list. 替换 and 移除 delete the previous copy.
+
+## Behaviour
+
+- 外观: 主题 浅色, 深色 or 跟随系统 (the default, as Mac apps do; the renderer
+  defaults to light) sets the application appearance, so every window and panel
+  follows at once. 界面强调色 (default: the system accent) tints the selected
+  text, the selected tab and panel selection washes; never the caret.
+- 编辑器: 创作内容字体 is 系统衬线 (default: New York, with CJK in Songti SC or TC,
+  Hiragino Mincho or AppleMyungjo by manuscript language), 系统无衬线, 系统等宽, an
+  installed family (picked from the list or typed, localized names accepted) or
+  one imported TTF/OTF (at most 64 MB, validated by CoreText). 字号 scales headings
+  (28, 24, 20 pt at 17); 行距 is a multiple of the size as in CSS (line spacing =
+  size × 行距 − the face's natural line height); 段首缩进 indents top-level body
+  paragraphs by one or two characters. 还原推荐样式 restores serif, 17 pt, 1.5 and
+  no indent. A preview shows the result. Only bodies (chapter, element,
+  storyline, drift) use the prose font; page headers and all UI keep the system
+  font.
+- 自动保存 is shown read-only: every committed input is saved at once, so there
+  is no idle interval to set. Versions are captured on save at most every
+  15 minutes and on close ([history](history.md)).
+- 语言: 拼写检查 (default on) toggles continuous spell checking in every body;
+  手稿默认语言 (zh-CN, zh-TW, en, ja, ko, fr) sets CoreText's language attribute
+  on prose: glyph forms, fallback fonts and line breaking.
+- Every change saves and applies at once. Open editors, including hidden tabs,
+  restyle in place from `DocumentStyle.typography`: text, selection, history
+  and Rust are untouched, and the next edit takes the usual one-block path.
+- A chosen installed family that is gone, or an imported copy that is missing or
+  unreadable, falls back to the system serif; the choice is kept and a Chinese
+  message shows in 设置 and in the status line at launch. A typed family that is
+  not installed, and a file that is not TTF/OTF, empty, too large or unreadable,
+  are refused in Chinese and nothing changes.
+- Without settings (the headless suites) editors keep their earlier defaults:
+  the system sans at 17 pt, line spacing 6, no indent, text-system spelling.
+
+## Acceptance
+
+Four programmatic AppKit cases in the [binding report](acceptance/p2b-binding.json)
+(`--settings-only`) drive the real settings controllers, store, tab host and
+editors. They change every font source, size, line height, indent, language,
+theme, accent and spelling with editors open in both panes and a hidden tab,
+check fonts (also the face CoreText draws CJK with), paragraph styles, the
+language attribute, appearances, selection colours and tab tint, keep text,
+selection and history, and compare typing afterwards with the full style
+reference; import a generated TrueType font into the data directory and use,
+replace and remove it, refusing a damaged, empty and text file; relaunch the
+store, window and tab host cold with the font registered again; and fall back
+for an uninstalled family and a missing or damaged copy. The open and colour
+panels, physical input and the menu shortcut are not covered.

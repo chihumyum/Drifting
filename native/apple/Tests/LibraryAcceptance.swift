@@ -166,13 +166,17 @@ extension BindingAcceptance {
         }
 
         /// A Word document written by AppKit: a large bold heading and body
-        /// paragraphs at the body size.
+        /// paragraphs at the body size, one with a bold and one with an
+        /// italic run.
         func docx(_ name: String) throws -> URL {
             let url = sources.appendingPathComponent(name)
             let text = NSMutableAttributedString()
+            let body = NSFont.systemFont(ofSize: 12)
             text.append(NSAttributedString(string: "序章\n", attributes: [.font: NSFont.boldSystemFont(ofSize: 24)]))
-            for line in ["钟声在雨夜里响起。\n", "她数到第十二下，推开了门。\n", "北塔的灯还亮着。"] {
-                text.append(NSAttributedString(string: line, attributes: [.font: NSFont.systemFont(ofSize: 12)]))
+            for (line, font) in [("钟声在雨夜里响起。\n她数到第", body), ("十二下", NSFont.boldSystemFont(ofSize: 12)),
+                                 ("，推开了门。\n北塔的灯", body), ("还亮着", NSFontManager.shared.convert(body, toHaveTrait: .italicFontMask)),
+                                 ("。", body)] {
+                text.append(NSAttributedString(string: line, attributes: [.font: font]))
             }
             let data = try text.data(from: NSRange(location: 0, length: text.length),
                                      documentAttributes: [.documentType: NSAttributedString.DocumentType.officeOpenXML])
@@ -230,6 +234,20 @@ extension BindingAcceptance {
         return nil
     }
 
+    /// Bold and italic runs of one block as “text:bi” entries, from the stored
+    /// projection and checked against the editor's fonts.
+    private static func marked(_ view: NativeDocumentView, block index: Int) throws -> [String] {
+        guard let projection = view.binding.store.projection, projection.blocks.indices.contains(index) else { return [] }
+        let text = projection.text as NSString
+        return try projection.blocks[index].runs.filter { $0.attributes.bold || $0.attributes.italic }.map { run in
+            let font = view.textView.textStorage!.attribute(.font, at: run.range.location, effectiveRange: nil) as! NSFont
+            let traits = NSFontManager.shared.traits(of: font)
+            try BindingAcceptance.require(traits.contains(.boldFontMask) == run.attributes.bold
+                && traits.contains(.italicFontMask) == run.attributes.italic, "The editor does not draw the run's bold or italic")
+            return text.substring(with: run.range.nsRange) + ":" + (run.attributes.bold ? "b" : "") + (run.attributes.italic ? "i" : "")
+        }
+    }
+
     private static func blocks(_ view: NativeDocumentView) -> [String] {
         view.binding.store.projection?.blocks.map { block in
             let text = ((view.binding.store.projection?.text ?? "") as NSString)
@@ -244,10 +262,10 @@ extension BindingAcceptance {
         try libraryPortraits()
         try libraryImportExportAndReopen()
         return [
-            "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file and a javascript: link in Chinese without writing",
+            "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file, a javascript: link and Rust's missing-file and folder imports in Chinese without writing",
             "AppKit 素材库 renames through 重命名… and edits an image's notes and a note's body and notes through the sheet with one field.set per changed field, writes nothing for unchanged or empty titles, and deletes after confirmation, removing the card, the stored bytes and the item with one purge",
             "AppKit element page 肖像 shows the placeholder, sets a generated PNG through 设置肖像…, replaces it by a dropped JPEG releasing the previous bytes, follows in the second pane and the 设定库 row, refuses a PDF without writing and 移除肖像 clears it back to the placeholder",
-            "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs; 导出全书… writes UTF-8 Markdown and plain text; and the library, portrait and imported bodies survive a cold reopen",
+            "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs and the bold and italic runs of Markdown and Word; 导出全书… writes UTF-8 Markdown with those marks and plain text; and the library, portrait and imported bodies survive a cold reopen",
         ]
     }
 
@@ -334,6 +352,20 @@ extension BindingAcceptance {
         try require(harness.model.status.contains("链接必须以 http:// 或 https:// 开头") && harness.model.items.count == 5,
             "A javascript: link was not refused: \(harness.model.status)")
         try harness.expect([], since: mark, "The refused link")
+        // Files that vanish or turn out to be folders after the host's check
+        // are refused by Rust's asset store in Chinese, passed through as is.
+        for (source, reason) in [(harness.sources.appendingPathComponent("已删除.png"), "找不到要导入的文件"),
+                                 (harness.sources, "只能导入文件，不能导入文件夹")] {
+            let file = MaterialSourceFile(url: source, mime: "image/png", fileExtension: "png", width: 10, height: 10, sizeBytes: 10)
+            let refusal = try elementRefused({ harness.workspace.importMaterial(projectID: harness.project.id, title: "消失",
+                                                                                 file: file, completion: $0) }, "\(source.lastPathComponent) was imported")
+            try require(refusal == reason, "The asset store refusal was rewritten: \(refusal)")
+        }
+        try require(LabError.libraryUnavailable(reason: "文件超过 200 MB 的上限").localizedDescription == "文件超过 200 MB 的上限"
+            && LabError.libraryUnavailable(reason: "素材已存在，不能覆盖").localizedDescription == "素材已存在，不能覆盖"
+            && LabError.libraryUnavailable(reason: "unexpected io failure").localizedDescription == "素材操作未能完成。已有内容未改变，可以稍后重试。",
+            "Asset store messages are not passed through with a generic fallback")
+        try harness.expect([], since: mark, "The refused asset imports")
         harness.controller.preview(link)
         try require(harness.opened == [URL(string: "https://example.invalid/north-tower")!], "The link did not open in the browser")
 
@@ -592,7 +624,7 @@ extension BindingAcceptance {
             # 北塔
 
             她推开**北塔**的门，
-            钟声响起。
+            钟声***骤然***响起。
 
             ## 钟楼
 
@@ -603,7 +635,7 @@ extension BindingAcceptance {
 
             #### 更深的标题
 
-            结尾有 `代码` 与 *斜体*。
+            结尾有 `代码*不算*` 与 *斜体*，_Rain_ 与 [**链接**](https://example.invalid) 和 \\*星号\\*。
             """)
         var chosen = markdown
         transfer.chooseImportFile = { _, done in done(chosen) }
@@ -612,15 +644,23 @@ extension BindingAcceptance {
         try require(markdownSheet.titleField.stringValue == "北塔" && markdownSheet.selectedKind == "chapter",
             "The Markdown title was not guessed from the first heading")
         try require(markdownSheet.summary.stringValue == "Markdown · 8 段，其中 3 个标题"
-            && markdownSheet.preview.stringValue.hasPrefix("# 北塔\n她推开北塔的门，钟声响起。\n## 钟楼\n- 铜钟\n- 旧图"),
+            && markdownSheet.preview.stringValue.hasPrefix("# 北塔\n她推开北塔的门，钟声骤然响起。\n## 钟楼\n- 铜钟\n- 旧图"),
             "The import preview differs: \(markdownSheet.summary.stringValue) / \(markdownSheet.preview.stringValue)")
         var mark = try harness.mark()
         markdownSheet.importButton.performClick(nil)
         try wait { transfer.importSheet == nil && host.activeChapter?.title == "北塔" }
         guard let chapterView = host.activeView else { throw LabError.message("The imported chapter did not open") }
         try elementSettled(host, chapterView)
-        let chapterBlocks = ["h1 北塔", "她推开北塔的门，钟声响起。", "h2 钟楼", "- 铜钟", "- 旧图", "引文一行", "h3 更深的标题", "结尾有 代码 与 斜体。"]
+        let chapterBlocks = ["h1 北塔", "她推开北塔的门，钟声骤然响起。", "h2 钟楼", "- 铜钟", "- 旧图", "引文一行", "h3 更深的标题",
+                             "结尾有 代码*不算* 与 斜体，Rain 与 链接 和 *星号*。"]
         try require(blocks(chapterView) == chapterBlocks, "The chapter body differs: \(blocks(chapterView))")
+        // Bold and italic survive as marks; code, links and escapes do not add any.
+        let chapterMarks = [1: ["北塔:b", "骤然:bi"], 7: ["斜体:i", "Rain:i", "链接:b"]]
+        for (index, expected) in chapterMarks {
+            try require(try marked(chapterView, block: index) == expected, "Block \(index) marks differ: \(try marked(chapterView, block: index))")
+        }
+        try require(try (0..<chapterBlocks.count).filter { chapterMarks[$0] == nil }.allSatisfy { try marked(chapterView, block: $0).isEmpty },
+            "Unmarked blocks gained bold or italic")
         let chapterOriginals = try harness.originals(since: mark)
         try require(chapterOriginals.first?.contains("entity.create node") == true
             && chapterOriginals.dropFirst().allSatisfy({ $0.allSatisfy { $0.hasPrefix("yjs.update") } }),
@@ -672,6 +712,10 @@ extension BindingAcceptance {
         try elementSettled(host, driftView)
         try require(blocks(driftView) == ["h1 序章", "钟声在雨夜里响起。", "她数到第十二下，推开了门。", "北塔的灯还亮着。"],
             "The drift body differs: \(blocks(driftView))")
+        // Word runs keep bold and italic; the heading's own bold is its style.
+        try require(try marked(driftView, block: 0).isEmpty && marked(driftView, block: 1).isEmpty
+            && marked(driftView, block: 2) == ["十二下:b"] && marked(driftView, block: 3) == ["还亮着:i"],
+            "The Word marks differ: \(try (0..<4).map { try marked(driftView, block: $0) })")
 
         // 导出全书… as Markdown and plain text.
         let exports = harness.sources.appendingPathComponent("exports", isDirectory: true)
@@ -683,14 +727,15 @@ extension BindingAcceptance {
         mark = try harness.mark()
         let markdownURL: URL = try elementResult { transfer.beginExport(project: harness.project, window: nil, completion: $0) }
         let exported = try String(contentsOf: markdownURL, encoding: .utf8)
-        try require(exported.hasPrefix("# 素材库合成项目\n\n## 雨夜\n\n## 北塔\n\n### 北塔\n\n她推开北塔的门，钟声响起。\n\n#### 钟楼\n\n"),
+        try require(exported.hasPrefix("# 素材库合成项目\n\n## 雨夜\n\n## 北塔\n\n### 北塔\n\n她推开**北塔**的门，钟声***骤然***响起。\n\n#### 钟楼\n\n"),
             "The Markdown export differs:\n\(exported)")
-        try require(exported.contains("引文一行") && exported.contains("\n\n##### 更深的标题\n\n结尾有 代码 与 斜体。\n")
+        try require(exported.contains("引文一行")
+            && exported.contains("\n\n##### 更深的标题\n\n结尾有 代码\\*不算\\* 与 *斜体*，*Rain* 与 **链接** 和 \\*星号\\*。\n")
             && !exported.contains("序章") && !exported.contains("米拉"), "The Markdown export has other content:\n\(exported)")
         destination = (exports.appendingPathComponent("全书.txt"), .text)
         let textURL: URL = try elementResult { transfer.beginExport(project: harness.project, window: nil, completion: $0) }
         let plain = try String(contentsOf: textURL, encoding: .utf8)
-        try require(plain.hasPrefix("素材库合成项目\n\n雨夜\n\n北塔\n\n北塔\n她推开北塔的门，钟声响起。\n钟楼\n") && !plain.contains("#"),
+        try require(plain.hasPrefix("素材库合成项目\n\n雨夜\n\n北塔\n\n北塔\n她推开北塔的门，钟声骤然响起。\n钟楼\n") && !plain.contains("#"),
             "The text export differs:\n\(plain)")
         try harness.expect([], since: mark, "Exporting")
         try require(suggestedNames == ["素材库合成项目", "素材库合成项目"], "The export was not named after the book: \(suggestedNames)")

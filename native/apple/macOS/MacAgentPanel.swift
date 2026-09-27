@@ -478,7 +478,7 @@ final class AgentMessageRow: NSView, AgentTranscriptRow {
     override var wantsUpdateLayer: Bool { true }
     override func updateLayer() {
         layer?.cornerRadius = 8
-        layer?.backgroundColor = wash ? NSColor.controlAccentColor.withAlphaComponent(0.10).cgColor : NSColor.clear.cgColor
+        layer?.backgroundColor = wash ? NSColor.labAccent.withAlphaComponent(0.10).cgColor : NSColor.clear.cgColor
     }
 }
 

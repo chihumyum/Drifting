@@ -26,7 +26,8 @@ show a hover summary, and the element page lists the chapters that mention it.
 - The transaction has its own origin: it is captured as an authored, journaled
   Yjs update but is never an undo step, like the renderer's `addToHistory:false`.
   Undo reverts only typed text. Linking is skipped while a draft or composition is
-  active; the host retries.
+  active; the host retries. Link marks are derived, so a structural draft (Enter)
+  that crosses a link pass ignores them when reconciling its context.
 
 The bridge builds the map from the workspace for each body and persists a
 non-empty result. Hosts run it 500 ms after local input settles, when a body
@@ -86,4 +87,5 @@ keys compared with y-tiptap's, the renderer's own auto-detect is rerun on the
 unlinked text and must produce identical links, and the renderer's reference
 projection must agree with native backlinks. AppKit cases in the
 [binding report](acceptance/p2b-binding.json) cover typing, retroactive linking,
-navigation, target states and the backlinks section.
+navigation, target states and the backlinks section; `--editing-regressions-only`
+covers Enter typed right after a linkable name while its pass is scheduled.

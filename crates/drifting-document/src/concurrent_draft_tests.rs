@@ -766,3 +766,64 @@ fn remote_text_metadata_change_rejects_structure_even_with_equal_visible_text() 
     assert_eq!(doc.native_projection().unwrap().text, original);
     reject_without_mutation(&mut doc, "\n");
 }
+
+#[test]
+fn entity_link_pass_under_open_input_keeps_a_structural_newline() {
+    // A view types against its fork while a background link pass marks a
+    // name in the same paragraph; Enter at the paragraph end still applies.
+    let mut doc = source();
+    let start = block_start(&doc, "p");
+    doc.fork_input("typing".into(), None).unwrap();
+    let linked = doc
+        .link_entities(&[EntityLinkTarget {
+            name: "北塔".into(),
+            kind: "element".into(),
+            id: "tower".into(),
+        }])
+        .unwrap();
+    assert_eq!(linked, 1);
+    let end = start + BODY.encode_utf16().count() as u32;
+    let authored = doc
+        .replace_input(NativeInputEdit {
+            key: "typing".into(),
+            sequence: 0,
+            range: NativeRange {
+                location: end,
+                length: 0,
+            },
+            text: "\n".into(),
+            selection: None,
+        })
+        .unwrap();
+    assert_eq!(authored.text, format!("{PREFIX}\n{BODY}\n\n尾段"));
+    assert_eq!(
+        doc.native_projection().unwrap().text,
+        format!("{PREFIX}\n{BODY}\n\n尾段")
+    );
+    // The link survives on the unsplit text.
+    let spans = doc.entity_link_spans().unwrap();
+    assert_eq!(spans.len(), 1);
+    assert_eq!(spans[0].id, "tower");
+    // A mid-paragraph split across the link pass keeps both halves.
+    let mut doc = source();
+    doc.fork_input("typing".into(), None).unwrap();
+    doc.link_entities(&[EntityLinkTarget {
+        name: "北塔".into(),
+        kind: "element".into(),
+        id: "tower".into(),
+    }])
+    .unwrap();
+    let authored = doc
+        .replace_input(NativeInputEdit {
+            key: "typing".into(),
+            sequence: 0,
+            range: NativeRange {
+                location: start + 1,
+                length: 0,
+            },
+            text: "\n".into(),
+            selection: None,
+        })
+        .unwrap();
+    assert_eq!(authored.text, format!("{PREFIX}\n甲\n北塔乙👩🏽‍🚀\n尾段"));
+}

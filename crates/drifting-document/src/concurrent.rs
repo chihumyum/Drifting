@@ -15,6 +15,13 @@ fn attributes<T: ReadTxn>(element: &impl Xml, txn: &T) -> Result<Attrs, String> 
         .collect()
 }
 
+/// Entity links are derived marks that a background pass re-applies; a draft
+/// that crossed such a pass still has the author's exact text and marks.
+fn authored_marks(mut attributes: Attrs) -> Attrs {
+    attributes.retain(|key, _| !crate::formatting::is_mark(key, "entityLink"));
+    attributes
+}
+
 #[derive(PartialEq)]
 struct Context {
     identity: String,
@@ -79,17 +86,18 @@ fn affected_context(
                 let XmlOut::Text(text) = child else {
                     return Err(RETAINED.to_owned());
                 };
-                let runs = text
-                    .diff(&txn, YChange::identity)
-                    .into_iter()
-                    .map(|run| match run.insert {
-                        Out::Any(Any::String(value)) => Ok((
-                            value.to_string(),
-                            run.attributes.map(|a| *a).unwrap_or_default(),
-                        )),
-                        _ => Err(RETAINED.to_owned()),
-                    })
-                    .collect::<Result<_, _>>()?;
+                // Runs that differ only in derived marks read as one run.
+                let mut runs: Vec<(String, Attrs)> = Vec::new();
+                for run in text.diff(&txn, YChange::identity) {
+                    let Out::Any(Any::String(value)) = run.insert else {
+                        return Err(RETAINED.to_owned());
+                    };
+                    let marks = authored_marks(run.attributes.map(|a| *a).unwrap_or_default());
+                    match runs.last_mut() {
+                        Some((text, previous)) if *previous == marks => text.push_str(&value),
+                        _ => runs.push((value.to_string(), marks)),
+                    }
+                }
                 texts.push(TextContext {
                     attributes: attributes(&text, &txn)?,
                     runs,
@@ -137,7 +145,7 @@ fn text_tape(session: &DocumentSession, id: &str) -> Result<TextTape, String> {
             Ok(ItemRun {
                 id: run.ychange.ok_or(RETAINED)?.id,
                 length: value.encode_utf16().count() as u32,
-                attributes: run.attributes.map(|attrs| *attrs).unwrap_or_default(),
+                attributes: authored_marks(run.attributes.map(|attrs| *attrs).unwrap_or_default()),
             })
         })
         .collect::<Result<_, String>>()?;

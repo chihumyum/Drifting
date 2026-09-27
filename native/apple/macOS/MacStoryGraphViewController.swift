@@ -392,7 +392,7 @@ final class StoryGraphCanvas: NSView {
             label.textColor = .tertiaryLabelColor
             addSubview(label)
         }
-        dropIndicator.tint = .controlAccentColor; dropIndicator.alpha = 0.9
+        dropIndicator.tint = .labAccent; dropIndicator.alpha = 0.9
         dropIndicator.isHidden = true
         dropIndicator.setAccessibilityIdentifier("graph-drop-indicator")
         addSubview(dropIndicator)
@@ -843,7 +843,7 @@ final class StoryGraphMarkerView: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
     override func updateLayer() {
         layer?.cornerRadius = 10
-        layer?.backgroundColor = (bound ? NSColor.controlAccentColor.withAlphaComponent(0.18)
+        layer?.backgroundColor = (bound ? NSColor.labAccent.withAlphaComponent(0.18)
             : NSColor.secondaryLabelColor.withAlphaComponent(0.12)).cgColor
     }
     override func layout() {

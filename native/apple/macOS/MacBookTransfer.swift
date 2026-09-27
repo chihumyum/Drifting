@@ -2,8 +2,8 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Word documents through AppKit's Office Open XML reader. Each paragraph
-/// becomes a block; only a short paragraph set clearly larger than the body
-/// text becomes a heading.
+/// becomes a block keeping its bold and italic runs; only a short paragraph
+/// set clearly larger than the body text becomes a heading.
 enum MacDocxImport {
     static func read(_ url: URL) throws -> BookImportDocument {
         let text: NSAttributedString
@@ -16,9 +16,19 @@ enum MacDocxImport {
         return parse(text, fileName: url.lastPathComponent)
     }
 
+    /// Bold and italic come from the run's font traits, or from the stroke
+    /// and obliqueness AppKit uses for faces without them.
+    static func marks(_ attributes: [NSAttributedString.Key: Any]) -> [BookImportMark.Kind] {
+        let traits = (attributes[.font] as? NSFont).map { NSFontManager.shared.traits(of: $0) } ?? []
+        var kinds: [BookImportMark.Kind] = []
+        if traits.contains(.boldFontMask) || ((attributes[.strokeWidth] as? NSNumber)?.doubleValue ?? 0) < 0 { kinds.append(.bold) }
+        if traits.contains(.italicFontMask) || ((attributes[.obliqueness] as? NSNumber)?.doubleValue ?? 0) > 0 { kinds.append(.italic) }
+        return kinds
+    }
+
     static func parse(_ text: NSAttributedString, fileName: String) -> BookImportDocument {
         let string = text.string as NSString
-        var paragraphs: [(text: String, size: CGFloat, level: Int)] = []
+        var paragraphs: [(text: MarkedText, size: CGFloat, level: Int)] = []
         var sizes: [CGFloat: Int] = [:]
         var location = 0
         while location < string.length {
@@ -26,9 +36,7 @@ enum MacDocxImport {
             string.getParagraphStart(nil, end: &end, contentsEnd: &contentsEnd, for: NSRange(location: location, length: 0))
             let range = NSRange(location: location, length: contentsEnd - location)
             location = max(end, location + 1)
-            let value = BookImportParser.trim(string.substring(with: range)
-                .replacingOccurrences(of: "\u{2028}", with: " ").replacingOccurrences(of: "\u{FFFC}", with: ""))
-            guard !value.isEmpty else { continue }
+            var value = MarkedText(text: string.substring(with: range).replacingOccurrences(of: "\u{2028}", with: " "))
             var largest: CGFloat = 0, level = 0
             text.enumerateAttributes(in: range) { attributes, span, _ in
                 guard !(string.substring(with: span).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) else { return }
@@ -36,17 +44,27 @@ enum MacDocxImport {
                 largest = max(largest, size)
                 sizes[size.rounded(), default: 0] += span.length
                 if let style = attributes[.paragraphStyle] as? NSParagraphStyle, style.headerLevel > 0 { level = style.headerLevel }
+                value.marks += marks(attributes).map { BookImportMark(kind: $0, location: span.location - range.location, length: span.length) }
             }
+            value.replace("\u{FFFC}", keep: [])
+            value = value.trimmed()
+            guard !value.text.isEmpty else { continue }
             paragraphs.append((value, largest, level))
         }
         // The body size carries the most characters.
         let body = sizes.max { $0.value < $1.value }?.key ?? 12
         let blocks: [BookImportBlock] = paragraphs.map { paragraph in
-            let short = paragraph.text.count <= 60 && !"。．.！!？?；;，,：:".contains(paragraph.text.last!)
-            if paragraph.level > 0, short { return .heading(paragraph.text, level: paragraph.level) }
+            let text = paragraph.text.text
+            let short = text.count <= 60 && !"。．.！!？?；;，,：:".contains(text.last!)
+            // A heading's own bold or italic across its whole text is its
+            // style, not emphasis.
+            let length = (text as NSString).length
+            let heading = MarkedText(text: text, marks: BookImportMark.normalized(paragraph.text.marks, length: length)
+                .filter { $0.location > 0 || $0.length < length })
+            if paragraph.level > 0, short { return .heading(heading, level: paragraph.level) }
             let ratio = paragraph.size / max(body, 1)
             guard short, ratio >= 1.25 else { return .paragraph(paragraph.text) }
-            return .heading(paragraph.text, level: ratio >= 1.75 ? 1 : ratio >= 1.45 ? 2 : 3)
+            return .heading(heading, level: ratio >= 1.75 ? 1 : ratio >= 1.45 ? 2 : 3)
         }
         return BookImportDocument(format: .docx, fileName: fileName, title: BookImportParser.stem(fileName), blocks: blocks)
     }

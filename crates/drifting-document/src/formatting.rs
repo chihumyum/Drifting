@@ -48,7 +48,7 @@ impl NativeFormatAction {
 
 // y-prosemirror may suffix overlapping mark keys with an eight-byte hash.
 // Other keys and every non-target payload stay authoritative and unchanged.
-fn is_mark(key: &str, mark: &str) -> bool {
+pub(crate) fn is_mark(key: &str, mark: &str) -> bool {
     key == mark
         || key
             .strip_prefix(mark)

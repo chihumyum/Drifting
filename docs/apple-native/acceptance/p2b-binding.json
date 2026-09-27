@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T09:46:46.852Z",
+  "generatedAt": "2026-09-27T11:02:44.469Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "6d0c627a4c578e56beb59f1c601b53f355c24974",
+    "commit": "0bf81171f53be3b6f23c37243275a810ef6b6d5e",
     "dirty": true,
-    "fingerprint": "04f12c4754729354da2f5ce299381f84f550299839a06306bf556a87b4c98e5e"
+    "fingerprint": "b4c0f9cd9ca0b32f947f2a02c3d86e10f0483d06a89c993be7a1efcd2804f269"
   },
   "cases": [
     {
@@ -475,7 +475,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file and a javascript: link in Chinese without writing",
+      "name": "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file, a javascript: link and Rust's missing-file and folder imports in Chinese without writing",
       "status": "passed"
     },
     {
@@ -487,7 +487,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs; 导出全书… writes UTF-8 Markdown and plain text; and the library, portrait and imported bodies survive a cold reopen",
+      "name": "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs and the bold and italic runs of Markdown and Word; 导出全书… writes UTF-8 Markdown with those marks and plain text; and the library, portrait and imported bodies survive a cold reopen",
       "status": "passed"
     },
     {
@@ -544,6 +544,26 @@
     },
     {
       "name": "AppKit 历史版本 refuses a version of another body, a missing version and queued input in Chinese in the sheet without changing the body or the journal, and cancelling the confirmation writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Enter typed at the end of a just-settled line holding a linkable chapter title, while its link pass is scheduled, becomes a new paragraph with no failed draft, keeps the link and survives cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 font source, size, line height, paragraph indent, manuscript language, theme, accent and spelling restyle every open editor in both panes and a hidden tab in place, keep text, selection and history, match the full style reference after typing, and 还原推荐样式 restores the defaults",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 imports a generated TrueType font into the lab data directory, registers it for this process only and sets prose in it with CJK falling back to the serif, replaces and removes it with its copy, and refuses a damaged file and a text file in Chinese without changing anything",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 persist in settings.json in the lab data directory and survive a cold relaunch of the store, window and tab host with the imported font registered again and every control and open editor restored",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 fall back to the system serif with a Chinese message when a chosen system family is uninstalled or the imported copy is missing or damaged, and refuse an unknown family without changing the font",
       "status": "passed"
     }
   ],

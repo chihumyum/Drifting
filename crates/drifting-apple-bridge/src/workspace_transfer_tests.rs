@@ -14,7 +14,7 @@ fn workspace_transfer_imports_bodies_and_exports_the_book() {
         "target":{"kind":"chapter","title":"导入章"},
         "blocks":[
             {"kind":"heading","level":1,"text":"雨夜"},
-            {"kind":"paragraph","text":"她推开北塔的门。"},
+            {"kind":"paragraph","text":"她推开北塔的门。","marks":[{"mark":"bold","location":3,"length":2},{"mark":"italic","location":0,"length":1}]},
             {"kind":"heading","level":5,"text":"细节"},
             {"kind":"paragraph","text":"钟声\n响起"}
         ]}),
@@ -49,6 +49,31 @@ fn workspace_transfer_imports_bodies_and_exports_the_book() {
         "deeper headings become level 3"
     );
     assert_eq!(kinds[1].0, "paragraph");
+    let runs = projection["blocks"][1]["runs"].as_array().unwrap();
+    let marked: Vec<(u64, u64, Vec<String>)> = runs
+        .iter()
+        .filter(|run| !run["attributes"].as_object().unwrap().is_empty())
+        .map(|run| {
+            (
+                run["range"]["location"].as_u64().unwrap(),
+                run["range"]["length"].as_u64().unwrap(),
+                run["attributes"]
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect(),
+            )
+        })
+        .collect();
+    let offset = "雨夜\n".encode_utf16().count() as u64;
+    assert_eq!(
+        marked,
+        vec![
+            (offset, 1, vec!["italic".to_string()]),
+            (offset + 3, 2, vec!["bold".to_string()])
+        ]
+    );
     // A drift and an element import the same way; an element needs a category.
     success(transfer(
         &fixture,
@@ -66,6 +91,8 @@ fn workspace_transfer_imports_bodies_and_exports_the_book() {
         json!({"action":"importBlocks","target":{"kind":"chapter","title":"x"},"blocks":[]})
     ))
     .contains("为空"));
+    assert!(rejected(transfer(&fixture, json!({"action":"importBlocks","target":{"kind":"chapter","title":"越界"},
+        "blocks":[{"kind":"paragraph","text":"短","marks":[{"mark":"bold","location":0,"length":5}]}]}))).contains("超出"));
     // Export: the book title, then chapters in order with their bodies; the
     // open imported chapter is read live.
     success(
@@ -81,8 +108,9 @@ fn workspace_transfer_imports_bodies_and_exports_the_book() {
         .to_string();
     assert!(markdown.starts_with("# "), "{markdown}");
     assert!(
-        markdown
-            .contains("## 导入章\n\n### 序：雨夜\n\n她推开北塔的门。\n\n##### 细节\n\n钟声 响起"),
+        markdown.contains(
+            "## 导入章\n\n### 序：雨夜\n\n*她*推开**北塔**的门。\n\n##### 细节\n\n钟声 响起"
+        ),
         "{markdown}"
     );
     let text = success(transfer(

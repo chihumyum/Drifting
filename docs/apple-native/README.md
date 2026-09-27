@@ -42,6 +42,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Storylines and chapter membership](storylines.md)
 - [Drifts and drift groups](drifts.md)
 - [Native writing assistant](agent.md)
+- [Settings: appearance, typesetting and language](settings.md)
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)

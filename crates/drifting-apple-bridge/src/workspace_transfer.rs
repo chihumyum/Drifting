@@ -21,6 +21,17 @@ pub(crate) struct ImportBlock {
     #[serde(default)]
     level: Option<u8>,
     text: String,
+    /// Inline bold/italic ranges in the block's UTF-16 text.
+    #[serde(default)]
+    marks: Vec<ImportMark>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ImportMark {
+    mark: String,
+    location: u32,
+    length: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +73,32 @@ impl LabSession {
             text: lines.join("\n"),
         })?;
         for (index, block) in blocks.iter().enumerate() {
+            let units = block.text.encode_utf16().count() as u32;
+            for mark in &block.marks {
+                let action = match mark.mark.as_str() {
+                    "bold" => NativeFormatAction::Bold,
+                    "italic" => NativeFormatAction::Italic,
+                    other => return Err(format!("不支持导入 {other} 格式")),
+                };
+                if mark.length == 0 || mark.location + mark.length > units {
+                    return Err("导入的格式范围超出段落".into());
+                }
+                let view = self.document.native_projection()?;
+                let start = view
+                    .blocks
+                    .get(index)
+                    .ok_or("Imported block is missing")?
+                    .range
+                    .location;
+                self.document.format_native(NativeFormatting {
+                    revision: view.revision,
+                    range: NativeRange {
+                        location: start + mark.location,
+                        length: mark.length,
+                    },
+                    action,
+                })?;
+            }
             let action = match (block.kind.as_str(), block.level) {
                 ("heading", Some(1)) => NativeFormatAction::Heading1,
                 ("heading", Some(2)) => NativeFormatAction::Heading2,

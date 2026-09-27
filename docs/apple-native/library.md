@@ -24,8 +24,9 @@ Markdown or plain text. Native only; no Tauri interoperability is kept.
   releases the previous asset row and bytes. Trash keeps the portrait; restore
   brings the element back with it.
 - Import creates the chapter, drift or element with an empty body, then its
-  owner replaces the seed paragraph with one paragraph per imported block and
-  applies heading levels (1–3; deeper levels become 3), saved as the author's
+  owner replaces the seed paragraph with one paragraph per imported block,
+  applies each block's bold and italic marks (UTF-16 ranges in the block) and
+  then heading levels (1–3; deeper levels become 3), saved as the author's
   input. The host parses the source file (txt, Markdown, docx) into blocks.
 - Export walks the outline: the book title and summary, acts, then each
   chapter's title and body (read live from an open owner), with body headings
@@ -70,8 +71,10 @@ CJK characters); a file without blank lines keeps one paragraph per line.
 Markdown, line by line: front matter and rules are dropped, `#`–`###` (and
 setext) headings keep their level and deeper ones become 3, list items become
 paragraphs keeping `- ` or their number, quotes and fenced code keep their
-text, and inline marks, links and images reduce to their text. Word: AppKit's
-Office Open XML reader, one block per paragraph; only a short paragraph without
+text; bold (`**`, `__`) and italic (`*`, `_`, nested or `***`) become marks
+while code, strike, links and images reduce to their text. Word: AppKit's
+Office Open XML reader, one block per paragraph keeping bold and italic runs
+(a heading's own whole-text style is dropped); only a short paragraph without
 closing punctuation at least 1.25× the body size (or with a header level)
 becomes a heading. The title guess is the first `#` heading or first line
 (Markdown), the first line (text) or the file name (Word). A sheet shows the

@@ -204,6 +204,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         self.workspace = workspace
         relations = RelationCoordinator(workspace: workspace)
         super.init(frame: .zero)
+        // The selected tab's title takes a chosen 界面强调色.
+        NotificationCenter.default.addObserver(self, selector: #selector(accentChanged), name: MacEditorPreferences.didChange, object: nil)
         relations.names = { [weak self] projectID in self?.relationNames(projectID: projectID) ?? .empty }
         relations.requestNames = { [weak self] projectID in
             guard let self, self.storylineLibraries[projectID] == nil, !self.loadingStorylines.contains(projectID) else { return }
@@ -1441,6 +1443,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         onShowHistory?()
     }
 
+    @objc private func accentChanged() { refreshTabs() }
+
     private func refreshTabs() {
         for (index, pane) in panes.enumerated() {
             pane.label.stringValue = panes.count == 1 ? "标签" : "\(index == 0 ? "左栏" : "右栏")\(index == activePane ? " · 当前" : "")"
@@ -1460,6 +1464,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 }
                 select.setAccessibilityIdentifier("\(kind)-tab-\(id)")
                 select.state = pane.selected == tab.scope ? .on : .off
+                select.contentTintColor = pane.selected == tab.scope ? MacEditorPreferences.accentColor : nil
                 select.isEnabled = canNavigate
                 let close = ChapterTabButton(title: "×") { [weak self] in
                     self?.closeTab(pane: index, scope: tab.scope) { result in

@@ -117,7 +117,7 @@ final class MaterialPreviewWell: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
     override func updateLayer() {
         layer?.cornerRadius = 6
-        layer?.backgroundColor = (isHighlighted ? NSColor.controlAccentColor.withAlphaComponent(0.18)
+        layer?.backgroundColor = (isHighlighted ? NSColor.labAccent.withAlphaComponent(0.18)
             : NSColor.secondaryLabelColor.withAlphaComponent(0.08)).cgColor
     }
 

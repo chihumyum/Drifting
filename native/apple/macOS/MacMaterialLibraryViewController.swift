@@ -503,7 +503,7 @@ final class MaterialCardView: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
     override func updateLayer() {
         layer?.cornerRadius = 8
-        layer?.backgroundColor = (isSelected ? NSColor.controlAccentColor.withAlphaComponent(0.14)
+        layer?.backgroundColor = (isSelected ? NSColor.labAccent.withAlphaComponent(0.14)
             : NSColor.secondaryLabelColor.withAlphaComponent(0.05)).cgColor
     }
 
