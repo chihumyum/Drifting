@@ -1,9 +1,10 @@
 import AppKit
 
 /// 写作助手: the right-side panel of the window. A conversation picker, the
-/// provider/model/thinking picker, the streamed transcript with tool
-/// activity and proposal cards, and a composer (⌘↩ sends) with a stop
-/// button. Sections are set apart by wash, spacing and type weight only.
+/// provider/model/thinking picker, 作者规则, 工作记忆 and 任务计划, the
+/// streamed transcript with tool activity, proposal and memory cards, and a
+/// composer (⌘↩ sends) with 停止 and 继续. Sections are set apart by wash,
+/// spacing and type weight only.
 final class MacAgentPanelView: NSView {
     private(set) var controller: AgentChatController?
     let conversationPopup = NSPopUpButton()
@@ -18,6 +19,9 @@ final class MacAgentPanelView: NSView {
     let composer = AgentComposerTextView()
     let sendButton = NSButton(title: "发送", target: nil, action: nil)
     let stopButton = NSButton(title: "停止", target: nil, action: nil)
+    /// Shown after the round limit stopped a turn with unfinished plan steps.
+    let continueButton = NSButton(title: "继续", target: nil, action: nil)
+    let memorySections = AgentMemorySectionsView()
     /// The running activity, or how to send.
     let statusLabel = NSTextField(labelWithString: "")
     private let emptyLabel = NSTextField(wrappingLabelWithString: "")
@@ -28,7 +32,14 @@ final class MacAgentPanelView: NSView {
     /// What the transcript shows: its conversation, messages in order and
     /// each shown proposal as drawn. Appends and proposal changes update
     /// only the rows they touch.
-    private var rendered: (conversation: String, messages: [String], proposals: [String: AgentProposal])?
+    private var rendered: Rendered?
+    private struct Rendered {
+        let conversation: String
+        let messages: [String]
+        var proposals: [String: AgentProposal]
+        /// Rule cards by message, as drawn.
+        var memories: [String: AgentMemoryChange]
+    }
     /// Alerts are sheets on the window by default; acceptance answers them directly.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
     var onOpenSettings: (() -> Void)?
@@ -54,7 +65,8 @@ final class MacAgentPanelView: NSView {
                                      (deleteButton, "agent-delete-conversation", #selector(deleteConversation)),
                                      (settingsButton, "agent-settings", #selector(openSettings)),
                                      (sendButton, "agent-send", #selector(send)),
-                                     (stopButton, "agent-stop", #selector(stop))] {
+                                     (stopButton, "agent-stop", #selector(stop)),
+                                     (continueButton, "agent-continue", #selector(continueTask))] {
             button.target = self; button.action = action
             button.setAccessibilityIdentifier(id)
             button.bezelStyle = .rounded; button.controlSize = .small
@@ -111,12 +123,16 @@ final class MacAgentPanelView: NSView {
         statusLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
         statusLabel.setAccessibilityIdentifier("agent-status")
         sendButton.keyEquivalent = ""
-        let footer = NSStackView(views: [statusLabel, NSView(), stopButton, sendButton])
+        continueButton.toolTip = "按任务计划开始新的一轮"
+        continueButton.isHidden = true
+        memorySections.present = { [weak self] alert, done in self?.present(alert, done) }
+        let footer = NSStackView(views: [statusLabel, NSView(), stopButton, continueButton, sendButton])
         footer.spacing = 6
 
-        let stack = NSStackView(views: [header, conversationRow, manageRow, modelRow, reasoningRow, scroll, composerScroll, footer])
+        let stack = NSStackView(views: [header, conversationRow, manageRow, modelRow, reasoningRow, memorySections, scroll, composerScroll, footer])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
-        stack.setCustomSpacing(14, after: reasoningRow)
+        stack.setCustomSpacing(12, after: reasoningRow)
+        stack.setCustomSpacing(12, after: memorySections)
         stack.setCustomSpacing(10, after: scroll)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -129,6 +145,7 @@ final class MacAgentPanelView: NSView {
             conversationRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             modelRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             reasoningRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            memorySections.widthAnchor.constraint(equalTo: stack.widthAnchor),
             providerPopup.widthAnchor.constraint(equalToConstant: 104),
             thinkingPopup.widthAnchor.constraint(equalToConstant: 118),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -157,13 +174,16 @@ final class MacAgentPanelView: NSView {
     func bind(_ controller: AgentChatController?) {
         self.controller?.onChange = nil
         self.controller = controller
+        memorySections.controller = controller
         controller?.onChange = { [weak self] change in
             guard let self else { return }
             switch change {
             case .conversations, .transcript: self.reload()
             case .streaming: self.updateStreaming()
+            case .rules: self.memorySections.reloadRules()
             }
         }
+        memorySections.reloadRules()
         reload()
     }
 
@@ -172,6 +192,7 @@ final class MacAgentPanelView: NSView {
     func reload() {
         reloadConversations()
         reloadChoice()
+        memorySections.reloadConversation()
         if let controller, let conversation = controller.current, let rendered, rendered.conversation == conversation.id,
            !rendered.messages.isEmpty, conversation.messages.count >= rendered.messages.count,
            zip(rendered.messages, conversation.messages).allSatisfy({ $0 == $1.id }) {
@@ -201,30 +222,48 @@ final class MacAgentPanelView: NSView {
         var shown: [String: AgentProposal] = [:]
         if let conversation {
             for message in messages { rows(for: message, in: conversation, shown: &shown).forEach(add) }
-            rendered = (conversation.id, messages.map(\.id), shown)
+            rendered = Rendered(conversation: conversation.id, messages: messages.map(\.id), proposals: shown,
+                                memories: Self.memories(conversation.messages))
         }
         addStreamingRow()
     }
 
-    /// Appends rows for new messages and redraws proposals that changed.
-    private func update(_ conversation: AgentConversation, from previous: (conversation: String, messages: [String], proposals: [String: AgentProposal])) {
+    private static func memories(_ messages: [AgentMessage]) -> [String: AgentMemoryChange] {
+        Dictionary(messages.compactMap { message in message.memory.map { (message.id, $0) } }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func replace(_ identifier: String, with view: NSView) {
+        guard let old = transcript.arrangedSubviews.first(where: { $0.accessibilityIdentifier() == identifier }),
+              let index = transcript.arrangedSubviews.firstIndex(of: old) else { return }
+        transcript.insertArrangedSubview(view, at: index)
+        view.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
+        transcript.removeArrangedSubview(old); old.removeFromSuperview()
+    }
+
+    /// Appends rows for new messages and redraws proposals and rule cards
+    /// that changed.
+    private func update(_ conversation: AgentConversation, from previous: Rendered) {
         var shown = previous.proposals
         for (id, drawn) in previous.proposals {
-            guard let proposal = conversation.proposal(id), proposal != drawn,
-                  let old = transcript.arrangedSubviews.first(where: { $0.accessibilityIdentifier() == "agent-proposal-\(id)" }),
-                  let index = transcript.arrangedSubviews.firstIndex(of: old) else { continue }
-            let card = self.card(proposal)
-            transcript.insertArrangedSubview(card, at: index)
-            card.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
-            transcript.removeArrangedSubview(old); old.removeFromSuperview()
+            guard let proposal = conversation.proposal(id), proposal != drawn else { continue }
+            replace("agent-proposal-\(id)", with: card(proposal))
             shown[id] = proposal
+        }
+        for message in conversation.messages.prefix(previous.messages.count) {
+            guard let change = message.memory, previous.memories[message.id] != change else { continue }
+            replace("agent-memory-\(message.id)", with: memoryCard(message.id, change))
         }
         if let streamingRow { transcript.removeArrangedSubview(streamingRow); streamingRow.removeFromSuperview(); self.streamingRow = nil }
         for message in conversation.messages.dropFirst(previous.messages.count) {
             rows(for: message, in: conversation, shown: &shown).forEach(add)
         }
-        rendered = (conversation.id, conversation.messages.map(\.id), shown)
+        rendered = Rendered(conversation: conversation.id, messages: conversation.messages.map(\.id), proposals: shown,
+                            memories: Self.memories(conversation.messages))
         addStreamingRow()
+    }
+
+    private func memoryCard(_ messageID: String, _ change: AgentMemoryChange) -> AgentMemoryCard {
+        AgentMemoryCard(messageID: messageID, change: change) { [weak self] in self?.controller?.undoMemory(messageID) }
     }
 
     private func rows(for message: AgentMessage, in conversation: AgentConversation, shown: inout [String: AgentProposal]) -> [NSView] {
@@ -235,6 +274,7 @@ final class MacAgentPanelView: NSView {
             guard !message.text.isEmpty else { return [] }
             return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: nil, text: message.text, markdown: true, wash: false)]
         case .tool:
+            if let change = message.memory { return [memoryCard(message.id, change)] }
             var views: [NSView] = []
             if let activity = message.activity {
                 views.append(AgentActivityRow(identifier: "agent-activity-\(message.callID ?? message.id)", text: activity, failed: message.ok == false))
@@ -245,6 +285,11 @@ final class MacAgentPanelView: NSView {
             }
             return views
         case .notice:
+            if let compaction = message.compaction {
+                let row = AgentActivityRow(identifier: "agent-compaction-\(message.id)", text: message.text, failed: false)
+                row.toolTip = compaction.summary
+                return [row]
+            }
             return [AgentActivityRow(identifier: "agent-notice-\(message.id)", text: message.text, failed: message.isError == true)]
         }
     }
@@ -284,6 +329,7 @@ final class MacAgentPanelView: NSView {
         statusLabel.stringValue = controller?.activity ?? (running ? "正在回复…" : hasProject ? "⌘↩ 发送" : "")
         stopButton.isHidden = !running
         stopButton.isEnabled = running && controller?.isStopping != true
+        continueButton.isHidden = controller?.canContinue != true
         sendButton.isEnabled = hasProject && !running && !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         composer.isEditable = hasProject
         for control in [conversationPopup, newButton, providerPopup, modelPopup] as [NSControl] { control.isEnabled = hasProject && !running }
@@ -359,6 +405,11 @@ final class MacAgentPanelView: NSView {
 
     @objc func stop() { controller?.stop() }
 
+    @objc func continueTask() {
+        guard let controller, controller.continueTask() else { return }
+        updateControls()
+    }
+
     @objc private func pickConversation() {
         guard let id = conversationPopup.selectedItem?.representedObject as? String else { return }
         controller?.select(id)
@@ -366,7 +417,7 @@ final class MacAgentPanelView: NSView {
 
     @objc func newConversation() { controller?.newConversation() }
 
-    private func present(_ alert: NSAlert, _ done: @escaping (NSApplication.ModalResponse) -> Void) {
+    func present(_ alert: NSAlert, _ done: @escaping (NSApplication.ModalResponse) -> Void) {
         if let presentAlert { presentAlert(alert, done); return }
         if let window = window ?? NSApp.mainWindow { alert.beginSheetModal(for: window, completionHandler: done) }
         else { done(alert.runModal()) }
@@ -393,7 +444,7 @@ final class MacAgentPanelView: NSView {
         guard let conversation = controller?.current else { return }
         let alert = NSAlert()
         alert.messageText = "删除对话“\(conversation.title)”？"
-        alert.informativeText = "对话记录会从这台 Mac 上删除，无法恢复。已经接受并写入的修改不受影响。"
+        alert.informativeText = "对话记录连同它的工作记忆、任务计划和用量记录会从这台 Mac 上删除，无法恢复。已经接受并写入的修改和作者规则不受影响。"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "删除")
         alert.addButton(withTitle: "取消")

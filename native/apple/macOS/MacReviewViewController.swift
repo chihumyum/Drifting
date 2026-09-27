@@ -430,7 +430,8 @@ final class ReviewCardView: NSView {
         if presentation == .panel || comment.target != nil { facts.append(targetName) }
         if comment.isBlock { facts.append(anchor?.anchorStatus.label ?? "段落批注") }
         if comment.review == .resolved { facts.append("已解决") }
-        if comment.source != "manual" { facts.append(comment.source == "copilot" ? "来自 Copilot" : "外部来源") }
+        if comment.isByAssistant { facts.append("写作助手") }
+        else if comment.source != "manual" { facts.append(comment.source == "copilot" ? "来自 Copilot" : "外部来源") }
         headerLabel.stringValue = facts.joined(separator: " · ")
         headerLabel.font = .systemFont(ofSize: 11, weight: .medium)
         headerLabel.textColor = anchor.map { $0.anchorStatus == .anchored || $0.anchorStatus == .wholeBlock } == false

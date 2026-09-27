@@ -726,6 +726,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
+    /// 设置 › 写作助手 › 用量 reads the open project's conversations: the
+    /// running assistant's, or the stored files.
+    private func agentUsageSource() -> (project: String, conversations: [AgentConversation])? {
+        guard let project = currentProject ?? selectedProject else { return nil }
+        if let agentController, agentController.projectID == project.id { return (project.name, agentController.conversations) }
+        return (project.name, AgentConversationStore(root: workspace.agentDirectory, projectID: project.id).load())
+    }
+
     private func showAgentSettings() {
         guard agentSettings == nil else { return }
         let sheet = MacAgentSettingsSheet(credentials: agentCredentials)
@@ -2782,6 +2790,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     @objc private func showSettings() {
         let controller = settingsWindow ?? MacSettingsWindowController(store: settingsStore)
+        if settingsWindow == nil {
+            controller.agentPane.source = { [weak self] in self?.agentUsageSource() }
+            controller.agentPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
+        }
         settingsWindow = controller
         if controller.window?.isVisible != true { controller.window?.center() }
         controller.showWindow(nil)

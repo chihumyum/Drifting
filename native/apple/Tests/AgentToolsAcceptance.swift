@@ -44,7 +44,7 @@ extension BindingAcceptance {
         try agentToolRefusals()
         try agentActRailBoundaries()
         return [
-            "AppKit 写作助手 registers 53 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
+            "AppKit 写作助手 registers 63 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
             "AppKit element page 被引用 lists the drift, element, category and storyline pages that link the element after its chapters, opens a page at its first link, and find_element_appearances reports the same chapters and pages",
             "AppKit 写作助手 domain proposals for elements, categories, patches, storylines, relations, relation types, notes and TODOs, chapters, drifts and project details resolve names exactly, refuse ambiguous names with the candidates, show each changed field on the card, write nothing before 接受, apply exactly the expected originals through Rust on 接受, write nothing on 拒绝, and report each outcome to the model once",
             "AppKit 写作助手 domain proposals whose target changed before 接受 fail with Rust's Chinese reason and write nothing, pending input keeps a chapter rename pending until it settles, and after the project is deleted every write tool's proposal fails without writing",
@@ -230,8 +230,9 @@ extension BindingAcceptance {
             if let items = schema["items"] as? [String: Any] { try strict(items, "\(path)[]") }
         }
         let cjk = { (text: String) in text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) } }
-        try require(AgentToolRegistry.all.count == 53 && Set(AgentToolRegistry.all.map(\.name)).count == 53
-            && AgentToolRegistry.all.filter { $0.access == .read }.count == 19, "The registry differs: \(AgentToolRegistry.all.map(\.name))")
+        try require(AgentToolRegistry.all.count == 63 && Set(AgentToolRegistry.all.map(\.name)).count == 63
+            && AgentToolRegistry.all.filter { $0.access == .read }.count == 22 && AgentToolRegistry.all.filter { $0.access == .memory }.count == 7,
+            "The registry differs: \(AgentToolRegistry.all.map(\.name))")
         for tool in AgentToolRegistry.all {
             try require(cjk(tool.description), "\(tool.name) has no Chinese description")
             try strict(tool.schema, tool.name)
@@ -382,7 +383,7 @@ extension BindingAcceptance {
                           invalid: ["category": "人物", "name": 3], invalidReason: "参数 name 必须是文字。",
                           refused: ["category": "器物", "name": "铜铃"], refusedReason: ambiguousCategory,
                           card: ["新建设定「沈舟」", "分类", "人物", "北岸众", "渡口的船夫。", "老沈", "年龄：四十", "他在渡口等了一夜。\n天亮时起风。"],
-                          journal: [["entity.create element", "yjs.update prose-document"], ["set.add alias", "field.set element"], ["entity.create kv-entry", "order.move kv-entry"], ["yjs.update prose-document"]], extra: [(["category": "人物", "name": "阿岚"], "“阿岚”已被设定「林岚」使用"),
+                          journal: [["entity.create kv-entry", "order.move kv-entry", "entity.create element", "set.add alias", "yjs.update prose-document"], ["yjs.update prose-document"]], extra: [(["category": "人物", "name": "阿岚"], "“阿岚”已被设定「林岚」使用"),
                                                (["name": "无类"], "请用 categoryId 或 category 指定")]),
             ToolWriteCase(tool: "update_element",
                           valid: ["name": "周策", "newName": "周子策", "summary": "北塔守卫。", "aliases": ["阿策"], "group": "守卫"],

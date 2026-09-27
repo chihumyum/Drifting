@@ -27,9 +27,14 @@ enum AgentStreamEvent: Equatable {
 
 /// A turn failure with the Chinese message the transcript shows.
 struct AgentFailure: Error, LocalizedError, Equatable {
-    enum Kind: Equatable { case cancelled, missingKey, auth, rateLimit, notFound, badRequest, server, network, invalid, http }
+    /// `interrupted`: a stream that ended before the provider finished it.
+    enum Kind: Equatable { case cancelled, missingKey, auth, rateLimit, notFound, badRequest, server, network, invalid, interrupted, http }
     let kind: Kind
     let message: String
+    /// The provider answered with 2xx before the failure, so the request ran.
+    var responded = false
+    /// The provider's `Retry-After`, in seconds.
+    var retryAfter: TimeInterval?
     var errorDescription: String? { message }
 }
 
@@ -76,7 +81,18 @@ enum AgentErrors {
     }
 
     static func incomplete(_ provider: AgentProviderID) -> AgentFailure {
-        AgentFailure(kind: .invalid, message: "\(provider.label) 的回复中断了，本轮已停止。可以稍后重试。")
+        AgentFailure(kind: .interrupted, message: "\(provider.label) 的回复中断了，本轮已停止。可以稍后重试。")
+    }
+
+    /// `Retry-After` as seconds or an HTTP date.
+    static func retryAfter(_ value: String?) -> TimeInterval? {
+        guard let value = value?.trimmingCharacters(in: .whitespaces), !value.isEmpty else { return nil }
+        if let seconds = Double(value) { return max(0, seconds) }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return formatter.date(from: value).map { max(0, $0.timeIntervalSinceNow) }
     }
 
     static func stream(_ provider: AgentProviderID, message: String?) -> AgentFailure {
@@ -106,9 +122,16 @@ struct AgentModelRequest {
 // MARK: - History
 
 enum AgentHistory {
-    /// What a provider sees: notices are dropped, empty replies skipped and
+    /// What a provider sees: after a compaction, its summary in place of the
+    /// messages it covers; notices are dropped, empty replies skipped and
     /// every tool call closed by a result (a missing one reads 未执行).
     static func normalized(_ messages: [AgentMessage]) -> [AgentMessage] {
+        var messages = messages
+        if let marker = messages.lastIndex(where: { $0.compaction != nil }), let compaction = messages[marker].compaction {
+            let through = messages[..<marker].firstIndex { $0.id == compaction.through } ?? marker
+            let summary = AgentMessage(role: .user, turnID: "", text: AgentCompactor.summaryHeading + "\n" + compaction.summary)
+            messages = [summary] + messages[(through + 1)...].filter { $0.id != messages[marker].id }
+        }
         var result: [AgentMessage] = []
         var pending: [AgentToolCall] = []
         var pendingTurn = ""
@@ -361,6 +384,34 @@ protocol AgentStreamParser: AnyObject {
 
 private func integer(_ value: Any?) -> Int? { (value as? NSNumber).map(\.intValue) }
 
+/// Token counts from each provider's usage object, as reported. Absent
+/// counts stay nil.
+enum AgentUsageFields {
+    /// Chat Completions: `prompt_tokens` (with DeepSeek's
+    /// `prompt_cache_hit_tokens` or `prompt_tokens_details.cached_tokens`).
+    static func chatCompletion(_ usage: [String: Any]) -> AgentUsage? {
+        let cached = integer(usage["prompt_cache_hit_tokens"]) ?? integer((usage["prompt_tokens_details"] as? [String: Any])?["cached_tokens"])
+        let result = AgentUsage(inputTokens: integer(usage["prompt_tokens"]), cachedTokens: cached, outputTokens: integer(usage["completion_tokens"]))
+        return result.isEmpty ? nil : result
+    }
+
+    /// Anthropic: `input_tokens` excludes cache reads and writes, so the
+    /// request's input is their sum; cache reads are the cached part.
+    static func anthropic(input: Int?, cacheRead: Int?, cacheWrite: Int?, output: Int?) -> AgentUsage? {
+        let total = input.map { $0 + (cacheRead ?? 0) + (cacheWrite ?? 0) }
+        let result = AgentUsage(inputTokens: total, cachedTokens: cacheRead, outputTokens: output)
+        return result.isEmpty ? nil : result
+    }
+
+    /// OpenAI Responses: `input_tokens` with `input_tokens_details.cached_tokens`.
+    static func responses(_ usage: [String: Any]) -> AgentUsage? {
+        let result = AgentUsage(inputTokens: integer(usage["input_tokens"]),
+                                cachedTokens: integer((usage["input_tokens_details"] as? [String: Any])?["cached_tokens"]),
+                                outputTokens: integer(usage["output_tokens"]))
+        return result.isEmpty ? nil : result
+    }
+}
+
 /// Chat Completions chunks: content, DeepSeek `reasoning_content`, indexed
 /// tool-call fragments, a finish reason and a final usage chunk.
 final class AgentChatCompletionParser: AgentStreamParser {
@@ -374,9 +425,7 @@ final class AgentChatCompletionParser: AgentStreamParser {
 
     func consume(_ event: [String: Any]) throws -> [AgentStreamEvent] {
         if let error = event["error"] as? [String: Any] { throw AgentErrors.stream(provider, message: error["message"] as? String) }
-        if let usage = event["usage"] as? [String: Any], let input = integer(usage["prompt_tokens"]), let output = integer(usage["completion_tokens"]) {
-            result.usage = AgentUsage(inputTokens: input, outputTokens: output)
-        }
+        if let usage = event["usage"] as? [String: Any], let parsed = AgentUsageFields.chatCompletion(usage) { result.usage = parsed }
         guard let choice = (event["choices"] as? [[String: Any]])?.first else { return [] }
         var events: [AgentStreamEvent] = []
         let delta = choice["delta"] as? [String: Any] ?? [:]
@@ -430,7 +479,7 @@ final class AgentAnthropicParser: AgentStreamParser {
     private var result = AgentModelResult()
     private var blocks: [Int: Block] = [:]
     private var started = false, stopped = false
-    private var inputTokens: Int?, outputTokens: Int?
+    private var inputTokens: Int?, outputTokens: Int?, cacheRead: Int?, cacheWrite: Int?
     private var stopReason: String?
     private var replay: [AgentJSON] = []
 
@@ -445,6 +494,7 @@ final class AgentAnthropicParser: AgentStreamParser {
             started = true
             let usage = (event["message"] as? [String: Any])?["usage"] as? [String: Any]
             inputTokens = integer(usage?["input_tokens"])
+            cacheRead = integer(usage?["cache_read_input_tokens"]); cacheWrite = integer(usage?["cache_creation_input_tokens"])
             return []
         default: break
         }
@@ -503,7 +553,12 @@ final class AgentAnthropicParser: AgentStreamParser {
             return []
         case "message_delta":
             if let reason = (event["delta"] as? [String: Any])?["stop_reason"] as? String { stopReason = reason }
-            if let output = integer((event["usage"] as? [String: Any])?["output_tokens"]) { outputTokens = output }
+            let usage = event["usage"] as? [String: Any]
+            if let output = integer(usage?["output_tokens"]) { outputTokens = output }
+            // Newer streams repeat the final input counts here.
+            if let input = integer(usage?["input_tokens"]) { inputTokens = input }
+            if let read = integer(usage?["cache_read_input_tokens"]) { cacheRead = read }
+            if let write = integer(usage?["cache_creation_input_tokens"]) { cacheWrite = write }
             return []
         case "message_stop":
             guard blocks.isEmpty else { throw AgentErrors.invalid(provider) }
@@ -522,7 +577,7 @@ final class AgentAnthropicParser: AgentStreamParser {
         case "refusal": result.stop = .contentFilter
         default: result.stop = .unknown
         }
-        if let inputTokens, let outputTokens { result.usage = AgentUsage(inputTokens: inputTokens, outputTokens: outputTokens) }
+        result.usage = AgentUsageFields.anthropic(input: inputTokens, cacheRead: cacheRead, cacheWrite: cacheWrite, output: outputTokens)
         if !result.toolCalls.isEmpty { result.stop = .toolUse; if !replay.isEmpty { result.replay = .array(replay) } }
         return result
     }
@@ -600,9 +655,7 @@ final class AgentResponsesParser: AgentStreamParser {
         } else {
             result.toolCalls = calls.map { AgentToolCall(id: $0.callID, name: $0.name, arguments: $0.arguments) }
         }
-        if let usage = terminal["usage"] as? [String: Any], let input = integer(usage["input_tokens"]), let outputTokens = integer(usage["output_tokens"]) {
-            result.usage = AgentUsage(inputTokens: input, outputTokens: outputTokens)
-        }
+        if let usage = terminal["usage"] as? [String: Any] { result.usage = AgentUsageFields.responses(usage) }
         if !result.toolCalls.isEmpty {
             result.stop = .toolUse
             result.replay = .array(output.map { AgentJSON(any: $0) })
@@ -684,6 +737,7 @@ final class AgentHTTPStream: NSObject, URLSessionDataDelegate {
     private var completion: ((Result<AgentModelResult, AgentFailure>) -> Void)?
     private var task: URLSessionDataTask?
     private var status = 0
+    private var retryAfter: TimeInterval?
     private var errorBody = Data()
     private var received = 0
     private var sse = AgentSSEBuffer()
@@ -714,7 +768,13 @@ final class AgentHTTPStream: NSObject, URLSessionDataDelegate {
     private func finish(_ result: Result<AgentModelResult, AgentFailure>) {
         guard let completion else { return }
         self.completion = nil
-        completion(result)
+        let responded = (200..<300).contains(status), retryAfter = self.retryAfter
+        completion(result.mapError { failure in
+            var failure = failure
+            failure.responded = responded
+            if failure.retryAfter == nil { failure.retryAfter = retryAfter }
+            return failure
+        })
     }
 
     private func fail(_ failure: AgentFailure) {
@@ -730,7 +790,9 @@ final class AgentHTTPStream: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let http = response as? HTTPURLResponse
+        status = http?.statusCode ?? 0
+        retryAfter = AgentErrors.retryAfter(http?.value(forHTTPHeaderField: "Retry-After"))
         completionHandler(isFinished ? .cancel : .allow)
     }
 
@@ -770,6 +832,135 @@ final class AgentHTTPStream: NSObject, URLSessionDataDelegate {
             finish(.failure(failure))
         } catch {
             finish(.failure(AgentErrors.invalid(provider)))
+        }
+    }
+}
+
+// MARK: - One-shot requests
+
+extension AgentDriver {
+    static let summaryOutputTokens = 4_096
+
+    /// A request without streaming or tools, as compaction summarises older
+    /// turns with the conversation's own provider and model.
+    static func summaryRequest(choice: AgentModelChoice, apiKey: String, system: String, prompt: String) throws -> URLRequest {
+        var url = URLRequest(url: endpoint(choice.provider))
+        url.httpMethod = "POST"
+        url.setValue("application/json", forHTTPHeaderField: "content-type")
+        url.setValue("application/json", forHTTPHeaderField: "accept")
+        let body: [String: Any]
+        switch choice.provider {
+        case .deepseek:
+            url.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
+            body = ["model": choice.model, "stream": false, "max_tokens": summaryOutputTokens, "thinking": ["type": "disabled"],
+                    "messages": [["role": "system", "content": system], ["role": "user", "content": prompt]]]
+        case .anthropic:
+            url.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            url.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            body = ["model": choice.model, "stream": false, "max_tokens": summaryOutputTokens, "system": system,
+                    "messages": [["role": "user", "content": [["type": "text", "text": prompt]]]]]
+        case .openai:
+            url.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
+            body = ["model": choice.model, "stream": false, "store": false, "max_output_tokens": summaryOutputTokens,
+                    "instructions": system, "reasoning": ["effort": "none"], "input": [["role": "user", "content": prompt]]]
+        }
+        url.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
+        return url
+    }
+
+    /// The text and usage of a complete (non-streamed) reply.
+    static func completeReply(_ provider: AgentProviderID, _ data: Data) throws -> AgentModelResult {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw AgentErrors.invalid(provider) }
+        var result = AgentModelResult()
+        switch provider {
+        case .deepseek:
+            let message = ((json["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any]) ?? [:]
+            result.text = message["content"] as? String ?? ""
+            result.usage = (json["usage"] as? [String: Any]).flatMap(AgentUsageFields.chatCompletion)
+        case .anthropic:
+            result.text = (json["content"] as? [[String: Any]] ?? []).filter { $0["type"] as? String == "text" }
+                .compactMap { $0["text"] as? String }.joined()
+            let usage = json["usage"] as? [String: Any]
+            result.usage = AgentUsageFields.anthropic(input: integer(usage?["input_tokens"]), cacheRead: integer(usage?["cache_read_input_tokens"]),
+                                                      cacheWrite: integer(usage?["cache_creation_input_tokens"]), output: integer(usage?["output_tokens"]))
+        case .openai:
+            let items = (json["output"] as? [[String: Any]] ?? []).filter { $0["type"] as? String == "message" }
+            result.text = items.flatMap { $0["content"] as? [[String: Any]] ?? [] }.filter { $0["type"] as? String == "output_text" }
+                .compactMap { $0["text"] as? String }.joined()
+            if result.text.isEmpty { result.text = json["output_text"] as? String ?? "" }
+            result.usage = (json["usage"] as? [String: Any]).flatMap(AgentUsageFields.responses)
+        }
+        result.stop = .endTurn
+        return result
+    }
+}
+
+extension AgentNetwork {
+    /// One complete request with a deadline; the callback arrives once, on
+    /// the main queue.
+    func complete(_ request: URLRequest, provider: AgentProviderID, timeout: TimeInterval,
+                  completion: @escaping (Result<AgentModelResult, AgentFailure>) -> Void) -> AgentHTTPCall {
+        let call = AgentHTTPCall(provider: provider, completion: completion)
+        call.start(request, configuration: configuration, timeout: timeout)
+        return call
+    }
+}
+
+final class AgentHTTPCall {
+    private let provider: AgentProviderID
+    private var completion: ((Result<AgentModelResult, AgentFailure>) -> Void)?
+    private var task: URLSessionDataTask?
+    private var deadline: DispatchWorkItem?
+
+    init(provider: AgentProviderID, completion: @escaping (Result<AgentModelResult, AgentFailure>) -> Void) {
+        self.provider = provider; self.completion = completion
+    }
+
+    var isFinished: Bool { completion == nil }
+
+    func start(_ request: URLRequest, configuration: URLSessionConfiguration, timeout: TimeInterval) {
+        let session = URLSession(configuration: configuration, delegate: nil, delegateQueue: .main)
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            self?.done(data ?? Data(), response as? HTTPURLResponse, error)
+        }
+        self.task = task
+        task.resume()
+        session.finishTasksAndInvalidate()
+        let deadline = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.finish(.failure(AgentFailure(kind: .network, message: "\(self.provider.label) 请求超时。")))
+        }
+        self.deadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: deadline)
+    }
+
+    /// Stops at once with `cancelled`.
+    func cancel() { finish(.failure(AgentErrors.cancelled)) }
+
+    private func finish(_ result: Result<AgentModelResult, AgentFailure>) {
+        guard let completion else { return }
+        self.completion = nil
+        deadline?.cancel()
+        task?.cancel()
+        completion(result)
+    }
+
+    private func done(_ data: Data, _ response: HTTPURLResponse?, _ error: Error?) {
+        guard !isFinished else { return }
+        if let error {
+            finish(.failure((error as? URLError)?.code == .cancelled ? AgentErrors.cancelled : AgentErrors.network(error, provider)))
+            return
+        }
+        let status = response?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            var failure = AgentErrors.http(status, body: data, provider)
+            failure.retryAfter = AgentErrors.retryAfter(response?.value(forHTTPHeaderField: "Retry-After"))
+            finish(.failure(failure)); return
+        }
+        do { finish(.success(try AgentDriver.completeReply(provider, data))) } catch {
+            var failure = (error as? AgentFailure) ?? AgentErrors.invalid(provider)
+            failure.responded = true
+            finish(.failure(failure))
         }
     }
 }

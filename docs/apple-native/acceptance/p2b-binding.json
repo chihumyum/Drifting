@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T20:17:52.753Z",
+  "generatedAt": "2026-09-27T21:12:50.907Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "f802c7d4ce43e0241c8bf63fc180d05cc03574e1",
+    "commit": "2c017a2aac34d3376b5b3f459af91888b9df3ad1",
     "dirty": true,
-    "fingerprint": "2d22488cfb3d6564ed5699d59273025a5058fe9146de6430e37b26e80c8c7ebf"
+    "fingerprint": "68b331a38cbf547d7f1be3e4891657a766ae503725650decd8e2d1f59bb8d919"
   },
   "cases": [
     {
@@ -447,7 +447,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 53 tools and the key only in its auth header",
+      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 63 tools and the key only in its auth header",
       "status": "passed"
     },
     {
@@ -475,7 +475,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 registers 53 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
+      "name": "AppKit 写作助手 registers 63 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
       "status": "passed"
     },
     {
@@ -492,6 +492,34 @@
     },
     {
       "name": "AppKit 底部时间轴 幕 rail places each act by its stored book-axis boundary from workspaceOutline",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 作者规则 are added, edited, refused and deleted in the 写作助手 panel and created, listed, updated and deleted by the model's rule tools without proposals; each tool change shows a 已记住 card whose 撤销 reverts it and is told to the model once, rules enter every request's system prompt, persist in author-rules.json beside the conversations through a relaunch and never reach the journal, SQLite or user defaults",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 工作记忆 is read, replaced and bounded by the model's tools with a Chinese refusal over 6,000 characters, enters the system prompt, shows in its collapsible panel section, is edited and cleared by the author after confirmation and persists in the conversation file",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 任务计划 tools set a goal, ordered steps with 待办/进行中/完成/跳过, notes and constraints shown as a checklist and refuse a missing plan or step; when the 24-round limit stops a turn with unfinished steps 继续 appears, nothing continues on its own, and 继续 starts a new turn that carries the plan",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit compaction above 70% of a synthetic context window summarises older turns with the same provider without streaming or tools, keeps recent turns verbatim behind a 已压缩较早的对话 marker and keeps pending proposals and their outcomes, and a failed or timed-out summary falls back to a deterministic trim that keeps the rules, working memory, plan and recent turns",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit retries HTTP 429 after its Retry-After, 503 and a dropped connection up to three times showing 重试中（n/3）, never retries 401, stops during the backoff on 停止, and a retried tool call makes exactly one proposal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit usage records input, cached and output tokens from DeepSeek, Anthropic and OpenAI usage fields, and unknown when a provider sends none, in the conversation file; 设置 › 写作助手 › 用量 totals today and 30 days by provider and model and per conversation, and deleting a conversation after confirmation removes its usage",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit an accepted create_comment is stored as 写作助手 (author kind ai), its 审阅 card says so and stays editable, and create_element writes name, group, summary, aliases and facts in one original so a refused alias leaves nothing written",
       "status": "passed"
     },
     {

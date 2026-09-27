@@ -420,7 +420,7 @@
         "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
       ],
       "milestone": "P4/P5",
-      "status": "Mac-writing-assistant-prose-tools-and-reviewed-proposals-implemented",
+      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; MCP-planned",
       "decisionTask": "D7"
     },
     {
@@ -439,7 +439,7 @@
         "streaming/cancel, provider neutrality and versioned contracts"
       ],
       "milestone": "P4",
-      "status": "Swift-provider-drivers-with-streaming-and-cancel-following-renderer-configuration-implemented",
+      "status": "Swift-provider-drivers-with-streaming-cancel-retries-and-usage-following-renderer-configuration-implemented",
       "decisionTask": null
     },
     {

@@ -52,6 +52,8 @@ interoperability is kept.
 - 语言: 拼写检查 (default on) toggles continuous spell checking in every body;
   手稿默认语言 (zh-CN, zh-TW, en, ja, ko, fr) sets CoreText's language attribute
   on prose: glyph forms, fallback fonts and line breaking.
+- 写作助手: 用量 of the open project's conversations (read only, stored in the
+  conversation files, not `settings.json`; [agent](agent.md)) and 管理 API Key….
 - Every change saves and applies at once. Open editors, including hidden tabs,
   restyle in place from `DocumentStyle.typography`: text, selection, history
   and Rust are untouched, and the next edit takes the usual one-block path.

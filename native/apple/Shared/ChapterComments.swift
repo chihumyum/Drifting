@@ -26,8 +26,11 @@ struct WorkspaceComment: Decodable, Equatable {
 
     var review: CommentReviewStatus { CommentReviewStatus(rawValue: status) ?? .other }
     var bodyText: String { CommentBody.text(fromJSON: bodyJson) }
-    /// Only author-written notes are editable here; generated rows stay read-only.
-    var canEditBody: Bool { source == "manual" }
+    /// Written by the writing assistant (after the author accepted it).
+    var isByAssistant: Bool { authorKind == "ai" && source == "api" }
+    /// Author-written notes and the assistant's accepted ones are editable
+    /// here; other generated rows stay read-only.
+    var canEditBody: Bool { source == "manual" || isByAssistant }
     /// Converted suggestions are terminal, as in the desktop review flow.
     var canChangeResolution: Bool { review == .open || review == .resolved }
     /// The quote captured at creation. The live anchor quote takes precedence.

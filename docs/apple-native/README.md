@@ -101,9 +101,11 @@ The Mac lab opens a separate synthetic workspace
 creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages, element patches anchored to
 chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, drifts with groups and act notes, a writing
-assistant whose 53 tools read the project and propose prose, element, patch,
+assistant whose 63 tools read the project and propose prose, element, patch,
 storyline, relation, note/TODO, chapter, drift and project changes the author
-reviews, a whole-book
+reviews, with 作者规则, per-conversation 工作记忆 and 任务计划 (继续 after the
+round limit), context compaction, automatic retries and token usage in
+设置 › 写作助手 › 用量, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with

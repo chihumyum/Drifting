@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// 设置 (⌘,): 外观, 编辑器 and 语言 as toolbar tabs, as Mac settings windows
+/// 设置 (⌘,): 外观, 编辑器, 语言 and 写作助手 as toolbar tabs, as Mac settings windows
 /// are. Every control writes through `LabSettingsStore` at once, which saves
 /// and applies it: open editors restyle in place and every window follows
 /// the theme. Controls follow the store, so a refusal never leaves one
@@ -11,6 +11,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     let appearancePane: MacAppearanceSettingsViewController
     let editorPane: MacEditorSettingsViewController
     let languagePane: MacLanguageSettingsViewController
+    let agentPane = MacAgentSettingsViewController()
     private let tabs = NSTabViewController()
 
     init(store: LabSettingsStore) {
@@ -20,7 +21,8 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
         languagePane = MacLanguageSettingsViewController(store: store)
         tabs.tabStyle = .toolbar
         for (controller, label, symbol) in [(appearancePane as NSViewController, "外观", "paintbrush"),
-                                            (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe")] {
+                                            (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe"),
+                                            (agentPane, "写作助手", "text.bubble")] {
             let item = NSTabViewItem(viewController: controller)
             item.label = label
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -42,7 +44,12 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     @objc private func storeChanged() { refresh() }
 
     func refresh() {
-        appearancePane.refresh(); editorPane.refresh(); languagePane.refresh()
+        appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh()
+    }
+
+    /// Shows the 写作助手 tab.
+    func showAgentPane() {
+        tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === agentPane } ?? 0
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -114,6 +121,15 @@ private enum SettingsLayout {
     static func storage(_ label: NSTextField, _ store: LabSettingsStore) {
         label.stringValue = store.storageMessage ?? ""
         label.isHidden = store.storageMessage == nil
+    }
+
+    /// A read-only value beside a grid label.
+    static func value(_ identifier: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: "")
+        label.preferredMaxLayoutWidth = 360
+        label.isSelectable = true
+        label.setAccessibilityIdentifier(identifier)
+        return label
     }
 
     static func storageLabel() -> NSTextField {
@@ -464,5 +480,99 @@ final class MacLanguageSettingsViewController: NSViewController {
     @objc func localeChanged() {
         guard let code = localePopup.selectedItem?.representedObject as? String else { return }
         store.update { $0.manuscriptLocale = code }
+    }
+}
+
+// MARK: 写作助手 › 用量
+
+/// Token usage of the open project's writing assistant: today and the last
+/// 30 days by provider and model, and each conversation's total. Numbers
+/// are the providers' own usage fields; unreported ones count as unknown,
+/// and no prices are shown.
+final class MacAgentSettingsViewController: NSViewController {
+    /// The project's name and conversations, or nil without a project.
+    var source: (() -> (project: String, conversations: [AgentConversation])?)?
+    var now: () -> Date = Date.init
+    var onManageKeys: (() -> Void)?
+    let projectLabel = NSTextField(labelWithString: "")
+    let todayLabel = SettingsLayout.value("settings-agent-usage-today")
+    let monthLabel = SettingsLayout.value("settings-agent-usage-month")
+    let modelsStack = NSStackView()
+    let conversationsStack = NSStackView()
+    let keysButton = NSButton(title: "管理 API Key…", target: nil, action: nil)
+    private(set) var report: AgentUsageReport?
+
+    init() {
+        super.init(nibName: nil, bundle: nil)
+        title = "写作助手"
+        projectLabel.setAccessibilityIdentifier("settings-agent-usage-project")
+        for stack in [modelsStack, conversationsStack] {
+            stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
+        }
+        modelsStack.setAccessibilityIdentifier("settings-agent-usage-models")
+        conversationsStack.setAccessibilityIdentifier("settings-agent-usage-conversations")
+        keysButton.target = self; keysButton.action = #selector(manageKeys)
+        keysButton.setAccessibilityIdentifier("settings-agent-keys")
+        NotificationCenter.default.addObserver(self, selector: #selector(usageChanged), name: AgentChatController.usageDidChange, object: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func loadView() {
+        let grid = SettingsLayout.grid([("今天", [todayLabel]), ("近 30 天", [monthLabel])])
+        view = SettingsLayout.page([
+            SettingsLayout.heading("用量"),
+            SettingsLayout.detail("按模型服务在每次请求后报告的数字记录；没有报告的记为“未知”，不估算，也不计算费用。删除对话会一并删除它的用量。"),
+            projectLabel, grid,
+            SettingsLayout.heading("按模型（今天 / 近 30 天）"), modelsStack,
+            SettingsLayout.heading("按对话（全部）"), conversationsStack,
+            SettingsLayout.line([keysButton]),
+        ], spacing: [1: 14, 3: 16, 5: 16, 7: 16])
+        refresh()
+    }
+
+    override func viewWillAppear() { super.viewWillAppear(); refresh() }
+
+    @objc private func usageChanged() { if isViewLoaded { refresh() } }
+    @objc private func manageKeys() { onManageKeys?() }
+
+    private static func row(_ title: String, _ lines: [String], _ identifier: String) -> NSView {
+        let name = NSTextField(labelWithString: title)
+        name.font = .systemFont(ofSize: 12, weight: .semibold)
+        var views: [NSView] = [name]
+        for line in lines {
+            let label = SettingsLayout.detail(line)
+            label.textColor = .labelColor
+            views.append(label)
+        }
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 2
+        stack.setAccessibilityIdentifier(identifier)
+        stack.setAccessibilityElement(true)
+        stack.setAccessibilityLabel(([title] + lines).joined(separator: "，"))
+        return stack
+    }
+
+    func refresh() {
+        guard isViewLoaded else { return }
+        let found = source?()
+        let report = found.map { AgentUsageReport(conversations: $0.conversations, now: now()) }
+        self.report = report
+        projectLabel.stringValue = found.map { "项目《\($0.project)》" } ?? "没有打开的项目。打开一个项目后，这里显示它的写作助手用量。"
+        todayLabel.stringValue = report?.today.text ?? "—"
+        monthLabel.stringValue = report?.month.text ?? "—"
+        for stack in [modelsStack, conversationsStack] {
+            for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
+        }
+        let models = report?.models ?? []
+        if models.isEmpty { modelsStack.addArrangedSubview(SettingsLayout.detail("近 30 天没有请求。")) }
+        for (index, row) in models.enumerated() {
+            modelsStack.addArrangedSubview(Self.row(row.label, ["今天：\(row.today.text)", "近 30 天：\(row.month.text)"],
+                                                    "settings-agent-usage-model-\(index)"))
+        }
+        let conversations = report?.conversations ?? []
+        if conversations.isEmpty { conversationsStack.addArrangedSubview(SettingsLayout.detail("还没有用量记录。")) }
+        for row in conversations {
+            conversationsStack.addArrangedSubview(Self.row(row.title, [row.totals.text], "settings-agent-usage-conversation-\(row.id)"))
+        }
     }
 }

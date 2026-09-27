@@ -10,8 +10,12 @@ final class AgentStubProtocol: URLProtocol {
         var hold = false
         /// Fail before any response.
         var failure: URLError.Code?
+        /// Deliver the response and body, then drop the connection.
+        var dropAfterBody: URLError.Code?
         /// Chunk size in bytes; small sizes split frames and characters.
         var chunk = 7
+        /// Extra response headers, e.g. Retry-After.
+        var headers: [String: String] = [:]
     }
     struct Captured {
         let url: URL
@@ -61,7 +65,8 @@ final class AgentStubProtocol: URLProtocol {
         guard let reply else { client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable)); return }
         if let failure = reply.failure { client?.urlProtocol(self, didFailWithError: URLError(failure)); return }
         let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1",
-                                       headerFields: ["content-type": reply.status == 200 ? "text/event-stream" : "application/json"])!
+                                       headerFields: ["content-type": reply.status == 200 ? "text/event-stream" : "application/json"]
+                                           .merging(reply.headers) { $1 })!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         var offset = 0
         while offset < reply.body.count {
@@ -69,6 +74,7 @@ final class AgentStubProtocol: URLProtocol {
             client?.urlProtocol(self, didLoad: reply.body.subdata(in: offset..<end))
             offset = end
         }
+        if let drop = reply.dropAfterBody { client?.urlProtocol(self, didFailWithError: URLError(drop)); return }
         if !reply.hold { client?.urlProtocolDidFinishLoading(self) }
     }
 
@@ -210,6 +216,8 @@ extension BindingAcceptance {
             panelWindow?.close()
             let controller = AgentChatController(workspace: workspace, projectID: project.id, projectName: project.name,
                                                  credentials: credentials, network: network)
+            // Retries wait a hundredth of a second unless a case sets them.
+            controller.retryPolicy.baseDelay = 0.01
             let host = self.host, projectID = project.id
             controller.editorContext = { host.agentContext(projectID: projectID) }
             controller.onWorkspaceEffect = { [weak self] effect in
@@ -298,7 +306,7 @@ extension BindingAcceptance {
         try agentAppend()
         try agentPersistence()
         return [
-            "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 53 tools and the key only in its auth header",
+            "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 63 tools and the key only in its auth header",
             "AppKit 写作助手 runs a DeepSeek thinking tool loop of list_chapters, read_chapter of the open chapter's live text and an answer, replays reasoning_content inside the turn, shows each tool as an activity line and stops cleanly after 24 tool rounds",
             "AppKit revise_chapter proposal changes nothing until 接受, then applies through Rust into the open editor as one undo step with Agent provenance for its session, turn and call; 拒绝 leaves the text, a refused original shows Rust's message, and the next turn tells the model every outcome",
             "AppKit 停止 mid-stream keeps the partial reply and closes the request, and a missing key, HTTP 401, HTTP 429 and an offline network show Chinese errors without sending or storing the key",
@@ -309,7 +317,7 @@ extension BindingAcceptance {
     }
 
     /// Stored dates keep milliseconds; everything else must match exactly.
-    private static func undated(_ conversation: AgentConversation) -> AgentConversation {
+    static func undated(_ conversation: AgentConversation) -> AgentConversation {
         let fixed = Date(timeIntervalSince1970: 0)
         var copy = conversation
         copy.createdAt = fixed; copy.updatedAt = fixed
@@ -318,6 +326,9 @@ extension BindingAcceptance {
             copy.proposals[index].createdAt = fixed
             if copy.proposals[index].decidedAt != nil { copy.proposals[index].decidedAt = fixed }
         }
+        for index in copy.usage.indices { copy.usage[index].at = fixed }
+        if copy.workingMemoryUpdatedAt != nil { copy.workingMemoryUpdatedAt = fixed }
+        if copy.plan != nil { copy.plan?.updatedAt = fixed }
         return copy
     }
 
@@ -390,7 +401,7 @@ extension BindingAcceptance {
                 names = (body["tools"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "function" ? $0["name"] as? String : nil }
                 try require(request.headers["authorization"] == "Bearer synthetic-openai-key-0003", "OpenAI key was not in its auth header")
             }
-            try require(names == AgentToolRegistry.all.map(\.name) && names.count == 53 && names.contains("revise_chapter"),
+            try require(names == AgentToolRegistry.all.map(\.name) && names.count == 63 && names.contains("revise_chapter"),
                 "\(provider) did not send the tool definitions: \(names)")
             // Parsed and rendered.
             guard let reply = harness.lastReply else { throw LabError.message("\(provider) reply was not recorded") }
@@ -631,18 +642,20 @@ extension BindingAcceptance {
         try require((harness.panel.element("agent-notice-\(row.id)") as? NSTextField)?.textColor == .systemRed, "The error was not shown as an error")
 
         try harness.credentials.setKey("synthetic-openai-key-0003", for: .openai)
-        let cases: [(AgentStubProtocol.Reply, String)] = [
-            (AgentSSE.error(401, "Incorrect API key provided: synthetic-openai-****0003"), "OpenAI 拒绝了这个 API Key（HTTP 401）"),
-            (AgentSSE.error(429, "Rate limit reached"), "OpenAI 请求过于频繁或额度已用尽（HTTP 429）"),
-            (AgentStubProtocol.Reply(failure: .notConnectedToInternet), "无法连接 OpenAI：网络未连接"),
+        // 401 is not retried; 429 and an offline network are retried three
+        // times before the error shows.
+        let cases: [(AgentStubProtocol.Reply, String, Int)] = [
+            (AgentSSE.error(401, "Incorrect API key provided: synthetic-openai-****0003"), "OpenAI 拒绝了这个 API Key（HTTP 401）", 1),
+            (AgentSSE.error(429, "Rate limit reached"), "OpenAI 请求过于频繁或额度已用尽（HTTP 429）", 4),
+            (AgentStubProtocol.Reply(failure: .notConnectedToInternet), "无法连接 OpenAI：网络未连接", 4),
         ]
-        for (reply, message) in cases {
-            AgentStubProtocol.reset([reply])
+        for (reply, message, count) in cases {
+            AgentStubProtocol.reset(Array(repeating: reply, count: count))
             try harness.send("再试一次。")
             let notice = harness.notices.last ?? ""
             try require(notice.hasPrefix(message) && !notice.contains("Incorrect") && !notice.contains("synthetic"),
                 "The error was not reported in Chinese: \(notice)")
-            try require(AgentStubProtocol.requests.count == 1
+            try require(AgentStubProtocol.requests.count == count && AgentStubProtocol.remaining == 0
                 && AgentStubProtocol.requests[0].headers["authorization"] == "Bearer synthetic-openai-key-0003"
                 && (AgentStubProtocol.requests[0].body["reasoning"] as? [String: Any])?["summary"] as? String == "auto"
                 && (AgentStubProtocol.requests[0].body["include"] as? [String]) == ["reasoning.encrypted_content"],

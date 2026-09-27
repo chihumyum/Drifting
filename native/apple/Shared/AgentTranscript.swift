@@ -91,9 +91,16 @@ struct AgentReplay: Codable, Equatable {
     var value: AgentJSON
 }
 
+/// One request's token counts as the provider reported them. A count the
+/// provider did not report stays nil (unknown); nothing is estimated.
 struct AgentUsage: Codable, Equatable {
-    var inputTokens: Int
-    var outputTokens: Int
+    /// Every prompt token of the request, including those served from cache.
+    var inputTokens: Int?
+    /// Of `inputTokens`, the ones read from the provider's prompt cache.
+    var cachedTokens: Int?
+    var outputTokens: Int?
+
+    var isEmpty: Bool { inputTokens == nil && cachedTokens == nil && outputTokens == nil }
 }
 
 /// One transcript entry. `notice` rows (errors, 已停止) are never sent to a model.
@@ -120,6 +127,14 @@ struct AgentMessage: Codable, Equatable {
     var activity: String?
     var proposalID: String?
     var isError: Bool?
+    /// Tool rows of a rule tool: the change to 作者规则, shown as a small
+    /// card with 撤销, and whether the author undid it.
+    var memory: AgentMemoryChange?
+    /// Notice rows marking a compaction: the model sees this summary in
+    /// place of every message up to `through`.
+    var compaction: AgentCompaction?
+    /// A round-limit notice after which 继续 may start the next turn.
+    var continuable: Bool?
     var createdAt: Date
 
     init(id: String = UUID().uuidString, role: Role, turnID: String, text: String, createdAt: Date = Date()) {
@@ -258,6 +273,15 @@ struct AgentConversation: Codable, Equatable {
     var choice: AgentModelChoice
     var messages: [AgentMessage]
     var proposals: [AgentProposal]
+    /// 工作记忆: the assistant's Markdown note for this conversation.
+    var workingMemory: String
+    var workingMemoryUpdatedAt: Date?
+    /// `assistant` or `author`.
+    var workingMemoryUpdatedBy: String?
+    /// 长任务计划: goal, ordered steps and constraints.
+    var plan: AgentTaskPlan?
+    /// Each model request's reported token counts.
+    var usage: [AgentUsageRecord]
 
     init(projectID: String, choice: AgentModelChoice = .standard) {
         id = "agent-" + UUID().uuidString.lowercased()
@@ -266,6 +290,25 @@ struct AgentConversation: Codable, Equatable {
         createdAt = Date(); updatedAt = createdAt
         self.choice = choice
         messages = []; proposals = []
+        workingMemory = ""; usage = []
+    }
+
+    /// Files written before memory, plans and usage existed read as empty.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        projectID = try container.decode(String.self, forKey: .projectID)
+        title = try container.decode(String.self, forKey: .title)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        choice = try container.decode(AgentModelChoice.self, forKey: .choice)
+        messages = try container.decode([AgentMessage].self, forKey: .messages)
+        proposals = try container.decode([AgentProposal].self, forKey: .proposals)
+        workingMemory = try container.decodeIfPresent(String.self, forKey: .workingMemory) ?? ""
+        workingMemoryUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .workingMemoryUpdatedAt)
+        workingMemoryUpdatedBy = try container.decodeIfPresent(String.self, forKey: .workingMemoryUpdatedBy)
+        plan = try container.decodeIfPresent(AgentTaskPlan.self, forKey: .plan)
+        usage = try container.decodeIfPresent([AgentUsageRecord].self, forKey: .usage) ?? []
     }
 
     func proposal(_ id: String) -> AgentProposal? { proposals.first { $0.id == id } }
@@ -273,8 +316,10 @@ struct AgentConversation: Codable, Equatable {
 
 /// Conversations of one project as JSON files under the lab's data directory:
 /// `<data>/agent/<projectId>/<conversationId>.json`, written atomically (a
-/// temporary file renamed over the old one) on a serial queue.
+/// temporary file renamed over the old one) on a serial queue. The project's
+/// 作者规则 live beside them in `author-rules.json` on the same queue.
 final class AgentConversationStore {
+    static let rulesFile = "author-rules.json"
     let directory: URL
     private let queue = DispatchQueue(label: "cc.drifting.native-lab.agent-store")
 
@@ -320,7 +365,7 @@ final class AgentConversationStore {
         queue.sync {
             guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return [] }
             let decoder = Self.decoder()
-            return files.filter { $0.pathExtension == "json" }.compactMap { url -> AgentConversation? in
+            return files.filter { $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix("agent-") }.compactMap { url -> AgentConversation? in
                 guard let data = try? Data(contentsOf: url), var conversation = try? decoder.decode(AgentConversation.self, from: data) else { return nil }
                 for index in conversation.proposals.indices where conversation.proposals[index].state == .applying {
                     conversation.proposals[index].state = .pending
@@ -333,10 +378,15 @@ final class AgentConversationStore {
     func save(_ conversation: AgentConversation) {
         let data: Data
         do { data = try Self.encoder().encode(conversation) } catch { return }
+        write(data, name: "\(conversation.id).json")
+    }
+
+    /// A temporary file renamed over the target, on the serial queue.
+    private func write(_ data: Data, name: String) {
         let directory = self.directory
         queue.async {
-            let target = directory.appendingPathComponent("\(conversation.id).json")
-            let temporary = directory.appendingPathComponent(".\(conversation.id).\(UUID().uuidString).tmp")
+            let target = directory.appendingPathComponent(name)
+            let temporary = directory.appendingPathComponent(".\(name).\(UUID().uuidString).tmp")
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 try data.write(to: temporary, options: [.withoutOverwriting])
@@ -345,6 +395,20 @@ final class AgentConversationStore {
                 try? FileManager.default.removeItem(at: temporary)
             }
         }
+    }
+
+    /// The project's 作者规则, oldest first; none when the file is missing.
+    func loadRules() -> [AgentAuthorRule] {
+        queue.sync {
+            guard let data = try? Data(contentsOf: directory.appendingPathComponent(Self.rulesFile)),
+                  let file = try? Self.decoder().decode(AgentAuthorRulesFile.self, from: data) else { return [] }
+            return file.rules
+        }
+    }
+
+    func saveRules(_ rules: [AgentAuthorRule]) {
+        guard let data = try? Self.encoder().encode(AgentAuthorRulesFile(rules: rules)) else { return }
+        write(data, name: Self.rulesFile)
     }
 
     func delete(_ id: String) {

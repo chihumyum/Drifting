@@ -271,7 +271,8 @@ private final class CommentRowView: NSView {
         quote.setAccessibilityIdentifier("comment-quote-\(comment.id)")
         var facts = [entry.isWholePage ? "整章" : entry.anchorStatus.label, comment.review.label]
         if comment.kind == "todo" { facts.insert("待办", at: 0) }
-        if !comment.canEditBody { facts.append(comment.source == "copilot" ? "来自 Copilot · 只读" : "外部来源 · 只读") }
+        if comment.isByAssistant { facts.append("写作助手") }
+        else if !comment.canEditBody { facts.append(comment.source == "copilot" ? "来自 Copilot · 只读" : "外部来源 · 只读") }
         let meta = NSTextField(labelWithString: facts.joined(separator: " · "))
         meta.font = .systemFont(ofSize: 11, weight: .medium)
         meta.textColor = entry.isWholePage || entry.anchorStatus == .anchored || entry.anchorStatus == .wholeBlock

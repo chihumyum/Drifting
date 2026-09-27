@@ -57,6 +57,14 @@ enum AgentSchema {
                 return "\(name)必须是 true 或 false。"
             }
             return nil
+        case "integer":
+            guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+                  number.doubleValue.rounded() == number.doubleValue, abs(number.doubleValue) < 1e15 else {
+                return "\(name)必须是整数。"
+            }
+            if let minimum = schema["minimum"] as? Int, number.intValue < minimum { return "\(name)不能小于 \(minimum)。" }
+            if let maximum = schema["maximum"] as? Int, number.intValue > maximum { return "\(name)不能大于 \(maximum)。" }
+            return nil
         case "array":
             guard let array = value as? [Any] else { return "\(name)必须是数组。" }
             if let minimum = schema["minItems"] as? Int, array.count < minimum { return "\(name)至少需要 \(minimum) 项。" }

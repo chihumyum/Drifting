@@ -2,16 +2,18 @@ import Foundation
 
 /// The writing assistant's system prompt: the renderer's
 /// `buildDriftingAgentSystemPrompt` policy, in Chinese and adapted to the
-/// native tool set and review model (every write is a proposal).
+/// native tool set and review model (every write is a proposal), followed by
+/// the project's 作者规则 and the conversation's 工作记忆 and 任务计划.
 enum AgentPrompt {
-    static let version = 4
+    static let version = 5
 
     private static func clean(_ value: String, _ limit: Int) -> String {
         let text = value.replacingOccurrences(of: "\u{0000}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         return text.count > limit ? String(text.prefix(limit)) + "…" : text
     }
 
-    static func system(projectName: String, details: WorkspaceProjectDetails?) -> String {
+    static func system(projectName: String, details: WorkspaceProjectDetails?, rules: [AgentAuthorRule] = [],
+                       workingMemory: String = "", plan: AgentTaskPlan? = nil) -> String {
         let name = clean(details?.name ?? projectName, 200)
         var lines = [
             "你是 Drifting 里的写作助手。遵循作者当前的请求和作者定义的项目规则，用中文回复。",
@@ -29,6 +31,9 @@ enum AgentPrompt {
             "思考保持简短，围绕作品本身：故事、人物、连贯性、结构和语言。材料足够时就行动，不要反复复核已经确定的决定，也不要复述整章内容。",
             "给作者的回复直接从结论开始，简洁清楚；可以使用简单的 Markdown（小标题、列表、粗体）。",
             "没有合适的工具时，只说明本轮无法完成这项修改；不要编造能力，也不要声称执行了没有执行的操作。",
+            "记忆：作者规则、工作记忆和任务计划是你的记忆，不是作品内容，调用后立即生效，不生成修改提案，也不会写入作品。作者明确表达希望以后一直适用的偏好、否决或指令时，用 create_author_rule 记下自包含的一句话；一次性的请求不要记成规则；作者要求修改或忘记规则时用 update_author_rule 或 delete_author_rule。作者可以撤销这些改动。",
+            "需要多轮工具调用的长任务，先用 update_task_plan 写下目标和步骤，每开始或完成一步用 update_task_step 标记，作者对这项任务的要求用 update_task_constraint 记下。需要跨轮延续的进度、结论和下一步，用 checkpoint_working_memory 写进工作记忆（整体替换，保持简短）。",
+            "作者规则必须遵守；否决是作者明确不要的做法，任何时候都不要违反。作者当前的请求与规则冲突时，按当前请求做，并提醒作者是否要修改规则。",
         ]
         if let details {
             let summary = clean(details.summary, 2_000)
@@ -38,6 +43,19 @@ enum AgentPrompt {
                 return key.isEmpty || value.isEmpty ? nil : "- \(key)：\(value)"
             }
             if !facts.isEmpty { lines.append("作者定义的本书字段和规则："); lines += facts }
+        }
+        if !rules.isEmpty {
+            lines.append("【作者规则】（本项目的长期规则，按类型标注；编号用于 update_author_rule 和 delete_author_rule）")
+            lines += rules.map { "- \($0.line)（编号 \($0.id)）" }
+        }
+        let memory = clean(workingMemory, AgentWorkingMemory.limit)
+        if !memory.isEmpty {
+            lines.append("【工作记忆】（本对话的笔记，用 checkpoint_working_memory 整体替换）")
+            lines.append(memory)
+        }
+        if let plan {
+            lines.append("【任务计划】（用 update_task_step 更新步骤状态）")
+            lines += plan.promptLines
         }
         return lines.joined(separator: "\n")
     }

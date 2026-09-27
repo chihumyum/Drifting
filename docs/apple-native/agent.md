@@ -3,7 +3,9 @@
 A Mac-only writing Agent in the native lab. It reads the project through the
 Rust workspace and proposes prose, chapter, element, patch, storyline,
 relation, note/TODO, drift and project changes that the author accepts or
-rejects in the conversation.
+rejects in the conversation. It keeps its own memory: the project's 作者规则
+and each conversation's 工作记忆 and 任务计划, compacts long conversations,
+retries transient failures and records token usage.
 
 ## Scope
 
@@ -24,10 +26,10 @@ rejects in the conversation.
   items) is replayed only inside the current turn's tool loop.
 - Not ported:
   - the ChatGPT-subscription `openai-codex` route (needs OAuth);
-  - MCP and plugin tools, long tasks and checklists (`update_task_*`,
-    `read_task_plan`), `ask_user` and `read_tool_result`;
-  - Working Memory, author rules and standing guidance
-    (`*_working_memory`, `*_author_rule`);
+  - MCP and plugin tools, `ask_user` and `read_tool_result`;
+  - the renderer's long-task runtime beyond the native plan (manifests,
+    review results, automatic continuation) and its project-wide Working
+    Memory document (the native note is per conversation);
   - whole-body replacement (`replace_*_body`; revisions and appends cover it);
   - updating or deleting relation types, deleting comments, and trashing
     categories, storylines or drifts, although Rust has those commands: the
@@ -35,22 +37,19 @@ rejects in the conversation.
   - material writes, and file bytes of images and PDFs;
   - patches anchored to a selected passage (a patch names its source chapter
     only), and act, drift group, story-time and writing-status tools;
-  - Agent authorship of notes and TODOs: `workspaceComments create` records
-    the author, so an accepted `create_comment` reads as the author's;
-  - context compaction, so a very long conversation can exceed the context
-    window;
-  - automatic retries.
+  - prices: usage is shown in tokens only.
 
 ## Tools
 
 The registry is `AgentToolRegistry` (`native/apple/Shared/AgentTools.swift`,
 domain tools in `AgentDomainTools.swift`, `AgentDomainReads.swift` and
-`AgentDomainWrites.swift`): 53 tools, 19 reads and 34 writes. Each has a
-name, a Chinese description, a strict JSON schema (`additionalProperties:
-false`) and its access. Before a tool runs its arguments are checked against
-the schema: unknown, missing and mistyped arguments, enums, colour patterns
-and array sizes are refused in Chinese; `null` for an optional argument counts
-as absent.
+`AgentDomainWrites.swift`, memory tools in `AgentMemory.swift`): 63 tools,
+22 reads, 34 writes and 7 memory writes. Each has a name, a Chinese
+description, a strict JSON schema (`additionalProperties: false`) and its
+access. Before a tool runs its arguments are checked against the schema:
+unknown, missing and mistyped arguments, enums, integers and their minimum,
+colour patterns and array sizes are refused in Chinese; `null` for an
+optional argument counts as absent.
 
 | Access | Tool | Rust path |
 | --- | --- | --- |
@@ -68,20 +67,22 @@ as absent.
 | read | `list_comments` (notes and TODOs: target, priority, status, quote) | `workspaceComments list` |
 | read | `list_materials`, `read_material` (title, kind, notes, link, text; never bytes or paths) | `workspaceLibrary library` |
 | read | `project_overview` (summary, facts, chapter and word counts, element, category, storyline, drift, relation, open TODO and material counts) | `workspaceMetadata`, `workspaceMetrics` and the libraries |
+| read | `list_author_rules`, `read_working_memory`, `read_task_plan` | the controller's memory; no Rust call |
 | write | `revise_chapter`, `revise_element`, `revise_category`, `revise_drift`, `revise_storyline` (replace existing text) | `workspaceAgent applyChanges` |
 | write | `append_to_body` (new paragraphs at the end of a chapter, element, category, drift or storyline body) | `applyChanges` with one `append` change |
 | write | `create_chapter` (title and optional opening text), `set_chapter_summary` | `workspaceCreateChapter` then one `append`; `setNodeSummary` |
 | write | `rename_chapter`, `trash_chapter` | `workspaceRenameChapter`; `workspaceTrashChapter` through the tab host |
-| write | `create_element` (category, name, group, summary, aliases, facts, opening body) | `createElement`, then `updateElement`, `setElementFacts`, one `append` as given |
+| write | `create_element` (category, name, group, summary, aliases, facts, opening body) | one `createElement` original with every field, then one `append` |
 | write | `update_element` (name, summary, aliases, category, group), `set_element_facts` | `updateElement`; `setElementFacts` |
 | write | `create_element_category`, `update_element_category` (name, colour) | `createCategory`; `updateCategory` |
 | write | `trash_element` | `trashElement` through the tab host |
 | write | `create_element_patch` (title, body, optional source chapter), `update_element_patch`, `delete_element_patch` | `workspacePatches` |
 | write | `create_storyline` (name, summary), `update_storyline` (name, summary, colour), `set_chapter_storylines` (members, primary) | `workspaceStorylines` |
 | write | `create_relation` (ends by kind and id or exact name, type by id or name), `update_relation` (retype, swap), `delete_relation`, `create_relation_type` | `workspaceRelations` |
-| write | `create_comment` (note or TODO, floating TODO or on a page, priority), `update_comment` (body, kind, priority), `resolve_comment` | `workspaceComments` |
+| write | `create_comment` (note or TODO, floating TODO or on a page, priority), `update_comment` (body, kind, priority), `resolve_comment` | `workspaceComments`; create with `byAssistant` |
 | write | `create_drift` (title, optional body), `rename_drift`, `set_drift_summary` | `workspaceDrifts` then one `append`; `updateDrift`; `setNodeSummary` |
 | write | `update_project_facts`, `update_project_summary` | `workspaceMetadata updateProject` |
+| memory | `create_author_rule`, `update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`, `update_task_plan`, `update_task_step`, `update_task_constraint` | applied at once to the rules file or the conversation; never Rust |
 
 References resolve the way chapter titles do: an identity, else an exact name
 (an element also by alias, 《》 and 「」 stripped). An ambiguous name is refused
@@ -96,8 +97,9 @@ The loop is model → tool calls → results → model until the model finishes.
 It stops after 24 tool rounds. 停止 cancels the stream and keeps the partial
 reply. A tool that is already running finishes, and the remaining calls are
 recorded as not run. Each turn's user message is preceded by a runtime note
-(【运行提示】) with the page the author has open (作者当前打开：《…》) and
-proposal outcomes that have not yet been reported.
+(【运行提示】) with the page the author has open (作者当前打开：《…》),
+proposal outcomes and rule undos that have not yet been reported. Every
+request's system prompt ends with the current 作者规则, 工作记忆 and 任务计划.
 
 ## Review model
 
@@ -125,11 +127,11 @@ proposal outcomes that have not yet been reported.
   proposal is accepted as 已接受 · 正文未写入, and the model is told the
   chapter exists without text.
 - An accepted domain proposal runs its Rust command with the stored,
-  resolved identities: one original, except `create_element`,
-  `create_storyline` and `create_drift`, which create first and then write
-  the given summary, aliases, facts or opening text as further originals. If
-  only a later step fails, the proposal is 已接受 · 部分未写入 and the model
-  is told what was not written. Trash goes through the tab host, which closes
+  resolved identities: one original. `create_element` writes the name, group,
+  summary, aliases and facts in that one original, so a refused alias or fact
+  writes nothing. Its opening body, `create_storyline`'s summary and
+  `create_drift`'s text are a further original; if only that step fails, the
+  proposal is 已接受 · 部分未写入 and the model is told what was not written. Trash goes through the tab host, which closes
   the page's tabs once Rust commits. Libraries, relation sections, patches,
   chapter lists, 审阅 and open pages follow the returned state.
 - 拒绝 records the rejection.
@@ -138,6 +140,59 @@ proposal outcomes that have not yet been reported.
   pending save leaves the proposal pending, with the reason shown.
 - The author's next message tells the model each outcome once: accepted,
   rejected, or failed with the message.
+- An accepted `create_comment` is the assistant's: Rust stores author kind
+  `ai`, name 写作助手 and source `api`; 审阅 and the chapter comment list show
+  写作助手, and the author can still edit it.
+
+## Memory
+
+Memory tools change only the assistant's memory, apply at once without a
+proposal and never touch the book, SQLite, user defaults or the journal.
+
+- **作者规则** (per project): 偏好, 否决 or 指令 with one self-contained line
+  (at most 500 characters, 40 rules). The panel's 作者规则 section adds, edits
+  (kind and words) and deletes them after confirmation. A rule tool's change
+  shows as a card (已记住 / 已更新记忆 / 已忘记：…) with 撤销, which reverts it;
+  the author's next turn tells the model once.
+- **工作记忆** (per conversation): a Markdown note of at most 6,000
+  characters that `checkpoint_working_memory` replaces whole; longer text is
+  refused in Chinese. The collapsible 工作记忆 section shows it with who wrote
+  it last; the author edits it or clears it after confirmation.
+- **任务计划** (per conversation): a goal, up to 40 ordered steps (待办,
+  进行中, 完成, 跳过, each with an optional note) and constraints (`c1`…).
+  Replacing the steps keeps the state of each unchanged title. The panel
+  shows it as a checklist. When the 24-round limit stops a turn with
+  unfinished steps, the notice offers 继续; nothing continues on its own, and
+  继续 sends a new turn (继续, with a runtime note) that carries the plan.
+
+## Long conversations
+
+- **Compaction.** Before each request the serialized body (system prompt,
+  history, tools) is estimated with a conservative per-provider ratio and
+  compared with 70% of the model's context window. Above it, every turn but
+  the last two is summarised by the same provider and model without
+  streaming or tools into 目标, 已做的决定, 待处理的提案 and 已了解的事实, and the
+  app appends its own record of every proposal and outcome. If the summary
+  fails or takes over 60 seconds, a deterministic trim keeps the earlier
+  summary, the author's earlier requests and that proposal record. The system
+  prompt (with rules, working memory and plan) and recent turns stay
+  verbatim. A notice (已压缩较早的对话…) marks the point; the model reads the
+  summary in place of the messages it covers. Proposals stay in the
+  conversation and can still be accepted.
+- **Retries.** Network failures, dropped or truncated streams, HTTP 429 and
+  5xx are retried up to 3 times (2, 4, 8 seconds, or the provider's
+  `Retry-After`); 400, 401, 403 and 404 are not. The status line shows
+  重试中（n/3） and 停止 ends the wait at once. A failed attempt adopts
+  nothing, so no tool call or proposal runs twice.
+- **Usage.** Each request that the provider answered records its input,
+  cached and output tokens from the usage fields (DeepSeek `prompt_tokens` and
+  `prompt_cache_hit_tokens`; Anthropic `input_tokens` plus cache reads and
+  writes, with cache reads as cached; OpenAI `input_tokens`,
+  `input_tokens_details.cached_tokens`) in the conversation file. A missing
+  count is stored as unknown, never estimated. 设置 › 写作助手 › 用量 shows the
+  open project's today and 30-day totals by provider and model and each
+  conversation's total. Deleting a conversation (after confirmation) removes
+  its usage.
 
 ## Persistence
 
@@ -145,8 +200,11 @@ proposal outcomes that have not yet been reported.
   `<Application Support>/<bundle>/agent/<projectId>/<conversationId>.json`,
   beside the `apple-native-lab` workspace directory.
 - Each file holds the messages, tool calls and results, provider reasoning
-  replay, proposals and their states, and the provider, model, thinking and
-  effort choice.
+  replay, proposals and their states, the provider, model, thinking and
+  effort choice, the working memory, the task plan, compaction markers and
+  usage records.
+- The project's 作者规则 are `author-rules.json` in the same folder, written
+  on the same queue.
 - Writes run on a serial queue: a temporary file is written, then renamed
   over the old one.
 - A new conversation is written after its first message. The panel can create,
@@ -163,8 +221,8 @@ proposal outcomes that have not yet been reported.
   `x-api-key`). They are never written to conversation files, errors or logs.
 - The sheet shows only `已保存 ····<last four>`.
 - Missing keys, HTTP 401/403/404/429/5xx, network failures and broken streams
-  map to Chinese messages. Error bodies are not shown for 401/403, because they
-  can echo a masked key.
+  map to Chinese messages (after retries where they apply). Error bodies are
+  not shown for 401/403, because they can echo a masked key.
 
 ## Acceptance
 
@@ -178,7 +236,7 @@ alone) through the real panel, tab host and Rust workspace:
 
 It covers:
 
-- one streamed reply per provider, including the request shape, all 53 tools,
+- one streamed reply per provider, including the request shape, all 63 tools,
   the rendering and where the key is sent;
 - a DeepSeek thinking tool loop with `reasoning_content` replay and the
   24-round bound;
@@ -186,7 +244,7 @@ It covers:
 - an append into the open chapter, with undo and redo;
 - reject, a Rust refusal, and outcome reporting;
 - 停止 mid-stream;
-- a missing key, 401, 429 and offline errors;
+- a missing key, 401, and 429 and offline errors after three retries;
 - `create_chapter` with opening text, and `set_chapter_summary`;
 - cold-reopen persistence, rename, delete and the key sheet.
 
@@ -206,5 +264,23 @@ the domain tools through the same panel, host and stub:
   writing after the project is deleted;
 - the element page's page sources in 被引用 and the act rail's stored
   boundaries.
+
+`native/apple/Tests/AgentMemoryAcceptance.swift` (`--agent-memory-only`)
+covers memory and long work through the same panel, host and stub:
+
+- rule CRUD from the panel and from tools, rules in each system prompt,
+  撤销 told once, persistence across a relaunch, and no journal, SQLite or
+  user-defaults bytes;
+- working memory read, replace, the limit, the author's edit and clear;
+- plan tools, the checklist, the 24-round stop, no automatic continuation
+  and 继续;
+- compaction with a synthetic small window and a stubbed summary, the trim
+  after an HTTP 500 and after a timeout, and proposals surviving both;
+- retries for 429 with `Retry-After`, 503 and a dropped connection, no retry
+  for 401, 停止 during the backoff and one proposal from a retried tool call;
+- usage from each provider's stubbed fields and unknown usage, totals per
+  day and model, the 用量 pane and removal with the conversation;
+- 写作助手 authorship on 审阅 cards, and one-original `create_element` with a
+  refused alias writing nothing.
 
 Physical keyboard input and live providers are not exercised.

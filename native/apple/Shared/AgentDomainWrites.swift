@@ -648,14 +648,8 @@ extension AgentWorkspaceTools {
 
     // MARK: Applying
 
-    /// Runs steps in order, each calling its continuation once.
-    private func chain(_ steps: [(@escaping () -> Void) -> Void], _ done: @escaping () -> Void) {
-        guard let first = steps.first else { done(); return }
-        first { self.chain(Array(steps.dropFirst()), done) }
-    }
-
-    /// Applies an accepted domain proposal through Rust. Creations that take
-    /// several commands report a later step's failure as partial.
+    /// Applies an accepted domain proposal through Rust. Creations with an
+    /// opening body or a later summary report that step's failure as partial.
     func applyDomain(_ proposal: AgentProposal, agent: [String: String], completion: @escaping ApplyCompletion) {
         let a = AgentDomainArguments(values: proposal.arguments ?? [:])
         let projectID = self.projectID
@@ -676,53 +670,28 @@ extension AgentWorkspaceTools {
 
         switch proposal.tool {
         case "create_element":
+            // Name, group, summary, aliases and facts are one original, so a
+            // refused alias or fact leaves nothing; only the opening body is a
+            // second step.
             guard let categoryID = required("categoryId"), let name = required("name") else { return }
-            workspace.createElement(projectID: projectID, categoryID: categoryID, name: name, groupName: a.string("groupName")) { [self] result in
+            workspace.createElement(projectID: projectID, categoryID: categoryID, name: name, groupName: a.string("groupName"),
+                                    summary: a.string("summary"), aliases: a.strings("aliases"), facts: a.facts("facts")) { [self] result in
                 reply(result) { created in
                     guard let element = created.result else { fail(LabError.message("设定库结果缺失。")); return }
-                    var library = created.library, missing: [String] = [], prose: AgentWorkspaceEffect?
-                    var steps: [(@escaping () -> Void) -> Void] = []
-                    if a.has("summary") || a.has("aliases") {
-                        steps.append { next in
-                            var changes = WorkspaceElementChanges(); changes.summary = a.string("summary"); changes.aliases = a.strings("aliases")
-                            self.workspace.updateElement(projectID: projectID, elementID: element.id, changes: changes) { result in
-                                switch result {
-                                case .success(let updated): library = updated.library
-                                case .failure(let error): missing.append("简介和别名（\(AgentApplyRefusal(error).message)）")
-                                }
-                                next()
-                            }
+                    let category = created.library.categories.first { $0.id == categoryID }?.name ?? "分类"
+                    let made = "已在分类「\(category)」中创建设定「\(element.name)」（编号 \(element.id)）"
+                    let library: AgentWorkspaceEffect = .elements(projectID: projectID, library: created.library)
+                    guard let text = a.string("text") else { done(made + "。", element.id, [library]); return }
+                    workspace.agentApplyChanges(projectID: projectID, kind: "element", id: element.id,
+                                                changes: [AgentProseChange.appending(text).payload], agent: agent) { appended in
+                        switch appended {
+                        case .success(let applied):
+                            done(made + "，并写入了开头正文。", element.id,
+                                 [library, .prose(projectID: projectID, kind: "element", id: element.id, live: applied.handle != nil)])
+                        case .failure(let error):
+                            completion(.success(.domain(message: made + "，但开头正文没有写入：\(AgentApplyRefusal(error).message)。", created: element.id,
+                                                        partial: true, effects: [library])))
                         }
-                    }
-                    if let facts = a.facts("facts") {
-                        steps.append { next in
-                            self.workspace.setElementFacts(projectID: projectID, elementID: element.id, facts: facts) { result in
-                                switch result {
-                                case .success(let updated): library = updated.library
-                                case .failure(let error): missing.append("字段（\(AgentApplyRefusal(error).message)）")
-                                }
-                                next()
-                            }
-                        }
-                    }
-                    if let text = a.string("text") {
-                        steps.append { next in
-                            self.workspace.agentApplyChanges(projectID: projectID, kind: "element", id: element.id,
-                                                             changes: [AgentProseChange.appending(text).payload], agent: agent) { result in
-                                switch result {
-                                case .success(let applied): prose = .prose(projectID: projectID, kind: "element", id: element.id, live: applied.handle != nil)
-                                case .failure(let error): missing.append("开头正文（\(AgentApplyRefusal(error).message)）")
-                                }
-                                next()
-                            }
-                        }
-                    }
-                    chain(steps) {
-                        let category = library.categories.first { $0.id == categoryID }?.name ?? "分类"
-                        let made = "已在分类「\(category)」中创建设定「\(element.name)」（编号 \(element.id)）"
-                        let message = missing.isEmpty ? made + "。" : made + "，但\(missing.joined(separator: "、"))没有写入。"
-                        completion(.success(.domain(message: message, created: element.id, partial: !missing.isEmpty,
-                                                    effects: [.elements(projectID: projectID, library: library)] + (prose.map { [$0] } ?? []))))
                     }
                 }
             }
@@ -862,7 +831,8 @@ extension AgentWorkspaceTools {
         case "create_comment":
             guard let kind = required("kind"), let body = required("body") else { return }
             let target = a.string("targetKind").flatMap { kind in a.string("targetId").map { RelationEndpoint(kind: kind, id: $0) } }
-            workspace.createComment(projectID: projectID, kind: kind, target: target, body: body, priority: a.string("priority")) { result in
+            workspace.createComment(projectID: projectID, kind: kind, target: target, body: body, priority: a.string("priority"),
+                                    byAssistant: true) { result in
                 reply(result) {
                     done("已添加\(kind == "todo" ? "待办" : "批注")（编号 \($0.result?.id ?? "")）。", $0.result?.id,
                          [.comments(projectID: projectID, comments: $0.comments)])

@@ -13,7 +13,9 @@ interoperability is kept. No SQLite migration is added.
   and an optional `priority` (`low`/`med`/`high`); `update` with any of
   `body`, `kind` and `priority` (`null` clears it; absent fields stay; an
   unchanged value writes nothing; a floating TODO cannot become a note);
-  `setResolved`; `delete`. Every reply carries the result and every comment
+  `setResolved`; `delete`. `create` with `byAssistant: true` (the writing
+  assistant's accepted `create_comment`) stores author kind `ai`, name
+  写作助手 and source `api`. Every reply carries the result and every comment
   of the project, oldest first. Writes are `entity.create`, one `field.set`
   per changed field and `entity.purge` (after purging the comment's
   relations), in one original each.
@@ -38,7 +40,8 @@ not listed.
 
 A card reads its kind, priority, where it is written (“章节「雨夜」” or 浮动),
 a passage's live anchor state and quote (from the open owner, else the
-stored quote), the body and its 关联 chips. 定位 opens the page as a tab; a
+stored quote), 写作助手 when the assistant wrote it (still editable), the body
+and its 关联 chips. 定位 opens the page as a tab; a
 passage note then selects its anchored text in that tab, as the comment
 panel does. 编辑 opens the comment composer. 解决/重新打开 changes the state.
 ⋯ offers 优先级 (无/低/中/高, the current one checked), 转为待办/转为批注

@@ -1066,12 +1066,18 @@ final class LabWorkspaceCore {
         perform(completion) { try self.elementRequest(projectID, command) }
     }
 
-    /// Without a name Rust chooses the next free default name.
+    /// Without a name Rust chooses the next free default name. Summary,
+    /// aliases and facts are written in the same original; without facts
+    /// the category's template facts are cloned.
     func createElement(projectID: String, categoryID: String, name: String? = nil, groupName: String? = nil,
+                       summary: String? = nil, aliases: [String]? = nil, facts: [WorkspaceFact]? = nil,
                        completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
         var command: [String: Any] = ["action": "createElement", "categoryId": categoryID]
         if let name { command["name"] = name }
         if let groupName { command["groupName"] = groupName }
+        if let summary { command["summary"] = summary }
+        if let aliases { command["aliases"] = aliases }
+        if let facts { command["facts"] = facts.map(\.payload) }
         perform(completion) { try self.elementRequest(projectID, command) }
     }
 
@@ -1724,11 +1730,13 @@ final class LabWorkspaceCore {
     /// A floating TODO (no target), or a note or TODO on a whole chapter,
     /// drift, element, category or storyline. Selection notes are created
     /// through the chapter's owner instead.
+    /// `byAssistant` records the writing assistant as the author (写作助手).
     func createComment(projectID: String, kind: String, target: RelationEndpoint?, body: String, priority: String?,
-                       completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
+                       byAssistant: Bool = false, completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
         var command: [String: Any] = ["action": "create", "kind": kind, "body": body]
         if let target { command["targetKind"] = target.kind; command["targetId"] = target.id }
         if let priority { command["priority"] = priority }
+        if byAssistant { command["byAssistant"] = true }
         perform(completion) { try self.commentsRequest(projectID, command) }
     }
 

@@ -2,8 +2,9 @@ import Foundation
 
 /// The native writing Agent's tools over the Rust workspace. Reads run as
 /// soon as the model calls them. Writes only create a pending proposal;
-/// nothing is written until the author accepts it.
-enum AgentToolAccess: String { case read, write }
+/// nothing is written until the author accepts it. Memory tools change only
+/// the assistant's own rules, working memory and task plan, at once.
+enum AgentToolAccess: String { case read, write, memory }
 
 struct AgentToolDefinition {
     let name: String
@@ -36,8 +37,8 @@ enum AgentToolRegistry {
     ]
 
     /// Every tool, reads first: the prose tools, then the domain tools
-    /// (`AgentDomainTools.swift`).
-    static let all: [AgentToolDefinition] = proseReads + domainReads + proseWrites + domainWrites
+    /// (`AgentDomainTools.swift`) and the memory tools (`AgentMemory.swift`).
+    static let all: [AgentToolDefinition] = proseReads + domainReads + memoryReads + proseWrites + domainWrites + memoryWrites
 
     static let proseReads: [AgentToolDefinition] = [
         AgentToolDefinition(name: "list_chapters", description: "按书中顺序列出全部章节：编号、标题、顺序、写作状态、字数和摘要。",
@@ -119,6 +120,12 @@ struct AgentToolOutcome {
     static func failure(_ message: String, activity: String) -> AgentToolOutcome {
         AgentToolOutcome(ok: false, content: message, activity: "\(activity)：\(message)", proposal: nil)
     }
+}
+
+/// A call refused before it ran.
+struct AgentToolRefusal: Error {
+    let outcome: AgentToolOutcome
+    init(_ outcome: AgentToolOutcome) { self.outcome = outcome }
 }
 
 /// What an accepted proposal changed.
@@ -204,7 +211,7 @@ final class AgentWorkspaceTools {
         case "list_drifts": return "正在列出漂流…"
         case "read_drift": return title.map { "正在读取漂流「\($0)」…" } ?? "正在读取漂流…"
         case "project_overview": return "正在读取项目概况…"
-        default: return domainProgress(call.name, title: title) ?? "正在准备修改提案…"
+        default: return AgentMemoryTools.progress(call.name) ?? domainProgress(call.name, title: title) ?? "正在准备修改提案…"
         }
     }
 
@@ -229,20 +236,30 @@ final class AgentWorkspaceTools {
 
     // MARK: Running a call
 
-    func run(_ call: AgentToolCall, turnID: String, completion: @escaping (AgentToolOutcome) -> Void) {
+    /// The call's arguments checked against its schema, or the refusal.
+    static func validated(_ call: AgentToolCall) -> Result<[String: Any], AgentToolRefusal> {
         guard let definition = AgentToolRegistry.definition(call.name) else {
-            completion(.failure("没有名为 \(call.name) 的工具。", activity: "未知工具 \(call.name)")); return
+            return .failure(AgentToolRefusal(.failure("没有名为 \(call.name) 的工具。", activity: "未知工具 \(call.name)")))
         }
         guard let raw = AgentJSONText.object(call.arguments) else {
-            completion(.failure("参数不是有效的 JSON 对象。", activity: "\(call.name) 参数无效")); return
+            return .failure(AgentToolRefusal(.failure("参数不是有效的 JSON 对象。", activity: "\(call.name) 参数无效")))
         }
         // An append inside a revision gets its own guidance before the schema.
         if call.name.hasPrefix("revise_"), (raw["changes"] as? [[String: Any]])?.contains(where: { $0["append"] as? Bool == true }) == true {
-            completion(.failure("revise 工具只替换已有文字；在末尾续写请用 append_to_body。", activity: "提出修改失败")); return
+            return .failure(AgentToolRefusal(.failure("revise 工具只替换已有文字；在末尾续写请用 append_to_body。", activity: "提出修改失败")))
         }
         let arguments = AgentSchema.withoutNulls(raw, schema: definition.schema)
         if let violation = AgentSchema.violation(arguments, schema: definition.schema) {
-            completion(.failure("\(violation)请按工具说明重新调用。", activity: "\(call.name) 参数无效")); return
+            return .failure(AgentToolRefusal(.failure("\(violation)请按工具说明重新调用。", activity: "\(call.name) 参数无效")))
+        }
+        return .success(arguments)
+    }
+
+    func run(_ call: AgentToolCall, turnID: String, completion: @escaping (AgentToolOutcome) -> Void) {
+        let arguments: [String: Any]
+        switch Self.validated(call) {
+        case .failure(let refusal): completion(refusal.outcome); return
+        case .success(let valid): arguments = valid
         }
         if runDomain(call, turnID: turnID, arguments, completion) { return }
         switch call.name {
