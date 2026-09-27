@@ -42,7 +42,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_category_tests.rs",
-        "sha256": "bf54df389ec005c90559a04b5b2387bcf656fb8f6fef52226db26edea5a6c6c9"
+        "sha256": "c0e5d02cdd3c377864e8637349b2d982dfeb0c8497dd630cdaeed3f46c1d9fa3"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_comment_tests.rs",
@@ -62,7 +62,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_elements.rs",
-        "sha256": "538091a232368b11a9e98fb69ef60c814e23e355c127cd5669366629a611aa26"
+        "sha256": "98e35a26cb75d4c1a55548f478da494e7875d46262b218fbad80eab3981ff678"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_history.rs",
@@ -278,7 +278,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "53af59eefef60592f5090b4d051b68e05013a0930b67e0fe2d13a652a47305c7"
+        "sha256": "b024310f1e82981565f1258130edbc65ffed70dbabae3554711407b99cd9d3f9"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -306,7 +306,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/elements.rs",
-        "sha256": "53f987198833c3c52d72e990dbf46e4c7de037a134bd8e9a643ce9fb2ace6364"
+        "sha256": "e6cce6cf0738b3bd6cd9ea713d77ba96eb2b68519d2f6088cc91faa81646233e"
       },
       {
         "path": "crates/drifting-core/src/workspace/elements/tests.rs",
@@ -1029,7 +1029,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "54f227f75334eaf145abe82d9d7d2321b089c4ae753ba23f92f5f51d0cf3b539"
+    "fingerprint": "5b864994173a8e9d6033f21121e97a75617ad5b9b78fa5c1a5eb446771657d3a"
   },
   "toolchain": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -1056,13 +1056,13 @@
       "cases": [
         "workspace_tests::links::workspace_links_chapters_and_element_bodies_and_reports_backlinks"
       ],
-      "logSha256": "ff8db5105e8a662e901e358667edf32d52a3944cc2c73729853d9f7bc1535a04"
+      "logSha256": "816d9a0d8e785b6dd67c064ad5c1d349b6410f6bb5175fd1c8f3c2dc1cf6dd47"
     }
   ],
   "renderer": {
     "schemaVersion": 1,
     "status": "passed",
-    "inputSha256": "dd2d987258dbb5951b44d1786f680cf1243f6b2b7d609ff88ce089d8a2ed97e5",
+    "inputSha256": "972a952d050c165ab0ab1db7f05e9d40ce67961fd0ac33ce5fd36f75415c7c7c",
     "schema": {
       "source": "getStaticChapterSchema",
       "nodes": [
@@ -1128,7 +1128,7 @@
       {
         "name": "chapter-0",
         "sourceKind": "node",
-        "stateSha256": "87c8030536e29dd9d07a01a6569a555b0bf33967f775cb534c1e13448a853ff0",
+        "stateSha256": "1085d5ba63d40b468585e066fbd9d68e1947d1cdd42759a9b5c20b13f7e976af",
         "textSha256": "04bf587ab5d700e0f95c8146cf8c790e44e6a2f0797aca20d842d6e26d6cae79",
         "blocks": 2,
         "linkKeys": 3,
@@ -1187,7 +1187,7 @@
       {
         "name": "chapter-1",
         "sourceKind": "node",
-        "stateSha256": "498fe1f3de37eec8562f51c37fd0259c81113c8181489b84eaa0116dadab090c",
+        "stateSha256": "61b026c174d63a3db48dc6c02542faad8dfa3057c2781b1827c19138df080886",
         "textSha256": "27805edcae5e758a8280f0a48a575bb3ef1c4d1a14c8c2736b975ca1fd4de67f",
         "blocks": 1,
         "linkKeys": 1,
@@ -1218,7 +1218,7 @@
       {
         "name": "element-body",
         "sourceKind": "element",
-        "stateSha256": "c7009ab8a3ab9c41d0924d9e74c53adb7ea03bd864b855ad3d8d192280bb2de5",
+        "stateSha256": "11dd7f33e1ce1da2071f1d5ad61df80caf79d386111fbb5b88388b0a83f4f456",
         "textSha256": "9057aa97dac1833ab97d8229c0542ae2583e0f6c311d78f242495b9fd1168171",
         "blocks": 1,
         "linkKeys": 1,
@@ -1298,39 +1298,39 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/source-before.json",
-      "sha256": "58495fef6c4b3a9a50469ec4342d80cc7ccea0a62ac8b81d8d1d2af67d8ad3f7"
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/source-before.json",
+      "sha256": "6772696d779286ff70c7d881b2decec1bd5822bd114449f7ea86334bb1090d73"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/rustc.log",
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/rustc.log",
       "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/cargo.log",
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/cargo.log",
       "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/document-entity-links.log",
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/document-entity-links.log",
       "sha256": "e4b8444db86375f87ee508042fcdb3c0018f169027f3d9cbfffe6bc42c13795b"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/bridge-entity-links.log",
-      "sha256": "ff8db5105e8a662e901e358667edf32d52a3944cc2c73729853d9f7bc1535a04"
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/bridge-entity-links.log",
+      "sha256": "816d9a0d8e785b6dd67c064ad5c1d349b6410f6bb5175fd1c8f3c2dc1cf6dd47"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/entity-links.json",
-      "sha256": "dd2d987258dbb5951b44d1786f680cf1243f6b2b7d609ff88ce089d8a2ed97e5"
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/entity-links.json",
+      "sha256": "972a952d050c165ab0ab1db7f05e9d40ce67961fd0ac33ce5fd36f75415c7c7c"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/renderer.json",
-      "sha256": "623b8d413e002eb2737a1659f69a0a7386363c3940355202836bbbc6dc86a0d2"
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/renderer.json",
+      "sha256": "55c14568eae7f24cbc94c7edbf5a14d0bc00f51c6dfc7f8d658ce3ea61968bcf"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/renderer.log",
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/renderer.log",
       "sha256": "dd55ca3b43772ce59fb1ca47a017dc255e26d79f9d605f9e4291c179af5aaa39"
     },
     {
-      "path": ".local-data/apple-native/link-acceptance-7KjkWi/typecheck.log",
+      "path": ".local-data/apple-native/link-acceptance-2irQ1a/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     }
   ]

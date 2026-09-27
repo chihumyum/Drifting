@@ -31,6 +31,16 @@ pub struct WorkspaceElementCategory {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CategoryLayout {
+    pub category_id: String,
+    /// `auto` or `pinned`.
+    pub layout_mode: String,
+    pub grid_x: Option<i64>,
+    pub grid_y: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceElement {
     pub id: String,
     pub project_id: String,
@@ -738,6 +748,86 @@ impl WorkspaceStore<'_> {
             );
         }
         Ok(())
+    }
+
+    /// The element overview's placement of every live category: `pinned`
+    /// at a grid cell, or `auto` for the layout solver.
+    pub fn category_layouts(&self, project_id: &str) -> Result<Vec<CategoryLayout>, String> {
+        self.query(
+            None,
+            r#"
+            SELECT id,layout_mode,grid_x,grid_y FROM element_category
+            WHERE project_id=? AND deleted_at IS NULL ORDER BY created_at,id
+        "#,
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| {
+            let grid = |index: usize| match &row[index] {
+                V::Integer(value) => value.parse::<i64>().ok(),
+                V::Real(value) => Some(*value as i64),
+                _ => None,
+            };
+            Ok(CategoryLayout {
+                category_id: string(row, 0)?,
+                layout_mode: string(row, 1)?,
+                grid_x: grid(2),
+                grid_y: grid(3),
+            })
+        })
+        .collect()
+    }
+
+    /// Pins a category to a grid cell (`Some`) or returns it to the solver
+    /// (`None`); unchanged placements write nothing.
+    pub fn set_category_layout(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+        cell: Option<(i64, i64)>,
+    ) -> Result<CategoryLayout, String> {
+        validate_context(context)?;
+        if cell.is_some_and(|(x, y)| x.abs() > 100_000 || y.abs() > 100_000) {
+            return Err("Grid cell out of range".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (_, incarnation) = self.live_category(tx, context, category_id)?;
+            let current = self.query(Some(tx), "SELECT layout_mode,grid_x,grid_y FROM element_category WHERE id=?",
+                vec![text(category_id)])?;
+            let (mode, x, y) = match cell {
+                Some((x, y)) => ("pinned", json!(x), json!(y)),
+                None => ("auto", Value::Null, Value::Null),
+            };
+            let same = |index: usize, value: &Value| match (&current[0][index], value) {
+                (V::Null, Value::Null) => true,
+                (V::Integer(a), Value::Number(b)) => a.parse::<i64>().ok() == b.as_i64(),
+                _ => false,
+            };
+            let mut mutations = Vec::new();
+            if string(&current[0], 0)? != mode {
+                mutations.push(journal::Mutation::field("element-category", category_id, incarnation, "layoutMode", json!(mode)));
+            }
+            if !same(1, &x) {
+                mutations.push(journal::Mutation::field("element-category", category_id, incarnation, "gridX", x.clone()));
+            }
+            if !same(2, &y) {
+                mutations.push(journal::Mutation::field("element-category", category_id, incarnation, "gridY", y.clone()));
+            }
+            if !mutations.is_empty() {
+                self.execute(tx, "UPDATE element_category SET layout_mode=?,grid_x=?,grid_y=?,updated_at=? WHERE id=? AND project_id=?",
+                    vec![text(mode), x.as_i64().map(|v| V::Integer(v.to_string())).unwrap_or(V::Null),
+                        y.as_i64().map(|v| V::Integer(v.to_string())).unwrap_or(V::Null), text(&context.now_iso),
+                        text(category_id), text(&context.project_id)])?;
+                self.commit_changes(tx, context, &mutations, None)?;
+            }
+            Ok(CategoryLayout {
+                category_id: category_id.into(),
+                layout_mode: mode.into(),
+                grid_x: x.as_i64(),
+                grid_y: y.as_i64(),
+            })
+        })
     }
 
     /// A category's element body template: ProseMirror JSON, `{}` when unset.

@@ -13,6 +13,8 @@ interoperability is kept.
   settings are never read or written. Values are read one by one: an unknown
   or out-of-range value falls back to its default (size 12–28 pt, line height
   1.0–2.0); an unreadable file means defaults and a message in 设置.
+- The same file keeps each project's 写作计划 under `writingPlans`, edited in
+  项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
 - An imported font is copied to `fonts/<uuid>.ttf|otf` in the same directory and
   registered with CTFontManager for this process only; nothing is installed.
   Prose is set from the copy's own descriptor, so a re-registered font never

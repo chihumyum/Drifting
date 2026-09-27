@@ -99,9 +99,26 @@ final class ProseTextView: NSTextView {
     }
 }
 
+/// The prose scroll view. In a long scroll (the 全书长卷) it is exactly as
+/// tall as its text, and the wheel scrolls the enclosing view instead.
+private final class ProseScrollView: NSScrollView {
+    var forwardsScrollWheel = false
+    override func scrollWheel(with event: NSEvent) {
+        if forwardsScrollWheel, let next = nextResponder { next.scrollWheel(with: event) } else { super.scrollWheel(with: event) }
+    }
+}
+
 final class NativeDocumentView: NSView, NSTextViewDelegate {
     let binding: DocumentBinding
     let textView = ProseTextView()
+    private let scroll = ProseScrollView()
+    /// The body grows with its text instead of scrolling (a row of the
+    /// 全书长卷); `onHeightChange` reports each new height.
+    let growsWithText: Bool
+    private var textHeight: NSLayoutConstraint?
+    var onHeightChange: (() -> Void)?
+    /// The author changed the text in this view (not a render of a reply).
+    var onEdited: (() -> Void)?
     private let status = NSTextField(wrappingLabelWithString: "正在打开正文…")
     private let comments = NSTextField(wrappingLabelWithString: "")
     private let undoButton = NSButton(title: "撤销", target: nil, action: nil)
@@ -150,13 +167,20 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Comments are a chapter feature. Element bodies never offer or send one.
     let allowsComments: Bool
 
-    init(core: LabCore, allowsComments: Bool = true, minimumTextHeight: CGFloat = 220) {
+    init(core: LabCore, allowsComments: Bool = true, minimumTextHeight: CGFloat = 220, growsWithText: Bool = false) {
         binding = DocumentBinding(core: core)
         self.allowsComments = allowsComments
+        self.growsWithText = growsWithText
         super.init(frame: .zero)
-        let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
-        scroll.borderType = .bezelBorder
+        scroll.hasVerticalScroller = !growsWithText
+        scroll.borderType = growsWithText ? .noBorder : .bezelBorder
+        if growsWithText {
+            // Prose sits on the page of the long scroll, like its read-only rows.
+            scroll.forwardsScrollWheel = true
+            scroll.verticalScrollElasticity = .none
+            scroll.drawsBackground = false
+            textView.drawsBackground = false
+        }
         textView.isRichText = false
         textView.allowsUndo = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -223,6 +247,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             comments.widthAnchor.constraint(equalTo: stack.widthAnchor),
             scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: minimumTextHeight),
         ])
+        if growsWithText {
+            let height = scroll.heightAnchor.constraint(equalToConstant: minimumTextHeight)
+            height.priority = .init(999)
+            height.isActive = true
+            textHeight = height
+        }
         applyEditorPreferences()
         NotificationCenter.default.addObserver(self, selector: #selector(typographyChanged),
                                                name: DocumentStyle.typographyDidChange, object: nil)
@@ -297,6 +327,28 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         updateEditability()
         rendering = false
         updateFormatControls()
+        fitTextHeight()
+    }
+
+    // MARK: Growing with the text
+
+    override func layout() {
+        super.layout()
+        fitTextHeight()
+    }
+
+    /// Sizes the prose to its laid-out text at the current width, so a long
+    /// scroll shows it whole; reports a changed height.
+    private func fitTextHeight() {
+        guard let textHeight, let manager = textView.layoutManager, let container = textView.textContainer,
+              textView.frame.width > 1 else { return }
+        manager.ensureLayout(for: container)
+        let height = ceil(manager.usedRect(for: container).height + textView.textContainerInset.height * 2)
+        guard abs(height - textHeight.constant) >= 0.5 else { return }
+        textHeight.constant = height
+        // The prose never scrolls inside its own clip view.
+        if scroll.contentView.bounds.origin != .zero { scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView) }
+        onHeightChange?()
     }
     // MARK: Settings
 
@@ -305,6 +357,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc private func typographyChanged() {
         restyleLinks()
         if !textView.hasMarkedText() { textView.typingAttributes = DocumentStyle.bodyAttributes }
+        fitTextHeight()
     }
 
     @objc private func editorPreferencesChanged() { applyEditorPreferences() }
@@ -504,6 +557,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         if marked { styledProjection = nil }
         binding.selectionChanged(textView.selectedRange(), text: text, marked: marked)
         binding.changed(text, marked: marked)
+        fitTextHeight()
+        onEdited?()
     }
     func textViewDidChangeSelection(_ notification: Notification) {
         guard !rendering else { return }

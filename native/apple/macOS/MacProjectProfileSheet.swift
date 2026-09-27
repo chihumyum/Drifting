@@ -1,13 +1,15 @@
 import AppKit
 
 /// 项目资料: one project's 本书简介, 本书字段 and 故事线字段模版 in a sheet, with its
-/// chapters counted by status and the book's word total. Each part is written on its own, as page
+/// chapters counted by status and the book's word total, and its 写作计划
+/// (target and daily goal, kept in the lab's settings.json) with the book's
+/// progress towards the target. Each part is written on its own, as page
 /// fields are: the summary (trimmed) on end-editing when it changed, and each
 /// facts list after a row ended editing or was added, removed or moved.
 /// Commands run one at a time. A refusal keeps the typed text and rows and
 /// shows the reason. 完成 writes what is still being edited, then closes; a
 /// refusal keeps the sheet open.
-final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
+final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelegate {
     enum Part { case summary, facts, template }
 
     let model: ProjectProfileModel
@@ -22,6 +24,17 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
     /// “全书 1,234 字”, or 统计中… until every chapter is counted.
     let wordsLabel = NSTextField(labelWithString: WordCountText.pending)
     private let message = NSTextField(wrappingLabelWithString: "")
+    /// 写作计划: the target and daily goal as typed, the progress towards the
+    /// target, and 节奏统计… (only with a settings store).
+    let plans: LabSettingsStore?
+    let targetField = NSTextField(string: "")
+    let dailyField = NSTextField(string: "")
+    let planLabel = NSTextField(labelWithString: "")
+    let planBar = BookProgressBar()
+    let planMessage = NSTextField(wrappingLabelWithString: "")
+    let statsButton = NSButton(title: "节奏统计…", target: nil, action: nil)
+    /// 节奏统计… shows the book's 统计 beside the button.
+    var onShowStats: ((NSButton) -> Void)?
     private(set) var stored: WorkspaceProjectDetails?
     private(set) var isCommitting = false
     private var queued: [Part] = []
@@ -33,8 +46,9 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
     private var isEditingSummary: Bool { window.firstResponder === summaryView }
 
-    init(model: ProjectProfileModel, projectName: String) {
+    init(model: ProjectProfileModel, projectName: String, plans: LabSettingsStore? = nil) {
         self.model = model
+        self.plans = plans
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 560), styleMask: [.titled],
                           backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -81,8 +95,11 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
         let buttons = NSStackView(views: [NSView(), doneButton])
 
         let summaryHeading = heading("本书简介"), factsHeading = heading("本书字段"), templateHeading = heading("故事线字段模版")
-        let stack = NSStackView(views: [title, chaptersLabel, wordsLabel, summaryHeading, summaryScroll, factsHeading, factsEditor,
+        let planSection = makePlanSection()
+        let stack = NSStackView(views: [title, chaptersLabel, wordsLabel, planSection, summaryHeading, summaryScroll, factsHeading, factsEditor,
                                         templateHeading, templateHint, templateEditor, message, buttons])
+        planSection.isHidden = plans == nil
+        stack.setCustomSpacing(18, after: planSection)
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
         stack.setCustomSpacing(4, after: title)
         stack.setCustomSpacing(2, after: chaptersLabel)
@@ -109,8 +126,13 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
             templateEditor.widthAnchor.constraint(equalTo: stack.widthAnchor),
             message.widthAnchor.constraint(equalTo: stack.widthAnchor),
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            planSection.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         model.onChange = { [weak self] in self?.refresh() }
+        if plans != nil {
+            NotificationCenter.default.addObserver(self, selector: #selector(planStored(_:)), name: LabSettingsStore.writingPlanDidChange, object: plans)
+            showPlan()
+        }
         refresh()
         fit()
     }
@@ -119,6 +141,115 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 13, weight: .semibold)
         return label
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    // MARK: Writing plan
+
+    private func makePlanSection() -> NSStackView {
+        func unit(_ text: String) -> NSTextField {
+            let label = NSTextField(labelWithString: text)
+            label.textColor = .secondaryLabelColor
+            label.font = .systemFont(ofSize: 12)
+            return label
+        }
+        for (field, id, tip) in [(targetField, "writing-plan-target", "全书目标字数；0 表示不设目标。也可以写“12万”"),
+                                 (dailyField, "writing-plan-daily", "每日目标字数；0 表示不设目标")] {
+            field.alignment = .right
+            field.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            field.delegate = self
+            field.toolTip = tip
+            field.setAccessibilityIdentifier(id)
+            field.widthAnchor.constraint(equalToConstant: 96).isActive = true
+        }
+        targetField.setAccessibilityLabel("目标总字数"); dailyField.setAccessibilityLabel("每日目标")
+        let fields = NSStackView(views: [unit("目标总字数"), targetField, unit("字"), NSView(), unit("每日目标"), dailyField, unit("字")])
+        fields.spacing = 6
+        planLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        planLabel.textColor = .secondaryLabelColor
+        planLabel.setAccessibilityIdentifier("writing-plan-progress")
+        planBar.setAccessibilityIdentifier("writing-plan-bar")
+        planMessage.textColor = .systemRed
+        planMessage.font = .systemFont(ofSize: 12)
+        planMessage.isHidden = true
+        planMessage.setAccessibilityIdentifier("writing-plan-error")
+        statsButton.target = self; statsButton.action = #selector(showStats)
+        statsButton.bezelStyle = .recessed
+        statsButton.controlSize = .small
+        statsButton.setAccessibilityIdentifier("show-book-stats")
+        statsButton.toolTip = "全书概览、幕节奏和章节长度节奏"
+        let progress = NSStackView(views: [planLabel, NSView(), statsButton])
+        progress.spacing = 8
+        let section = NSStackView(views: [heading("写作计划"), fields, progress, planBar, planMessage])
+        section.orientation = .vertical; section.alignment = .leading; section.spacing = 6
+        NSLayoutConstraint.activate([
+            fields.widthAnchor.constraint(equalTo: section.widthAnchor), progress.widthAnchor.constraint(equalTo: section.widthAnchor),
+            planBar.widthAnchor.constraint(equalTo: section.widthAnchor), planMessage.widthAnchor.constraint(equalTo: section.widthAnchor),
+        ])
+        return section
+    }
+
+    /// The stored plan in both fields, and the progress towards its target.
+    private func showPlan() {
+        guard let plans else { return }
+        let plan = plans.writingPlan(projectID: model.projectID)
+        targetField.stringValue = WordCountText.grouped(plan.projectWordTarget)
+        dailyField.stringValue = WordCountText.grouped(plan.dailyWordGoal)
+        refreshPlanProgress()
+    }
+
+    /// “已写 12,345 / 120,000 字 · 10%”, 统计中… until every chapter is counted.
+    private func refreshPlanProgress() {
+        guard let plans else { return }
+        let plan = plans.writingPlan(projectID: model.projectID)
+        guard plan.projectWordTarget > 0 else { planLabel.stringValue = "未设目标"; planBar.isHidden = true; return }
+        guard let counts = model.wordCounts, counts.ready else {
+            planLabel.stringValue = "已写 \(WordCountText.counting) / \(WordCountText.full(plan.projectWordTarget))"
+            planBar.isHidden = true; return
+        }
+        let fraction = min(1, Double(counts.chapterTotal) / Double(plan.projectWordTarget))
+        planLabel.stringValue = "已写 \(WordCountText.grouped(counts.chapterTotal)) / \(WordCountText.full(plan.projectWordTarget)) · \(Int((fraction * 100).rounded(.down)))%"
+        planBar.fraction = fraction
+        planBar.isHidden = false
+    }
+
+    /// Writes both fields when they parse; otherwise keeps the typed text and
+    /// says why, leaving the stored plan unchanged.
+    func commitPlan() {
+        guard let plans else { return }
+        guard let target = WritingPlan.parse(targetField.stringValue), let daily = WritingPlan.parse(dailyField.stringValue) else {
+            showPlanMessage("字数须为 0 到 99,999,999 之间的整数，也可以写“12万”。计划未保存。"); return
+        }
+        let plan = WritingPlan(projectWordTarget: target, dailyWordGoal: daily)
+        if plan != plans.writingPlan(projectID: model.projectID) {
+            plans.setWritingPlan(plan, projectID: model.projectID)
+            if let problem = plans.storageMessage { showPlanMessage(problem); return }
+        }
+        showPlanMessage(nil)
+        showPlan()
+    }
+
+    private func showPlanMessage(_ text: String?) {
+        planMessage.stringValue = text ?? ""
+        planMessage.isHidden = text == nil
+    }
+
+    @objc private func planStored(_ notification: Notification) {
+        guard notification.userInfo?["projectID"] as? String == model.projectID else { return }
+        // Fields being edited keep their text.
+        let editing = [targetField, dailyField].contains { $0.currentEditor() != nil }
+        if editing { refreshPlanProgress() } else { showPlan() }
+    }
+
+    @objc private func showStats() {
+        window.makeFirstResponder(nil)
+        onShowStats?(statsButton)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField, field === targetField || field === dailyField else { return }
+        commitPlan()
     }
 
     private func fit() {
@@ -138,6 +269,7 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate {
     private func refresh() {
         chaptersLabel.stringValue = model.chapterSummary ?? (model.loading ? "正在统计章节…" : "")
         wordsLabel.stringValue = model.wordSummary
+        refreshPlanProgress()
         if stored == nil, let details = model.details {
             apply(details)
             summaryView.isEditable = true

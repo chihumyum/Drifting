@@ -767,6 +767,9 @@ final class LabWorkspaceCore {
     private var remoteDeliveryInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
+    /// Open Rust owners with a Swift wrapper, e.g. to keep the 全书长卷 bounded.
+    var openDocumentCount: Int { owners.count }
+    func hasOpenDocument(_ scope: DocumentScope) -> Bool { owners[scope] != nil }
     /// A remote original was accepted for this project. Open owners were
     /// saved again; bodies without an owner changed only in durable prose.
     var onRemoteOriginal: ((String) -> Void)?

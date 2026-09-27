@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T12:00:10.601Z",
+  "generatedAt": "2026-09-27T13:16:05.418Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "a246b6329e58e5ec8d8897b361957c5f18610229",
+    "commit": "f251cf7bde289b35510bf6987cc40211877b2d93",
     "dirty": true,
-    "fingerprint": "b2da183c4bed81fda39a0cfd21e8e4ef3f9acc890ebc54a3ae840eecf796a796"
+    "fingerprint": "22c14775913a8034a748b589c196bb1030785ee12100a3ef18983d17ae0961ed"
   },
   "cases": [
     {
@@ -580,6 +580,26 @@
     },
     {
       "name": "AppKit category trash from the 设定库 after confirmation closes the category's tabs in both panes and its template sheet only after the commit while element and chapter tabs stay, restore lists it again and its page reopens with the body, 模板字段 and template through cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved, its owner closed and shown again on return",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 edits, undo and redo in an attached chapter go through the owner a tab of that chapter shares, typed element names link, a comment reaches the tab, word counts follow in the header and 统计, a closed tab leaves the owner to the long page, ⌘-click opens the element, and releasing closes only owners no tab shows",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 scrolls to a chapter or a heading chosen in the 整书大纲 and to chapters and acts in the 跳到 menu, attaching the chapter's editor at the top of the viewport with the caret on the heading",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 统计 reads 统计中… until every chapter is counted, then the total, chapter count, average, completion and written/target progress of a synthetic book, colours each chapter bar by its act, lists each act's chapters and words, and a click on a bar scrolls the 全书长卷 to its chapter",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作计划 in 项目资料 parses and stores the target and daily goal per project in settings.json with the book's progress, refuses unreadable input without saving, writes nothing to the journal, and restores both after a cold relaunch of the workspace and settings",
       "status": "passed"
     }
   ],

@@ -43,7 +43,7 @@ architectural redesign.
 | P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -73,13 +73,13 @@ architectural redesign.
 | Materials library, portraits, import and export | `6d0c627a` | [library](library.md) |
 | Story graph, timeline and version history | `0bf81171` | [timeline](timeline.md), [history](history.md) |
 | Settings, imported bold/italic, Enter after a linked name | `a246b632` | [settings](settings.md), [library](library.md), [entity links](entity-links.md) |
-| Category pages and element body templates | this batch | [categories](categories.md) |
+| Category pages and element body templates | `f251cf7b` | [categories](categories.md) |
+| Whole-book editor, statistics and writing plan | this batch | [whole book](whole-book.md) |
 
 ## Next batch
 
-The continuous whole-book editor with its rhythm statistics and the project
-dashboard (writing plan); then the element overview (categories on a grid
-around the chapter band, relation edges).
+The element overview (categories on a grid around the chapter band, relation
+edges).
 
 ## Open gates
 

@@ -94,6 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var graphController: MacStoryGraphViewController?
     /// The axis last shown per project, kept while the panel is closed.
     private var graphAxes: [String: StoryGraphModel.Axis] = [:]
+    /// 全书长卷: every chapter of one project in one scroll, over the editor.
+    private var wholeBookButton: NSButton!
+    private var wholeBookPanel: WholeBookPanel?
+    private var wholeBookController: MacWholeBookViewController?
+    /// 统计 opened from 项目资料.
+    private var profileStats: (popover: NSPopover, controller: MacBookStatsViewController)?
     /// 历史版本… of the active page's body.
     private var historySheet: VersionHistorySheet?
     /// 文件 › 导入… and 导出全书….
@@ -201,6 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let graph = viewMenu.addItem(withTitle: "故事图谱", action: #selector(showStoryGraph), keyEquivalent: "g")
         graph.keyEquivalentModifierMask = [.command, .shift]
         graph.target = self
+        let wholeBook = viewMenu.addItem(withTitle: "全书长卷", action: #selector(showWholeBook), keyEquivalent: "b")
+        wholeBook.keyEquivalentModifierMask = [.command, .shift]
+        wholeBook.target = self
         view.submenu = viewMenu
         menu.addItem(view)
         NSApp.mainMenu = menu
@@ -217,8 +226,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         moveDownButton = button("下移", id: "move-chapter-down", action: #selector(moveChapterDown))
         graphButton = button("故事图谱", id: "show-story-graph", action: #selector(showStoryGraph))
         graphButton.toolTip = "按成书顺序或故事时间，在故事线轨道上排列章节（⇧⌘G）"
+        wholeBookButton = button("长卷", id: "show-whole-book", action: #selector(showWholeBook))
+        wholeBookButton.toolTip = "全书长卷：按成书顺序连续阅读和编辑全部章节（⇧⌘B）"
         let projectActions = NSStackView(views: [createProjectButton, renameProjectButton, profileButton])
-        let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
+        let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton, wholeBookButton])
         let orderActions = NSStackView(views: [moveUpButton, moveDownButton, graphButton])
         trashButton = button("移入回收站", id: "trash-chapter", action: #selector(changeChapterTrash))
         trashListButton = button("回收站", id: "show-trash", action: #selector(toggleTrash))
@@ -483,6 +494,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyNodeMetadata(metadata) }
         if let model = driftModel, model.projectID == projectID { model.applyNodeMetadata(metadata) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyNodeMetadata(metadata) }
+        if let book = wholeBookController, book.project.id == projectID { book.applyNodeMetadata(metadata) }
+        if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.model.applyNodeMetadata(metadata) }
     }
 
     // MARK: Word counts
@@ -496,6 +509,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let model = driftModel, model.projectID == projectID { model.applyWordCounts(library) }
         if let profile = profileSheet?.model, profile.projectID == projectID { profile.applyWordCounts(library) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyWordCounts(library) }
+        if let book = wholeBookController, book.project.id == projectID { book.applyWordCounts(library) }
+        if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.reload() }
         updateWordStatus()
     }
 
@@ -584,13 +599,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let name = projects.first { $0.id == project.id }?.name ?? project.name
         let profile = ProjectProfileModel(workspace: workspace, projectID: project.id)
         if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { profile.applyWordCounts(counts) }
-        let sheet = ProjectProfileSheet(model: profile, projectName: name)
+        let sheet = ProjectProfileSheet(model: profile, projectName: name, plans: settingsStore)
         profileSheet = sheet
+        sheet.onShowStats = { [weak self] button in self?.showProfileStats(project: project, from: button) }
         sheet.onFinish = { [weak self] in
+            self?.profileStats?.popover.close(); self?.profileStats = nil
             self?.profileSheet = nil
             self?.status.stringValue = "项目资料已保存"
         }
         sheet.begin(in: window)
+    }
+
+    /// 节奏统计… in 项目资料: 统计 beside the button. A chapter bar opens the
+    /// chapter, or scrolls the 全书长卷 to it when that is open.
+    private func showProfileStats(project: WorkspaceProject, from button: NSButton) {
+        if let current = profileStats, current.popover.isShown { current.popover.performClose(nil); return }
+        let model = WholeBookModel(workspace: workspace, projectID: project.id)
+        let controller = MacBookStatsViewController(model: model)
+        controller.counts = { [weak self] in self?.chapterWorkspace.wordCountLibrary(projectID: project.id) }
+        controller.plan = { [weak self] in self?.settingsStore.writingPlan(projectID: project.id) ?? WritingPlan() }
+        controller.onSelectChapter = { [weak self] chapter in self?.openFromStats(chapterID: chapter.id, title: chapter.title, project: project) }
+        controller.onSelectAct = { [weak self, weak model] act in
+            guard let first = act.chapterIDs.first, let chapter = model?.layout.chapter(id: first) else { return }
+            self?.openFromStats(chapterID: chapter.id, title: chapter.title, project: project)
+        }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = controller
+        profileStats = (popover, controller)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
+        chapterWorkspace.wordCounts(projectID: project.id)
+        model.load()
+    }
+
+    private func openFromStats(chapterID: String, title: String, project: WorkspaceProject) {
+        profileStats?.popover.performClose(nil)
+        profileSheet?.done()
+        if let book = wholeBookController, wholeBookPanel?.isVisible == true, book.project.id == project.id {
+            book.scroll(toChapter: chapterID)
+            wholeBookPanel?.makeKeyAndOrderFront(nil)
+        } else {
+            openChapter(WorkspaceChapter(id: chapterID, title: title), project: project)
+        }
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
@@ -604,7 +655,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else if table === chapterTable {
             updateControls()
             if !showingTrash, chapters.indices.contains(table.selectedRow), let selectedProject {
-                openChapter(chapters[table.selectedRow], project: selectedProject)
+                // With the 全书长卷 open, a chapter row scrolls it there.
+                if let book = wholeBookController, wholeBookPanel?.isVisible == true, book.project.id == selectedProject.id {
+                    book.scroll(toChapter: chapters[table.selectedRow].id)
+                    wholeBookPanel?.orderFront(nil)
+                } else {
+                    openChapter(chapters[table.selectedRow], project: selectedProject)
+                }
             }
         }
     }
@@ -641,6 +698,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         driftsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         materialsButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         graphButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
+        wholeBookButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -674,6 +732,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     private func selectProject(_ project: WorkspaceProject) {
         guard canLeaveDocument() else { return }
+        // The 全书长卷 shows one project; typing there must settle first.
+        if wholeBookController.map({ $0.project.id != project.id }) == true, !closeWholeBook() { return }
         closeOutline()
         closeSearch()
         if elementsController?.model.projectID != project.id { closeElements() }
@@ -1361,6 +1421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// A book move in the graph reorders the chapter list and the outline.
     private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String) {
         chapterWorkspace.applyChapters(projectID: projectID, chapters: chapters, trashed: nil)
+        wholeBookChanged(projectID: projectID)
         if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
         guard selectedProject?.id == projectID else { return }
         self.chapters = chapters
@@ -1377,6 +1438,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// Chapters were created, renamed, moved, trashed or restored elsewhere.
     private func graphChaptersChanged(projectID: String) {
         if let model = graphController?.model, model.projectID == projectID { model.refresh() }
+        wholeBookChanged(projectID: projectID)
+    }
+
+    /// Chapters or acts changed: the 全书长卷 reads the book again.
+    private func wholeBookChanged(projectID: String) {
+        if let book = wholeBookController, book.project.id == projectID { book.model.load() }
     }
 
     private func closeStoryGraph() {
@@ -1384,6 +1451,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let panel = graphPanel
         graphPanel = nil; graphController = nil
         if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: Whole book
+
+    /// 全书长卷 (sidebar 长卷 and 视图 › 全书长卷, ⇧⌘B): every chapter in reading
+    /// order in a large panel over the editor, beside the chapter list. Chapter
+    /// rows and the outline scroll it while it is open.
+    @objc private func showWholeBook() {
+        guard !loading, let project = currentProject ?? selectedProject else { return }
+        if let wholeBookPanel, wholeBookPanel.isVisible, wholeBookController?.project.id == project.id {
+            wholeBookPanel.makeKeyAndOrderFront(nil); return
+        }
+        guard closeWholeBook(completion: { [weak self] in self?.openWholeBook(project) }) else { return }
+    }
+
+    private func openWholeBook(_ project: WorkspaceProject) {
+        guard wholeBookController == nil else { return }
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        let named = WorkspaceProject(id: project.id, name: name)
+        let model = WholeBookModel(workspace: workspace, projectID: project.id)
+        let controller = MacWholeBookViewController(project: named, model: model, workspace: workspace, host: chapterWorkspace)
+        controller.plan = { [weak self] in self?.settingsStore.writingPlan(projectID: project.id) ?? WritingPlan() }
+        controller.onClose = { [weak self] in self?.closeWholeBook() }
+        // A linked page opens as a tab in the window under the panel.
+        controller.onOpenLink = { [weak self] target in
+            guard let self else { return }
+            _ = self.closeWholeBook { [weak self] in
+                guard let self else { return }
+                self.chapterWorkspace.openLink(target, project: named)
+                self.window.makeKeyAndOrderFront(nil)
+            }
+        }
+        controller.onSetStatus = { [weak self, weak model] chapter, status in
+            self?.chapterWorkspace.setNodeStatus(projectID: project.id, nodeID: chapter.id, status: status) { result in
+                model?.showStatus(Self.statusMessage(result, title: chapter.title))
+            }
+        }
+        let panel = WholeBookPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        panel.title = "\(name) · 全书长卷"
+        panel.minSize = NSSize(width: 560, height: 420)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        // Over the editor area, leaving the chapter list beside it.
+        let area = window.convertToScreen(editorHost.convert(editorHost.bounds, to: nil))
+        panel.setFrame(NSRect(x: area.minX, y: area.minY, width: max(area.width, 560), height: max(area.height + 60, 420)), display: false)
+        wholeBookPanel = panel; wholeBookController = controller
+        panel.shouldClose = { [weak self] in self?.closeWholeBook(); return false }
+        panel.onClose = { [weak self, weak panel] in
+            guard let self, self.wholeBookPanel === panel else { return }
+            self.wholeBookPanel = nil; self.wholeBookController = nil
+        }
+        window.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+        // Edits made in the window meanwhile are read when it is key again.
+        panel.onBecomeKey = { [weak model] in if model?.loaded == true { model?.load() } }
+        chapterWorkspace.wordCounts(projectID: project.id)
+        model.load()
+    }
+
+    /// Releases the 全书长卷's editors and closes the panel; `completion` runs
+    /// once the owners no tab shows are closed. False, keeping the panel,
+    /// while one of its editors has input in flight.
+    @discardableResult
+    private func closeWholeBook(completion: (() -> Void)? = nil) -> Bool {
+        guard let controller = wholeBookController else { completion?(); return true }
+        guard controller.shutdown(completion: completion) else {
+            let message = "请先完成全书长卷中的输入，并等待正文保存后再关闭。"
+            status.stringValue = message
+            controller.model.showStatus(message)
+            return false
+        }
+        let panel = wholeBookPanel
+        wholeBookPanel = nil; wholeBookController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+        return true
     }
 
     // MARK: Version history
@@ -1501,6 +1643,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         model.onEntries = { [weak self] entries in
             self?.chapterWorkspace.applyOutline(projectID: project.id, entries: entries)
             self?.chapterWorkspace.driftsChanged(projectID: project.id)
+            // Act boundaries may have moved: the 全书长卷's separators follow.
+            if let book = self?.wholeBookController, book.project.id == project.id, book.model.layout.acts.map(\.id) != entries.filter({ $0.kind == "act" }).map(\.id)
+                || book.model.layout.acts.map(\.title) != entries.filter({ $0.kind == "act" }).map(\.title) {
+                book.model.load()
+            }
         }
         let controller = BookOutlineViewController(model: model)
         controller.onBindDrift = { [weak model] entry, drift in
@@ -1538,7 +1685,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
         controller.onClose = { [weak self] in self?.closeOutline() }
         controller.onNavigate = { [weak self] entry, blockID in
-            guard let self, self.canLeaveDocument() else { return }
+            guard let self else { return }
+            // With the 全书长卷 open, a chapter or heading scrolls it there.
+            if let book = self.wholeBookController, self.wholeBookPanel?.isVisible == true, book.project.id == project.id {
+                book.scroll(toChapter: entry.id, blockID: blockID)
+                self.wholeBookPanel?.orderFront(nil)
+                return
+            }
+            guard self.canLeaveDocument() else { return }
             if self.currentProject?.id == project.id, self.currentChapter?.id == entry.id {
                 if let blockID, self.documentView?.reveal(blockId: blockID) != true {
                     model.showStatus("标题已变化，请重新选择大纲位置。")
@@ -1600,6 +1754,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.relationTypesPanel?.title = "\(updated.name) · 关系类型"
                     self.materialsPanel?.title = "\(updated.name) · 素材库"
                     self.graphPanel?.title = "\(updated.name) · 故事图谱"
+                    self.wholeBookPanel?.title = "\(updated.name) · 全书长卷"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -1860,6 +2015,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func closeWorkspace(completion: @escaping (Bool) -> Void) {
         guard !closingWorkspace, canLeaveDocument() else { completion(false); return }
         closingWorkspace = true
+        // The 全书长卷 lets go of its owners before the workspace closes.
+        guard closeWholeBook(completion: { [weak self] in self?.closeWorkspaceOwners(completion: completion) }) else {
+            closingWorkspace = false; completion(false); return
+        }
+    }
+
+    private func closeWorkspaceOwners(completion: @escaping (Bool) -> Void) {
         chapterWorkspace.close { [weak self] result in
             guard let self else { return }
             self.closingWorkspace = false
@@ -1891,6 +2053,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeRelationTypes()
         closeMaterials()
         closeStoryGraph()
+        closeWholeBook()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

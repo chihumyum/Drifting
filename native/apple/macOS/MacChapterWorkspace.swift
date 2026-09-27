@@ -442,7 +442,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
               let tab = panes[pane].tabs.first(where: { $0.scope == scope }) else { completion(.failure(blocked())); return }
         // A header edit in progress is saved; it needs no document owner.
         tab.endEditing()
-        if allTabs.filter({ $0.scope == scope }).count > 1 {
+        // Another tab or the 全书长卷 still shows this body: keep its owner.
+        if allTabs.filter({ $0.scope == scope }).count > 1 || holdsExternally(scope) {
             remove(tab, from: pane)
             completion(.success(true)); return
         }
@@ -633,6 +634,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             if case .success = result {
                 self.wordCountModels.values.forEach { $0.cancel() }
                 self.countedRevisions.removeAll()
+                self.externalViews.removeAll()
                 for pane in self.panes {
                     for tab in pane.tabs { self.disconnect(tab) }
                     pane.tabs.removeAll(); pane.selected = nil
@@ -675,7 +677,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// links entity names like typed text; a closed chapter or drift is
     /// counted again.
     func adoptRestoredVersion(_ target: VersionHistoryTarget, live: Bool) {
-        if live, let view = (0..<paneCount).compactMap({ retainedView(pane: $0, scope: target.scope) }).first {
+        if live, let view = openView(scope: target.scope) {
             view.binding.store.requestEntityLinks()
         }
         if target.kind == "chapter" || target.kind == "drift" { wordCounts(projectID: target.projectID, refresh: true) }
@@ -1257,16 +1259,75 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard linkDirectories[projectID] != directory else { return }
         linkDirectories[projectID] = directory
         for tab in allTabs where tab.project.id == projectID { tab.view.linkDirectory = directory }
+        for external in externalViews.values where external.project.id == projectID { external.view?.linkDirectory = directory }
     }
 
     /// Every open body of the project links once it is idle. Queued input,
     /// composition and drafts defer the pass; nothing is interrupted.
     private func requestEntityLinks(projectID: String) {
         var seen = Set<ObjectIdentifier>()
-        for tab in allTabs where tab.project.id == projectID {
-            let store = tab.view.binding.store
+        let views = allTabs.filter { $0.project.id == projectID }.map(\.view)
+            + externalViews.values.filter { $0.project.id == projectID }.compactMap(\.view)
+        for view in views {
+            let store = view.binding.store
             if seen.insert(ObjectIdentifier(store)).inserted { store.requestEntityLinks() }
         }
+    }
+
+    // MARK: Views outside the tabs
+
+    /// A chapter view shown outside the tabs by the 全书长卷. It shares the
+    /// chapter's owner with any tab of that chapter, and closing such a tab
+    /// leaves the owner open for it; the 全书长卷 closes the owner when it
+    /// lets go. Weak: a released view drops out.
+    private struct ExternalView {
+        weak var view: NativeDocumentView?
+        let project: WorkspaceProject
+        let scope: DocumentScope
+    }
+    private var externalViews: [ObjectIdentifier: ExternalView] = [:]
+
+    /// Whether a tab in either pane shows this body.
+    func hasTab(_ scope: DocumentScope) -> Bool { allTabs.contains { $0.scope == scope } }
+
+    private func holdsExternally(_ scope: DocumentScope) -> Bool {
+        externalViews.values.contains { $0.scope == scope && $0.view != nil }
+    }
+
+    /// A tab's view of the body, else one outside the tabs; nil when none is open.
+    func openView(scope: DocumentScope) -> NativeDocumentView? {
+        (0..<paneCount).compactMap { retainedView(pane: $0, scope: scope) }.first
+            ?? externalViews.values.first { $0.scope == scope && $0.view != nil }?.view
+    }
+
+    /// Links in the view follow the project's names and link passes run as
+    /// in tabs; a comment created there is reported like a tab's.
+    func adoptExternal(_ view: NativeDocumentView, project: WorkspaceProject, chapterID: String) {
+        let scope = DocumentScope.chapter(ChapterScope(projectID: project.id, chapterID: chapterID))
+        externalViews = externalViews.filter { $0.value.view != nil }
+        externalViews[ObjectIdentifier(view)] = ExternalView(view: view, project: project, scope: scope)
+        view.linkDirectory = linkDirectories[project.id]
+        view.onEntityLinks = { [weak self] in self?.scheduleBacklinks(projectID: project.id) }
+        view.onCommentCreated = { [weak self, weak view] comment in
+            if let self, let view { self.onCommentCreated?(view, comment) }
+        }
+        ensureLinkSources(projectID: project.id)
+    }
+
+    /// The view's binding was detached; it no longer holds the owner.
+    func releaseExternal(_ view: NativeDocumentView) {
+        externalViews.removeValue(forKey: ObjectIdentifier(view))
+        view.onEntityLinks = nil; view.onCommentCreated = nil
+    }
+
+    /// The view's owner settled: a body saved at a new revision is counted,
+    /// and visible 被引用 sections read again, as for tabs.
+    func externalBodySettled(_ view: NativeDocumentView) {
+        guard let external = externalViews[ObjectIdentifier(view)] else { return }
+        scheduleBacklinks(projectID: external.project.id)
+        guard let revision = view.binding.state?.projection.revision, countedRevisions[external.scope] != revision else { return }
+        countedRevisions[external.scope] = revision
+        wordCounts(projectID: external.project.id).scheduleRefresh()
     }
 
     private func pane(of tab: Tab) -> Int? { panes.firstIndex { $0.tabs.contains { $0 === tab } } }
@@ -1275,7 +1336,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// chapter as its chapter tab, in the pane that showed the link.
     private func openLink(_ target: EntityLinkTarget, from tab: Tab) {
         guard let index = pane(of: tab) else { return }
-        let project = tab.project
+        openLink(target, project: tab.project, in: index)
+    }
+
+    /// Opens a link target as a tab, e.g. one ⌘-clicked in the 全书长卷; the
+    /// active pane by default.
+    func openLink(_ target: EntityLinkTarget, project: WorkspaceProject, in pane: Int? = nil) {
+        let index = pane ?? activePane
         let done: (Result<NativeDocumentView, Error>) -> Void = { [weak self] result in
             if case .failure(let error) = result { self?.onError?(error) }
         }

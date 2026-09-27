@@ -82,6 +82,14 @@ pub(crate) enum ElementCommand {
         category_id: String,
         blocks: Vec<super::transfer::ImportBlock>,
     },
+    /// The element overview's category placements.
+    CategoryLayouts,
+    /// Both cells pin the category; both absent or null return it to auto.
+    SetCategoryLayout {
+        category_id: String,
+        grid_x: Option<i64>,
+        grid_y: Option<i64>,
+    },
 }
 
 /// Distinguishes an absent optional field from an explicit `null`.
@@ -199,6 +207,19 @@ impl WorkspaceSession {
                 category_id,
                 &super::transfer::template_json(blocks)?,
             )?),
+            ElementCommand::CategoryLayouts => json!(store.category_layouts(project_id)?),
+            ElementCommand::SetCategoryLayout {
+                category_id,
+                grid_x,
+                grid_y,
+            } => {
+                let cell = match (grid_x, grid_y) {
+                    (Some(x), Some(y)) => Some((*x, *y)),
+                    (None, None) => None,
+                    _ => return Err("Pin a category with both grid coordinates".into()),
+                };
+                json!(store.set_category_layout(&self.context(&project)?, category_id, cell)?)
+            }
             ElementCommand::OpenCategory { category_id } => {
                 return self.open_category(documents, project_id, category_id);
             }

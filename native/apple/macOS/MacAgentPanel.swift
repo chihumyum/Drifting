@@ -871,7 +871,7 @@ extension MacChapterWorkspace {
                 case "category": scope = .category(CategoryScope(projectID: projectID, categoryID: id))
                 default: scope = nil
                 }
-                if let scope { (0..<paneCount).compactMap { retainedView(pane: $0, scope: scope) }.first?.binding.store.requestEntityLinks() }
+                if let scope { openView(scope: scope)?.binding.store.requestEntityLinks() }
             } else if kind == "chapter" || kind == "drift" {
                 wordCounts(projectID: projectID, refresh: true)
             }

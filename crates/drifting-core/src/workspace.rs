@@ -19,7 +19,8 @@ mod trash;
 pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
 pub use drifts::{NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
 pub use elements::{
-    ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
+    CategoryLayout, ElementChanges, NewElement, NewElementCategory, WorkspaceElement,
+    WorkspaceElementCategory,
 };
 pub use facts::Fact;
 pub use history::{HistoryEntry, SnapshotCapture};

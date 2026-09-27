@@ -68,6 +68,29 @@ fn workspace_category_bodies_and_element_templates() {
     ));
     assert!(rejected(elements(&fixture, json!({"action":"setElementTemplate","categoryId":category,
         "blocks":[{"kind":"paragraph","text":"短","marks":[{"mark":"bold","location":0,"length":3}]}]}))).contains("无效"));
+    // The element overview pins a category to a grid cell and releases it.
+    let pinned = success(elements(
+        &fixture,
+        json!({"action":"setCategoryLayout","categoryId":category,"gridX":-3,"gridY":2}),
+    ));
+    assert_eq!(
+        pinned["result"],
+        json!({"categoryId":category,"layoutMode":"pinned","gridX":-3,"gridY":2})
+    );
+    let layouts =
+        success(elements(&fixture, json!({"action":"categoryLayouts"})))["result"].clone();
+    assert_eq!(layouts[0]["layoutMode"], "pinned");
+    assert!(rejected(elements(
+        &fixture,
+        json!({"action":"setCategoryLayout","categoryId":category,"gridX":1})
+    ))
+    .contains("both"));
+    let auto = success(elements(
+        &fixture,
+        json!({"action":"setCategoryLayout","categoryId":category}),
+    ));
+    assert_eq!(auto["result"]["layoutMode"], "auto");
+    assert_eq!(auto["result"]["gridX"], Value::Null);
     // Clearing the template.
     success(elements(
         &fixture,

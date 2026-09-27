@@ -44,6 +44,9 @@ struct LabSettings: Codable, Equatable {
     var paragraphIndent: Indent = .none
     var spellcheck = true
     var manuscriptLocale = "zh-CN"
+    /// Each project's 写作计划, keyed by project identity; a project without
+    /// one uses the defaults.
+    var writingPlans: [String: WritingPlan] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -55,6 +58,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
+        case writingPlans
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -70,6 +74,7 @@ struct LabSettings: Codable, Equatable {
         paragraphIndent = (try? values.decodeIfPresent(Indent.self, forKey: .paragraphIndent)) ?? .none
         spellcheck = (try? values.decodeIfPresent(Bool.self, forKey: .spellcheck)) ?? true
         manuscriptLocale = (try? values.decodeIfPresent(String.self, forKey: .manuscriptLocale)) ?? "zh-CN"
+        writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
         self = normalized()
     }
 
@@ -102,6 +107,8 @@ struct LabSettings: Codable, Equatable {
 /// change is saved at once and applied to every open editor and window.
 final class LabSettingsStore {
     static let didChange = Notification.Name("LabSettingsStoreDidChange")
+    /// A project's 写作计划 changed; `object` is the store, `userInfo["projectID"]` the project.
+    static let writingPlanDidChange = Notification.Name("LabSettingsStoreWritingPlanDidChange")
     static let fileName = "settings.json"
     static let maximumFontBytes = 64 * 1024 * 1024
     static let fontExtensions = ["ttf", "otf"]
@@ -234,6 +241,21 @@ final class LabSettingsStore {
             $0.importedFont = nil
             if $0.fontSource == .imported { $0.fontSource = .systemSerif }
         }
+    }
+
+    // MARK: Writing plan
+
+    /// The project's 写作计划, or the defaults (120,000 字, 1,500 字 a day).
+    func writingPlan(projectID: String) -> WritingPlan { settings.writingPlans[projectID] ?? WritingPlan() }
+
+    /// Saves the project's plan at once. An unchanged plan writes nothing.
+    /// Typesetting is not applied again; open editors are untouched.
+    func setWritingPlan(_ plan: WritingPlan, projectID: String) {
+        guard writingPlan(projectID: projectID) != plan else { return }
+        settings.writingPlans[projectID] = plan
+        save()
+        NotificationCenter.default.post(name: Self.writingPlanDidChange, object: self, userInfo: ["projectID": projectID])
+        changed()
     }
 
     // MARK: Fonts

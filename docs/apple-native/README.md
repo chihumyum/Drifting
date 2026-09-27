@@ -47,6 +47,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
+- [Whole book (全书长卷), statistics and writing plan](whole-book.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -95,7 +96,8 @@ The Mac lab opens a separate synthetic workspace
 creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages and automatic entity links, storylines with chapter membership, drifts with groups and act notes, a writing
 assistant whose proposals the author reviews, a whole-book
-outline, chapter tabs with a two-pane split, formatting, project search, native
+outline, a continuous whole-book editor with statistics and a writing plan,
+chapter tabs with a two-pane split, formatting, project search, native
 editing, save and reopen. Every write goes through shared Rust domain commands,
 transactions and canonical journals; views of one chapter share its document
 owner and history while keeping their own selections. Remote prose and chapter
