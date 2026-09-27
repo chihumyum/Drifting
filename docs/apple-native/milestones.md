@@ -41,9 +41,9 @@ architectural redesign.
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
 | P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations, word counts |
-| P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
+| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -68,14 +68,15 @@ architectural redesign.
 | Drifts, drift groups and act notes | `c4cfcdb0` | [drifts](drifts.md) |
 | Chapter, drift and project metadata | `034c6d7c` | [metadata](metadata.md) |
 | Relation types and relations | `9b4432b1` | [relations](relations.md) |
-| Word counts and body projections | this batch | [word counts](word-counts.md) |
+| Word counts and body projections | `abff994a` | [word counts](word-counts.md) |
+| Writing assistant (写作助手) | this batch | [agent](agent.md) |
 
 ## Next batch
 
-The native Agent (P4): a Mac-only writing assistant with the renderer's
-provider configuration, reading and revising prose through the native domain
-services with author review. Then the asset library (portraits, materials),
-import/export and settings.
+The materials library (images, PDFs, links, notes in an app-owned asset store)
+and element portraits, with text import into new bodies and book export as
+Markdown or plain text; then settings (fonts, editor preferences) and the
+story graph and timeline.
 
 ## Open gates
 

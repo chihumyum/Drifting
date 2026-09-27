@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T07:09:42.400Z",
+  "generatedAt": "2026-09-27T08:00:41.471Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "9b4432b16ab35eb8c5b1749e1f4eac5f04ac497c",
+    "commit": "abff994a61f6db084996e2d3683d77ed987352d8",
     "dirty": true,
-    "fingerprint": "63ecfa08e248de4ccc61af038142785f2ca8f9129139837205e4068e7e1734a0"
+    "fingerprint": "6e6a6c7bd31a4758980581ee0b83a06703210cf64467c7d05f9d94e87be3ba5b"
   },
   "cases": [
     {
@@ -444,6 +444,34 @@
     },
     {
       "name": "AppKit chapter trash removes its count from the book total and outline and restore returns it, and a cold reopen shows 统计中… in the page header until the reconciled counts match",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, fifteen tools and the key only in its auth header",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 runs a DeepSeek thinking tool loop of list_chapters, read_chapter of the open chapter's live text and an answer, replays reasoning_content inside the turn, shows each tool as an activity line and stops cleanly after 24 tool rounds",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit revise_chapter proposal changes nothing until 接受, then applies through Rust into the open editor as one undo step with Agent provenance for its session, turn and call; 拒绝 leaves the text, a refused original shows Rust's message, and the next turn tells the model every outcome",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 停止 mid-stream keeps the partial reply and closes the request, and a missing key, HTTP 401, HTTP 429 and an offline network show Chinese errors without sending or storing the key",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit create_chapter with opening text and set_chapter_summary proposals from one parallel tool call apply on 接受: the chapter joins the book with its paragraphs written as one Agent append and the open page shows the stored summary",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit append_to_body proposal shows the added paragraphs and changes nothing until 接受, then appends them to the open chapter as one Agent undo step with provenance, undo and redo follow, and a blank or mixed append is refused before any proposal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit conversations persist per project as atomic JSON beside the lab workspace and survive a cold reopen of the panel with messages, proposal states and model choice; rename, delete after confirmation and a pending proposal accepted after reopen work, and the key sheet stores and clears keys showing only a masked tail",
       "status": "passed"
     }
   ],

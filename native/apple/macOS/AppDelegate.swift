@@ -83,6 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var profileSheet: ProjectProfileSheet?
     private var relationTypesPanel: RelationTypesPanel?
     private var relationTypesController: MacRelationTypesViewController?
+    /// 写作助手: a right-side panel beside the editor, one controller per project.
+    private let agentPanel = MacAgentPanelView()
+    private let agentCredentials = AgentKeychainCredentialStore()
+    private var agentController: AgentChatController?
+    private var agentSettings: MacAgentSettingsSheet?
+    private var agentButton: NSButton!
+    private var agentMenuItem: NSMenuItem!
+    private var editorTrailing: NSLayoutConstraint!
+    private var editorBesideAgent: NSLayoutConstraint!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -149,6 +158,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         formatMenu.addItem(withTitle: "斜体", action: #selector(ProseTextView.italicProse(_:)), keyEquivalent: "i")
         format.submenu = formatMenu
         menu.addItem(format)
+        let view = NSMenuItem(title: "视图", action: nil, keyEquivalent: ""), viewMenu = NSMenu(title: "视图")
+        let agent = viewMenu.addItem(withTitle: "写作助手", action: #selector(toggleAgent), keyEquivalent: "a")
+        agent.keyEquivalentModifierMask = [.command, .option]
+        agent.target = self
+        agentMenuItem = agent
+        view.submenu = viewMenu
+        menu.addItem(view)
         NSApp.mainMenu = menu
     }
 
@@ -195,8 +211,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         driftsButton = button("漂流", id: "show-drifts", action: #selector(showDrifts))
         splitButton = button("在另一栏打开", id: "split-editor", action: #selector(splitEditor))
         closePaneButton = button("关闭分栏", id: "close-editor-pane", action: #selector(closeEditorPane))
+        agentButton = button("写作助手", id: "toggle-agent", action: #selector(toggleAgent))
+        agentButton.setButtonType(.pushOnPushOff)
+        agentButton.toolTip = "显示或隐藏写作助手（⌥⌘A）"
         let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
-                                          storylinesButton, driftsButton, splitButton, closePaneButton])
+                                          storylinesButton, driftsButton, splitButton, closePaneButton, agentButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
         subtitle.textColor = .secondaryLabelColor
@@ -277,6 +296,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let content = window.contentView!
         content.addSubview(sidebar)
         content.addSubview(editor)
+        agentPanel.translatesAutoresizingMaskIntoConstraints = false
+        agentPanel.isHidden = true
+        agentPanel.onOpenSettings = { [weak self] in self?.showAgentSettings() }
+        content.addSubview(agentPanel)
+        // The panel takes the trailing edge only while shown; the editor
+        // (and its split panes) keeps the remaining width.
+        editorTrailing = editor.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24)
+        editorBesideAgent = editor.trailingAnchor.constraint(equalTo: agentPanel.leadingAnchor, constant: -16)
+        NSLayoutConstraint.activate([
+            agentPanel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+            agentPanel.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: -8),
+            agentPanel.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: 8),
+            agentPanel.widthAnchor.constraint(equalToConstant: 340),
+            editorTrailing,
+        ])
         NSLayoutConstraint.activate([
             sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
             sidebar.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
@@ -289,7 +323,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             projectEmpty.widthAnchor.constraint(equalTo: sidebar.widthAnchor),
             chapterEmpty.widthAnchor.constraint(equalTo: sidebar.widthAnchor),
             editor.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 24),
-            editor.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
             editor.topAnchor.constraint(equalTo: sidebar.topAnchor),
             editor.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor),
             currentTitle.widthAnchor.constraint(equalTo: editor.widthAnchor),
@@ -447,6 +480,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         wordStatus.stringValue = WordCountText.statusLine(chapterWorkspace.wordCountLibrary(projectID: project.id), focus: focus)
     }
 
+    // MARK: Writing assistant
+
+    /// ⌥⌘A or 写作助手: shows or hides the panel beside the editor.
+    @objc private func toggleAgent() {
+        let show = agentPanel.isHidden
+        if show, let project = currentProject ?? selectedProject { ensureAgent(project) }
+        agentPanel.isHidden = !show
+        editorTrailing.isActive = !show
+        editorBesideAgent.isActive = show
+        agentButton.state = show ? .on : .off
+        agentMenuItem.state = show ? .on : .off
+        activeChapterChanged()
+        if show { window.makeFirstResponder(agentPanel.composer) }
+    }
+
+    /// One assistant per project; a turn still running in another project stops.
+    private func ensureAgent(_ project: WorkspaceProject) {
+        guard agentController?.projectID != project.id else { return }
+        agentController?.stop()
+        let controller = AgentChatController(workspace: workspace, projectID: project.id, projectName: project.name,
+                                             credentials: agentCredentials)
+        controller.editorContext = { [weak self] in self?.chapterWorkspace.agentContext(projectID: project.id) }
+        controller.onWorkspaceEffect = { [weak self] effect in self?.adoptAgentEffect(effect) }
+        agentController = controller
+        agentPanel.bind(controller)
+    }
+
+    /// An accepted proposal reaches open pages, counts and the chapter list.
+    private func adoptAgentEffect(_ effect: AgentWorkspaceEffect) {
+        chapterWorkspace.adoptAgentEffect(effect)
+        switch effect {
+        case .prose: status.stringValue = "写作助手的修改已写入正文，可以撤销。"
+        case .chapterCreated(let projectID, let chapter):
+            if selectedProject?.id == projectID, !chapters.contains(where: { $0.id == chapter.id }) {
+                chapters.append(chapter)
+                if !showingTrash { reloadChapterRows() }
+                chapterEmpty.isHidden = !displayedChapters.isEmpty
+            }
+            status.stringValue = "写作助手新建了章节《\(chapter.title)》"
+        case .nodeMetadata: status.stringValue = "写作助手的摘要修改已保存"
+        }
+    }
+
+    private func showAgentSettings() {
+        guard agentSettings == nil else { return }
+        let sheet = MacAgentSettingsSheet(credentials: agentCredentials)
+        agentSettings = sheet
+        sheet.onFinish = { [weak self] in self?.agentSettings = nil }
+        sheet.begin(in: window)
+    }
+
     // MARK: Project profile
 
     /// 项目资料: a sheet over the window; each part saves as it is edited.
@@ -568,6 +652,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.status.stringValue = "\(project.name) · \(chapters.count) 个章节"
                 self.ensureStorylineModel(project)
                 self.ensureDriftModel(project)
+                self.ensureAgent(project)
                 // Opening a project reconciles its counts once per session.
                 self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
                 self.updateWordStatus()
@@ -614,7 +699,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updatingSelection = false
         updateComments()
         updateWordStatus()
-        let minWidth: CGFloat = chapterWorkspace.paneCount == 2 ? 1100 : 820
+        let minWidth: CGFloat = (chapterWorkspace.paneCount == 2 ? 1100 : 820) + (agentPanel.isHidden ? 0 : 360)
         window.minSize = NSSize(width: minWidth, height: 660)
         if window.frame.width < minWidth {
             var frame = window.frame; frame.size.width = minWidth
@@ -1464,6 +1549,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self.closingWorkspace = false
             switch result {
             case .success:
+                self.agentController?.stop()
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes()
                 completion(true)

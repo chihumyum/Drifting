@@ -5,6 +5,8 @@ use drifting_core::workspace::{
     ChapterSeed, CreateChapter, CreateProject, WorkspaceProject, WorkspaceStore,
 };
 use drifting_document::Edit;
+#[path = "workspace_agent.rs"]
+pub(super) mod agent;
 #[path = "workspace_drifts.rs"]
 pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
@@ -181,6 +183,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceMetadata { .. }
             | Request::WorkspaceRelations { .. }
             | Request::WorkspaceMetrics { .. }
+            | Request::WorkspaceAgent { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -429,6 +432,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .drifts(documents, project_id, command)?,
+        Request::WorkspaceAgent {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .agent(documents, project_id, command)?,
         Request::WorkspaceMetrics {
             handle,
             project_id,

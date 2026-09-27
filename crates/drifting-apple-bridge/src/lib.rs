@@ -89,7 +89,7 @@ impl LabSession {
         };
         // Tail replay may derive a relocation repair. Its journal, snapshot
         // and loaded comment anchors must commit before exposing the owner.
-        session.persist_checkpoint()?;
+        session.persist_checkpoint(&RevisionSource::User)?;
         Ok(session)
     }
 
@@ -137,7 +137,7 @@ impl LabSession {
             save_error: None,
             persisted_comments,
         };
-        session.persist_checkpoint()?;
+        session.persist_checkpoint(&RevisionSource::User)?;
         Ok(session)
     }
 
@@ -179,7 +179,11 @@ impl LabSession {
     /// commit together. The following checkpoint can fail independently; a
     /// retry never authors the committed bytes twice.
     fn persist(&mut self) {
-        let error = self.persist_checkpoint().err();
+        self.persist_as(&RevisionSource::User);
+    }
+
+    fn persist_as(&mut self, source: &RevisionSource) {
+        let error = self.persist_checkpoint(source).err();
         // A durable but unapplied receipt is distinct from failed local saving.
         self.save_error = if self.document.remote_block().is_some() {
             None
@@ -188,11 +192,120 @@ impl LabSession {
         };
     }
 
+    /// Applies an accepted Agent revision: exact-text replacements located in
+    /// the live projection, each one local undo unit, committed as an Agent
+    /// revision after the author's own pending edits are saved as theirs.
+    /// Every change is located before any is applied; a failing replacement
+    /// undoes the ones already applied.
+    fn apply_agent_changes(
+        &mut self,
+        changes: &[(String, String, bool, bool)],
+        identity: drifting_core::prose::AgentIdentity,
+    ) -> Result<usize, String> {
+        if self.document.active_drafts() > 0 || self.document.active_input_compositions() > 0 {
+            return Err("作者正在输入，请结束输入后再应用修改".into());
+        }
+        self.persist();
+        if self.write_blocked() {
+            return Err("正文尚未保存，暂时不能应用修改".into());
+        }
+        let view = self.document.native_projection()?;
+        let text: Vec<u16> = view.text.encode_utf16().collect();
+        let mut ranges: Vec<(u32, u32, String)> = Vec::new();
+        let appends = changes.iter().filter(|change| change.3).count();
+        if appends > 1 || (appends == 1 && changes.len() > 1) {
+            return Err("追加正文时不能同时修改其他原文".into());
+        }
+        for (current, revised, all, append) in changes {
+            if *append {
+                // New paragraphs after the last block; an empty body takes
+                // the text in its seed paragraph.
+                if !current.is_empty() {
+                    return Err("追加正文时不需要原文".into());
+                }
+                if revised.trim().is_empty() {
+                    return Err("追加的正文不能为空".into());
+                }
+                let inserted = if text.is_empty() {
+                    revised.clone()
+                } else {
+                    format!("\n{revised}")
+                };
+                ranges.push((text.len() as u32, 0, inserted));
+                continue;
+            }
+            let needle: Vec<u16> = current.encode_utf16().collect();
+            if needle.is_empty() {
+                return Err("要修改的原文不能为空".into());
+            }
+            let mut found = Vec::new();
+            let mut at = 0;
+            while at + needle.len() <= text.len() {
+                if text[at..at + needle.len()] == needle[..] {
+                    found.push(at as u32);
+                    at += needle.len();
+                } else {
+                    at += 1;
+                }
+            }
+            let excerpt: String = current.chars().take(24).collect();
+            match found.len() {
+                0 => return Err(format!("正文中找不到要修改的原文：“{excerpt}”")),
+                n if n > 1 && !all => {
+                    return Err(format!(
+                        "要修改的原文出现了 {n} 次：“{excerpt}”；请给出更长的原文，或修改全部出现"
+                    ))
+                }
+                _ => {}
+            }
+            ranges.extend(
+                found
+                    .into_iter()
+                    .map(|start| (start, needle.len() as u32, revised.clone())),
+            );
+        }
+        ranges.sort_by_key(|range| range.0);
+        if ranges
+            .windows(2)
+            .any(|pair| pair[0].0 + pair[0].1 > pair[1].0)
+        {
+            return Err("要修改的原文相互重叠".into());
+        }
+        let mut applied = 0;
+        for (location, length, revised) in ranges.iter().rev() {
+            let revision = self.document.native_projection()?.revision;
+            let result = self
+                .document
+                .replace_native(drifting_document::NativeReplacement {
+                    revision,
+                    range: drifting_document::NativeRange {
+                        location: *location,
+                        length: *length,
+                    },
+                    text: revised.clone(),
+                });
+            if let Err(error) = result {
+                for _ in 0..applied {
+                    self.document.undo();
+                }
+                return Err(format!("修改无法应用：{error}"));
+            }
+            applied += 1;
+        }
+        self.persist_as(&RevisionSource::Agent {
+            collaborator: Some(identity),
+        });
+        if let Some(error) = &self.save_error {
+            return Err(format!("修改已应用但尚未保存：{error}"));
+        }
+        Ok(applied)
+    }
+
     fn write_blocked(&self) -> bool {
         self.save_error.is_some() || self.document.remote_block().is_some()
     }
 
-    fn persist_checkpoint(&mut self) -> Result<(), String> {
+    fn persist_checkpoint(&mut self, source: &RevisionSource) -> Result<(), String> {
         let context = self.authored_context()?;
         let edited = self.document.has_uncommitted_updates();
         let mut committed = false;
@@ -201,7 +314,7 @@ impl LabSession {
         let owner = &self.owner;
         let result = self.document.persist_authored(
             &context,
-            &RevisionSource::User,
+            source,
             |gateway, tx, document| {
                 let records = document.comment_anchor_records();
                 persist_comment_anchors(
@@ -484,6 +597,12 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         command: workspace::metrics::MetricsCommand,
+    },
+    WorkspaceAgent {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::agent::AgentCommand,
     },
     WorkspaceClose {
         handle: u64,
@@ -1174,6 +1293,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceMetadata { .. }
         | Request::WorkspaceRelations { .. }
         | Request::WorkspaceMetrics { .. }
+        | Request::WorkspaceAgent { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

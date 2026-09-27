@@ -634,6 +634,20 @@ struct WorkspaceRemoteChangesReply: WorkspaceRemoteDeliveryReply {
     let chapters: [WorkspaceChapter]
 }
 
+/// `workspaceAgent readProse`: `live` when read from an open owner.
+struct WorkspaceAgentProse: Decodable {
+    let text: String
+    let live: Bool
+}
+
+/// `workspaceAgent applyChanges`: `handle` is the open owner that adopted the
+/// revision, or nil when a temporary owner applied, saved and closed.
+struct WorkspaceAgentApplied: Decodable {
+    let applied: Int
+    let handle: UInt64?
+    let document: LabDocumentState
+}
+
 struct WorkspaceChapterTrashReply: Decodable {
     let projectId: String
     let chapterId: String
@@ -1228,6 +1242,55 @@ final class LabWorkspaceCore {
             let scope = DocumentScope.chapter(ChapterScope(projectID: document.projectId, chapterID: document.chapterId))
             guard let owner = owners[scope], owner.handle == document.handle, !owner.core.isClosed else { continue }
             owner.core.receiveReconciledState(document.document)
+        }
+    }
+
+    // MARK: Writing Agent
+
+    /// The native Agent's conversations live beside the lab workspace
+    /// directory, in `agent/<projectId>/`.
+    var agentDirectory: URL { directory.deletingLastPathComponent().appendingPathComponent("agent", isDirectory: true) }
+
+    /// A body's live text when its owner is open, otherwise its stored text.
+    /// A read only: no owner, history or journal changes.
+    func agentReadProse(projectID: String, kind: String, id: String,
+                        completion: @escaping (Result<WorkspaceAgentProse, Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceAgent", fields: ["projectId": projectID,
+                "command": ["action": "readProse", "target": ["kind": kind, "id": id]]])
+        }
+    }
+
+    /// Applies an accepted Agent revision through the body's document owner:
+    /// Rust saves the author's pending edits as theirs, then commits each
+    /// exact-text replacement as one Agent undo step. An open owner adopts
+    /// the returned state as a receipt does; queued input is refused first.
+    func agentApplyChanges(projectID: String, kind: String, id: String, changes: [[String: Any]], agent: [String: String],
+                           completion: @escaping (Result<WorkspaceAgentApplied, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("正在切换页面，请稍后再应用修改。"))); return
+        }
+        let scope: DocumentScope?
+        switch kind {
+        case "chapter": scope = .chapter(ChapterScope(projectID: projectID, chapterID: id))
+        case "element": scope = .element(ElementScope(projectID: projectID, elementID: id))
+        case "drift": scope = .drift(DriftScope(projectID: projectID, driftID: id))
+        case "storyline": scope = .storyline(StorylineScope(projectID: projectID, storylineID: id))
+        default: scope = nil
+        }
+        if let scope, owners[scope]?.core.hasPendingDocumentWork == true {
+            completion(.failure(LabError.message("作者正在输入，请结束输入并等待正文保存后再应用修改。"))); return
+        }
+        perform({ (result: Result<WorkspaceAgentApplied, Error>) in
+            if case .success(let reply) = result, let handle = reply.handle,
+               let owner = self.owners.values.first(where: { $0.handle == handle }), !owner.core.isClosed {
+                owner.core.receiveReconciledState(reply.document)
+            }
+            completion(result)
+        }) {
+            try self.request("workspaceAgent", fields: ["projectId": projectID, "command": [
+                "action": "applyChanges", "target": ["kind": kind, "id": id], "changes": changes, "agent": agent]])
         }
     }
 
