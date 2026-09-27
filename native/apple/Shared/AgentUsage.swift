@@ -9,6 +9,8 @@ struct AgentUsageRecord: Codable, Equatable {
         case reply
         /// A compaction summary.
         case summary
+        /// A Copilot task (设定抽取 or 补丁建议).
+        case copilot
     }
 
     var id: String

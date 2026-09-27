@@ -571,10 +571,13 @@ final class LabCore {
 
     /// Callers route this through DocumentStore so queued input, marked text
     /// and the projection revision are checked before the core is asked.
-    func createComment(revision: UInt64, range: NSRange, body: String,
+    /// With `suggestion` (`{metadata, priority?}`) the row is a Copilot
+    /// suggestion: author and source `copilot`, the metadata kept verbatim.
+    func createComment(revision: UInt64, range: NSRange, body: String, suggestion: [String: Any]? = nil,
                        completion: @escaping (Result<WorkspaceCommentCreation, Error>) -> Void) {
-        documentValue("documentCreateComment", fields: ["revision": revision,
-            "range": ["location": range.location, "length": range.length], "body": body], completion: completion)
+        var fields: [String: Any] = ["revision": revision, "range": ["location": range.location, "length": range.length], "body": body]
+        if let suggestion { fields["suggestion"] = suggestion }
+        documentValue("documentCreateComment", fields: fields, completion: completion)
     }
 
     func updateCommentBody(id: String, body: String, completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
@@ -1779,6 +1782,25 @@ final class LabWorkspaceCore {
 
     private func commentsRequest(_ projectID: String, _ command: [String: Any]) throws -> WorkspaceCommentsReply {
         try request("workspaceComments", fields: ["projectId": projectID, "command": command])
+    }
+
+    /// Records the author's decision on an open Copilot suggestion (after an
+    /// accepted proposal was applied, with what it created as `result`); the
+    /// suggestion becomes `converted`. Other comments are refused.
+    func resolveSuggestion(projectID: String, commentID: String, accepted: Bool, result: [String: Any]?,
+                           completion: @escaping (Result<WorkspaceSuggestionReply, Error>) -> Void) {
+        var command: [String: Any] = ["action": "resolveSuggestion", "commentId": commentID, "accepted": accepted]
+        if let result { command["result"] = result }
+        perform(completion) { try self.request("workspaceComments", fields: ["projectId": projectID, "command": command]) }
+    }
+
+    /// Every accept and reject decision on suggestions, oldest first. A read only.
+    func suggestionActions(projectID: String, completion: @escaping (Result<[WorkspaceCommentAction], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceSuggestionActionsReply = try self.request("workspaceComments",
+                fields: ["projectId": projectID, "command": ["action": "suggestionActions"]])
+            return reply.result
+        }
     }
 
     func chapterOutline(projectID: String, chapterID: String,

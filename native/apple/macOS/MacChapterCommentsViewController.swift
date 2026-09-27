@@ -133,6 +133,8 @@ final class MacChapterCommentsViewController: NSViewController {
     let model: ChapterCommentsModel
     var onLocate: ((String) -> Void)?
     var onClose: (() -> Void)?
+    /// 接受 and 拒绝 of open Copilot suggestions; nil leaves them read-only.
+    var copilot: CopilotSuggestionCommands?
     private let status = NSTextField(wrappingLabelWithString: "")
     private let resolvedToggle = NSButton(checkboxWithTitle: "显示已解决", target: nil, action: nil)
     private let list = NSStackView()
@@ -207,10 +209,18 @@ final class MacChapterCommentsViewController: NSViewController {
             return
         }
         for entry in entries {
-            let row = CommentRowView(entry: entry, actions: CommentRowView.Actions(
+            var actions = CommentRowView.Actions(
                 locate: { [weak self] in self?.onLocate?(entry.id) },
                 edit: { [weak self] in self?.edit(entry) },
-                resolve: { [weak self] in self?.changeResolution(entry) }))
+                resolve: { [weak self] in self?.changeResolution(entry) })
+            if entry.comment.isOpenSuggestion, let copilot {
+                let comment = entry.comment
+                actions.suggestion = CommentRowView.Suggestion(
+                    message: copilot.failure(comment.id), deciding: copilot.isDeciding(comment.id),
+                    accept: { [weak copilot] button in copilot?.pressAccept(comment, from: button, prefix: "comment") },
+                    reject: { [weak copilot] in copilot?.reject(comment) })
+            }
+            let row = CommentRowView(entry: entry, actions: actions)
             list.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: list.widthAnchor).isActive = true
         }
@@ -246,10 +256,18 @@ private final class FlippedView: NSView {
 
 /// One comment: quote, placement, review state and body on a soft wash.
 private final class CommentRowView: NSView {
+    struct Suggestion {
+        let message: String?
+        let deciding: Bool
+        let accept: (NSView) -> Void
+        let reject: () -> Void
+    }
     struct Actions {
         let locate: () -> Void
         let edit: () -> Void
         let resolve: () -> Void
+        /// An open Copilot suggestion's 接受 and 拒绝.
+        var suggestion: Suggestion?
     }
     private let resolved: Bool
 
@@ -272,6 +290,7 @@ private final class CommentRowView: NSView {
         var facts = [entry.isWholePage ? "整章" : entry.anchorStatus.label, comment.review.label]
         if comment.kind == "todo" { facts.insert("待办", at: 0) }
         if comment.isByAssistant { facts.append("写作助手") }
+        else if comment.isOpenSuggestion { facts.insert("Copilot 建议", at: 0) }
         else if !comment.canEditBody { facts.append(comment.source == "copilot" ? "来自 Copilot · 只读" : "外部来源 · 只读") }
         let meta = NSTextField(labelWithString: facts.joined(separator: " · "))
         meta.font = .systemFont(ofSize: 11, weight: .medium)
@@ -291,10 +310,26 @@ private final class CommentRowView: NSView {
         let resolve = ClosureButton(title: comment.review == .resolved ? "重新打开" : "解决",
                                     identifier: "resolve-comment-\(comment.id)", action: actions.resolve)
         resolve.isHidden = !comment.canChangeResolution
-        let buttons = NSStackView(views: [locate, edit, resolve])
+        var suggestionViews: [NSView] = []
+        if let suggestion = actions.suggestion {
+            // The button hands itself over, so a category menu opens below it.
+            var acceptPressed: (() -> Void)?
+            let accept = ClosureButton(title: "接受", identifier: "accept-comment-\(comment.id)") { acceptPressed?() }
+            acceptPressed = { [weak accept] in if let accept { suggestion.accept(accept) } }
+            let reject = ClosureButton(title: "拒绝", identifier: "reject-comment-\(comment.id)", action: suggestion.reject)
+            accept.isEnabled = !suggestion.deciding; reject.isEnabled = !suggestion.deciding
+            suggestionViews = [accept, reject]
+            if let message = suggestion.message {
+                let label = NSTextField(wrappingLabelWithString: message)
+                label.font = .systemFont(ofSize: 12); label.textColor = .systemRed
+                label.setAccessibilityIdentifier("comment-suggestion-message-\(comment.id)")
+                failureLabel = label
+            }
+        }
+        let buttons = NSStackView(views: [locate, edit, resolve] + suggestionViews)
         buttons.spacing = 6
 
-        let stack = NSStackView(views: [quote, meta, body, buttons])
+        let stack = NSStackView(views: [quote, meta, body] + (failureLabel.map { [$0] } ?? []) + [buttons])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
         stack.setCustomSpacing(10, after: body)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -309,6 +344,7 @@ private final class CommentRowView: NSView {
         ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    private var failureLabel: NSTextField?
 
     override var wantsUpdateLayer: Bool { true }
     override func viewDidChangeEffectiveAppearance() {

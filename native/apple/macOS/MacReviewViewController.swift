@@ -24,6 +24,8 @@ final class ReviewCommands {
     var presentSheet: ((NSWindow) -> Void)?
     /// The window sheets and alerts attach to.
     var window: () -> NSWindow? = { nil }
+    /// 接受 and 拒绝 of open Copilot suggestions; nil leaves them read-only.
+    var copilot: CopilotSuggestionCommands?
     /// The open 新建 sheet or 编辑 composer, if any.
     private(set) var composeSheet: ReviewComposeSheet?
     private(set) var editor: MacCommentComposerViewController?
@@ -32,9 +34,15 @@ final class ReviewCommands {
 
     // MARK: Menu
 
-    /// ⋯ of a card: 优先级, 批注 ↔ 待办, 关联, 编辑 and 删除.
+    /// ⋯ of a card: 优先级, 批注 ↔ 待办, 关联, 编辑 and 删除. An open Copilot
+    /// suggestion is accepted or rejected on the card; ⋯ only deletes it.
     func menuItems(for comment: WorkspaceComment) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
+        if comment.isCopilot {
+            items.append(LibraryMenuItem(title: "删除…", identifier: "review-delete") { [weak self] in self?.confirmDelete(comment) })
+            for item in items where model.busy { item.isEnabled = false }
+            return items
+        }
         let priority = NSMenuItem(title: "优先级", action: nil, keyEquivalent: "")
         priority.setAccessibilityIdentifier("review-priority")
         let levels = NSMenu(title: "优先级")
@@ -145,7 +153,7 @@ final class ReviewCommands {
     func confirmDelete(_ comment: WorkspaceComment) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "删除这条\(comment.kindLabel)？"
+        alert.messageText = comment.isCopilot ? "删除这条 Copilot 建议？" : "删除这条\(comment.kindLabel)？"
         alert.informativeText = "删除后无法恢复。它的关联会一并移除，正文不受影响。"
             + (comment.isBlock ? "正文中的批注高亮也会随之消失。" : "")
         alert.addButton(withTitle: "删除").setAccessibilityIdentifier("confirm-delete-review-item")
@@ -321,7 +329,7 @@ final class MacReviewViewController: NSViewController {
                                   anchor: comment.isBlock ? anchor?(comment) : nil,
                                   associations: model.associations.entries(of: comment.endpoint),
                                   menu: { [weak self] in self?.commands.menuItems(for: comment) ?? [] },
-                                  actions: actions(for: comment))
+                                  actions: actions(for: comment), suggestion: suggestion(for: comment))
         stack.addArrangedSubview(card)
         card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         cards[comment.id] = card
@@ -353,6 +361,16 @@ final class MacReviewViewController: NSViewController {
         guard let target = comment.target else { return "浮动" }
         let name = model.associations.names().name(of: target)
         return "\(name.kindLabel)「\(name.name)」"
+    }
+
+    /// 接受 and 拒绝 of an open Copilot suggestion, with why the last try failed.
+    private func suggestion(for comment: WorkspaceComment) -> ReviewCardView.Suggestion? {
+        guard comment.isOpenSuggestion, let copilot = commands.copilot else { return nil }
+        return ReviewCardView.Suggestion(
+            message: copilot.failure(comment.id), deciding: copilot.isDeciding(comment.id) || model.busy,
+            accept: { [weak copilot] button in copilot?.pressAccept(comment, from: button, prefix: "review") },
+            acceptMenu: { [weak copilot] in copilot?.acceptMenu(for: comment, prefix: "review") },
+            reject: { [weak copilot] in copilot?.reject(comment) })
     }
 
     private func actions(for comment: WorkspaceComment) -> ReviewCardView.Actions {
@@ -395,6 +413,17 @@ final class ReviewCardView: NSView {
         let open: (AssociationEntry) -> Void
         let dissociate: (AssociationEntry) -> Void
     }
+    /// An open Copilot suggestion's 接受 and 拒绝.
+    struct Suggestion {
+        /// Why the last 接受 or 拒绝 failed; the suggestion stayed open.
+        let message: String?
+        let deciding: Bool
+        /// 接受 pressed on the button.
+        let accept: (NSView) -> Void
+        /// 接受到分类 when the suggestion's category must be chosen.
+        let acceptMenu: () -> NSMenu?
+        let reject: () -> Void
+    }
 
     let comment: WorkspaceComment
     let headerLabel = NSTextField(labelWithString: "")
@@ -404,17 +433,30 @@ final class ReviewCardView: NSView {
     let locateButton: ChipButton
     let editButton: ChipButton
     let resolveButton: ChipButton
+    let acceptButton: ChipButton
+    let rejectButton: ChipButton
+    /// Why 接受 or 拒绝 failed, in red; hidden otherwise.
+    let suggestionMessage = NSTextField(wrappingLabelWithString: "")
     let actionsButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let menuItems: () -> [NSMenuItem]
     private let settled: Bool
     private let isTodo: Bool
+    private let isSuggestion: Bool
+    /// 接受到分类 items, when the suggestion's category must be chosen.
+    let acceptMenu: () -> NSMenu?
 
     init(comment: WorkspaceComment, presentation: Presentation, targetName: String, anchor: NativeComment?,
-         associations: [AssociationEntry], menu: @escaping () -> [NSMenuItem], actions: Actions) {
+         associations: [AssociationEntry], menu: @escaping () -> [NSMenuItem], actions: Actions, suggestion: Suggestion? = nil) {
         self.comment = comment
         menuItems = menu
         settled = comment.review != .open
         isTodo = comment.isTodo
+        isSuggestion = comment.isCopilot
+        acceptMenu = suggestion?.acceptMenu ?? { nil }
+        // The button presses itself into 接受, so a category menu opens below it.
+        var acceptPressed: (() -> Void)?
+        acceptButton = ChipButton(title: "接受") { acceptPressed?() }
+        rejectButton = ChipButton(title: "拒绝", pressed: suggestion?.reject ?? {})
         chips = AssociationChipsView(prefix: "review-association-\(comment.id)")
         locateButton = ChipButton(title: "定位", pressed: actions.locate)
         editButton = ChipButton(title: "编辑", pressed: actions.edit)
@@ -426,13 +468,16 @@ final class ReviewCardView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityIdentifier("review-card-\(comment.id)")
 
-        var facts = [comment.kindLabel]
+        var facts = [comment.isCopilot ? "Copilot 建议" : comment.kindLabel]
+        if comment.isCopilot, let proposal = CopilotProposal(comment) {
+            if case .element = proposal { facts.append("新设定") } else { facts.append("设定补丁") }
+        }
         if let priority = comment.priorityLevel { facts.append("优先级\(priority.label)") }
         if presentation == .panel || comment.target != nil { facts.append(targetName) }
         if comment.isBlock { facts.append(anchor?.anchorStatus.label ?? "段落批注") }
         if comment.review == .resolved { facts.append("已解决") }
         if comment.isByAssistant { facts.append("写作助手") }
-        else if comment.source != "manual" { facts.append(comment.source == "copilot" ? "来自 Copilot" : "外部来源") }
+        else if comment.source != "manual", !comment.isCopilot { facts.append("外部来源") }
         headerLabel.stringValue = facts.joined(separator: " · ")
         headerLabel.font = .systemFont(ofSize: 11, weight: .medium)
         headerLabel.textColor = anchor.map { $0.anchorStatus == .anchored || $0.anchorStatus == .wholeBlock } == false
@@ -464,7 +509,20 @@ final class ReviewCardView: NSView {
         editButton.setAccessibilityIdentifier("edit-review-\(comment.id)")
         resolveButton.isHidden = !comment.canChangeResolution
         resolveButton.setAccessibilityIdentifier("resolve-review-\(comment.id)")
-        for button in [locateButton, editButton, resolveButton] {
+        acceptButton.isHidden = suggestion == nil
+        rejectButton.isHidden = suggestion == nil
+        acceptButton.isEnabled = suggestion?.deciding == false
+        rejectButton.isEnabled = suggestion?.deciding == false
+        acceptButton.toolTip = "按建议新建设定或添加补丁，并记下你的决定"
+        rejectButton.toolTip = "Copilot 以后不会再提出这条建议"
+        acceptButton.setAccessibilityIdentifier("accept-review-\(comment.id)")
+        rejectButton.setAccessibilityIdentifier("reject-review-\(comment.id)")
+        suggestionMessage.stringValue = suggestion?.message ?? ""
+        suggestionMessage.isHidden = suggestion?.message == nil
+        suggestionMessage.font = .systemFont(ofSize: 12)
+        suggestionMessage.textColor = .systemRed
+        suggestionMessage.setAccessibilityIdentifier("review-suggestion-message-\(comment.id)")
+        for button in [locateButton, editButton, resolveButton, acceptButton, rejectButton] {
             button.font = .systemFont(ofSize: 12)
             button.contentTintColor = .controlAccentColor
         }
@@ -473,9 +531,9 @@ final class ReviewCardView: NSView {
         actionsButton.setAccessibilityIdentifier("review-actions-\(comment.id)")
         actionsButton.setAccessibilityLabel("更多操作")
         actionsButton.menu?.delegate = self
-        let buttons = NSStackView(views: [locateButton, editButton, resolveButton, NSView(), actionsButton])
+        let buttons = NSStackView(views: [locateButton, editButton, resolveButton, acceptButton, rejectButton, NSView(), actionsButton])
         buttons.spacing = 10
-        let stack = NSStackView(views: [headerLabel, quoteLabel, bodyLabel, chips, buttons])
+        let stack = NSStackView(views: [headerLabel, quoteLabel, bodyLabel, suggestionMessage, chips, buttons])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 5
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -488,10 +546,12 @@ final class ReviewCardView: NSView {
             headerLabel.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
             quoteLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             bodyLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            suggestionMessage.widthAnchor.constraint(equalTo: stack.widthAnchor),
             chips.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         setAccessibilityLabel("\(headerLabel.stringValue)：\(body)")
+        acceptPressed = { [weak self] in if let self { suggestion?.accept(self.acceptButton) } }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -505,7 +565,8 @@ final class ReviewCardView: NSView {
         // Open notes share the editor's highlight hue, TODOs the accent;
         // settled ones recede.
         let wash: NSColor = settled ? NSColor.secondaryLabelColor.withAlphaComponent(0.07)
-            : isTodo ? NSColor.labAccent.withAlphaComponent(0.10) : NSColor.systemYellow.withAlphaComponent(0.14)
+            : isTodo ? NSColor.labAccent.withAlphaComponent(0.10)
+            : isSuggestion ? NSColor.systemPurple.withAlphaComponent(0.09) : NSColor.systemYellow.withAlphaComponent(0.14)
         layer?.backgroundColor = wash.cgColor
     }
 }

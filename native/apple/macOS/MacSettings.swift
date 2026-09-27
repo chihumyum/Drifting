@@ -59,6 +59,8 @@ struct LabSettings: Codable, Equatable {
     var dailyWords: [String: [String: Int]] = [:]
     /// Each project's 底部时间轴: shown or hidden, and 阅读顺序 or 故事时间.
     var bottomTimelines: [String: BottomTimelineSetting] = [:]
+    /// 设置 › Copilot（实验）: off by default.
+    var copilot = CopilotSettings()
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -71,7 +73,7 @@ struct LabSettings: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
-        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines
+        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -93,6 +95,7 @@ struct LabSettings: Codable, Equatable {
                                                                 forKey: .elementOverviewViewports)) ?? [:]
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
+        copilot = (try? values.decodeIfPresent(CopilotSettings.self, forKey: .copilot)) ?? CopilotSettings()
         self = normalized()
     }
 
@@ -106,6 +109,7 @@ struct LabSettings: Codable, Equatable {
         if !Self.locales.contains(where: { $0.code == manuscriptLocale }) { next.manuscriptLocale = "zh-CN" }
         if next.fontSource == .systemCustom, next.systemFontFamily.isEmpty { next.fontSource = .systemSerif }
         if next.fontSource == .imported, next.importedFont == nil { next.fontSource = .systemSerif }
+        next.copilot = copilot.normalized()
         return next
     }
 
@@ -312,6 +316,24 @@ final class LabSettingsStore {
         settings.writingPlans[projectID] = plan
         save()
         NotificationCenter.default.post(name: Self.writingPlanDidChange, object: self, userInfo: ["projectID": projectID])
+        changed()
+    }
+
+    // MARK: Copilot
+
+    /// 设置 › Copilot（实验） changed; `object` is the store.
+    static let copilotDidChange = Notification.Name("LabSettingsStoreCopilotDidChange")
+
+    /// Changes and saves Copilot's settings at once; an unchanged value
+    /// writes nothing. Typesetting is not applied again.
+    func setCopilot(_ change: (inout CopilotSettings) -> Void) {
+        var next = settings.copilot
+        change(&next)
+        next = next.normalized()
+        guard next != settings.copilot else { changed(); return }
+        settings.copilot = next
+        save()
+        NotificationCenter.default.post(name: Self.copilotDidChange, object: self)
         changed()
     }
 

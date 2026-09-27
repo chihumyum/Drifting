@@ -308,11 +308,13 @@ final class DocumentStore {
     /// The range must come from the current projection revision. Like
     /// formatting, commenting waits for queued input and marked drafts; the
     /// returned state is adopted so every view of this chapter highlights it.
-    func createComment(range: NSRange, revision: UInt64, body: String,
+    /// `suggestion` makes it a Copilot suggestion (`{metadata, priority?}`);
+    /// it anchors and waits exactly like the author's note.
+    func createComment(range: NSRange, revision: UInt64, body: String, suggestion: [String: Any]? = nil,
                        completion: @escaping (Result<WorkspaceComment, Error>) -> Void) {
         if let refusal = commentRefusal(revision: revision) { completion(.failure(refusal)); return }
         sending = true; activity()
-        core.createComment(revision: revision, range: range, body: body) { [weak self] result in
+        core.createComment(revision: revision, range: range, body: body, suggestion: suggestion) { [weak self] result in
             guard let self else { completion(result.map(\.comment)); return }
             self.sending = false
             switch result {

@@ -123,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private let agentCredentials = AgentKeychainCredentialStore()
     private var agentController: AgentChatController?
     private var agentSettings: MacAgentSettingsSheet?
+    /// Copilot（实验）: one per project, made when a tab of it first reports.
+    private var copilotControllers: [String: CopilotController] = [:]
+    /// Each project's last Copilot status line.
+    private var copilotStatuses: [String: String] = [:]
     private var agentButton: NSButton!
     private var agentMenuItem: NSMenuItem!
     private var editorTrailing: NSLayoutConstraint!
@@ -177,8 +181,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let save = fileMenu.addItem(withTitle: "保存正文", action: #selector(saveDocument), keyEquivalent: "s")
         save.target = self
         fileMenu.addItem(.separator())
+        // ⇧⌘I belongs to Copilot 分析, as in the renderer.
         let profile = fileMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "i")
-        profile.keyEquivalentModifierMask = [.command, .shift]
+        profile.keyEquivalentModifierMask = [.command, .option]
         profile.target = self
         let deleteProject = fileMenu.addItem(withTitle: "删除项目…", action: #selector(deleteSelectedProject), keyEquivalent: "")
         deleteProject.target = self
@@ -235,6 +240,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         addComment.keyEquivalentModifierMask = [.command, .option]
         let comments = editMenu.addItem(withTitle: "批注列表", action: #selector(showComments), keyEquivalent: "")
         comments.target = self
+        // Nil-targeted: the focused chapter (or drift) body asks its project's Copilot.
+        let copilot = editMenu.addItem(withTitle: "Copilot 分析", action: #selector(ProseTextView.copilotAnalyze(_:)), keyEquivalent: "i")
+        copilot.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(.separator())
         let history = editMenu.addItem(withTitle: "历史版本…", action: #selector(showHistory), keyEquivalent: "y")
         history.keyEquivalentModifierMask = [.command, .option]
@@ -398,6 +406,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.adoptMaterials(projectID: projectID, library: library, fromWorkspace: true)
         }
         chapterWorkspace.onTrash = { [weak self] projectID, source in self?.adoptTrash(projectID: projectID, source: source) }
+        chapterWorkspace.copilot = { [weak self] projectID in self?.copilot(for: projectID) }
+        NotificationCenter.default.addObserver(self, selector: #selector(copilotSettingsChanged), name: LabSettingsStore.copilotDidChange,
+                                               object: settingsStore)
         chapterWorkspace.onPurged = { [weak self] projectID, _ in
             // Notes and TODOs written on purged content went with it.
             self?.reviewModels[projectID]?.load()
@@ -733,15 +744,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// running assistant's, or the stored files.
     private func agentUsageSource() -> (project: String, conversations: [AgentConversation])? {
         guard let project = currentProject ?? selectedProject else { return nil }
-        if let agentController, agentController.projectID == project.id { return (project.name, agentController.conversations) }
-        return (project.name, AgentConversationStore(root: workspace.agentDirectory, projectID: project.id).load())
+        let store = AgentConversationStore(root: workspace.agentDirectory, projectID: project.id)
+        var conversations = agentController?.projectID == project.id ? agentController!.conversations : store.load()
+        // Copilot's requests are listed as one more row.
+        let copilotUsage = copilotControllers[project.id]?.usage ?? store.loadCopilotUsage()
+        if let row = CopilotController.usageConversation(projectID: project.id, usage: copilotUsage) { conversations.append(row) }
+        return (project.name, conversations)
+    }
+
+    // MARK: Copilot
+
+    /// The project's Copilot, reading 设置 › Copilot（实验） and the writing
+    /// assistant's keys. Its suggestions reach 审阅 and the 批注 panel.
+    private func copilot(for projectID: String) -> CopilotController {
+        if let controller = copilotControllers[projectID] { return controller }
+        let controller = CopilotController(workspace: workspace, projectID: projectID, credentials: agentCredentials)
+        controller.settings = { [weak self] in self?.settingsStore.settings.copilot ?? CopilotSettings() }
+        controller.manuscriptLocale = { [weak self] in self?.settingsStore.settings.manuscriptLocale ?? "zh-CN" }
+        controller.openStore = { [weak self] kind, id in self?.chapterWorkspace.copilotStore(projectID: projectID, kind: kind, id: id) }
+        controller.onStatus = { [weak self] status in
+            guard let self else { return }
+            self.copilotStatuses[projectID] = status.text
+            self.showCopilotStatus()
+        }
+        controller.onWorkspaceEffect = { [weak self] effect in self?.chapterWorkspace.adoptAgentEffect(effect) }
+        controller.onReviewChange = { [weak self] change in self?.adoptCopilotChange(change, projectID: projectID) }
+        copilotControllers[projectID] = controller
+        return controller
+    }
+
+    /// 接受 and 拒绝 on 审阅 cards and in the 批注 panel.
+    private func copilotCommands(projectID: @escaping () -> String?) -> CopilotSuggestionCommands {
+        CopilotSuggestionCommands(controller: { [weak self] in projectID().flatMap { self?.copilot(for: $0) } },
+                                  library: { [weak self] in projectID().flatMap { self?.chapterWorkspace.elementLibrary(projectID: $0) } })
+    }
+
+    private func showCopilotStatus() {
+        chapterWorkspace.copilotStatus = currentProject.flatMap { copilotStatuses[$0.id] }
+    }
+
+    @objc private func copilotSettingsChanged() {
+        copilotControllers.values.forEach { $0.settingsChanged() }
+        settingsWindow?.copilotPane.refresh()
+    }
+
+    private func adoptCopilotChange(_ change: CopilotReviewChange, projectID: String) {
+        let panel = commentsController?.model
+        switch change {
+        case .created:
+            // Written through the chapter's owner: 审阅 reads them; the 批注
+            // panel follows the owner's new anchors by itself.
+            reviewModels[projectID]?.load()
+        case .decided(let commentID, let comments, let message):
+            reviewModels[projectID]?.adopt(comments, message: message)
+            if let panel, panel.comments.contains(where: { $0.id == commentID }) { panel.reload(after: message) }
+            status.stringValue = message
+        case .failed(let commentID, let message):
+            reviewModels[projectID]?.showStatus(message)
+            if let panel, panel.comments.contains(where: { $0.id == commentID }) { panel.showStatus(message) }
+            status.stringValue = message
+        case .deciding(let commentID):
+            reviewModels[projectID]?.showStatus("正在处理 Copilot 建议…")
+            if let panel, panel.comments.contains(where: { $0.id == commentID }) { panel.showStatus("正在处理 Copilot 建议…") }
+        }
     }
 
     private func showAgentSettings() {
         guard agentSettings == nil else { return }
         let sheet = MacAgentSettingsSheet(credentials: agentCredentials)
         agentSettings = sheet
-        sheet.onFinish = { [weak self] in self?.agentSettings = nil }
+        sheet.onFinish = { [weak self] in self?.agentSettings = nil; self?.settingsWindow?.copilotPane.refresh() }
         sheet.begin(in: window)
     }
 
@@ -974,6 +1046,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updateComments()
         updateReviewFocus()
         updateWordStatus()
+        showCopilotStatus()
         timelineDock.currentChapterChanged(projectID: currentProject?.id, chapterID: currentChapter?.id)
         let minWidth: CGFloat = (chapterWorkspace.paneCount == 2 ? 1100 : 820) + (agentPanel.isHidden ? 0 : 360)
         window.minSize = NSSize(width: minWidth, height: 660)
@@ -1106,6 +1179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         panel.onClose = { [weak self] in self?.commentsPanel = nil; self?.commentsController = nil }
         controller.onClose = { [weak self] in self?.closeComments() }
         controller.onLocate = { [weak self] id in self?.locateComment(id) }
+        controller.copilot = copilotCommands { [weak self] in self?.chapterWorkspace.activeProject?.id }
         window.addChildWindow(panel, ordered: .above)
         // Beside the text rather than over it, so a located passage stays visible.
         let frame = window.frame
@@ -1963,6 +2037,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let model = ensureReviewModel(named)
         let controller = MacReviewViewController(model: model)
         wireReviewCommands(controller.commands, project: named)
+        controller.commands.copilot = copilotCommands { named.id }
         controller.anchor = { [weak self] comment in self?.liveAnchor(comment, projectID: named.id) }
         controller.onShowChapterComments = { [weak self] in self?.showComments() }
         controller.onShowBoard = { [weak self] in self?.showBoard() }
@@ -2097,6 +2172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         projectDeletion.stopAssistant = { [weak self] projectID in
             if self?.agentController?.projectID == projectID { self?.agentController?.stop() }
+            self?.copilotControllers[projectID]?.cancelAll()
         }
         projectDeletion.forgetSettings = { [weak self] projectID in
             self?.dailyWords.forget(projectID: projectID)
@@ -2158,6 +2234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// remaining projects, then the next one (or the new empty one) opens.
     private func adoptDeletion(_ outcome: ProjectDeletionCoordinator.Outcome, deleted: WorkspaceProject) {
         reviewModels.removeValue(forKey: deleted.id)
+        copilotControllers.removeValue(forKey: deleted.id)?.cancelAll()
+        copilotStatuses.removeValue(forKey: deleted.id)
         if storylineModel?.projectID == deleted.id { storylineModel = nil }
         if driftModel?.projectID == deleted.id { driftModel = nil }
         if materialModel?.projectID == deleted.id { materialModel = nil }
@@ -2811,6 +2889,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if settingsWindow == nil {
             controller.agentPane.source = { [weak self] in self?.agentUsageSource() }
             controller.agentPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
+            controller.copilotPane.credentials = agentCredentials
+            controller.copilotPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
         }
         settingsWindow = controller
         if controller.window?.isVisible != true { controller.window?.center() }
@@ -2864,6 +2944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success:
                 self.agentController?.stop()
+                self.copilotControllers.values.forEach { $0.cancelAll() }
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
                 self.closeStoryGraph()

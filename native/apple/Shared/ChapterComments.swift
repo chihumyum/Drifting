@@ -32,7 +32,12 @@ struct WorkspaceComment: Decodable, Equatable {
     /// here; other generated rows stay read-only.
     var canEditBody: Bool { source == "manual" || isByAssistant }
     /// Converted suggestions are terminal, as in the desktop review flow.
-    var canChangeResolution: Bool { review == .open || review == .resolved }
+    /// An open Copilot suggestion is accepted or rejected, not resolved.
+    var canChangeResolution: Bool { review == .resolved || (review == .open && !isCopilot) }
+    /// A Copilot suggestion (open, or converted once accepted or rejected).
+    var isCopilot: Bool { source == "copilot" }
+    /// An open Copilot suggestion waiting for 接受 or 拒绝.
+    var isOpenSuggestion: Bool { isCopilot && review == .open }
     /// The quote captured at creation. The live anchor quote takes precedence.
     var selectedText: String {
         guard let data = anchorJson.data(using: .utf8),
@@ -106,6 +111,30 @@ enum CommentBody {
     }
 }
 
+/// A review decision on a Copilot suggestion: `accept_suggestion` or
+/// `reject_suggestion`, the suggestion's metadata as payload and what an
+/// accepted proposal created as result.
+struct WorkspaceCommentAction: Decodable, Equatable {
+    let id: String
+    let commentId: String
+    let kind: String
+    let label: String?
+    let payloadJson: String
+    let status: String
+    let resultJson: String?
+    let createdAt: String
+
+    var accepted: Bool { kind == "accept_suggestion" }
+}
+
+/// `resolveSuggestion`: the recorded action and every comment of the project.
+struct WorkspaceSuggestionReply: Decodable {
+    let result: WorkspaceCommentAction
+    let comments: [WorkspaceComment]
+}
+
+struct WorkspaceSuggestionActionsReply: Decodable { let result: [WorkspaceCommentAction] }
+
 struct WorkspaceCommentList: Decodable { let comments: [WorkspaceComment] }
 struct WorkspaceCommentReply: Decodable { let comment: WorkspaceComment }
 struct WorkspaceCommentCreation: Decodable {
@@ -148,8 +177,10 @@ final class ChapterCommentsModel {
     /// A body or resolution change was stored; 审阅 reads the rows again.
     var onCommitted: ((WorkspaceComment) -> Void)?
 
+    /// Open rows; with 显示已解决 also resolved notes and accepted or
+    /// rejected suggestions.
     var entries: [ChapterCommentEntry] {
-        comments.filter { showResolved || $0.review != .resolved }.map { comment in
+        comments.filter { showResolved || $0.review == .open }.map { comment in
             ChapterCommentEntry(comment: comment, anchor: anchors.first { $0.id == comment.id })
         }
     }
@@ -251,10 +282,10 @@ final class ChapterCommentsModel {
     }
 
     private func summarize() {
-        let resolved = comments.filter { $0.review == .resolved }.count
+        let resolved = comments.filter { $0.review != .open }.count
         if comments.isEmpty { status = "这一章还没有批注。选中文字后可以添加批注。"; return }
         status = "共 \(comments.count) 条批注"
-        if resolved > 0 { status += showResolved ? "，其中 \(resolved) 条已解决" : "，已隐藏 \(resolved) 条已解决" }
+        if resolved > 0 { status += showResolved ? "，其中 \(resolved) 条已解决或已处理" : "，已隐藏 \(resolved) 条已解决或已处理" }
         status += "。"
     }
 }

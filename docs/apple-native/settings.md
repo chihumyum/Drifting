@@ -1,7 +1,8 @@
 # Settings
 
 设置 (app menu, ⌘,) holds the Mac lab's appearance, editor typesetting and
-language preferences, following the renderer's 外观, 编辑器 and 语言 panels.
+language preferences, following the renderer's 外观, 编辑器 and 语言 panels,
+the writing assistant's usage and [Copilot（实验）](copilot.md).
 Settings are device-local and never synchronized. Native only; no Tauri
 interoperability is kept.
 
@@ -15,6 +16,9 @@ interoperability is kept.
   1.0–2.0); an unreadable file means defaults and a message in 设置.
 - The same file keeps each project's 写作计划 under `writingPlans`, edited in
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
+- Copilot's choices are under `copilot`, read value by value like the rest
+  (an unknown model is the provider's first, the delay is clamped to
+  5–300 seconds); saving them applies nothing else.
 - An imported font is copied to `fonts/<uuid>.ttf|otf` in the same directory and
   registered with CTFontManager for this process only; nothing is installed.
   Prose is set from the copy's own descriptor, so a re-registered font never
@@ -52,8 +56,15 @@ interoperability is kept.
 - 语言: 拼写检查 (default on) toggles continuous spell checking in every body;
   手稿默认语言 (zh-CN, zh-TW, en, ja, ko, fr) sets CoreText's language attribute
   on prose: glyph forms, fallback fonts and line breaking.
-- 写作助手: 用量 of the open project's conversations (read only, stored in the
-  conversation files, not `settings.json`; [agent](agent.md)) and 管理 API Key….
+- 写作助手: 用量 of the open project's conversations and Copilot's requests
+  (read only, stored beside the conversations, not in `settings.json`;
+  [agent](agent.md)) and 管理 API Key….
+- Copilot（实验）: off by default; 模型服务 and 模型 from the writing assistant's
+  catalog with its Keychain keys (shown masked; 管理 API Key… opens the same
+  sheet), 设定抽取 and 补丁建议, 停笔后自动 after N seconds (default 20) or
+  仅手动, 输出语言 and 在灵感中启用, with a note that the analysed paragraphs go to
+  the chosen provider and that costs and retention follow it
+  ([copilot](copilot.md)).
 - Every change saves and applies at once. Open editors, including hidden tabs,
   restyle in place from `DocumentStyle.typography`: text, selection, history
   and Rust are untouched, and the next edit takes the usual one-block path.
@@ -79,8 +90,9 @@ replace and remove it, refusing a damaged, empty and text file; relaunch the
 store, window and tab host cold with the font registered again; and fall back
 for an uninstalled family and a missing or damaged copy. The open and colour
 panels, physical input and the menu shortcut are not covered.
-`--editor-extras-only` checks 打字机滚动: the caret line at 40% after typing at
-the end and in the middle of a long chapter and in an element page, marked
-text unpublished and one undo exact, a hand scroll kept until the next
-keystroke, nothing aligned once off, and the choice in `settings.json` and the
-设置 checkbox.
+The Copilot pane, its storage and relaunch are covered by the
+[Copilot cases](copilot.md#acceptance). `--editor-extras-only` checks
+打字机滚动: the caret line at 40% after typing at the end and in the middle of
+a long chapter and in an element page, marked text unpublished and one undo
+exact, a hand scroll kept until the next keystroke, nothing aligned once off,
+and the choice in `settings.json` and the 设置 checkbox.

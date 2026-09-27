@@ -192,7 +192,8 @@ proposal and never touch the book, SQLite, user defaults or the journal.
   count is stored as unknown, never estimated. 设置 › 写作助手 › 用量 shows the
   open project's today and 30-day totals by provider and model and each
   conversation's total. Deleting a conversation (after confirmation) removes
-  its usage.
+  its usage. [Copilot](copilot.md)'s requests are recorded the same way in
+  `copilot-usage.json` and listed as one more row.
 
 ## Persistence
 

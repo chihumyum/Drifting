@@ -237,8 +237,9 @@ extension BindingAcceptance {
         try require(resolved.review == .resolved && resolved.resolvedAt != nil && resolved.bodyJson == edited.bodyJson,
             "Resolve did not record the review state")
         try wait { !model.busy && model.comments.first?.review == .resolved }
-        try require(model.entries.map(\.id) == [generated.id] && controller.renderedIDs == [generated.id],
-            "Resolved comment was not hidden by default")
+        // Resolved notes and accepted or rejected suggestions wait behind 显示已解决.
+        try require(model.entries.isEmpty && controller.renderedIDs.isEmpty,
+            "Resolved comment and converted suggestion were not hidden by default")
         model.showResolved = true
         try require(controller.renderedIDs == [note.id, generated.id]
             && (commentControl(controller.view, "resolve-comment-\(note.id)") as? NSButton)?.title == "重新打开",
@@ -254,7 +255,7 @@ extension BindingAcceptance {
         let _: WorkspaceComment = try commentResult { model.setResolved(note.id, resolved: true, completion: $0) }
         try unchanged("Second resolve")
 
-        // Generated and converted rows stay visible but read-only and terminal.
+        // Generated and converted rows (under 显示已解决) are read-only and terminal.
         let generatedEntry = try model.entries.first { $0.id == generated.id }.unwrapComment("Converted row was hidden")
         try require(!generatedEntry.comment.canEditBody && !generatedEntry.comment.canChangeResolution
             && commentControl(controller.view, "edit-comment-\(generated.id)")?.isHidden == true

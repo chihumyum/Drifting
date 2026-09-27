@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// 设置 (⌘,): 外观, 编辑器, 语言 and 写作助手 as toolbar tabs, as Mac settings windows
+/// 设置 (⌘,): 外观, 编辑器, 语言, 写作助手 and Copilot（实验） as toolbar tabs, as Mac settings windows
 /// are. Every control writes through `LabSettingsStore` at once, which saves
 /// and applies it: open editors restyle in place and every window follows
 /// the theme. Controls follow the store, so a refusal never leaves one
@@ -12,6 +12,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     let editorPane: MacEditorSettingsViewController
     let languagePane: MacLanguageSettingsViewController
     let agentPane = MacAgentSettingsViewController()
+    let copilotPane: MacCopilotSettingsViewController
     private let tabs = NSTabViewController()
 
     init(store: LabSettingsStore) {
@@ -19,10 +20,11 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
         appearancePane = MacAppearanceSettingsViewController(store: store)
         editorPane = MacEditorSettingsViewController(store: store)
         languagePane = MacLanguageSettingsViewController(store: store)
+        copilotPane = MacCopilotSettingsViewController(store: store)
         tabs.tabStyle = .toolbar
         for (controller, label, symbol) in [(appearancePane as NSViewController, "外观", "paintbrush"),
                                             (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe"),
-                                            (agentPane, "写作助手", "text.bubble")] {
+                                            (agentPane, "写作助手", "text.bubble"), (copilotPane, "Copilot（实验）", "sparkles")] {
             let item = NSTabViewItem(viewController: controller)
             item.label = label
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -44,12 +46,17 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     @objc private func storeChanged() { refresh() }
 
     func refresh() {
-        appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh()
+        appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh(); copilotPane.refresh()
     }
 
     /// Shows the 写作助手 tab.
     func showAgentPane() {
         tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === agentPane } ?? 0
+    }
+
+    /// Shows the Copilot（实验） tab.
+    func showCopilotPane() {
+        tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === copilotPane } ?? 0
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -62,7 +69,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 /// Rows of a settings pane: a trailing-aligned label, then the control with
 /// an optional explanation beneath. Sections are set apart by spacing and a
 /// semibold heading only.
-private enum SettingsLayout {
+enum SettingsLayout {
     static let width: CGFloat = 540
 
     static func heading(_ text: String) -> NSTextField {

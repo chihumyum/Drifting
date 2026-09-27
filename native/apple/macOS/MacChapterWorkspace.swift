@@ -93,6 +93,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let label = NSTextField(labelWithString: "")
         /// 历史版本… of the pane's active page.
         let historyButton = NSButton(title: "历史版本…", target: nil, action: nil)
+        /// Copilot's quiet status, in the active pane only.
+        let copilotLabel = NSTextField(labelWithString: "")
         var tabs: [Tab] = []
         var selected: DocumentScope?
         var active: Tab? { tabs.first { $0.scope == selected } }
@@ -174,6 +176,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     let relations: RelationCoordinator
     /// Every element page's 补丁 and 新建补丁… from chapter and drift selections.
     let patches: PatchCoordinator
+    /// The project's Copilot, which chapter (and drift) tabs report their
+    /// edits, 分析 requests and closing to; nil leaves Copilot out.
+    var copilot: ((String) -> CopilotController?)?
+    /// Copilot's quiet status (正在分析… / 已提出 N 条建议 / 出错：…) beside
+    /// 历史版本… of the active pane; nil hides it.
+    var copilotStatus: String? { didSet { if copilotStatus != oldValue { showCopilotStatus() } } }
     /// A patch's source link opened a chapter or drift; select its anchored
     /// text once shown, while it is still there.
     private var pendingPatchReveal: (view: NativeDocumentView, patch: WorkspacePatch)?
@@ -1947,6 +1955,19 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if let page = tab.page, let element = tab.element {
             patches.attach(page.patchesView, projectID: tab.project.id, elementID: element.id)
         }
+        if let (kind, id) = copilotBody(of: tab) {
+            // Copilot hears the author's edits, 分析 and the body closing.
+            let projectID = tab.project.id
+            tab.view.onEdited = { [weak self, weak view = tab.view] in
+                guard let self, let view else { return }
+                self.copilot?(projectID)?.edited(kind: kind, id: id, store: view.binding.store)
+            }
+            tab.view.canCopilotAnalyze = { [weak self] in self?.copilot?(projectID)?.canAnalyze(kind) == true }
+            tab.view.onCopilotAnalyze = { [weak self, weak view = tab.view] selection in
+                guard let self, let view else { return }
+                self.copilot?(projectID)?.analyze(kind: kind, id: id, store: view.binding.store, selection: selection)
+            }
+        }
         if let nodeID = tab.nodeID {
             // 新建补丁… from a chapter or drift selection.
             tab.view.patchNodeID = nodeID
@@ -2059,7 +2080,27 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.onActivity?(!self.canNavigate)
         }
     }
+    /// The body Copilot knows a chapter or drift tab by.
+    private func copilotBody(of tab: Tab) -> (CopilotBodyKind, String)? {
+        if let chapter = tab.chapter { return (.chapter, chapter.id) }
+        if let drift = tab.drift { return (.drift, drift.id) }
+        return nil
+    }
+
+    private func showCopilotStatus() {
+        for (index, pane) in panes.enumerated() {
+            let text = index == activePane ? copilotStatus ?? "" : ""
+            pane.copilotLabel.stringValue = text
+            pane.copilotLabel.isHidden = text.isEmpty
+        }
+    }
+
     private func disconnect(_ tab: Tab) {
+        if let (kind, id) = copilotBody(of: tab), !allTabs.contains(where: { $0 !== tab && $0.scope == tab.scope }) {
+            // The body's last tab: a Copilot run reading it stops.
+            copilot?(tab.project.id)?.closed(kind: kind, id: id)
+        }
+        tab.view.onEdited = nil; tab.view.canCopilotAnalyze = nil; tab.view.onCopilotAnalyze = nil
         if let section = tab.relationsView { relations.detach(section) }
         if let page = tab.page { patches.detach(page.patchesView) }
         tab.view.onCreatePatch = nil; tab.view.patchNodeID = nil
@@ -2120,7 +2161,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         pane.historyButton.target = self; pane.historyButton.action = #selector(historyPressed(_:))
         pane.historyButton.setAccessibilityIdentifier("show-history-\(index)")
         pane.historyButton.toolTip = "查看并恢复这一页正文的历史版本（⌥⌘Y）"
-        let header = NSStackView(views: [pane.label, NSView(), pane.historyButton])
+        pane.copilotLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        pane.copilotLabel.textColor = .secondaryLabelColor
+        pane.copilotLabel.lineBreakMode = .byTruncatingTail
+        pane.copilotLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        pane.copilotLabel.setAccessibilityIdentifier("copilot-status-\(index)")
+        pane.copilotLabel.isHidden = true
+        let header = NSStackView(views: [pane.label, NSView(), pane.copilotLabel, pane.historyButton])
         let stack = NSStackView(views: [header, scroll, pane.body])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -2191,6 +2238,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.label.stringValue = panes.count == 1 ? "标签" : "\(index == 0 ? "左栏" : "右栏")\(index == activePane ? " · 当前" : "")"
             pane.label.textColor = index == activePane ? .labelColor : .secondaryLabelColor
             pane.historyButton.isEnabled = canNavigate && pane.active != nil
+            let copilotText = index == activePane ? copilotStatus ?? "" : ""
+            pane.copilotLabel.stringValue = copilotText
+            pane.copilotLabel.isHidden = copilotText.isEmpty
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
                 let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift"

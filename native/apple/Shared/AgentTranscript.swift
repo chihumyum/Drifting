@@ -432,6 +432,23 @@ final class AgentConversationStore {
         write(data, name: Self.rulesFile)
     }
 
+    /// Copilot's own token usage in this project, oldest first; none when
+    /// the file is missing. It is not a conversation and never lists as one.
+    static let copilotUsageFile = "copilot-usage.json"
+
+    func loadCopilotUsage() -> [AgentUsageRecord] {
+        queue.sync {
+            guard let data = try? Data(contentsOf: directory.appendingPathComponent(Self.copilotUsageFile)),
+                  let file = try? Self.decoder().decode(CopilotUsageFile.self, from: data) else { return [] }
+            return file.usage
+        }
+    }
+
+    func saveCopilotUsage(_ usage: [AgentUsageRecord]) {
+        guard let data = try? Self.encoder().encode(CopilotUsageFile(usage: usage)) else { return }
+        write(data, name: Self.copilotUsageFile)
+    }
+
     func delete(_ id: String) {
         let target = directory.appendingPathComponent("\(id).json")
         queue.async { try? FileManager.default.removeItem(at: target) }

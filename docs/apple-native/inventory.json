@@ -237,7 +237,7 @@
         "anchor preservation, invalidation and durable review decisions; selection comments created, listed, located, edited and resolved/reopened with exact renderer originals"
       ],
       "milestone": "P2/P3/P5",
-      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-and-Agent-proposal-review-implemented; Mac-review-panel-TODOs-priority-conversion-deletion-and-associations-implemented",
+      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-and-Agent-proposal-review-implemented; Mac-review-panel-TODOs-priority-conversion-deletion-and-associations-implemented; Mac-Copilot-suggestion-accept-and-reject-implemented",
       "decisionTask": null
     },
     {
@@ -420,7 +420,7 @@
         "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
       ],
       "milestone": "P4/P5",
-      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; MCP-planned",
+      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; Mac-Copilot-element-and-patch-suggestions-implemented-experimental-drift-anchoring-open; MCP-planned",
       "decisionTask": "D7"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "Mac-editor-preferences-fonts-writing-plans-and-provider-keys-implemented; localization-planned",
+      "status": "Mac-editor-preferences-fonts-writing-plans-provider-keys-and-Copilot-settings-implemented; localization-planned",
       "decisionTask": null
     },
     {

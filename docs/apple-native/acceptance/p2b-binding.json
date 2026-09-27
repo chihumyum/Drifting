@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T22:07:53.984Z",
+  "generatedAt": "2026-09-27T23:05:51.384Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "add67d346d40cfd065ff5fe0685cdd98802e186a",
+    "commit": "bea818b825ea2f64828f694c616eacb29b251ad3",
     "dirty": true,
-    "fingerprint": "b49dbdbdcb6c7272b708a016f48630035e58f975ef132c4e5b7fceca412fed10"
+    "fingerprint": "9b6276a2218084893a83c1352b5e4a82f6579be6729b136fac987284f0f7a224"
   },
   "cases": [
     {
@@ -788,6 +788,30 @@
     },
     {
       "name": "AppKit 打字机滚动 keeps the caret line at 40% of the visible prose after typing at the end and in the middle of a chapter and in an element page, keeps marked text unpublished and one undo exact, leaves scrolling by hand alone until the next keystroke, stops when switched off and persists in settings.json and 设置",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot is off by default: edits and 分析 send no request, the menu offers nothing and no status shows; 设置 › Copilot（实验） shows every option with the privacy note, writes provider, model, tasks, trigger, delay, language and the drift switch to settings.json, reads them back after a relaunch and falls back value by value for damaged ones",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot runs once typing has stopped for the idle delay (typing again restarts it) and by hand through 编辑 › Copilot 分析 and the prose context menu, sends only the paragraphs changed since its last run (else the selected ones) with the library's names and categories, anchors a suggestion through the chapter's owner as its only journal original, and leaves prose and undo untouched",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot element suggestions leave out existing names, aliases and names the author rejected (sent in the prompt too), map unknown categories to 未分类, drop proposals whose evidence is not in the chapter, anchor each to its evidence, list under 审阅's Copilot filter and in the chapter's 批注 panel with 接受 and 拒绝, record usage beside the assistant's and show it in 设置 › 写作助手 › 用量",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot patch suggestions cover elements named in the changed paragraphs, skip existing valid patches and rejected ones; 接受 creates the element (choosing a category for 未分类) or the patch anchored to the evidence and records accept_suggestion with its elementId or patchId, 拒绝 records reject_suggestion, both in one original each, decided suggestions leave the open lists, and a refused create leaves the suggestion open with the reason and writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot never holds typing while a request is out, runs one request at a time per project, stops its request when the chapter's tab closes without adding anything, retries 503 with the assistant's policy, does not retry 401, and reports a missing key in its quiet status",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent, and while Rust anchors suggestions in chapters only its refusal is shown and nothing is written; turning it off stops a drift run",
       "status": "passed"
     }
   ],

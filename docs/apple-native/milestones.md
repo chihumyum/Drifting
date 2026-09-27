@@ -44,9 +44,9 @@ architectural redesign.
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
 | P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash (with permanent deletion), acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
-| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries and usage ([agent](agent.md)); Google Drive excluded |
+| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries and usage ([agent](agent.md)); experimental Copilot suggestions ([copilot](copilot.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export and the diagnostic summary delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary and experimental Copilot suggestions delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -85,12 +85,13 @@ architectural redesign.
 | Writing assistant tools | `f802c7d4` | [agent](agent.md), [entity links](entity-links.md), [act boundaries](act-boundaries.md) |
 | Trash, hover cards, typewriter scrolling, the project shelf and Markdown folder export | `2c017a2a` | [trash](trash.md), [entity links](entity-links.md), [settings](settings.md), [workspace](workspace.md), [library](library.md) |
 | Assistant rules, working memory, task plans, compaction and retries | `add67d34` | [agent](agent.md), [review](review.md) |
-| Review fixes: trash confirmation, project deletion cleanup, compose target, whole-book undo, atomic reading-order drops | this batch | [trash](trash.md), [workspace](workspace.md), [review](review.md), [whole book](whole-book.md), [timeline](timeline.md) |
+| Review fixes: trash confirmation, project deletion cleanup, compose target, whole-book undo, atomic reading-order drops | `bea818b8` | [trash](trash.md), [workspace](workspace.md), [review](review.md), [whole book](whole-book.md), [timeline](timeline.md) |
+| Copilot suggestions (experimental) | this batch | [copilot](copilot.md), [review](review.md), [settings](settings.md), [chapter comments](chapter-comments.md) |
 
 ## Next batch
 
-Copilot suggestions (experimental); then MCP extensions; printing, PDF
-export and custom shortcuts.
+MCP extensions with the assistant memory fixes; then printing, PDF export
+and custom shortcuts.
 
 ## Open gates
 
@@ -114,6 +115,10 @@ These stay open; they block only the paths named, not the local writing loop.
   composition has not been established. [Observation](system-ime.md).
 - **Desktop XCTest input**: keyboard synthesis opened System Settings and timed
   out; repair the input path before rerunning it.
+- **Copilot in drifts**: Rust anchors suggestions in chapters only
+  (`documentCreateComment` on a drift owner is refused), so with 在灵感中启用
+  drift paragraphs are analysed but their suggestions are not stored.
+  [Copilot](copilot.md#known-gap).
 - **JSON body caches**: chapter and drift caches follow every save
   ([word counts](word-counts.md)); `element`, `element_category` and
   `storylines` `content_json` remain creation seeds, and native readers use

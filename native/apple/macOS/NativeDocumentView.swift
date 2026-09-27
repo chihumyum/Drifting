@@ -17,6 +17,9 @@ final class ProseTextView: NSTextView {
     var performFormat: ((NativeFormatAction) -> Void)?
     var canPerformComment: (() -> Bool)?
     var performComment: (() -> Void)?
+    /// 编辑 › Copilot 分析 (⇧⌘I) on this body.
+    var canPerformCopilot: (() -> Bool)?
+    var performCopilot: (() -> Void)?
     /// Opens the first live link target at a character; false when none.
     var openLink: ((Int) -> Bool)?
     /// Whether a character carries a link mark.
@@ -85,12 +88,17 @@ final class ProseTextView: NSTextView {
         guard canPerformComment?() == true else { return }
         performComment?()
     }
+    @objc func copilotAnalyze(_ sender: Any?) {
+        guard canPerformCopilot?() == true else { return }
+        performCopilot?()
+    }
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
         if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
         if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
         if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
         if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
+        if item.action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
         return super.validateUserInterfaceItem(item)
     }
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
@@ -99,6 +107,7 @@ final class ProseTextView: NSTextView {
         if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
         if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
         if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
+        if item.action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
         return super.validateMenuItem(item)
     }
 }
@@ -153,6 +162,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// host for chapter and drift bodies only, with `patchNodeID`.
     var onCreatePatch: ((WorkspacePatchSource) -> Void)?
     var patchNodeID: String?
+    /// Copilot 分析 of the paragraphs changed since its last run, else those
+    /// the selection touches. Set by the tab host for chapter and drift bodies.
+    var onCopilotAnalyze: ((NSRange) -> Void)?
+    /// Whether Copilot works in this body now (on, allowed here, idle).
+    var canCopilotAnalyze: (() -> Bool)?
     /// The workspace's elements and chapters. Without one, links keep the
     /// default style and cannot be opened. A change restyles the prose only.
     var linkDirectory: EntityLinkDirectory? {
@@ -227,6 +241,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performFormat = { [weak self] in self?.performFormat($0) }
         textView.canPerformComment = { [weak self] in self?.canAddComment == true }
         textView.performComment = { [weak self] in self?.beginComment() }
+        textView.canPerformCopilot = { [weak self] in self?.canRequestCopilot == true }
+        textView.performCopilot = { [weak self] in self?.requestCopilot() }
         textView.openLink = { [weak self] in self?.openLink(at: $0) == true }
         textView.hasLink = { [weak self] in self?.links(at: $0).isEmpty == false }
         textView.onHover = { [weak self] in self?.hover(at: $0) }
@@ -695,6 +711,18 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         onCreatePatch?(source)
     }
 
+    // MARK: Copilot
+
+    var canRequestCopilot: Bool {
+        onCopilotAnalyze != nil && !isInteractionLocked && !textView.hasMarkedText() && canCopilotAnalyze?() == true
+    }
+
+    /// Copilot 分析: reads nothing itself; the tab host asks the project's Copilot.
+    @objc func requestCopilot() {
+        guard canRequestCopilot else { return }
+        onCopilotAnalyze?(textView.selectedRange())
+    }
+
     func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
         var leading: [NSMenuItem] = linkMenuItems(at: charIndex)
         if allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) {
@@ -708,6 +736,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             item.target = self
             item.setAccessibilityIdentifier("context-create-patch")
             item.toolTip = "把选中的文字锚定为一个设定的变化"
+            leading.append(item)
+        }
+        if canRequestCopilot {
+            let item = NSMenuItem(title: "Copilot 分析", action: #selector(requestCopilot), keyEquivalent: "")
+            item.target = self
+            item.setAccessibilityIdentifier("context-copilot-analyze")
+            item.toolTip = "让 Copilot 读一读新写的段落（没有新段落时读选中的段落），提出设定和补丁建议（⇧⌘I）"
             leading.append(item)
         }
         guard !leading.isEmpty else { return menu }

@@ -1,9 +1,10 @@
 # Review (审阅), TODOs and the 备忘与素材 board
 
-审阅 lists the project's notes and TODOs; the 备忘与素材 board sets open TODOs
-beside the 素材库's cards. TODOs and library items are associated (关联) with
-chapters, drifts, elements, categories and storylines. Native only; no Tauri
-interoperability is kept. No SQLite migration is added.
+审阅 lists the project's notes, TODOs and open [Copilot](copilot.md)
+suggestions; the 备忘与素材 board sets open TODOs beside the 素材库's cards.
+TODOs and library items are associated (关联) with chapters, drifts,
+elements, categories and storylines. Native only; no Tauri interoperability
+is kept. No SQLite migration is added.
 
 ## Domain contract
 
@@ -18,7 +19,9 @@ interoperability is kept. No SQLite migration is added.
   写作助手 and source `api`. Every reply carries the result and every comment
   of the project, oldest first. Writes are `entity.create`, one `field.set`
   per changed field and `entity.purge` (after purging the comment's
-  relations), in one original each.
+  relations), in one original each. `resolveSuggestion` records 接受 or 拒绝
+  on an open Copilot suggestion (`accept_suggestion`/`reject_suggestion`,
+  one original) and `suggestionActions` lists those decisions.
 - Selection notes are still created through the chapter's owner
   (`documentCreateComment`, ⌥⌘M); their anchors stay with that owner.
   Deleting one while its chapter is open makes the owner drop the anchor, so
@@ -31,19 +34,22 @@ interoperability is kept. No SQLite migration is added.
 ## Native interaction
 
 审阅 (the action row, 视图 › 审阅, ⌥⌘R) opens a panel beside the editor.
-全部/批注/待办 filter the kind. 当前 lists what concerns the focused tab's
-chapter, drift, element, category or storyline: notes and TODOs on the whole
-page first, then passage notes, then items associated with it, each newest
-first. 全书 lists everything; without a tab 当前 reads as 全书. Open items
-come first; resolved ones wait under 已解决（n）. Converted suggestions are
-not listed.
+全部/批注/待办/Copilot filter the kind (批注 leaves Copilot suggestions out).
+当前 lists what concerns the focused tab's chapter, drift, element, category
+or storyline: notes and TODOs on the whole page first, then passage notes,
+then items associated with it, each newest first. 全书 lists everything;
+without a tab 当前 reads as 全书. Open items come first; resolved ones wait
+under 已解决（n）. Converted suggestions are not listed.
 
-A card reads its kind, priority, where it is written (“章节「雨夜」” or 浮动),
-a passage's live anchor state and quote (from the open owner, else the
-stored quote), 写作助手 when the assistant wrote it (still editable), the body
-and its 关联 chips. 定位 opens the page as a tab; a
-passage note then selects its anchored text in that tab, as the comment
-panel does. 编辑 opens the comment composer. 解决/重新打开 changes the state.
+A card reads its kind (Copilot 建议 · 新设定 or 设定补丁 for a suggestion),
+priority, where it is written (“章节「雨夜」” or 浮动), a passage's live
+anchor state and quote (from the open owner, else the stored quote), 写作助手
+when the assistant wrote it (still editable), the body and its 关联 chips. An
+open suggestion offers 接受 and 拒绝 instead of 编辑 and 解决, with the reason
+under its body when the last try was refused; its ⋯ offers only 删除…. 定位
+opens the page as a tab; a passage note then selects its anchored text in
+that tab, as the comment panel does. 编辑 opens the comment composer.
+解决/重新打开 changes the state.
 ⋯ offers 优先级 (无/低/中/高, the current one checked), 转为待办/转为批注
 (disabled for a floating TODO), 关联 (the project's live pages by kind,
 leaving out those already associated), 移除关联, 编辑… and 删除…, which
@@ -61,7 +67,9 @@ typed.
 
 The chapter's own 批注 panel (编辑 › 批注列表, or 本章批注… in 审阅) keeps the
 anchor view of selection notes and shows notes written on the whole chapter
-as 整章. Changes in either panel reach the other.
+as 整章, and open Copilot suggestions with 接受 and 拒绝. Resolved notes and
+decided suggestions wait under 显示已解决. Changes in either panel reach the
+other.
 
 备忘与素材 (视图 › 备忘与素材, ⌥⌘T, or 看板… in 审阅) is a panel over the
 window: kind chips 待办, 图片, PDF, 链接 and 文字 with their counts show or hide
@@ -72,8 +80,8 @@ reordering ([library](library.md)).
 
 ## Not ported
 
-- The sticky-note rail, Copilot suggestion acceptance and the board's search
-  field, entity filter and 待整理 drawer.
+- The sticky-note rail and the board's search field, entity filter and 待整理
+  drawer.
 - Inline editing on the card: the body is edited in the composer sheet.
 
 ## Acceptance
@@ -89,5 +97,6 @@ resolve/reopen, 已解决 and the board's archive, conversion and body edits;
 save and cold reopen); 关联 for TODOs and library items with a cold relaunch;
 board chips and drag reordering; 幕颜色 ([act boundaries](act-boundaries.md));
 and 删除项目 ([workspace](workspace.md)). Refusals are shown in Chinese with
-nothing written. Physical input, desktop XCTest and panels on screen are not
-covered.
+nothing written. Copilot cards, 接受 and 拒绝 are covered by the
+[Copilot cases](copilot.md#acceptance). Physical input, desktop XCTest and
+panels on screen are not covered.

@@ -60,9 +60,9 @@ has a 状态 section. Drift library rows carry no status, so the panel reads eac
 live drift's metadata once and adopts every later reply. A restored drift is
 read again.
 
-文件 › 项目资料… (⇧⌘I), or 资料 beside the project actions, opens a sheet. It
-shows the chapters counted by status (“共 3 章 · 草稿 1 · 已完成 1”) and three
-parts:
+文件 › 项目资料… (⌥⌘I; ⇧⌘I is Copilot 分析), or 资料 beside the project
+actions, opens a sheet. It shows the chapters counted by status (“共 3 章 ·
+草稿 1 · 已完成 1”) and three parts:
 
 - 本书简介 is trimmed and saved on end-editing.
 - 本书字段 uses the shared facts editor.

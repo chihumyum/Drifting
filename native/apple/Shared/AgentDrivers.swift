@@ -844,6 +844,13 @@ extension AgentDriver {
     /// A request without streaming or tools, as compaction summarises older
     /// turns with the conversation's own provider and model.
     static func summaryRequest(choice: AgentModelChoice, apiKey: String, system: String, prompt: String) throws -> URLRequest {
+        try completionRequest(choice: choice, apiKey: apiKey, system: system, prompt: prompt, maxTokens: summaryOutputTokens)
+    }
+
+    /// One system prompt and one user message, answered whole: compaction
+    /// summaries and Copilot's structured tasks. Thinking stays off.
+    static func completionRequest(choice: AgentModelChoice, apiKey: String, system: String, prompt: String,
+                                  maxTokens: Int) throws -> URLRequest {
         var url = URLRequest(url: endpoint(choice.provider))
         url.httpMethod = "POST"
         url.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -852,16 +859,16 @@ extension AgentDriver {
         switch choice.provider {
         case .deepseek:
             url.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
-            body = ["model": choice.model, "stream": false, "max_tokens": summaryOutputTokens, "thinking": ["type": "disabled"],
+            body = ["model": choice.model, "stream": false, "max_tokens": maxTokens, "thinking": ["type": "disabled"],
                     "messages": [["role": "system", "content": system], ["role": "user", "content": prompt]]]
         case .anthropic:
             url.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             url.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-            body = ["model": choice.model, "stream": false, "max_tokens": summaryOutputTokens, "system": system,
+            body = ["model": choice.model, "stream": false, "max_tokens": maxTokens, "system": system,
                     "messages": [["role": "user", "content": [["type": "text", "text": prompt]]]]]
         case .openai:
             url.setValue("Bearer \(apiKey)", forHTTPHeaderField: "authorization")
-            body = ["model": choice.model, "stream": false, "store": false, "max_output_tokens": summaryOutputTokens,
+            body = ["model": choice.model, "stream": false, "store": false, "max_output_tokens": maxTokens,
                     "instructions": system, "reasoning": ["effort": "none"], "input": [["role": "user", "content": prompt]]]
         }
         url.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])

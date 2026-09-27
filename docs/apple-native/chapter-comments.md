@@ -4,7 +4,8 @@ The Mac editor can comment on a selection, list the current chapter's comments,
 locate one, edit its body and resolve or reopen it. Rows, anchors and canonical
 originals use the shared Rust owners. Notes and TODOs outside a selection,
 priorities, 批注↔待办 conversion, deletion and 关联 belong to the project's
-[审阅](review.md); Agent suggestion handling is not ported.
+[审阅](review.md); open [Copilot](copilot.md) suggestions are accepted or
+rejected here and in 审阅.
 
 ## Domain contract
 
@@ -45,7 +46,8 @@ chapter in 审阅 are listed as 整章, and TODOs as 待办. Deleting a passage 
 while its chapter is open makes the owner drop the anchor first; every view's
 highlight leaves and later saves never restore it. Locating selects the current
 anchor range in the active pane only. Body editing is enabled for manual notes;
-other sources are shown read-only. UIKit is unchanged while mobile work is
+other sources are shown read-only. Resolved notes and accepted or rejected
+suggestions wait under 显示已解决. UIKit is unchanged while mobile work is
 deferred.
 
 ## Acceptance

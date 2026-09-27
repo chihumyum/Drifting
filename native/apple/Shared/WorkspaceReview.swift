@@ -138,21 +138,25 @@ final class AssociationModel {
 // MARK: 审阅
 
 enum ReviewFilter: CaseIterable {
-    case all, notes, todos
+    case all, notes, todos, copilot
 
     var label: String {
         switch self {
         case .all: return "全部"
         case .notes: return "批注"
         case .todos: return "待办"
+        case .copilot: return "Copilot"
         }
     }
 
+    /// 批注 are the author's and the assistant's notes; Copilot suggestions
+    /// have their own filter.
     func matches(_ comment: WorkspaceComment) -> Bool {
         switch self {
         case .all: return true
-        case .notes: return !comment.isTodo
+        case .notes: return !comment.isTodo && !comment.isCopilot
         case .todos: return comment.isTodo
+        case .copilot: return comment.isCopilot
         }
     }
 }
@@ -269,6 +273,14 @@ final class ReviewModel {
     }
 
     func comment(id: String) -> WorkspaceComment? { comments.first { $0.id == id } }
+
+    /// A reply from outside this model (a Copilot decision) listed every
+    /// comment of the project: adopt it, with the command's message.
+    func adopt(_ comments: [WorkspaceComment], message: String?) {
+        self.comments = comments; loaded = true
+        status = message ?? summary; self.message = message
+        changed()
+    }
 
     // MARK: Lists
 
