@@ -497,7 +497,7 @@ struct ElementOverviewScene {
             for act in book.acts where !act.chapterIDs.isEmpty {
                 let indices = act.chapterIDs.compactMap { id in book.chapters.firstIndex { $0.id == id } }
                 guard let first = indices.min(), let last = indices.max() else { continue }
-                acts.append(ActSpan(id: act.id, title: act.title.isEmpty ? "未命名幕" : act.title, colorHex: BookPalette.act(act.index),
+                acts.append(ActSpan(id: act.id, title: act.title.isEmpty ? "未命名幕" : act.title, colorHex: act.hex,
                                     frame: CGRect(x: slotRect(first).minX + 2, y: bandFrame.minY + M.bandPadding,
                                                   width: CGFloat(last - first + 1) * M.slot - 4, height: M.actStrip - 4),
                                     count: act.chapterIDs.count))

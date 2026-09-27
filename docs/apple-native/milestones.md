@@ -26,6 +26,9 @@ architectural redesign.
   oracles are not extended. Existing parity reports stay as regression
   evidence while they pass; retire or narrow one when native intentionally
   diverges. The Agent follows the renderer's provider configuration.
+- 2026-09-27: the Mac UI uses plain native AppKit style: standard controls
+  and system appearance, no custom design system or visual-polish batches.
+  Functional UI rules (Chinese strings, no inset-left accent bars) stay.
 - 2026-09-27: implementation and routine acceptance are Mac-only. iPhone and
   iPad resume only after the Mac migration and a discussion with the author.
   Shared Rust, existing UIKit code and historical mobile reports are kept.
@@ -40,10 +43,10 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations, word counts |
+| P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash, acts and act colours, outline, search, comments and TODOs, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals ([agent](agent.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -75,12 +78,15 @@ architectural redesign.
 | Settings, imported bold/italic, Enter after a linked name | `a246b632` | [settings](settings.md), [library](library.md), [entity links](entity-links.md) |
 | Category pages and element body templates | `f251cf7b` | [categories](categories.md) |
 | Whole-book editor, statistics and writing plan | `38d5e4e7` | [whole book](whole-book.md) |
-| Element overview (设定总览), atomic story graph drops, version reasons and word counts, one-read node metadata | this batch | [element overview](element-overview.md), [timeline](timeline.md), [history](history.md), [metadata](metadata.md) |
+| Element overview (设定总览), atomic story graph drops, version reasons and word counts, one-read node metadata | `9e4e8960` | [element overview](element-overview.md), [timeline](timeline.md), [history](history.md), [metadata](metadata.md) |
+| Review panel, TODOs, memo board, act colours and project deletion | this batch | [review](review.md), [library](library.md), [act boundaries](act-boundaries.md), [chapter comments](chapter-comments.md), [workspace](workspace.md) |
 
 ## Next batch
 
-The review panel with TODOs and associations, the 备忘与素材 board with
-library ordering, act colours, and project deletion.
+Global search (summaries, drifts, elements, categories, storylines,
+materials) and today's words for the daily goal; then element patches
+(设定补丁), the bottom timeline with its act rail, and more writing-assistant
+tools.
 
 ## Open gates
 

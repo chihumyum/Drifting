@@ -16,8 +16,8 @@ rename and ordering. Swift passes names, identities and destination anchors thro
 the Apple bridge; it does not assemble SQL, defaults, order values or journals.
 The applications use separate native identities and `apple-native-workspace.db`.
 The older fixed editor fixture remains in `native-lab.db` for binding tests.
-There is no production-library import, cloud transport, delete/restore workflow
-or new compatibility adapter in this slice.
+There is no production-library import, cloud transport, project restore or
+new compatibility adapter; project deletion is below.
 
 Project creation writes six normalized default facts and their order, the built-in
 generic association type, an active sync generation and local lifecycle records.
@@ -76,6 +76,33 @@ array; it never computes `bookOrder`. Successful movement updates the list and
 keeps the current editor, selection, prose and undo/redo history. Failed movement
 keeps the previous list and owner. The UI blocks moves while input, composition,
 persistence or another workspace operation is pending.
+
+## Project deletion contract
+
+`workspaceDeleteProject {projectId}` is refused while any chapter, element,
+storyline, drift or category body of the project is open (“请先关闭这个项目里打开
+的章节和页面，再删除项目”), writing nothing. Otherwise one transaction commits a
+single `sync-generation.purge` original for the project's generation, marks
+the generation and its provider bindings purged and removes the project's
+rows (entities, relations, comments, library items, asset rows and Agent
+rows through the foreign-key tree), its Yjs state and version history by
+document id. The journal and receipts stay, detached from the project.
+Asset bytes are removed after the commit; a failed removal is collected at
+the next open. The reply is `{"deleted": {projectId, assetIds, documentIds},
+"projects": [remaining]}`.
+
+AppKit offers 删除项目… in the project list's context menu, 文件 and 项目资料.
+A sheet names what is removed (chapters, drifts, elements, categories,
+storylines, notes and TODOs, library items with their stored files, and
+their relations, trash, history and writing plan) and enables 删除项目 only
+when the project's name is typed exactly. It then closes the project's
+panels (the 全书长卷 first lets go of its editors), then every tab of the
+project in both panes, saving each as closing a tab does. A panel or tab
+that cannot close (input in flight, a failed save) stops it with the reason
+in Chinese and nothing is deleted; a Rust refusal is shown the same way. On
+success the lab forgets the project's writing plan and 设定总览 viewport and
+opens the first remaining project, or creates an empty “未命名项目” when none
+remain. The [review cases](review.md) accept it.
 
 ## Bounded acceptance
 

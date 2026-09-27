@@ -24,6 +24,8 @@ mod metadata;
 mod metrics;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
+#[path = "workspace_project_tests.rs"]
+mod project_tests;
 #[path = "workspace_relation_tests.rs"]
 mod relation_tests;
 #[path = "workspace_remote_changes_tests.rs"]
@@ -38,6 +40,8 @@ mod storylines;
 mod tabs;
 #[path = "workspace_timeline_tests.rs"]
 mod timeline_tests;
+#[path = "workspace_todo_tests.rs"]
+mod todo_tests;
 #[path = "workspace_transfer_tests.rs"]
 mod transfer_tests;
 #[path = "workspace_trash_tests.rs"]

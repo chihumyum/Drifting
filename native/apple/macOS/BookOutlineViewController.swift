@@ -104,6 +104,15 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         let stack = NSStackView(views: [label])
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 0, left: CGFloat(item.depth) * 14, bottom: 0, right: 4)
+        // An act leads with a small swatch of its colour; no edge accent.
+        if item.isAct, let hex = model.actHex(actID: item.entry.id) {
+            let swatch = NSImageView(image: ElementSwatch.image(color: ElementSwatch.color(hex: hex)))
+            swatch.setAccessibilityIdentifier("outline-act-swatch-\(item.entry.id)")
+            swatch.setAccessibilityLabel("幕颜色")
+            swatch.toolTip = hex
+            swatch.setContentHuggingPriority(.required, for: .horizontal)
+            stack.insertArrangedSubview(swatch, at: 0)
+        }
         // The writing status follows the title in small text: 已完成 a little
         // stronger, 已弃用 with the title muted. No edge accent.
         if item.isChapter, let status = model.writingStatus(chapterID: item.entry.id) {
@@ -214,6 +223,7 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             }
             remove.setAccessibilityIdentifier("outline-remove-act")
             button.menu?.addItem(rename); button.menu?.addItem(remove)
+            button.menu?.addItem(actColorItem(item.entry))
             button.menu?.addItem(.separator())
             let bound = model.boundDrift(actID: item.entry.id)
             let bind = OutlineActionMenuItem(title: bound == nil ? "绑定幕笔记…" : "更换幕笔记…") { [weak self] in
@@ -230,6 +240,24 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             button.menu?.addItem(bind); button.menu?.addItem(unbind)
         }
         return button
+    }
+
+    /// 幕颜色: the palette with the stored colour checked, and 恢复默认 while
+    /// one is stored. Choosing the stored colour writes nothing.
+    private func actColorItem(_ entry: WorkspaceOutlineEntry) -> NSMenuItem {
+        let item = NSMenuItem(title: "幕颜色", action: nil, keyEquivalent: "")
+        item.setAccessibilityIdentifier("outline-act-color")
+        item.submenu = ActColorMenu.make(stored: entry.color, prefix: "outline-act-color") { [weak self] color in
+            guard let self, self.canChangeColor() else { return }
+            self.model.setActColor(id: entry.id, color: color)
+        }
+        item.isEnabled = !model.busy
+        return item
+    }
+
+    private func canChangeColor() -> Bool {
+        guard !model.busy else { model.showStatus("正在保存幕分界，请稍后重试。"); return false }
+        return true
     }
 
     private func setStatus(_ entry: WorkspaceOutlineEntry, _ status: String) {
@@ -334,4 +362,29 @@ private final class OutlineActionMenuItem: NSMenuItem {
     }
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc private func press() { onPress() }
+}
+
+/// 幕颜色's submenu, shared by the 整书大纲 and the 全书长卷's act separators:
+/// the palette with swatches, the stored colour checked, then 恢复默认.
+enum ActColorMenu {
+    static func make(stored: String?, prefix: String, choose: @escaping (String?) -> Void) -> NSMenu {
+        let menu = NSMenu(title: "幕颜色")
+        for entry in BookPalette.choices {
+            let item = LibraryMenuItem(title: entry.name, identifier: "\(prefix)-\(entry.hex.dropFirst().lowercased())") {
+                // The stored colour is already applied; nothing is written.
+                guard stored?.caseInsensitiveCompare(entry.hex) != .orderedSame else { return }
+                choose(entry.hex)
+            }
+            item.image = ElementSwatch.image(color: ElementSwatch.color(hex: entry.hex))
+            item.state = stored?.caseInsensitiveCompare(entry.hex) == .orderedSame ? .on : .off
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let reset = LibraryMenuItem(title: "恢复默认", identifier: "\(prefix)-default") { choose(nil) }
+        reset.isEnabled = stored != nil
+        reset.toolTip = "按幕的顺序使用默认颜色"
+        menu.addItem(reset)
+        menu.autoenablesItems = false
+        return menu
+    }
 }

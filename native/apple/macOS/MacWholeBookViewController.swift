@@ -52,6 +52,8 @@ final class WholeBookActRow: WholeBookRow {
     let titleLabel = NSTextField(labelWithString: "")
     let detailLabel = NSTextField(labelWithString: "")
     let wash = ElementHeaderWash()
+    /// The separator's context menu (幕颜色).
+    var onMenu: ((WholeBookActRow) -> NSMenu?)?
 
     init(act: BookAct) {
         self.act = act
@@ -84,12 +86,14 @@ final class WholeBookActRow: WholeBookRow {
         self.act = act
         titleLabel.stringValue = act.title
         detailLabel.stringValue = act.chapterIDs.isEmpty ? "尚无章节" : "\(act.chapterIDs.count) 章"
-        wash.tint = ElementSwatch.color(hex: BookPalette.act(act.index))
+        wash.tint = ElementSwatch.color(hex: act.hex)
         setAccessibilityIdentifier("whole-book-act-\(act.id)")
         setAccessibilityLabel("幕 \(act.title)")
     }
 
     override var key: String { "act:\(act.id)" }
+
+    override func menu(for event: NSEvent) -> NSMenu? { onMenu?(self) ?? super.menu(for: event) }
 
     /// A separator's height, the same for every act; read once.
     fileprivate(set) static var standardHeight: CGFloat?
@@ -353,6 +357,8 @@ final class MacWholeBookViewController: NSViewController {
     var onOpenLink: ((EntityLinkTarget) -> Void)?
     /// 写作状态 chosen in a chapter's menu.
     var onSetStatus: ((BookChapter, String) -> Void)?
+    /// An act separator's 幕颜色 was stored; views that colour acts follow.
+    var onActColorChanged: (() -> Void)?
 
     let jumpButton = NSPopUpButton(frame: .zero, pullsDown: true)
     let statsButton = NSButton(title: "统计", target: nil, action: nil)
@@ -548,7 +554,10 @@ final class MacWholeBookViewController: NSViewController {
 
     private func makeRow(_ slot: Slot) -> WholeBookRow {
         switch slot.item {
-        case .act(let act): return WholeBookActRow(act: act)
+        case .act(let act):
+            let row = WholeBookActRow(act: act)
+            row.onMenu = { [weak self] row in self?.actMenu(for: row) }
+            return row
         case .chapter(let chapter):
             let row = WholeBookChapterRow(chapter: chapter, projectID: project.id)
             row.preview.onClick = { [weak self, weak row] location in
@@ -583,6 +592,24 @@ final class MacWholeBookViewController: NSViewController {
             slot.row?.removeFromSuperview()
         }
         if let first { placeRows(from: first) }
+    }
+
+    /// 幕颜色 on an act separator: the palette and 恢复默认. The book is read
+    /// again after the colour is stored.
+    func actMenu(for row: WholeBookActRow) -> NSMenu {
+        let menu = NSMenu()
+        let header = NSMenuItem(title: "幕颜色", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        let act = row.act
+        let choices = ActColorMenu.make(stored: act.color, prefix: "whole-book-act-color") { [weak self] color in
+            self?.model.setActColor(actID: act.id, color: color) { [weak self] result in
+                if case .success = result { self?.onActColorChanged?() }
+            }
+        }
+        for item in choices.items { choices.removeItem(item); menu.addItem(item) }
+        menu.autoenablesItems = false
+        return menu
     }
 
     private func statusMenu(for row: WholeBookChapterRow) -> NSMenu? {

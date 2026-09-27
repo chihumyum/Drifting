@@ -4,7 +4,7 @@
 //! Rows and bytes follow the asset store's import/commit/delete protocol.
 use super::*;
 use crate::asset_store::AssetStore;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 #[cfg(test)]
@@ -337,6 +337,64 @@ impl WorkspaceStore<'_> {
             }
             self.commit_changes(tx, context, &mutations, None)?;
             self.library_item(tx, context, item_id)
+        })
+    }
+
+    /// Moves an item before `before` (or to the end) in the library's
+    /// authored order and renumbers the `order_key` projection by rank. An
+    /// unchanged order writes nothing. Returns the library in its new order.
+    pub fn move_library_item(
+        &self,
+        context: &AuthoredProseContext,
+        item_id: &str,
+        before: Option<&str>,
+    ) -> Result<Vec<WorkspaceLibraryItem>, String> {
+        validate_context(context)?;
+        if before == Some(item_id) {
+            return Err("素材不能移到自己前面".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let current = self.library_rows(Some(tx), &context.project_id, None)?;
+            let ids: Vec<String> = current.iter().map(|item| item.id.clone()).collect();
+            if !ids.iter().any(|id| id == item_id) {
+                return Err("素材不存在".into());
+            }
+            let mut desired: Vec<String> = ids.iter().filter(|id| *id != item_id).cloned().collect();
+            let at = match before {
+                Some(before) => desired
+                    .iter()
+                    .position(|id| id == before)
+                    .ok_or("目标位置的素材不存在")?,
+                None => desired.len(),
+            };
+            desired.insert(at, item_id.to_string());
+            if desired == ids {
+                return Ok(current);
+            }
+            let mut incarnations = HashMap::new();
+            for id in &desired {
+                incarnations.insert(id.clone(), self.library_incarnation(tx, context, id)?);
+            }
+            let mut positions = HashMap::new();
+            for row in self.query(Some(tx), "SELECT entity_id,incarnation,position_key FROM sync_order_register WHERE sync_generation_id=? AND list_kind='library-item' AND owner_id=?",
+                vec![text(&context.sync_generation_id), text(&context.project_id)])? {
+                let id = string(&row, 0)?;
+                if incarnations.get(&id).is_some_and(|incarnation| optional_u64(&row[1]) == Some(*incarnation)) {
+                    positions.insert(id, string(&row, 2)?);
+                }
+            }
+            let mut mutations = Vec::new();
+            super::facts::push_order("library-item", &context.project_id, &positions, &desired,
+                &|id| incarnations.get(id).copied().unwrap_or(0), &mut mutations)?;
+            for (rank, id) in desired.iter().enumerate() {
+                self.execute(tx, "UPDATE library_item SET order_key=? WHERE id=? AND project_id=? AND order_key IS NOT ?",
+                    vec![V::Integer(rank.to_string()), text(id), text(&context.project_id), V::Integer(rank.to_string())])?;
+            }
+            self.execute(tx, "UPDATE library_item SET updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&context.now_iso), text(item_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            self.library_rows(Some(tx), &context.project_id, None)
         })
     }
 

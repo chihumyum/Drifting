@@ -120,3 +120,80 @@ fn workspace_library_imports_edits_deletes_and_collects() {
     );
     fixture.close();
 }
+
+#[test]
+fn workspace_library_reorders_items_in_authored_order() {
+    let mut fixture = Fixture::new();
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let changes = |db: &DatabaseGateway| {
+        db.query(
+            "SELECT COUNT(*) FROM sync_change_set".into(),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows
+    };
+    let mut ids = Vec::new();
+    for title in ["甲", "乙", "丙", "丁"] {
+        let reply = success(library(
+            &fixture,
+            json!({"action":"createText","title":title,"body":title}),
+        ));
+        ids.push(reply["result"]["id"].as_str().unwrap().to_string());
+    }
+    let titles = |reply: &Value| -> Vec<String> {
+        items(reply)
+            .iter()
+            .map(|item| item["title"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let moved = success(library(
+        &fixture,
+        json!({"action":"moveItem","itemId":ids[3],"before":ids[0]}),
+    ));
+    assert_eq!(titles(&moved), ["丁", "甲", "乙", "丙"]);
+    let keys: Vec<i64> = items(&moved)
+        .iter()
+        .map(|item| item["orderKey"].as_i64().unwrap())
+        .collect();
+    assert_eq!(keys, [0, 1, 2, 3]);
+    let after = changes(&db);
+    // Moving to the current place writes nothing; bad targets are refused.
+    success(library(
+        &fixture,
+        json!({"action":"moveItem","itemId":ids[3],"before":ids[0]}),
+    ));
+    for command in [
+        json!({"action":"moveItem","itemId":ids[0],"before":ids[0]}),
+        json!({"action":"moveItem","itemId":"missing","before":ids[0]}),
+        json!({"action":"moveItem","itemId":ids[0],"before":"missing"}),
+    ] {
+        rejected(library(&fixture, command));
+    }
+    assert_eq!(changes(&db), after);
+    let last = success(library(
+        &fixture,
+        json!({"action":"moveItem","itemId":ids[0]}),
+    ));
+    assert_eq!(titles(&last), ["丁", "乙", "丙", "甲"]);
+    let registered = db
+        .query(
+            "SELECT COUNT(DISTINCT entity_id) FROM sync_order_register WHERE list_kind='library-item'".into(),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows;
+    assert_eq!(registered, vec![vec![DatabaseValue::Integer("4".into())]]);
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let reopened = success(library(&fixture, json!({"action":"library"})));
+    assert_eq!(titles(&reopened), ["丁", "乙", "丙", "甲"]);
+    fixture.close();
+}

@@ -340,3 +340,59 @@ fn workspace_act_failure_preserves_owner_and_retries() {
     );
     fixture.close();
 }
+
+#[test]
+fn workspace_act_color_set_clear_and_cold_outline() {
+    let mut fixture = Fixture::new();
+    let owner = fixture.open(0)["handle"].as_u64().unwrap();
+    let db = gateway(owner);
+    let act = success(create_request(&fixture, 1));
+    let color = |fixture: &Fixture, value: Value| {
+        let mut request = act_request(fixture, "workspaceSetActColor", &act);
+        request["color"] = value;
+        request
+    };
+    let act_row = |fixture: &Fixture| {
+        outline(fixture)
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == act["id"])
+            .unwrap()
+            .clone()
+    };
+    assert!(act_row(&fixture).get("color").is_none());
+    let changes = |db: &DatabaseGateway| query(db, "SELECT COUNT(*) FROM sync_change_set");
+    let before = changes(&db);
+    let colored = success(color(&fixture, json!("#3a7bd5")));
+    assert_eq!(
+        (&colored["color"], &colored["name"]),
+        (&json!("#3a7bd5"), &act["name"])
+    );
+    assert_eq!(act_row(&fixture)["color"], "#3a7bd5");
+    let after = changes(&db);
+    assert_ne!(after, before);
+    // An unchanged colour writes nothing; malformed colours are refused.
+    success(color(&fixture, json!("#3a7bd5")));
+    for value in ["red", "#12345g", "#fff", ""] {
+        rejected(color(&fixture, json!(value)));
+    }
+    assert_eq!(changes(&db), after);
+    // Chapters never carry a colour.
+    assert!(outline(&fixture)
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["kind"] == "chapter")
+        .all(|row| row.get("color").is_none()));
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(act_row(&fixture)["color"], "#3a7bd5");
+    let cleared = success(color(&fixture, Value::Null));
+    assert_eq!(cleared["color"], Value::Null);
+    assert!(act_row(&fixture).get("color").is_none());
+    fixture.close();
+}

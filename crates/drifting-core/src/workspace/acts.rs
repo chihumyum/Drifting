@@ -102,6 +102,52 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Sets (`#rrggbb`) or clears (`None`) the act's colour; unchanged
+    /// colours write nothing.
+    pub fn set_act_color(
+        &self,
+        context: &AuthoredProseContext,
+        act_id: &str,
+        color: Option<&str>,
+    ) -> Result<WorkspaceAct, String> {
+        validate_context(context)?;
+        if !opaque(act_id) || color.is_some_and(|value| !elements::color(value)) {
+            return Err("Invalid act identity or colour".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut act, incarnation) = self.live_act(tx, context, act_id)?;
+            if act.color.as_deref() == color {
+                return Ok(act);
+            }
+            self.execute(
+                tx,
+                "UPDATE book_act SET color=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    color.map(text).unwrap_or(V::Null),
+                    text(&context.now_iso),
+                    text(act_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::field(
+                    "book-act",
+                    act_id,
+                    incarnation,
+                    "color",
+                    json!(color),
+                )],
+                None,
+            )?;
+            act.color = color.map(Into::into);
+            act.updated_at = context.now_iso.clone();
+            Ok(act)
+        })
+    }
+
     /// A drift is bound solely by book_act.drift_node_id. Deleting this row
     /// releases that binding without changing or deleting the drift or prose.
     pub fn remove_act(

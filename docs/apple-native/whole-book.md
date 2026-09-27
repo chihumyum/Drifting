@@ -15,9 +15,11 @@ heading takes the caret.
 
 The book comes from Rust's outline rows (acts, including empty ones, and
 chapters) and each chapter's status from the chapter list. An act separator
-is the act's name on a wash in its colour with its chapter count; there is
-no edge accent. Each chapter shows its title, status and word count, then its
-body. Right-clicking a chapter offers its 写作状态.
+is the act's name on a wash in its colour (stored with 幕颜色, else the
+renderer's six story hues by position) with its chapter count; there is no
+edge accent. Right-clicking it offers 幕颜色 ([act boundaries](act-boundaries.md)).
+Each chapter shows its title, status and word count, then its body.
+Right-clicking a chapter offers its 写作状态.
 
 - **Virtualization.** Each row has a frame, placed one after another. Rows
   get a view only within 2.5 viewports of the visible area. Views of farther
@@ -70,8 +72,6 @@ status.
   baseline, and a first-observation baseline would count received and
   imported text as the author's, so the daily goal is stored but no progress
   is shown for it.
-- **Act colours.** Outline rows carry no act colour, so acts cycle the
-  renderer's six story hues by position. A stored colour needs an ABI change.
 - **Other features.** Find in the long view (`AllChaptersFindPanel`), the
   outline rail, remembering the reading position across launches, and a
   shared toolbar for the focused chapter are not ported. Each attached

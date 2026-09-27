@@ -270,6 +270,26 @@ final class RelationCoordinator {
 
     init(workspace: LabWorkspaceCore) { self.workspace = workspace }
 
+    private var associationModels: [String: AssociationModel] = [:]
+
+    /// The project's 关联 of notes, TODOs and library items, over the same
+    /// relation library; names follow the tab host's.
+    func associations(projectID: String) -> AssociationModel {
+        if let model = associationModels[projectID] { return model }
+        let model = AssociationModel(projectID: projectID, relations: self.model(projectID: projectID)) { [weak self] in
+            self?.names?(projectID) ?? .empty
+        }
+        associationModels[projectID] = model
+        return model
+    }
+
+    /// Drops a deleted project's models; its sections are gone with its tabs.
+    func forget(projectID: String) {
+        models.removeValue(forKey: projectID)
+        associationModels.removeValue(forKey: projectID)
+        bindings.removeAll { $0.section == nil || $0.projectID == projectID }
+    }
+
     /// The project's model, read once when first asked for.
     func model(projectID: String) -> RelationLibraryModel {
         if let model = models[projectID] { return model }
@@ -325,6 +345,7 @@ final class RelationCoordinator {
     func refresh(projectID: String) {
         guard let model = models[projectID] else { return }
         let names = self.names?(projectID) ?? .empty
+        associationModels[projectID]?.namesChanged()
         for binding in bindings where binding.projectID == projectID {
             if let section = binding.section { show(section, endpoint: binding.endpoint, model: model, names: names) }
         }

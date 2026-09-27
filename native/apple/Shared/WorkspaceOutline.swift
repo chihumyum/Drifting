@@ -139,6 +139,21 @@ final class WorkspaceOutlineModel {
         }
     }
 
+    /// 幕颜色: a stored `#rrggbb` colour, or nil for 恢复默认. Metadata only;
+    /// Rust writes nothing for an unchanged colour.
+    func setActColor(id: String, color: String?, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        mutate(message: color == nil ? "已恢复这一幕的默认颜色。" : "幕颜色已保存。", completion: completion) {
+            workspace.setActColor(projectID: projectID, actID: id, color: color, completion: $0)
+        }
+    }
+
+    /// The act's colour: the stored one, else its hue by position among acts.
+    func actHex(actID: String) -> String? {
+        let acts = entries.filter { $0.kind == "act" }
+        guard let index = acts.firstIndex(where: { $0.id == actID }) else { return nil }
+        return acts[index].color ?? BookPalette.act(index)
+    }
+
     func removeAct(id: String, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
         mutate(message: "幕分界已移除，章节和正文保持不变。", completion: completion) {
             workspace.removeAct(projectID: projectID, actID: id, completion: $0)

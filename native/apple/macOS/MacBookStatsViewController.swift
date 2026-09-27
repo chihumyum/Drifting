@@ -17,6 +17,8 @@ final class BookProgressBar: NSView {
 /// The acts' shares of the book as one strip of their colours.
 final class BookActStrip: NSView {
     var rows: [BookStats.ActRow] = [] { didSet { needsDisplay = true } }
+    /// The drawn segments' colours, in reading order.
+    var colors: [NSColor] { rows.filter { $0.share > 0 }.map { BookRhythmChart.color(hex: $0.act.hex) } }
     override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 6) }
     override func draw(_ dirtyRect: NSRect) {
         NSColor.secondaryLabelColor.withAlphaComponent(0.15).setFill()
@@ -24,7 +26,7 @@ final class BookActStrip: NSView {
         var x: CGFloat = 0
         for row in rows where row.share > 0 {
             let width = bounds.width * CGFloat(row.share)
-            BookRhythmChart.color(actIndex: row.act.index).setFill()
+            BookRhythmChart.color(hex: row.act.hex).setFill()
             NSRect(x: x, y: 0, width: width, height: bounds.height).fill()
             x += width
         }
@@ -47,6 +49,10 @@ final class BookRhythmChart: NSView {
 
     static func color(actIndex: Int?) -> NSColor {
         actIndex.flatMap { ElementSwatch.color(hex: BookPalette.act($0)) } ?? .tertiaryLabelColor
+    }
+    /// An act's colour (stored or by position); neutral before the first act.
+    static func color(hex: String?) -> NSColor {
+        hex.flatMap { ElementSwatch.color(hex: $0) } ?? .tertiaryLabelColor
     }
 
     func show(_ bars: [BookStats.Bar], longest: Int) {
@@ -74,7 +80,7 @@ final class BookRhythmChart: NSView {
         return NSRect(x: 0, y: row.minY + (Self.rowHeight - Self.barHeight) / 2, width: max(2, bounds.width * fraction), height: Self.barHeight)
     }
 
-    func color(at index: Int) -> NSColor { Self.color(actIndex: bars[index].actIndex) }
+    func color(at index: Int) -> NSColor { Self.color(hex: bars[index].actHex) }
 
     func index(at point: NSPoint) -> Int? {
         let index = Int(floor((point.y - 1) / Self.rowHeight))
@@ -278,7 +284,7 @@ final class MacBookStatsViewController: NSViewController {
         button.act = row.act
         button.isBordered = false
         button.imagePosition = .imageLeading
-        button.image = ElementSwatch.image(color: BookRhythmChart.color(actIndex: row.act.index))
+        button.image = ElementSwatch.image(color: BookRhythmChart.color(hex: row.act.hex))
         let title = NSMutableAttributedString(string: row.act.title, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)])
         title.append(NSAttributedString(string: "  " + BookStats.actText(row), attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.secondaryLabelColor]))

@@ -7,6 +7,8 @@ use drifting_core::workspace::{
 use drifting_document::Edit;
 #[path = "workspace_agent.rs"]
 pub(super) mod agent;
+#[path = "workspace_comments.rs"]
+pub(super) mod comments;
 #[path = "workspace_drifts.rs"]
 pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
@@ -168,10 +170,12 @@ pub(super) fn dispatch(
             | Request::WorkspaceProjects { .. }
             | Request::WorkspaceCreateProject { .. }
             | Request::WorkspaceRenameProject { .. }
+            | Request::WorkspaceDeleteProject { .. }
             | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceCreateAct { .. }
             | Request::WorkspaceRenameAct { .. }
+            | Request::WorkspaceSetActColor { .. }
             | Request::WorkspaceRemoveAct { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
@@ -192,6 +196,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceStorylines { .. }
             | Request::WorkspaceDrifts { .. }
             | Request::WorkspaceMetadata { .. }
+            | Request::WorkspaceComments { .. }
             | Request::WorkspaceRelations { .. }
             | Request::WorkspaceMetrics { .. }
             | Request::WorkspaceAgent { .. }
@@ -284,6 +289,33 @@ pub(super) fn dispatch(
             json!(WorkspaceStore::new(&workspace.gateway, CLIENT)
                 .rename_project(&workspace.context(&project)?, name)?)
         }
+        Request::WorkspaceDeleteProject { handle, project_id } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            let open = [
+                &workspace.documents,
+                &workspace.elements,
+                &workspace.storyline_bodies,
+                &workspace.drift_bodies,
+                &workspace.category_bodies,
+            ]
+            .iter()
+            .any(|owners| owners.keys().any(|(project, _)| project == project_id));
+            if open {
+                return Err("请先关闭这个项目里打开的章节和页面，再删除项目".into());
+            }
+            let store = WorkspaceStore::new(&workspace.gateway, CLIENT);
+            let deletion = store.delete_project(&workspace.context(&project)?)?;
+            // Bytes follow the committed rows; a failed removal is collected
+            // at the next open.
+            let assets = workspace.assets();
+            for asset in &deletion.asset_ids {
+                let _ = assets.remove(project_id, asset);
+            }
+            json!({"deleted": deletion, "projects": store.list_projects(WORKSPACE_USER)?})
+        }
         Request::WorkspaceRenameChapter {
             handle,
             project_id,
@@ -352,6 +384,24 @@ pub(super) fn dispatch(
                 act_id,
                 name
             )?)
+        }
+        Request::WorkspaceSetActColor {
+            handle,
+            project_id,
+            act_id,
+            color,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(
+                WorkspaceStore::new(&workspace.gateway, CLIENT).set_act_color(
+                    &workspace.context(&project)?,
+                    act_id,
+                    color.as_deref()
+                )?
+            )
         }
         Request::WorkspaceRemoveAct {
             handle,
@@ -511,6 +561,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .relations(project_id, command)?,
+        Request::WorkspaceComments {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .comments(documents, project_id, command)?,
         Request::WorkspaceMetadata {
             handle,
             project_id,

@@ -501,6 +501,11 @@ enum Request {
         project_id: String,
         name: String,
     },
+    WorkspaceDeleteProject {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
     WorkspaceRenameChapter {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -532,6 +537,16 @@ enum Request {
         #[serde(rename = "actId")]
         act_id: String,
         name: String,
+    },
+    WorkspaceSetActColor {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "actId")]
+        act_id: String,
+        /// `#rrggbb`, or absent/null to clear.
+        #[serde(default)]
+        color: Option<String>,
     },
     WorkspaceRemoveAct {
         handle: u64,
@@ -645,6 +660,12 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         command: workspace::drifts::DriftCommand,
+    },
+    WorkspaceComments {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::comments::CommentsCommand,
     },
     WorkspaceMetadata {
         handle: u64,
@@ -1357,10 +1378,12 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceProjects { .. }
         | Request::WorkspaceCreateProject { .. }
         | Request::WorkspaceRenameProject { .. }
+        | Request::WorkspaceDeleteProject { .. }
         | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceCreateAct { .. }
         | Request::WorkspaceRenameAct { .. }
+        | Request::WorkspaceSetActColor { .. }
         | Request::WorkspaceRemoveAct { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
@@ -1381,6 +1404,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceStorylines { .. }
         | Request::WorkspaceDrifts { .. }
         | Request::WorkspaceMetadata { .. }
+        | Request::WorkspaceComments { .. }
         | Request::WorkspaceRelations { .. }
         | Request::WorkspaceMetrics { .. }
         | Request::WorkspaceAgent { .. }

@@ -8,6 +8,8 @@ enum RelationKind {
     static let all = ["node", "element", "patch", "category", "storyline", "comment", "library_item"]
     static let structural = ["node", "element", "patch", "category", "storyline"]
     static let native = ["node", "element", "category", "storyline"]
+    /// Kinds that 关联 through the built-in Generic association.
+    static let associationSources = ["comment", "library_item"]
 
     /// How a type's allowed kinds read in the type editor.
     static func label(_ kind: String) -> String {
@@ -172,12 +174,14 @@ struct WorkspaceRelationLibrary: Decodable, Equatable {
     func usage(typeID: String) -> Int { relations.filter { $0.relationTypeId == typeID }.count }
 
     /// The endpoint's relations on either side, newest first. A self-relation
-    /// is listed once, as outgoing.
+    /// is listed once, as outgoing. 关联 from notes, TODOs and library items
+    /// are shown with those instead (审阅 and the 备忘与素材 board).
     func entries(for endpoint: RelationEndpoint, names: RelationNameDirectory) -> [RelationEntry] {
         relations.reversed().compactMap { relation in
             let outgoing = relation.from == endpoint
             guard outgoing || relation.to == endpoint else { return nil }
             let other = outgoing ? relation.to : relation.from
+            guard !RelationKind.associationSources.contains(other.kind) else { return nil }
             let type = type(id: relation.relationTypeId)
             let canSwap = type.map { !$0.isSymmetric && RelationKind.structural.contains(relation.from.kind)
                 && $0.check(from: relation.to, to: relation.from).isValid } ?? false

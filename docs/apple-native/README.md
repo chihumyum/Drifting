@@ -49,6 +49,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Chapter tabs and split editing](tabs-and-split.md)
 - [Whole book (全书长卷), statistics and writing plan](whole-book.md)
 - [Element overview (设定总览)](element-overview.md)
+- [Review (审阅), TODOs and the 备忘与素材 board](review.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -99,6 +100,8 @@ comments, an elements library with element pages and automatic entity links, sto
 assistant whose proposals the author reviews, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
+a review panel of notes and TODOs with associations, a 备忘与素材 board with
+library ordering, act colours, project deletion,
 chapter tabs with a two-pane split, formatting, project search, native
 editing, save and reopen. Every write goes through shared Rust domain commands,
 transactions and canonical journals; views of one chapter share its document

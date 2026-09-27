@@ -227,6 +227,7 @@ impl WorkspaceStore<'_> {
                                 || !matches!(
                                     mutation.kind,
                                     "book-act"
+                                        | "comment"
                                         | "kv-entry"
                                         | "drift-group"
                                         | "entity-relation"
@@ -403,6 +404,24 @@ impl WorkspaceStore<'_> {
                     }
                 }
                 "yjs.update" => {}
+                "sync-generation.purge" => {
+                    if mutation.family != "sync-generation"
+                        || mutation.id != context.sync_generation_id
+                    {
+                        return Err("A purge must name this project's generation".into());
+                    }
+                    let mut values = vec![text(&context.sync_generation_id)];
+                    values.extend(clock);
+                    self.execute(tx, r#"
+                        INSERT INTO sync_generation_purge(sync_generation_id,hlc_wall_ms,hlc_counter,writer_id,
+                            writer_epoch,device_seq,change_set_id,mutation_index)
+                        VALUES (?,?,?,?,?,?,?,?)
+                    "#, values)?;
+                    self.execute(tx, "UPDATE sync_generation SET status='purged',purged_at=?,updated_at=? WHERE sync_generation_id=?",
+                        vec![text(&context.now_iso), text(&context.now_iso), text(&context.sync_generation_id)])?;
+                    self.execute(tx, "UPDATE sync_provider_binding SET state='purged',updated_at=? WHERE sync_generation_id=?",
+                        vec![text(&context.now_iso), text(&context.sync_generation_id)])?;
+                }
                 _ => return Err("Unsupported workspace mutation".into()),
             }
         }

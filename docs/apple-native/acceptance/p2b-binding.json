@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T14:24:55.571Z",
+  "generatedAt": "2026-09-27T15:41:36.464Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "38d5e4e70111132e7f0384c94ff45f6ba601e2ee",
+    "commit": "9e4e896074bcef5ac139718efee206b8ccfb4bf4",
     "dirty": true,
-    "fingerprint": "295c63d44ca28e0a4b28283996f5748a31ca39094d93a9460f54ce7fc3470eb2"
+    "fingerprint": "790553f504b9b353d25c555ae86cc12ba13e20d7c8545c639fa381663d4b704b"
   },
   "cases": [
     {
@@ -628,6 +628,34 @@
     },
     {
       "name": "AppKit 设定总览 lays out 60 chapters in 3 acts and 3 lanes, 20 categories, 300 elements and 400 relations with the solver under 100 ms and no main-thread pass (open, refresh, pan, zoom, sharpen) over 100 ms in a debug build, and opening, panning and zooming write nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 审阅 composes a note on the focused chapter, a TODO on it with a priority and a floating TODO associated with it, lists 全部/批注/待办 and 当前 (whole page first, then passage notes, then associated items, each newest first) or 全书, follows the focused tab, and refuses an empty body, a note without a page and Rust's floating note in Chinese without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 审阅 sets and clears a priority with one field.set each and none for the current one, resolves and reopens under 已解决 and from the board's 已完成 archive, converts a passage note to a TODO and back keeping its anchor, refuses making a floating TODO a note in Chinese without writing, and edits a body through the composer writing nothing when unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 审阅 定位 opens a note's page as a tab and selects a passage note's anchored text, deletes only after confirmation, refuses while the chapter has marked input, removes a passage note with its highlight from both open views and the chapter's comment panel while typing continues and saves through cold reopen, and deletes an associated TODO with its relations in one original",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 关联 of TODOs and library items with chapters, drifts, elements, categories and storylines through menus and chips writes one entity-relation original each, stays out of pages' 关系 sections, follows a rename and survives a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 备忘与素材 board shows open TODO cards beside the library's cards with kind chips and counts that hide and show 待办, 图片, PDF, 链接 and 文字, reorders library items by drag with one order original also while a kind is hidden, writes nothing for a drop in place, and keeps the order through a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 幕颜色 from the 整书大纲 and a 全书长卷 separator stores one field.set per change and nothing for the current colour, the separator wash, 统计 strip, act rows and chapter bars follow while other acts keep the hue cycle, 恢复默认 clears it, and colours survive a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input or an owner outside the tabs is open, closes the 全书长卷 and every tab of the project first, deletes with one sync-generation purge and the asset bytes, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
       "status": "passed"
     }
   ],

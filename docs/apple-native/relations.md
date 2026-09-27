@@ -24,7 +24,9 @@ Inline mentions stay a separate derived index ([entity links](entity-links.md)).
   toKind}`; retype/swap journals all five fields; remove writes `entity.purge`.
 - Both ends never coincide (the reducer's `relation.self-edge` invariant).
   Native endpoints are live chapters and drifts (`node`), elements, categories
-  and storylines; patches, comments and library items are not yet addressable.
+  and storylines, and comments and library items as the source of the
+  built-in Generic association (关联, [review](review.md)); patches are not
+  addressable. Deleting a comment or library item purges its relations.
 - Trashing a chapter, drift, element, category or storyline purges every
   relation touching it first, inside the trash original, as
   `deleteEntityRelationsInTransaction` does; restore does not bring relations
@@ -35,13 +37,14 @@ No SQLite migration is added.
 
 ## Native interaction
 
-Element, chapter, drift and storyline pages show a 关系 section below the
-header (above 被引用 on element pages). It lists the entity's relations on
-either side, newest first, as “类型 · 角色 → 对方名称” followed by the other
-entity's kind (章节, 漂流, 设定, 分类 or 故事线). The role is this entity's own
-role; ← marks it as the target and ↔ marks a symmetric type. A self-relation
-is listed once. Long lists collapse after five rows. Typography and spacing
-carry the layout; there are no edge accents.
+Element, chapter, drift and storyline pages show a 关系 section below the header
+(above 被引用 on element pages). 关联 from notes, TODOs and library items are shown
+with those instead. It lists the entity's relations on either side, newest
+first, as “类型 · 角色 → 对方名称” followed by the other entity's kind (章节, 漂流, 设定, 分类
+or 故事线). The role is this entity's own role; ← marks it as the target and ↔
+marks a symmetric type. A self-relation is listed once. Long lists collapse
+after five rows. Typography and spacing carry the layout; there are no edge
+accents.
 
 Clicking a name opens the other entity in the same pane: element, drift and
 storyline pages, or a chapter tab. Categories have no page, so the app opens

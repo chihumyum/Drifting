@@ -66,9 +66,15 @@ struct BookChapter: Equatable {
 struct BookAct: Equatable {
     let id: String
     let title: String
-    /// Its position among acts; the act colour cycles by it.
+    /// Its position among acts; without a stored colour the act colour
+    /// cycles by it.
     let index: Int
     let chapterIDs: [String]
+    /// The stored `#rrggbb` colour chosen in 幕颜色; nil follows the cycle.
+    var color: String? = nil
+
+    /// The colour the act is drawn in: the stored one, else its hue by position.
+    var hex: String { color ?? BookPalette.act(index) }
 }
 
 /// The book as the 全书长卷 shows it: Rust's outline rows in one reading
@@ -104,7 +110,8 @@ struct BookLayout: Equatable {
         for entry in entries {
             switch entry.kind {
             case "act":
-                let act = BookAct(id: entry.id, title: entry.title, index: acts.count, chapterIDs: chapterIDsByAct[entry.id] ?? [])
+                let act = BookAct(id: entry.id, title: entry.title, index: acts.count, chapterIDs: chapterIDsByAct[entry.id] ?? [],
+                                  color: entry.color)
                 acts.append(act); items.append(.act(act))
             case "chapter":
                 let chapter = BookChapter(id: entry.id, title: entry.title, writingStatus: statuses?[entry.id],
@@ -128,6 +135,8 @@ struct BookLayout: Equatable {
     func act(id: String) -> BookAct? { acts.first { $0.id == id } }
     /// The palette position of the chapter's act; nil before the first act.
     func actIndex(chapterID: String) -> Int? { chapter(id: chapterID)?.actID.flatMap { act(id: $0)?.index } }
+    /// The colour of the chapter's act (stored or by position); nil before the first act.
+    func actHex(chapterID: String) -> String? { chapter(id: chapterID)?.actID.flatMap { act(id: $0)?.hex } }
 
     /// The same book with one chapter's stored status.
     func updating(status: String, chapterID: String) -> BookLayout {
@@ -143,10 +152,15 @@ struct BookLayout: Equatable {
 }
 
 /// Act colours, cycled by reading position as the renderer does when an act
-/// has no stored colour (outline rows carry none): its `--story-1…6` hues.
+/// has no stored colour: its `--story-1…6` hues. 幕颜色 offers them by name
+/// with a few more; Rust validates the stored `#rrggbb` value.
 enum BookPalette {
     static let acts = ["#9D8BE4", "#6CACE5", "#72C096", "#EFCC61", "#C694DB", "#67BEC1"]
     static func act(_ index: Int) -> String { acts[((index % acts.count) + acts.count) % acts.count] }
+    static let choices: [(name: String, hex: String)] = [
+        ("紫", "#9D8BE4"), ("蓝", "#6CACE5"), ("绿", "#72C096"), ("黄", "#EFCC61"),
+        ("丁香", "#C694DB"), ("青", "#67BEC1"), ("红", "#E5484D"), ("灰", "#8D8D8D"),
+    ]
 }
 
 /// 统计 of the book on the reading axis: the overview, the writing plan's
@@ -158,6 +172,8 @@ struct BookStats: Equatable {
         let words: Int
         /// Palette position of the chapter's act; nil before the first act.
         let actIndex: Int?
+        /// The act's colour, stored or by position; nil before the first act.
+        var actHex: String? = nil
     }
     struct ActRow: Equatable {
         let act: BookAct
@@ -198,7 +214,8 @@ struct BookStats: Equatable {
         completion = chapters.isEmpty ? 0 : Int((Double(finished) / Double(chapters.count) * 100).rounded())
         target = plan.projectWordTarget
         targetFraction = target > 0 ? min(1, Double(totalWords) / Double(target)) : nil
-        bars = chapters.map { Bar(chapter: $0, words: words[$0.id] ?? 0, actIndex: layout.actIndex(chapterID: $0.id)) }
+        bars = chapters.map { Bar(chapter: $0, words: words[$0.id] ?? 0, actIndex: layout.actIndex(chapterID: $0.id),
+                                  actHex: layout.actHex(chapterID: $0.id)) }
         longestWords = bars.map(\.words).max() ?? 0
         let total = totalWords
         acts = layout.acts.map { act in
@@ -304,4 +321,18 @@ final class WholeBookModel {
     }
 
     func showStatus(_ message: String) { status = message; changed() }
+
+    /// 幕颜色: a stored `#rrggbb` colour, or nil for the default hue. Rust
+    /// writes nothing for an unchanged colour; the book is read again after.
+    func setActColor(actID: String, color: String?, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        let title = layout.act(id: actID)?.title ?? "这一幕"
+        workspace.setActColor(projectID: projectID, actID: actID, color: color) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success: self.status = color == nil ? "“\(title)”已恢复默认颜色。" : "“\(title)”的颜色已保存。"; self.load()
+            case .failure(let error): self.showStatus(error.localizedDescription)
+            }
+            completion?(result)
+        }
+    }
 }

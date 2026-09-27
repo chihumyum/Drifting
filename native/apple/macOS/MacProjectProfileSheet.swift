@@ -19,6 +19,9 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
     let templateEditor = ElementFactsEditor(prefix: "storyline-template-fact",
                                             emptyText: "尚未定义模版字段。可加 视角 / 主角 / 时间线 等。", maximumHeight: 120)
     let doneButton = NSButton(title: "完成", target: nil, action: nil)
+    /// 删除项目…: finishes the sheet, then asks to delete (the typed-name sheet).
+    let deleteButton = NSButton(title: "删除项目…", target: nil, action: nil)
+    var onDeleteProject: (() -> Void)?
     /// “共 3 章 · 草稿 1 · 已完成 2”.
     let chaptersLabel = NSTextField(labelWithString: "正在统计章节…")
     /// “全书 1,234 字”, or 统计中… until every chapter is counted.
@@ -92,7 +95,12 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         message.setAccessibilityIdentifier("project-profile-error")
         doneButton.target = self; doneButton.action = #selector(done)
         doneButton.setAccessibilityIdentifier("finish-project-profile")
-        let buttons = NSStackView(views: [NSView(), doneButton])
+        deleteButton.target = self; deleteButton.action = #selector(deleteProject)
+        deleteButton.bezelStyle = .rounded
+        deleteButton.contentTintColor = .systemRed
+        deleteButton.setAccessibilityIdentifier("delete-project-from-profile")
+        deleteButton.toolTip = "永久删除这个项目及其全部内容；需要输入项目名称确认"
+        let buttons = NSStackView(views: [deleteButton, NSView(), doneButton])
 
         let summaryHeading = heading("本书简介"), factsHeading = heading("本书字段"), templateHeading = heading("故事线字段模版")
         let planSection = makePlanSection()
@@ -242,6 +250,13 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         if editing { refreshPlanProgress() } else { showPlan() }
     }
 
+    @objc private func deleteProject() {
+        guard onDeleteProject != nil else { return }
+        deleteAfterFinishing = true
+        done()
+    }
+    private var deleteAfterFinishing = false
+
     @objc private func showStats() {
         window.makeFirstResponder(nil)
         onShowStats?(statsButton)
@@ -371,10 +386,11 @@ final class ProjectProfileSheet: NSObject, NSTextViewDelegate, NSTextFieldDelega
         guard finishing, !isCommitting, queued.isEmpty else { return }
         finishing = false
         // A refusal keeps the sheet and the typed text for another try.
-        guard errorMessage == nil || stored == nil else { return }
+        guard errorMessage == nil || stored == nil else { deleteAfterFinishing = false; return }
         if let parent = window.sheetParent { parent.endSheet(window) }
         window.orderOut(nil)
         onFinish?()
+        if deleteAfterFinishing { deleteAfterFinishing = false; onDeleteProject?() }
     }
 
     private func showMessage(_ text: String?) {

@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var searchController: MacWorkspaceSearchViewController?
     private var pendingSearch: (hit: WorkspaceSearchHit, view: NativeDocumentView)?
     private var resolvingSearch = false
-    private var commentsButton: NSButton!
+    private var reviewButton: NSButton!
     private var commentsPanel: ChapterCommentsPanel?
     private var commentsController: MacChapterCommentsViewController?
     private var elementsButton: NSButton!
@@ -105,6 +105,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var profileStats: (popover: NSPopover, controller: MacBookStatsViewController)?
     /// 历史版本… of the active page's body.
     private var historySheet: VersionHistorySheet?
+    /// 审阅 and the 备忘与素材 board share one model per project.
+    private var reviewPanel: ReviewPanel?
+    private var reviewController: MacReviewViewController?
+    private var reviewModels: [String: ReviewModel] = [:]
+    private var boardPanel: MemoBoardPanel?
+    private var boardController: MacMemoBoardViewController?
+    private var deletionSheet: ProjectDeletionSheet?
+    private lazy var projectDeletion = ProjectDeletionCoordinator(workspace: workspace, host: chapterWorkspace)
     /// 文件 › 导入… and 导出全书….
     private lazy var transfer = MacBookTransfer(workspace: workspace, host: chapterWorkspace)
     /// 写作助手: a right-side panel beside the editor, one controller per project.
@@ -152,6 +160,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let profile = fileMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "i")
         profile.keyEquivalentModifierMask = [.command, .shift]
         profile.target = self
+        let deleteProject = fileMenu.addItem(withTitle: "删除项目…", action: #selector(deleteSelectedProject), keyEquivalent: "")
+        deleteProject.target = self
         fileMenu.addItem(.separator())
         let importItem = fileMenu.addItem(withTitle: "导入…", action: #selector(importFile), keyEquivalent: "o")
         importItem.keyEquivalentModifierMask = [.command, .shift]
@@ -207,6 +217,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let materials = viewMenu.addItem(withTitle: "素材库", action: #selector(showMaterials), keyEquivalent: "m")
         materials.keyEquivalentModifierMask = [.command, .shift]
         materials.target = self
+        let review = viewMenu.addItem(withTitle: "审阅", action: #selector(showReview), keyEquivalent: "r")
+        review.keyEquivalentModifierMask = [.command, .option]
+        review.target = self
+        let board = viewMenu.addItem(withTitle: "备忘与素材", action: #selector(showBoard), keyEquivalent: "t")
+        board.keyEquivalentModifierMask = [.command, .option]
+        board.target = self
         let graph = viewMenu.addItem(withTitle: "故事图谱", action: #selector(showStoryGraph), keyEquivalent: "g")
         graph.keyEquivalentModifierMask = [.command, .shift]
         graph.target = self
@@ -245,6 +261,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let chapterMenu = NSMenu()
         chapterMenu.delegate = self
         chapterTable.menu = chapterMenu
+        let projectMenu = NSMenu()
+        projectMenu.delegate = self
+        projectTable.menu = projectMenu
         let sidebar = NSStackView(views: [heading("项目"), projectActions, projectScroll, projectEmpty,
             heading("章节"), chapterActions, orderActions, trashActions, chapterScroll, chapterEmpty])
         sidebar.orientation = .vertical
@@ -262,7 +281,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         reopenButton = button("重新打开", id: "reopen-document", action: #selector(reopenDocument))
         outlineButton = button("整书大纲", id: "show-outline", action: #selector(showOutline))
         searchButton = button("搜索", id: "show-search", action: #selector(showSearch))
-        commentsButton = button("批注", id: "show-comments", action: #selector(showComments))
+        reviewButton = button("审阅", id: "show-review", action: #selector(showReview))
+        reviewButton.toolTip = "批注和待办：当前页面或全书（⌥⌘R）"
         elementsButton = button("设定库", id: "show-elements", action: #selector(showElements))
         storylinesButton = button("故事线", id: "show-storylines", action: #selector(showStorylines))
         driftsButton = button("漂流", id: "show-drifts", action: #selector(showDrifts))
@@ -273,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         agentButton = button("写作助手", id: "toggle-agent", action: #selector(toggleAgent))
         agentButton.setButtonType(.pushOnPushOff)
         agentButton.toolTip = "显示或隐藏写作助手（⌥⌘A）"
-        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, commentsButton, elementsButton,
+        let actions = NSStackView(views: [saveButton, reopenButton, outlineButton, searchButton, reviewButton, elementsButton,
                                           storylinesButton, driftsButton, materialsButton, splitButton, closePaneButton, agentButton])
         actions.spacing = 10
         let subtitle = NSTextField(wrappingLabelWithString: "独立原生工作区 · 正文自动保存")
@@ -291,11 +311,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onError = { [weak self] error in self?.status.stringValue = error.localizedDescription }
         chapterWorkspace.onComments = { [weak self] view in
             self?.commentsController?.model.updateAnchors(from: view.binding.store)
+            self?.reviewController?.refreshAnchors()
         }
-        chapterWorkspace.onCommentCreated = { [weak self] view, _ in
+        chapterWorkspace.onCommentCreated = { [weak self] view, comment in
             guard let self else { return }
             self.status.stringValue = "批注已添加"
             if let model = self.commentsController?.model, model.store === view.binding.store { model.reload(after: "批注已添加。") }
+            // A selection note is written through the owner; 审阅 reads it.
+            self.reviewModels[comment.projectId]?.load()
         }
         chapterWorkspace.onElementLibrary = { [weak self] projectID, library in
             if let overview = self?.overviewController?.model, overview.projectID == projectID { overview.applyElementLibrary(library) }
@@ -465,6 +488,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if menu === projectTable.menu {
+            let row = projectTable.clickedRow
+            guard projects.indices.contains(row) else { return }
+            let project = projects[row]
+            let delete = LibraryMenuItem(title: "删除项目…", identifier: "project-menu-delete") { [weak self] in
+                self?.confirmDeleteProject(project)
+            }
+            delete.isEnabled = !loading && deletionSheet == nil
+            menu.addItem(delete)
+            return
+        }
         let row = chapterTable.clickedRow
         guard menu === chapterTable.menu, !showingTrash, chapters.indices.contains(row), let project = selectedProject else { return }
         let chapter = chapters[row]
@@ -613,6 +647,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let sheet = ProjectProfileSheet(model: profile, projectName: name, plans: settingsStore)
         profileSheet = sheet
         sheet.onShowStats = { [weak self] button in self?.showProfileStats(project: project, from: button) }
+        sheet.onDeleteProject = { [weak self] in self?.confirmDeleteProject(WorkspaceProject(id: project.id, name: name)) }
         sheet.onFinish = { [weak self] in
             self?.profileStats?.popover.close(); self?.profileStats = nil
             self?.profileSheet = nil
@@ -703,7 +738,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         reopenButton.isEnabled = ready && chapterWorkspace.canReopenActive
         outlineButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         searchButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
-        commentsButton.isEnabled = !loading && chapterWorkspace.activeChapterView != nil
+        reviewButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         elementsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         storylinesButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         driftsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
@@ -741,7 +776,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
-    private func selectProject(_ project: WorkspaceProject) {
+    private func selectProject(_ project: WorkspaceProject, message: String? = nil) {
         guard canLeaveDocument() else { return }
         // The 全书长卷 shows one project; typing there must settle first.
         if wholeBookController.map({ $0.project.id != project.id }) == true, !closeWholeBook() { return }
@@ -754,6 +789,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if materialsController?.model.projectID != project.id { closeMaterials() }
         if graphController?.model.projectID != project.id { closeStoryGraph() }
         if overviewController?.model.projectID != project.id { closeElementOverview() }
+        if reviewController?.model.projectID != project.id { closeReview() }
+        if boardController?.review.projectID != project.id { closeBoard() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -771,7 +808,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.updatingSelection = false
                 self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
                 self.chapterEmpty.isHidden = !chapters.isEmpty
-                self.status.stringValue = "\(project.name) · \(chapters.count) 个章节"
+                self.status.stringValue = message ?? "\(project.name) · \(chapters.count) 个章节"
                 self.ensureStorylineModel(project)
                 self.ensureDriftModel(project)
                 self.ensureAgent(project)
@@ -820,6 +857,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else { chapterTable.deselectAll(nil) }
         updatingSelection = false
         updateComments()
+        updateReviewFocus()
         updateWordStatus()
         let minWidth: CGFloat = (chapterWorkspace.paneCount == 2 ? 1100 : 820) + (agentPanel.isHidden ? 0 : 360)
         window.minSize = NSSize(width: minWidth, height: 660)
@@ -924,6 +962,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         closeComments()
         let model = ChapterCommentsModel()
+        // Body and resolution changes here reach 审阅.
+        model.onCommitted = { [weak self] comment in self?.reviewModels[comment.projectId]?.load() }
         let controller = MacChapterCommentsViewController(model: model)
         let panel = ChapterCommentsPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -1352,6 +1392,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeMaterials()
         let model = ensureMaterialModel(project)
         let controller = MacMaterialLibraryViewController(model: model)
+        // 关联 chips and menus; a chip opens its page as a tab.
+        chapterWorkspace.loadNames(projectID: project.id)
+        controller.associations = chapterWorkspace.relations.associations(projectID: project.id)
+        controller.onOpenAssociation = { [weak self] endpoint in
+            guard let self, self.canLeaveDocument() else { return }
+            self.chapterWorkspace.open(endpoint: endpoint, project: self.namedProject(project)) { [weak self] result in
+                if case .failure(let error) = result { self?.status.stringValue = error.localizedDescription }
+                else { self?.window.makeKeyAndOrderFront(nil) }
+            }
+        }
         let panel = MaterialLibraryPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 600),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         panel.title = "\(project.name) · 素材库"
@@ -1598,6 +1648,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 model?.showStatus(Self.statusMessage(result, title: chapter.title))
             }
         }
+        controller.onActColorChanged = { [weak self] in self?.actColorsChanged(projectID: project.id, fromWholeBook: true) }
         let panel = WholeBookPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
             styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         panel.title = "\(name) · 全书长卷"
@@ -1636,6 +1687,272 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         wholeBookPanel = nil; wholeBookController = nil
         if let panel { window.removeChildWindow(panel); panel.close() }
         return true
+    }
+
+    // MARK: Act colours
+
+    /// 幕颜色 was stored: the outline, the 设定总览's act strip and 统计 follow.
+    private func actColorsChanged(projectID: String, fromWholeBook: Bool) {
+        if let outline = outlineController?.model, outline.projectID == projectID, !outline.busy { outline.load() }
+        overviewChaptersChanged(projectID: projectID)
+        if !fromWholeBook { wholeBookChanged(projectID: projectID) }
+        if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.model.load() }
+    }
+
+    // MARK: 审阅
+
+    /// The project's notes and TODOs, read once and shared by 审阅 and the board.
+    @discardableResult
+    private func ensureReviewModel(_ project: WorkspaceProject) -> ReviewModel {
+        if let model = reviewModels[project.id] { return model }
+        chapterWorkspace.loadNames(projectID: project.id)
+        let model = ReviewModel(workspace: workspace, projectID: project.id,
+                                associations: chapterWorkspace.relations.associations(projectID: project.id))
+        model.ownerBusy = { [weak self] chapterID in
+            guard let view = self?.chapterWorkspace.openView(scope: .chapter(ChapterScope(projectID: project.id, chapterID: chapterID))) else {
+                return false
+            }
+            return view.binding.hasPendingWork || view.textView.hasMarkedText()
+        }
+        model.onChanged = { [weak self] change in
+            guard let self else { return }
+            // A deleted passage note leaves the open chapter's highlights.
+            self.chapterWorkspace.commentsChanged(change, projectID: project.id)
+            if let comments = self.commentsController?.model, comments.store != nil,
+               comments.store === self.chapterWorkspace.activeChapterView?.binding.store,
+               self.currentChapter?.id == change.comment.targetId {
+                comments.reload()
+            }
+        }
+        reviewModels[project.id] = model
+        model.load()
+        return model
+    }
+
+    private func namedProject(_ project: WorkspaceProject) -> WorkspaceProject {
+        WorkspaceProject(id: project.id, name: projects.first { $0.id == project.id }?.name ?? project.name)
+    }
+
+    /// 审阅 (action row and 视图 › 审阅, ⌥⌘R): a panel beside the editor.
+    @objc private func showReview() {
+        guard let project = currentProject ?? selectedProject else { return }
+        if let reviewPanel, reviewPanel.isVisible, reviewController?.model.projectID == project.id {
+            updateReviewFocus(); reviewPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeReview()
+        let named = namedProject(project)
+        let model = ensureReviewModel(named)
+        let controller = MacReviewViewController(model: model)
+        wireReviewCommands(controller.commands, project: named)
+        controller.anchor = { [weak self] comment in self?.liveAnchor(comment, projectID: named.id) }
+        controller.onShowChapterComments = { [weak self] in self?.showComments() }
+        controller.onShowBoard = { [weak self] in self?.showBoard() }
+        controller.onClose = { [weak self] in self?.closeReview() }
+        let panel = ReviewPanel(contentRect: NSRect(x: 0, y: 0, width: 440, height: 620),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(named.name) · 审阅"
+        panel.minSize = NSSize(width: 380, height: 360)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        reviewPanel = panel; reviewController = controller
+        panel.onClose = { [weak self, weak panel] in
+            guard let self, self.reviewPanel === panel else { return }
+            self.reviewPanel = nil; self.reviewController = nil
+        }
+        // Selection notes written meanwhile are read when it is key again.
+        panel.onBecomeKey = { [weak model] in if model?.loaded == true, model?.busy == false { model?.load() } }
+        window.addChildWindow(panel, ordered: .above)
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: max(frame.minX, frame.maxX - panel.frame.width - 24), y: frame.maxY - 90))
+        panel.makeKeyAndOrderFront(nil)
+        updateReviewFocus()
+    }
+
+    /// 定位 opens the page as a tab (a passage note selects its text) and a
+    /// chip opens its entity, in the window under the panel.
+    private func wireReviewCommands(_ commands: ReviewCommands, project: WorkspaceProject) {
+        commands.onLocate = { [weak self, weak commands] comment in
+            guard let self else { return }
+            guard self.canLeaveDocument() else { commands?.model.showStatus("请先完成输入，并等待正文保存后再定位。"); return }
+            self.chapterWorkspace.locate(comment: comment, project: project) { [weak self, weak commands] refusal in
+                if let refusal { commands?.model.showStatus(refusal); return }
+                self?.window.makeKeyAndOrderFront(nil)
+                self?.status.stringValue = "已定位\(comment.kindLabel)"
+            }
+        }
+        commands.onOpen = { [weak self, weak commands] endpoint in
+            guard let self else { return }
+            guard self.canLeaveDocument() else { commands?.model.showStatus("请先完成输入，并等待正文保存后再打开。"); return }
+            self.chapterWorkspace.open(endpoint: endpoint, project: project) { [weak self, weak commands] result in
+                if case .failure(let error) = result { commands?.model.showStatus(error.localizedDescription) }
+                else { self?.window.makeKeyAndOrderFront(nil) }
+            }
+        }
+    }
+
+    /// A passage note's live anchor, when its chapter is open.
+    private func liveAnchor(_ comment: WorkspaceComment, projectID: String) -> NativeComment? {
+        guard comment.targetKind == "node", let chapter = comment.targetId,
+              let view = chapterWorkspace.openView(scope: .chapter(ChapterScope(projectID: projectID, chapterID: chapter))) else { return nil }
+        return view.binding.store.projection?.comments.first { $0.id == comment.id }
+    }
+
+    /// 审阅's 当前 follows its project's active tab.
+    private func updateReviewFocus() {
+        for model in reviewModels.values {
+            model.setFocus(currentProject?.id == model.projectID ? chapterWorkspace.activeFocus : nil)
+        }
+    }
+
+    private func closeReview() {
+        let panel = reviewPanel
+        reviewController?.commands.endSheets()
+        reviewPanel = nil; reviewController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: 备忘与素材
+
+    /// 备忘与素材 (视图 › 备忘与素材, ⌥⌘T, or 看板… in 审阅): TODO cards beside
+    /// the 素材库's cards in a large panel over the window.
+    @objc private func showBoard() {
+        guard !loading, let project = currentProject ?? selectedProject else { return }
+        if let boardPanel, boardPanel.isVisible, boardController?.review.projectID == project.id {
+            boardPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeBoard()
+        let named = namedProject(project)
+        let review = ensureReviewModel(named)
+        let materials = ensureMaterialModel(named)
+        let controller = MacMemoBoardViewController(review: review, materials: materials)
+        wireReviewCommands(controller.commands, project: named)
+        controller.library.onOpenAssociation = { [weak commands = controller.commands] endpoint in commands?.onOpen?(endpoint) }
+        controller.onClose = { [weak self] in self?.closeBoard() }
+        let panel = MemoBoardPanel(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 640),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        panel.title = "\(named.name) · 备忘与素材"
+        panel.minSize = NSSize(width: 760, height: 420)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        panel.setContentSize(NSSize(width: 1000, height: 640))
+        boardPanel = panel; boardController = controller
+        panel.onClose = { [weak self, weak panel] in
+            guard let self, self.boardPanel === panel else { return }
+            self.boardPanel = nil; self.boardController = nil
+        }
+        panel.onBecomeKey = { [weak review] in if review?.loaded == true, review?.busy == false { review?.load() } }
+        window.addChildWindow(panel, ordered: .above)
+        panel.center(); panel.makeKeyAndOrderFront(nil)
+        updateReviewFocus()
+        if !materials.busy { materials.load() }
+    }
+
+    private func closeBoard() {
+        let panel = boardPanel
+        boardController?.commands.endSheets()
+        boardPanel = nil; boardController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: Project deletion
+
+    @objc private func deleteSelectedProject() {
+        guard let project = selectedProject ?? currentProject else { return }
+        confirmDeleteProject(project)
+    }
+
+    /// 删除项目… (project list menu, 文件 and 项目资料): the typed-name sheet,
+    /// then closing the project's panels and tabs, deletion and the switch.
+    private func confirmDeleteProject(_ project: WorkspaceProject) {
+        guard deletionSheet == nil, !loading, window.attachedSheet == nil else { return }
+        let named = namedProject(project)
+        let sheet = ProjectDeletionSheet(project: named)
+        deletionSheet = sheet
+        projectDeletion.closePanels = { [weak self] projectID, done in
+            guard let self else { done(nil); return }
+            self.closePanels(of: projectID, completion: done)
+        }
+        projectDeletion.forgetSettings = { [weak self] projectID in self?.settingsStore.forgetProject(projectID) }
+        sheet.onConfirm = { [weak self] done in
+            guard let self else { done(LabError.message("窗口已关闭，项目未删除。")); return }
+            self.status.stringValue = "正在关闭“\(named.name)”的标签页和面板…"
+            self.projectDeletion.delete(named) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let outcome):
+                    done(nil)
+                    self.adoptDeletion(outcome, deleted: named)
+                case .failure(let error):
+                    self.status.stringValue = error.localizedDescription
+                    done(error)
+                }
+            }
+        }
+        sheet.onFinish = { [weak self, weak sheet] in
+            if let self, self.deletionSheet === sheet { self.deletionSheet = nil }
+        }
+        window.beginSheet(sheet.window)
+        sheet.window.makeFirstResponder(sheet.nameField)
+        ProjectDeletionSummary.load(workspace: workspace, projectID: named.id) { [weak sheet] summary in sheet?.show(summary) }
+    }
+
+    /// Closes every panel showing the project. The 全书长卷 first lets go of
+    /// its editors; it reports why when input is still in flight there.
+    private func closePanels(of projectID: String, completion: @escaping (String?) -> Void) {
+        closeOutline(); closeSearch(); closeComments()
+        profileStats?.popover.close(); profileStats = nil
+        if reviewController?.model.projectID == projectID { closeReview() }
+        if boardController?.review.projectID == projectID { closeBoard() }
+        if elementsController?.model.projectID == projectID { closeElements() }
+        if storylinesController?.model.projectID == projectID { closeStorylines() }
+        if driftsController?.model.projectID == projectID { closeDrifts() }
+        if relationTypesController?.model.projectID == projectID { closeRelationTypes() }
+        if materialsController?.model.projectID == projectID { closeMaterials() }
+        if graphController?.model.projectID == projectID { closeStoryGraph() }
+        if overviewController?.model.projectID == projectID { closeElementOverview() }
+        if agentController?.projectID == projectID { agentController?.stop() }
+        transfer.endImport()
+        guard wholeBookController?.project.id == projectID else { completion(nil); return }
+        if !closeWholeBook(completion: { completion(nil) }) {
+            completion("全书长卷中还有未完成的输入，请等待正文保存后再删除。")
+        }
+    }
+
+    /// The project is gone: models of it are dropped and the list shows the
+    /// remaining projects, then the next one (or the new empty one) opens.
+    private func adoptDeletion(_ outcome: ProjectDeletionCoordinator.Outcome, deleted: WorkspaceProject) {
+        reviewModels.removeValue(forKey: deleted.id)
+        if storylineModel?.projectID == deleted.id { storylineModel = nil }
+        if driftModel?.projectID == deleted.id { driftModel = nil }
+        if materialModel?.projectID == deleted.id { materialModel = nil }
+        graphAxes.removeValue(forKey: deleted.id)
+        if agentController?.projectID == deleted.id { agentController = nil }
+        projects = outcome.projects
+        if selectedProject?.id == deleted.id {
+            selectedProject = nil
+            chapters = []; trashedChapters = []; showingTrash = false
+            chapterTable.reloadData()
+            chapterEmpty.stringValue = "选择项目后，在这里管理章节。"
+            chapterEmpty.isHidden = false
+        }
+        updatingSelection = true
+        projectTable.reloadData()
+        projectTable.deselectAll(nil)
+        updatingSelection = false
+        projectEmpty.isHidden = !projects.isEmpty
+        activeChapterChanged()
+        let message = "项目“\(deleted.name)”已删除。" + (outcome.created ? "已新建空项目“\(ProjectDeletionCoordinator.replacementName)”。" : "")
+        status.stringValue = message
+        // Another project stays shown; deleting the shown one opens the next.
+        if let shown = selectedProject, let index = projects.firstIndex(where: { $0.id == shown.id }) {
+            updatingSelection = true
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            updatingSelection = false
+            return
+        }
+        guard let next = outcome.next, let index = projects.firstIndex(where: { $0.id == next.id }) else { return }
+        updatingSelection = true
+        projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        updatingSelection = false
+        selectProject(next, message: message)
     }
 
     // MARK: Version history
@@ -1756,10 +2073,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             // Acts may have changed: the 设定总览's act strip follows.
             self?.overviewChaptersChanged(projectID: project.id)
             // Act boundaries may have moved: the 全书长卷's separators follow.
-            if let book = self?.wholeBookController, book.project.id == project.id, book.model.layout.acts.map(\.id) != entries.filter({ $0.kind == "act" }).map(\.id)
-                || book.model.layout.acts.map(\.title) != entries.filter({ $0.kind == "act" }).map(\.title) {
+            let acts = entries.filter { $0.kind == "act" }
+            if let book = self?.wholeBookController, book.project.id == project.id, book.model.layout.acts.map(\.id) != acts.map(\.id)
+                || book.model.layout.acts.map(\.title) != acts.map(\.title) || book.model.layout.acts.map(\.color) != acts.map(\.color) {
                 book.model.load()
             }
+            // 幕颜色 also colours 统计 opened from 项目资料.
+            if let stats = self?.profileStats?.controller, stats.model.projectID == project.id { stats.model.load() }
         }
         let controller = BookOutlineViewController(model: model)
         controller.onBindDrift = { [weak model] entry, drift in
@@ -1868,6 +2188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.graphPanel?.title = "\(updated.name) · 故事图谱"
                     self.wholeBookPanel?.title = "\(updated.name) · 全书长卷"
                     self.overviewPanel?.title = "\(updated.name) · 设定总览"
+                    self.reviewPanel?.title = "\(updated.name) · 审阅"
+                    self.boardPanel?.title = "\(updated.name) · 备忘与素材"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -2145,6 +2467,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
                 self.closeStoryGraph()
                 self.closeElementOverview()
+                self.closeReview(); self.closeBoard()
                 self.transfer.endImport()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
@@ -2168,6 +2491,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeMaterials()
         closeStoryGraph()
         closeElementOverview()
+        closeReview()
+        closeBoard()
         closeWholeBook()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

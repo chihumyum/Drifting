@@ -17,12 +17,27 @@ const ALL_KINDS: [&str; 7] = [
     "comment",
     "library_item",
 ];
-/// Endpoints the native client can currently address.
-const NATIVE_ENDPOINTS: [(&str, &str); 4] = [
-    ("node", "book_node"),
-    ("element", "element"),
-    ("category", "element_category"),
-    ("storyline", "storylines"),
+/// Endpoints the native client can currently address, with the condition
+/// that keeps each one live (comments and library items are hard-deleted).
+const NATIVE_ENDPOINTS: [(&str, &str); 6] = [
+    (
+        "node",
+        "book_node WHERE id=? AND project_id=? AND deleted_at IS NULL",
+    ),
+    (
+        "element",
+        "element WHERE id=? AND project_id=? AND deleted_at IS NULL",
+    ),
+    (
+        "category",
+        "element_category WHERE id=? AND project_id=? AND deleted_at IS NULL",
+    ),
+    (
+        "storyline",
+        "storylines WHERE id=? AND project_id=? AND deleted_at IS NULL",
+    ),
+    ("comment", "comment WHERE id=? AND project_id=?"),
+    ("library_item", "library_item WHERE id=? AND project_id=?"),
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -705,8 +720,8 @@ impl WorkspaceStore<'_> {
     }
 
     /// The native client links only live chapters, drifts, elements,
-    /// categories and storylines of this project.
-    fn guard_endpoint(
+    /// categories, storylines, comments and library items of this project.
+    pub(super) fn guard_endpoint(
         &self,
         tx: u64,
         context: &AuthoredProseContext,
@@ -720,7 +735,7 @@ impl WorkspaceStore<'_> {
             .ok_or_else(|| format!("Relations to {kind} are not supported natively"))?;
         let live = self.query(
             Some(tx),
-            &format!("SELECT 1 FROM {table} WHERE id=? AND project_id=? AND deleted_at IS NULL"),
+            &format!("SELECT 1 FROM {table}"),
             vec![text(id), text(&context.project_id)],
         )?;
         if live.is_empty() {

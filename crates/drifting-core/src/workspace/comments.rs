@@ -1,6 +1,8 @@
-//! Direct chapter comments (`target_kind='node'`). Rows and canonical originals
-//! commit together; anchor movement stays with the live prose owner, and body
-//! or status writes never touch anchors, metadata or prose.
+//! Comments: selection notes on chapters and the project's TODOs (floating,
+//! on a whole chapter or drift, or on a block range). Rows and canonical
+//! originals commit together; anchor movement stays with the live prose
+//! owner, and body, kind, priority or status writes never touch anchors,
+//! metadata or prose.
 use super::*;
 
 #[cfg(test)]
@@ -32,6 +34,33 @@ pub struct WorkspaceComment {
     pub resolved_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// A TODO or note written outside a text selection: floating (TODOs only),
+/// or on a whole chapter, drift, element, category or storyline.
+pub struct NewComment {
+    pub id: String,
+    pub author_id: String,
+    /// `note` or `todo`.
+    pub kind: String,
+    /// `(kind, id)` with a relation endpoint kind: `node`, `element`,
+    /// `category` or `storyline`.
+    pub target: Option<(String, String)>,
+    /// Blocks of a chapter or drift the owner captured; empty for a whole
+    /// target or a floating comment.
+    pub target_block_ids: Vec<String>,
+    pub anchor_json: Option<String>,
+    pub body_text: String,
+    /// `low`, `med` or `high`.
+    pub priority: Option<String>,
+}
+
+/// Fields to change; absent fields stay.
+#[derive(Default)]
+pub struct CommentPatch {
+    pub body_text: Option<String>,
+    pub kind: Option<String>,
+    pub priority: Option<Option<String>>,
 }
 
 /// A manual note on a chapter selection. The anchor is captured by the live
@@ -107,25 +136,7 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             self.live_chapter(tx, context, comment.target_id.as_deref().unwrap())?;
-            let taken = self.query(Some(tx), r#"
-                SELECT 1 FROM comment WHERE id=?
-                UNION ALL SELECT 1 FROM sync_entity_lifecycle
-                WHERE sync_generation_id=? AND entity_kind='comment' AND entity_id=?
-            "#, vec![text(&comment.id), text(&context.sync_generation_id), text(&comment.id)])?;
-            if !taken.is_empty() {
-                return Err("Comment identity already exists".into());
-            }
-            self.execute(tx, &format!("INSERT INTO comment({COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
-                comment_values(&comment))?;
-            self.commit_changes(tx, context, &[journal::Mutation::create("comment", &comment.id, json!({
-                "kind": comment.kind, "targetKind": comment.target_kind, "targetId": comment.target_id,
-                "targetBlockId": comment.target_block_id, "anchorJson": comment.anchor_json,
-                "authorKind": comment.author_kind, "authorId": comment.author_id,
-                "authorName": comment.author_name, "bodyJson": comment.body_json,
-                "status": comment.status, "priority": comment.priority, "source": comment.source,
-                "metadataJson": comment.metadata_json,
-                "targetBlockIdsJson": comment.target_block_ids_json, "resolvedAt": comment.resolved_at,
-            }))], None)?;
+            self.insert_comment(tx, context, &comment)?;
             Ok(comment.clone())
         })
     }
@@ -214,6 +225,312 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Every comment of the project, notes and TODOs, oldest first.
+    pub fn project_comments(&self, project_id: &str) -> Result<Vec<WorkspaceComment>, String> {
+        self.query(
+            None,
+            &format!("SELECT {COLUMNS} FROM comment WHERE project_id=? ORDER BY created_at,rowid"),
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| comment_from_row(row))
+        .collect()
+    }
+
+    pub fn create_comment(
+        &self,
+        context: &AuthoredProseContext,
+        input: NewComment,
+    ) -> Result<WorkspaceComment, String> {
+        validate_context(context)?;
+        if !opaque(&input.id) || !opaque(&input.author_id) {
+            return Err("Invalid comment or author identity".into());
+        }
+        if !matches!(input.kind.as_str(), "note" | "todo") {
+            return Err("Invalid comment kind".into());
+        }
+        if input.target.is_none() && input.kind != "todo" {
+            return Err("浮动的只能是待办".into());
+        }
+        if let Some((kind, _)) = &input.target {
+            if !matches!(kind.as_str(), "node" | "element" | "category" | "storyline") {
+                return Err(format!("Comments on {kind} are not supported natively"));
+            }
+        }
+        if !input.target_block_ids.is_empty()
+            && !input
+                .target
+                .as_ref()
+                .is_some_and(|(kind, _)| kind == "node")
+        {
+            return Err("Blocks need a target chapter or drift".into());
+        }
+        if !input.target_block_ids.iter().all(|id| opaque(id)) {
+            return Err("Invalid comment block identity".into());
+        }
+        valid_priority(input.priority.as_deref())?;
+        if js_trim(&input.body_text).is_empty() {
+            return Err("内容不能为空".into());
+        }
+        let anchor_json = input.anchor_json.unwrap_or_else(|| "{}".into());
+        if !serde_json::from_str::<Value>(&anchor_json).is_ok_and(|value| value.is_object()) {
+            return Err("Comment anchor must be a JSON object".into());
+        }
+        let comment = WorkspaceComment {
+            id: input.id,
+            project_id: context.project_id.clone(),
+            kind: input.kind,
+            target_kind: input.target.as_ref().map(|(kind, _)| kind.clone()),
+            target_id: input.target.map(|(_, id)| id),
+            target_block_id: input.target_block_ids.first().cloned(),
+            anchor_json,
+            author_kind: "user".into(),
+            author_id: Some(input.author_id),
+            author_name: None,
+            body_json: plain_comment_doc(&input.body_text),
+            status: "open".into(),
+            priority: input.priority,
+            source: "manual".into(),
+            metadata_json: None,
+            target_block_ids_json: json!(input.target_block_ids).to_string(),
+            resolved_at: None,
+            created_at: context.now_iso.clone(),
+            updated_at: context.now_iso.clone(),
+        };
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            if let (Some(kind), Some(id)) = (&comment.target_kind, &comment.target_id) {
+                self.guard_endpoint(tx, context, kind, id)?;
+            }
+            self.insert_comment(tx, context, &comment)?;
+            Ok(comment.clone())
+        })
+    }
+
+    /// Body, kind and priority; unchanged fields write nothing. A floating
+    /// TODO cannot become a note.
+    pub fn update_comment(
+        &self,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+        patch: CommentPatch,
+    ) -> Result<WorkspaceComment, String> {
+        validate_context(context)?;
+        if let Some(kind) = &patch.kind {
+            if !matches!(kind.as_str(), "note" | "todo") {
+                return Err("Invalid comment kind".into());
+            }
+        }
+        if let Some(priority) = &patch.priority {
+            valid_priority(priority.as_deref())?;
+        }
+        let body_json = match &patch.body_text {
+            Some(body) if js_trim(body).is_empty() => return Err("内容不能为空".into()),
+            Some(body) => Some(plain_comment_doc(body)),
+            None => None,
+        };
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut comment, incarnation) = self.project_comment(tx, context, comment_id)?;
+            // Field names in UTF-8 order.
+            let mut changes: Vec<(&str, &str, Value)> = Vec::new();
+            if let Some(body) = body_json.filter(|body| *body != comment.body_json) {
+                changes.push(("body_json", "bodyJson", json!(body)));
+                comment.body_json = body;
+            }
+            if let Some(kind) = patch.kind.filter(|kind| *kind != comment.kind) {
+                if kind == "note" && comment.target_id.is_none() {
+                    return Err("浮动的待办不能转为批注".into());
+                }
+                changes.push(("kind", "kind", json!(kind)));
+                comment.kind = kind;
+            }
+            if let Some(priority) = patch
+                .priority
+                .filter(|priority| *priority != comment.priority)
+            {
+                changes.push(("priority", "priority", json!(priority)));
+                comment.priority = priority;
+            }
+            if changes.is_empty() {
+                return Ok(comment);
+            }
+            let mut mutations = Vec::new();
+            for (column, field, value) in &changes {
+                self.execute(
+                    tx,
+                    &format!(
+                        "UPDATE comment SET {column}=?,updated_at=? WHERE id=? AND project_id=?"
+                    ),
+                    vec![
+                        value.as_str().map(text).unwrap_or(V::Null),
+                        text(&context.now_iso),
+                        text(comment_id),
+                        text(&context.project_id),
+                    ],
+                )?;
+                mutations.push(journal::Mutation::field(
+                    "comment",
+                    comment_id,
+                    incarnation,
+                    field,
+                    value.clone(),
+                ));
+            }
+            self.commit_changes(tx, context, &mutations, None)?;
+            comment.updated_at = context.now_iso.clone();
+            Ok(comment)
+        })
+    }
+
+    /// Removes the comment, its review actions and every relation touching
+    /// it (`entity.purge`), as the renderer's delete does.
+    pub fn delete_comment(
+        &self,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+    ) -> Result<(), String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (_, incarnation) = self.project_comment(tx, context, comment_id)?;
+            let mut mutations = self.purge_relations(tx, context, "comment", comment_id)?;
+            self.execute(
+                tx,
+                "DELETE FROM comment_action WHERE comment_id=? AND project_id=?",
+                vec![text(comment_id), text(&context.project_id)],
+            )?;
+            self.execute(
+                tx,
+                "DELETE FROM comment WHERE id=? AND project_id=?",
+                vec![text(comment_id), text(&context.project_id)],
+            )?;
+            mutations.push(
+                journal::Mutation::json("entity", "comment", comment_id, "entity.purge", json!({}))
+                    .at_incarnation(incarnation),
+            );
+            self.commit_changes(tx, context, &mutations, None)
+        })
+    }
+
+    fn insert_comment(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        comment: &WorkspaceComment,
+    ) -> Result<(), String> {
+        let taken = self.query(
+            Some(tx),
+            r#"
+            SELECT 1 FROM comment WHERE id=?
+            UNION ALL SELECT 1 FROM sync_entity_lifecycle
+            WHERE sync_generation_id=? AND entity_kind='comment' AND entity_id=?
+        "#,
+            vec![
+                text(&comment.id),
+                text(&context.sync_generation_id),
+                text(&comment.id),
+            ],
+        )?;
+        if !taken.is_empty() {
+            return Err("Comment identity already exists".into());
+        }
+        self.execute(
+            tx,
+            &format!(
+                "INSERT INTO comment({COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            ),
+            comment_values(comment),
+        )?;
+        self.commit_changes(tx, context, &[journal::Mutation::create("comment", &comment.id, json!({
+            "kind": comment.kind, "targetKind": comment.target_kind, "targetId": comment.target_id,
+            "targetBlockId": comment.target_block_id, "anchorJson": comment.anchor_json,
+            "authorKind": comment.author_kind, "authorId": comment.author_id,
+            "authorName": comment.author_name, "bodyJson": comment.body_json,
+            "status": comment.status, "priority": comment.priority, "source": comment.source,
+            "metadataJson": comment.metadata_json,
+            "targetBlockIdsJson": comment.target_block_ids_json, "resolvedAt": comment.resolved_at,
+        }))], None)
+    }
+
+    /// Resolve or reopen any comment of the project. Converted suggestions
+    /// are terminal here, as in Review.
+    pub fn set_comment_resolved(
+        &self,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+        resolved: bool,
+    ) -> Result<WorkspaceComment, String> {
+        validate_context(context)?;
+        let (status, resolved_at) = if resolved {
+            ("resolved", Some(context.now_iso.clone()))
+        } else {
+            ("open", None)
+        };
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut comment, incarnation) = self.project_comment(tx, context, comment_id)?;
+            if comment.status == status {
+                return Ok(comment);
+            }
+            if comment.status == "converted" {
+                return Err("A converted suggestion cannot be resolved or reopened".into());
+            }
+            self.execute(tx, "UPDATE comment SET status=?,resolved_at=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(status), resolved_at.as_deref().map(text).unwrap_or(V::Null),
+                    text(&context.now_iso), text(comment_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &[
+                journal::Mutation::field("comment", comment_id, incarnation, "resolvedAt", json!(resolved_at)),
+                journal::Mutation::field("comment", comment_id, incarnation, "status", json!(status)),
+            ], None)?;
+            comment.status = status.into();
+            comment.resolved_at = resolved_at;
+            comment.updated_at = context.now_iso.clone();
+            Ok(comment)
+        })
+    }
+
+    /// Any comment row of this project with its lifecycle incarnation.
+    fn project_comment(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+    ) -> Result<(WorkspaceComment, u64), String> {
+        let rows = self.query(
+            Some(tx),
+            &format!("SELECT {COLUMNS} FROM comment WHERE id=? AND project_id=?"),
+            vec![text(comment_id), text(&context.project_id)],
+        )?;
+        let comment = comment_from_row(rows.first().ok_or("这条批注或待办不存在")?)?;
+        Ok((comment, self.comment_incarnation(tx, context, comment_id)?))
+    }
+
+    fn comment_incarnation(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+    ) -> Result<u64, String> {
+        let lifecycle = self.query(
+            Some(tx),
+            r#"
+            SELECT incarnation,state FROM sync_entity_lifecycle
+            WHERE sync_generation_id=? AND entity_kind='comment' AND entity_id=?
+        "#,
+            vec![text(&context.sync_generation_id), text(comment_id)],
+        )?;
+        match lifecycle.first() {
+            None => Ok(0),
+            Some(row) if row[1] == text("live") => match &row[0] {
+                V::Integer(value) => value.parse::<u64>().ok().filter(|n| *n <= MAX_SAFE),
+                _ => None,
+            }
+            .ok_or_else(|| "Invalid comment incarnation".into()),
+            Some(_) => Err("Comment is not live".into()),
+        }
+    }
+
     fn live_chapter(
         &self,
         tx: u64,
@@ -247,24 +564,15 @@ impl WorkspaceStore<'_> {
             &format!("SELECT {COLUMNS} FROM comment WHERE id=? AND project_id=? AND target_kind='node' AND target_id=?"),
             vec![text(comment_id), text(&context.project_id), text(chapter_id)])?;
         let comment = comment_from_row(rows.first().ok_or("Comment is not on this chapter")?)?;
-        let lifecycle = self.query(
-            Some(tx),
-            r#"
-            SELECT incarnation,state FROM sync_entity_lifecycle
-            WHERE sync_generation_id=? AND entity_kind='comment' AND entity_id=?
-        "#,
-            vec![text(&context.sync_generation_id), text(comment_id)],
-        )?;
-        let incarnation = match lifecycle.first() {
-            None => 0,
-            Some(row) if row[1] == text("live") => match &row[0] {
-                V::Integer(value) => value.parse::<u64>().ok().filter(|n| *n <= MAX_SAFE),
-                _ => None,
-            }
-            .ok_or("Invalid comment incarnation")?,
-            Some(_) => return Err("Comment is not live".into()),
-        };
+        let incarnation = self.comment_incarnation(tx, context, comment_id)?;
         Ok((comment, incarnation))
+    }
+}
+
+fn valid_priority(priority: Option<&str>) -> Result<(), String> {
+    match priority {
+        None | Some("low" | "med" | "high") => Ok(()),
+        Some(_) => Err("Invalid comment priority".into()),
     }
 }
 

@@ -3,6 +3,7 @@
 //! an empty Yrs seed; this Rust 1.88 layer does not own a second CRDT engine.
 mod acts;
 mod comments;
+mod deletion;
 mod drifts;
 mod elements;
 mod facts;
@@ -16,7 +17,10 @@ mod relations;
 mod storylines;
 mod timeline;
 mod trash;
-pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
+pub use comments::{
+    plain_comment_doc, CommentPatch, NewChapterComment, NewComment, WorkspaceComment,
+};
+pub use deletion::ProjectDeletion;
 pub use drifts::{NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
 pub use elements::{
     CategoryLayout, ElementChanges, NewElement, NewElementCategory, WorkspaceElement,

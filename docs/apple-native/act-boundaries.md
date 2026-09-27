@@ -33,9 +33,22 @@ projection while retaining expanded chapters and their heading details. A
 failed refresh reports that the domain command committed, rather than claiming
 it was rolled back.
 
-This batch does not add drag-to-move boundaries, global chapter spreading or
-color editing. These remain later parity work. Binding a drift as an act's notes
-(幕笔记) from the act row's menu is described with [drifts](drifts.md).
+This batch does not add drag-to-move boundaries or global chapter spreading.
+These remain later parity work. Binding a drift as an act's notes (幕笔记) from
+the act row's menu is described with [drifts](drifts.md).
+
+## Act colours
+
+`workspaceSetActColor` stores an act's `#rrggbb` colour or clears it with
+null in one `field.set` of `color` on the `book-act`; an unchanged colour
+writes nothing and a malformed one is refused. `workspaceOutline` act rows
+carry `color` when one is stored. 幕颜色 on an act row's 操作 menu in the 整书大纲
+and on a 全书长卷 separator's context menu offers eight colours (the six
+story hues by name, 红 and 灰), the stored one checked, and 恢复默认 while one
+is stored. The outline row shows a small swatch; the 全书长卷 separators, 统计's
+strip, act rows and chapter bars and the 设定总览's act strip use the stored
+colour and fall back to the hue cycle by position. Each view follows the
+other's change. The [review cases](review.md) accept it.
 
 ## Acceptance
 

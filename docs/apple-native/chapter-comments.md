@@ -2,8 +2,9 @@
 
 The Mac editor can comment on a selection, list the current chapter's comments,
 locate one, edit its body and resolve or reopen it. Rows, anchors and canonical
-originals use the shared Rust owners; there is no comment deletion, TODO
-conversion or Agent suggestion handling in this batch.
+originals use the shared Rust owners. Notes and TODOs outside a selection,
+priorities, 批注↔待办 conversion, deletion and 关联 belong to the project's
+[审阅](review.md); Agent suggestion handling is not ported.
 
 ## Domain contract
 
@@ -38,10 +39,14 @@ to equal text elsewhere.
 ## Native interaction
 
 The Mac editor offers “添加批注…” (⌥⌘M) for a non-empty selection and a comment
-panel for the active pane's chapter, with anchor status kept separate from
-open/resolved state. Locating selects the current anchor range in the active
-pane only. Body editing is enabled for manual notes; other sources are shown
-read-only. UIKit is unchanged while mobile work is deferred.
+panel (编辑 › 批注列表, or 本章批注… in 审阅) for the active pane's chapter, with anchor
+status kept separate from open/resolved state. Notes written on the whole
+chapter in 审阅 are listed as 整章, and TODOs as 待办. Deleting a passage note in 审阅
+while its chapter is open makes the owner drop the anchor first; every view's
+highlight leaves and later saves never restore it. Locating selects the current
+anchor range in the active pane only. Body editing is enabled for manual notes;
+other sources are shown read-only. UIKit is unchanged while mobile work is
+deferred.
 
 ## Acceptance
 

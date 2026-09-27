@@ -1057,7 +1057,7 @@ fn validate_seed(seed: &ChapterSeed) -> Result<(), String> {
     Ok(())
 }
 
-fn color(value: &str) -> bool {
+pub(super) fn color(value: &str) -> bool {
     value.len() == 7 && value.starts_with('#') && value[1..].bytes().all(|c| c.is_ascii_hexdigit())
 }
 

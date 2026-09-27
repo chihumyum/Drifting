@@ -275,6 +275,16 @@ final class LabSettingsStore {
         changed()
     }
 
+    // MARK: Deleted projects
+
+    /// A deleted project leaves no 写作计划 or 设定总览 viewport behind.
+    func forgetProject(_ projectID: String) {
+        guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil else { return }
+        settings.writingPlans.removeValue(forKey: projectID)
+        settings.elementOverviewViewports.removeValue(forKey: projectID)
+        save()
+    }
+
     // MARK: Fonts
 
     /// The first family a font file describes, or nil when CoreText cannot read it.

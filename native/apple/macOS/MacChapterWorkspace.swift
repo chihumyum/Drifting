@@ -1176,38 +1176,150 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let tab = allTabs.first { $0.relationsView === section }
         guard let project = tab?.project ?? allTabs.first(where: { $0.project.id == projectID })?.project else { return }
         let index = tab.flatMap { pane(of: $0) } ?? activePane
-        let done: (Result<NativeDocumentView, Error>) -> Void = { [weak self, weak section] result in
-            guard case .failure(let error) = result else { return }
-            section?.showMessage(error.localizedDescription)
-            self?.onError?(error)
+        switch tabTarget(for: endpoint, projectID: projectID) {
+        case .failure(let refusal): section.showMessage(refusal.localizedDescription)
+        case .success(let target):
+            open(project: project, target: target, in: index) { [weak self, weak section] result in
+                guard case .failure(let error) = result else { return }
+                section?.showMessage(error.localizedDescription)
+                self?.onError?(error)
+            }
         }
-        let unavailable = { (text: String) in section.showMessage(text) }
+    }
+
+    /// The live page a relation endpoint names, or why it is not available.
+    private func tabTarget(for endpoint: RelationEndpoint, projectID: String) -> Result<WorkspaceTabTarget, LabError> {
         let sources = linkSources[projectID]
         switch endpoint.kind {
         case "element":
             guard let element = sources?.library?.elements.first(where: { $0.id == endpoint.id }) else {
-                unavailable("这个设定已不可用，请刷新设定库。"); return
+                return .failure(.message("这个设定已不可用，请刷新设定库。"))
             }
-            open(project: project, element: element, in: index, completion: done)
+            return .success(.element(element))
         case "node":
-            if let chapter = sources?.chapters?.first(where: { $0.id == endpoint.id }) {
-                open(project: project, chapter: chapter, in: index, completion: done)
-            } else if let drift = sources?.drifts?.drift(id: endpoint.id) {
-                open(project: project, drift: drift, in: index, completion: done)
-            } else { unavailable("这一章或这条漂流已不可用，请刷新列表。") }
+            if let chapter = sources?.chapters?.first(where: { $0.id == endpoint.id }) { return .success(.chapter(chapter)) }
+            if let drift = sources?.drifts?.drift(id: endpoint.id) { return .success(.drift(drift)) }
+            return .failure(.message("这一章或这条漂流已不可用，请刷新列表。"))
         case "storyline":
             guard let storyline = storylineLibraries[projectID]?.storyline(id: endpoint.id) else {
-                unavailable("这条故事线已不可用，请刷新故事线列表。"); return
+                return .failure(.message("这条故事线已不可用，请刷新故事线列表。"))
             }
-            open(project: project, storyline: storyline, in: index, completion: done)
+            return .success(.storyline(storyline))
         case "category":
             guard let category = sources?.library?.categories.first(where: { $0.id == endpoint.id }) else {
-                unavailable("这个分类已不可用，请刷新设定库。"); return
+                return .failure(.message("这个分类已不可用，请刷新设定库。"))
             }
-            open(project: project, category: category, in: index, completion: done)
+            return .success(.category(category))
         default:
-            unavailable("原生版本暂不支持打开这种关系端点。")
+            return .failure(.message("原生版本暂不支持打开这种关系端点。"))
         }
+    }
+
+    /// Opens a chapter, drift, element, category or storyline by its
+    /// relation endpoint: pages as their tabs, a chapter as its tab. An end
+    /// that is not live is refused in Chinese.
+    func open(endpoint: RelationEndpoint, project: WorkspaceProject, in pane: Int? = nil,
+              completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        switch tabTarget(for: endpoint, projectID: project.id) {
+        case .failure(let refusal): completion(.failure(refusal))
+        case .success(let target): open(project: project, target: target, in: pane, completion: completion)
+        }
+    }
+
+    // MARK: Review
+
+    /// The active tab's page for 审阅's 当前: a chapter, drift, element,
+    /// category or storyline, named as “章节「雨夜」”.
+    var activeFocus: ReviewFocus? {
+        guard let tab = panes[activePane].active else { return nil }
+        let kind = tab.chapter != nil ? "章节" : tab.drift != nil ? "漂流" : tab.element != nil ? "设定"
+            : tab.category != nil ? "分类" : "故事线"
+        return ReviewFocus(endpoint: tab.relationEndpoint, label: "\(kind)「\(tab.title)」")
+    }
+
+    /// Reads the element library, chapters, drifts and storylines of a
+    /// project once, so relation and association names resolve without a tab.
+    func loadNames(projectID: String) {
+        ensureLinkSources(projectID: projectID)
+        if storylineLibraries[projectID] == nil, !loadingStorylines.contains(projectID) { storylinesChanged(projectID: projectID) }
+    }
+
+    /// 定位: opens the comment's page as a tab; a passage note then selects
+    /// its current anchor in that tab, as the comment panel does. Reports
+    /// nil, or why it could not.
+    func locate(comment: WorkspaceComment, project: WorkspaceProject, completion: @escaping (String?) -> Void) {
+        guard let target = comment.target else { completion("浮动待办没有所在的页面。"); return }
+        pendingCommentLocate = nil
+        open(endpoint: target, project: project) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let view):
+                guard comment.isBlock, target.kind == "node" else { completion(nil); return }
+                self.pendingCommentLocate = (view, comment.id, completion)
+                self.resolveCommentLocate()
+            case .failure(let error): completion(error.localizedDescription)
+            }
+        }
+    }
+
+    private var pendingCommentLocate: (view: NativeDocumentView, commentID: String, done: (String?) -> Void)?
+
+    private func resolveCommentLocate() {
+        guard let pending = pendingCommentLocate, !isBusy else { return }
+        guard pending.view === activeView else { pendingCommentLocate = nil; pending.done("当前编辑栏已变化，请重新定位。"); return }
+        let binding = pending.view.binding
+        guard binding.canEdit, !binding.hasPendingWork, let projection = binding.store.projection,
+              NativeText.identical(pending.view.textView.string, projection.text) else { return }
+        pendingCommentLocate = nil
+        pending.done(pending.view.locateComment(id: pending.commentID))
+    }
+
+    /// A note or TODO changed outside its chapter's owner. A deleted
+    /// passage note's highlight leaves every view of an open chapter: the
+    /// owner reads its anchors again once idle.
+    func commentsChanged(_ change: ReviewChange, projectID: String) {
+        let comment = change.comment
+        guard case .deleted = change, comment.isBlock, comment.targetKind == "node", let chapter = comment.targetId,
+              let view = openView(scope: .chapter(ChapterScope(projectID: projectID, chapterID: chapter))) else { return }
+        view.binding.store.load()
+    }
+
+    // MARK: Project deletion
+
+    /// Closes every tab of the project in both panes, one at a time, saving
+    /// each as closing a tab does. The first tab that cannot close stops it
+    /// with the reason; tabs already closed stay closed.
+    func closeTabs(projectID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let (index, tab) = panes.enumerated().lazy.compactMap({ entry in
+            entry.element.tabs.first { $0.project.id == projectID }.map { (entry.offset, $0) }
+        }).first else {
+            completion(.success(())); return
+        }
+        let title = tab.title
+        closeTab(pane: index, scope: tab.scope) { [weak self] result in
+            switch result {
+            case .success: self?.closeTabs(projectID: projectID, completion: completion)
+            case .failure(let error):
+                completion(.failure(LabError.message("“\(title)”无法关闭：\(error.localizedDescription)")))
+            }
+        }
+    }
+
+    /// Whether any tab shows a page of the project.
+    func hasTabs(projectID: String) -> Bool { allTabs.contains { $0.project.id == projectID } }
+
+    /// Drops everything read for a deleted project.
+    func forget(projectID: String) {
+        linkSources.removeValue(forKey: projectID)
+        linkDirectories.removeValue(forKey: projectID)
+        storylineLibraries.removeValue(forKey: projectID)
+        materialLibraries.removeValue(forKey: projectID)
+        elementCategories.removeValue(forKey: projectID)
+        actNames.removeValue(forKey: projectID)
+        backlinkRefresh.removeValue(forKey: projectID)?.cancel()
+        wordCountModels.removeValue(forKey: projectID)?.cancel()
+        countedRevisions = countedRevisions.filter { $0.key.projectID != projectID }
+        relations.forget(projectID: projectID)
     }
 
     // MARK: Entity links
@@ -1573,6 +1685,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.updateTabAvailability()
             self.focusWhenReady()
             self.resolveLinkReveal()
+            self.resolveCommentLocate()
             // Settled chapter prose may add or remove references.
             if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
             if !busy, let tab { self.countSavedBody(of: tab) }
@@ -1600,7 +1713,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.view.isInteractionLocked = value || externallyLocked
         }
         updateTabAvailability()
-        if !value { focusWhenReady() }
+        if !value { focusWhenReady(); resolveCommentLocate() }
         onActivity?(!canNavigate)
     }
     private func focusWhenReady() {

@@ -262,18 +262,20 @@ private final class CommentRowView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityIdentifier("comment-row-\(comment.id)")
 
-        let quote = NSTextField(wrappingLabelWithString: entry.quote.isEmpty ? "段落批注" : "「\(MacChapterCommentsViewController.flatten(entry.quote))」")
+        let quote = NSTextField(wrappingLabelWithString: entry.isWholePage ? "整章" : entry.quote.isEmpty ? "段落批注"
+            : "「\(MacChapterCommentsViewController.flatten(entry.quote))」")
         quote.font = .systemFont(ofSize: 12)
         quote.textColor = .secondaryLabelColor
         quote.maximumNumberOfLines = 2
         quote.lineBreakMode = .byTruncatingTail
         quote.setAccessibilityIdentifier("comment-quote-\(comment.id)")
-        var facts = [entry.anchorStatus.label, comment.review.label]
+        var facts = [entry.isWholePage ? "整章" : entry.anchorStatus.label, comment.review.label]
         if comment.kind == "todo" { facts.insert("待办", at: 0) }
         if !comment.canEditBody { facts.append(comment.source == "copilot" ? "来自 Copilot · 只读" : "外部来源 · 只读") }
         let meta = NSTextField(labelWithString: facts.joined(separator: " · "))
         meta.font = .systemFont(ofSize: 11, weight: .medium)
-        meta.textColor = entry.anchorStatus == .anchored || entry.anchorStatus == .wholeBlock ? .secondaryLabelColor : .systemOrange
+        meta.textColor = entry.isWholePage || entry.anchorStatus == .anchored || entry.anchorStatus == .wholeBlock
+            ? .secondaryLabelColor : .systemOrange
         meta.setAccessibilityIdentifier("comment-state-\(comment.id)")
         let body = NSTextField(wrappingLabelWithString: comment.bodyText)
         body.font = .systemFont(ofSize: 13)
@@ -282,7 +284,7 @@ private final class CommentRowView: NSView {
 
         let locate = ClosureButton(title: "定位", identifier: "locate-comment-\(comment.id)", action: actions.locate)
         locate.isEnabled = entry.canLocate
-        locate.toolTip = entry.canLocate ? "在当前编辑栏中选中批注的原文" : "原文已不在正文中"
+        locate.toolTip = entry.canLocate ? "在当前编辑栏中选中批注的原文" : entry.isWholePage ? "写在整章上的批注没有原文" : "原文已不在正文中"
         let edit = ClosureButton(title: "编辑", identifier: "edit-comment-\(comment.id)", action: actions.edit)
         edit.isHidden = !comment.canEditBody
         let resolve = ClosureButton(title: comment.review == .resolved ? "重新打开" : "解决",

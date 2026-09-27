@@ -19,6 +19,11 @@ Markdown or plain text. Native only; no Tauri interoperability is kept.
   Title, notes and a text note's body are edited with one `field.set` each;
   unchanged edits write nothing. Deleting purges the item's relations, the item
   and its asset row, then the bytes. Journals use `library-item` entities.
+- `moveItem` places an item before another one (or last) in the authored
+  order with `order.*` mutations on the `library-item` list in one original,
+  then renumbers `order_key` by rank; a place it already has writes nothing.
+- An item is associated (关联) with chapters, drifts, elements, categories and
+  storylines through the built-in Generic association ([review](review.md)).
 - A portrait imports an image asset and binds it to the element
   (`portrait_asset_id`, `field.set portraitAssetId`); replacing or clearing it
   releases the previous asset row and bytes. Trash keeps the portrait; restore
@@ -51,6 +56,13 @@ that are not images or PDFs are named in the status in Chinese and nothing is
 written for them. 添加链接… takes an optional title (default: the host) and an
 address (no scheme means https; Rust refuses anything but http/https). 新建笔记
 opens a sheet with 标题, 正文 and 备注.
+
+Cards can be dragged to reorder the library; the drop places the card before
+the card it lands above (after the last shown card at the end), also while
+the 备忘与素材 board hides some kinds, whose items keep their places. A card's
+menu offers 关联 (the project's live pages by kind) and 移除关联; its 关联
+show as chips under the card, whose names open the page and whose × removes
+the association. Pages' 关系 sections leave 关联 out.
 
 Double-click, Return or 快速查看 previews an image or PDF in Quick Look (Space
 toggles it; the arrow keys move the selection it follows), opens a link in the
@@ -106,5 +118,6 @@ clear a portrait with the previous bytes released, following in the second
 pane and the 设定库 row and refusing a PDF; import Markdown into a chapter, text
 into an element of a chosen category and Word into a 漂流 with the expected
 headings and paragraphs, export Markdown and text, and reopen cold with the
-library, portrait and bodies intact. Physical drag and drop, the open and save
-panels, the Quick Look window and devices are not covered.
+library, portrait and bodies intact. Reordering and 关联 are covered by the
+[review](review.md) cases (`--review-only`). Physical drag and drop, the open
+and save panels, the Quick Look window and devices are not covered.

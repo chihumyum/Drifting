@@ -47,6 +47,12 @@ pub(crate) enum LibraryCommand {
     DeleteItem {
         item_id: String,
     },
+    /// Before `before`, or last when absent; the reply lists the new order.
+    MoveItem {
+        item_id: String,
+        #[serde(default)]
+        before: Option<String>,
+    },
     SetPortrait {
         element_id: String,
         /// Absent or null clears the portrait.
@@ -117,6 +123,10 @@ impl WorkspaceSession {
             )?),
             LibraryCommand::DeleteItem { item_id } => {
                 store.delete_library_item(&self.context(&project)?, &assets, item_id)?;
+                Value::Null
+            }
+            LibraryCommand::MoveItem { item_id, before } => {
+                store.move_library_item(&self.context(&project)?, item_id, before.as_deref())?;
                 Value::Null
             }
             LibraryCommand::SetPortrait {

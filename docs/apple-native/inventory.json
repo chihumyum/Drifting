@@ -163,7 +163,7 @@
         "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation"
       ],
       "milestone": "P5/P6",
-      "status": "local-writing-tabs-two-pane-chapter-trash-and-whole-book-editor-implemented; project-home-planned",
+      "status": "local-writing-tabs-two-pane-chapter-trash-whole-book-editor-and-project-deletion-implemented; project-home-planned",
       "decisionTask": null
     },
     {
@@ -237,7 +237,7 @@
         "anchor preservation, invalidation and durable review decisions; selection comments created, listed, located, edited and resolved/reopened with exact renderer originals"
       ],
       "milestone": "P2/P3/P5",
-      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-and-Agent-proposal-review-implemented; review-panel-relations-TODO-planned",
+      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-and-Agent-proposal-review-implemented; Mac-review-panel-TODOs-priority-conversion-deletion-and-associations-implemented",
       "decisionTask": null
     },
     {
@@ -278,7 +278,7 @@
         "install/delete/restart boundaries and durable asset refs"
       ],
       "milestone": "P3/P5",
-      "status": "Mac-image-and-PDF-materials-library-portraits-and-asset-garbage-collection-implemented",
+      "status": "Mac-image-and-PDF-materials-library-portraits-and-asset-garbage-collection-implemented; Mac-library-order-associations-and-memo-board-implemented",
       "decisionTask": null
     },
     {

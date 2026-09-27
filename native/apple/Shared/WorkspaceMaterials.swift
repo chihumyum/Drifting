@@ -164,7 +164,9 @@ final class MaterialLibraryModel {
     private(set) var loaded = false
     private(set) var busy = false
     private(set) var status = "正在读取素材库…"
+    /// The 素材库 panel's view; other views (the 备忘与素材 board) observe.
     var onChange: (() -> Void)?
+    private var observers: [(owner: () -> AnyObject?, block: () -> Void)] = []
     /// Every successful command's complete library, e.g. for portraits.
     var onLibrary: ((WorkspaceMaterialLibrary) -> Void)?
 
@@ -175,11 +177,22 @@ final class MaterialLibraryModel {
 
     var items: [WorkspaceMaterialItem] { library.items }
 
-    func showStatus(_ message: String) { status = message; onChange?() }
+    /// Calls `block` after every change while `owner` lives, beside `onChange`.
+    func observe(_ owner: AnyObject, _ block: @escaping () -> Void) {
+        observers.append(({ [weak owner] in owner }, block))
+    }
+
+    private func changed() {
+        onChange?()
+        observers.removeAll { $0.owner() == nil }
+        for observer in observers { observer.block() }
+    }
+
+    func showStatus(_ message: String) { status = message; changed() }
 
     func load() {
         guard !busy else { return }
-        busy = true; onChange?()
+        busy = true; changed()
         workspace.materialLibrary(projectID: projectID) { [weak self] result in
             guard let self else { return }
             self.busy = false
@@ -197,7 +210,7 @@ final class MaterialLibraryModel {
         status = message ?? (library.items.isEmpty
             ? "还没有素材。可以导入图片或 PDF、添加链接或新建笔记，也可以把文件拖到这里。"
             : "\(library.items.count) 个素材 · 双击预览，右键查看更多操作。")
-        onChange?()
+        changed()
     }
 
     /// Imports files one at a time in the given order. A file that cannot be
@@ -207,7 +220,7 @@ final class MaterialLibraryModel {
         guard !urls.isEmpty else { completion?([]); return }
         busy = true
         status = urls.count == 1 ? "正在导入“\(urls[0].lastPathComponent)”…" : "正在导入 \(urls.count) 个文件…"
-        onChange?()
+        changed()
         var imported: [WorkspaceMaterialItem] = []
         var refusals: [String] = []
         var remaining = urls[...]
@@ -232,7 +245,7 @@ final class MaterialLibraryModel {
                 case .success(let reply):
                     self.library = reply.library; self.loaded = true
                     if let item = reply.result { imported.append(item) }
-                    self.onChange?()
+                    self.changed()
                     self.onLibrary?(reply.library)
                 case .failure(let error):
                     refusals.append("“\(url.lastPathComponent)”：\(error.localizedDescription)")
@@ -293,11 +306,37 @@ final class MaterialLibraryModel {
         }
     }
 
+    /// Places the item before another one, or last with nil. A place it
+    /// already has writes nothing; Rust renumbers the order by rank.
+    func move(itemID: String, before: String?, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        guard let item = library.item(id: itemID) else {
+            showStatus("这个素材已不可用，请刷新素材库。"); completion?(.failure(LabError.message("这个素材已不可用。"))); return
+        }
+        guard !busy else { completion?(.failure(LabError.message("正在保存素材库，请稍后重试。"))); return }
+        var order = library.items.map(\.id).filter { $0 != itemID }
+        order.insert(itemID, at: before.flatMap { order.firstIndex(of: $0) } ?? order.count)
+        guard order != library.items.map(\.id) else { completion?(.success(())); return }
+        busy = true; changed()
+        workspace.moveMaterial(projectID: projectID, itemID: itemID, beforeItemID: before) { [weak self] result in
+            guard let self else { return }
+            self.busy = false
+            switch result {
+            case .success(let reply):
+                self.apply(reply.library, message: "“\(item.title)”已移动。")
+                self.onLibrary?(reply.library)
+                completion?(.success(()))
+            case .failure(let error):
+                self.showStatus(error.localizedDescription)
+                completion?(.failure(error))
+            }
+        }
+    }
+
     /// Removes the item and, after the commit, its stored bytes.
     func delete(itemID: String, completion: ((Result<Void, Error>) -> Void)? = nil) {
         let title = library.item(id: itemID)?.title ?? "素材"
         guard !busy else { completion?(.failure(LabError.message("正在保存素材库，请稍后重试。"))); return }
-        busy = true; onChange?()
+        busy = true; changed()
         workspace.deleteMaterial(projectID: projectID, itemID: itemID) { [weak self] result in
             guard let self else { return }
             self.busy = false
@@ -318,7 +357,7 @@ final class MaterialLibraryModel {
         guard !busy else {
             completion?(.failure(LabError.message("正在保存素材库，请稍后重试。"))); return
         }
-        busy = true; onChange?()
+        busy = true; changed()
         operation { [weak self] result in
             guard let self else { return }
             self.busy = false

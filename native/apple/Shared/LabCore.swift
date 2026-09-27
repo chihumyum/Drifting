@@ -29,6 +29,9 @@ enum LabError: LocalizedError {
     case transferUnavailable(reason: String)
     case timelineUnavailable(reason: String)
     case versionHistoryUnavailable(reason: String)
+    case reviewUnavailable(reason: String)
+    case actUnavailable(reason: String)
+    case projectUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -38,7 +41,8 @@ enum LabError: LocalizedError {
              .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
              .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
              .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
-             .versionHistoryUnavailable(let text): return text
+             .versionHistoryUnavailable(let text), .reviewUnavailable(let text), .actUnavailable(let text),
+             .projectUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -60,7 +64,57 @@ enum LabError: LocalizedError {
         case .transferUnavailable(let reason): return LabError.transferMessage(reason)
         case .timelineUnavailable(let reason): return LabError.timelineMessage(reason)
         case .versionHistoryUnavailable(let reason): return LabError.versionHistoryMessage(reason)
+        case .reviewUnavailable(let reason): return LabError.reviewMessage(reason)
+        case .actUnavailable(let reason): return LabError.actMessage(reason)
+        case .projectUnavailable(let reason): return LabError.projectMessage(reason)
         }
+    }
+
+    /// Note and TODO refusals happen before any row, relation or anchor
+    /// change. Rust's own messages are Chinese (内容不能为空, 浮动的只能是待办,
+    /// 浮动的待办不能转为批注, 这条批注或待办不存在); diagnostics are restated.
+    private static func reviewMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Invalid comment priority", "优先级只能是低、中或高。"),
+            ("Invalid comment kind", "只能写批注或待办。"),
+            ("targetKind and targetId go together", "批注的位置不完整，请重新选择。"),
+            ("are not supported natively", "原生版本暂不支持在这种页面上写批注或待办。"),
+            ("不存在或已在回收站", "所在的页面已不可用（可能已移到回收站），请刷新后重试。"),
+            ("converted suggestion", "已转化的建议不能解决或重新打开。"),
+            ("Comment is not live", "这条批注或待办已被删除，请刷新审阅列表。"),
+            ("Invalid comment incarnation", "这条批注或待办的数据已变化，请刷新审阅列表。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "审阅操作未能完成。已有内容未改变，可以稍后重试。"
+    }
+
+    /// Act colour refusals happen before any row or journal change.
+    private static func actMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Invalid act identity or colour", "幕颜色须为有效的颜色值。"),
+            ("Act is not", "这一幕已不可用，请刷新整书大纲。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "幕颜色未能保存。已有内容未改变，可以稍后重试。"
+    }
+
+    /// Project deletion refusals leave every row, body and file in place.
+    /// Rust's own messages are Chinese (请先关闭这个项目里打开的章节和页面…).
+    private static func projectMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Project does not", "这个项目已不可用，请刷新项目列表。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请刷新项目列表。"),
+            ("Unknown or closed workspace", "工作区已关闭，请重新打开后再删除项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "项目未能删除。已有内容未改变，可以稍后重试。"
     }
 
     /// Story graph refusals happen before any row or journal change. Rust's
@@ -387,6 +441,15 @@ final class LabCore {
             if request["operation"] as? String == "workspaceTimeline" {
                 throw LabError.timelineUnavailable(reason: reason)
             }
+            if request["operation"] as? String == "workspaceComments" {
+                throw LabError.reviewUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceSetActColor" {
+                throw LabError.actUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceDeleteProject" {
+                throw LabError.projectUnavailable(reason: reason)
+            }
             if request["operation"] as? String == "workspaceHistory" {
                 throw LabError.versionHistoryUnavailable(reason: reason)
             }
@@ -608,7 +671,7 @@ final class LabCore {
     }
 }
 
-struct WorkspaceProject: Decodable {
+struct WorkspaceProject: Decodable, Equatable {
     let id: String
     let name: String
 }
@@ -687,11 +750,14 @@ enum DocumentScope: Hashable {
         }
     }
 }
-struct WorkspaceOutlineEntry: Decodable {
+struct WorkspaceOutlineEntry: Decodable, Equatable {
     let kind: String
     let id: String
     let title: String
     let actId: String?
+    /// An act's stored colour (`#rrggbb`); nil for chapters and for acts
+    /// that follow the default hue cycle.
+    let color: String?
 }
 
 private struct WorkspaceState: Decodable {
@@ -749,6 +815,17 @@ struct WorkspaceAgentApplied: Decodable {
     let document: LabDocumentState
 }
 
+/// `workspaceDeleteProject`: what was removed and the projects that remain.
+struct WorkspaceProjectDeletion: Decodable, Equatable {
+    let projectId: String
+    let assetIds: [String]
+    let documentIds: [String]
+}
+struct WorkspaceProjectDeletionReply: Decodable {
+    let deleted: WorkspaceProjectDeletion
+    let projects: [WorkspaceProject]
+}
+
 struct WorkspaceChapterTrashReply: Decodable {
     let projectId: String
     let chapterId: String
@@ -800,6 +877,17 @@ final class LabWorkspaceCore {
     func renameProject(projectID: String, name: String,
                        completion: @escaping (Result<WorkspaceProject, Error>) -> Void) {
         updateMetadata("workspaceRenameProject", fields: ["projectId": projectID, "name": name], completion: completion)
+    }
+
+    /// Deletes the project, its rows, prose, history and asset bytes. Rust
+    /// refuses while any body of the project is open; callers close its tabs
+    /// and panels first. The reply lists the remaining projects.
+    func deleteProject(projectID: String, completion: @escaping (Result<WorkspaceProjectDeletionReply, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再删除项目。"))); return
+        }
+        perform(completion) { try self.request("workspaceDeleteProject", fields: ["projectId": projectID]) }
     }
 
     func chapters(projectID: String, completion: @escaping (Result<[WorkspaceChapter], Error>) -> Void) {
@@ -1284,6 +1372,15 @@ final class LabWorkspaceCore {
         perform(completion) { try self.libraryRequest(projectID, command) }
     }
 
+    /// Moves an item before another one, or last with nil; an unchanged
+    /// order writes nothing. The reply's library lists the new order.
+    func moveMaterial(projectID: String, itemID: String, beforeItemID: String?,
+                      completion: @escaping (Result<WorkspaceMaterialReply<WorkspaceMaterialItem>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "moveItem", "itemId": itemID]
+        if let beforeItemID { command["before"] = beforeItemID }
+        perform(completion) { try self.libraryRequest(projectID, command) }
+    }
+
     private func libraryRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
         try request("workspaceLibrary", fields: ["projectId": projectID, "command": command])
     }
@@ -1396,6 +1493,64 @@ final class LabWorkspaceCore {
     func removeAct(projectID: String, actID: String,
                    completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
         updateMetadata("workspaceRemoveAct", fields: ["projectId": projectID, "actId": actID], completion: completion)
+    }
+
+    /// Sets an act's colour (`#rrggbb`) or clears it with nil; an unchanged
+    /// colour writes nothing. Metadata only: no owner, input or history changes.
+    func setActColor(projectID: String, actID: String, color: String?,
+                     completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceSetActColor", fields: ["projectId": projectID, "actId": actID,
+                                                              "color": color.map { $0 as Any } ?? NSNull()])
+        }
+    }
+
+    // MARK: Notes and TODOs
+
+    /// Every note and TODO of the project, oldest first. A read only.
+    func projectComments(projectID: String, completion: @escaping (Result<[WorkspaceComment], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceCommentsReply = try self.commentsRequest(projectID, ["action": "list"])
+            return reply.comments
+        }
+    }
+
+    /// A floating TODO (no target), or a note or TODO on a whole chapter,
+    /// drift, element, category or storyline. Selection notes are created
+    /// through the chapter's owner instead.
+    func createComment(projectID: String, kind: String, target: RelationEndpoint?, body: String, priority: String?,
+                       completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
+        var command: [String: Any] = ["action": "create", "kind": kind, "body": body]
+        if let target { command["targetKind"] = target.kind; command["targetId"] = target.id }
+        if let priority { command["priority"] = priority }
+        perform(completion) { try self.commentsRequest(projectID, command) }
+    }
+
+    /// Present fields change; `priority: .some(nil)` clears it. Unchanged
+    /// values write nothing, and a floating TODO cannot become a note.
+    func updateComment(projectID: String, commentID: String, changes: WorkspaceCommentChanges,
+                       completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "update"; command["commentId"] = commentID
+        perform(completion) { try self.commentsRequest(projectID, command) }
+    }
+
+    func setCommentResolved(projectID: String, commentID: String, resolved: Bool,
+                            completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
+        perform(completion) {
+            try self.commentsRequest(projectID, ["action": "setResolved", "commentId": commentID, "resolved": resolved])
+        }
+    }
+
+    /// Removes the comment and every relation touching it. An open chapter
+    /// owner stops tracking its anchor; the caller refreshes the views.
+    func deleteComment(projectID: String, commentID: String,
+                       completion: @escaping (Result<WorkspaceCommentsReply, Error>) -> Void) {
+        perform(completion) { try self.commentsRequest(projectID, ["action": "delete", "commentId": commentID]) }
+    }
+
+    private func commentsRequest(_ projectID: String, _ command: [String: Any]) throws -> WorkspaceCommentsReply {
+        try request("workspaceComments", fields: ["projectId": projectID, "command": command])
     }
 
     func chapterOutline(projectID: String, chapterID: String,

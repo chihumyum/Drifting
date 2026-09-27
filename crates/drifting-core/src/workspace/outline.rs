@@ -9,11 +9,15 @@ pub struct WorkspaceOutlineRow {
     pub id: String,
     pub title: String,
     pub act_id: Option<String>,
+    /// An act's stored colour; absent for chapters and uncoloured acts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 struct Act {
     id: String,
     title: String,
+    color: Option<String>,
     start_order: Option<f64>,
 }
 
@@ -24,6 +28,7 @@ impl Act {
             id: self.id.clone(),
             title: self.title.clone(),
             act_id: None,
+            color: self.color.clone(),
         }
     }
 }
@@ -59,7 +64,7 @@ impl WorkspaceStore<'_> {
                 .query(
                     Some(tx),
                     r#"
-                SELECT a.id,a.name,a.start_order FROM book_act a
+                SELECT a.id,a.name,a.start_order,a.color FROM book_act a
                 LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=?
                     AND l.entity_kind='book-act' AND l.entity_id=a.id
                 WHERE a.project_id=? AND (l.state IS NULL OR l.state='live')
@@ -72,6 +77,10 @@ impl WorkspaceStore<'_> {
                     Ok(Act {
                         id: string(&row, 0)?,
                         title: string(&row, 1)?,
+                        color: match row.get(3) {
+                            Some(V::Text(value)) => Some(value.clone()),
+                            _ => None,
+                        },
                         start_order: match row.get(2) {
                             Some(V::Null) => None,
                             _ => Some(number(&row, 2)?),
@@ -98,6 +107,7 @@ impl WorkspaceStore<'_> {
                     id: chapter.id,
                     title: chapter.title,
                     act_id: active_act.clone(),
+                    color: None,
                 });
             }
             rows.extend(acts.map(Act::row));

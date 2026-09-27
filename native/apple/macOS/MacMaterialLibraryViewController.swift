@@ -26,6 +26,19 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
     var openURL: ((URL) -> Void)?
     /// Shows files in Quick Look; nil uses the shared preview panel.
     var onQuickLook: (([URL]) -> Void)?
+    /// 关联 chips and menus; nil shows neither.
+    var associations: AssociationModel? {
+        didSet { associations?.observe(self) { [weak self] in self?.reload() }; reload() }
+    }
+    /// Opens an associated entity from a chip.
+    var onOpenAssociation: ((RelationEndpoint) -> Void)?
+    /// Kinds (`image`, `pdf`, `url`, `text`) the list leaves out, e.g. by the
+    /// 备忘与素材 board's filter chips. Drags still place items in the whole order.
+    var hiddenKinds: Set<String> = [] { didSet { if oldValue != hiddenKinds { reload() } } }
+    /// The 关闭 button; the board hosts the list without it.
+    var showsCloseButton = true { didSet { closeButton.isHidden = !showsCloseButton } }
+    static let itemPasteboardType = NSPasteboard.PasteboardType("cc.drifting.native-lab.library-item")
+    private let closeButton = NSButton(title: "关闭", target: nil, action: nil)
     /// The open 编辑 or 新建笔记 sheet, if any.
     private(set) var editSheet: MaterialEditSheet?
     /// What Quick Look shows: the stored file of the previewed item.
@@ -56,7 +69,8 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
         table.dataSource = self; table.delegate = self
         table.target = self; table.doubleAction = #selector(previewClicked)
         table.setAccessibilityIdentifier("material-library-list")
-        table.registerForDraggedTypes([.fileURL])
+        table.registerForDraggedTypes([.fileURL, Self.itemPasteboardType])
+        table.setDraggingSourceOperationMask(.move, forLocal: true)
         table.onSpace = { [weak self] in self?.toggleQuickLook() }
         table.onReturn = { [weak self] in self?.previewSelected() }
         table.onDelete = { [weak self] in
@@ -79,9 +93,10 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
             button.setAccessibilityIdentifier(id)
         }
         importButton.toolTip = "导入图片或 PDF，可以多选；也可以把文件拖到下方列表。"
-        let close = NSButton(title: "关闭", target: self, action: #selector(closeLibrary))
-        close.setAccessibilityIdentifier("close-material-library")
-        let actions = NSStackView(views: [importButton, linkButton, noteButton, NSView(), close])
+        closeButton.target = self; closeButton.action = #selector(closeLibrary)
+        closeButton.setAccessibilityIdentifier("close-material-library")
+        closeButton.isHidden = !showsCloseButton
+        let actions = NSStackView(views: [importButton, linkButton, noteButton, NSView(), closeButton])
         let stack = NSStackView(views: [actions, status, scroll])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -95,14 +110,14 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
             actions.widthAnchor.constraint(equalTo: stack.widthAnchor),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
-        model.onChange = { [weak self] in self?.reload() }
+        model.observe(self) { [weak self] in self?.reload() }
         reload()
     }
 
     func reload() {
         guard isViewLoaded else { return }
         let selected = selectedItem?.id
-        items = model.items
+        items = model.items.filter { !hiddenKinds.contains($0.kind) }
         status.stringValue = model.status
         for button in [importButton, linkButton, noteButton] { button.isEnabled = !model.busy && model.loaded }
         table.reloadData()
@@ -123,8 +138,88 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let card = MaterialCardView()
-        card.show(items[row], selected: table.selectedRow == row)
+        let item = items[row]
+        card.show(item, selected: table.selectedRow == row)
+        card.chips.show(associationEntries(item))
+        card.chips.onOpen = { [weak self] entry in self?.onOpenAssociation?(entry.target) }
+        card.chips.onRemove = { [weak self] entry in self?.dissociate(item, from: entry.target) }
         return card
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        guard items.indices.contains(row) else { return Self.cardHeight }
+        return Self.cardHeight + (associationEntries(items[row]).isEmpty ? 0 : MaterialCardView.chipsHeight)
+    }
+
+    // MARK: 关联
+
+    private func associationEntries(_ item: WorkspaceMaterialItem) -> [AssociationEntry] {
+        associations?.entries(of: RelationEndpoint(kind: "library_item", id: item.id)) ?? []
+    }
+
+    func associate(_ item: WorkspaceMaterialItem, with target: RelationEndpoint) {
+        guard let associations else { return }
+        associations.add(RelationEndpoint(kind: "library_item", id: item.id), target) { [weak self] result in
+            switch result {
+            case .success: self?.model.showStatus("“\(item.title)”已关联“\(associations.names().name(of: target).name)”。")
+            case .failure(let error): self?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    func dissociate(_ item: WorkspaceMaterialItem, from target: RelationEndpoint) {
+        guard let associations else { return }
+        associations.remove(RelationEndpoint(kind: "library_item", id: item.id), target) { [weak self] result in
+            switch result {
+            case .success: self?.model.showStatus("已移除“\(item.title)”的关联。")
+            case .failure(let error): self?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: Reordering
+
+    /// A card dragged within the list carries the item's identity.
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard model.loaded, !model.busy, items.indices.contains(row) else { return nil }
+        let item = NSPasteboardItem()
+        item.setString(items[row].id, forType: Self.itemPasteboardType)
+        return item
+    }
+
+    private func draggedItemID(on pasteboard: NSPasteboard) -> String? {
+        pasteboard.string(forType: Self.itemPasteboardType).flatMap { id in model.library.item(id: id) == nil ? nil : id }
+    }
+
+    /// Where a card dropped above `row` of the shown list goes in the whole
+    /// order: before the shown card it lands above, else after the last shown
+    /// card. Hidden kinds keep their places.
+    func destination(forDropAt row: Int, moving itemID: String) -> String? {
+        let shown = items.map(\.id), all = model.items.map(\.id)
+        let row = min(max(row, 0), shown.count)
+        if let above = shown[row...].first(where: { $0 != itemID }) { return above }
+        guard let last = shown.last(where: { $0 != itemID }), let index = all.firstIndex(of: last) else { return nil }
+        return all[(index + 1)...].first { $0 != itemID }
+    }
+
+    /// Moves the card on the pasteboard above `row`. A drop in its own place
+    /// writes nothing.
+    @discardableResult
+    func dropReorder(from pasteboard: NSPasteboard, row: Int) -> Bool {
+        guard !model.busy, let id = draggedItemID(on: pasteboard) else { return false }
+        model.move(itemID: id, before: destination(forDropAt: row, moving: id)) { [weak self] result in
+            if case .success = result { self?.select(itemID: id) }
+        }
+        return true
+    }
+
+    /// Writes a row's drag to a pasteboard, as a drag would, for acceptance.
+    func dragPasteboard(row: Int) -> NSPasteboard? {
+        guard let writer = tableView(table, pasteboardWriterForRow: row) else { return nil }
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("drifting-library-drag-\(UUID().uuidString)"))
+        pasteboard.clearContents()
+        pasteboard.writeObjects([writer])
+        return pasteboard
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -156,6 +251,11 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
 
     func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int,
                    proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        if draggedItemID(on: info.draggingPasteboard) != nil {
+            guard !model.busy, model.loaded else { return [] }
+            if dropOperation == .on { tableView.setDropRow(row, dropOperation: .above) }
+            return .move
+        }
         let urls = MaterialThumbnails.fileURLs(on: info.draggingPasteboard)
         guard !model.busy, model.loaded, urls.contains(where: { MaterialThumbnails.conforms($0, to: [.image, .pdf]) }) else { return [] }
         // The whole list is the target; imported items join the end.
@@ -165,7 +265,8 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
 
     func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int,
                    dropOperation: NSTableView.DropOperation) -> Bool {
-        importDropped(from: info.draggingPasteboard)
+        if draggedItemID(on: info.draggingPasteboard) != nil { return dropReorder(from: info.draggingPasteboard, row: row) }
+        return importDropped(from: info.draggingPasteboard)
     }
 
     /// Imports the files on a pasteboard; files that are not images or PDFs
@@ -327,6 +428,28 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
                 self?.edit(item, focus: .body)
             })
         }
+        if let associations {
+            menu.append(.separator())
+            let associate = NSMenuItem(title: "关联", action: nil, keyEquivalent: "")
+            associate.setAccessibilityIdentifier("associate-material")
+            associate.submenu = AssociationMenu.make(candidates: associations.candidates(for: RelationEndpoint(kind: "library_item", id: item.id)),
+                                                     prefix: "associate-material") { [weak self] target in self?.associate(item, with: target) }
+            menu.append(associate)
+            let existing = associationEntries(item)
+            if !existing.isEmpty {
+                let remove = NSMenuItem(title: "移除关联", action: nil, keyEquivalent: "")
+                remove.setAccessibilityIdentifier("dissociate-material")
+                let submenu = NSMenu(title: "移除关联")
+                for entry in existing {
+                    submenu.addItem(LibraryMenuItem(title: entry.label,
+                        identifier: "dissociate-material-\(entry.target.kind)-\(entry.target.id)") { [weak self] in
+                        self?.dissociate(item, from: entry.target)
+                    })
+                }
+                remove.submenu = submenu
+                menu.append(remove)
+            }
+        }
         menu.append(.separator())
         menu.append(LibraryMenuItem(title: "重命名…", identifier: "rename-material") { [weak self] in self?.rename(item) })
         menu.append(LibraryMenuItem(title: "编辑备注…", identifier: "edit-material-notes") { [weak self] in
@@ -374,7 +497,11 @@ final class MacMaterialLibraryViewController: NSViewController, NSTableViewDataS
                 if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible { QLPreviewPanel.shared().orderOut(nil) }
                 self?.previewItems = []
             }
-            self?.model.delete(itemID: item.id)
+            let associated = self?.associationEntries(item).isEmpty == false
+            self?.model.delete(itemID: item.id) { [weak self] result in
+                // Rust purged its 关联 with it; the relation library is read again.
+                if case .success = result, associated { self?.associations?.relations.load() }
+            }
         }
     }
 
@@ -457,10 +584,13 @@ final class MaterialTableView: NSTableView {
 /// (image size, PDF, the link's host or a note's first lines) and notes.
 final class MaterialCardView: NSView {
     static let wellSide: CGFloat = 64
+    /// Extra height of a card showing 关联 chips.
+    static let chipsHeight: CGFloat = 26
     let well = MaterialPreviewWell()
     let titleLabel = NSTextField(labelWithString: "")
     let detailLabel = NSTextField(wrappingLabelWithString: "")
     let notesLabel = NSTextField(labelWithString: "")
+    let chips = AssociationChipsView(prefix: "material-association")
     private(set) var item: WorkspaceMaterialItem?
     var isSelected = false { didSet { needsDisplay = true } }
     /// True once an image or PDF preview replaced the placeholder.
@@ -488,13 +618,19 @@ final class MaterialCardView: NSView {
         row.alignment = .centerY; row.spacing = 12
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
+        chips.translatesAutoresizingMaskIntoConstraints = false
+        chips.isHidden = true
+        addSubview(chips)
         NSLayoutConstraint.activate([
             row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            row.centerYAnchor.constraint(equalTo: centerYAnchor),
+            row.topAnchor.constraint(equalTo: topAnchor, constant: (MacMaterialLibraryViewController.cardHeight - Self.wellSide) / 2),
             well.widthAnchor.constraint(equalToConstant: Self.wellSide),
             well.heightAnchor.constraint(equalToConstant: Self.wellSide),
             text.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            chips.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10 + Self.wellSide + 12),
+            chips.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+            chips.topAnchor.constraint(equalTo: row.bottomAnchor, constant: 4),
         ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

@@ -116,6 +116,8 @@ struct ChapterCommentEntry {
     let anchor: NativeComment?
 
     var id: String { comment.id }
+    /// A note or TODO on the whole chapter (written in 审阅), without a passage.
+    var isWholePage: Bool { comment.targetBlockId == nil }
     var anchorStatus: CommentAnchorStatus { anchor?.anchorStatus ?? .unresolved }
     var quote: String {
         if let quote = anchor?.quote, !quote.isEmpty { return quote }
@@ -140,6 +142,8 @@ final class ChapterCommentsModel {
         didSet { guard oldValue != showResolved else { return }; summarize(); onChange?() }
     }
     var onChange: (() -> Void)?
+    /// A body or resolution change was stored; 审阅 reads the rows again.
+    var onCommitted: ((WorkspaceComment) -> Void)?
 
     var entries: [ChapterCommentEntry] {
         comments.filter { showResolved || $0.review != .resolved }.map { comment in
@@ -237,6 +241,7 @@ final class ChapterCommentsModel {
         case .success(let comment):
             if let index = comments.firstIndex(where: { $0.id == comment.id }) { comments[index] = comment }
             summarize(); status = message + " " + status; onChange?()
+            onCommitted?(comment)
             reload(after: message)
         case .failure(let error): showStatus(error.localizedDescription)
         }
