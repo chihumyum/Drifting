@@ -189,6 +189,7 @@ struct AgentProposal: Codable, Equatable {
     var kindName: String {
         switch targetKind {
         case "element": return "设定"
+        case "category": return "分类"
         case "drift": return "漂流"
         default: return "章节"
         }

@@ -48,6 +48,27 @@ struct WorkspaceElement: Decodable, Equatable {
     let updatedAt: String
 }
 
+/// A category's element template reads as the blocks `setElementTemplate`
+/// takes: headings 1–3 and paragraphs with bold and italic ranges in UTF-16
+/// units of each block's text. Marks are normalized, so a template read back
+/// equals the one written.
+extension BookImportBlock: Decodable {
+    private enum CodingKeys: String, CodingKey { case kind, level, text, marks }
+    private struct Mark: Decodable { let mark: String; let location: Int; let length: Int }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = Kind(rawValue: try container.decode(String.self, forKey: .kind)) ?? .paragraph
+        let level = try container.decodeIfPresent(Int.self, forKey: .level)
+        let text = try container.decode(String.self, forKey: .text)
+        let marks = (try container.decodeIfPresent([Mark].self, forKey: .marks) ?? []).compactMap { mark in
+            BookImportMark.Kind(rawValue: mark.mark).map { BookImportMark(kind: $0, location: mark.location, length: mark.length) }
+        }
+        self.init(kind: kind, level: kind == .heading ? min(max(level ?? 1, 1), 3) : nil, text: text,
+                  marks: BookImportMark.normalized(marks, length: (text as NSString).length))
+    }
+}
+
 struct WorkspaceElementLibrary: Decodable, Equatable {
     var categories: [WorkspaceElementCategory]
     var elements: [WorkspaceElement]
@@ -297,7 +318,8 @@ final class ElementLibraryModel {
         }
     }
 
-    /// Its elements stay live and open; they move to 未分类.
+    /// Its elements stay live and open; they move to 未分类. The tab host's
+    /// `trashCategory` is used instead when a category page may be open.
     func trashCategory(id: String, completion: ((Result<WorkspaceElementCategory, Error>) -> Void)? = nil) {
         let name = library.categories.first { $0.id == id }?.name ?? "分类"
         mutate(message: "“\(name)”已移到回收站，其中的设定已移到“未分类”。", completion: completion) {

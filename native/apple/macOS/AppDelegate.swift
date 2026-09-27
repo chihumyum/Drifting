@@ -306,12 +306,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         transfer.onStatus = { [weak self] message in self?.status.stringValue = message }
         transfer.onImported = { [weak self] project, entity in self?.adoptImported(entity, project: project) }
-        // Categories have no page: a 关系 row opens the 设定库 at the category.
-        chapterWorkspace.onOpenCategory = { [weak self] project, categoryID in
-            guard let self else { return }
-            self.showElements()
-            if self.elementsController?.model.projectID == project.id { self.elementsController?.reveal(categoryID: categoryID) }
-        }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
             chapterWorkspace.trailingAnchor.constraint(equalTo: editorHost.trailingAnchor),
@@ -924,6 +918,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.onOpen = { [weak self] element in self?.openElement(element, project: project, focusName: false) }
         controller.onCreated = { [weak self] element in self?.openElement(element, project: project, focusName: true) }
         controller.onTrash = { [weak self] element in self?.trashElement(element, project: project) }
+        controller.onOpenCategory = { [weak self] category in self?.openCategory(category, project: project) }
+        controller.onTrashCategory = { [weak self] category in self?.trashCategory(category, project: project) }
         // Rows show small portraits once the 素材库 has been read.
         controller.portraitPath = { [weak self] id in
             self?.chapterWorkspace.materialLibrary(projectID: project.id)?.portrait(elementID: id)?.assetPath
@@ -965,6 +961,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             case .success(let reply):
                 self.elementsController?.model.apply(reply.library, message: "“\(element.name)”已移到回收站，可以随时恢复。")
                 self.status.stringValue = "设定已移到回收站"
+                self.activeChapterChanged()
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.elementsController?.model.showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    private func openCategory(_ category: WorkspaceElementCategory, project: WorkspaceProject) {
+        guard canLeaveDocument() else {
+            elementsController?.model.showStatus("请先完成输入，并等待正文保存后再打开分类页。"); return
+        }
+        chapterWorkspace.open(project: project, category: category) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.status.stringValue = "分类正文自动保存"
+                self.window.makeKeyAndOrderFront(nil)
+                self.documentActivity(!self.chapterWorkspace.canNavigate)
+            case .failure(let error):
+                self.status.stringValue = error.localizedDescription
+                self.elementsController?.model.showStatus(error.localizedDescription)
+                self.activeChapterChanged()
+            }
+        }
+    }
+
+    /// The trash commits first; the category's page then closes. Its
+    /// elements move to 未分类 and their pages stay open.
+    private func trashCategory(_ category: WorkspaceElementCategory, project: WorkspaceProject) {
+        guard canLeaveDocument() else {
+            elementsController?.model.showStatus("请先完成输入，并等待正文保存后再修改设定库。"); return
+        }
+        chapterWorkspace.trashCategory(projectID: project.id, categoryID: category.id) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let reply):
+                self.elementsController?.model.apply(reply.library, message: "“\(category.name)”已移到回收站，其中的设定已移到“未分类”。")
+                self.status.stringValue = "分类已移到回收站"
                 self.activeChapterChanged()
             case .failure(let error):
                 self.status.stringValue = error.localizedDescription
@@ -1628,6 +1663,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else if let drift = chapterWorkspace.activeDrift {
             currentTitle.stringValue = "\(project.name) / 漂流 · \(drift.title)"
             window.title = "\(drift.title) — Drifting Native Lab"
+        } else if let category = chapterWorkspace.activeCategory {
+            currentTitle.stringValue = "\(project.name) / 分类 · \(category.name)"
+            window.title = "\(category.name) — Drifting Native Lab"
         }
     }
 

@@ -251,12 +251,8 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             self.live_category(tx, context, &input.category_id)?;
-            let templates = self.query(Some(tx),
-                "SELECT element_template_json FROM element_category WHERE id=?",
-                vec![text(&input.category_id)])?;
-            if !matches!(js_trim(&string(&templates[0], 0)?), "" | "{}") {
-                return Err("Category body templates are not supported natively yet".into());
-            }
+            // A category body template is filled into the new body by its
+            // owner after creation (see `category_element_template`).
             let others = self.element_rows(Some(tx), &context.project_id, false)?;
             let name = match input.name.as_deref().map(js_trim).filter(|v| !v.is_empty()) {
                 Some(name) => {
@@ -742,6 +738,53 @@ impl WorkspaceStore<'_> {
             );
         }
         Ok(())
+    }
+
+    /// A category's element body template: ProseMirror JSON, `{}` when unset.
+    pub fn category_element_template(
+        &self,
+        project_id: &str,
+        category_id: &str,
+    ) -> Result<String, String> {
+        let rows = self.query(None, "SELECT element_template_json FROM element_category WHERE id=? AND project_id=? AND deleted_at IS NULL",
+            vec![text(category_id), text(project_id)])?;
+        let row = rows.first().ok_or("分类不存在或已在回收站")?;
+        string(row, 0)
+    }
+
+    /// Replaces the template new elements of the category start from; `{}`
+    /// clears it. Unchanged templates write nothing.
+    pub fn set_category_element_template(
+        &self,
+        context: &AuthoredProseContext,
+        category_id: &str,
+        template_json: &str,
+    ) -> Result<WorkspaceElementCategory, String> {
+        validate_context(context)?;
+        if template_json != "{}" {
+            let document: Value = serde_json::from_str(template_json)
+                .map_err(|e| format!("Invalid template: {e}"))?;
+            if document.get("type").and_then(Value::as_str) != Some("doc")
+                || !document.get("content").is_some_and(Value::is_array)
+            {
+                return Err("Invalid template document".into());
+            }
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut category, incarnation) = self.live_category(tx, context, category_id)?;
+            let current = self.query(Some(tx), "SELECT element_template_json FROM element_category WHERE id=?",
+                vec![text(category_id)])?;
+            if string(&current[0], 0)? == template_json {
+                return Ok(category);
+            }
+            self.execute(tx, "UPDATE element_category SET element_template_json=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(template_json), text(&context.now_iso), text(category_id), text(&context.project_id)])?;
+            self.commit_changes(tx, context, &[journal::Mutation::field("element-category", category_id, incarnation,
+                "elementTemplateJson", json!(template_json))], None)?;
+            category.updated_at = context.now_iso.clone();
+            Ok(category)
+        })
     }
 
     fn live_category(

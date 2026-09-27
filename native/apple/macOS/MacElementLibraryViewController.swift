@@ -6,9 +6,10 @@ final class ElementLibraryPanel: NSPanel {
 }
 
 /// The 设定库: categories with their elements grouped by group name, and the
-/// trash of categories and elements. Opening and trashing an element go
-/// through the owner of the editor tabs; a category's template and trash are
-/// library commands whose reply reaches open pages through the model.
+/// trash of categories and elements. Opening and trashing an element or a
+/// category (分类页) go through the owner of the editor tabs; a category's
+/// 模板字段 are a library command whose reply reaches open pages through the
+/// model.
 final class MacElementLibraryViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     /// A small palette; Rust validates the stored `#RRGGBB` value.
     static let palette: [(name: String, hex: String)] = [
@@ -20,6 +21,11 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     var onOpen: ((WorkspaceElement) -> Void)?
     var onTrash: ((WorkspaceElement) -> Void)?
     var onCreated: ((WorkspaceElement) -> Void)?
+    /// Opens a category's page: double-click the row or 打开分类页.
+    var onOpenCategory: ((WorkspaceElementCategory) -> Void)?
+    /// Trashes a confirmed category through the tab host, which closes its
+    /// page after the commit. Nil trashes through the model.
+    var onTrashCategory: ((WorkspaceElementCategory) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     /// The stored portrait of an element, shown small beside its name.
@@ -48,6 +54,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         table.usesAutomaticRowHeights = false
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         table.dataSource = self; table.delegate = self
+        table.target = self; table.doubleAction = #selector(rowDoubleClicked)
         table.setAccessibilityIdentifier("element-library-list")
         let menu = NSMenu()
         menu.delegate = self
@@ -110,6 +117,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
             let swatch = NSImageView(image: ElementSwatch.image(for: category))
             swatch.setAccessibilityLabel("颜色 \(category.color)")
             let name = heading(category.name)
+            name.toolTip = "双击打开分类页"
             let create = LibraryButton(title: "新建设定", identifier: "create-element-\(category.id)") { [weak self] in
                 self?.createElement(in: category)
             }
@@ -222,6 +230,9 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     func menuItems(for row: ElementLibraryModel.Row) -> [NSMenuItem] {
         switch row {
         case .category(let category, _):
+            let open = LibraryMenuItem(title: "打开分类页", identifier: "open-element-category") { [weak self] in
+                self?.openCategory(category)
+            }
             let rename = LibraryMenuItem(title: "重命名…", identifier: "rename-element-category") { [weak self] in
                 self?.renameCategory(category)
             }
@@ -245,7 +256,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
             let trash = LibraryMenuItem(title: "移到回收站", identifier: "trash-element-category") { [weak self] in
                 self?.trashCategory(category)
             }
-            return [rename, colors, template, .separator(), create, .separator(), trash]
+            return [open, .separator(), rename, colors, template, .separator(), create, .separator(), trash]
         case .element(let element, _):
             let open = LibraryMenuItem(title: "打开", identifier: "open-element") { [weak self] in self?.open(element) }
             let trash = LibraryMenuItem(title: "移到回收站", identifier: "trash-element") { [weak self] in
@@ -262,16 +273,17 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         }
     }
 
-    /// Scrolls to a category, e.g. when a 关系 row names it; categories have
-    /// no page of their own.
-    func reveal(categoryID: String) {
-        guard isViewLoaded else { return }
-        guard let row = rows.firstIndex(where: { if case .category(let category, _) = $0 { return category.id == categoryID }; return false }),
-              case .category(let category, _) = rows[row] else {
-            model.showStatus("这个分类已不可用，请刷新设定库。"); return
-        }
-        table.scrollRowToVisible(row)
-        model.showStatus("“\(category.name)”在下方列表中；右键分类查看更多操作。")
+    @objc private func rowDoubleClicked() { openCategory(atRow: table.clickedRow) }
+
+    /// Double-clicking a category row opens its page; other rows do nothing.
+    func openCategory(atRow row: Int) {
+        guard rows.indices.contains(row), case .category(let category, _) = rows[row] else { return }
+        openCategory(category)
+    }
+
+    private func openCategory(_ category: WorkspaceElementCategory) {
+        guard canChange() else { return }
+        onOpenCategory?(model.library.categories.first { $0.id == category.id } ?? category)
     }
 
     private func canChange() -> Bool {
@@ -331,14 +343,15 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "将分类“\(category.name)”移到回收站？"
-        alert.informativeText = count == 0
+        alert.informativeText = (count == 0
             ? "这个分类中没有设定。之后可以在回收站中恢复它。"
-            : "其中的 \(count) 个设定会移到“未分类”，设定内容和已打开的页面保持不变。恢复分类时，这些设定不会自动移回。"
+            : "其中的 \(count) 个设定会移到“未分类”，设定内容和已打开的页面保持不变。恢复分类时，这些设定不会自动移回。")
+            + "打开的分类页会随之关闭；分类正文会保留，恢复分类后可以再打开。"
         alert.addButton(withTitle: "移到回收站").setAccessibilityIdentifier("confirm-trash-element-category")
         alert.addButton(withTitle: "取消")
         let proceed: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
-            self?.model.trashCategory(id: category.id)
+            guard response == .alertFirstButtonReturn, let self else { return }
+            if let onTrashCategory = self.onTrashCategory { onTrashCategory(category) } else { self.model.trashCategory(id: category.id) }
         }
         if let presentAlert { presentAlert(alert, proceed) }
         else if let window = view.window { alert.beginSheetModal(for: window, completionHandler: proceed) }

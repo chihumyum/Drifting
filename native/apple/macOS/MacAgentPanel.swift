@@ -850,6 +850,7 @@ extension MacChapterWorkspace {
         if let element = activeElement { return "设定「\(element.name)」" }
         if let drift = activeDrift { return "漂流「\(drift.title)」" }
         if let storyline = activeStoryline { return "故事线「\(storyline.name)」" }
+        if let category = activeCategory { return "分类「\(category.name)」" }
         return nil
     }
 
@@ -866,6 +867,8 @@ extension MacChapterWorkspace {
                 case "chapter": scope = .chapter(ChapterScope(projectID: projectID, chapterID: id))
                 case "element": scope = .element(ElementScope(projectID: projectID, elementID: id))
                 case "drift": scope = .drift(DriftScope(projectID: projectID, driftID: id))
+                case "storyline": scope = .storyline(StorylineScope(projectID: projectID, storylineID: id))
+                case "category": scope = .category(CategoryScope(projectID: projectID, categoryID: id))
                 default: scope = nil
                 }
                 if let scope { (0..<paneCount).compactMap { retainedView(pane: $0, scope: scope) }.first?.binding.store.requestEntityLinks() }

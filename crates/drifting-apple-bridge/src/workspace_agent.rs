@@ -84,6 +84,11 @@ impl WorkspaceSession {
                 "storyline",
                 self.storyline_bodies.get(&key),
             ),
+            "category" => (
+                format!("category:{}", target.id),
+                "category",
+                self.category_bodies.get(&key),
+            ),
             kind => return Err(format!("Agent prose tools do not support {kind} bodies")),
         };
         let open = open.copied();

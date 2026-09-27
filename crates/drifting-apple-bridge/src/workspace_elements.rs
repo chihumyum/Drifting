@@ -68,6 +68,20 @@ pub(crate) enum ElementCommand {
     CloseElement {
         element_id: String,
     },
+    OpenCategory {
+        category_id: String,
+    },
+    CloseCategory {
+        category_id: String,
+    },
+    /// The category's element body template as editable blocks.
+    ElementTemplate {
+        category_id: String,
+    },
+    SetElementTemplate {
+        category_id: String,
+        blocks: Vec<super::transfer::ImportBlock>,
+    },
 }
 
 /// Distinguishes an absent optional field from an explicit `null`.
@@ -137,17 +151,71 @@ impl WorkspaceSession {
                 category_id,
                 name,
                 group_name,
-            } => json!(store.create_element(
+            } => {
+                let template = super::transfer::template_blocks(
+                    &store.category_element_template(project_id, category_id)?,
+                )?;
+                let element = store.create_element(
+                    &self.context(&project)?,
+                    NewElement {
+                        id: identifier("element")?,
+                        category_id: category_id.clone(),
+                        name: name.clone(),
+                        group_name: group_name.clone(),
+                        seed: empty_body()?,
+                    },
+                    &mut || identifier("fact"),
+                )?;
+                // The category's body template fills the new body through a
+                // short-lived owner, as the author's input.
+                if !template.is_empty() {
+                    let scope =
+                        store.document_scope(project_id, &format!("element:{}", element.id))?;
+                    let mut owner = LabSession::open_body(
+                        self.directory.clone(),
+                        self.gateway.clone(),
+                        scope,
+                        "element",
+                        element.id.clone(),
+                        self.installation_id.clone(),
+                    )?;
+                    let filled = owner.import_blocks(&template);
+                    let released = owner.prepare_to_release();
+                    filled?;
+                    released?;
+                }
+                json!(element)
+            }
+            ElementCommand::ElementTemplate { category_id } => {
+                super::transfer::blocks_value(&super::transfer::template_blocks(
+                    &store.category_element_template(project_id, category_id)?,
+                )?)
+            }
+            ElementCommand::SetElementTemplate {
+                category_id,
+                blocks,
+            } => json!(store.set_category_element_template(
                 &self.context(&project)?,
-                NewElement {
-                    id: identifier("element")?,
-                    category_id: category_id.clone(),
-                    name: name.clone(),
-                    group_name: group_name.clone(),
-                    seed: empty_body()?,
-                },
-                &mut || identifier("fact"),
+                category_id,
+                &super::transfer::template_json(blocks)?,
             )?),
+            ElementCommand::OpenCategory { category_id } => {
+                return self.open_category(documents, project_id, category_id);
+            }
+            ElementCommand::CloseCategory { category_id } => {
+                let key = (project_id.to_owned(), category_id.clone());
+                let handle = *self
+                    .category_bodies
+                    .get(&key)
+                    .ok_or("Category is not open in this workspace")?;
+                documents
+                    .get_mut(&handle)
+                    .ok_or("Workspace document owner is missing")?
+                    .prepare_to_release()?;
+                self.category_bodies.remove(&key);
+                documents.remove(&handle);
+                return Ok(Value::Null);
+            }
             ElementCommand::SetElementFacts { element_id, facts } => json!(store
                 .set_element_facts(&self.context(&project)?, element_id, facts, &mut || {
                     identifier("fact")
@@ -160,9 +228,28 @@ impl WorkspaceSession {
                     &mut || identifier("fact"),
                 )?),
             ElementCommand::TrashCategory { category_id } => {
-                json!(store.trash_element_category(&self.context(&project)?, category_id)?)
+                let key = (project_id.to_owned(), category_id.clone());
+                if let Some(handle) = self.category_bodies.get(&key) {
+                    documents
+                        .get_mut(handle)
+                        .ok_or("Workspace document owner is missing")?
+                        .prepare_to_release()?;
+                }
+                let trashed =
+                    store.trash_element_category(&self.context(&project)?, category_id)?;
+                // The retired owner never checkpoints after its lifecycle changed.
+                if let Some(handle) = self.category_bodies.remove(&key) {
+                    documents.remove(&handle);
+                }
+                json!(trashed)
             }
             ElementCommand::RestoreCategory { category_id } => {
+                if self
+                    .category_bodies
+                    .contains_key(&(project_id.into(), category_id.clone()))
+                {
+                    return Err("Category still has a live document owner".into());
+                }
                 json!(drifting_prose::workspace::restore_element_category(
                     &self.gateway,
                     CLIENT,
@@ -349,5 +436,55 @@ impl WorkspaceSession {
             documents.remove(&previous);
         }
         Ok(json!({"handle":handle,"projectId":project_id,"elementId":element_id,"document":state}))
+    }
+}
+
+impl WorkspaceSession {
+    fn open_category(
+        &mut self,
+        documents: &mut HashMap<u64, LabSession>,
+        project_id: &str,
+        category_id: &str,
+    ) -> Result<Value, String> {
+        let store = WorkspaceStore::new(&self.gateway, CLIENT);
+        if !store
+            .element_categories(project_id)?
+            .iter()
+            .any(|c| c.id == category_id)
+        {
+            return Err("Category is not available in this project".into());
+        }
+        let key = (project_id.to_owned(), category_id.to_owned());
+        if let Some(handle) = self.category_bodies.get(&key) {
+            let state = documents
+                .get(handle)
+                .ok_or("Workspace document owner is missing")?
+                .document_state()?;
+            return Ok(
+                json!({"handle":handle,"projectId":project_id,"categoryId":category_id,"document":state}),
+            );
+        }
+        for handle in self.document_handles() {
+            documents
+                .get_mut(&handle)
+                .ok_or("Workspace document owner is missing")?
+                .prepare_to_release()?;
+        }
+        let scope = store.document_scope(project_id, &format!("category:{category_id}"))?;
+        let candidate = LabSession::open_body(
+            self.directory.clone(),
+            self.gateway.clone(),
+            scope,
+            "category",
+            category_id.into(),
+            self.installation_id.clone(),
+        )?;
+        let state = candidate.document_state()?;
+        let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
+        documents.insert(handle, candidate);
+        self.category_bodies.insert(key, handle);
+        Ok(
+            json!({"handle":handle,"projectId":project_id,"categoryId":category_id,"document":state}),
+        )
     }
 }

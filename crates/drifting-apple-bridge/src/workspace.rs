@@ -49,6 +49,8 @@ struct WorkspaceSession {
     storyline_bodies: HashMap<(String, String), u64>,
     /// Drift body owners, keyed by (project, drift).
     drift_bodies: HashMap<(String, String), u64>,
+    /// Category body owners, keyed by (project, category).
+    category_bodies: HashMap<(String, String), u64>,
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -147,6 +149,7 @@ impl WorkspaceSession {
             .chain(self.elements.values())
             .chain(self.storyline_bodies.values())
             .chain(self.drift_bodies.values())
+            .chain(self.category_bodies.values())
             .copied()
             .collect();
         handles.sort_unstable();
@@ -235,6 +238,7 @@ pub(super) fn dispatch(
                     elements: HashMap::new(),
                     storyline_bodies: HashMap::new(),
                     drift_bodies: HashMap::new(),
+                    category_bodies: HashMap::new(),
                 },
             );
             json!({"handle":handle,"projects":projects})

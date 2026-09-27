@@ -39,12 +39,13 @@ Each tool has a name, a Chinese description, a JSON schema and its access.
 | read | `list_chapters` (id, title, order, status, words, summary) | `workspaceChapters`, `workspaceMetrics`, `workspaceMetadata` |
 | read | `read_chapter` (id or exact title) | `workspaceAgent readProse`: live text of an open owner, else stored |
 | read | `search_prose` | `workspaceSearch` |
-| read | `list_elements`, `read_element` (aliases, category, facts, body) | `workspaceElements`, `readProse` |
+| read | `list_elements` (with every category), `read_element` (aliases, category, facts, body) | `workspaceElements`, `readProse` |
+| read | `read_category` (members, 模板字段, element template, body) | `workspaceElements elementTemplate`, `readProse` |
 | read | `list_storylines` | `workspaceStorylines` |
 | read | `list_drifts`, `read_drift` | `workspaceDrifts`, `readProse` |
 | read | `project_overview` (name, summary, facts, counts) | `workspaceMetadata`, `workspaceMetrics` |
-| write | `revise_chapter`, `revise_element`, `revise_drift` (replace existing text) | `workspaceAgent applyChanges` |
-| write | `append_to_body` (new paragraphs at the end of a chapter, element or drift body, including an empty one) | `applyChanges` with one `append` change |
+| write | `revise_chapter`, `revise_element`, `revise_category`, `revise_drift` (replace existing text) | `workspaceAgent applyChanges` |
+| write | `append_to_body` (new paragraphs at the end of a chapter, element, category or drift body, including an empty one) | `applyChanges` with one `append` change |
 | write | `create_chapter` (title and optional opening text) | `workspaceCreateChapter`, then one `append` |
 | write | `set_chapter_summary` | `workspaceMetadata setNodeSummary` |
 

@@ -72,12 +72,14 @@ architectural redesign.
 | Writing assistant (写作助手) | `fcd813f4` | [agent](agent.md) |
 | Materials library, portraits, import and export | `6d0c627a` | [library](library.md) |
 | Story graph, timeline and version history | `0bf81171` | [timeline](timeline.md), [history](history.md) |
-| Settings, imported bold/italic, Enter after a linked name | this batch | [settings](settings.md), [library](library.md), [entity links](entity-links.md) |
+| Settings, imported bold/italic, Enter after a linked name | `a246b632` | [settings](settings.md), [library](library.md), [entity links](entity-links.md) |
+| Category pages and element body templates | this batch | [categories](categories.md) |
 
 ## Next batch
 
-Category pages and element body templates; then the element overview and the
-continuous whole-book editor with its rhythm statistics.
+The continuous whole-book editor with its rhythm statistics and the project
+dashboard (writing plan); then the element overview (categories on a grid
+around the chapter band, relation edges).
 
 ## Open gates
 

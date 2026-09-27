@@ -399,7 +399,10 @@ impl LabSession {
     /// or `restore`); periodic captures skip encoding while none is due.
     fn capture_history(&self, now: &str, reason: &str) -> Result<bool, String> {
         if !self.owner.workspace
-            || !matches!(self.owner.target_kind, "node" | "element" | "storyline")
+            || !matches!(
+                self.owner.target_kind,
+                "node" | "element" | "storyline" | "category"
+            )
         {
             return Ok(false);
         }

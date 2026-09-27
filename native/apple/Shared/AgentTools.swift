@@ -42,11 +42,14 @@ enum AgentToolRegistry {
                             schema: object(chapterTarget), access: .read),
         AgentToolDefinition(name: "search_prose", description: "在全书章节标题和正文中搜索文字，返回命中的章节和摘录。",
                             schema: object(["query": text("要搜索的文字。")], required: ["query"]), access: .read),
-        AgentToolDefinition(name: "list_elements", description: "列出设定库中的全部设定：编号、名称、别名、分类、分组和简介。",
+        AgentToolDefinition(name: "list_elements", description: "列出设定库中的全部分类（编号、名称、设定数）和全部设定：编号、名称、别名、分类、分组和简介。",
                             schema: object([:]), access: .read),
         AgentToolDefinition(name: "read_element", description: "读取一个设定：名称、别名、分类、简介、字段和正文。",
                             schema: object(["elementId": text("设定编号（来自 list_elements）。"),
                                             "name": text("设定的名称或别名；没有 elementId 时使用。")]), access: .read),
+        AgentToolDefinition(name: "read_category", description: "读取设定库中的一个分类：名称、所含设定、模板字段、新设定模版和分类正文（札记）。",
+                            schema: object(["categoryId": text("分类编号（来自 list_elements）。"),
+                                            "name": text("完全一致的分类名称；没有 categoryId 时使用。")]), access: .read),
         AgentToolDefinition(name: "list_storylines", description: "列出全部故事线：名称、简介、字段和所含章节（按书中顺序，标出主线）。",
                             schema: object([:]), access: .read),
         AgentToolDefinition(name: "list_drifts", description: "列出全部漂流（灵感）：编号、标题、摘要和分组。",
@@ -63,16 +66,21 @@ enum AgentToolRegistry {
                             description: "提出对一个设定正文的修改：把每处 currentText 替换为 revisedText。只替换已有文字；在末尾追加请用 append_to_body。只生成修改提案，作者接受后才会写入。",
                             schema: object(["elementId": text("设定编号。"), "name": text("设定的名称或别名；没有 elementId 时使用。"),
                                             "changes": changes], required: ["changes"]), access: .write),
+        AgentToolDefinition(name: "revise_category",
+                            description: "提出对一个分类正文（札记）的修改：把每处 currentText 替换为 revisedText。只替换已有文字；在末尾追加请用 append_to_body。只生成修改提案，作者接受后才会写入。",
+                            schema: object(["categoryId": text("分类编号。"), "name": text("完全一致的分类名称；没有 categoryId 时使用。"),
+                                            "changes": changes], required: ["changes"]), access: .write),
         AgentToolDefinition(name: "revise_drift",
                             description: "提出对一条漂流（灵感）正文的修改：把每处 currentText 替换为 revisedText。只替换已有文字；在末尾追加请用 append_to_body。只生成修改提案，作者接受后才会写入。",
                             schema: object(["driftId": text("漂流编号。"), "title": text("完全一致的漂流标题；没有 driftId 时使用。"),
                                             "changes": changes], required: ["changes"]), access: .write),
         AgentToolDefinition(name: "append_to_body",
-                            description: "提议在一个章节、设定或漂流（灵感）的正文末尾续写新段落；空白正文也可以直接写入。只生成修改提案，作者接受后才会写入。",
+                            description: "提议在一个章节、设定、分类或漂流（灵感）的正文末尾续写新段落；空白正文也可以直接写入。只生成修改提案，作者接受后才会写入。",
                             schema: object([
-                                "kind": ["type": "string", "enum": ["chapter", "element", "drift"], "description": "正文属于章节、设定还是漂流。"],
-                                "id": text("章节、设定或漂流的编号。"),
-                                "name": text("完全一致的章节或漂流标题，或设定的名称、别名；没有 id 时使用。"),
+                                "kind": ["type": "string", "enum": ["chapter", "element", "category", "drift"],
+                                         "description": "正文属于章节、设定、分类还是漂流。"],
+                                "id": text("章节、设定、分类或漂流的编号。"),
+                                "name": text("完全一致的章节或漂流标题、分类名称，或设定的名称、别名；没有 id 时使用。"),
                                 "text": text("要追加的正文；用换行符分段，每行成为一个新段落。"),
                             ], required: ["kind", "text"]), access: .write),
         AgentToolDefinition(name: "create_chapter",
@@ -159,6 +167,7 @@ final class AgentWorkspaceTools {
         case "search_prose": return "正在搜索…"
         case "list_elements": return "正在列出设定…"
         case "read_element": return title.map { "正在读取设定「\($0)」…" } ?? "正在读取设定…"
+        case "read_category": return title.map { "正在读取分类「\($0)」…" } ?? "正在读取分类…"
         case "list_storylines": return "正在列出故事线…"
         case "list_drifts": return "正在列出漂流…"
         case "read_drift": return title.map { "正在读取漂流「\($0)」…" } ?? "正在读取漂流…"
@@ -201,11 +210,12 @@ final class AgentWorkspaceTools {
         case "search_prose": search(arguments, completion)
         case "list_elements": listElements(completion)
         case "read_element": readElement(arguments, completion)
+        case "read_category": readCategory(arguments, completion)
         case "list_storylines": listStorylines(completion)
         case "list_drifts": listDrifts(completion)
         case "read_drift": readDrift(arguments, completion)
         case "project_overview": overview(completion)
-        case "revise_chapter", "revise_element", "revise_drift": propose(call, turnID: turnID, arguments, completion)
+        case "revise_chapter", "revise_element", "revise_category", "revise_drift": propose(call, turnID: turnID, arguments, completion)
         case "append_to_body": proposeAppend(call, turnID: turnID, arguments, completion)
         case "create_chapter": proposeChapter(call, turnID: turnID, arguments, completion)
         case "set_chapter_summary": proposeSummary(call, turnID: turnID, arguments, completion)
@@ -257,6 +267,26 @@ final class AgentWorkspaceTools {
         }
     }
 
+    private func category(_ arguments: [String: Any],
+                          _ done: @escaping (Result<(WorkspaceElementCategory, WorkspaceElementLibrary), AgentApplyRefusalText>) -> Void) {
+        let id = Self.string(arguments["categoryId"]), name = Self.string(arguments["name"]).map(Self.clean)
+        guard id != nil || name != nil else { done(.failure("请提供 categoryId 或分类名称。")); return }
+        workspace.elementLibrary(projectID: projectID) { result in
+            switch result {
+            case .failure(let error): done(.failure(AgentApplyRefusalText(Self.message(error))))
+            case .success(let library):
+                if let id, let category = library.categories.first(where: { $0.id == id }) { done(.success((category, library))); return }
+                guard let name else { done(.failure(AgentApplyRefusalText("找不到编号为 \(id ?? "") 的分类（可能已移到回收站）。"))); return }
+                let matches = library.categories.filter { Self.clean($0.name) == name }
+                switch matches.count {
+                case 1: done(.success((matches[0], library)))
+                case 0: done(.failure(AgentApplyRefusalText("找不到名为「\(name)」的分类。请先用 list_elements 查看。")))
+                default: done(.failure(AgentApplyRefusalText("有 \(matches.count) 个分类都叫「\(name)」，请改用 categoryId。")))
+                }
+            }
+        }
+    }
+
     private func drift(_ arguments: [String: Any],
                        _ done: @escaping (Result<(WorkspaceDrift, WorkspaceDriftLibrary), AgentApplyRefusalText>) -> Void) {
         let id = Self.string(arguments["driftId"]), title = Self.string(arguments["title"]).map(Self.clean)
@@ -280,6 +310,7 @@ final class AgentWorkspaceTools {
     private func target(_ tool: String, _ arguments: [String: Any], _ done: @escaping (Result<Target, AgentApplyRefusalText>) -> Void) {
         switch tool {
         case "revise_element": target(kind: "element", arguments, done)
+        case "revise_category": target(kind: "category", arguments, done)
         case "revise_drift": target(kind: "drift", arguments, done)
         default: target(kind: "chapter", arguments, done)
         }
@@ -288,6 +319,7 @@ final class AgentWorkspaceTools {
     private func target(kind: String, _ arguments: [String: Any], _ done: @escaping (Result<Target, AgentApplyRefusalText>) -> Void) {
         switch kind {
         case "element": element(arguments) { done($0.map { Target(kind: "element", id: $0.0.id, title: $0.0.name) }) }
+        case "category": category(arguments) { done($0.map { Target(kind: "category", id: $0.0.id, title: $0.0.name) }) }
         case "drift": drift(arguments) { done($0.map { Target(kind: "drift", id: $0.0.id, title: $0.0.title) }) }
         default: chapter(arguments) { done($0.map { Target(kind: "chapter", id: $0.id, title: $0.title) }) }
         }
@@ -368,7 +400,12 @@ final class AgentWorkspaceTools {
                      "category": element.categoryId.flatMap { categories[$0] } ?? "未分类",
                      "group": element.groupName ?? "", "summary": element.summary]
                 }
-                completion(AgentToolOutcome(ok: true, content: Self.json(["count": library.elements.count, "elements": rows]),
+                let categoryRows: [[String: Any]] = library.categories.map { category in
+                    ["id": category.id, "name": category.name,
+                     "elementCount": library.elements.filter { $0.categoryId == category.id }.count]
+                }
+                completion(AgentToolOutcome(ok: true, content: Self.json(["categories": categoryRows, "count": library.elements.count,
+                                                                          "elements": rows]),
                                             activity: "列出设定（\(library.elements.count) 个）", proposal: nil))
             }
         }
@@ -390,6 +427,35 @@ final class AgentWorkspaceTools {
                     value["summary"] = element.summary
                     value["facts"] = element.facts.map { ["key": $0.key, "value": $0.value] }
                     completion(AgentToolOutcome(ok: true, content: Self.json(value), activity: "读取设定「\(element.name)」", proposal: nil))
+                }
+            }
+        }
+    }
+
+    private func readCategory(_ arguments: [String: Any], _ completion: @escaping (AgentToolOutcome) -> Void) {
+        category(arguments) { [workspace, projectID] result in
+            switch result {
+            case .failure(let refusal): completion(.failure(refusal.message, activity: "读取分类失败"))
+            case .success(let (category, library)):
+                workspace.agentReadProse(projectID: projectID, kind: "category", id: category.id) { prose in
+                    guard case .success(let body) = prose else {
+                        completion(.failure(Self.message(prose.error!), activity: "读取分类「\(category.name)」失败")); return
+                    }
+                    workspace.elementTemplate(projectID: projectID, categoryID: category.id) { template in
+                        var value = Self.bounded(body.text)
+                        value["id"] = category.id; value["name"] = category.name
+                        let members = library.elements.filter { $0.categoryId == category.id }
+                        value["elementCount"] = members.count
+                        value["elements"] = members.prefix(Self.listLimit).map { ["id": $0.id, "name": $0.name] }
+                        value["templateFacts"] = category.templateFacts.map { ["key": $0.key, "value": $0.value] }
+                        if case .success(let blocks) = template {
+                            value["elementTemplate"] = blocks.map { block -> [String: Any] in
+                                ["kind": block.kind == .heading ? "标题 \(block.level ?? 1)" : "正文", "text": block.text]
+                            }
+                        }
+                        if body.text.isEmpty { value["note"] = "分类正文是空白的。" }
+                        completion(AgentToolOutcome(ok: true, content: Self.json(value), activity: "读取分类「\(category.name)」", proposal: nil))
+                    }
                 }
             }
         }
@@ -561,8 +627,8 @@ final class AgentWorkspaceTools {
 
     private func proposeAppend(_ call: AgentToolCall, turnID: String, _ arguments: [String: Any],
                                _ completion: @escaping (AgentToolOutcome) -> Void) {
-        guard let kind = arguments["kind"] as? String, ["chapter", "element", "drift"].contains(kind) else {
-            completion(.failure("kind 必须是 chapter、element 或 drift。", activity: "提议续写失败")); return
+        guard let kind = arguments["kind"] as? String, ["chapter", "element", "category", "drift"].contains(kind) else {
+            completion(.failure("kind 必须是 chapter、element、category 或 drift。", activity: "提议续写失败")); return
         }
         guard let text = Self.paragraphs(arguments["text"]) else {
             completion(.failure("要追加的正文不能为空。", activity: "提议续写失败")); return
@@ -571,6 +637,7 @@ final class AgentWorkspaceTools {
         let resolved: [String: Any?]
         switch kind {
         case "element": resolved = ["elementId": id, "name": name]
+        case "category": resolved = ["categoryId": id, "name": name]
         case "drift": resolved = ["driftId": id, "title": name]
         default: resolved = ["chapterId": id, "title": name]
         }

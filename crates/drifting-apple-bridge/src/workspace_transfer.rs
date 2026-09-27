@@ -17,21 +17,21 @@ pub(crate) struct ImportTarget {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ImportBlock {
-    kind: String,
+    pub(super) kind: String,
     #[serde(default)]
-    level: Option<u8>,
-    text: String,
+    pub(super) level: Option<u8>,
+    pub(super) text: String,
     /// Inline bold/italic ranges in the block's UTF-16 text.
     #[serde(default)]
-    marks: Vec<ImportMark>,
+    pub(super) marks: Vec<ImportMark>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ImportMark {
-    mark: String,
-    location: u32,
-    length: u32,
+    pub(super) mark: String,
+    pub(super) location: u32,
+    pub(super) length: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -276,4 +276,155 @@ impl WorkspaceSession {
             }
         }
     }
+}
+
+/// A category's element template (ProseMirror JSON) as import blocks:
+/// headings keep their level, other blocks become paragraphs of their text,
+/// and bold/italic runs become marks.
+pub(super) fn template_blocks(template_json: &str) -> Result<Vec<ImportBlock>, String> {
+    if matches!(template_json.trim(), "" | "{}") {
+        return Ok(Vec::new());
+    }
+    let document: Value =
+        serde_json::from_str(template_json).map_err(|e| format!("Invalid template: {e}"))?;
+    fn inline(node: &Value, text: &mut String, marks: &mut Vec<ImportMark>) {
+        if node.get("type").and_then(Value::as_str) == Some("text") {
+            let value = node.get("text").and_then(Value::as_str).unwrap_or("");
+            let location = text.encode_utf16().count() as u32;
+            let length = value.encode_utf16().count() as u32;
+            for mark in node
+                .get("marks")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(kind @ ("bold" | "italic")) = mark.get("type").and_then(Value::as_str) {
+                    if length > 0 {
+                        marks.push(ImportMark {
+                            mark: kind.into(),
+                            location,
+                            length,
+                        });
+                    }
+                }
+            }
+            text.push_str(value);
+        }
+        for child in node
+            .get("content")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            inline(child, text, marks);
+        }
+    }
+    fn block(node: &Value, out: &mut Vec<ImportBlock>) {
+        let kind = node.get("type").and_then(Value::as_str).unwrap_or("");
+        match kind {
+            "heading" | "paragraph" => {
+                let (mut text, mut marks) = (String::new(), Vec::new());
+                inline(node, &mut text, &mut marks);
+                out.push(ImportBlock {
+                    kind: kind.into(),
+                    level: node
+                        .pointer("/attrs/level")
+                        .and_then(Value::as_u64)
+                        .map(|l| l.min(3) as u8),
+                    text,
+                    marks,
+                });
+            }
+            _ => {
+                for child in node
+                    .get("content")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    block(child, out);
+                }
+            }
+        }
+    }
+    let mut blocks = Vec::new();
+    for node in document
+        .get("content")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        block(node, &mut blocks);
+    }
+    // An all-empty skeleton is no template.
+    if blocks
+        .iter()
+        .all(|b| b.text.trim().is_empty() && b.kind == "paragraph")
+    {
+        return Ok(Vec::new());
+    }
+    Ok(blocks)
+}
+
+/// Import blocks as the ProseMirror template JSON stored on the category.
+pub(super) fn template_json(blocks: &[ImportBlock]) -> Result<String, String> {
+    if blocks.is_empty() {
+        return Ok("{}".into());
+    }
+    let mut content = Vec::new();
+    for block in blocks {
+        let units: Vec<u16> = block.text.encode_utf16().collect();
+        let mut cuts = vec![0u32, units.len() as u32];
+        for mark in &block.marks {
+            if !matches!(mark.mark.as_str(), "bold" | "italic")
+                || mark.length == 0
+                || mark.location + mark.length > units.len() as u32
+            {
+                return Err("模版格式范围无效".into());
+            }
+            cuts.extend([mark.location, mark.location + mark.length]);
+        }
+        cuts.sort_unstable();
+        cuts.dedup();
+        let mut runs = Vec::new();
+        for pair in cuts.windows(2) {
+            let (start, end) = (pair[0], pair[1]);
+            let text = String::from_utf16(&units[start as usize..end as usize])
+                .map_err(|e| e.to_string())?;
+            let marks: Vec<Value> = ["bold", "italic"]
+                .iter()
+                .filter(|kind| {
+                    block.marks.iter().any(|m| {
+                        m.mark == **kind && m.location <= start && end <= m.location + m.length
+                    })
+                })
+                .map(|kind| json!({"type": kind}))
+                .collect();
+            runs.push(if marks.is_empty() {
+                json!({"type": "text", "text": text})
+            } else {
+                json!({"type": "text", "text": text, "marks": marks})
+            });
+        }
+        let mut node = match (block.kind.as_str(), block.level) {
+            ("heading", level) => {
+                json!({"type": "heading", "attrs": {"level": level.unwrap_or(1).clamp(1, 3)}})
+            }
+            _ => json!({"type": "paragraph"}),
+        };
+        if !block.text.is_empty() {
+            node["content"] = json!(runs);
+        }
+        content.push(node);
+    }
+    Ok(json!({"type": "doc", "content": content}).to_string())
+}
+
+/// Blocks as the JSON the host edits.
+pub(super) fn blocks_value(blocks: &[ImportBlock]) -> Value {
+    json!(blocks
+        .iter()
+        .map(|b| json!({"kind": b.kind, "level": b.level, "text": b.text,
+            "marks": b.marks.iter().map(|m| json!({"mark": m.mark, "location": m.location, "length": m.length})).collect::<Vec<_>>()}))
+        .collect::<Vec<_>>())
 }

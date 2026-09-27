@@ -291,19 +291,23 @@ fn workspace_elements_create_defaults_names_conflicts_and_seed() {
         element(&store, "hero", Some("另一个")).is_err(),
         "identity reuse"
     );
+    // A category body template no longer blocks creation: the host fills the
+    // new body from it after the create original.
     exec(&g, "UPDATE element_category SET element_template_json='{\"type\":\"doc\",\"content\":[]}' WHERE id='people'");
-    let before = state(&g);
-    assert!(element(&store, "templated", Some("模板"))
-        .unwrap_err()
-        .contains("templates"));
-    assert_eq!(state(&g), before);
+    element(&store, "templated", Some("模板")).unwrap();
+    assert_eq!(
+        store
+            .category_element_template(&c.project_id, "people")
+            .unwrap(),
+        r#"{"type":"doc","content":[]}"#
+    );
     let names: Vec<_> = store
         .elements(&c.project_id)
         .unwrap()
         .into_iter()
         .map(|e| e.name)
         .collect();
-    assert_eq!(names.len(), 3);
+    assert_eq!(names.len(), 4, "including the templated element");
 }
 
 #[test]

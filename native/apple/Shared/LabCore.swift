@@ -120,7 +120,6 @@ enum LabError: LocalizedError {
         let known: [(String, String)] = [
             ("导入的正文尚未保存", "页面已创建，但导入的正文尚未保存。请打开这一页检查后重试。"),
             ("Category is not available", "这个分类已不可用，请刷新设定库后重新选择。"),
-            ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持导入到其中。"),
             ("Imported bodies must start empty", "导入目标的正文不是空的，已停止导入。"),
             ("Project does not", "这个项目已不可用，请重新选择项目。"),
             ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
@@ -217,7 +216,11 @@ enum LabError: LocalizedError {
             ("Category is not available", "这个分类已不可用，请刷新设定库。"),
             ("Element is not available", "这个设定已不可用，请刷新设定库。"),
             ("Category name is empty", "分类名称不能为空，颜色须为有效的颜色值。"),
-            ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持在其中新建设定。"),
+            ("模版格式范围无效", "加粗或斜体的范围超出了所在段落的文字，模版未保存。请重新选择文字后再试。"),
+            ("Invalid template", "模版的格式无效，暂时无法保存。已输入的内容仍保留。"),
+            ("分类不存在或已在回收站", "这个分类已不可用（可能已移到回收站），请刷新设定库。"),
+            ("Category is not open", "这个分类页面已关闭，请重新打开。"),
+            ("Category still has a live document owner", "请先关闭这个分类的页面，再恢复。"),
             ("Category has unresolved prose dependencies", "分类正文还有未完成的同步依赖，暂时无法恢复。"),
             ("unresolved prose dependencies", "设定正文还有未完成的同步依赖，暂时无法恢复。"),
             ("Category lifecycle must be", "分类状态已变化，请刷新设定库。"),
@@ -646,14 +649,20 @@ struct DriftScope: Hashable {
     let driftID: String
 }
 
+struct CategoryScope: Hashable {
+    let projectID: String
+    let categoryID: String
+}
+
 /// One Rust prose owner in the workspace: a chapter body, or an element,
-/// storyline or drift page body. Rust keys them separately; Swift keeps one
-/// wrapper per live handle.
+/// storyline, drift or category page body. Rust keys them separately; Swift
+/// keeps one wrapper per live handle.
 enum DocumentScope: Hashable {
     case chapter(ChapterScope)
     case element(ElementScope)
     case storyline(StorylineScope)
     case drift(DriftScope)
+    case category(CategoryScope)
 
     var projectID: String {
         switch self {
@@ -661,6 +670,7 @@ enum DocumentScope: Hashable {
         case .element(let scope): return scope.projectID
         case .storyline(let scope): return scope.projectID
         case .drift(let scope): return scope.projectID
+        case .category(let scope): return scope.projectID
         }
     }
 
@@ -671,6 +681,7 @@ enum DocumentScope: Hashable {
         case .element: return "设定"
         case .storyline: return "故事线"
         case .drift: return "漂流"
+        case .category: return "分类"
         }
     }
 }
@@ -887,15 +898,50 @@ final class LabWorkspaceCore {
 
     /// Detaches every element of the category and removes the category's
     /// relations; no element owner changes, so open element pages stay open.
-    /// Category bodies have no native owner.
+    /// Rust saves an open category body before the trash commits, then
+    /// retires it.
     func trashElementCategory(projectID: String, categoryID: String,
                               completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
-        perform(completion) { try self.elementRequest(projectID, ["action": "trashCategory", "categoryId": categoryID]) }
+        changeLifecycle(.category(CategoryScope(projectID: projectID, categoryID: categoryID)), closesOwner: true, completion: completion) {
+            try self.elementRequest(projectID, ["action": "trashCategory", "categoryId": categoryID])
+        }
     }
 
+    /// Restore requires the category page to be closed; elements stay detached.
     func restoreElementCategory(projectID: String, categoryID: String,
                                 completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
-        perform(completion) { try self.elementRequest(projectID, ["action": "restoreCategory", "categoryId": categoryID]) }
+        changeLifecycle(.category(CategoryScope(projectID: projectID, categoryID: categoryID)), closesOwner: false, completion: completion) {
+            try self.elementRequest(projectID, ["action": "restoreCategory", "categoryId": categoryID])
+        }
+    }
+
+    func openCategory(projectID: String, categoryID: String, completion: @escaping (Result<LabCore, Error>) -> Void) {
+        openDocument(.category(CategoryScope(projectID: projectID, categoryID: categoryID)), reopen: false, completion: completion)
+    }
+
+    func closeCategory(projectID: String, categoryID: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        closeDocument(.category(CategoryScope(projectID: projectID, categoryID: categoryID)), completion: completion)
+    }
+
+    /// The body new elements of the category start from, as editable
+    /// blocks; empty when unset. A read only.
+    func elementTemplate(projectID: String, categoryID: String,
+                         completion: @escaping (Result<[BookImportBlock], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceElementReply<[BookImportBlock]> = try self.elementRequest(projectID,
+                ["action": "elementTemplate", "categoryId": categoryID])
+            return reply.result ?? []
+        }
+    }
+
+    /// Replaces the category's element template; an empty list clears it and
+    /// an unchanged template writes nothing. Metadata only: no owner changes.
+    func setElementTemplate(projectID: String, categoryID: String, blocks: [BookImportBlock],
+                            completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        perform(completion) {
+            try self.elementRequest(projectID, ["action": "setElementTemplate", "categoryId": categoryID,
+                                                "blocks": blocks.map(\.payload)])
+        }
     }
 
     /// Rust saves an open body before the trash commits, then retires it.
@@ -1454,6 +1500,7 @@ final class LabWorkspaceCore {
         case "element": scope = .element(ElementScope(projectID: projectID, elementID: id))
         case "drift": scope = .drift(DriftScope(projectID: projectID, driftID: id))
         case "storyline": scope = .storyline(StorylineScope(projectID: projectID, storylineID: id))
+        case "category": scope = .category(CategoryScope(projectID: projectID, categoryID: id))
         default: scope = nil
         }
         if let scope, owners[scope]?.core.hasPendingDocumentWork == true {
@@ -1643,6 +1690,10 @@ final class LabWorkspaceCore {
                 // The drift command has no reopen flag either.
                 guard !reopen else { throw LabError.message("漂流页面暂不支持从磁盘重新打开") }
                 return try self.driftRequest(drift.projectID, ["action": "openDrift", "driftId": drift.driftID])
+            case .category(let category):
+                // Nor does the category command.
+                guard !reopen else { throw LabError.message("分类页面暂不支持从磁盘重新打开") }
+                return try self.elementRequest(category.projectID, ["action": "openCategory", "categoryId": category.categoryID])
             }
         }
     }
@@ -1674,6 +1725,9 @@ final class LabWorkspaceCore {
             case .drift(let drift):
                 return try self.emptyRequest("workspaceDrifts", fields: ["projectId": drift.projectID,
                     "command": ["action": "closeDrift", "driftId": drift.driftID]])
+            case .category(let category):
+                return try self.emptyRequest("workspaceElements", fields: ["projectId": category.projectID,
+                    "command": ["action": "closeCategory", "categoryId": category.categoryID]])
             }
         }
     }

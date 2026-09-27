@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T11:02:44.469Z",
+  "generatedAt": "2026-09-27T12:00:10.601Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "0bf81171f53be3b6f23c37243275a810ef6b6d5e",
+    "commit": "a246b6329e58e5ec8d8897b361957c5f18610229",
     "dirty": true,
-    "fingerprint": "b4c0f9cd9ca0b32f947f2a02c3d86e10f0483d06a89c993be7a1efcd2804f269"
+    "fingerprint": "b2da183c4bed81fda39a0cfd21e8e4ef3f9acc890ebc54a3ae840eecf796a796"
   },
   "cases": [
     {
@@ -447,7 +447,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, fifteen tools and the key only in its auth header",
+      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, seventeen tools and the key only in its auth header",
       "status": "passed"
     },
     {
@@ -564,6 +564,22 @@
     },
     {
       "name": "AppKit 设置 fall back to the system serif with a Chinese message when a chosen system family is uninstalled or the imported copy is missing or damaged, and refuse an unknown family without changing the font",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定库 opens a category page (分类页) by double-click and 打开分类页 as a tab beside chapter and element tabs, whose header renames and recolours with one field.set each, edits 模板字段 as ordered rows, follows the 设定库 and a second pane, and whose body keeps its own undo apart from the chapter and survives cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 新设定模版 sheet on a category page edits headings and paragraphs with bold and italic on a selected range and Return adding a paragraph, previews how a new element starts, writes one field.set on 保存 and nothing when unchanged, shows Rust's range refusal in Chinese keeping the rows, elements created from the 设定库 and from the page open with the template body, and 清空模版 returns new elements to an empty body through cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 关系 from an element page to a category names the category, its row opens the 分类页 in that pane whose 关系 lists the relation back, 历史版本 lists and restores the category body as one undoable edit, and the writing assistant reads the category and revises its open body on 接受",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit category trash from the 设定库 after confirmation closes the category's tabs in both panes and its template sheet only after the commit while element and chapter tabs stay, restore lists it again and its page reopens with the body, 模板字段 and template through cold reopen",
       "status": "passed"
     }
   ],

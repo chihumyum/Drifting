@@ -2,8 +2,8 @@
 
 The Mac client has a 设定库: element categories and elements, with each
 element's page (name, aliases, summary, group, category, facts and prose body)
-opening in the existing tab and split workspace. Category body templates are a
-later batch and are refused explicitly; portraits live in the
+opening in the existing tab and split workspace. Categories have pages and body
+templates of their own ([categories](categories.md)); portraits live in the
 [materials library](library.md); element and category trash purge their
 [relations](relations.md).
 
@@ -20,8 +20,8 @@ originals:
   Yjs seed for `element:<id>`. Without a name it becomes “New Element”, “New
   Element 2”, … Explicit names and aliases follow `findElementNameConflict`:
   trimmed, case-insensitive, against every other live element's name and
-  aliases. A category with a body or facts template is refused until templates
-  are ported.
+  aliases. A category's facts template is cloned into the new element, and its
+  body template fills the new body ([categories](categories.md)).
 - Updates write alias set changes first, then one `field.set` per changed scalar
   (`categoryId`, `groupName`, `name`, `summary`) in UTF-8 order. Aliases use the
   renderer's set authority: display is trimmed NFKC, the member is its

@@ -167,6 +167,8 @@ impl WorkspaceStore<'_> {
                 &["name", "summary", "groupName", "kvJson"]),
             "storyline" => ("SELECT name,summary,kv_json FROM storylines WHERE id=? AND project_id=? AND deleted_at IS NULL",
                 &["name", "summary", "kvJson"]),
+            "category" => ("SELECT name,element_template_kv_json FROM element_category WHERE id=? AND project_id=? AND deleted_at IS NULL",
+                &["name", "elementTemplateKvJson"]),
             _ => return Err(format!("No version history for {kind} bodies")),
         };
         let rows = self.query(Some(tx), sql, vec![text(id), text(project_id)])?;

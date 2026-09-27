@@ -1,17 +1,18 @@
 import AppKit
 
 /// What a tab shows: a chapter page (title, 摘要, 状态 and body), or an
-/// element, storyline or drift page (fields and body).
+/// element, storyline, drift or category page (fields and body).
 enum WorkspaceTabTarget {
     case chapter(WorkspaceChapter)
     case element(WorkspaceElement)
     case storyline(WorkspaceStoryline)
     case drift(WorkspaceDrift)
+    case category(WorkspaceElementCategory)
 }
 
 /// Two panes own their tab views; the shared workspace owns chapter, element,
-/// storyline and drift cores. Removing a view from the hierarchy never
-/// detaches its input/history binding.
+/// storyline, drift and category cores. Removing a view from the hierarchy
+/// never detaches its input/history binding.
 final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private final class Tab {
         var project: WorkspaceProject
@@ -23,7 +24,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let storylinePage: MacStorylinePageView?
         let driftPage: MacDriftPageView?
         let chapterPage: MacChapterPageView?
-        var content: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? view }
+        let categoryPage: MacCategoryPageView?
+        var content: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? categoryPage ?? view }
         /// The 摘要 and 状态 of a chapter or drift tab.
         var metadataEditor: NodeMetadataEditor? { chapterPage?.metadataEditor ?? driftPage?.metadataEditor }
         var nodeID: String? { chapter?.id ?? drift?.id }
@@ -31,10 +33,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
         var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
         var drift: WorkspaceDrift? { if case .drift(let drift) = target { return drift }; return nil }
-        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? drift?.title ?? "" }
+        var category: WorkspaceElementCategory? { if case .category(let category) = target { return category }; return nil }
+        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? drift?.title ?? category?.name ?? "" }
         /// Every page kind shows 关系.
         var relationsView: RelationsSectionView? {
             page?.relationsView ?? storylinePage?.relationsView ?? driftPage?.relationsView ?? chapterPage?.relationsView
+                ?? categoryPage?.relationsView
         }
         /// Chapters and drifts are `node` ends.
         var relationEndpoint: RelationEndpoint {
@@ -43,6 +47,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             case .element(let element): return RelationEndpoint(kind: "element", id: element.id)
             case .storyline(let storyline): return RelationEndpoint(kind: "storyline", id: storyline.id)
             case .drift(let drift): return RelationEndpoint(kind: "node", id: drift.id)
+            case .category(let category): return RelationEndpoint(kind: "category", id: category.id)
             }
         }
         var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
@@ -52,6 +57,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             case .element(let element): return .element(ElementScope(projectID: projectID, elementID: element.id))
             case .storyline(let storyline): return .storyline(StorylineScope(projectID: projectID, storylineID: storyline.id))
             case .drift(let drift): return .drift(DriftScope(projectID: projectID, driftID: drift.id))
+            case .category(let category): return .category(CategoryScope(projectID: projectID, categoryID: category.id))
             }
         }
         init(project: WorkspaceProject, target: WorkspaceTabTarget, core: LabCore, categories: [WorkspaceElementCategory],
@@ -60,20 +66,25 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             switch target {
             case .chapter(let chapter):
                 let page = MacChapterPageView(chapter: chapter, core: core)
-                self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = page; view = page.documentView
+                self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = page; categoryPage = nil; view = page.documentView
             case .element(let element):
                 let page = MacElementPageView(element: element, categories: categories, core: core)
-                self.page = page; storylinePage = nil; driftPage = nil; chapterPage = nil; view = page.documentView
+                self.page = page; storylinePage = nil; driftPage = nil; chapterPage = nil; categoryPage = nil; view = page.documentView
             case .storyline(let storyline):
                 let page = MacStorylinePageView(storyline: storyline, core: core)
-                self.page = nil; storylinePage = page; driftPage = nil; chapterPage = nil; view = page.documentView
+                self.page = nil; storylinePage = page; driftPage = nil; chapterPage = nil; categoryPage = nil; view = page.documentView
             case .drift(let drift):
                 let page = MacDriftPageView(drift: drift, library: drifts ?? .empty, core: core)
-                self.page = nil; storylinePage = nil; driftPage = page; chapterPage = nil; view = page.documentView
+                self.page = nil; storylinePage = nil; driftPage = page; chapterPage = nil; categoryPage = nil; view = page.documentView
+            case .category(let category):
+                let page = MacCategoryPageView(category: category, core: core)
+                self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = nil; categoryPage = page; view = page.documentView
             }
         }
         /// Ends an uncommitted header edit of any page kind.
-        func endEditing() { page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing(); chapterPage?.endEditing() }
+        func endEditing() {
+            page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing(); chapterPage?.endEditing(); categoryPage?.endEditing()
+        }
     }
     private final class Pane {
         let root = NSView()
@@ -161,8 +172,6 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onWordCounts: ((String, WordCountLibrary) -> Void)?
     /// Each project's relation library and every page's 关系 section.
     let relations: RelationCoordinator
-    /// A 关系 row named a category; categories have no page of their own.
-    var onOpenCategory: ((WorkspaceProject, String) -> Void)?
     /// 关系类型… from a page's 关系 section.
     var onManageRelationTypes: ((WorkspaceProject) -> Void)?
     /// 历史版本… from a pane's header; the pane is active by then.
@@ -179,6 +188,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var activeDrift: WorkspaceDrift? { panes[activePane].active?.drift }
     var activeDriftPage: MacDriftPageView? { panes[activePane].active?.driftPage }
     var activeChapterPage: MacChapterPageView? { panes[activePane].active?.chapterPage }
+    var activeCategory: WorkspaceElementCategory? { panes[activePane].active?.category }
+    var activeCategoryPage: MacCategoryPageView? { panes[activePane].active?.categoryPage }
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
@@ -188,8 +199,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
     var canReopenActive: Bool {
-        // The storyline and drift commands have no reopen from disk.
-        guard canNavigate, let tab = panes[activePane].active, tab.storyline == nil, tab.drift == nil else { return false }
+        // The storyline, drift and category commands have no reopen from disk.
+        guard canNavigate, let tab = panes[activePane].active, tab.storyline == nil, tab.drift == nil, tab.category == nil else {
+            return false
+        }
         return allTabs.filter { $0.scope == tab.scope }.count == 1
     }
     private var allTabs: [Tab] { panes.flatMap(\.tabs) }
@@ -273,6 +286,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == .chapter(scope) }?.chapterPage
     }
+    func retainedCategoryPage(pane: Int, scope: CategoryScope) -> MacCategoryPageView? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == .category(scope) }?.categoryPage
+    }
     /// Tab titles in display order, for accessibility checks and acceptance.
     func tabTitles(pane: Int) -> [String] {
         panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
@@ -309,6 +326,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         open(project: project, target: .drift(drift), in: pane, completion: completion)
     }
 
+    /// Opens a category page (分类页) as a tab. Its body is an ordinary
+    /// document owner.
+    func open(project: WorkspaceProject, category: WorkspaceElementCategory, in pane: Int? = nil,
+              completion: @escaping (Result<NativeDocumentView, Error>) -> Void) {
+        open(project: project, target: .category(category), in: pane, completion: completion)
+    }
+
     private func openCore(_ project: WorkspaceProject, _ target: WorkspaceTabTarget, reopen: Bool,
                           completion: @escaping (Result<LabCore, Error>) -> Void) {
         switch (target, reopen) {
@@ -321,6 +345,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         case (.storyline, true): completion(.failure(LabError.message("故事线页面暂不支持从磁盘重新打开")))
         case (.drift(let drift), false): workspace.openDrift(projectID: project.id, driftID: drift.id, completion: completion)
         case (.drift, true): completion(.failure(LabError.message("漂流页面暂不支持从磁盘重新打开")))
+        case (.category(let category), false):
+            workspace.openCategory(projectID: project.id, categoryID: category.id, completion: completion)
+        case (.category, true): completion(.failure(LabError.message("分类页面暂不支持从磁盘重新打开")))
         }
     }
 
@@ -367,6 +394,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
                 if isNew { self.loadMetadata(of: tab); self.showWordCount(of: tab) }
                 if isNew, tab.page != nil { self.showPortrait(of: tab) }
+                if isNew, tab.categoryPage != nil { self.showCategory(of: tab); self.loadTemplate(of: tab) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
@@ -432,6 +460,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             workspace.closeStoryline(projectID: storyline.projectID, storylineID: storyline.storylineID, completion: finish)
         case .drift(let drift):
             workspace.closeDrift(projectID: drift.projectID, driftID: drift.driftID, completion: finish)
+        case .category(let category):
+            workspace.closeCategory(projectID: category.projectID, categoryID: category.categoryID, completion: finish)
         }
     }
 
@@ -508,6 +538,28 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.removeAll(scope)
                 self.applyDriftLibrary(projectID: projectID, library: reply.library)
                 self.onDriftLibrary?(projectID, reply.library)
+                self.relations.reload(projectID: projectID)
+            }
+            self.setBusy(false)
+            self.onChange?()
+            completion(result)
+        }
+    }
+
+    /// Trash commits first (Rust saves and retires an open category body);
+    /// only then are this category's tabs removed. Its elements move to 未分类
+    /// and their pages stay open.
+    func trashCategory(projectID: String, categoryID: String,
+                       completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let scope = DocumentScope.category(CategoryScope(projectID: projectID, categoryID: categoryID))
+        workspace.trashElementCategory(projectID: projectID, categoryID: categoryID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result {
+                self.removeAll(scope)
+                self.applyElementLibrary(projectID: projectID, library: reply.library)
+                self.onElementLibrary?(projectID, reply.library)
                 self.relations.reload(projectID: projectID)
             }
             self.setBusy(false)
@@ -614,6 +666,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         case .element(let element): return VersionHistoryTarget(projectID: tab.project.id, kind: "element", id: element.id, title: element.name)
         case .storyline(let storyline):
             return VersionHistoryTarget(projectID: tab.project.id, kind: "storyline", id: storyline.id, title: storyline.name)
+        case .category(let category):
+            return VersionHistoryTarget(projectID: tab.project.id, kind: "category", id: category.id, title: category.name)
         }
     }
 
@@ -899,7 +953,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                            library.elements.map(\.id) + library.categories.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         elementCategories[projectID] = library.categories
+        // Rust retired the body of a trashed category; its tabs go without
+        // closing the owner again.
+        let trashed = Set(library.trashedCategories.map(\.id))
+        for tab in allTabs where tab.project.id == projectID && tab.category.map({ trashed.contains($0.id) }) == true {
+            removeAll(tab.scope)
+        }
         for tab in allTabs where tab.project.id == projectID {
+            if let category = tab.category, let stored = library.categories.first(where: { $0.id == category.id }) {
+                tab.target = .category(stored)
+                tab.categoryPage?.apply(category: stored, elementCount: library.elements.filter { $0.categoryId == stored.id }.count)
+                continue
+            }
             guard let element = tab.element, let stored = library.elements.first(where: { $0.id == element.id }) else { continue }
             tab.target = .element(stored)
             tab.page?.apply(element: stored, categories: library.categories)
@@ -950,6 +1015,100 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.onMaterialLibrary?(projectID, library)
             }
             if self.materialRereads.remove(projectID) != nil { self.materialsChanged(projectID: projectID) }
+        }
+    }
+
+    // MARK: Category pages
+
+    /// A new category page shows the stored fields and element count once
+    /// the library was read.
+    private func showCategory(of tab: Tab) {
+        guard let page = tab.categoryPage, let category = tab.category,
+              let library = linkSources[tab.project.id]?.library else { return }
+        let stored = library.categories.first { $0.id == category.id } ?? category
+        tab.target = .category(stored)
+        page.apply(category: stored, elementCount: library.elements.filter { $0.categoryId == stored.id }.count)
+    }
+
+    /// Reads the category's element template into its page.
+    private func loadTemplate(of tab: Tab) {
+        guard let category = tab.category, let page = tab.categoryPage else { return }
+        workspace.elementTemplate(projectID: tab.project.id, categoryID: category.id) { [weak page] result in
+            switch result {
+            case .success(let blocks): page?.showTemplate(blocks)
+            case .failure(let error): page?.showTemplateUnavailable(error)
+            }
+        }
+    }
+
+    /// Writes the template, then reads it back as stored: every open page of
+    /// the category shows it (the blocks as sent if the read fails, since
+    /// the write committed), and the 设定库 adopts the reply's library.
+    private func saveTemplate(_ tab: Tab, blocks: [BookImportBlock],
+                              completion: @escaping (Result<[BookImportBlock], Error>) -> Void) {
+        guard let category = tab.category else { completion(.failure(LabError.message("这个标签不是分类页面。"))); return }
+        let projectID = tab.project.id
+        workspace.setElementTemplate(projectID: projectID, categoryID: category.id, blocks: blocks) { [weak self] result in
+            switch result {
+            case .failure(let error): completion(.failure(error))
+            case .success(let reply):
+                guard let self else { completion(.failure(LabError.message("分类页面已关闭。"))); return }
+                self.applyElementLibrary(projectID: projectID, library: reply.library)
+                self.onElementLibrary?(projectID, reply.library)
+                self.workspace.elementTemplate(projectID: projectID, categoryID: category.id) { [weak self] stored in
+                    let shown = (try? stored.get()) ?? blocks
+                    for tab in self?.allTabs ?? [] where tab.project.id == projectID && tab.category?.id == category.id {
+                        tab.categoryPage?.showTemplate(shown)
+                    }
+                    completion(.success(shown))
+                }
+            }
+        }
+    }
+
+    /// Header fields and 模板字段 are metadata writes: the body owner, its
+    /// queued input and history are untouched. Every open view adopts the library.
+    private func commitCategory(_ tab: Tab, completion: @escaping (Result<WorkspaceElementCategory, Error>) -> Void,
+                                write: (_ projectID: String, _ categoryID: String,
+                                        _ done: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) -> Void) {
+        guard let category = tab.category else { completion(.failure(LabError.message("这个标签不是分类页面。"))); return }
+        let projectID = tab.project.id
+        write(projectID, category.id) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                guard let stored = reply.result else { completion(.failure(LabError.message("分类结果缺失"))); return }
+                if let self {
+                    self.applyElementLibrary(projectID: projectID, library: reply.library)
+                    self.onElementLibrary?(projectID, reply.library)
+                }
+                completion(.success(stored))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
+    /// 新建设定 on a category page: Rust fills the new body from the
+    /// category's template; the element opens in the page's pane with its
+    /// name selected.
+    private func createElement(from tab: Tab) {
+        guard let category = tab.category, let index = pane(of: tab) else { return }
+        guard canNavigate else { tab.categoryPage?.showMessage("请先完成输入，并等待正文保存后再新建设定。"); return }
+        let project = tab.project
+        workspace.createElement(projectID: project.id, categoryID: category.id) { [weak self, weak tab] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error): tab?.categoryPage?.showMessage(error.localizedDescription); self.onError?(error)
+            case .success(let reply):
+                self.applyElementLibrary(projectID: project.id, library: reply.library)
+                self.onElementLibrary?(project.id, reply.library)
+                guard let element = reply.result else { return }
+                self.open(project: project, element: element, in: index) { [weak self] opened in
+                    switch opened {
+                    case .success: self?.focusActiveElementName()
+                    case .failure(let error): self?.onError?(error)
+                    }
+                }
+            }
         }
     }
 
@@ -1004,8 +1163,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     /// A 关系 row's other end opens in the pane that showed the row: an
-    /// element, storyline or drift as its page, a chapter as its tab. A
-    /// category has no page and goes to `onOpenCategory`.
+    /// element, storyline, drift or category as its page, a chapter as its tab.
     private func openRelationTarget(_ endpoint: RelationEndpoint, projectID: String, from section: RelationsSectionView) {
         let tab = allTabs.first { $0.relationsView === section }
         guard let project = tab?.project ?? allTabs.first(where: { $0.project.id == projectID })?.project else { return }
@@ -1035,7 +1193,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             }
             open(project: project, storyline: storyline, in: index, completion: done)
         case "category":
-            if let onOpenCategory { onOpenCategory(project, endpoint.id) } else { unavailable("分类没有单独的页面，可以在设定库中查看。") }
+            guard let category = sources?.library?.categories.first(where: { $0.id == endpoint.id }) else {
+                unavailable("这个分类已不可用，请刷新设定库。"); return
+            }
+            open(project: project, category: category, in: index, completion: done)
         default:
             unavailable("原生版本暂不支持打开这种关系端点。")
         }
@@ -1300,6 +1461,27 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 guard let self, let tab else { done(.failure(LabError.message("漂流页面已关闭，修改未保存。"))); return }
                 self.commitDrift(tab, changes: changes, completion: done)
             }
+        } else if let page = tab.categoryPage {
+            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onCommit = { [weak self, weak tab] changes, done in
+                guard let self, let tab else { done(.failure(LabError.message("分类页面已关闭，修改未保存。"))); return }
+                self.commitCategory(tab, completion: done) {
+                    self.workspace.updateElementCategory(projectID: $0, categoryID: $1, name: changes.name, color: changes.color, completion: $2)
+                }
+            }
+            page.onCommitFacts = { [weak self, weak tab] facts, done in
+                guard let self, let tab else { done(.failure(LabError.message("分类页面已关闭，模板字段未保存。"))); return }
+                self.commitCategory(tab, completion: done) {
+                    self.workspace.setCategoryTemplateFacts(projectID: $0, categoryID: $1, facts: facts, completion: $2)
+                }
+            }
+            page.onSaveTemplate = { [weak self, weak tab] blocks, done in
+                guard let self, let tab else { done(.failure(LabError.message("分类页面已关闭，模版未保存。"))); return }
+                self.saveTemplate(tab, blocks: blocks, completion: done)
+            }
+            page.onCreateElement = { [weak self, weak tab] in
+                if let self, let tab { self.createElement(from: tab) }
+            }
         } else {
             tab.chapterPage?.metadataEditor.onFocus = { [weak self] in self?.activate(pane: pane) }
             tab.view.onComments = { [weak self, weak view = tab.view] in
@@ -1333,6 +1515,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
         tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil
+        tab.categoryPage?.endTemplateSheet()
+        tab.categoryPage?.onFocus = nil; tab.categoryPage?.onCommit = nil; tab.categoryPage?.onCommitFacts = nil
+        tab.categoryPage?.onSaveTemplate = nil; tab.categoryPage?.onCreateElement = nil
         tab.metadataEditor?.onCommit = nil; tab.chapterPage?.metadataEditor.onFocus = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }
@@ -1423,6 +1608,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             (child as? MacStorylinePageView)?.endEditing()
             (child as? MacDriftPageView)?.endEditing()
             (child as? MacChapterPageView)?.endEditing()
+            (child as? MacCategoryPageView)?.endEditing()
         }
         for child in pane.body.subviews { child.removeFromSuperview() }
         if let view = pane.active?.content {
@@ -1452,10 +1638,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.historyButton.isEnabled = canNavigate && pane.active != nil
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
-                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift" : "chapter"
-                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? tab.drift?.id ?? ""
+                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift"
+                    : tab.category != nil ? "category" : "chapter"
+                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? tab.drift?.id ?? tab.category?.id ?? ""
                 let title = tab.element != nil ? "设定 · \(tab.title)" : tab.storyline != nil ? "故事线 · \(tab.title)"
-                    : tab.drift != nil ? "漂流 · \(tab.title)" : tab.title
+                    : tab.drift != nil ? "漂流 · \(tab.title)" : tab.category != nil ? "分类 · \(tab.title)" : tab.title
                 let select = ChapterTabButton(title: title) { [weak self] in
                     guard let self else { return }
                     self.open(project: tab.project, target: tab.target, in: index) { result in

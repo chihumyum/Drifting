@@ -1,9 +1,10 @@
 import Foundation
 
-/// The body whose 历史版本 are shown: a chapter, drift, element or storyline.
+/// The body whose 历史版本 are shown: a chapter, drift, element, storyline or
+/// category.
 struct VersionHistoryTarget: Equatable {
     let projectID: String
-    /// `chapter`, `drift`, `element` or `storyline`.
+    /// `chapter`, `drift`, `element`, `storyline` or `category`.
     let kind: String
     let id: String
     /// The current title or name, for the sheet's heading.
@@ -14,6 +15,7 @@ struct VersionHistoryTarget: Equatable {
         case "drift": return "漂流"
         case "element": return "设定"
         case "storyline": return "故事线"
+        case "category": return "分类"
         default: return "章节"
         }
     }
@@ -25,6 +27,7 @@ struct VersionHistoryTarget: Equatable {
         case "drift": return .drift(DriftScope(projectID: projectID, driftID: id))
         case "element": return .element(ElementScope(projectID: projectID, elementID: id))
         case "storyline": return .storyline(StorylineScope(projectID: projectID, storylineID: id))
+        case "category": return .category(CategoryScope(projectID: projectID, categoryID: id))
         default: return .chapter(ChapterScope(projectID: projectID, chapterID: id))
         }
     }

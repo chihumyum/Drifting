@@ -25,6 +25,7 @@ fn snapshot_kind(target: &ProseTarget) -> &'static str {
     match target.kind.as_str() {
         "element" => "element",
         "storyline" => "storyline",
+        "category" => "category",
         _ => "node",
     }
 }
