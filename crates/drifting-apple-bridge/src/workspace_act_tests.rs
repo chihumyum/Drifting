@@ -396,3 +396,78 @@ fn workspace_act_color_set_clear_and_cold_outline() {
     assert!(act_row(&fixture).get("color").is_none());
     fixture.close();
 }
+
+#[test]
+fn workspace_act_move_boundary_between_neighbours() {
+    let fixture = Fixture::new();
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,
+        "projectId":fixture.project}),
+    );
+    let order = |index: usize| -> f64 {
+        let list = chapters["chapters"]
+            .as_array()
+            .or(chapters.as_array())
+            .unwrap();
+        list.iter()
+            .find(|c| c["id"] == json!(fixture.chapters[index]))
+            .unwrap()["bookOrder"]
+            .as_f64()
+            .unwrap()
+    };
+    let chapter_act = |chapter: usize| {
+        outline(&fixture)
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == json!(fixture.chapters[chapter]))
+            .unwrap()["actId"]
+            .clone()
+    };
+    let move_to = |act: &Value, start: f64| {
+        let mut request = act_request(&fixture, "workspaceMoveAct", act);
+        request["startOrder"] = json!(start);
+        request
+    };
+    let first = success(create_request(&fixture, 1));
+    assert_eq!(chapter_act(0), Value::Null);
+    // Moving the boundary before the first chapter brings it into the act.
+    let early = order(0) - 1.0;
+    assert_eq!(
+        success(move_to(&first, early))["startOrder"].as_f64(),
+        Some(early)
+    );
+    assert_eq!(chapter_act(0), first["id"]);
+    let changes = || query(&db, "SELECT COUNT(*) FROM sync_change_set");
+    let before = changes();
+    success(move_to(&first, early));
+    assert_eq!(changes(), before, "an unchanged boundary writes nothing");
+    // A boundary never crosses its neighbours.
+    let second = success(create_request(&fixture, 1));
+    let late = second["startOrder"].as_f64().unwrap();
+    let before = changes();
+    for (act, start) in [
+        (&first, late),
+        (&first, late + 1.0),
+        (&second, early),
+        (&second, early - 1.0),
+    ] {
+        assert!(rejected(move_to(act, start)).contains("相邻"));
+    }
+    assert_eq!(changes(), before);
+    let between = (early + late) / 2.0;
+    success(move_to(&second, between));
+    assert_eq!(
+        (chapter_act(0), chapter_act(1)),
+        (
+            if order(0) < between {
+                first["id"].clone()
+            } else {
+                second["id"].clone()
+            },
+            second["id"].clone()
+        )
+    );
+    fixture.close();
+}

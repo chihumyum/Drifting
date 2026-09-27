@@ -24,6 +24,8 @@ mod metadata;
 mod metrics;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
+#[path = "workspace_patch_tests.rs"]
+mod patch_tests;
 #[path = "workspace_project_tests.rs"]
 mod project_tests;
 #[path = "workspace_relation_tests.rs"]

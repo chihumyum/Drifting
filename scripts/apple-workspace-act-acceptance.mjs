@@ -27,6 +27,7 @@ const specs = [
     'workspace_tests::acts::workspace_act_remove_retains_empty_boundary_chapter_state',
     'workspace_tests::acts::workspace_act_failure_preserves_owner_and_retries',
     'workspace_tests::acts::workspace_act_color_set_clear_and_cold_outline',
+    'workspace_tests::acts::workspace_act_move_boundary_between_neighbours',
   ] },
 ];
 const expectedTables = [

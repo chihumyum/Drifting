@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T16:32:40.197Z",
+  "generatedAt": "2026-09-27T17:38:48.271Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "9624e83423858f46c2440e410ea4b1a6a3a143ea",
+    "commit": "92569a46702b4ed1c443e575ca1bb0377c33196f",
     "dirty": true,
-    "fingerprint": "dd8ac8c273470830af14d2f4a3d8da651c30bf39e53079da37dd7ac5463ad93d"
+    "fingerprint": "f7d12323571f18b1861b677fe9b488a49fb5b3eda32a03fd719246085ecae756"
   },
   "cases": [
     {
@@ -672,6 +672,38 @@
     },
     {
       "name": "AppKit 全局搜索 refuses a replaced match and a body whose scope changed with Rust's Chinese reason keeping the selection, refuses a draft in Rust and marked input at selection, lists an unreadable body and truncation explicitly, and discards superseded and cleared queries",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit element page 补丁 creates floating patches through 新建补丁…, edits titles and bodies in place and through 编辑… with one field.set each, writes nothing for unchanged edits, refuses clearing both title and body in Chinese keeping the typed text, reorders by dragging the handle and through 上移/下移 with order originals, deletes only after confirmation, follows in a second pane and survives a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 新建补丁… on a chapter selection opens the picker with the selected text, finds elements by name and alias, creates an element by name in the chosen category that reaches the 设定库, and creates one patch recording the chapter, the block, its text and the selected text, listed on the element page with its source; a drift selection anchors to the drift, an empty patch is refused and 取消 writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit patch validity follows the chapter: deleting the anchored text marks the patch 已失效 on the open element page after the save, undo clears it, each transition is one field.set, the source link opens the chapter and selects the anchored text while it is there and only opens it once it is gone, and the state survives a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 阅读顺序 shows chapter tiles in book order in storyline rows with 未归属, the 幕 rail's bands over their chapters in stored or default act colours, highlights the current chapter and follows the active tab, opens a chapter from a tile click, and showing, switching modes and scrolling write nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 幕 rail: dragging a boundary sends nothing until the drop and then one workspaceMoveAct field.set, a drop at its own start writes nothing, the drag is clamped strictly between the neighbouring boundaries, a boundary created elsewhere makes Rust refuse the stale drop in Chinese without writing and the rail reads acts again; double-click and 重命名… rename, 在此处开始新幕 creates, 删除 after confirmation removes only the boundary, 幕颜色 stores and clears a colour, and other act views are told",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 tile drags reuse the story graph's commands: a book move with one original that the tab host and the 幕 rail follow, a row change making the storyline primary, a drop in place and a click writing nothing; 故事时间 lists chapters without a story time in 未放置, places them with 放到末尾, orders them by drag, shows the timeline markers and takes one back with 移出故事时间",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 follows chapters created, renamed and moved, acts created, renamed and recoloured in the 整书大纲, storyline changes and story time set in the 故事图谱 without reopening, and 视图 › 底部时间轴 remembers shown or hidden and the mode per project in settings.json through a cold relaunch, writing nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 底部时间轴 lays out 200 chapters in 3 acts and 3 storyline rows with no main-thread pass over 100 ms in a debug build while loading, switching modes, scrolling and dragging, and a drag across them sends no Rust call and no render until the drop, which moves the chapter once",
       "status": "passed"
     }
   ],

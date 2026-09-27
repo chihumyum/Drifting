@@ -218,7 +218,7 @@
         "category, element, patch CRUD and reference cleanup; categories and elements created, renamed, aliased, trashed and restored with exact renderer originals and alias set authority"
       ],
       "milestone": "P3/P5",
-      "status": "Mac-categories-elements-aliases-facts-template-facts-trash-restore-body-editing-category-pages-body-templates-portraits-relations-and-element-overview-implemented",
+      "status": "Mac-categories-elements-aliases-facts-template-facts-trash-restore-body-editing-category-pages-body-templates-portraits-relations-element-overview-and-element-patches-implemented",
       "decisionTask": null
     },
     {
@@ -257,7 +257,7 @@
         "relation types, drift-endpoint rule, timeline/order, pointer/touch and large projects"
       ],
       "milestone": "P5",
-      "status": "Mac-story-graph-timeline-markers-relation-types-and-element-overview-implemented",
+      "status": "Mac-story-graph-timeline-markers-relation-types-element-overview-and-bottom-timeline-dock-implemented",
       "decisionTask": null
     },
     {

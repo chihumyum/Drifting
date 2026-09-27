@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "9262e77baf9eb79b2d03294024bbb28b15905526f9fde62b1ac2efec942c4596",
+    "fingerprint": "93a379c89eb8ada845fd00b718dcfb9d2e6239f1b57aa435cb36e17088cd6806",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -112,11 +112,11 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "cbff955822b03c78319a5179e89b46858f04565293069398cc0d077415649d49"
+        "sha256": "e583c906a508dc0b9327118eb8c70140d67894e69ba7ca7f41375973d849c6e2"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
-        "sha256": "2c1645731d2f8df40123efd744597226e0620fcb05d1b6a01e83764dfd3b0618"
+        "sha256": "2acf52d400ba66028cde412f92cdc85b9a5bc236607bd6067e059b1556483675"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts/tests.rs",
@@ -203,8 +203,16 @@
         "sha256": "1d045038a60246bb4a0a6d42b6f847bf9a3967189fdfba6631d18defdddb99fa"
       },
       {
+        "path": "crates/drifting-core/src/workspace/patches.rs",
+        "sha256": "69bfd67a2b6e6d2c30ce6f3fce76b979cfd23920795a689baf2d874373221481"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/patches/tests.rs",
+        "sha256": "b37c5cd074c3846ff8e5d3a5f62991e92dff80f424a56c736d552d3f14e8c12c"
+      },
+      {
         "path": "crates/drifting-core/src/workspace/relations.rs",
-        "sha256": "4b6331bb9df62e922d6e406a80ad4b693034fea3031784e04166e0ae8c5cc0ab"
+        "sha256": "54c090c208a93c1cd3d4b19f7821945acadc867877b89d8afdd774d1b203a678"
       },
       {
         "path": "crates/drifting-core/src/workspace/relations/tests.rs",
@@ -924,8 +932,8 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "listed": 117,
-    "passed": 117,
+    "listed": 118,
+    "passed": 118,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -963,7 +971,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "c8216fb814ccb1a55c1c1684f72f44a9d9423f90b6d7ee453c0820009d8eb16b"
+    "logSha256": "45860e7453053ee8b38436ebaf805100f6b0c9b9d183af67c0ad8d6a8a6f8ff8"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

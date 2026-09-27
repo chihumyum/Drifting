@@ -21,6 +21,8 @@ pub(super) mod library;
 pub(super) mod metadata;
 #[path = "workspace_metrics.rs"]
 pub(super) mod metrics;
+#[path = "workspace_patches.rs"]
+pub(super) mod patches;
 #[path = "workspace_relations.rs"]
 pub(super) mod relations;
 #[path = "workspace_remote_prose.rs"]
@@ -181,6 +183,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceCreateAct { .. }
             | Request::WorkspaceRenameAct { .. }
             | Request::WorkspaceSetActColor { .. }
+            | Request::WorkspaceMoveAct { .. }
             | Request::WorkspaceRemoveAct { .. }
             | Request::WorkspaceChapters { .. }
             | Request::WorkspaceOutline { .. }
@@ -204,6 +207,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceDrifts { .. }
             | Request::WorkspaceMetadata { .. }
             | Request::WorkspaceComments { .. }
+            | Request::WorkspacePatches { .. }
             | Request::WorkspaceRelations { .. }
             | Request::WorkspaceMetrics { .. }
             | Request::WorkspaceAgent { .. }
@@ -391,6 +395,22 @@ pub(super) fn dispatch(
                 &workspace.context(&project)?,
                 act_id,
                 name
+            )?)
+        }
+        Request::WorkspaceMoveAct {
+            handle,
+            project_id,
+            act_id,
+            start_order,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            json!(WorkspaceStore::new(&workspace.gateway, CLIENT).move_act(
+                &workspace.context(&project)?,
+                act_id,
+                *start_order
             )?)
         }
         Request::WorkspaceSetActColor {
@@ -585,6 +605,14 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .relations(project_id, command)?,
+        Request::WorkspacePatches {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .patches(project_id, command)?,
         Request::WorkspaceComments {
             handle,
             project_id,

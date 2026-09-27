@@ -53,6 +53,8 @@ struct LabSettings: Codable, Equatable {
     /// counts this device's own saves made on each local calendar day
     /// (`yyyy-MM-dd`), for the last 30 days. See `DailyWordLedger`.
     var dailyWords: [String: [String: Int]] = [:]
+    /// Each project's 底部时间轴: shown or hidden, and 阅读顺序 or 故事时间.
+    var bottomTimelines: [String: BottomTimelineSetting] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -64,7 +66,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
-        case writingPlans, elementOverviewViewports, dailyWords
+        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -84,6 +86,7 @@ struct LabSettings: Codable, Equatable {
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
+        bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
         self = normalized()
     }
 
@@ -108,6 +111,17 @@ struct LabSettings: Codable, Equatable {
         default: return manuscriptLocale
         }
     }
+}
+
+/// A project's 底部时间轴 below the editor. Unknown modes read as 阅读顺序.
+struct BottomTimelineSetting: Codable, Equatable {
+    var shown: Bool
+    /// `book` (阅读顺序) or `narrative` (故事时间).
+    var mode: String
+
+    init(shown: Bool, axis: StoryGraphModel.Axis) { self.shown = shown; mode = axis.rawValue }
+
+    var axis: StoryGraphModel.Axis { StoryGraphModel.Axis(rawValue: mode) ?? .book }
 }
 
 /// 设置 of this lab install. `settings.json` and the imported font copy in
@@ -267,6 +281,19 @@ final class LabSettingsStore {
         save()
     }
 
+    // MARK: Bottom timeline
+
+    /// Whether the project's 底部时间轴 was left shown, and in which mode.
+    func bottomTimeline(projectID: String) -> BottomTimelineSetting? { settings.bottomTimelines[projectID] }
+
+    /// Saves the dock's state at once; an unchanged state writes nothing.
+    /// Editors and the settings window are not told.
+    func setBottomTimeline(_ setting: BottomTimelineSetting, projectID: String) {
+        guard settings.bottomTimelines[projectID] != setting else { return }
+        settings.bottomTimelines[projectID] = setting
+        save()
+    }
+
     // MARK: Writing plan
 
     /// The project's 写作计划, or the defaults (120,000 字, 1,500 字 a day).
@@ -367,13 +394,15 @@ final class LabSettingsStore {
 
     // MARK: Deleted projects
 
-    /// A deleted project leaves no 写作计划, 设定总览 viewport or 今日字数 behind.
+    /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数 or
+    /// 底部时间轴 state behind.
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
-            || settings.dailyWords[projectID] != nil else { return }
+            || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil else { return }
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
         settings.dailyWords.removeValue(forKey: projectID)
+        settings.bottomTimelines.removeValue(forKey: projectID)
         save()
     }
 

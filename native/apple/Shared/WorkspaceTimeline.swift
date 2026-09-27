@@ -109,6 +109,57 @@ struct TimelineConversion: Equatable {
     }
 }
 
+/// Narrative order ↔ x on a story-time axis whose placed chapters sit in
+/// slots: linear between the placed chapters' slot centres (tied orders at
+/// the mean of their slots), one slot per unit beyond them and on an empty
+/// axis. The 故事图谱 and the bottom timeline place markers with it.
+struct NarrativeAxis {
+    private(set) var anchors: [(order: Double, x: Double)] = []
+    let slot: Double
+    /// The centre of slot 0.
+    let origin: Double
+
+    /// `placed` in story order: each placed chapter's order and slot centre.
+    init(placed: [(order: Double, x: Double)], slot: Double, origin: Double) {
+        self.slot = slot; self.origin = origin
+        var groups: [(order: Double, sum: Double, count: Double)] = []
+        for (order, x) in placed {
+            if let last = groups.last, last.order == order {
+                groups[groups.count - 1].sum += x; groups[groups.count - 1].count += 1
+            } else { groups.append((order, x, 1)) }
+        }
+        anchors = groups.map { ($0.order, $0.sum / $0.count) }
+    }
+
+    func x(order: Double) -> Double {
+        guard let first = anchors.first, let last = anchors.last else { return origin + (order - 1) * slot }
+        if order <= first.order { return first.x + (order - first.order) * slot }
+        if order >= last.order { return last.x + (order - last.order) * slot }
+        for (left, right) in zip(anchors, anchors.dropFirst()) where order <= right.order {
+            return left.x + ((order - left.order) / (right.order - left.order)) * (right.x - left.x)
+        }
+        return last.x
+    }
+
+    /// The inverse of `x(order:)`, rounded to 1/10000.
+    func order(x: Double) -> Double {
+        let order: Double
+        if let first = anchors.first, let last = anchors.last {
+            if x <= first.x { order = first.order + (x - first.x) / slot }
+            else if x >= last.x { order = last.order + (x - last.x) / slot }
+            else {
+                var value = last.order
+                for (left, right) in zip(anchors, anchors.dropFirst()) where x <= right.x {
+                    value = left.order + ((x - left.x) / (right.x - left.x)) * (right.order - left.order)
+                    break
+                }
+                order = value
+            }
+        } else { order = 1 + (x - origin) / slot }
+        return (order * 10000).rounded() / 10000
+    }
+}
+
 /// Presentation state of one project's 故事图谱: chapters in storyline lanes
 /// along the book or the narrative axis, timeline markers and drift cards.
 /// Rust owns every order, membership, marker and position; this model reads
@@ -154,6 +205,9 @@ final class StoryGraphModel {
     var onChapters: (([WorkspaceChapter]) -> Void)?
     /// A lane change returned the project's complete storyline library.
     var onStorylineLibrary: ((WorkspaceStorylineLibrary) -> Void)?
+    /// A command of this model changed narrative orders, markers or drift
+    /// positions; other views of the timeline read it again.
+    var onTimeline: (() -> Void)?
 
     init(workspace: LabWorkspaceCore, projectID: String) {
         self.workspace = workspace
@@ -552,6 +606,7 @@ final class StoryGraphModel {
                     self.storylines = library
                     self.onStorylineLibrary?(library)
                 }
+                self.onTimeline?()
                 completion(true)
             case .failure(let error): self.status = error.localizedDescription; completion(false)
             }
@@ -603,6 +658,7 @@ final class StoryGraphModel {
             case .success(let reply):
                 self.timeline = reply.timeline
                 self.showStatus("时间标记“\(caption)”已删除。")
+                self.onTimeline?()
                 completion?(.success(()))
             case .failure(let error):
                 self.showStatus(error.localizedDescription)
@@ -636,7 +692,8 @@ final class StoryGraphModel {
             guard let self else { return }
             self.busy = false
             switch result {
-            case .success(let reply): self.timeline = reply.timeline; self.showStatus("漂流卡片的位置已保存。"); completion?(true)
+            case .success(let reply):
+                self.timeline = reply.timeline; self.showStatus("漂流卡片的位置已保存。"); self.onTimeline?(); completion?(true)
             case .failure(let error): self.showStatus(error.localizedDescription); completion?(false)
             }
             self.runQueuedRefresh()
@@ -654,6 +711,7 @@ final class StoryGraphModel {
             case .success(let reply):
                 self.timeline = reply.timeline
                 self.showStatus(message)
+                self.onTimeline?()
                 if let marker = reply.result { completion?(.success(marker)) }
                 else { completion?(.failure(LabError.message("时间标记结果缺失"))) }
             case .failure(let error):

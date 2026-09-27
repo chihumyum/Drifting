@@ -4,7 +4,8 @@ The Mac client has a 设定库: element categories and elements, with each
 element's page (name, aliases, summary, group, category, facts and prose body)
 opening in the existing tab and split workspace. Categories have pages and body
 templates of their own ([categories](categories.md)); portraits live in the
-[materials library](library.md); element and category trash purge their
+[materials library](library.md); element pages list their
+[patches](patches.md); element and category trash purge their
 [relations](relations.md).
 
 ## Domain contract

@@ -13,6 +13,7 @@ mod library;
 mod metadata;
 mod metrics;
 mod outline;
+mod patches;
 mod relations;
 mod storylines;
 mod timeline;
@@ -34,6 +35,7 @@ pub use library::{
 pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetails};
 pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;
+pub use patches::{NewPatch, PatchChanges, PatchSource, WorkspacePatch};
 pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
 pub use timeline::{TimelineMarker, TimelineNode, WorkspaceTimeline};

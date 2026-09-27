@@ -358,7 +358,7 @@ final class StoryGraphCanvas: NSView {
     /// The x centre of each shown chapter's slot on the axis or in the tray.
     private(set) var centers: [String: CGFloat] = [:]
     /// Narrative order → x through the placed chapters' slots.
-    private var anchors: [(order: Double, x: CGFloat)] = []
+    private var axis = NarrativeAxis(placed: [], slot: Double(M.slot), origin: Double(M.slotCenter(0)))
     private(set) var lanesTop: CGFloat = M.axisHeight
     private(set) var trayTop: CGFloat = 0
     private(set) var driftTop: CGFloat = 0
@@ -504,16 +504,11 @@ final class StoryGraphCanvas: NSView {
         self.centers = centers
 
         // Narrative anchors: each distinct order at the mean of its slots.
-        var groups: [(order: Double, sum: CGFloat, count: CGFloat)] = []
-        if narrative {
-            for chapter in model.placedChapters {
-                guard let order = model.narrativeOrder(of: chapter.id), let x = centers[chapter.id] else { continue }
-                if let last = groups.last, last.order == order {
-                    groups[groups.count - 1].sum += x; groups[groups.count - 1].count += 1
-                } else { groups.append((order, x, 1)) }
-            }
-        }
-        anchors = groups.map { ($0.order, $0.sum / $0.count) }
+        let placed: [(order: Double, x: Double)] = narrative ? model.placedChapters.compactMap { chapter in
+            guard let order = model.narrativeOrder(of: chapter.id), let x = centers[chapter.id] else { return nil }
+            return (order, Double(x))
+        } : []
+        axis = NarrativeAxis(placed: placed, slot: Double(M.slot), origin: Double(M.slotCenter(0)))
 
         // Markers on the narrative axis.
         var shownMarkers = Set<String>()
@@ -582,35 +577,10 @@ final class StoryGraphCanvas: NSView {
 
     /// Where a narrative order sits: linear between the placed chapters'
     /// slots, one slot per unit beyond them (and on an empty axis).
-    func markerX(order: Double) -> CGFloat {
-        guard let first = anchors.first, let last = anchors.last else {
-            return M.slotCenter(0) + CGFloat(order - 1) * M.slot
-        }
-        if order <= first.order { return first.x + CGFloat(order - first.order) * M.slot }
-        if order >= last.order { return last.x + CGFloat(order - last.order) * M.slot }
-        for (left, right) in zip(anchors, anchors.dropFirst()) where order <= right.order {
-            return left.x + CGFloat((order - left.order) / (right.order - left.order)) * (right.x - left.x)
-        }
-        return last.x
-    }
+    func markerX(order: Double) -> CGFloat { CGFloat(axis.x(order: order)) }
 
     /// The inverse of `markerX`, rounded to 1/10000.
-    func markerOrder(x: CGFloat) -> Double {
-        let order: Double
-        if let first = anchors.first, let last = anchors.last {
-            if x <= first.x { order = first.order + Double((x - first.x) / M.slot) }
-            else if x >= last.x { order = last.order + Double((x - last.x) / M.slot) }
-            else {
-                var value = last.order
-                for (left, right) in zip(anchors, anchors.dropFirst()) where x <= right.x {
-                    value = left.order + Double((x - left.x) / (right.x - left.x)) * (right.order - left.order)
-                    break
-                }
-                order = value
-            }
-        } else { order = 1 + Double((x - M.slotCenter(0)) / M.slot) }
-        return (order * 10000).rounded() / 10000
-    }
+    func markerOrder(x: CGFloat) -> Double { axis.order(x: Double(x)) }
 
     // MARK: Drops
 

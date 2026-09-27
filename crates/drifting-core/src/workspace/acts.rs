@@ -102,6 +102,82 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Moves an act's boundary on the book axis. The new start must be finite
+    /// and strictly between the neighbouring boundaries, so act order never
+    /// changes; an unchanged start writes nothing.
+    pub fn move_act(
+        &self,
+        context: &AuthoredProseContext,
+        act_id: &str,
+        start_order: f64,
+    ) -> Result<WorkspaceAct, String> {
+        validate_context(context)?;
+        if !opaque(act_id) || !start_order.is_finite() {
+            return Err("Invalid act identity or boundary".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (mut act, incarnation) = self.live_act(tx, context, act_id)?;
+            if act.start_order == Some(start_order) {
+                return Ok(act);
+            }
+            let rows = self.query(
+                Some(tx),
+                r#"
+                SELECT a.id,a.start_order FROM book_act a
+                JOIN sync_entity_lifecycle l ON l.sync_generation_id=? AND l.entity_kind='book-act'
+                    AND l.entity_id=a.id AND l.state='live'
+                WHERE a.project_id=? ORDER BY a.start_order,a.id COLLATE BINARY
+            "#,
+                vec![text(&context.sync_generation_id), text(&context.project_id)],
+            )?;
+            let position = rows
+                .iter()
+                .position(|row| matches!(&row[0], V::Text(id) if id == act_id))
+                .ok_or("Act is not live in this project")?;
+            let bound = |row: &Vec<V>| -> Option<f64> {
+                match &row[1] {
+                    V::Null => None,
+                    _ => number(row, 1).ok(),
+                }
+            };
+            let previous = position
+                .checked_sub(1)
+                .and_then(|index| bound(&rows[index]));
+            let next = rows.get(position + 1).and_then(bound);
+            if previous.is_some_and(|previous| start_order <= previous)
+                || next.is_some_and(|next| start_order >= next)
+            {
+                return Err("幕的起点不能越过相邻的幕".into());
+            }
+            self.execute(
+                tx,
+                "UPDATE book_act SET start_order=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    V::Real(start_order),
+                    text(&context.now_iso),
+                    text(act_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            self.commit_changes(
+                tx,
+                context,
+                &[journal::Mutation::field(
+                    "book-act",
+                    act_id,
+                    incarnation,
+                    "startOrder",
+                    json!(start_order),
+                )],
+                None,
+            )?;
+            act.start_order = Some(start_order);
+            act.updated_at = context.now_iso.clone();
+            Ok(act)
+        })
+    }
+
     /// Sets (`#rrggbb`) or clears (`None`) the act's colour; unchanged
     /// colours write nothing.
     pub fn set_act_color(

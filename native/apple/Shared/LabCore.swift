@@ -32,6 +32,7 @@ enum LabError: LocalizedError {
     case reviewUnavailable(reason: String)
     case actUnavailable(reason: String)
     case projectUnavailable(reason: String)
+    case patchUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -42,7 +43,7 @@ enum LabError: LocalizedError {
              .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
              .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
              .versionHistoryUnavailable(let text), .reviewUnavailable(let text), .actUnavailable(let text),
-             .projectUnavailable(let text): return text
+             .projectUnavailable(let text), .patchUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -67,7 +68,25 @@ enum LabError: LocalizedError {
         case .reviewUnavailable(let reason): return LabError.reviewMessage(reason)
         case .actUnavailable(let reason): return LabError.actMessage(reason)
         case .projectUnavailable(let reason): return LabError.projectMessage(reason)
+        case .patchUnavailable(let reason): return LabError.patchMessage(reason)
         }
+    }
+
+    /// Patch refusals happen before any row or journal change. Rust's own
+    /// messages are Chinese (补丁的标题和内容不能都为空, 这个补丁不存在…);
+    /// diagnostics are restated.
+    private static func patchMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("Invalid patch or element identity", "这个设定已不可用，请刷新设定库。"),
+            ("has no lifecycle", "这个补丁的数据已变化，请刷新补丁列表。"),
+            ("Invalid incarnation", "这个补丁的数据已变化，请刷新补丁列表。"),
+            ("is not live", "这个补丁已被删除，请刷新补丁列表。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "补丁的修改未能保存。已有内容未改变，可以稍后重试。"
     }
 
     /// Note and TODO refusals happen before any row, relation or anchor
@@ -91,17 +110,24 @@ enum LabError: LocalizedError {
         return "审阅操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
-    /// Act colour refusals happen before any row or journal change.
+    /// Act refusals (create, rename, move, colour, remove) happen before any
+    /// row or journal change. Rust's own messages are Chinese (幕的起点不能越过
+    /// 相邻的幕); diagnostics are restated.
     private static func actMessage(_ reason: String) -> String {
         let known: [(String, String)] = [
             ("Invalid act identity or colour", "幕颜色须为有效的颜色值。"),
+            ("Invalid act identity or boundary", "这个位置无法保存，请重新拖动。"),
+            ("Act boundary must be finite", "这个位置无法保存，请重新选择章节。"),
+            ("Invalid act identity or empty name", "幕名称不能为空。"),
+            ("already exists before this chapter", "这一章前已经有一幕的分界。"),
+            ("Chapter is not available", "这一章已不可用，请刷新后重试。"),
             ("Act is not", "这一幕已不可用，请刷新整书大纲。"),
             ("Project does not", "这个项目已不可用，请重新选择项目。"),
             ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
         ]
         if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
         if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
-        return "幕颜色未能保存。已有内容未改变，可以稍后重试。"
+        return "幕的修改未能保存。已有内容未改变，可以稍后重试。"
     }
 
     /// Project deletion refusals leave every row, body and file in place.
@@ -444,8 +470,12 @@ final class LabCore {
             if request["operation"] as? String == "workspaceComments" {
                 throw LabError.reviewUnavailable(reason: reason)
             }
-            if request["operation"] as? String == "workspaceSetActColor" {
+            if ["workspaceCreateAct", "workspaceRenameAct", "workspaceMoveAct", "workspaceSetActColor", "workspaceRemoveAct"]
+                .contains(request["operation"] as? String ?? "") {
                 throw LabError.actUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspacePatches" {
+                throw LabError.patchUnavailable(reason: reason)
             }
             if request["operation"] as? String == "workspaceDeleteProject" {
                 throw LabError.projectUnavailable(reason: reason)
@@ -682,6 +712,9 @@ struct WorkspaceChapter: Decodable {
     /// `draft`, `finished` or `discarded` in chapter lists; nil for a chapter
     /// named elsewhere, e.g. by a search hit or an outline row.
     var writingStatus: String? = nil
+    /// The chapter's coordinate on the book axis in chapter lists (acts
+    /// start at such coordinates); nil for a chapter named elsewhere.
+    var bookOrder: Double? = nil
 }
 struct WorkspaceAct: Decodable {
     let id: String
@@ -1537,6 +1570,71 @@ final class LabWorkspaceCore {
             try self.request("workspaceSetActColor", fields: ["projectId": projectID, "actId": actID,
                                                               "color": color.map { $0 as Any } ?? NSNull()])
         }
+    }
+
+    /// Moves an act's boundary to a book-axis coordinate strictly between its
+    /// neighbouring boundaries; Rust refuses one at or beyond a neighbour and
+    /// writes nothing for an unchanged start. Metadata only.
+    func moveAct(projectID: String, actID: String, startOrder: Double,
+                 completion: @escaping (Result<WorkspaceAct, Error>) -> Void) {
+        updateMetadata("workspaceMoveAct", fields: ["projectId": projectID, "actId": actID, "startOrder": startOrder],
+                       completion: completion)
+    }
+
+    // MARK: Element patches
+
+    /// An element's 设定补丁 in their authored order. A read only.
+    func elementPatches(projectID: String, elementID: String, completion: @escaping (Result<[WorkspacePatch], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspacePatchReply<WorkspacePatch> = try self.patchRequest(projectID, ["action": "patches", "elementId": elementID])
+            return reply.patches
+        }
+    }
+
+    /// Patches made from a chapter's or drift's text. A read only.
+    func nodePatches(projectID: String, nodeID: String, completion: @escaping (Result<[WorkspacePatch], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspacePatchReply<WorkspacePatch> = try self.patchRequest(projectID, ["action": "nodePatches", "nodeId": nodeID])
+            return reply.patches
+        }
+    }
+
+    /// A floating patch (no source), or one anchored to a chapter selection.
+    /// Title and body cannot both be empty. The reply lists the element's
+    /// patches with the new one last.
+    func createPatch(projectID: String, elementID: String, title: String?, body: String, source: WorkspacePatchSource?,
+                     completion: @escaping (Result<WorkspacePatchReply<WorkspacePatch>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "createPatch", "elementId": elementID, "body": body]
+        if let title { command["title"] = title }
+        if let source { command["source"] = source.payload }
+        perform(completion) { try self.patchRequest(projectID, command) }
+    }
+
+    /// Present fields change (`title: .some(nil)` clears the title);
+    /// unchanged values write nothing.
+    func updatePatch(projectID: String, patchID: String, changes: WorkspacePatchChanges,
+                     completion: @escaping (Result<WorkspacePatchReply<WorkspacePatch>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updatePatch"; command["patchId"] = patchID
+        perform(completion) { try self.patchRequest(projectID, command) }
+    }
+
+    /// Moves a patch before another of the same element, or last with nil.
+    func movePatch(projectID: String, patchID: String, before: String?,
+                   completion: @escaping (Result<WorkspacePatchReply<WorkspacePatch>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "movePatch", "patchId": patchID]
+        if let before { command["before"] = before }
+        perform(completion) { try self.patchRequest(projectID, command) }
+    }
+
+    /// The reply has no result; it lists the element's remaining patches.
+    func deletePatch(projectID: String, patchID: String,
+                     completion: @escaping (Result<WorkspacePatchReply<WorkspacePatch>, Error>) -> Void) {
+        perform(completion) { try self.patchRequest(projectID, ["action": "deletePatch", "patchId": patchID]) }
+    }
+
+    private func patchRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspacePatches", fields: ["projectId": projectID, "command": command])
     }
 
     // MARK: Notes and TODOs

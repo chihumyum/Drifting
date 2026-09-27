@@ -759,7 +759,7 @@ impl WorkspaceStore<'_> {
 
     /// The live lifecycle incarnation; product purge and field paths fail
     /// closed without one, as the renderer's resolver does.
-    fn live_incarnation(
+    pub(super) fn live_incarnation(
         &self,
         tx: u64,
         context: &AuthoredProseContext,

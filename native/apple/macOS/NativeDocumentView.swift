@@ -144,6 +144,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     var onOpenLink: ((EntityLinkTarget) -> Void)?
     /// A background link pass added links to this owner's prose.
     var onEntityLinks: (() -> Void)?
+    /// 新建补丁… from a chapter or drift selection: the chapter, the block
+    /// holding the selection, its text and the selected text. Set by the tab
+    /// host for chapter and drift bodies only, with `patchNodeID`.
+    var onCreatePatch: ((WorkspacePatchSource) -> Void)?
+    var patchNodeID: String?
     /// The workspace's elements and chapters. Without one, links keep the
     /// default style and cannot be opened. A change restyles the prose only.
     var linkDirectory: EntityLinkDirectory? {
@@ -533,12 +538,36 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         return reveal(range: range, revision: projection.revision) ? nil : "正文已变化，请稍后再定位这条批注。"
     }
 
+    // MARK: Patches
+
+    /// The selection a patch would be made from, or nil when there is no
+    /// settled, non-empty selection.
+    var patchSource: WorkspacePatchSource? {
+        guard onCreatePatch != nil, let patchNodeID, !isInteractionLocked, !textView.hasMarkedText(),
+              let projection = binding.store.projection else { return nil }
+        return PatchText.source(nodeID: patchNodeID, projection: projection, shown: textView.string, range: textView.selectedRange())
+    }
+
+    /// 新建补丁…: hands the current selection to the tab host's sheet.
+    @objc func createPatchFromSelection() {
+        guard let source = patchSource else { return }
+        focus()
+        onCreatePatch?(source)
+    }
+
     func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
         var leading: [NSMenuItem] = linkMenuItems(at: charIndex)
         if allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) {
             let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
             item.target = textView
             item.setAccessibilityIdentifier("context-add-comment")
+            leading.append(item)
+        }
+        if patchSource != nil {
+            let item = NSMenuItem(title: "新建补丁…", action: #selector(createPatchFromSelection), keyEquivalent: "")
+            item.target = self
+            item.setAccessibilityIdentifier("context-create-patch")
+            item.toolTip = "把选中的文字锚定为一个设定的变化"
             leading.append(item)
         }
         guard !leading.isEmpty else { return menu }

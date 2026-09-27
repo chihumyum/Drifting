@@ -38,6 +38,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Chapter trash and restore](chapter-trash.md)
 - [Chapter selection comments](chapter-comments.md)
 - [Elements library](element-library.md)
+- [Element patches (设定补丁)](patches.md)
 - [Entity links and backlinks](entity-links.md)
 - [Storylines and chapter membership](storylines.md)
 - [Drifts and drift groups](drifts.md)
@@ -46,6 +47,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Native editor formatting](formatting.md)
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
+- [Story graph, story time and the bottom timeline (底部时间轴)](timeline.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
 - [Whole book (全书长卷), statistics, writing plan and today's words](whole-book.md)
 - [Element overview (设定总览)](element-overview.md)
@@ -96,12 +98,14 @@ default report does not imply desktop XCTest passed.
 The Mac lab opens a separate synthetic workspace
 (`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
 creation, rename, ordering, recoverable trash, act boundaries, selection
-comments, an elements library with element pages and automatic entity links, storylines with chapter membership, drifts with groups and act notes, a writing
+comments, an elements library with element pages, element patches anchored to
+chapter text and automatic entity links, storylines with chapter membership, drifts with groups and act notes, a writing
 assistant whose proposals the author reviews, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
-library ordering, act colours, project deletion,
+library ordering, act colours, project deletion, a bottom timeline dock with
+a draggable act rail,
 chapter tabs with a two-pane split, formatting, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, native editing, save and reopen. Every write

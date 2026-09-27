@@ -128,6 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private lazy var settingsStore = LabSettingsStore(directory: workspace.dataDirectory)
     /// 今日字数: attributes this device's saves to today, kept in `settings.json`.
     private lazy var dailyWords = DailyWordLedger(store: settingsStore)
+    /// 底部时间轴: a dock below the editor, shown per project as last left.
+    private lazy var timelineDock = BottomTimelineDock(workspace: workspace, settings: settingsStore)
+    private let timelineHost = NSView()
+    private var timelineMenuItem: NSMenuItem!
+    private var editorMinimumHeight: NSLayoutConstraint!
     private var settingsWindow: MacSettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -235,6 +240,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let overview = viewMenu.addItem(withTitle: "设定总览", action: #selector(showElementOverview), keyEquivalent: "e")
         overview.keyEquivalentModifierMask = [.command, .option]
         overview.target = self
+        viewMenu.addItem(.separator())
+        let timeline = viewMenu.addItem(withTitle: "底部时间轴", action: #selector(toggleBottomTimeline), keyEquivalent: "b")
+        timeline.keyEquivalentModifierMask = [.command, .option]
+        timeline.target = self
+        timelineMenuItem = timeline
         view.submenu = viewMenu
         menu.addItem(view)
         NSApp.mainMenu = menu
@@ -377,7 +387,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         footer.distribution = .fill
         footer.alignment = .firstBaseline
         footer.spacing = 16
-        let editor = NSStackView(views: [currentTitle, subtitle, actions, editorHost, footer])
+        timelineHost.setAccessibilityIdentifier("bottom-timeline-host")
+        timelineHost.isHidden = true
+        timelineDock.onPresent = { [weak self] view in self?.presentBottomTimeline(view) }
+        timelineDock.configure = { [weak self] controller, project in self?.configureBottomTimeline(controller, project: project) }
+        let editor = NSStackView(views: [currentTitle, subtitle, actions, editorHost, timelineHost, footer])
         editor.orientation = .vertical
         editor.alignment = .leading
         editor.spacing = 12
@@ -416,9 +430,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             editor.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor),
             currentTitle.widthAnchor.constraint(equalTo: editor.widthAnchor),
             editorHost.widthAnchor.constraint(equalTo: editor.widthAnchor),
-            editorHost.heightAnchor.constraint(greaterThanOrEqualToConstant: 360),
+            timelineHost.widthAnchor.constraint(equalTo: editor.widthAnchor),
+            timelineHost.heightAnchor.constraint(equalToConstant: BottomTimelineMetrics.dockHeight),
             footer.widthAnchor.constraint(equalTo: editor.widthAnchor),
         ])
+        editorMinimumHeight = editorHost.heightAnchor.constraint(greaterThanOrEqualToConstant: 360)
+        editorMinimumHeight.isActive = true
     }
 
     private func heading(_ text: String) -> NSTextField {
@@ -544,6 +561,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let book = wholeBookController, book.project.id == projectID { book.applyNodeMetadata(metadata) }
         if let overview = overviewController?.model, overview.projectID == projectID { overview.applyNodeMetadata(metadata) }
         if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.model.applyNodeMetadata(metadata) }
+        timelineDock.nodeMetadataChanged(projectID: projectID, metadata: metadata)
     }
 
     // MARK: Word counts
@@ -559,6 +577,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyWordCounts(library) }
         if let book = wholeBookController, book.project.id == projectID { book.applyWordCounts(library) }
         if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.reload() }
+        timelineDock.wordCountsChanged(projectID: projectID, library: library)
         updateWordStatus()
     }
 
@@ -816,6 +835,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.ensureStorylineModel(project)
                 self.ensureDriftModel(project)
                 self.ensureAgent(project)
+                self.timelineDock.follow(project)
+                self.updateTimelineMenu()
                 // Opening a project reconciles its counts once per session.
                 self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
                 self.updateWordStatus()
@@ -863,6 +884,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updateComments()
         updateReviewFocus()
         updateWordStatus()
+        timelineDock.currentChapterChanged(projectID: currentProject?.id, chapterID: currentChapter?.id)
         let minWidth: CGFloat = (chapterWorkspace.paneCount == 2 ? 1100 : 820) + (agentPanel.isHidden ? 0 : 360)
         window.minSize = NSSize(width: minWidth, height: 660)
         if window.frame.width < minWidth {
@@ -1175,6 +1197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyStorylines(library) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyStorylines(library) }
         if let overview = overviewController?.model, overview.projectID == projectID { overview.applyStorylines(library) }
+        timelineDock.storylinesChanged(projectID: projectID, library: library)
         if selectedProject?.id == projectID, !showingTrash { reloadChapterRows() }
         // A storyline page counts its chapters.
         updateWordStatus()
@@ -1296,6 +1319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyDrifts(library) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyDrifts(library) }
         if let overview = overviewController?.model, overview.projectID == projectID { overview.applyDrifts(library) }
+        timelineDock.driftsChanged(projectID: projectID, library: library)
     }
 
     @objc private func showDrifts() {
@@ -1460,7 +1484,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let model = StoryGraphModel(workspace: workspace, projectID: project.id)
         model.axis = graphAxes[project.id] ?? .book
         if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { model.applyWordCounts(counts) }
-        model.onChapters = { [weak self] chapters in self?.adoptGraphChapters(chapters, projectID: project.id) }
+        model.onChapters = { [weak self] chapters in self?.adoptGraphChapters(chapters, projectID: project.id, fromDock: false) }
+        // Story time changed in the graph: the 底部时间轴 reads it again.
+        model.onTimeline = { [weak self] in self?.timelineDock.chaptersChanged(projectID: project.id) }
         model.onStorylineLibrary = { [weak self] library in
             guard let self else { return }
             if let storylines = self.storylineModel, storylines.projectID == project.id { storylines.apply(library, message: nil) }
@@ -1505,11 +1531,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         model.load()
     }
 
-    /// A book move in the graph reorders the chapter list and the outline.
-    private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String) {
+    /// A book move in the graph or the 底部时间轴 reorders the chapter list,
+    /// the outline and the other of the two.
+    private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String, fromDock: Bool) {
         chapterWorkspace.applyChapters(projectID: projectID, chapters: chapters, trashed: nil)
         wholeBookChanged(projectID: projectID)
         overviewChaptersChanged(projectID: projectID)
+        if fromDock {
+            if let graph = graphController?.model, graph.projectID == projectID { graph.refresh() }
+        } else {
+            timelineDock.chaptersChanged(projectID: projectID)
+        }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
         guard selectedProject?.id == projectID else { return }
         self.chapters = chapters
@@ -1526,6 +1558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// Chapters were created, renamed, moved, trashed or restored elsewhere.
     private func graphChaptersChanged(projectID: String) {
         if let model = graphController?.model, model.projectID == projectID { model.refresh() }
+        timelineDock.chaptersChanged(projectID: projectID)
         wholeBookChanged(projectID: projectID)
         overviewChaptersChanged(projectID: projectID)
     }
@@ -1719,6 +1752,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         overviewChaptersChanged(projectID: projectID)
         if !fromWholeBook { wholeBookChanged(projectID: projectID) }
         if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.model.load() }
+        timelineDock.actsChanged(projectID: projectID)
+    }
+
+    // MARK: 底部时间轴
+
+    /// 视图 › 底部时间轴 (⌥⌘B): the dock below the editor for the shown
+    /// project; remembered per project in settings.json.
+    @objc private func toggleBottomTimeline() {
+        guard !loading, let project = currentProject ?? selectedProject else { return }
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        timelineDock.toggle(WorkspaceProject(id: project.id, name: name))
+        updateTimelineMenu()
+    }
+
+    private func updateTimelineMenu() {
+        let project = currentProject ?? selectedProject
+        timelineMenuItem?.state = project.map { timelineDock.isShown(projectID: $0.id) } == true ? .on : .off
+    }
+
+    /// Places the dock between the editor and the status line; the editor
+    /// keeps a smaller minimum height while it is shown.
+    private func presentBottomTimeline(_ view: NSView?) {
+        timelineHost.subviews.forEach { $0.removeFromSuperview() }
+        if let view {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            timelineHost.addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: timelineHost.leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: timelineHost.trailingAnchor),
+                view.topAnchor.constraint(equalTo: timelineHost.topAnchor),
+                view.bottomAnchor.constraint(equalTo: timelineHost.bottomAnchor),
+            ])
+        }
+        timelineHost.isHidden = view == nil
+        editorMinimumHeight?.constant = view == nil ? 360 : 220
+        updateTimelineMenu()
+    }
+
+    /// A new dock opens chapters as tabs; its book moves, lane changes,
+    /// story time and act commands reach every other view.
+    private func configureBottomTimeline(_ controller: MacBottomTimelineController, project: WorkspaceProject) {
+        let model = controller.model
+        if let counts = chapterWorkspace.wordCountLibrary(projectID: project.id) { model.graph.applyWordCounts(counts) }
+        if currentProject?.id == project.id { model.setCurrentChapter(currentChapter?.id) }
+        controller.onOpenChapter = { [weak self, weak model] chapter in
+            guard let self else { return }
+            guard self.canLeaveDocument() else { model?.show("请先完成输入，并等待正文保存后再打开章节。"); return }
+            if let book = self.wholeBookController, self.wholeBookPanel?.isVisible == true, book.project.id == project.id {
+                book.scroll(toChapter: chapter.id)
+                self.wholeBookPanel?.orderFront(nil)
+                return
+            }
+            self.openChapter(chapter, project: project)
+        }
+        model.onChapters = { [weak self] chapters in self?.adoptGraphChapters(chapters, projectID: project.id, fromDock: true) }
+        model.onStorylineLibrary = { [weak self] library in
+            guard let self else { return }
+            if let storylines = self.storylineModel, storylines.projectID == project.id { storylines.apply(library, message: nil) }
+            self.adoptStorylines(projectID: project.id, library: library, fromWorkspace: false)
+        }
+        model.onTimeline = { [weak self] in
+            if let graph = self?.graphController?.model, graph.projectID == project.id { graph.refresh() }
+        }
+        model.onActs = { [weak self] entries in
+            guard let self else { return }
+            self.chapterWorkspace.applyOutline(projectID: project.id, entries: entries)
+            self.chapterWorkspace.driftsChanged(projectID: project.id)
+            self.overviewChaptersChanged(projectID: project.id)
+            self.wholeBookChanged(projectID: project.id)
+            if let outline = self.outlineController?.model, outline.projectID == project.id, !outline.busy { outline.load() }
+            if let stats = self.profileStats?.controller, stats.model.projectID == project.id { stats.model.load() }
+        }
     }
 
     // MARK: 审阅
@@ -1934,6 +2039,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if graphController?.model.projectID == projectID { closeStoryGraph() }
         if overviewController?.model.projectID == projectID { closeElementOverview() }
         if agentController?.projectID == projectID { agentController?.stop() }
+        timelineDock.forget(projectID: projectID)
+        updateTimelineMenu()
         transfer.endImport()
         guard wholeBookController?.project.id == projectID else { completion(nil); return }
         if !closeWholeBook(completion: { completion(nil) }) {
@@ -2105,6 +2212,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             }
             // 幕颜色 also colours 统计 opened from 项目资料.
             if let stats = self?.profileStats?.controller, stats.model.projectID == project.id { stats.model.load() }
+            // The 底部时间轴's 幕 rail follows.
+            self?.timelineDock.actsChanged(projectID: project.id)
         }
         let controller = BookOutlineViewController(model: model)
         controller.onBindDrift = { [weak model] entry, drift in
@@ -2499,6 +2608,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             }
         }
     }
+    /// Edits made in panels meanwhile are read by the 底部时间轴.
+    func windowDidBecomeKey(_ notification: Notification) {
+        if let projectID = timelineDock.model?.projectID, timelineDock.model?.loaded == true {
+            timelineDock.chaptersChanged(projectID: projectID)
+        }
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if workspaceClosed { return true }
         closeWorkspace { [weak self] success in if success { self?.window.performClose(nil) } }

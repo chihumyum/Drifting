@@ -29,6 +29,8 @@ final class WorkspaceOutlineModel {
     private var activeOutline: [NativeOutlineItem] = []
     private var requestID = 0
     private(set) var busy = false
+    /// Reads and commands sent to Rust, for acceptance.
+    private(set) var requests = 0
     private(set) var status = "正在读取整书大纲…"
     /// Chapter memberships for each chapter's 主线 colour; nil until read.
     private(set) var storylines: WorkspaceStorylineLibrary?
@@ -104,6 +106,7 @@ final class WorkspaceOutlineModel {
     func load() {
         guard !busy else { return }
         requestID += 1
+        requests += 1
         let request = requestID
         workspace.outline(projectID: projectID) { [weak self] result in
             guard let self, self.requestID == request else { return }
@@ -154,6 +157,14 @@ final class WorkspaceOutlineModel {
         return acts[index].color ?? BookPalette.act(index)
     }
 
+    /// Moves the act's boundary to a book-axis coordinate; Rust refuses one
+    /// at or beyond a neighbouring boundary.
+    func moveAct(id: String, startOrder: Double, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
+        mutate(message: "幕的起点已移动，章节和正文保持不变。", completion: completion) {
+            workspace.moveAct(projectID: projectID, actID: id, startOrder: startOrder, completion: $0)
+        }
+    }
+
     func removeAct(id: String, completion: ((Result<WorkspaceAct, Error>) -> Void)? = nil) {
         mutate(message: "幕分界已移除，章节和正文保持不变。", completion: completion) {
             workspace.removeAct(projectID: projectID, actID: id, completion: $0)
@@ -166,6 +177,7 @@ final class WorkspaceOutlineModel {
             completion?(.failure(LabError.message("正在保存幕分界，请稍后重试"))); return
         }
         busy = true
+        requests += 2
         requestID += 1 // An older initial read must not overwrite the refreshed hierarchy.
         status = "正在保存幕分界…"
         onChange?()

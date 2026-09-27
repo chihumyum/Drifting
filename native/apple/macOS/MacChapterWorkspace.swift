@@ -172,6 +172,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onWordCounts: ((String, WordCountLibrary) -> Void)?
     /// Each project's relation library and every page's 关系 section.
     let relations: RelationCoordinator
+    /// Every element page's 补丁 and 新建补丁… from chapter and drift selections.
+    let patches: PatchCoordinator
+    /// A patch's source link opened a chapter or drift; select its anchored
+    /// text once shown, while it is still there.
+    private var pendingPatchReveal: (view: NativeDocumentView, patch: WorkspacePatch)?
     /// 关系类型… from a page's 关系 section.
     var onManageRelationTypes: ((WorkspaceProject) -> Void)?
     /// 历史版本… from a pane's header; the pane is active by then.
@@ -219,7 +224,16 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     init(workspace: LabWorkspaceCore) {
         self.workspace = workspace
         relations = RelationCoordinator(workspace: workspace)
+        patches = PatchCoordinator(workspace: workspace)
         super.init(frame: .zero)
+        patches.library = { [weak self] projectID in self?.linkSources[projectID]?.library }
+        patches.onElementLibrary = { [weak self] projectID, library in
+            self?.applyElementLibrary(projectID: projectID, library: library)
+            self?.onElementLibrary?(projectID, library)
+        }
+        patches.onOpenSource = { [weak self] projectID, patch, section in
+            self?.openPatchSource(patch, projectID: projectID, from: section)
+        }
         // The selected tab's title takes a chosen 界面强调色.
         NotificationCenter.default.addObserver(self, selector: #selector(accentChanged), name: MacEditorPreferences.didChange, object: nil)
         relations.names = { [weak self] projectID in self?.relationNames(projectID: projectID) ?? .empty }
@@ -793,6 +807,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
               countedRevisions[tab.scope] != revision else { return }
         countedRevisions[tab.scope] = revision
         wordCounts(projectID: tab.project.id).scheduleRefresh()
+        // Rust rechecked the body's anchored patches with the save.
+        patches.bodySaved(projectID: tab.project.id)
     }
 
     // MARK: Storylines
@@ -1409,6 +1425,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         wordCountModels.removeValue(forKey: projectID)?.cancel()
         countedRevisions = countedRevisions.filter { $0.key.projectID != projectID }
         relations.forget(projectID: projectID)
+        patches.forget(projectID: projectID)
     }
 
     // MARK: Entity links
@@ -1446,7 +1463,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         linkSources[projectID, default: LinkSources()].chapters = chapters
         if let trashed { linkSources[projectID]?.trashedChapters = trashed }
         updateLinkDirectory(projectID: projectID)
-        if previous.map(titles) != titles(chapters) { requestEntityLinks(projectID: projectID) }
+        if previous.map(titles) != titles(chapters) {
+            requestEntityLinks(projectID: projectID)
+            // Patches name their source chapter while it is live.
+            if previous != nil { patches.reload(projectID: projectID) }
+        }
         scheduleBacklinks(projectID: projectID)
         for tab in allTabs where tab.project.id == projectID {
             if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
@@ -1518,6 +1539,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         view.onCommentCreated = { [weak self, weak view] comment in
             if let self, let view { self.onCommentCreated?(view, comment) }
         }
+        view.patchNodeID = chapterID
+        view.onCreatePatch = { [weak self, weak view] source in
+            guard let self else { return }
+            self.patches.beginCreate(projectID: project.id, source: source, from: view?.window ?? self.window)
+        }
         ensureLinkSources(projectID: project.id)
     }
 
@@ -1525,6 +1551,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func releaseExternal(_ view: NativeDocumentView) {
         externalViews.removeValue(forKey: ObjectIdentifier(view))
         view.onEntityLinks = nil; view.onCommentCreated = nil
+        view.onCreatePatch = nil; view.patchNodeID = nil
     }
 
     /// The view's owner settled: a body saved at a new revision is counted,
@@ -1535,6 +1562,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard let revision = view.binding.state?.projection.revision, countedRevisions[external.scope] != revision else { return }
         countedRevisions[external.scope] = revision
         wordCounts(projectID: external.project.id).scheduleRefresh()
+        patches.bodySaved(projectID: external.project.id)
     }
 
     private func pane(of tab: Tab) -> Int? { panes.firstIndex { $0.tabs.contains { $0 === tab } } }
@@ -1594,6 +1622,47 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         pendingLinkReveal = nil
         if projection.links(element: pending.elementID, cover: pending.range) {
             pending.view.reveal(range: pending.range, revision: projection.revision)
+        }
+    }
+
+    /// A patch's source link: open its chapter (or drift) in the section's
+    /// pane and select the anchored text while it is still there; otherwise
+    /// just open it.
+    private func openPatchSource(_ patch: WorkspacePatch, projectID: String, from section: ElementPatchesView) {
+        guard let nodeID = patch.sourceNodeId,
+              let tab = allTabs.first(where: { $0.page?.patchesView === section }), let index = pane(of: tab) else { return }
+        pendingPatchReveal = nil
+        let done: (Result<NativeDocumentView, Error>) -> Void = { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let view):
+                self.pendingPatchReveal = (view, patch)
+                self.resolvePatchReveal()
+            case .failure(let error): section.showMessage(error.localizedDescription)
+            }
+        }
+        if let chapter = linkSources[projectID]?.chapters?.first(where: { $0.id == nodeID }) {
+            open(project: tab.project, chapter: chapter, in: index, completion: done)
+        } else if let drift = linkSources[projectID]?.drifts?.drift(id: nodeID) {
+            open(project: tab.project, drift: drift, in: index, completion: done)
+        } else if linkSources[projectID]?.chapters == nil {
+            open(project: tab.project, chapter: WorkspaceChapter(id: nodeID, title: patch.sourceNodeTitle ?? ""), in: index, completion: done)
+        } else {
+            section.showMessage("补丁的来源章节已不可用（可能已移到回收站）。")
+        }
+    }
+
+    private func resolvePatchReveal() {
+        guard let pending = pendingPatchReveal, !isBusy else { return }
+        guard pending.view === activeView else { pendingPatchReveal = nil; return }
+        let binding = pending.view.binding
+        guard binding.canEdit, !binding.hasPendingWork, let projection = binding.store.projection,
+              NativeText.identical(pending.view.textView.string, projection.text) else { return }
+        pendingPatchReveal = nil
+        guard let anchor = pending.patch.anchorText else { return }
+        let block = pending.patch.sourceBlockId.flatMap { id in projection.blocks.first { $0.id == id }?.range }
+        if let range = PatchText.anchorRange(in: projection.text, anchor: anchor, block: block) {
+            pending.view.reveal(range: NativeRange(location: range.location, length: range.length), revision: projection.revision)
         }
     }
 
@@ -1682,6 +1751,17 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         tab.view.onEntityLinks = { [weak self, weak tab] in
             if let self, let tab { self.scheduleBacklinks(projectID: tab.project.id) }
+        }
+        if let page = tab.page, let element = tab.element {
+            patches.attach(page.patchesView, projectID: tab.project.id, elementID: element.id)
+        }
+        if let nodeID = tab.nodeID {
+            // 新建补丁… from a chapter or drift selection.
+            tab.view.patchNodeID = nodeID
+            tab.view.onCreatePatch = { [weak self, weak tab] source in
+                guard let self, let tab else { return }
+                self.patches.beginCreate(projectID: tab.project.id, source: source, from: self.window)
+            }
         }
         if let page = tab.page {
             page.onLoadBacklinks = { [weak self, weak tab] done in
@@ -1774,6 +1854,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.updateTabAvailability()
             self.focusWhenReady()
             self.resolveLinkReveal()
+            self.resolvePatchReveal()
             self.resolveCommentLocate()
             self.resolveSearchReveal()
             // Settled chapter prose may add or remove references.
@@ -1784,6 +1865,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
     private func disconnect(_ tab: Tab) {
         if let section = tab.relationsView { relations.detach(section) }
+        if let page = tab.page { patches.detach(page.patchesView) }
+        tab.view.onCreatePatch = nil; tab.view.patchNodeID = nil
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
@@ -1803,7 +1886,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.view.isInteractionLocked = value || externallyLocked
         }
         updateTabAvailability()
-        if !value { focusWhenReady(); resolveCommentLocate(); resolveSearchReveal() }
+        if !value { focusWhenReady(); resolvePatchReveal(); resolveCommentLocate(); resolveSearchReveal() }
         onActivity?(!canNavigate)
     }
     private func focusWhenReady() {

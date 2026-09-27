@@ -369,6 +369,9 @@ impl LabSession {
             // As the renderer's editor save: the derived projection follows
             // the durable save and never fails it; reconciliation retries.
             let _ = self.materialize_projection(&context.now_iso, edited);
+            // Anchored element patches follow their text; derived, never
+            // failing the save.
+            let _ = self.recheck_patches(&context);
         }
         // Version history rides the save and never fails it.
         let _ = self.capture_history(&context.now_iso, "periodic");
@@ -438,6 +441,15 @@ impl LabSession {
 
     /// The node body's canonical projection (body cache, outline, word count)
     /// of this exact durable state; `touch` stamps `updated_at` for edits.
+    fn recheck_patches(&self, context: &AuthoredProseContext) -> Result<usize, String> {
+        let text = self.document.native_projection()?.text;
+        drifting_core::workspace::WorkspaceStore::new(&self.gateway, CLIENT).recheck_patch_validity(
+            context,
+            &self.owner.target_id,
+            &text,
+        )
+    }
+
     fn materialize_projection(&self, now: &str, touch: bool) -> Result<bool, String> {
         let projection = self.document.prose_projection()?;
         let doc_id = format!("node-content:{}", self.owner.target_id);
@@ -537,6 +549,15 @@ enum Request {
         #[serde(rename = "actId")]
         act_id: String,
         name: String,
+    },
+    WorkspaceMoveAct {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "actId")]
+        act_id: String,
+        #[serde(rename = "startOrder")]
+        start_order: f64,
     },
     WorkspaceSetActColor {
         handle: u64,
@@ -672,6 +693,12 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         command: workspace::drifts::DriftCommand,
+    },
+    WorkspacePatches {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::patches::PatchCommand,
     },
     WorkspaceComments {
         handle: u64,
@@ -1396,6 +1423,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceCreateAct { .. }
         | Request::WorkspaceRenameAct { .. }
         | Request::WorkspaceSetActColor { .. }
+        | Request::WorkspaceMoveAct { .. }
         | Request::WorkspaceRemoveAct { .. }
         | Request::WorkspaceChapters { .. }
         | Request::WorkspaceOutline { .. }
@@ -1419,6 +1447,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceDrifts { .. }
         | Request::WorkspaceMetadata { .. }
         | Request::WorkspaceComments { .. }
+        | Request::WorkspacePatches { .. }
         | Request::WorkspaceRelations { .. }
         | Request::WorkspaceMetrics { .. }
         | Request::WorkspaceAgent { .. }

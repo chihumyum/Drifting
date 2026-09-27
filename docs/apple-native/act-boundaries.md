@@ -33,9 +33,29 @@ projection while retaining expanded chapters and their heading details. A
 failed refresh reports that the domain command committed, rather than claiming
 it was rolled back.
 
-This batch does not add drag-to-move boundaries or global chapter spreading.
-These remain later parity work. Binding a drift as an act's notes (幕笔记) from
-the act row's menu is described with [drifts](drifts.md).
+Global chapter spreading (打散) is not ported. Binding a drift as an act's
+notes (幕笔记) from the act row's menu is described with [drifts](drifts.md).
+
+## Moving boundaries
+
+`workspaceMoveAct` moves an act's start to a finite book-axis coordinate
+strictly between its neighbouring boundaries, so act order never changes;
+at or beyond a neighbour Rust refuses (“幕的起点不能越过相邻的幕”) and writes
+nothing, and an unchanged start writes nothing. A move is one `field.set
+startOrder`. Chapters and prose are untouched; membership follows the
+coordinate.
+
+The 幕 rail of the [bottom timeline](timeline.md#bottom-timeline-底部时间轴)
+drags a boundary between chapter slots: a boundary before a chapter takes
+that chapter's coordinate (as 在此开始一幕 does), one after the last chapter
+one step beyond it. Outline rows carry no coordinates, so the rail derives
+each act's first chapter slot from the outline's reading order and the
+chapter list's `bookOrder`. The drag is clamped to slots strictly after the
+previous act's start and before the next act's; a view made stale by an act
+created elsewhere is refused by Rust and reads acts again. The rail also
+renames (double-click or 重命名…), starts a new act at a chapter (在此处开始新幕),
+removes a boundary after confirmation (删除, chapters join the previous act)
+and sets 幕颜色.
 
 ## Act colours
 
@@ -62,12 +82,14 @@ remains excluded from the default run.
 [the act boundary report](acceptance/p3c-act-boundaries.json). Three bounded
 core/bridge groups cover create/rename and cold outline; removing boundaries
 and keeping empty acts without touching chapter data; and real receipt-failure
-rollback, wrong scope and duplicate-coordinate rejection with successful retry.
+rollback, wrong scope and duplicate-coordinate rejection with successful retry; boundary
+moves and their neighbour refusals are covered by the bridge tests.
 The production TypeScript reducer receives actual native originals on independent
 SQLite copies. Production act derivation checks the resulting outline.
 
 [AppKit binding](acceptance/p2b-binding.json) exercises the shared queue, expanded
-outline, live editor selection/history and reopen. The optional UI workflow
+outline, live editor selection/history and reopen; the bottom timeline cases
+drag, clamp, refuse, rename, create, remove and colour acts from the rail. The optional UI workflow
 creates and renames a boundary, restarts, removes it and continues chapter
 navigation without losing prose. Only dimensions actually executed in the
 [native report](acceptance/p2b-native.json) count as evidence; current Mac-only
