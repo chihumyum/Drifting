@@ -126,6 +126,9 @@ fn element(
             name: name.map(Into::into),
             group_name: Some(" 主角 ".into()),
             seed: seed(),
+            summary: String::new(),
+            aliases: Vec::new(),
+            facts: None,
         },
         &mut fact_ids(id),
     )

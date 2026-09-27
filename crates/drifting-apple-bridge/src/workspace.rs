@@ -7,6 +7,8 @@ use drifting_core::workspace::{
 use drifting_document::Edit;
 #[path = "workspace_agent.rs"]
 pub(super) mod agent;
+#[path = "workspace_archive.rs"]
+mod archive;
 #[path = "workspace_comments.rs"]
 pub(super) mod comments;
 #[path = "workspace_drifts.rs"]
@@ -63,6 +65,29 @@ struct WorkspaceSession {
     /// Entity links of cold bodies by document id and Yjs revision, for
     /// backlinks from pages other than chapters.
     link_spans: HashMap<String, (i64, Vec<drifting_document::EntityLinkSpan>)>,
+}
+
+fn trashed_json(entities: &[(String, String)]) -> Value {
+    json!(entities
+        .iter()
+        .map(|(kind, id)| json!({"kind": kind, "id": id}))
+        .collect::<Vec<_>>())
+}
+
+impl WorkspaceSession {
+    /// Whether any body owner of this entity is open in the project.
+    fn has_open_body(&self, project_id: &str, id: &str) -> bool {
+        let key = (project_id.to_owned(), id.to_owned());
+        [
+            &self.documents,
+            &self.elements,
+            &self.storyline_bodies,
+            &self.drift_bodies,
+            &self.category_bodies,
+        ]
+        .iter()
+        .any(|owners| owners.contains_key(&key))
+    }
 }
 
 pub(super) fn identifier(kind: &str) -> Result<String, String> {
@@ -181,6 +206,9 @@ pub(super) fn dispatch(
             | Request::WorkspaceCreateProject { .. }
             | Request::WorkspaceRenameProject { .. }
             | Request::WorkspaceDeleteProject { .. }
+            | Request::WorkspaceDiagnostics { .. }
+            | Request::WorkspacePurgeTrashed { .. }
+            | Request::WorkspaceEmptyTrash { .. }
             | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceCreateAct { .. }
@@ -304,6 +332,64 @@ pub(super) fn dispatch(
             let project = workspace.project(project_id)?;
             json!(WorkspaceStore::new(&workspace.gateway, CLIENT)
                 .rename_project(&workspace.context(&project)?, name)?)
+        }
+        Request::WorkspacePurgeTrashed {
+            handle,
+            project_id,
+            kind,
+            id,
+        } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            if workspace.has_open_body(project_id, id) {
+                return Err("请先关闭这一页，再彻底删除".into());
+            }
+            let store = WorkspaceStore::new(&workspace.gateway, CLIENT);
+            let purged = store.purge_trashed(&workspace.context(&project)?, kind, id)?;
+            let assets = workspace.assets();
+            for asset in &purged.asset_ids {
+                let _ = assets.remove(project_id, asset);
+            }
+            json!({"purged": [purged], "trashed": trashed_json(&store.trashed_entities(project_id)?)})
+        }
+        Request::WorkspaceEmptyTrash { handle, project_id } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let project = workspace.project(project_id)?;
+            let store = WorkspaceStore::new(&workspace.gateway, CLIENT);
+            if store
+                .trashed_entities(project_id)?
+                .iter()
+                .any(|(_, id)| workspace.has_open_body(project_id, id))
+            {
+                return Err("请先关闭回收站里仍打开的页面，再清空回收站".into());
+            }
+            let purged = store.empty_trash(&workspace.context(&project)?)?;
+            let assets = workspace.assets();
+            for asset in purged.iter().flat_map(|entity| &entity.asset_ids) {
+                let _ = assets.remove(project_id, asset);
+            }
+            json!({"purged": purged, "trashed": trashed_json(&store.trashed_entities(project_id)?)})
+        }
+        Request::WorkspaceDiagnostics { handle } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            let mut summary =
+                WorkspaceStore::new(&workspace.gateway, CLIENT).diagnostics(WORKSPACE_USER)?;
+            let handles = workspace.document_handles();
+            summary["openBodies"] = json!({
+                "count": handles.len(),
+                "blocked": handles
+                    .iter()
+                    .filter_map(|handle| documents.get(handle))
+                    .filter(|owner| owner.write_blocked())
+                    .count(),
+            });
+            summary
         }
         Request::WorkspaceDeleteProject { handle, project_id } => {
             let workspace = workspaces

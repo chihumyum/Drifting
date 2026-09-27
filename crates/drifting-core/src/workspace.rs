@@ -4,6 +4,7 @@
 mod acts;
 mod comments;
 mod deletion;
+mod diagnostics;
 mod drifts;
 mod elements;
 mod facts;
@@ -14,12 +15,14 @@ mod metadata;
 mod metrics;
 mod outline;
 mod patches;
+mod purge;
 mod relations;
 mod storylines;
 mod timeline;
 mod trash;
 pub use comments::{
-    plain_comment_doc, CommentPatch, NewChapterComment, NewComment, WorkspaceComment,
+    plain_comment_doc, CommentPatch, NewChapterComment, NewComment, NewSuggestion,
+    WorkspaceComment, WorkspaceCommentAction,
 };
 pub use deletion::ProjectDeletion;
 pub use drifts::{NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
@@ -36,6 +39,7 @@ pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetail
 pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;
 pub use patches::{NewPatch, PatchChanges, PatchSource, WorkspacePatch};
+pub use purge::PurgedEntity;
 pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
 pub use timeline::{TimelineMarker, TimelineNode, WorkspaceTimeline};

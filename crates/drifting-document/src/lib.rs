@@ -30,7 +30,7 @@ mod draft_evidence_tests;
 mod lineage;
 mod native;
 mod prose_export;
-pub use prose_export::{prose_markdown, prose_plain_text};
+pub use prose_export::{prose_markdown, prose_markdown_linked, prose_plain_text, LinkResolver};
 mod prose_metrics;
 pub use prose_metrics::{count_words, ProseProjection};
 mod native_command;

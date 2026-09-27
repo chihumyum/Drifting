@@ -36,6 +36,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Milestones and acceptance](milestones.md)
 - [Local project and chapter writing slice](workspace.md)
 - [Chapter trash and restore](chapter-trash.md)
+- [回收站 and permanent deletion](trash.md)
 - [Chapter selection comments](chapter-comments.md)
 - [Elements library](element-library.md)
 - [Element patches (设定补丁)](patches.md)
@@ -110,7 +111,9 @@ library ordering, act colours, project deletion, a bottom timeline dock with
 a draggable act rail,
 chapter tabs with a two-pane split, formatting, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
-words against the daily goal, native editing, save and reopen. Every write
+words against the daily goal, one 回收站 per project with 彻底删除, hover cards
+on entity links, typewriter scrolling, a 项目书架 of every project, Markdown
+folder export, a diagnostic summary, native editing, save and reopen. Every write
 goes through shared Rust domain commands, transactions and canonical journals;
 views of one chapter share its document owner and history while keeping their
 own selections. Remote prose and chapter

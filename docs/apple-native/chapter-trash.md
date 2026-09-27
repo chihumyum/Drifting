@@ -1,8 +1,9 @@
 # Local chapter trash and restore
 
 The native chapter workspace provides a recoverable trash workflow through one
-shared Rust service. This batch adds no permanent deletion and does not depend
-on Google Drive or its deferred synchronization redesign.
+shared Rust service. It does not depend on Google Drive or its deferred
+synchronization redesign. The project's unified 回收站 and permanent deletion
+(彻底删除) are in [trash](trash.md).
 
 ## Domain and prose transaction
 

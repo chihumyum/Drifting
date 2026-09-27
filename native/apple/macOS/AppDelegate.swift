@@ -134,6 +134,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var timelineMenuItem: NSMenuItem!
     private var editorMinimumHeight: NSLayoutConstraint!
     private var settingsWindow: MacSettingsWindowController?
+    /// 回收站: one project's trashed content of every kind.
+    private var trashPanel: TrashPanel?
+    private var trashController: MacTrashViewController?
+    /// 项目书架: every project, newest edit first.
+    private var shelf: MacProjectShelfWindowController?
+    /// 导出为 Markdown 文件夹….
+    private lazy var markdownExport = MacMarkdownFolderExport(workspace: workspace)
+    /// 帮助 › 诊断摘要….
+    private var diagnostics: MacDiagnosticsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -176,8 +185,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         importItem.target = self
         let exportItem = fileMenu.addItem(withTitle: "导出全书…", action: #selector(exportBook), keyEquivalent: "")
         exportItem.target = self
+        let exportFolder = fileMenu.addItem(withTitle: "导出为 Markdown 文件夹…", action: #selector(exportMarkdownFolderMenu), keyEquivalent: "")
+        exportFolder.target = self
         file.submenu = fileMenu
         menu.addItem(file)
+        let projectItem = NSMenuItem(title: "项目", action: nil, keyEquivalent: ""), projectMenu = NSMenu(title: "项目")
+        let shelfItem = projectMenu.addItem(withTitle: "项目书架…", action: #selector(showShelf), keyEquivalent: "p")
+        shelfItem.keyEquivalentModifierMask = [.command, .shift]
+        shelfItem.target = self
+        let projectTrash = projectMenu.addItem(withTitle: "回收站", action: #selector(showTrashMenu), keyEquivalent: "")
+        projectTrash.target = self
+        projectMenu.addItem(.separator())
+        let projectProfile = projectMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "")
+        projectProfile.target = self
+        let projectDelete = projectMenu.addItem(withTitle: "删除项目…", action: #selector(deleteSelectedProject), keyEquivalent: "")
+        projectDelete.target = self
+        projectItem.submenu = projectMenu
+        menu.addItem(projectItem)
         let edit = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""), editMenu = NSMenu(title: "编辑")
         editMenu.addItem(withTitle: "撤销", action: #selector(ProseTextView.undo(_:)), keyEquivalent: "z")
         let redo = editMenu.addItem(withTitle: "重做", action: #selector(ProseTextView.redo(_:)), keyEquivalent: "z")
@@ -245,8 +269,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         timeline.keyEquivalentModifierMask = [.command, .option]
         timeline.target = self
         timelineMenuItem = timeline
+        viewMenu.addItem(.separator())
+        let trash = viewMenu.addItem(withTitle: "回收站", action: #selector(showTrashMenu), keyEquivalent: "")
+        trash.target = self
         view.submenu = viewMenu
         menu.addItem(view)
+        let help = NSMenuItem(title: "帮助", action: nil, keyEquivalent: ""), helpMenu = NSMenu(title: "帮助")
+        let diagnosticsItem = helpMenu.addItem(withTitle: "诊断摘要…", action: #selector(showDiagnostics), keyEquivalent: "")
+        diagnosticsItem.target = self
+        help.submenu = helpMenu
+        menu.addItem(help)
+        NSApp.helpMenu = helpMenu
         NSApp.mainMenu = menu
     }
 
@@ -361,6 +394,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onMaterialLibrary = { [weak self] projectID, library in
             self?.adoptMaterials(projectID: projectID, library: library, fromWorkspace: true)
         }
+        chapterWorkspace.onTrash = { [weak self] projectID, source in self?.adoptTrash(projectID: projectID, source: source) }
+        chapterWorkspace.onPurged = { [weak self] projectID, _ in
+            // Notes and TODOs written on purged content went with it.
+            self?.reviewModels[projectID]?.load()
+        }
+        markdownExport.onStatus = { [weak self] message in self?.status.stringValue = message }
         transfer.onStatus = { [weak self] message in self?.status.stringValue = message }
         transfer.onImported = { [weak self] project, entity in self?.adoptImported(entity, project: project) }
         NSLayoutConstraint.activate([
@@ -512,6 +551,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             let row = projectTable.clickedRow
             guard projects.indices.contains(row) else { return }
             let project = projects[row]
+            menu.addItem(LibraryMenuItem(title: "项目书架…", identifier: "project-menu-shelf") { [weak self] in self?.showShelf() })
+            menu.addItem(LibraryMenuItem(title: "回收站…", identifier: "project-menu-trash") { [weak self] in
+                self?.showTrash(for: project)
+            })
+            menu.addItem(LibraryMenuItem(title: "导出为 Markdown 文件夹…", identifier: "project-menu-export-folder") { [weak self] in
+                self?.exportMarkdownFolder(project)
+            })
+            menu.addItem(.separator())
             let delete = LibraryMenuItem(title: "删除项目…", identifier: "project-menu-delete") { [weak self] in
                 self?.confirmDeleteProject(project)
             }
@@ -823,6 +870,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.projectEmpty.isHidden = !projects.isEmpty
                 // A chosen font that could not be used says so once at launch.
                 self.status.stringValue = self.settingsStore.fontFallback ?? "选择项目，或新建一个项目。"
+                // No project is chosen yet: the 项目书架 offers them all.
+                if self.selectedProject == nil { self.showShelf() }
             case .failure(let error): self.status.stringValue = error.localizedDescription
             }
         }
@@ -843,6 +892,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if overviewController?.model.projectID != project.id { closeElementOverview() }
         if reviewController?.model.projectID != project.id { closeReview() }
         if boardController?.review.projectID != project.id { closeBoard() }
+        if trashController?.model.projectID != project.id { closeTrash() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -2068,6 +2118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if graphController?.model.projectID == projectID { closeStoryGraph() }
         if overviewController?.model.projectID == projectID { closeElementOverview() }
         if agentController?.projectID == projectID { agentController?.stop() }
+        if trashController?.model.projectID == projectID { closeTrash() }
         timelineDock.forget(projectID: projectID)
         updateTimelineMenu()
         transfer.endImport()
@@ -2102,6 +2153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         activeChapterChanged()
         let message = "项目“\(deleted.name)”已删除。" + (outcome.created ? "已新建空项目“\(ProjectDeletionCoordinator.replacementName)”。" : "")
         status.stringValue = message
+        shelf?.model.load { [weak self] in self?.shelf?.model.showStatus(message) }
         // Another project stays shown; deleting the shown one opens the next.
         if let shown = selectedProject, let index = projects.firstIndex(where: { $0.id == shown.id }) {
             updatingSelection = true
@@ -2114,6 +2166,152 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         updatingSelection = false
         selectProject(next, message: message)
+    }
+
+    // MARK: 回收站
+
+    /// 视图 › 回收站 and 项目 › 回收站: the selected project's trash.
+    @objc private func showTrashMenu() {
+        guard let project = currentProject ?? selectedProject else { status.stringValue = "请先选择一个项目。"; return }
+        showTrash(for: project)
+    }
+
+    private func showTrash(for project: WorkspaceProject) {
+        guard !loading else { return }
+        if trashController?.model.projectID != project.id, selectedProject?.id != project.id {
+            // The trash follows the project shown in the main window.
+            guard let index = projects.firstIndex(where: { $0.id == project.id }), canLeaveDocument() else { return }
+            updatingSelection = true
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            updatingSelection = false
+            selectProject(project)
+        }
+        if let trashPanel, trashController?.model.projectID == project.id {
+            trashPanel.makeKeyAndOrderFront(nil); trashController?.model.load(); return
+        }
+        closeTrash()
+        let named = namedProject(project)
+        let model = WorkspaceTrashModel(workspace: workspace, projectID: project.id)
+        let controller = MacTrashViewController(model: model, host: chapterWorkspace)
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.onClose = { [weak self] in self?.closeTrash() }
+        let panel = TrashPanel(contentRect: NSRect(x: 0, y: 0, width: 480, height: 460),
+                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(named.name) · 回收站"
+        panel.minSize = NSSize(width: 420, height: 320)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        panel.onClose = { [weak self] in self?.trashPanel = nil; self?.trashController = nil }
+        trashPanel = panel; trashController = controller
+        window.addChildWindow(panel, ordered: .above)
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX - 520, y: frame.maxY - 110))
+        panel.makeKeyAndOrderFront(nil)
+        model.load()
+    }
+
+    private func closeTrash() {
+        let panel = trashPanel
+        trashPanel = nil; trashController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    /// A library or chapter list naming trashed content arrived from any
+    /// command: the 回收站 panel and the chapter list's trash follow, and a
+    /// chapter restored elsewhere joins the chapter list.
+    private func adoptTrash(projectID: String, source: WorkspaceTrashSource) {
+        if let model = trashController?.model, model.projectID == projectID { model.apply(source) }
+        guard case .chapters(let live, let trashed) = source, selectedProject?.id == projectID else { return }
+        trashedChapters = trashed
+        if live.map(\.id) != chapters.map(\.id) {
+            let selected = showingTrash ? nil : (chapters.indices.contains(chapterTable.selectedRow) ? chapters[chapterTable.selectedRow].id : nil)
+            chapters = live
+            graphChaptersChanged(projectID: projectID)
+            if !showingTrash {
+                updatingSelection = true
+                chapterTable.reloadData()
+                if let selected, let index = chapters.firstIndex(where: { $0.id == selected }) {
+                    chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                } else { chapterTable.deselectAll(nil) }
+                updatingSelection = false
+                chapterEmpty.isHidden = !chapters.isEmpty
+            }
+        }
+        if showingTrash { refreshChapterList() }
+        updateControls()
+    }
+
+    // MARK: 项目书架
+
+    /// 项目 › 项目书架… (⇧⌘P), the project list's menu, and at launch while no
+    /// project is chosen.
+    @objc private func showShelf() {
+        if let shelf { shelf.window?.makeKeyAndOrderFront(nil); shelf.model.load(); return }
+        let model = ProjectShelfModel(workspace: workspace)
+        let controller = MacProjectShelfWindowController(model: model)
+        shelf = controller
+        controller.canAct = { [weak self] in self?.loading == false && self?.chapterWorkspace.canNavigate == true }
+        controller.onOpen = { [weak self] project in self?.openFromShelf(project) }
+        controller.onCreated = { [weak self] project in
+            guard let self else { return }
+            if !self.projects.contains(where: { $0.id == project.id }) { self.projects.append(project) }
+            self.projectEmpty.isHidden = true
+            self.updatingSelection = true
+            self.projectTable.reloadData()
+            if let selected = self.selectedProject, let index = self.projects.firstIndex(where: { $0.id == selected.id }) {
+                self.projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            }
+            self.updatingSelection = false
+        }
+        controller.onRenamed = { [weak self] project in self?.adoptRenamedProject(project) }
+        controller.onDelete = { [weak self] project in
+            guard let self else { return }
+            self.window.makeKeyAndOrderFront(nil)
+            self.confirmDeleteProject(project)
+        }
+        controller.onExport = { [weak self, weak controller] project in self?.exportMarkdownFolder(project, from: controller?.window) }
+        controller.onClose = { [weak self] in self?.shelf = nil }
+        controller.window?.center()
+        controller.showWindow(nil)
+        model.load()
+    }
+
+    /// 打开 on the shelf: the project shows in the main window.
+    private func openFromShelf(_ project: WorkspaceProject) {
+        guard canLeaveDocument() else { shelf?.model.showStatus("请先完成输入，并等待正文保存后再打开项目。"); return }
+        guard let index = projects.firstIndex(where: { $0.id == project.id }) else {
+            shelf?.model.showStatus("这个项目已不可用，请刷新项目列表。"); reloadProjects(); return
+        }
+        shelf?.close()
+        window.makeKeyAndOrderFront(nil)
+        guard selectedProject?.id != project.id else { return }
+        updatingSelection = true
+        projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        updatingSelection = false
+        selectProject(projects[index])
+    }
+
+    // MARK: 导出为 Markdown 文件夹
+
+    @objc private func exportMarkdownFolderMenu() {
+        guard let project = currentProject ?? selectedProject else { status.stringValue = "请先选择一个项目。"; return }
+        exportMarkdownFolder(namedProject(project))
+    }
+
+    private func exportMarkdownFolder(_ project: WorkspaceProject, from parent: NSWindow? = nil) {
+        guard canLeaveDocument() else { return }
+        markdownExport.begin(project: namedProject(project), window: parent ?? window)
+    }
+
+    // MARK: 诊断摘要
+
+    @objc private func showDiagnostics() {
+        if let diagnostics { diagnostics.window?.makeKeyAndOrderFront(nil); diagnostics.load(); return }
+        let controller = MacDiagnosticsWindowController(workspace: workspace)
+        diagnostics = controller
+        controller.onClose = { [weak self] in self?.diagnostics = nil }
+        controller.window?.center()
+        controller.showWindow(nil)
+        controller.load()
     }
 
     // MARK: Version history
@@ -2341,34 +2539,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.setLoading(false)
                 switch result {
                 case .success(let updated):
-                    self.closeOutline()
-                    self.closeSearch()
-                    self.elementsPanel?.title = "\(updated.name) · 设定库"
-                    self.storylinesPanel?.title = "\(updated.name) · 故事线"
-                    self.driftsPanel?.title = "\(updated.name) · 漂流"
-                    self.relationTypesPanel?.title = "\(updated.name) · 关系类型"
-                    self.materialsPanel?.title = "\(updated.name) · 素材库"
-                    self.graphPanel?.title = "\(updated.name) · 故事图谱"
-                    self.wholeBookPanel?.title = "\(updated.name) · 全书长卷"
-                    self.overviewPanel?.title = "\(updated.name) · 设定总览"
-                    self.reviewPanel?.title = "\(updated.name) · 审阅"
-                    self.boardPanel?.title = "\(updated.name) · 备忘与素材"
-                    if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
-                    self.selectedProject = updated
-                    self.chapterWorkspace.rename(project: updated)
-                    self.updatingSelection = true
-                    self.projectTable.reloadData()
-                    if let index = self.projects.firstIndex(where: { $0.id == updated.id }) {
-                        self.projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-                    }
-                    self.updatingSelection = false
-                    self.updateControls()
-                    self.updateCurrentTitle()
+                    self.adoptRenamedProject(updated)
+                    self.shelf?.model.load()
                     self.status.stringValue = "项目名称已保存"
                 case .failure(let error): self.status.stringValue = error.localizedDescription
                 }
             }
         }
+    }
+
+    /// A renamed project: lists, open pages and the panels of it follow.
+    private func adoptRenamedProject(_ updated: WorkspaceProject) {
+        if selectedProject?.id == updated.id {
+            closeOutline()
+            closeSearch()
+            elementsPanel?.title = "\(updated.name) · 设定库"
+            storylinesPanel?.title = "\(updated.name) · 故事线"
+            driftsPanel?.title = "\(updated.name) · 漂流"
+            relationTypesPanel?.title = "\(updated.name) · 关系类型"
+            materialsPanel?.title = "\(updated.name) · 素材库"
+            graphPanel?.title = "\(updated.name) · 故事图谱"
+            wholeBookPanel?.title = "\(updated.name) · 全书长卷"
+            overviewPanel?.title = "\(updated.name) · 设定总览"
+            reviewPanel?.title = "\(updated.name) · 审阅"
+            boardPanel?.title = "\(updated.name) · 备忘与素材"
+            trashPanel?.title = "\(updated.name) · 回收站"
+            selectedProject = updated
+        }
+        if let index = projects.firstIndex(where: { $0.id == updated.id }) { projects[index] = updated }
+        chapterWorkspace.rename(project: updated)
+        updatingSelection = true
+        projectTable.reloadData()
+        if let selected = selectedProject, let index = projects.firstIndex(where: { $0.id == selected.id }) {
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        }
+        updatingSelection = false
+        updateControls()
+        updateCurrentTitle()
     }
 
     @objc private func renameChapter() {
@@ -2536,6 +2743,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.projectTable.selectRowIndexes(IndexSet(integer: self.projects.count - 1), byExtendingSelection: false)
                     self.updatingSelection = false
                     self.selectProject(project)
+                    self.shelf?.model.load()
                 case .failure(let error): self.status.stringValue = error.localizedDescription
                 }
             }

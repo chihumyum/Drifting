@@ -26,6 +26,14 @@ pub(crate) enum ElementCommand {
         category_id: String,
         name: Option<String>,
         group_name: Option<String>,
+        /// Written in the same original; absent fields start empty (facts
+        /// from the category template).
+        #[serde(default)]
+        summary: Option<String>,
+        #[serde(default)]
+        aliases: Option<Vec<String>>,
+        #[serde(default)]
+        facts: Option<Vec<Fact>>,
     },
     UpdateElement {
         element_id: String,
@@ -159,6 +167,9 @@ impl WorkspaceSession {
                 category_id,
                 name,
                 group_name,
+                summary,
+                aliases,
+                facts,
             } => {
                 let template = super::transfer::template_blocks(
                     &store.category_element_template(project_id, category_id)?,
@@ -171,6 +182,9 @@ impl WorkspaceSession {
                         name: name.clone(),
                         group_name: group_name.clone(),
                         seed: empty_body()?,
+                        summary: summary.clone().unwrap_or_default(),
+                        aliases: aliases.clone().unwrap_or_default(),
+                        facts: facts.clone(),
                     },
                     &mut || identifier("fact"),
                 )?;

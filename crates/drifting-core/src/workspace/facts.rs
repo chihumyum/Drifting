@@ -32,7 +32,7 @@ struct Entry {
 }
 
 /// `stringifyKv` keeps rows whose key or value is non-blank; nothing is trimmed.
-fn cleaned(facts: &[Fact]) -> Vec<Fact> {
+pub(super) fn cleaned(facts: &[Fact]) -> Vec<Fact> {
     facts
         .iter()
         .filter(|fact| !js_trim(&fact.key).is_empty() || !js_trim(&fact.value).is_empty())

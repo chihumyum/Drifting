@@ -25,6 +25,9 @@ pub(crate) enum CommentsCommand {
         body: String,
         #[serde(default)]
         priority: Option<String>,
+        /// `true` when the writing assistant writes it.
+        #[serde(default)]
+        by_assistant: bool,
     },
     /// Absent fields stay; `priority: null` clears it.
     Update {
@@ -43,6 +46,14 @@ pub(crate) enum CommentsCommand {
     Delete {
         comment_id: String,
     },
+    /// Accept (after the host applied the proposal) or reject a suggestion.
+    ResolveSuggestion {
+        comment_id: String,
+        accepted: bool,
+        #[serde(default)]
+        result: Option<Value>,
+    },
+    SuggestionActions,
 }
 
 impl WorkspaceSession {
@@ -62,6 +73,7 @@ impl WorkspaceSession {
                 target_id,
                 body,
                 priority,
+                by_assistant,
             } => json!(store.create_comment(
                 &self.context(&project)?,
                 NewComment {
@@ -77,6 +89,7 @@ impl WorkspaceSession {
                     anchor_json: None,
                     body_text: body.clone(),
                     priority: priority.clone(),
+                    by_assistant: *by_assistant,
                 },
             )?),
             CommentsCommand::Update {
@@ -101,6 +114,18 @@ impl WorkspaceSession {
                 comment_id,
                 *resolved
             )?),
+            CommentsCommand::ResolveSuggestion {
+                comment_id,
+                accepted,
+                result,
+            } => json!(store.resolve_suggestion(
+                &self.context(&project)?,
+                comment_id,
+                &identifier("action")?,
+                *accepted,
+                result.as_ref().map(|result| result.to_string()).as_deref(),
+            )?),
+            CommentsCommand::SuggestionActions => json!(store.suggestion_actions(project_id)?),
             CommentsCommand::Delete { comment_id } => {
                 // An open owner tracks the anchor; it must not persist the
                 // deleted row's anchor afterwards.

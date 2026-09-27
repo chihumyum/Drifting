@@ -104,6 +104,30 @@ success the lab forgets the project's writing plan and 设定总览 viewport and
 opens the first remaining project, or creates an empty “未命名项目” when none
 remain. The [review cases](review.md) accept it.
 
+## 项目书架
+
+项目 › 项目书架… (⇧⌘P) and the project list's menu open a window listing every
+project with its name, summary, live chapters, chapter words and last edit,
+newest edit first; it also opens at launch, while no project is chosen. Each
+row is read with `workspaceProjects`, then `workspaceMetadata` `project` and
+`nodes` (the last edit is the latest `updated_at` of the project and its
+live chapters and drifts, which editor saves stamp) and `workspaceMetrics`
+`counts`; reading writes nothing. 打开 (or a double-click) shows the project
+in the main window; 新建项目… and 重命名… ask for a nonblank name and use the
+workspace commands, and the main window's list, titles and panels follow;
+导出为 Markdown 文件夹… exports that project ([library](library.md)); 删除项目…
+opens the deletion sheet above. Queued or marked input holds every command.
+
+## 诊断摘要
+
+帮助 › 诊断摘要… shows `workspaceDiagnostics {handle}` (database integrity,
+migrations and pages, journal counts, prose document counts, per-project
+counts and sizes, open and blocked bodies; never names, identities, prose or
+paths) with `host` added: app version and build, macOS version and
+architecture. It is read-only, pretty and key-sorted JSON; 拷贝 copies it and
+存储为… saves a `.json` file; the window says plainly that it holds no book
+content.
+
 ## Bounded acceptance
 
 Run `pnpm apple:workspace:acceptance` for shared command/bridge integration and
@@ -130,6 +154,12 @@ UI/build dimensions separate. Agreed scenarios are:
 - Native UI creates, renames and reorders chapters, continues undo/redo on the same
   prose owner, uses the heading menu, switches chapters and restores names, order,
   prose and heading structure after restart.
+- The 项目书架 and 诊断摘要 (`--trash-shelf-only` in the
+  [binding report](acceptance/p2b-binding.json)): listing and order after an
+  edit, create, rename (a blank name refused), open, delete through the sheet
+  and a cold relaunch, without journal rows; the summary shown, copied to a
+  private pasteboard and saved, with no synthetic title, prose, identity or
+  path in it.
 
 The generated workspace report records the current core and bridge cases. Production
 renderer replay accepts the actual creation, rename and reorder journals, including

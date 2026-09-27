@@ -1,6 +1,7 @@
 //! Book export of a body's ProseMirror projection as Markdown or plain text.
-//! Headings are shifted below the book's own chapter headings; entity links
-//! and unknown marks export as their text.
+//! Headings are shifted below the book's own chapter headings; unknown marks
+//! export as their text, and entity links too unless a resolver maps them to
+//! `[[path|text]]` wiki links.
 use serde_json::Value;
 
 fn children(node: &Value) -> &[Value] {
@@ -29,7 +30,10 @@ fn escape(text: &str) -> String {
     out
 }
 
-fn inline_markdown(node: &Value, out: &mut String) {
+/// Maps an entity link's `(targetKind, targetId)` to an archive path.
+pub type LinkResolver<'a> = &'a dyn Fn(&str, &str) -> Option<String>;
+
+fn inline_markdown(node: &Value, out: &mut String, links: Option<LinkResolver>) {
     for child in children(node) {
         match kind(child) {
             "text" => {
@@ -37,6 +41,7 @@ fn inline_markdown(node: &Value, out: &mut String) {
                 let mut open = String::new();
                 let mut close = String::new();
                 let mut link = None;
+                let mut wiki = None;
                 for mark in child
                     .get("marks")
                     .and_then(Value::as_array)
@@ -52,24 +57,47 @@ fn inline_markdown(node: &Value, out: &mut String) {
                             link = mark.pointer("/attrs/href").and_then(Value::as_str);
                             continue;
                         }
+                        "entityLink" => {
+                            wiki = links.and_then(|resolve| {
+                                resolve(
+                                    mark.pointer("/attrs/targetKind")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or(""),
+                                    mark.pointer("/attrs/targetId")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or(""),
+                                )
+                            });
+                            continue;
+                        }
                         _ => continue,
                     };
                     open.push_str(delimiter);
                     close.insert_str(0, delimiter);
                 }
-                let body = format!("{open}{}{close}", escape(text));
+                let inner = match wiki {
+                    Some(path) => format!("[[{path}|{}]]", escape(text)),
+                    None => escape(text),
+                };
+                let body = format!("{open}{inner}{close}");
                 match link {
                     Some(href) => out.push_str(&format!("[{body}]({href})")),
                     None => out.push_str(&body),
                 }
             }
             "hardBreak" => out.push_str("  \n"),
-            _ => inline_markdown(child, out),
+            _ => inline_markdown(child, out, links),
         }
     }
 }
 
-fn block_markdown(node: &Value, shift: usize, prefix: &str, out: &mut Vec<String>) {
+fn block_markdown(
+    node: &Value,
+    shift: usize,
+    prefix: &str,
+    out: &mut Vec<String>,
+    links: Option<LinkResolver>,
+) {
     match kind(node) {
         "heading" => {
             let level = node
@@ -77,12 +105,12 @@ fn block_markdown(node: &Value, shift: usize, prefix: &str, out: &mut Vec<String
                 .and_then(Value::as_u64)
                 .unwrap_or(1) as usize;
             let mut line = format!("{prefix}{} ", "#".repeat((level + shift).min(6)));
-            inline_markdown(node, &mut line);
+            inline_markdown(node, &mut line, links);
             out.push(line);
         }
         "blockquote" => {
             for child in children(node) {
-                block_markdown(child, shift, &format!("{prefix}> "), out);
+                block_markdown(child, shift, &format!("{prefix}> "), out, links);
             }
         }
         "bulletList" | "orderedList" => {
@@ -95,7 +123,7 @@ fn block_markdown(node: &Value, shift: usize, prefix: &str, out: &mut Vec<String
                 };
                 let mut lines = Vec::new();
                 for child in children(item) {
-                    block_markdown(child, shift, "", &mut lines);
+                    block_markdown(child, shift, "", &mut lines, links);
                 }
                 for (i, line) in lines.join("\n").split('\n').enumerate() {
                     list.push(format!(
@@ -116,7 +144,7 @@ fn block_markdown(node: &Value, shift: usize, prefix: &str, out: &mut Vec<String
         "horizontalRule" => out.push(format!("{prefix}---")),
         _ => {
             let mut line = prefix.to_string();
-            inline_markdown(node, &mut line);
+            inline_markdown(node, &mut line, links);
             out.push(line);
         }
     }
@@ -125,9 +153,19 @@ fn block_markdown(node: &Value, shift: usize, prefix: &str, out: &mut Vec<String
 /// The body as Markdown, its headings `shift` levels deeper, blocks
 /// separated by blank lines; empty paragraphs are dropped.
 pub fn prose_markdown(document: &Value, shift: usize) -> String {
+    prose_markdown_linked(document, shift, None)
+}
+
+/// As [`prose_markdown`], with entity links the resolver knows written as
+/// `[[path|text]]`.
+pub fn prose_markdown_linked(
+    document: &Value,
+    shift: usize,
+    links: Option<LinkResolver>,
+) -> String {
     let mut blocks = Vec::new();
     for block in children(document) {
-        block_markdown(block, shift, "", &mut blocks);
+        block_markdown(block, shift, "", &mut blocks, links);
     }
     blocks.retain(|block| !block.trim().is_empty());
     blocks.join("\n\n")
@@ -189,5 +227,21 @@ mod tests {
             prose_plain_text(&document),
             "雨夜\n她说 快走，去*北塔*\n钟楼\n引文\n甲乙\na < b"
         );
+    }
+
+    #[test]
+    fn resolved_marks_become_wiki_links() {
+        let doc = serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[
+            {"type":"text","text":"林岚","marks":[{"type":"bold"},{"type":"entityLink","attrs":{"targetKind":"element","targetId":"e1"}}]},
+            {"type":"text","text":"走向"},
+            {"type":"text","text":"北塔","marks":[{"type":"entityLink","attrs":{"targetKind":"element","targetId":"gone"}}]}]}]});
+        let resolve = |kind: &str, id: &str| {
+            (kind == "element" && id == "e1").then(|| "elements/林岚-e1".to_string())
+        };
+        assert_eq!(
+            prose_markdown_linked(&doc, 0, Some(&resolve)),
+            "**[[elements/林岚-e1|林岚]]**走向北塔"
+        );
+        assert_eq!(prose_markdown(&doc, 0), "**林岚**走向北塔");
     }
 }

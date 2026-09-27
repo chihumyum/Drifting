@@ -220,9 +220,16 @@ impl WorkspaceStore<'_> {
                                     .checked_sub(1)
                                     .ok_or("Restored incarnation must advance")?,
                             )
+                        } else if mutation.action == "entity.purge"
+                            && mutation.family == "entity"
+                            && matches!(
+                                mutation.kind,
+                                "node" | "element" | "element-category" | "storyline"
+                            )
+                        {
+                            // Content leaves only from the trash (彻底删除).
+                            ("trashed", "purged", mutation.incarnation)
                         } else if mutation.action == "entity.purge" {
-                            // Only removing a book-axis separator is exposed.
-                            // This must not become a chapter/content purge path.
                             if mutation.family != "entity"
                                 || !matches!(
                                     mutation.kind,

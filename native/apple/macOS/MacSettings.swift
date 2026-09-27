@@ -9,6 +9,8 @@ enum MacEditorPreferences {
     static var spellChecking: Bool? { didSet { if spellChecking != oldValue { post() } } }
     /// The chosen 界面强调色; nil follows the system accent colour.
     static var accentColor: NSColor? { didSet { if accentColor != oldValue { post() } } }
+    /// 打字机滚动: typing keeps the caret line at a fixed height in every body.
+    static var typewriterScrolling: Bool? { didSet { if typewriterScrolling != oldValue { post() } } }
     private static func post() { NotificationCenter.default.post(name: didChange, object: nil) }
 }
 
@@ -44,6 +46,8 @@ struct LabSettings: Codable, Equatable {
     var paragraphIndent: Indent = .none
     var spellcheck = true
     var manuscriptLocale = "zh-CN"
+    /// 打字机滚动 (off by default): the caret line stays about 40% down.
+    var typewriterScrolling = false
     /// Each project's 写作计划, keyed by project identity; a project without
     /// one uses the defaults.
     var writingPlans: [String: WritingPlan] = [:]
@@ -66,6 +70,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
+        case typewriterScrolling
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines
     }
 
@@ -82,6 +87,7 @@ struct LabSettings: Codable, Equatable {
         paragraphIndent = (try? values.decodeIfPresent(Indent.self, forKey: .paragraphIndent)) ?? .none
         spellcheck = (try? values.decodeIfPresent(Bool.self, forKey: .spellcheck)) ?? true
         manuscriptLocale = (try? values.decodeIfPresent(String.self, forKey: .manuscriptLocale)) ?? "zh-CN"
+        typewriterScrolling = (try? values.decodeIfPresent(Bool.self, forKey: .typewriterScrolling)) ?? false
         writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
@@ -500,6 +506,7 @@ final class LabSettingsStore {
         fontFallback = fallback
         DocumentStyle.typography = typography
         MacEditorPreferences.spellChecking = settings.spellcheck
+        MacEditorPreferences.typewriterScrolling = settings.typewriterScrolling
         let accent = settings.accentColor.flatMap { DocumentStyle.linkColor(hex: $0) }
         let accentChanged = accent != MacEditorPreferences.accentColor
         MacEditorPreferences.accentColor = accent
@@ -521,6 +528,7 @@ final class LabSettingsStore {
         DocumentStyle.typography = .standard
         MacEditorPreferences.spellChecking = nil
         MacEditorPreferences.accentColor = nil
+        MacEditorPreferences.typewriterScrolling = nil
         NSApplication.shared.appearance = nil
     }
 

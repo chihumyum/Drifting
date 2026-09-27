@@ -91,6 +91,7 @@ fn workspace_project_deletion_purges_one_project_and_keeps_the_journal() {
                 anchor_json: None,
                 body_text: "待办".into(),
                 priority: None,
+                by_assistant: false,
             },
         )
         .unwrap();

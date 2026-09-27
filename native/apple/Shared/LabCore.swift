@@ -33,6 +33,7 @@ enum LabError: LocalizedError {
     case actUnavailable(reason: String)
     case projectUnavailable(reason: String)
     case patchUnavailable(reason: String)
+    case trashUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -43,7 +44,7 @@ enum LabError: LocalizedError {
              .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
              .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
              .versionHistoryUnavailable(let text), .reviewUnavailable(let text), .actUnavailable(let text),
-             .projectUnavailable(let text), .patchUnavailable(let text): return text
+             .projectUnavailable(let text), .patchUnavailable(let text), .trashUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -69,7 +70,23 @@ enum LabError: LocalizedError {
         case .actUnavailable(let reason): return LabError.actMessage(reason)
         case .projectUnavailable(let reason): return LabError.projectMessage(reason)
         case .patchUnavailable(let reason): return LabError.patchMessage(reason)
+        case .trashUnavailable(let reason): return LabError.trashMessage(reason)
         }
+    }
+
+    /// 彻底删除 refusals leave every row, body and journal entry in place.
+    /// Rust's own messages are Chinese (只有回收站里的内容才能彻底删除,
+    /// 请先关闭这一页…); diagnostics are restated.
+    private static func trashMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("cannot be purged from the trash", "只有章节、漂流、设定、分类和故事线可以彻底删除。"),
+            ("Project does not", "这个项目已不可用，请刷新项目列表。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请刷新项目列表。"),
+            ("Unknown or closed workspace", "工作区已关闭，请重新打开后再试。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "彻底删除未能完成。回收站里的内容未改变，可以稍后重试。"
     }
 
     /// Patch refusals happen before any row or journal change. Rust's own
@@ -480,6 +497,9 @@ final class LabCore {
             if request["operation"] as? String == "workspaceDeleteProject" {
                 throw LabError.projectUnavailable(reason: reason)
             }
+            if ["workspacePurgeTrashed", "workspaceEmptyTrash"].contains(request["operation"] as? String ?? "") {
+                throw LabError.trashUnavailable(reason: reason)
+            }
             if request["operation"] as? String == "workspaceHistory" {
                 throw LabError.versionHistoryUnavailable(reason: reason)
             }
@@ -715,6 +735,9 @@ struct WorkspaceChapter: Decodable {
     /// The chapter's coordinate on the book axis in chapter lists (acts
     /// start at such coordinates); nil for a chapter named elsewhere.
     var bookOrder: Double? = nil
+    /// When the row last changed; for a trashed chapter, when it was
+    /// trashed (trash stamps it with `deleted_at`). Nil when named elsewhere.
+    var updatedAt: String? = nil
 }
 struct WorkspaceAct: Decodable {
     let id: String
@@ -950,6 +973,53 @@ final class LabWorkspaceCore {
             changeLifecycle(.chapter(ChapterScope(projectID: projectID, chapterID: chapterID)), closesOwner: false, completion: completion) {
                 try self.request("workspaceRestoreChapter", fields: ["projectId": projectID, "chapterId": chapterID])
             }
+        }
+    }
+
+    // MARK: 回收站
+
+    /// 彻底删除: a trashed chapter, drift, element, category or storyline and
+    /// what only it owns (comments on it, its facts, an element's patches,
+    /// its body and version history) in one original. Rust refuses live
+    /// content and an open page. The reply lists what remains in the trash.
+    func purgeTrashed(projectID: String, kind: String, id: String,
+                      completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再彻底删除。"))); return
+        }
+        perform(completion) {
+            try self.request("workspacePurgeTrashed", fields: ["projectId": projectID, "kind": kind, "id": id])
+        }
+    }
+
+    /// 清空回收站: everything in the project's trash in one original.
+    func emptyTrash(projectID: String, completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再清空回收站。"))); return
+        }
+        perform(completion) { try self.request("workspaceEmptyTrash", fields: ["projectId": projectID]) }
+    }
+
+    // MARK: Diagnostics
+
+    /// The sanitized workspace summary: counts, sizes, integrity, journal and
+    /// open-body state. Rust never includes names, identities, prose or paths.
+    func diagnostics(completion: @escaping (Result<AgentJSON, Error>) -> Void) {
+        perform(completion) { try self.request("workspaceDiagnostics") }
+    }
+
+    /// 导出为 Markdown 文件夹: one Markdown file per chapter, drift, element,
+    /// category, storyline, note and material, for the host to write. Open
+    /// bodies are read live, so queued input is refused first.
+    func exportArchive(projectID: String, completion: @escaping (Result<WorkspaceMarkdownArchive, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners, !hasPendingDocuments else {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再导出。"))); return
+        }
+        perform(completion) {
+            try self.request("workspaceTransfer", fields: ["projectId": projectID, "command": ["action": "exportArchive"]])
         }
     }
 

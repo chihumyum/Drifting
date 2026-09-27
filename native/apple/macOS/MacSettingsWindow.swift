@@ -216,6 +216,7 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
     let lineHeightValue = NSTextField(labelWithString: "")
     let indentControl = NSSegmentedControl(labels: ["无", "一字符", "两字符"], trackingMode: .selectOne, target: nil, action: nil)
     let resetButton = NSButton(title: "还原推荐样式", target: nil, action: nil)
+    let typewriterCheckbox = NSButton(checkboxWithTitle: "打字机滚动", target: nil, action: nil)
     let autosaveText = SettingsLayout.detail("每次输入提交后立即保存到本机，没有需要设置的间隔。历史版本在保存时最多每 15 分钟记录一次，关闭页面时也会记录。")
     private let storageMessage = SettingsLayout.storageLabel()
     /// The font rows; the message row shows only with a message.
@@ -278,6 +279,8 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         indentControl.setAccessibilityIdentifier("settings-indent")
         resetButton.target = self; resetButton.action = #selector(resetTypesetting)
         resetButton.setAccessibilityIdentifier("settings-reset-typesetting")
+        typewriterCheckbox.target = self; typewriterCheckbox.action = #selector(typewriterChanged)
+        typewriterCheckbox.setAccessibilityIdentifier("settings-typewriter")
         autosaveText.setAccessibilityIdentifier("settings-autosave")
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -312,11 +315,17 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
             ("段首缩进", [indentControl, SettingsLayout.detail("只作用于正文段落；标题、引用与列表不缩进。")]),
             ("", [resetButton]),
         ])
+        let writing = SettingsLayout.grid([
+            ("输入", [typewriterCheckbox,
+                    SettingsLayout.detail("输入时让光标所在行停在编辑区约 40% 的高度，所有正文编辑器都适用；手动滚动不受影响，下次输入时再回到这一高度。")]),
+        ])
         let saving = SettingsLayout.grid([("自动保存", [autosaveText])])
         let previewHeading = SettingsLayout.heading("预览"), fontHeading = SettingsLayout.heading("字体")
         let typesettingHeading = SettingsLayout.heading("排版"), savingHeading = SettingsLayout.heading("保存")
-        let sections: [NSView] = [previewHeading, wash, fontHeading, fonts, typesettingHeading, typesetting, savingHeading, saving, storageMessage]
-        view = SettingsLayout.page(sections, spacing: [1: 22, 3: 22, 5: 22])
+        let writingHeading = SettingsLayout.heading("书写")
+        let sections: [NSView] = [previewHeading, wash, fontHeading, fonts, typesettingHeading, typesetting, writingHeading, writing,
+                                  savingHeading, saving, storageMessage]
+        view = SettingsLayout.page(sections, spacing: [1: 22, 3: 22, 5: 22, 7: 22])
         refresh()
     }
 
@@ -350,6 +359,7 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         lineHeightSlider.doubleValue = settings.lineHeight
         lineHeightValue.stringValue = String(format: "%.2f", settings.lineHeight)
         indentControl.selectedSegment = LabSettings.Indent.allCases.firstIndex(of: settings.paragraphIndent) ?? 0
+        typewriterCheckbox.state = settings.typewriterScrolling ? .on : .off
         preview.textStorage?.setAttributedString(NSAttributedString(string: Self.previewText.joined(separator: "\n"),
                                                                     attributes: DocumentStyle.bodyAttributes))
         SettingsLayout.storage(storageMessage, store)
@@ -386,6 +396,10 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         }
     }
     @objc func removeFont() { store.removeImportedFont() }
+    @objc func typewriterChanged() {
+        let on = typewriterCheckbox.state == .on
+        store.update { $0.typewriterScrolling = on }
+    }
     @objc func sizeChanged() {
         let value = sizeSlider.doubleValue.rounded()
         store.update { $0.fontSize = value }

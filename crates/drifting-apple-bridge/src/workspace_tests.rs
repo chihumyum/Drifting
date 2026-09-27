@@ -8,6 +8,8 @@ mod agent_tests;
 mod category_tests;
 #[path = "workspace_comment_tests.rs"]
 mod comments;
+#[path = "workspace_diagnostics_tests.rs"]
+mod diagnostics_tests;
 #[path = "workspace_drift_tests.rs"]
 mod drifts;
 #[path = "workspace_element_tests.rs"]
@@ -28,6 +30,8 @@ mod outline;
 mod patch_tests;
 #[path = "workspace_project_tests.rs"]
 mod project_tests;
+#[path = "workspace_purge_tests.rs"]
+mod purge_tests;
 #[path = "workspace_relation_tests.rs"]
 mod relation_tests;
 #[path = "workspace_remote_changes_tests.rs"]

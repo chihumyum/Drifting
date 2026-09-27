@@ -42,6 +42,11 @@ pub(crate) enum AgentCommand {
     ReadProse {
         target: ProseTarget,
     },
+    /// The styled projection (blocks, runs and marks) of a body, live or
+    /// stored, for printing and PDF export. Read only.
+    ReadProjection {
+        target: ProseTarget,
+    },
     ApplyChanges {
         target: ProseTarget,
         changes: Vec<ProseChange>,
@@ -110,6 +115,26 @@ impl WorkspaceSession {
     ) -> Result<Value, String> {
         self.project(project_id)?;
         match command {
+            AgentCommand::ReadProjection { target } => {
+                let (body, open) = self.body(project_id, target)?;
+                WorkspaceStore::new(&self.gateway, CLIENT)
+                    .document_scope(project_id, &body.document_id)?;
+                let (projection, live) = match open.and_then(|handle| documents.get(&handle)) {
+                    Some(owner) => (owner.document.native_projection()?, true),
+                    None => {
+                        let repository = ProseRepository::new(&self.gateway, CLIENT);
+                        let tx = self
+                            .gateway
+                            .begin(TransactionBehavior::Deferred, CLIENT.into())?;
+                        let loaded =
+                            drifting_prose::load_document(&repository, &body.document_id, tx)
+                                .and_then(|(document, _)| document.native_projection());
+                        let _ = self.gateway.rollback(tx, CLIENT.into());
+                        (loaded?, false)
+                    }
+                };
+                Ok(json!({"projection": projection, "live": live}))
+            }
             AgentCommand::ReadProse { target } => {
                 let (body, open) = self.body(project_id, target)?;
                 // A trashed or missing body has no live scope.

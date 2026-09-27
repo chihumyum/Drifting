@@ -36,6 +36,16 @@ interoperability is kept.
   no indent. A preview shows the result. Only bodies (chapter, element,
   storyline, drift) use the prose font; page headers and all UI keep the system
   font.
+- 打字机滚动 (编辑器 › 书写, default off) keeps the caret line about 40% down
+  the visible prose while typing, in every body editor. It aligns after the
+  text system finishes an input (typing, composition, undo and redo, keyboard
+  caret moves; not clicks), and once more after the input's reply restyles
+  the text. Only the scroll position changes: text, selection, marked text
+  and history are untouched, and scrolling by hand stays until the next
+  keystroke. Own-scroll editors gain room below the text (a taller container
+  inset under an unchanged top origin, not a scroll view inset, which the text
+  system would treat as covered); the 全书长卷 aligns its long scroll without
+  extra room, so near the end of the book the line sits lower.
 - 自动保存 is shown read-only: every committed input is saved at once, so there
   is no idle interval to set. Versions are captured on save at most every
   15 minutes and on close ([history](history.md)).
@@ -67,3 +77,8 @@ replace and remove it, refusing a damaged, empty and text file; relaunch the
 store, window and tab host cold with the font registered again; and fall back
 for an uninstalled family and a missing or damaged copy. The open and colour
 panels, physical input and the menu shortcut are not covered.
+`--editor-extras-only` checks 打字机滚动: the caret line at 40% after typing at
+the end and in the middle of a long chapter and in an element page, marked
+text unpublished and one undo exact, a hand scroll kept until the next
+keystroke, nothing aligned once off, and the choice in `settings.json` and the
+设置 checkbox.

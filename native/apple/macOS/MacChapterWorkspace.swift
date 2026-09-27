@@ -184,6 +184,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// A remote original was accepted for this project, after counts were
     /// reconciled; views that show the whole project read it again.
     var onRemoteOriginal: ((String) -> Void)?
+    /// A library or the chapter lists naming trashed content arrived, from
+    /// any command: the 回收站 panel and the chapter list's trash follow.
+    var onTrash: ((String, WorkspaceTrashSource) -> Void)?
+    /// Content was purged from the trash: notes, TODOs and anything else
+    /// that could name it are read again.
+    var onPurged: ((String, [WorkspaceTrashPurgeReply.Purged]) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -823,6 +829,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let lost = lostIDs(storylineLibraries[projectID]?.storylines.map(\.id), library.storylines.map(\.id))
         storylineLibraries[projectID] = library
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
+        onTrash?(projectID, .storylines(library))
         for tab in allTabs where tab.project.id == projectID {
             guard let storyline = tab.storyline, let page = tab.storylinePage else { continue }
             if let stored = library.storyline(id: storyline.id) {
@@ -875,6 +882,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func applyDriftLibrary(projectID: String, library: WorkspaceDriftLibrary) {
         let lost = lostIDs(linkSources[projectID]?.drifts?.drifts.map(\.id), library.drifts.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
+        onTrash?(projectID, .drifts(library))
         // A created, trashed or restored drift changes the counted nodes.
         if linkSources[projectID]?.drifts?.drifts.map(\.id) != library.drifts.map(\.id) {
             wordCountModels[projectID]?.scheduleRefresh()
@@ -976,6 +984,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let lost = lostIDs(previousLibrary.map { $0.elements.map(\.id) + $0.categories.map(\.id) },
                            library.elements.map(\.id) + library.categories.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
+        onTrash?(projectID, .elements(library))
         elementCategories[projectID] = library.categories
         // Rust retired the body of a trashed category; its tabs go without
         // closing the owner again.
@@ -1389,6 +1398,99 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         view.binding.store.load()
     }
 
+    // MARK: 回收站
+
+    /// 恢复 from the 回收站 through the kind's existing restore command. The
+    /// reply's library or chapter lists reach every list, page and link as
+    /// a restore from its own panel does; nothing is opened.
+    func restore(_ item: WorkspaceTrashItem, projectID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        let finish: (Error?) -> Void = { [weak self] error in
+            self?.setBusy(false)
+            completion(error.map { .failure($0) } ?? .success(()))
+        }
+        switch item.kind {
+        case .chapter:
+            workspace.restoreChapter(projectID: projectID, chapterID: item.id) { [weak self] result in
+                if case .success(let reply) = result {
+                    self?.applyChapters(projectID: projectID, chapters: reply.chapters, trashed: reply.trashedChapters)
+                }
+                finish(result.error)
+            }
+        case .drift:
+            workspace.restoreDrift(projectID: projectID, driftID: item.id) { [weak self] result in
+                if let self, case .success(let reply) = result {
+                    self.applyDriftLibrary(projectID: projectID, library: reply.library)
+                    self.onDriftLibrary?(projectID, reply.library)
+                }
+                finish(result.error)
+            }
+        case .element, .category:
+            let done: (Result<WorkspaceElementLibrary, Error>) -> Void = { [weak self] result in
+                if let self, case .success(let library) = result {
+                    self.applyElementLibrary(projectID: projectID, library: library)
+                    self.onElementLibrary?(projectID, library)
+                }
+                finish(result.error)
+            }
+            if item.kind == .element {
+                workspace.restoreElement(projectID: projectID, elementID: item.id) { done($0.map(\.library)) }
+            } else {
+                workspace.restoreElementCategory(projectID: projectID, categoryID: item.id) { done($0.map(\.library)) }
+            }
+        case .storyline:
+            workspace.restoreStoryline(projectID: projectID, storylineID: item.id) { [weak self] result in
+                if let self, case .success(let reply) = result {
+                    self.applyStorylineLibrary(projectID: projectID, library: reply.library)
+                    self.onStorylineLibrary?(projectID, reply.library)
+                }
+                finish(result.error)
+            }
+        }
+    }
+
+    /// 彻底删除 one trashed entity. Nothing of it is open (trash retired its
+    /// owner; Rust refuses an open page). Afterwards the kind's list is read
+    /// again, so links to it read as plain prose and every list follows.
+    func purge(_ item: WorkspaceTrashItem, projectID: String,
+               completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        workspace.purgeTrashed(projectID: projectID, kind: item.kind.rawValue, id: item.id) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result { self.adoptPurge(reply, projectID: projectID) }
+            self.setBusy(false)
+            completion(result)
+        }
+    }
+
+    /// 清空回收站: every trashed entity of the project in one original.
+    func emptyTrash(projectID: String, completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        setBusy(true)
+        workspace.emptyTrash(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let reply) = result { self.adoptPurge(reply, projectID: projectID) }
+            self.setBusy(false)
+            completion(result)
+        }
+    }
+
+    private func adoptPurge(_ reply: WorkspaceTrashPurgeReply, projectID: String) {
+        guard !reply.purged.isEmpty else { return }
+        let kinds = Set(reply.purged.compactMap { WorkspaceTrashKind(rawValue: $0.kind) })
+        if kinds.contains(.chapter) { chaptersChanged(projectID: projectID) }
+        if kinds.contains(.drift) { driftsChanged(projectID: projectID) }
+        if kinds.contains(.element) || kinds.contains(.category) { elementsChanged(projectID: projectID) }
+        if kinds.contains(.storyline) { storylinesChanged(projectID: projectID) }
+        relations.reload(projectID: projectID)
+        // An element's patches went with it; patch sources may name a purged chapter.
+        patches.reload(projectID: projectID)
+        scheduleBacklinks(projectID: projectID)
+        onPurged?(projectID, reply.purged)
+    }
+
     // MARK: Project deletion
 
     /// Closes every tab of the project in both panes, one at a time, saving
@@ -1461,7 +1563,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A created, trashed or restored chapter changes the book total.
         if previous?.map(\.id) != chapters.map(\.id) { wordCountModels[projectID]?.scheduleRefresh() }
         linkSources[projectID, default: LinkSources()].chapters = chapters
-        if let trashed { linkSources[projectID]?.trashedChapters = trashed }
+        if let trashed {
+            linkSources[projectID]?.trashedChapters = trashed
+            onTrash?(projectID, .chapters(live: chapters, trashed: trashed))
+        }
         updateLinkDirectory(projectID: projectID)
         if previous.map(titles) != titles(chapters) {
             requestEntityLinks(projectID: projectID)
@@ -1502,6 +1607,67 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    // MARK: 悬停卡片
+
+    /// The project's element library as last read.
+    func elementLibrary(projectID: String) -> WorkspaceElementLibrary? { linkSources[projectID]?.library }
+
+    /// A live link's 悬停卡片: what the library knows at once, then the
+    /// element's valid patches, the pages linking it and its portrait, or a
+    /// chapter's or drift's status, summary and words. Reads only.
+    func hoverCard(for target: EntityLinkTarget, projectID: String, completion: @escaping (EntityHoverCardContent) -> Void) {
+        var content = EntityHoverCardContent(target: target)
+        guard !target.trashed else { completion(content); return }
+        switch target.kind {
+        case .element:
+            if let element = linkSources[projectID]?.library?.elements.first(where: { $0.id == target.id }) {
+                if let group = element.groupName?.trimmingCharacters(in: .whitespacesAndNewlines), !group.isEmpty {
+                    content.meta.append(group)
+                }
+                content.aliases = EntityHoverCardContent.aliases(element.aliases)
+                content.summary = element.summary
+                content.facts = EntityHoverCardContent.facts(element.facts)
+            }
+            let workspace = self.workspace, cached = materialLibraries[projectID]
+            workspace.elementPatches(projectID: projectID, elementID: target.id) { patches in
+                workspace.elementBacklinks(projectID: projectID, elementID: target.id) { backlinks in
+                    var counts: [String] = []
+                    if case .success(let list) = patches { counts.append("有效补丁 \(list.filter { !$0.isInvalid }.count)") }
+                    if case .success(let links) = backlinks {
+                        counts.append("被 \(links.chapters.count + links.sources.count) 个章节和页面引用")
+                    }
+                    content.counts = counts.isEmpty ? nil : counts.joined(separator: " · ")
+                    if let cached {
+                        content.portraitPath = cached.portrait(elementID: target.id)?.assetPath
+                        completion(content); return
+                    }
+                    workspace.materialLibrary(projectID: projectID) { library in
+                        content.portraitPath = (try? library.get())?.portrait(elementID: target.id)?.assetPath
+                        completion(content)
+                    }
+                }
+            }
+        case .chapter, .drift:
+            let counted = wordCountLibrary(projectID: projectID)
+            workspace.nodeMetadata(projectID: projectID, nodeID: target.id) { [weak self] result in
+                if case .success(let metadata) = result {
+                    content.title = metadata.title
+                    content.meta.append(WritingStatus.label(metadata.writingStatus))
+                    content.summary = metadata.summary
+                }
+                let words: (Int?) -> Void = { count in
+                    content.meta.append(count.map(WordCountText.full) ?? "字数统计中")
+                    completion(content)
+                }
+                if let counted, counted.contains(nodeID: target.id) { words(counted.count(nodeID: target.id)); return }
+                guard let self else { words(nil); return }
+                self.workspace.wordCounts(projectID: projectID) { counts in
+                    words((try? counts.get())?.counts.first { $0.nodeId == target.id }?.wordCount)
+                }
+            }
+        }
+    }
+
     // MARK: Views outside the tabs
 
     /// A chapter view shown outside the tabs by the 全书长卷. It shares the
@@ -1536,6 +1702,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         externalViews[ObjectIdentifier(view)] = ExternalView(view: view, project: project, scope: scope)
         view.linkDirectory = linkDirectories[project.id]
         view.onEntityLinks = { [weak self] in self?.scheduleBacklinks(projectID: project.id) }
+        view.hoverCardSource = { [weak self] target, done in self?.hoverCard(for: target, projectID: project.id, completion: done) }
         view.onCommentCreated = { [weak self, weak view] comment in
             if let self, let view { self.onCommentCreated?(view, comment) }
         }
@@ -1550,7 +1717,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// The view's binding was detached; it no longer holds the owner.
     func releaseExternal(_ view: NativeDocumentView) {
         externalViews.removeValue(forKey: ObjectIdentifier(view))
-        view.onEntityLinks = nil; view.onCommentCreated = nil
+        view.onEntityLinks = nil; view.onCommentCreated = nil; view.hoverCardSource = nil
         view.onCreatePatch = nil; view.patchNodeID = nil
     }
 
@@ -1769,6 +1936,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onOpenLink = { [weak self, weak tab] target in
             if let self, let tab { self.openLink(target, from: tab) }
         }
+        tab.view.hoverCardSource = { [weak self, weak tab] target, done in
+            if let self, let tab { self.hoverCard(for: target, projectID: tab.project.id, completion: done) }
+        }
         tab.view.onEntityLinks = { [weak self, weak tab] in
             if let self, let tab { self.scheduleBacklinks(projectID: tab.project.id) }
         }
@@ -1892,7 +2062,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if let page = tab.page { patches.detach(page.patchesView) }
         tab.view.onCreatePatch = nil; tab.view.patchNodeID = nil
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
-        tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
+        tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil; tab.view.hoverCardSource = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onOpenBacklinkSource = nil; tab.page?.onSetPortrait = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil

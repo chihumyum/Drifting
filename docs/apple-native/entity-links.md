@@ -70,11 +70,24 @@ Links resolve against the project's live and trashed elements and chapters.
 Element links take their category colour (the default blue without a live
 category), chapter links the default blue, both underlined; links to trashed
 targets are drawn in the secondary label colour without underline and cannot be
-opened; links whose target no longer exists read as plain prose. ⌘-click on a
+opened; links whose target no longer exists (e.g. [purged](trash.md)) read as
+plain prose with no card or click, the mark left unrewritten. ⌘-click on a
 live link, or 打开「名称」 at the top of the prose context menu, opens the element
-page tab or the chapter in the pane that showed the link. Resting on a link for
-220 ms opens a popover with the name and category (章节 for chapters), up to three
-aliases and the summary. An element page lists 被引用 under its fields: each
+page tab or the chapter in the pane that showed the link.
+
+Resting on a link for 220 ms in any editor (tabs, both panes, the 全书长卷) opens
+the 设定悬停卡片. An element's card shows its name with the portrait thumbnail,
+category and group, up to three aliases, the summary (暂无简介 when empty), the
+first three facts and “有效补丁 N · 被 M 个章节和页面引用”; a chapter's or drift's
+shows its title, kind, writing status, words and summary. The tab host fills it
+from the library it holds and one read each of `workspacePatches patches`
+(valid ones counted), `workspaceElements backlinks`, `workspaceLibrary`
+portraits, or `workspaceMetadata node` and the word counts (`workspaceMetrics`
+when not yet counted); reads only. The card never takes the keyboard: the
+editor keeps its caret, selection and marked text. A click on it opens the page
+as ⌘-click does; a trashed target's card only says 已在回收站.
+
+An element page lists 被引用 under its fields: each
 chapter as “N 处 · M 次” (blocks · links), opening the chapter and selecting the
 first link while that range still links the element (otherwise it only opens),
 and unreadable chapters as a muted line; then each linking page as
@@ -94,4 +107,8 @@ projection must agree with native backlinks. AppKit cases in the
 [binding report](acceptance/p2b-binding.json) cover typing, retroactive linking,
 navigation, target states and the backlinks section (page sources in
 `--agent-tools-only`); `--editing-regressions-only`
-covers Enter typed right after a linkable name while its pass is scheduled.
+covers Enter typed right after a linkable name while its pass is scheduled;
+`--editor-extras-only` covers the hover card's element and chapter content,
+its delay, an unchanged selection, focus, revision and journal, the click
+opening the page and an inert trashed card; `--trash-shelf-only` covers a
+purged target reading as plain prose.

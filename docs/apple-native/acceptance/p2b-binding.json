@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T18:42:41.538Z",
+  "generatedAt": "2026-09-27T20:17:52.753Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "0fd6f68a83f00817bf17c92c32251fa8ca2b3a5d",
+    "commit": "f802c7d4ce43e0241c8bf63fc180d05cc03574e1",
     "dirty": true,
-    "fingerprint": "13405bafa472f07db3e09d70d4a2f49c892a47561267d5c8bfad24e3d98f7a8d"
+    "fingerprint": "2d22488cfb3d6564ed5699d59273025a5058fe9146de6430e37b26e80c8c7ebf"
   },
   "cases": [
     {
@@ -724,6 +724,34 @@
     },
     {
       "name": "AppKit 底部时间轴 lays out 200 chapters in 3 acts and 3 storyline rows with no main-thread pass over 100 ms in a debug build while loading, switching modes, scrolling and dragging, and a drag across them sends no Rust call and no render until the drop, which moves the chapter once",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines newest first with kind, title and time, filters by kind, follows a trash made elsewhere, and 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and purges the rest in one original that survives a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 项目书架 lists every project with summary, chapters, words and last edit newest first, reorders after an edit, creates, renames and opens projects, deletes through the project deletion sheet, reads without writing and lists the same after a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 导出为 Markdown 文件夹 writes every archive file as UTF-8 into <项目名>-<yyyy-MM-dd> with subfolders, wiki links and front matter, adds a numeric suffix instead of overwriting, offers 在访达中显示, writes no journal row and refuses paths that leave the folder",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 诊断摘要 shows Rust's counts with the app version, macOS version and architecture as read-only JSON, says it holds no book content, copies and saves it, and contains no synthetic title, prose, identity or path",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定悬停卡片 opens after the hover delay with an element's name, category and group, aliases, summary, first facts, portrait and counts of valid patches and linking pages, and a chapter's title, status, words and summary; showing it changes no selection, focus, revision or journal, a click opens the page while the editor keeps its selection, and a trashed target's card opens nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 打字机滚动 keeps the caret line at 40% of the visible prose after typing at the end and in the middle of a chapter and in an element page, keeps marked text unpublished and one undo exact, leaves scrolling by hand alone until the next keystroke, stops when switched off and persists in settings.json and 设置",
       "status": "passed"
     }
   ],

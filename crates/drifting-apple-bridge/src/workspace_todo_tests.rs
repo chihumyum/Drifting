@@ -65,6 +65,29 @@ fn workspace_todos_create_update_associate_and_delete() {
         (&json!("node"), &json!(chapter), &Value::Null)
     );
     assert_eq!(on_chapter["comments"].as_array().unwrap().len(), 2);
+    let assistant = success(comments(
+        &fixture,
+        json!({"action":"create","kind":"todo","body":"助手记下的待办","byAssistant":true}),
+    ))["result"]
+        .clone();
+    assert_eq!(
+        (
+            &assistant["authorKind"],
+            &assistant["authorName"],
+            &assistant["authorId"],
+            &assistant["source"]
+        ),
+        (
+            &json!("ai"),
+            &json!("写作助手"),
+            &Value::Null,
+            &json!("api")
+        )
+    );
+    success(comments(
+        &fixture,
+        json!({"action":"delete","commentId":assistant["id"]}),
+    ));
     // Kind, priority and body change; an unchanged update writes nothing.
     let updated = success(comments(
         &fixture,
@@ -205,6 +228,118 @@ fn workspace_todos_delete_an_anchored_comment_under_an_open_owner() {
     assert_eq!(
         state(reopened)["projection"]["text"],
         "远处，钟声在雨夜里响起。"
+    );
+    fixture.close();
+}
+
+#[test]
+fn workspace_suggestions_create_resolve_list_and_delete() {
+    let mut fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    let current = state(handle);
+    success(
+        json!({"operation":"documentReplace","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":0,"length":0},"text":"林岚走上北塔。"}}),
+    );
+    let db = gateway(handle);
+    let suggest = |location: u64, length: u64, metadata: Value| {
+        success(json!({"operation":"documentCreateComment","handle":handle,
+            "revision":state(handle)["projection"]["revision"],
+            "range":{"location":location,"length":length},"body":"新人物？",
+            "suggestion":{"metadata":metadata,"priority":"med"}}))["comment"]
+            .clone()
+    };
+    let person = suggest(
+        0,
+        2,
+        json!({"type":"element","name":"林岚","category":"人物"}),
+    );
+    assert_eq!(
+        (
+            &person["source"],
+            &person["authorKind"],
+            &person["authorName"],
+            &person["priority"]
+        ),
+        (
+            &json!("copilot"),
+            &json!("copilot"),
+            &json!("Copilot"),
+            &json!("med")
+        )
+    );
+    let place = suggest(
+        4,
+        2,
+        json!({"type":"element","name":"北塔","category":"地点"}),
+    );
+    let manual = success(comments(
+        &fixture,
+        json!({"action":"create","kind":"todo","body":"普通待办"}),
+    ))["result"]
+        .clone();
+    let resolve = |id: &Value, accepted: bool, result: Value| {
+        comments(
+            &fixture,
+            json!({"action":"resolveSuggestion","commentId":id,"accepted":accepted,"result":result}),
+        )
+    };
+    assert!(rejected(resolve(&manual["id"], true, Value::Null)).contains("不是"));
+    let rejected_action = success(resolve(&place["id"], false, Value::Null))["result"].clone();
+    assert_eq!(rejected_action["kind"], "reject_suggestion");
+    assert_eq!(
+        serde_json::from_str::<Value>(rejected_action["payloadJson"].as_str().unwrap()).unwrap()
+            ["name"],
+        "北塔"
+    );
+    assert!(rejected(resolve(&place["id"], true, Value::Null)).contains("处理过"));
+    let accepted = success(resolve(
+        &person["id"],
+        true,
+        json!({"elementId":"synthetic-element"}),
+    ))["result"]
+        .clone();
+    assert_eq!(accepted["kind"], "accept_suggestion");
+    let listed =
+        success(comments(&fixture, json!({"action":"suggestionActions"})))["result"].clone();
+    assert_eq!(listed.as_array().unwrap().len(), 2);
+    let statuses = success(comments(&fixture, json!({"action":"list"})))["comments"].clone();
+    assert!(statuses
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["source"] == "copilot")
+        .all(|c| c["status"] == "converted"));
+    // Deleting a suggestion trashes its review action too.
+    success(comments(
+        &fixture,
+        json!({"action":"delete","commentId":place["id"]}),
+    ));
+    let lifecycle = db
+        .query(
+            format!("SELECT state FROM sync_entity_lifecycle WHERE entity_kind='comment-action' AND entity_id='{}'",
+                rejected_action["id"].as_str().unwrap()),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows;
+    assert_eq!(lifecycle, vec![vec![DatabaseValue::Text("trashed".into())]]);
+    success(
+        json!({"operation":"workspaceCloseChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":fixture.chapters[0]}),
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let cold = success(comments(&fixture, json!({"action":"suggestionActions"})))["result"].clone();
+    assert_eq!(cold.as_array().unwrap().len(), 1);
+    assert_eq!(
+        cold[0]["resultJson"],
+        json!("{\"elementId\":\"synthetic-element\"}")
     );
     fixture.close();
 }

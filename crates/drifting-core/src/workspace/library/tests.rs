@@ -218,6 +218,9 @@ fn workspace_library_items_assets_and_portraits() {
                 name: Some("米拉".into()),
                 group_name: None,
                 seed: seed(),
+                summary: String::new(),
+                aliases: Vec::new(),
+                facts: None,
             },
             &mut || {
                 ids += 1;

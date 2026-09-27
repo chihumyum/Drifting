@@ -49,6 +49,9 @@ pub(crate) enum TransferCommand {
     ExportBook {
         format: String,
     },
+    /// Relational Markdown: one file per entity, returned for the host to
+    /// write into a folder.
+    ExportArchive,
 }
 
 impl LabSession {
@@ -183,6 +186,9 @@ impl WorkspaceSession {
                                 name: Some(target.title.clone()),
                                 group_name: None,
                                 seed: super::elements::empty_body()?,
+                                summary: String::new(),
+                                aliases: Vec::new(),
+                                facts: None,
                             },
                             &mut || identifier("fact"),
                         )?;
@@ -206,6 +212,7 @@ impl WorkspaceSession {
                 released?;
                 Ok(json!({"kind": target.kind, "entity": entity}))
             }
+            TransferCommand::ExportArchive => self.export_archive(documents, project_id),
             TransferCommand::ExportBook { format } => {
                 let markdown = match format.as_str() {
                     "markdown" => true,

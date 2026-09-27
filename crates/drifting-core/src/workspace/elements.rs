@@ -70,6 +70,11 @@ pub struct NewElement {
     pub name: Option<String>,
     pub group_name: Option<String>,
     pub seed: ChapterSeed,
+    /// Written in the same original as the element; empty by default.
+    pub summary: String,
+    pub aliases: Vec<String>,
+    /// `None` starts from the category's template facts.
+    pub facts: Option<Vec<Fact>>,
 }
 
 /// Present fields are written; `Some(None)` clears an optional field.
@@ -264,6 +269,11 @@ impl WorkspaceStore<'_> {
             // A category body template is filled into the new body by its
             // owner after creation (see `category_element_template`).
             let others = self.element_rows(Some(tx), &context.project_id, false)?;
+            let aliases = desired_aliases(&input.aliases);
+            let alias_names: Vec<&str> = aliases.values().map(String::as_str).collect();
+            if !alias_names.is_empty() {
+                name_conflict(&alias_names, &others, None)?;
+            }
             let name = match input.name.as_deref().map(js_trim).filter(|v| !v.is_empty()) {
                 Some(name) => {
                     name_conflict(&[name], &others, None)?;
@@ -284,26 +294,32 @@ impl WorkspaceStore<'_> {
                 kind: "element-category", id: &input.category_id, namespace: "element-template",
             })?;
             let mut mutations = Vec::new();
+            let facts = input.facts.clone().unwrap_or_else(|| template.clone());
             let facts_projection = self.replace_facts(tx, context,
                 FactOwner { kind: "element", id: &input.id, namespace: "facts" },
-                &template, new_fact_id, &mut mutations)?;
+                &facts, new_fact_id, &mut mutations)?;
             self.execute(tx, r#"
                 INSERT INTO element(id,project_id,category_id,name,summary,content_json,kv_json,aliases_json,
                     group_name,portrait_asset_id,deleted_at,created_at,updated_at)
-                VALUES (?,?,?,?,'',?,?,'[]',?,NULL,NULL,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,NULL,NULL,?,?)
             "#, vec![text(&input.id), text(&context.project_id), text(&input.category_id), text(&name),
-                text(&input.seed.content_json), text(&facts_projection), group_name.map(text).unwrap_or(V::Null),
+                text(&input.summary), text(&input.seed.content_json), text(&facts_projection),
+                text(&json!(aliases.values().collect::<Vec<_>>()).to_string()), group_name.map(text).unwrap_or(V::Null),
                 text(&context.now_iso), text(&context.now_iso)])?;
             mutations.push(journal::Mutation::create("element", &input.id, json!({
-                "categoryId": input.category_id, "groupName": group_name, "name": name, "summary": "",
+                "categoryId": input.category_id, "groupName": group_name, "name": name, "summary": input.summary,
             })));
+            if !aliases.is_empty() {
+                self.alias_mutations(tx, context, &input.id, 0, &aliases, &mut mutations)?;
+            }
             let seed = mutations.len();
             mutations.push(journal::Mutation::yjs(&doc_id, &input.seed.update));
             self.commit_changes(tx, context, &mutations, Some((seed, &appended, &input.seed.update)))?;
             Ok(WorkspaceElement {
                 id: input.id.clone(), project_id: context.project_id.clone(),
-                category_id: Some(input.category_id.clone()), name, summary: String::new(), aliases: Vec::new(),
-                group_name: group_name.map(Into::into), facts: template.clone(), document_id: doc_id.clone(),
+                category_id: Some(input.category_id.clone()), name, summary: input.summary.clone(),
+                aliases: aliases.values().cloned().collect(),
+                group_name: group_name.map(Into::into), facts: super::facts::cleaned(&facts), document_id: doc_id.clone(),
                 created_at: context.now_iso.clone(), updated_at: context.now_iso.clone(),
             })
         })

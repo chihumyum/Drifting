@@ -1,6 +1,10 @@
 import AppKit
 
 final class ProseTextView: NSTextView {
+    /// The text starts this far down; a taller container inset only adds
+    /// room below the text (打字机滚动's tail).
+    static let topInset: CGFloat = 20
+    override var textContainerOrigin: NSPoint { NSPoint(x: textContainerInset.width, y: Self.topInset) }
     var onFocus: (() -> Void)?
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
@@ -163,6 +167,21 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// window is not on screen, where no popover can be shown.
     private(set) var previewedLink: EntityLinkTarget?
     var linkPreviewText: String? { previewedLink?.preview }
+    /// Reads a live link's 悬停卡片 (patches, backlinks, status, words); set by
+    /// the tab host. Without one the card shows what the directory knows.
+    var hoverCardSource: ((EntityLinkTarget, @escaping (EntityHoverCardContent) -> Void) -> Void)?
+    /// The card shown for `previewedLink`, once its reads arrived.
+    private(set) var linkCard: EntityHoverCardContent?
+    private(set) var linkCardController: EntityHoverCardController?
+    /// Scrolls that keep the caret line at the typewriter height, for acceptance.
+    private(set) var typewriterAlignments = 0
+    private var alignAfterRender = false
+    /// Typed input is on its way through the binding: its reply's restyle
+    /// may move the caret line, so the render aligns once more.
+    private var typewriterFollowsInput = false
+    private var typewriterScheduled = false
+    /// An alignment waits for the text system to finish the current event.
+    var hasScheduledTypewriterAlignment: Bool { typewriterScheduled }
     var isInteractionLocked = false {
         didSet {
             updateEditability()
@@ -197,7 +216,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainerInset = NSSize(width: 20, height: 20)
+        textView.textContainerInset = NSSize(width: 20, height: ProseTextView.topInset)
         textView.setAccessibilityIdentifier("document-text")
         textView.setAccessibilityLabel("正文")
         textView.delegate = self
@@ -333,6 +352,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         rendering = false
         updateFormatControls()
         fitTextHeight()
+        if alignAfterRender || typewriterFollowsInput { alignAfterRender = false; scheduleTypewriterAlignment() }
     }
 
     // MARK: Growing with the text
@@ -340,6 +360,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     override func layout() {
         super.layout()
         fitTextHeight()
+        updateTypewriterTail()
     }
 
     /// Sizes the prose to its laid-out text at the current width, so a long
@@ -375,6 +396,100 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         var selected = defaultSelection
         if let accent = MacEditorPreferences.accentColor { selected[.backgroundColor] = accent.withAlphaComponent(0.28) }
         textView.selectedTextAttributes = selected
+        updateTypewriterTail()
+    }
+
+    // MARK: 打字机滚动
+
+    /// Where the middle of the caret line sits, from the top of the visible prose.
+    static let typewriterPosition: CGFloat = 0.4
+    var typewriterEnabled: Bool { MacEditorPreferences.typewriterScrolling == true }
+
+    /// The scroll view that follows the caret: the prose's own, or the long
+    /// scroll a growing body sits in (the 全书长卷).
+    private var typewriterScroll: NSScrollView? { growsWithText ? enclosingScrollView : scroll }
+
+    /// Room below the text so the last line can reach the typewriter height:
+    /// the container inset grows while the text keeps its top origin. Not a
+    /// scroll view inset, which the text system would treat as covered and
+    /// scroll the caret out of. A growing body leaves its long scroll alone.
+    private func updateTypewriterTail() {
+        guard !growsWithText else { return }
+        let tail = typewriterEnabled ? ceil(scroll.contentView.bounds.height * (1 - Self.typewriterPosition)) : 0
+        let inset = NSSize(width: 20, height: ProseTextView.topInset + tail / 2)
+        guard textView.textContainerInset != inset else { return }
+        textView.textContainerInset = inset
+        textView.sizeToFit()
+    }
+
+    /// The room below the text for 打字机滚动, in points.
+    var typewriterTail: CGFloat { (textView.textContainerInset.height - ProseTextView.topInset) * 2 }
+
+    /// The caret line's rectangle in text view coordinates.
+    func caretLineRect() -> NSRect? {
+        guard let manager = textView.layoutManager, let container = textView.textContainer else { return nil }
+        let text = textView.string as NSString
+        let location = min(textView.selectedRange().location, text.length)
+        var rect: NSRect
+        if text.length == 0 || (location == text.length && text.character(at: text.length - 1) == 0x0A) {
+            manager.ensureLayout(for: container)
+            rect = manager.extraLineFragmentRect
+            if rect.height <= 0, manager.numberOfGlyphs > 0 {
+                rect = manager.lineFragmentRect(forGlyphAt: manager.numberOfGlyphs - 1, effectiveRange: nil)
+            }
+        } else {
+            rect = manager.lineFragmentRect(forGlyphAt: manager.glyphIndexForCharacter(at: min(location, text.length - 1)),
+                                            effectiveRange: nil)
+        }
+        guard rect.height > 0 else { return nil }
+        let origin = textView.textContainerOrigin
+        return rect.offsetBy(dx: origin.x, dy: origin.y)
+    }
+
+    /// Where the caret line's middle sits in the visible prose, 0 at the top
+    /// and 1 at the bottom; nil when it cannot be measured.
+    var caretLinePosition: CGFloat? {
+        guard let target = typewriterScroll, let caret = caretLineRect() else { return nil }
+        let clip = target.contentView
+        let line = clip.convert(caret, from: textView)
+        let bounds = clip.bounds
+        guard bounds.height > 1 else { return nil }
+        return clip.isFlipped ? (line.midY - bounds.minY) / bounds.height : (bounds.maxY - line.midY) / bounds.height
+    }
+
+    /// Aligns once the text system has finished its own work for the event
+    /// (it scrolls an insertion into view after notifying the delegate).
+    private func scheduleTypewriterAlignment() {
+        guard typewriterEnabled, !typewriterScheduled else { return }
+        typewriterScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.typewriterScheduled = false
+            self.alignTypewriter()
+            if !self.binding.hasPendingWork { self.typewriterFollowsInput = false }
+        }
+    }
+
+    /// 打字机滚动: scrolls so the caret line sits at `typewriterPosition` of
+    /// the visible height. Only the scroll position changes; text,
+    /// selection, marked text and history are untouched, and scrolling by
+    /// hand is left alone until the next keystroke.
+    @discardableResult
+    func alignTypewriter() -> Bool {
+        guard typewriterEnabled, textView.selectedRange().length == 0 || textView.hasMarkedText(),
+              let target = typewriterScroll, let caret = caretLineRect() else { return false }
+        let clip = target.contentView
+        let line = clip.convert(caret, from: textView)
+        let height = clip.bounds.height
+        guard height > 1 else { return false }
+        var origin = clip.bounds.origin
+        origin.y = clip.isFlipped ? line.midY - height * Self.typewriterPosition : line.midY - height * (1 - Self.typewriterPosition)
+        let constrained = clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin
+        guard abs(constrained.y - clip.bounds.origin.y) >= 0.5 else { return false }
+        clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: constrained.y))
+        target.reflectScrolledClipView(clip)
+        typewriterAlignments += 1
+        return true
     }
 
     // MARK: Entity links
@@ -435,18 +550,43 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         }
         hoverTimer?.cancel(); hoverTimer = nil
         hoverRange = range; previewedLink = target
-        linkPreview.contentViewController = LinkPreviewController(target: target)
+        linkCard = nil; linkCardController = nil
+        guard !target.trashed, let hoverCardSource else { presentLinkCard(EntityHoverCardContent(target: target), range: range); return true }
+        hoverCardSource(target) { [weak self] content in
+            guard let self, self.previewedLink == target, self.hoverRange == range else { return }
+            self.presentLinkCard(content, range: range)
+        }
+        return true
+    }
+
+    /// Shows the card beside the link without taking the keyboard: the
+    /// caret, selection and marked text stay as they are.
+    private func presentLinkCard(_ content: EntityHoverCardContent, range: NSRange) {
+        let controller = EntityHoverCardController(content: content)
+        if !content.trashed { controller.onOpen = { [weak self] in self?.openPreviewedLink() } }
+        linkCard = content; linkCardController = controller
+        linkPreview.contentViewController = controller
         if let window = textView.window, window.isVisible {
             let screen = textView.firstRect(forCharacterRange: range, actualRange: nil)
             let rect = textView.convert(window.convertFromScreen(screen), from: nil)
             linkPreview.show(relativeTo: rect, of: textView, preferredEdge: .maxY)
         }
+    }
+
+    /// A click on the card: its target's page opens as ⌘-click opens it,
+    /// while this editor keeps its caret and selection.
+    @discardableResult
+    func openPreviewedLink() -> Bool {
+        guard let shown = previewedLink, !isInteractionLocked, let linkDirectory,
+              let target = linkDirectory.current(shown), !target.trashed, let onOpenLink else { return false }
+        closeLinkPreview()
+        onOpenLink(target)
         return true
     }
 
     func closeLinkPreview() {
         hoverTimer?.cancel(); hoverTimer = nil; hoverRange = nil
-        previewedLink = nil
+        previewedLink = nil; linkCard = nil; linkCardController = nil
         if linkPreview.isShown { linkPreview.performClose(nil) }
     }
 
@@ -587,6 +727,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         binding.selectionChanged(textView.selectedRange(), text: text, marked: marked)
         binding.changed(text, marked: marked)
         fitTextHeight()
+        typewriterFollowsInput = typewriterEnabled
+        scheduleTypewriterAlignment()
         onEdited?()
     }
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -595,6 +737,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         if marked { styledProjection = nil }
         binding.selectionChanged(textView.selectedRange(), text: text, marked: marked)
         binding.changed(text, marked: marked)
+        // Keyboard caret moves follow the typewriter line; clicks do not.
+        if NSApp.currentEvent?.type == .keyDown { scheduleTypewriterAlignment() }
     }
     private func canPerformHistory(redo: Bool) -> Bool {
         guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
@@ -604,6 +748,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private func performHistory(redo: Bool) {
         guard canPerformHistory(redo: redo) else { return }
         focus()
+        alignAfterRender = typewriterEnabled
         binding.history(redo: redo)
     }
     private func canPerformFormat(_ action: NativeFormatAction) -> Bool {
@@ -653,33 +798,4 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc func redoProse() { performHistory(redo: true) }
     @objc private func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
     @objc private func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
-}
-
-/// A link's hover preview: the name, then category and aliases, then the
-/// summary. Plain typography on the popover's own background.
-private final class LinkPreviewController: NSViewController {
-    private let target: EntityLinkTarget
-    init(target: EntityLinkTarget) { self.target = target; super.init(nibName: nil, bundle: nil) }
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func loadView() {
-        let lines = target.preview.components(separatedBy: "\n")
-        let title = NSTextField(labelWithString: lines.first ?? target.name)
-        title.font = .systemFont(ofSize: 13, weight: .semibold)
-        var views: [NSView] = [title]
-        for (index, line) in lines.dropFirst().enumerated() {
-            let label = NSTextField(wrappingLabelWithString: line)
-            label.font = .systemFont(ofSize: 12)
-            // Aliases read as metadata; the summary as body text.
-            label.textColor = index == 0 && line.hasPrefix("别名") ? .secondaryLabelColor : .labelColor
-            label.maximumNumberOfLines = 4
-            label.preferredMaxLayoutWidth = 260
-            views.append(label)
-        }
-        let stack = NSStackView(views: views)
-        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
-        stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
-        stack.setAccessibilityIdentifier("entity-link-preview")
-        view = stack
-    }
 }

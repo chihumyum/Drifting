@@ -53,6 +53,30 @@ pub struct NewComment {
     pub body_text: String,
     /// `low`, `med` or `high`.
     pub priority: Option<String>,
+    /// Written by the writing assistant rather than the author.
+    pub by_assistant: bool,
+}
+
+/// What makes an anchored comment a Copilot suggestion.
+pub struct NewSuggestion {
+    /// A JSON object describing the proposal (for example a new element or a
+    /// patch), kept verbatim for the review.
+    pub metadata_json: String,
+    pub priority: Option<String>,
+}
+
+/// A review decision recorded on a suggestion.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCommentAction {
+    pub id: String,
+    pub comment_id: String,
+    pub kind: String,
+    pub label: Option<String>,
+    pub payload_json: String,
+    pub status: String,
+    pub result_json: Option<String>,
+    pub created_at: String,
 }
 
 /// Fields to change; absent fields stay.
@@ -96,7 +120,36 @@ impl WorkspaceStore<'_> {
         context: &AuthoredProseContext,
         input: NewChapterComment,
     ) -> Result<WorkspaceComment, String> {
+        self.create_anchored_comment(context, input, None)
+    }
+
+    /// A Copilot suggestion on a chapter selection: a note by `copilot`
+    /// whose metadata carries the proposal for the review to accept or
+    /// reject.
+    pub fn create_chapter_suggestion(
+        &self,
+        context: &AuthoredProseContext,
+        input: NewChapterComment,
+        suggestion: NewSuggestion,
+    ) -> Result<WorkspaceComment, String> {
+        self.create_anchored_comment(context, input, Some(suggestion))
+    }
+
+    fn create_anchored_comment(
+        &self,
+        context: &AuthoredProseContext,
+        input: NewChapterComment,
+        suggestion: Option<NewSuggestion>,
+    ) -> Result<WorkspaceComment, String> {
         validate_context(context)?;
+        if let Some(suggestion) = &suggestion {
+            valid_priority(suggestion.priority.as_deref())?;
+            if !serde_json::from_str::<Value>(&suggestion.metadata_json)
+                .is_ok_and(|value| value.is_object())
+            {
+                return Err("Suggestion metadata must be a JSON object".into());
+            }
+        }
         if !opaque(&input.id) || !opaque(&input.chapter_id) || !opaque(&input.author_id) {
             return Err("Invalid comment, chapter or author identity".into());
         }
@@ -120,14 +173,28 @@ impl WorkspaceStore<'_> {
             target_id: Some(input.chapter_id),
             target_block_id: Some(first_block),
             anchor_json: input.anchor_json,
-            author_kind: "user".into(),
-            author_id: Some(input.author_id),
-            author_name: None,
+            author_kind: if suggestion.is_some() {
+                "copilot"
+            } else {
+                "user"
+            }
+            .into(),
+            author_id: if suggestion.is_some() {
+                None
+            } else {
+                Some(input.author_id)
+            },
+            author_name: suggestion.as_ref().map(|_| "Copilot".to_string()),
             body_json: plain_comment_doc(&input.body_text),
             status: "open".into(),
-            priority: None,
-            source: "manual".into(),
-            metadata_json: None,
+            priority: suggestion.as_ref().and_then(|s| s.priority.clone()),
+            source: if suggestion.is_some() {
+                "copilot"
+            } else {
+                "manual"
+            }
+            .into(),
+            metadata_json: suggestion.as_ref().map(|s| s.metadata_json.clone()),
             target_block_ids_json: json!(input.target_block_ids).to_string(),
             resolved_at: None,
             created_at: context.now_iso.clone(),
@@ -284,13 +351,13 @@ impl WorkspaceStore<'_> {
             target_id: input.target.map(|(_, id)| id),
             target_block_id: input.target_block_ids.first().cloned(),
             anchor_json,
-            author_kind: "user".into(),
-            author_id: Some(input.author_id),
-            author_name: None,
+            author_kind: if input.by_assistant { "ai" } else { "user" }.into(),
+            author_id: (!input.by_assistant).then_some(input.author_id),
+            author_name: input.by_assistant.then(|| "写作助手".to_string()),
             body_json: plain_comment_doc(&input.body_text),
             status: "open".into(),
             priority: input.priority,
-            source: "manual".into(),
+            source: if input.by_assistant { "api" } else { "manual" }.into(),
             metadata_json: None,
             target_block_ids_json: json!(input.target_block_ids).to_string(),
             resolved_at: None,
@@ -395,11 +462,7 @@ impl WorkspaceStore<'_> {
             self.guard_project(tx, context)?;
             let (_, incarnation) = self.project_comment(tx, context, comment_id)?;
             let mut mutations = self.purge_relations(tx, context, "comment", comment_id)?;
-            self.execute(
-                tx,
-                "DELETE FROM comment_action WHERE comment_id=? AND project_id=?",
-                vec![text(comment_id), text(&context.project_id)],
-            )?;
+            self.remove_comment_actions(tx, context, comment_id, &mut mutations)?;
             self.execute(
                 tx,
                 "DELETE FROM comment WHERE id=? AND project_id=?",
@@ -411,6 +474,139 @@ impl WorkspaceStore<'_> {
             );
             self.commit_changes(tx, context, &mutations, None)
         })
+    }
+
+    /// Accepts or rejects an open Copilot suggestion: one applied action
+    /// (`accept_suggestion` / `reject_suggestion`) with the suggestion's
+    /// metadata as payload and `result`, and the comment becomes
+    /// `converted`. The host applies an accepted proposal first and passes
+    /// what it created as `result`.
+    pub fn resolve_suggestion(
+        &self,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+        action_id: &str,
+        accepted: bool,
+        result_json: Option<&str>,
+    ) -> Result<WorkspaceCommentAction, String> {
+        validate_context(context)?;
+        if !opaque(action_id) {
+            return Err("Invalid action identity".into());
+        }
+        if result_json.is_some_and(|json| serde_json::from_str::<Value>(json).is_err()) {
+            return Err("Suggestion result must be JSON".into());
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let (comment, incarnation) = self.project_comment(tx, context, comment_id)?;
+            if comment.source != "copilot" {
+                return Err("这条批注不是 Copilot 建议".into());
+            }
+            if comment.status != "open" {
+                return Err("这条建议已经处理过了".into());
+            }
+            let action = WorkspaceCommentAction {
+                id: action_id.into(),
+                comment_id: comment_id.into(),
+                kind: if accepted { "accept_suggestion" } else { "reject_suggestion" }.into(),
+                label: Some(if accepted { "Accept copilot suggestion" } else { "Reject copilot suggestion" }.into()),
+                payload_json: comment.metadata_json.clone().unwrap_or_else(|| "{}".into()),
+                status: "applied".into(),
+                result_json: result_json.map(String::from),
+                created_at: context.now_iso.clone(),
+            };
+            self.execute(tx, "UPDATE comment SET status='converted',resolved_at=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![text(&context.now_iso), text(&context.now_iso), text(comment_id), text(&context.project_id)])?;
+            self.execute(tx, r#"
+                INSERT INTO comment_action(id,project_id,comment_id,kind,label,payload_json,status,result_json,
+                    created_by_kind,created_by_id,created_at,updated_at,applied_at)
+                VALUES (?,?,?,?,?,?,?,?,'user',NULL,?,?,?)
+            "#, vec![text(&action.id), text(&context.project_id), text(comment_id), text(&action.kind),
+                action.label.as_deref().map(text).unwrap_or(V::Null), text(&action.payload_json), text(&action.status),
+                action.result_json.as_deref().map(text).unwrap_or(V::Null), text(&context.now_iso), text(&context.now_iso),
+                text(&context.now_iso)])?;
+            self.commit_changes(tx, context, &[
+                journal::Mutation::field("comment", comment_id, incarnation, "resolvedAt", json!(context.now_iso)),
+                journal::Mutation::field("comment", comment_id, incarnation, "status", json!("converted")),
+                journal::Mutation::create("comment-action", &action.id, json!({
+                    "id": action.id, "commentId": comment_id, "kind": action.kind, "label": action.label,
+                    "payloadJson": action.payload_json, "status": action.status, "resultJson": action.result_json,
+                    "createdByKind": "user", "createdById": null, "appliedAt": context.now_iso,
+                })),
+            ], None)?;
+            Ok(action)
+        })
+    }
+
+    /// Every review decision on suggestions, oldest first; rejected
+    /// payloads keep Copilot from proposing the same thing again.
+    pub fn suggestion_actions(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<WorkspaceCommentAction>, String> {
+        self.query(None, r#"
+            SELECT id,comment_id,kind,label,payload_json,status,result_json,created_at FROM comment_action
+            WHERE project_id=? AND kind IN ('accept_suggestion','reject_suggestion') ORDER BY created_at,rowid
+        "#, vec![text(project_id)])?
+        .iter()
+        .map(|row| {
+            Ok(WorkspaceCommentAction {
+                id: string(row, 0)?,
+                comment_id: string(row, 1)?,
+                kind: string(row, 2)?,
+                label: optional(row, 3)?,
+                payload_json: string(row, 4)?,
+                status: string(row, 5)?,
+                result_json: optional(row, 6)?,
+                created_at: string(row, 7)?,
+            })
+        })
+        .collect()
+    }
+
+    /// Removes a comment's review actions with their trash originals.
+    pub(super) fn remove_comment_actions(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        comment_id: &str,
+        mutations: &mut Vec<journal::Mutation>,
+    ) -> Result<(), String> {
+        for row in self.query(
+            Some(tx),
+            "SELECT id FROM comment_action WHERE comment_id=? AND project_id=? ORDER BY id",
+            vec![text(comment_id), text(&context.project_id)],
+        )? {
+            let action = string(&row, 0)?;
+            let lifecycle = self.query(Some(tx), "SELECT incarnation,state FROM sync_entity_lifecycle WHERE sync_generation_id=? AND entity_kind='comment-action' AND entity_id=?",
+                vec![text(&context.sync_generation_id), text(&action)])?;
+            if let Some(row) = lifecycle.first() {
+                if row[1] == text("live") {
+                    let incarnation = match &row[0] {
+                        V::Integer(value) => value
+                            .parse::<u64>()
+                            .map_err(|_| "Invalid incarnation".to_string())?,
+                        _ => return Err("Invalid incarnation".into()),
+                    };
+                    mutations.push(
+                        journal::Mutation::json(
+                            "entity",
+                            "comment-action",
+                            &action,
+                            "entity.trash",
+                            json!({}),
+                        )
+                        .at_incarnation(incarnation),
+                    );
+                }
+            }
+        }
+        self.execute(
+            tx,
+            "DELETE FROM comment_action WHERE comment_id=? AND project_id=?",
+            vec![text(comment_id), text(&context.project_id)],
+        )?;
+        Ok(())
     }
 
     fn insert_comment(

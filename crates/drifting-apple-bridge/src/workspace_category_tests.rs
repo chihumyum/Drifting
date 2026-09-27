@@ -38,6 +38,73 @@ fn workspace_category_bodies_and_element_templates() {
     ))["result"]
         .clone();
     assert_eq!(stored, blocks);
+    // Summary, aliases and facts can come with the element in one original.
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let changes = || {
+        db.query(
+            "SELECT COUNT(*) FROM sync_change_set".into(),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows
+    };
+    let before = changes();
+    let full = success(elements(
+        &fixture,
+        json!({"action":"createElement","categoryId":category,"name":"林岚","summary":"守塔人",
+            "aliases":["阿岚"],"facts":[{"key":"年龄","value":"十七"}]}),
+    ))["result"]
+        .clone();
+    assert_eq!(
+        (&full["summary"], &full["aliases"], &full["facts"]),
+        (
+            &json!("守塔人"),
+            &json!(["阿岚"]),
+            &json!([{"key":"年龄","value":"十七"}])
+        )
+    );
+    let actions: Vec<String> = db
+        .query(
+            format!("SELECT m.target_kind||':'||m.action FROM sync_mutation m WHERE m.change_set_id=(
+                SELECT change_set_id FROM sync_mutation WHERE action='entity.create' AND target_kind='element'
+                AND target_id='{}') ORDER BY m.mutation_index", full["id"].as_str().unwrap()),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows
+        .iter()
+        .map(|row| match &row[0] {
+            DatabaseValue::Text(value) => value.clone(),
+            _ => panic!("action"),
+        })
+        .collect();
+    for expected in [
+        "element:entity.create",
+        "alias:set.add",
+        "kv-entry:entity.create",
+    ] {
+        assert!(
+            actions.iter().any(|a| a == expected),
+            "{expected} in {actions:?}"
+        );
+    }
+    let after = changes();
+    let count = |rows: &Vec<Vec<DatabaseValue>>| match &rows[0][0] {
+        DatabaseValue::Integer(value) => value.parse::<u64>().unwrap(),
+        _ => panic!("count"),
+    };
+    let _ = &before;
+    assert!(rejected(elements(
+        &fixture,
+        json!({"action":"createElement","categoryId":category,"name":"新人","aliases":["林岚"]}),
+    ))
+    .len()
+        > 0);
+    assert_eq!(count(&changes()), count(&after));
     // A new element's body starts from the template.
     let element = success(elements(
         &fixture,

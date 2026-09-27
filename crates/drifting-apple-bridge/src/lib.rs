@@ -513,6 +513,21 @@ enum Request {
         project_id: String,
         name: String,
     },
+    WorkspacePurgeTrashed {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        kind: String,
+        id: String,
+    },
+    WorkspaceEmptyTrash {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
+    WorkspaceDiagnostics {
+        handle: u64,
+    },
     WorkspaceDeleteProject {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -843,6 +858,9 @@ enum Request {
         revision: u64,
         range: drifting_document::NativeRange,
         body: String,
+        /// Present for a Copilot suggestion on the selection.
+        #[serde(default)]
+        suggestion: Option<document_comments::SuggestionInput>,
     },
     DocumentUpdateCommentBody {
         handle: u64,
@@ -1387,6 +1405,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
             revision,
             range,
             body,
+            suggestion,
         } => document_comments::create(
             sessions
                 .get_mut(&handle)
@@ -1394,6 +1413,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
             revision,
             range,
             &body,
+            suggestion,
         ),
         Request::DocumentUpdateCommentBody {
             handle,
@@ -1418,6 +1438,9 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceCreateProject { .. }
         | Request::WorkspaceRenameProject { .. }
         | Request::WorkspaceDeleteProject { .. }
+        | Request::WorkspaceDiagnostics { .. }
+        | Request::WorkspacePurgeTrashed { .. }
+        | Request::WorkspaceEmptyTrash { .. }
         | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceCreateAct { .. }

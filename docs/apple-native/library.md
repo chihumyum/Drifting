@@ -98,6 +98,19 @@ every open body is idle, and lists and links read the new entity.
 Markdown (.md) or 纯文本 (.txt), then writes Rust's text as UTF-8. Queued input
 is refused first, since export reads open owners.
 
+文件 › 导出为 Markdown 文件夹… (and per project on the
+[项目书架](workspace.md) and in the project list's menu) asks for a folder, reads
+`workspaceTransfer {"action":"exportArchive"}` — `{projectName,
+documentCount, files:[{path, text}]}`: one file per chapter, drift, element,
+category, storyline, note and material with YAML front matter, `[[路径|标题]]`
+wiki links and a 关系 section, plus `index.md` and `README.md` — and writes it
+into a new `<项目名>-<yyyy-MM-dd>` folder there (`/` and `:` in the name become
+full-width; an existing folder gets `-2`, `-3` … instead of being reused).
+Every path is checked before the first byte: absolute, `..`, `.`, empty or
+backslashed components, and duplicates refuse the whole export. Files are
+UTF-8 in subfolders, never overwriting. An alert reports the count and offers
+在访达中显示. Reading writes no journal row; images and PDFs are not included.
+
 ## Acceptance
 
 Core tests cover the asset store protocol and the library, portrait and
@@ -121,3 +134,7 @@ headings and paragraphs, export Markdown and text, and reopen cold with the
 library, portrait and bodies intact. Reordering and 关联 are covered by the
 [review](review.md) cases (`--review-only`). Physical drag and drop, the open
 and save panels, the Quick Look window and devices are not covered.
+`--trash-shelf-only` exports a Markdown folder into a temporary folder twice
+(the second with `-2`), compares every written file with the archive, checks
+subfolders, front matter and wiki links, 在访达中显示 and that no journal row
+was written, and refuses four escaping paths without writing anything.

@@ -42,6 +42,27 @@ fn workspace_agent_reads_and_applies_revisions_through_owners() {
         (Some("雨夜里钟声响起。\n她推开北塔的门。"), Some(true))
     );
     assert_eq!(read(&fixture, "chapter", &closed)["live"], false);
+    // The styled projection reads the same bodies without writing.
+    let projection = success(agent(
+        &fixture,
+        json!({"action":"readProjection","target":{"kind":"chapter","id":open}}),
+    ));
+    assert_eq!(projection["live"], true);
+    assert_eq!(
+        projection["projection"]["text"],
+        "雨夜里钟声响起。\n她推开北塔的门。"
+    );
+    assert_eq!(
+        projection["projection"]["blocks"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        success(agent(
+            &fixture,
+            json!({"action":"readProjection","target":{"kind":"chapter","id":closed}}),
+        ))["live"],
+        false
+    );
     // Applying to the open owner saves the author's edit as theirs, then the
     // revision as the Agent's, and returns the owner's new state.
     let applied = success(agent(

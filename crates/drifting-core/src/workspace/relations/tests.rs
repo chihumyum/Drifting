@@ -88,6 +88,9 @@ fn database() -> (tempfile::TempDir, DatabaseGateway) {
                     name: Some(name.into()),
                     group_name: None,
                     seed: seed(),
+                    summary: String::new(),
+                    aliases: Vec::new(),
+                    facts: None,
                 },
                 &mut ids(),
             )
