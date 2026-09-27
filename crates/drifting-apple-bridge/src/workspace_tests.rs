@@ -10,6 +10,8 @@ mod comments;
 mod drifts;
 #[path = "workspace_element_tests.rs"]
 mod elements;
+#[path = "workspace_history_tests.rs"]
+mod history_tests;
 #[path = "workspace_library_tests.rs"]
 mod library_tests;
 #[path = "workspace_link_tests.rs"]
@@ -32,6 +34,8 @@ mod search;
 mod storylines;
 #[path = "workspace_tabs_tests.rs"]
 mod tabs;
+#[path = "workspace_timeline_tests.rs"]
+mod timeline_tests;
 #[path = "workspace_transfer_tests.rs"]
 mod transfer_tests;
 #[path = "workspace_trash_tests.rs"]

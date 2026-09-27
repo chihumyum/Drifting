@@ -80,6 +80,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let tabsBar = NSStackView()
         let body = NSView()
         let label = NSTextField(labelWithString: "")
+        /// 历史版本… of the pane's active page.
+        let historyButton = NSButton(title: "历史版本…", target: nil, action: nil)
         var tabs: [Tab] = []
         var selected: DocumentScope?
         var active: Tab? { tabs.first { $0.scope == selected } }
@@ -163,6 +165,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onOpenCategory: ((WorkspaceProject, String) -> Void)?
     /// 关系类型… from a page's 关系 section.
     var onManageRelationTypes: ((WorkspaceProject) -> Void)?
+    /// 历史版本… from a pane's header; the pane is active by then.
+    var onShowHistory: (() -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -595,6 +599,32 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         refreshTabs(); onChange?()
         chaptersChanged(projectID: projectID)
+    }
+
+    // MARK: Version history
+
+    /// The active page's body, for 历史版本….
+    var activeHistoryTarget: VersionHistoryTarget? {
+        guard let tab = panes[activePane].active else { return nil }
+        switch tab.target {
+        case .chapter(let chapter): return VersionHistoryTarget(projectID: tab.project.id, kind: "chapter", id: chapter.id, title: chapter.title)
+        case .drift(let drift): return VersionHistoryTarget(projectID: tab.project.id, kind: "drift", id: drift.id, title: drift.title)
+        case .element(let element): return VersionHistoryTarget(projectID: tab.project.id, kind: "element", id: element.id, title: element.name)
+        case .storyline(let storyline):
+            return VersionHistoryTarget(projectID: tab.project.id, kind: "storyline", id: storyline.id, title: storyline.name)
+        }
+    }
+
+    /// A restored version: an open owner already adopted it, and its text
+    /// links entity names like typed text; a closed chapter or drift is
+    /// counted again.
+    func adoptRestoredVersion(_ target: VersionHistoryTarget, live: Bool) {
+        if live, let view = (0..<paneCount).compactMap({ retainedView(pane: $0, scope: target.scope) }).first {
+            view.binding.store.requestEntityLinks()
+        }
+        if target.kind == "chapter" || target.kind == "drift" { wordCounts(projectID: target.projectID, refresh: true) }
+        // Restored chapter prose may add or remove element references.
+        if target.kind == "chapter" { scheduleBacklinks(projectID: target.projectID) }
     }
 
     // MARK: Summary and status
@@ -1326,6 +1356,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             for group in pane.tabsBar.arrangedSubviews {
                 for view in group.subviews { (view as? NSButton)?.isEnabled = enabled }
             }
+            pane.historyButton.isEnabled = enabled && pane.active != nil
         }
     }
     private func addPane() {
@@ -1341,7 +1372,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.tabsBar.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             pane.tabsBar.heightAnchor.constraint(equalTo: scroll.contentView.heightAnchor),
         ])
-        let stack = NSStackView(views: [pane.label, scroll, pane.body])
+        pane.historyButton.bezelStyle = .recessed
+        pane.historyButton.controlSize = .small
+        pane.historyButton.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        pane.historyButton.target = self; pane.historyButton.action = #selector(historyPressed(_:))
+        pane.historyButton.setAccessibilityIdentifier("show-history-\(index)")
+        pane.historyButton.toolTip = "查看并恢复这一页正文的历史版本（⌥⌘Y）"
+        let header = NSStackView(views: [pane.label, NSView(), pane.historyButton])
+        let stack = NSStackView(views: [header, scroll, pane.body])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
         pane.root.addSubview(stack)
@@ -1350,6 +1388,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             stack.trailingAnchor.constraint(equalTo: pane.root.trailingAnchor, constant: -6),
             stack.topAnchor.constraint(equalTo: pane.root.topAnchor), stack.bottomAnchor.constraint(equalTo: pane.root.bottomAnchor),
             scroll.heightAnchor.constraint(equalToConstant: 34), scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             pane.body.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         panes.append(pane); splitView.addArrangedSubview(pane.root)
@@ -1395,10 +1434,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         pane.active?.page?.reloadBacklinks()
         refreshTabs()
     }
+    @objc private func historyPressed(_ sender: NSButton) {
+        guard let index = panes.firstIndex(where: { $0.historyButton === sender }), panes[index].active != nil else { return }
+        activate(pane: index)
+        guard activePane == index else { return }
+        onShowHistory?()
+    }
+
     private func refreshTabs() {
         for (index, pane) in panes.enumerated() {
             pane.label.stringValue = panes.count == 1 ? "标签" : "\(index == 0 ? "左栏" : "右栏")\(index == activePane ? " · 当前" : "")"
             pane.label.textColor = index == activePane ? .labelColor : .secondaryLabelColor
+            pane.historyButton.isEnabled = canNavigate && pane.active != nil
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for tab in pane.tabs {
                 let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift" : "chapter"

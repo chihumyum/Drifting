@@ -11,6 +11,8 @@ pub(super) mod agent;
 pub(super) mod drifts;
 #[path = "workspace_elements.rs"]
 pub(super) mod elements;
+#[path = "workspace_history.rs"]
+pub(super) mod history;
 #[path = "workspace_library.rs"]
 pub(super) mod library;
 #[path = "workspace_metadata.rs"]
@@ -25,6 +27,8 @@ mod remote_prose;
 pub(super) mod search;
 #[path = "workspace_storylines.rs"]
 pub(super) mod storylines;
+#[path = "workspace_timeline.rs"]
+pub(super) mod timeline;
 #[path = "workspace_transfer.rs"]
 pub(super) mod transfer;
 #[path = "workspace_trash.rs"]
@@ -190,6 +194,8 @@ pub(super) fn dispatch(
             | Request::WorkspaceAgent { .. }
             | Request::WorkspaceLibrary { .. }
             | Request::WorkspaceTransfer { .. }
+            | Request::WorkspaceTimeline { .. }
+            | Request::WorkspaceHistory { .. }
             | Request::WorkspaceClose { .. }
     ) {
         return Ok(None);
@@ -445,6 +451,22 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .drifts(documents, project_id, command)?,
+        Request::WorkspaceHistory {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .history(documents, project_id, command)?,
+        Request::WorkspaceTimeline {
+            handle,
+            project_id,
+            command,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .timeline(project_id, command)?,
         Request::WorkspaceTransfer {
             handle,
             project_id,

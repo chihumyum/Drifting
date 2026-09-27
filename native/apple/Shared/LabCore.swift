@@ -27,6 +27,8 @@ enum LabError: LocalizedError {
     case relationUnavailable(reason: String)
     case libraryUnavailable(reason: String)
     case transferUnavailable(reason: String)
+    case timelineUnavailable(reason: String)
+    case versionHistoryUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -35,7 +37,8 @@ enum LabError: LocalizedError {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
              .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
              .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
-             .libraryUnavailable(let text), .transferUnavailable(let text): return text
+             .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
+             .versionHistoryUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -55,7 +58,43 @@ enum LabError: LocalizedError {
         case .relationUnavailable(let reason): return LabError.relationMessage(reason)
         case .libraryUnavailable(let reason): return LabError.libraryMessage(reason)
         case .transferUnavailable(let reason): return LabError.transferMessage(reason)
+        case .timelineUnavailable(let reason): return LabError.timelineMessage(reason)
+        case .versionHistoryUnavailable(let reason): return LabError.versionHistoryMessage(reason)
         }
+    }
+
+    /// Story graph refusals happen before any row or journal change. Rust's
+    /// own messages are Chinese; diagnostics are restated.
+    private static func timelineMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("must be finite", "这个位置无法保存，请重新拖动。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+            ("Invalid node incarnation", "章节数据已变化，请刷新故事图谱。"),
+            ("Invalid marker incarnation", "时间标记数据已变化，请刷新故事图谱。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        // Rust's own messages, e.g. 时间标记需要名称，或绑定一条漂流.
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "故事图谱的修改未能保存。已有内容未改变，可以稍后重试。"
+    }
+
+    /// Version history refusals leave the body and its history unchanged,
+    /// except a restore that applied but could not save, which says so.
+    private static func versionHistoryMessage(_ reason: String) -> String {
+        // Rust's own messages, e.g. 这个历史版本不属于当前文档, come first: a
+        // restore that applied but failed to save names its save error.
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        let known: [(String, String)] = [
+            ("do not support", "这种页面没有历史版本。"),
+            ("No version history for", "这种页面没有历史版本。"),
+            ("active sync generation", "这个项目已不可用，请重新选择项目。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+            ("incarnation", "这一页已不可用（可能已移到回收站），请刷新后重试。"),
+            ("scope", "这一页已不可用（可能已移到回收站），请刷新后重试。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "历史版本操作未能完成。正文未改变，可以稍后重试。"
     }
 
     /// Materials library and portrait refusals leave rows and stored bytes
@@ -345,6 +384,12 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceTransfer" {
                 throw LabError.transferUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceTimeline" {
+                throw LabError.timelineUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceHistory" {
+                throw LabError.versionHistoryUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -1425,6 +1470,98 @@ final class LabWorkspaceCore {
         }) {
             try self.request("workspaceAgent", fields: ["projectId": projectID, "command": [
                 "action": "applyChanges", "target": ["kind": kind, "id": id], "changes": changes, "agent": agent]])
+        }
+    }
+
+    // MARK: Story timeline
+
+    /// Every live node's narrative order and graph position, and the
+    /// markers in narrative order. A read only.
+    func timeline(projectID: String, completion: @escaping (Result<WorkspaceTimeline, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceTimelineReply<WorkspaceTimelineNode> = try self.timelineRequest(projectID, ["action": "timeline"])
+            return reply.timeline
+        }
+    }
+
+    /// A chapter's place in story time, or nil to take it off the narrative
+    /// axis. Metadata only: no owner, input or history is touched.
+    func setNarrativeOrder(projectID: String, chapterID: String, order: Double?,
+                           completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineNode>, Error>) -> Void) {
+        perform(completion) {
+            try self.timelineRequest(projectID, ["action": "setNarrativeOrder", "chapterId": chapterID,
+                "order": order.map { $0 as Any } ?? NSNull()])
+        }
+    }
+
+    /// A drift card's place in the story graph's free area.
+    func setNodePosition(projectID: String, nodeID: String, x: Double, y: Double,
+                         completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineNode>, Error>) -> Void) {
+        perform(completion) {
+            try self.timelineRequest(projectID, ["action": "setPosition", "nodeId": nodeID, "x": x, "y": y])
+        }
+    }
+
+    /// A label-less marker must name a live drift, which captions it.
+    func createTimelineMarker(projectID: String, narrativeOrder: Double, label: String, driftID: String?,
+                              completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineMarker>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "createMarker", "narrativeOrder": narrativeOrder, "label": label]
+        if let driftID { command["driftId"] = driftID }
+        perform(completion) { try self.timelineRequest(projectID, command) }
+    }
+
+    /// Present fields change; unchanged fields write nothing.
+    func updateTimelineMarker(projectID: String, markerID: String, changes: TimelineMarkerChanges,
+                              completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineMarker>, Error>) -> Void) {
+        var command = changes.fields
+        command["action"] = "updateMarker"; command["markerId"] = markerID
+        perform(completion) { try self.timelineRequest(projectID, command) }
+    }
+
+    /// The reply has no result.
+    func deleteTimelineMarker(projectID: String, markerID: String,
+                              completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineMarker>, Error>) -> Void) {
+        perform(completion) { try self.timelineRequest(projectID, ["action": "deleteMarker", "markerId": markerID]) }
+    }
+
+    private func timelineRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceTimeline", fields: ["projectId": projectID, "command": command])
+    }
+
+    // MARK: Version history
+
+    /// A body's versions, newest first. An open owner's pending input is
+    /// saved (and captured when due) before the list is read.
+    func versionHistory(projectID: String, target: VersionHistoryTarget,
+                        completion: @escaping (Result<[WorkspaceHistoryEntry], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceHistoryList = try self.request("workspaceHistory", fields: ["projectId": projectID,
+                "command": ["action": "list", "target": target.payload]])
+            return reply.entries
+        }
+    }
+
+    /// Restores a version as one undoable edit through the body's owner,
+    /// after Rust captured the current state. An open owner adopts the
+    /// returned state as an Agent revision does; queued input is refused first.
+    func restoreVersion(projectID: String, target: VersionHistoryTarget, snapshotID: String,
+                        completion: @escaping (Result<WorkspaceHistoryRestored, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        guard !isChangingOwners else {
+            completion(.failure(LabError.message("正在切换页面，请稍后再恢复历史版本。"))); return
+        }
+        if owners[target.scope]?.core.hasPendingDocumentWork == true {
+            completion(.failure(LabError.message("正在输入或保存正文，请结束输入并等待保存后再恢复历史版本。"))); return
+        }
+        perform({ (result: Result<WorkspaceHistoryRestored, Error>) in
+            if case .success(let reply) = result, let handle = reply.handle,
+               let owner = self.owners.values.first(where: { $0.handle == handle }), !owner.core.isClosed {
+                owner.core.receiveReconciledState(reply.document)
+            }
+            completion(result)
+        }) {
+            try self.request("workspaceHistory", fields: ["projectId": projectID, "command": [
+                "action": "restore", "target": target.payload, "snapshotId": snapshotID]])
         }
     }
 

@@ -172,6 +172,9 @@ impl LabSession {
                 "Final checkpoint failed; the live owner is retained: {error}"
             ));
         }
+        if let Ok(context) = self.authored_context() {
+            let _ = self.capture_history(&context.now_iso, "close");
+        }
         Ok(())
     }
 
@@ -367,7 +370,66 @@ impl LabSession {
             // the durable save and never fails it; reconciliation retries.
             let _ = self.materialize_projection(&context.now_iso, edited);
         }
+        // Version history rides the save and never fails it.
+        let _ = self.capture_history(&context.now_iso, "periodic");
         Ok(())
+    }
+
+    /// Restores a past version as one undoable edit, after saving pending
+    /// input and capturing the current state as a `restore` version.
+    fn restore_version(&mut self, state: &[u8]) -> Result<(), String> {
+        if self.document.active_drafts() > 0 || self.document.active_input_compositions() > 0 {
+            return Err("作者正在输入，请结束输入后再恢复".into());
+        }
+        self.persist();
+        if self.write_blocked() {
+            return Err("正文尚未保存，暂时不能恢复历史版本".into());
+        }
+        let now = self.authored_context()?.now_iso;
+        self.capture_history(&now, "restore")?;
+        self.document.replace_with_state(state)?;
+        self.persist();
+        match &self.save_error {
+            Some(error) => Err(format!("历史版本已恢复但尚未保存：{error}")),
+            None => Ok(()),
+        }
+    }
+
+    /// A version-history snapshot of this durable state (`periodic`, `close`
+    /// or `restore`); periodic captures skip encoding while none is due.
+    fn capture_history(&self, now: &str, reason: &str) -> Result<bool, String> {
+        if !self.owner.workspace
+            || !matches!(self.owner.target_kind, "node" | "element" | "storyline")
+        {
+            return Ok(false);
+        }
+        let store = drifting_core::workspace::WorkspaceStore::new(&self.gateway, CLIENT);
+        let (project, kind, id) = (
+            &self.owner.scope.project_id,
+            self.owner.target_kind,
+            &self.owner.target_id,
+        );
+        if reason == "periodic" && !store.snapshot_due(project, kind, id, now)? {
+            return Ok(false);
+        }
+        let state = self.document.update(None, 1)?;
+        let content = self
+            .document
+            .prose_projection()
+            .ok()
+            .map(|projection| projection.content_json);
+        store.capture_snapshot(
+            project,
+            drifting_core::workspace::SnapshotCapture {
+                id: &workspace::identifier("snapshot")?,
+                entity_kind: kind,
+                entity_id: id,
+                state: &state,
+                content_json: content.as_deref(),
+                reason,
+                now_iso: now,
+            },
+        )
     }
 
     /// The node body's canonical projection (body cache, outline, word count)
@@ -615,6 +677,18 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         command: workspace::transfer::TransferCommand,
+    },
+    WorkspaceTimeline {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::timeline::TimelineCommand,
+    },
+    WorkspaceHistory {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::history::HistoryCommand,
     },
     WorkspaceClose {
         handle: u64,
@@ -1308,6 +1382,8 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceAgent { .. }
         | Request::WorkspaceLibrary { .. }
         | Request::WorkspaceTransfer { .. }
+        | Request::WorkspaceTimeline { .. }
+        | Request::WorkspaceHistory { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

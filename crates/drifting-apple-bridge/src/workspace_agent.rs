@@ -7,8 +7,8 @@ use drifting_core::prose::AgentIdentity;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ProseTarget {
-    kind: String,
-    id: String,
+    pub(super) kind: String,
+    pub(super) id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,14 +50,18 @@ pub(crate) enum AgentCommand {
 }
 
 /// The body document, its owner kind and the map of open owners.
-struct Body {
-    document_id: String,
-    owner_kind: &'static str,
-    key: (String, String),
+pub(super) struct Body {
+    pub(super) document_id: String,
+    pub(super) owner_kind: &'static str,
+    pub(super) key: (String, String),
 }
 
 impl WorkspaceSession {
-    fn body(&self, project_id: &str, target: &ProseTarget) -> Result<(Body, Option<u64>), String> {
+    pub(super) fn body(
+        &self,
+        project_id: &str,
+        target: &ProseTarget,
+    ) -> Result<(Body, Option<u64>), String> {
         let key = (project_id.to_owned(), target.id.clone());
         let (document_id, owner_kind, open) = match target.kind.as_str() {
             "chapter" => (

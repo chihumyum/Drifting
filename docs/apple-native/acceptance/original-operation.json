@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "61167a3807f2d2e3115d3d89d0d9d30e84a119112cb08c8f7d5bc162766431f5",
+    "fingerprint": "2d9f35ecc953f3a465c0cf6cc616012290fba58dd32986329e9b85d0e2916efe",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -112,7 +112,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "110cf5f2d36b1084277259f7d83a0d9dfabf7ba9b7f15318bda9762b7970b59a"
+        "sha256": "53af59eefef60592f5090b4d051b68e05013a0930b67e0fe2d13a652a47305c7"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -151,8 +151,16 @@
         "sha256": "557ef5b56e199a79d8ebdaa904d2f539ae1683814cae1552e18a91150e8dadfd"
       },
       {
+        "path": "crates/drifting-core/src/workspace/history.rs",
+        "sha256": "1944be8417ab53d91e4229a9575e22fc0a06d5a713238212355998db00fd5cb8"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/history/tests.rs",
+        "sha256": "232f97906b0cccf5f2082ea1f1bf7b2219fdc574c31f2bff3300ebbb744ad517"
+      },
+      {
         "path": "crates/drifting-core/src/workspace/journal.rs",
-        "sha256": "b10fb31701b5bd790a1ef84cc4511369be3e51edb8b4410638088bda9d664989"
+        "sha256": "4c9357d51ff15ef331264b94da5fe2d2599f933c1baed6b6aabc6949a84609bb"
       },
       {
         "path": "crates/drifting-core/src/workspace/library.rs",
@@ -213,6 +221,14 @@
       {
         "path": "crates/drifting-core/src/workspace/tests.rs",
         "sha256": "230e46ae9639e21e7381ac96b7d6c12729ea45be0bcf5e4ab5379dc5d7ab1eae"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/timeline.rs",
+        "sha256": "cc48e6e80ac8b12f7e066b2fad8d6ecbf0985cb0cee5e063c5a51ad7134a001d"
+      },
+      {
+        "path": "crates/drifting-core/src/workspace/timeline/tests.rs",
+        "sha256": "42ef051f502ce282ba3e540db1000b1162d820ca5a898a8411d940b2562f037a"
       },
       {
         "path": "crates/drifting-core/src/workspace/trash.rs",
@@ -328,7 +344,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "0442faab837bce3ded4c5db1a8cd3536c37f2b2ddf9074ae375f228bc3401787"
+        "sha256": "83d005ac1df6eaae5bdc137e581f25826a83528e0e44122ecfc21cab996513fc"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -385,6 +401,14 @@
       {
         "path": "crates/drifting-document/src/replay_tests.rs",
         "sha256": "8f1303c1a525767a378c8c07947f28c3f56cd721bd5e463b12598fd325860a91"
+      },
+      {
+        "path": "crates/drifting-document/src/restore.rs",
+        "sha256": "08f144ff7d8fb7827b031bcbaca7db65f15a92191a5e1d1f136a479790c82207"
+      },
+      {
+        "path": "crates/drifting-document/src/restore_tests.rs",
+        "sha256": "984819dd8c864e2d6dfaf1bbdc9ee36b4c215642bedb96017fa336e8956bed70"
       },
       {
         "path": "crates/drifting-document/src/retention.rs",
@@ -892,8 +916,8 @@
   },
   "tests": {
     "rustToolchain": "1.88.0",
-    "listed": 113,
-    "passed": 113,
+    "listed": 115,
+    "passed": 115,
     "failed": 0,
     "ignored": 0,
     "requiredCases": [
@@ -931,7 +955,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "175c33352f7ebce1c95a9ed4ea116023c348009d4a15cdf860ad9144678f6446"
+    "logSha256": "d6a4b93c2ddf1d6a0ee1d71718096f4dfbe629abf592fa2875af58e47d755cd6"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

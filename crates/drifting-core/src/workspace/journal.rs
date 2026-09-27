@@ -232,6 +232,7 @@ impl WorkspaceStore<'_> {
                                         | "entity-relation"
                                         | "entity-relation-type"
                                         | "library-item"
+                                        | "timeline-marker"
                                 )
                             {
                                 return Err("Unsupported workspace purge target".into());

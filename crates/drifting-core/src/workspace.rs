@@ -6,6 +6,7 @@ mod comments;
 mod drifts;
 mod elements;
 mod facts;
+mod history;
 mod journal;
 mod library;
 mod metadata;
@@ -13,6 +14,7 @@ mod metrics;
 mod outline;
 mod relations;
 mod storylines;
+mod timeline;
 mod trash;
 pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
 pub use drifts::{NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
@@ -20,6 +22,7 @@ pub use elements::{
     ElementChanges, NewElement, NewElementCategory, WorkspaceElement, WorkspaceElementCategory,
 };
 pub use facts::Fact;
+pub use history::{HistoryEntry, SnapshotCapture};
 pub use library::{
     ElementPortrait, NewAssetFile, WorkspaceAsset, WorkspaceLibraryItem, MAX_ASSET_BYTES,
 };
@@ -28,6 +31,7 @@ pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;
 pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
+pub use timeline::{TimelineMarker, TimelineNode, WorkspaceTimeline};
 #[cfg(test)]
 mod tests;
 

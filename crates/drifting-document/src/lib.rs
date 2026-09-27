@@ -47,6 +47,9 @@ mod relocation_history;
 #[cfg(test)]
 mod relocation_history_tests;
 mod remote;
+mod restore;
+#[cfg(test)]
+mod restore_tests;
 pub use remote::PreparedRemoteUpdate;
 mod retention;
 pub use retention::REMOTE_TEXT_RETENTION_REQUIRED;

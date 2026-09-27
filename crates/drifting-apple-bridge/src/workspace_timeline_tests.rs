@@ -1,0 +1,102 @@
+//! The story timeline through the C ABI.
+use super::*;
+
+fn timeline(fixture: &Fixture, command: Value) -> Value {
+    json!({"operation":"workspaceTimeline","handle":fixture.workspace,"projectId":fixture.project,"command":command})
+}
+
+#[test]
+fn workspace_timeline_orders_markers_positions_and_cold_reopen() {
+    let mut fixture = Fixture::new();
+    let chapter = fixture.chapters[0].clone();
+    let placed = success(timeline(
+        &fixture,
+        json!({"action":"setNarrativeOrder","chapterId":chapter,"order":2.25}),
+    ));
+    assert_eq!(placed["result"]["narrativeOrder"], 2.25);
+    let drift = success(
+        json!({"operation":"workspaceDrifts","handle":fixture.workspace,"projectId":fixture.project,
+        "command":{"action":"createDrift","title":"钟声"}}),
+    )["result"]["id"]
+        .clone();
+    success(timeline(
+        &fixture,
+        json!({"action":"setPosition","nodeId":drift,"x":40,"y":-12.5}),
+    ));
+    let marker = success(timeline(
+        &fixture,
+        json!({"action":"createMarker","narrativeOrder":1,"label":"黎明"}),
+    ))["result"]["id"]
+        .clone();
+    success(timeline(
+        &fixture,
+        json!({"action":"createMarker","narrativeOrder":3,"label":"","driftId":drift}),
+    ));
+    success(timeline(
+        &fixture,
+        json!({"action":"updateMarker","markerId":marker,"label":"拂晓","narrativeOrder":0.5}),
+    ));
+    assert!(rejected(timeline(
+        &fixture,
+        json!({"action":"createMarker","narrativeOrder":1,"label":" "})
+    ))
+    .contains("名称"));
+    assert!(rejected(timeline(
+        &fixture,
+        json!({"action":"setNarrativeOrder","chapterId":drift,"order":1})
+    ))
+    .contains("章节"));
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let cold = success(timeline(&fixture, json!({"action":"timeline"})))["timeline"].clone();
+    let markers: Vec<(String, f64)> = cold["markers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            (
+                m["label"].as_str().unwrap().to_string(),
+                m["narrativeOrder"].as_f64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(markers, vec![("拂晓".into(), 0.5), (String::new(), 3.0)]);
+    let node = |id: &Value| {
+        cold["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["id"] == *id)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(node(&json!(chapter))["narrativeOrder"], 2.25);
+    assert_eq!(
+        (
+            node(&drift)["positionX"].as_f64(),
+            node(&drift)["positionY"].as_f64()
+        ),
+        (Some(40.0), Some(-12.5))
+    );
+    let unbound = success(timeline(
+        &fixture,
+        json!({"action":"updateMarker","markerId":cold["markers"][1]["id"],
+        "label":"钟响","driftId":null}),
+    ));
+    assert_eq!(unbound["result"]["driftNodeId"], Value::Null);
+    success(timeline(
+        &fixture,
+        json!({"action":"deleteMarker","markerId":marker}),
+    ));
+    assert_eq!(
+        success(timeline(&fixture, json!({"action":"timeline"})))["timeline"]["markers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    fixture.close();
+}

@@ -88,6 +88,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var materialsController: MacMaterialLibraryViewController?
     /// One project's 素材库, kept while its panel is closed.
     private var materialModel: MaterialLibraryModel?
+    /// 故事图谱: lanes, story time, markers and drift cards of one project.
+    private var graphButton: NSButton!
+    private var graphPanel: StoryGraphPanel?
+    private var graphController: MacStoryGraphViewController?
+    /// The axis last shown per project, kept while the panel is closed.
+    private var graphAxes: [String: StoryGraphModel.Axis] = [:]
+    /// 历史版本… of the active page's body.
+    private var historySheet: VersionHistorySheet?
     /// 文件 › 导入… and 导出全书….
     private lazy var transfer = MacBookTransfer(workspace: workspace, host: chapterWorkspace)
     /// 写作助手: a right-side panel beside the editor, one controller per project.
@@ -166,6 +174,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         addComment.keyEquivalentModifierMask = [.command, .option]
         let comments = editMenu.addItem(withTitle: "批注列表", action: #selector(showComments), keyEquivalent: "")
         comments.target = self
+        editMenu.addItem(.separator())
+        let history = editMenu.addItem(withTitle: "历史版本…", action: #selector(showHistory), keyEquivalent: "y")
+        history.keyEquivalentModifierMask = [.command, .option]
+        history.target = self
         let format = NSMenuItem(title: "格式", action: nil, keyEquivalent: ""), formatMenu = NSMenu(title: "格式")
         formatMenu.addItem(withTitle: "加粗", action: #selector(ProseTextView.boldProse(_:)), keyEquivalent: "b")
         formatMenu.addItem(withTitle: "斜体", action: #selector(ProseTextView.italicProse(_:)), keyEquivalent: "i")
@@ -179,6 +191,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let materials = viewMenu.addItem(withTitle: "素材库", action: #selector(showMaterials), keyEquivalent: "m")
         materials.keyEquivalentModifierMask = [.command, .shift]
         materials.target = self
+        let graph = viewMenu.addItem(withTitle: "故事图谱", action: #selector(showStoryGraph), keyEquivalent: "g")
+        graph.keyEquivalentModifierMask = [.command, .shift]
+        graph.target = self
         view.submenu = viewMenu
         menu.addItem(view)
         NSApp.mainMenu = menu
@@ -193,9 +208,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         renameChapterButton = button("重命名", id: "rename-chapter", action: #selector(renameChapter))
         moveUpButton = button("上移", id: "move-chapter-up", action: #selector(moveChapterUp))
         moveDownButton = button("下移", id: "move-chapter-down", action: #selector(moveChapterDown))
+        graphButton = button("故事图谱", id: "show-story-graph", action: #selector(showStoryGraph))
+        graphButton.toolTip = "按成书顺序或故事时间，在故事线轨道上排列章节（⇧⌘G）"
         let projectActions = NSStackView(views: [createProjectButton, renameProjectButton, profileButton])
         let chapterActions = NSStackView(views: [createChapterButton, renameChapterButton])
-        let orderActions = NSStackView(views: [moveUpButton, moveDownButton])
+        let orderActions = NSStackView(views: [moveUpButton, moveDownButton, graphButton])
         trashButton = button("移入回收站", id: "trash-chapter", action: #selector(changeChapterTrash))
         trashListButton = button("回收站", id: "show-trash", action: #selector(toggleTrash))
         let trashActions = NSStackView(views: [trashButton, trashListButton])
@@ -276,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.adoptWordCounts(projectID: projectID, library: library)
         }
         chapterWorkspace.onManageRelationTypes = { [weak self] project in self?.openRelationTypes(project: project) }
+        chapterWorkspace.onShowHistory = { [weak self] in self?.showHistory() }
         chapterWorkspace.onMaterialLibrary = { [weak self] projectID, library in
             self?.adoptMaterials(projectID: projectID, library: library, fromWorkspace: true)
         }
@@ -463,6 +481,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyNodeMetadata(metadata) }
         if let model = driftModel, model.projectID == projectID { model.applyNodeMetadata(metadata) }
+        if let graph = graphController?.model, graph.projectID == projectID { graph.applyNodeMetadata(metadata) }
     }
 
     // MARK: Word counts
@@ -475,6 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyWordCounts(library) }
         if let model = driftModel, model.projectID == projectID { model.applyWordCounts(library) }
         if let profile = profileSheet?.model, profile.projectID == projectID { profile.applyWordCounts(library) }
+        if let graph = graphController?.model, graph.projectID == projectID { graph.applyWordCounts(library) }
         updateWordStatus()
     }
 
@@ -541,6 +561,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 if !showingTrash { reloadChapterRows() }
                 chapterEmpty.isHidden = !displayedChapters.isEmpty
             }
+            graphChaptersChanged(projectID: projectID)
             status.stringValue = "写作助手新建了章节《\(chapter.title)》"
         case .nodeMetadata: status.stringValue = "写作助手的摘要修改已保存"
         }
@@ -618,6 +639,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         storylinesButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         driftsButton.isEnabled = ready && (currentProject != nil || selectedProject != nil)
         materialsButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
+        graphButton.isEnabled = !loading && (currentProject != nil || selectedProject != nil)
         splitButton.isEnabled = ready && documentView != nil
         closePaneButton.isHidden = chapterWorkspace.paneCount == 1
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
@@ -657,6 +679,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if driftsController?.model.projectID != project.id { closeDrifts() }
         if relationTypesController?.model.projectID != project.id { closeRelationTypes() }
         if materialsController?.model.projectID != project.id { closeMaterials() }
+        if graphController?.model.projectID != project.id { closeStoryGraph() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -972,6 +995,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             chapterWorkspace.applyStorylineLibrary(projectID: projectID, library: library)
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyStorylines(library) }
+        if let graph = graphController?.model, graph.projectID == projectID { graph.applyStorylines(library) }
         if selectedProject?.id == projectID, !showingTrash { reloadChapterRows() }
         // A storyline page counts its chapters.
         updateWordStatus()
@@ -1091,6 +1115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             chapterWorkspace.applyDriftLibrary(projectID: projectID, library: library)
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyDrifts(library) }
+        if let graph = graphController?.model, graph.projectID == projectID { graph.applyDrifts(library) }
     }
 
     @objc private func showDrifts() {
@@ -1230,6 +1255,116 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
+    // MARK: Story graph
+
+    /// 故事图谱 (sidebar and 视图 › 故事图谱, ⇧⌘G): a large panel over the
+    /// window. Book moves, lane changes and statuses reach the chapter list,
+    /// pages and the outline; it reads everything again when it becomes key.
+    @objc private func showStoryGraph() {
+        guard !loading, let project = currentProject ?? selectedProject else { return }
+        if let graphPanel, graphPanel.isVisible, graphController?.model.projectID == project.id {
+            graphPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeStoryGraph()
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        let model = StoryGraphModel(workspace: workspace, projectID: project.id)
+        model.axis = graphAxes[project.id] ?? .book
+        if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { model.applyWordCounts(counts) }
+        model.onChapters = { [weak self] chapters in self?.adoptGraphChapters(chapters, projectID: project.id) }
+        model.onStorylineLibrary = { [weak self] library in
+            guard let self else { return }
+            if let storylines = self.storylineModel, storylines.projectID == project.id { storylines.apply(library, message: nil) }
+            self.adoptStorylines(projectID: project.id, library: library, fromWorkspace: false)
+        }
+        let controller = MacStoryGraphViewController(model: model)
+        // Opening a page closes the panel, which sits over the editor.
+        controller.onOpenChapter = { [weak self, weak model] chapter in
+            guard let self else { return }
+            guard self.canLeaveDocument() else { model?.showStatus("请先完成输入，并等待正文保存后再打开章节。"); return }
+            self.closeStoryGraph()
+            self.openChapter(chapter, project: project)
+            self.window.makeKeyAndOrderFront(nil)
+        }
+        controller.onOpenDrift = { [weak self, weak model] drift in
+            self?.openDrift(drift, project: project, focusTitle: false) { opened in
+                if opened { self?.closeStoryGraph() }
+                else { model?.showStatus("请先完成输入，并等待正文保存后再打开漂流。") }
+            }
+        }
+        controller.onSetStatus = { [weak self, weak model] chapter, status in
+            self?.chapterWorkspace.setNodeStatus(projectID: project.id, nodeID: chapter.id, status: status) { result in
+                model?.showStatus(Self.statusMessage(result, title: chapter.title))
+            }
+        }
+        controller.onClose = { [weak self] in self?.closeStoryGraph() }
+        let panel = StoryGraphPanel(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 640),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        panel.title = "\(name) · 故事图谱"
+        panel.minSize = NSSize(width: 640, height: 420)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        panel.setContentSize(NSSize(width: 1000, height: 640))
+        graphPanel = panel; graphController = controller
+        panel.onClose = { [weak self, weak model] in
+            if let model { self?.graphAxes[model.projectID] = model.axis }
+            self?.graphPanel = nil; self?.graphController = nil
+        }
+        window.addChildWindow(panel, ordered: .above)
+        panel.center(); panel.makeKeyAndOrderFront(nil)
+        // Edits made in the window meanwhile are read when it is key again.
+        panel.onBecomeKey = { [weak model] in if model?.loaded == true { model?.refresh() } }
+        model.load()
+    }
+
+    /// A book move in the graph reorders the chapter list and the outline.
+    private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String) {
+        chapterWorkspace.applyChapters(projectID: projectID, chapters: chapters, trashed: nil)
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
+        guard selectedProject?.id == projectID else { return }
+        self.chapters = chapters
+        guard !showingTrash else { return }
+        updatingSelection = true
+        chapterTable.reloadData()
+        if currentProject?.id == projectID, let chapter = currentChapter, let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
+            chapterTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        } else { chapterTable.deselectAll(nil) }
+        updatingSelection = false
+        updateControls()
+    }
+
+    /// Chapters were created, renamed, moved, trashed or restored elsewhere.
+    private func graphChaptersChanged(projectID: String) {
+        if let model = graphController?.model, model.projectID == projectID { model.refresh() }
+    }
+
+    private func closeStoryGraph() {
+        if let model = graphController?.model { graphAxes[model.projectID] = model.axis }
+        let panel = graphPanel
+        graphPanel = nil; graphController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: Version history
+
+    /// 历史版本… (a pane's header and 编辑 › 历史版本…, ⌥⌘Y): a sheet listing the
+    /// active page's versions with a preview and 恢复此版本.
+    @objc private func showHistory() {
+        guard historySheet == nil, !loading else { return }
+        guard let target = chapterWorkspace.activeHistoryTarget else {
+            status.stringValue = "请先打开一个章节、漂流、设定或故事线页面，再查看历史版本。"; return
+        }
+        guard canLeaveDocument() else { return }
+        let model = VersionHistoryModel(workspace: workspace, target: target)
+        model.onRestored = { [weak self] live in
+            self?.chapterWorkspace.adoptRestoredVersion(target, live: live)
+            self?.status.stringValue = "已恢复“\(target.title)”的历史版本。恢复前的正文已存为新版本，可以撤销。"
+        }
+        let sheet = VersionHistorySheet(model: model)
+        historySheet = sheet
+        sheet.onFinish = { [weak self] in self?.historySheet = nil }
+        sheet.begin(in: window)
+        model.load()
+    }
+
     // MARK: Import and export
 
     /// 文件 › 导入…: a Markdown, text or Word file becomes a new chapter,
@@ -1253,6 +1388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     /// An imported chapter joins the chapter list before its page opens.
     private func adoptImported(_ entity: WorkspaceImportedEntity, project: WorkspaceProject) {
+        graphChaptersChanged(projectID: project.id)
         guard case .chapter(let chapter) = entity, selectedProject?.id == project.id,
               !chapters.contains(where: { $0.id == chapter.id }) else { return }
         chapters.append(chapter)
@@ -1420,6 +1556,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.driftsPanel?.title = "\(updated.name) · 漂流"
                     self.relationTypesPanel?.title = "\(updated.name) · 关系类型"
                     self.materialsPanel?.title = "\(updated.name) · 素材库"
+                    self.graphPanel?.title = "\(updated.name) · 故事图谱"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -1453,6 +1590,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.closeSearch()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) { self.chapters[index] = updated }
                     self.chapterWorkspace.rename(chapter: updated, projectID: project.id)
+                    self.graphChaptersChanged(projectID: project.id)
                     self.updatingSelection = true
                     self.chapterTable.reloadData()
                     if let index = self.chapters.firstIndex(where: { $0.id == updated.id }) {
@@ -1507,6 +1645,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.chapters = chapters
                 // Memberships follow book order.
                 self.chapterWorkspace.applyChapters(projectID: project.id, chapters: chapters, trashed: nil)
+                self.graphChaptersChanged(projectID: project.id)
                 self.updatingSelection = true
                 self.chapterTable.reloadData()
                 if let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
@@ -1567,6 +1706,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.chapters = reply.chapters
                 self.trashedChapters = reply.trashedChapters
                 self.chapterWorkspace.applyChapters(projectID: project.id, chapters: reply.chapters, trashed: reply.trashedChapters)
+                self.graphChaptersChanged(projectID: project.id)
                 self.refreshChapterList()
                 self.activeChapterChanged()
                 self.status.stringValue = restoring ? "章节已恢复，返回章节列表即可打开。" : "章节已移入回收站，可以随时恢复。"
@@ -1618,6 +1758,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.chapterTable.setAccessibilityIdentifier("chapter-list")
                     self.chapters.append(chapter)
                     self.chapterWorkspace.chaptersChanged(projectID: project.id)
+                    self.graphChaptersChanged(projectID: project.id)
                     self.chapterEmpty.isHidden = true
                     self.updatingSelection = true
                     self.chapterTable.reloadData()
@@ -1671,6 +1812,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.agentController?.stop()
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
+                self.closeStoryGraph()
                 self.transfer.endImport()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
@@ -1692,6 +1834,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeDrifts()
         closeRelationTypes()
         closeMaterials()
+        closeStoryGraph()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

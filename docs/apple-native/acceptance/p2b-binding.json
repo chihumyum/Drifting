@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T08:48:47.598Z",
+  "generatedAt": "2026-09-27T09:46:46.852Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "fcd813f48a3223c239e2def7c926072ccc4b2a5f",
+    "commit": "6d0c627a4c578e56beb59f1c601b53f355c24974",
     "dirty": true,
-    "fingerprint": "fd845540ed709718d1df5c07755b8d3b489f400ad1cf4e2a30235d1c3f5358b1"
+    "fingerprint": "04f12c4754729354da2f5ce299381f84f550299839a06306bf556a87b4c98e5e"
   },
   "cases": [
     {
@@ -488,6 +488,62 @@
     },
     {
       "name": "AppKit 文件 › 导入… parses Markdown into a new chapter and plain text into a new element of the chosen category through the sheet with guessed and edited titles, a Word document with a larger heading into a 漂流, opening each page with its headings and paragraphs; 导出全书… writes UTF-8 Markdown and plain text; and the library, portrait and imported bodies survive a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 shows one lane per storyline in authored order and 未归属 for chapters without a primary, each chapter card in its primary's lane at its book position with its § number, status and word count, and card menus open a chapter and set its status with one field.set",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters through the chapter move with one original that the chapter list and memberships follow, and a drop back in its slot writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 drag across lanes and 移到轨道 make the target storyline primary, drop the previous primary's membership, keep other memberships and clear them all in 未归属, matching the storyline library and the tab host",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 markers are created from 添加标记… and the marker row, renamed, bound to a drift that captions a label-less marker, dragged to a new narrative order, unbound keeping the caption and deleted after confirmation, numeric labels convert story time and an unnamed unbound marker is refused without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 drift cards flow until placed, a drag stores the position inside the area as one tuple.set, a click-sized drag writes nothing and double-click or 打开 opens the drift",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 narrative orders, lanes, book order, markers with their bindings and drift positions survive a cold reopen into a new graph",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 lays out 200 chapters as layer-backed cards and a drag across them sends no Rust call and no render until the drop, which moves the chapter once",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 times read 刚刚, N 分钟前, 今天, 昨天, a date this year and a date with its year",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 lists versions captured on save and close newest first with relative times and the title at that time, capturing without journal rows, reachable from every page kind's pane header",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 previews the selected version read-only, marking text the current body lacks on a green wash and struck-through text the version lacks, identical versions as such, and the plain version without the diff",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 restore into an open chapter after confirmation updates the editor in place with one original, keeps the replaced text as a version, and one undo returns the text before redo restores the version",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 restore into a closed chapter through a temporary owner and into an open element page reaches the stored body and the editor",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 refuses a version of another body, a missing version and queued input in Chinese in the sheet without changing the body or the journal, and cancelling the confirmation writes nothing",
       "status": "passed"
     }
   ],
