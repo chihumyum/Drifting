@@ -1,7 +1,7 @@
 import AppKit
 
 /// One drift's page: 标题, 摘要, 状态 and 分组 on a neutral wash, the act whose
-/// notes it is (幕笔记), then the drift's prose body. The title commits on
+/// notes it is (幕笔记), then 关系 and the drift's prose body. The title commits on
 /// end-editing or Return and the group on a popup choice, through `onCommit`;
 /// 摘要 and 状态 commit through `metadataEditor`. A refusal keeps the typed
 /// text and shows the reason. The body is an ordinary native editor bound to
@@ -15,6 +15,8 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
     let metadataEditor = NodeMetadataEditor(kind: "drift", prefix: "drift", summaryHeight: 48)
     /// The bound act's name, or a hint when the drift is not an act's notes.
     let actLabel = NSTextField(labelWithString: "")
+    /// 关系, filled and driven by the tab host's relation coordinator.
+    let relationsView = RelationsSectionView()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var drift: WorkspaceDrift
@@ -69,7 +71,8 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
-        let stack = NSStackView(views: [header, documentView])
+        let relationsRow = relationsView.inset()
+        let stack = NSStackView(views: [header, relationsRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -77,6 +80,7 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            relationsRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             documentView.widthAnchor.constraint(equalTo: stack.widthAnchor),
             headerStack.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),

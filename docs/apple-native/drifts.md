@@ -34,8 +34,8 @@ them in drift groups, and binds a drift to an act boundary as that act's notes.
 - Chapter prose links drift titles like chapter titles
   ([entity links](entity-links.md)).
 
-Relations to drifts are refused for trash and restore until relations are
-ported. No SQLite migration is added.
+Drift trash purges the drift's [relations](relations.md) inside its trash
+original; restore does not bring them back. No SQLite migration is added.
 
 ## Native interaction
 

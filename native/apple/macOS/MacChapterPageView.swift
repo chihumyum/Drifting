@@ -157,13 +157,15 @@ final class NodeMetadataEditor: NSObject, NSTextViewDelegate {
 }
 
 /// One chapter's page: its title with 状态 beside it and 摘要 below on a
-/// neutral wash, above the chapter's prose body. The title is renamed from
+/// neutral wash, then 关系, above the chapter's prose body. The title is renamed from
 /// the chapter list; the body is the chapter's ordinary native editor with
 /// comments.
 final class MacChapterPageView: NSView {
     let documentView: NativeDocumentView
     let titleLabel = NSTextField(labelWithString: "")
     let metadataEditor = NodeMetadataEditor(kind: "chapter", prefix: "chapter", summaryHeight: 40)
+    /// 关系, filled and driven by the tab host's relation coordinator.
+    let relationsView = RelationsSectionView()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var chapter: WorkspaceChapter
@@ -196,7 +198,8 @@ final class MacChapterPageView: NSView {
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 8
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
-        let stack = NSStackView(views: [header, documentView])
+        let relationsRow = relationsView.inset()
+        let stack = NSStackView(views: [header, relationsRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -204,6 +207,7 @@ final class MacChapterPageView: NSView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            relationsRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             documentView.widthAnchor.constraint(equalTo: stack.widthAnchor),
             headerStack.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),

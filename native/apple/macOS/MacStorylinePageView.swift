@@ -1,7 +1,8 @@
 import AppKit
 
 /// One storyline's page: 名称, 颜色, 简介 and 字段 on a wash in the storyline's
-/// colour, then its chapters in book order, above the storyline's prose body.
+/// colour, then its chapters in book order and 关系, above the storyline's
+/// prose body.
 /// Each field commits on end-editing, Return or a colour choice through
 /// `onCommit`; facts commit as one ordered list through `onCommitFacts`. A
 /// refusal keeps the typed text and rows and shows the reason. The body is an
@@ -15,6 +16,8 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
     let summaryView = NSTextView()
     let factsEditor = ElementFactsEditor(prefix: "storyline-fact", emptyText: "还没有字段。可以添加“主题”“时间跨度”这类要点。")
     let chaptersView = StorylineChaptersView()
+    /// 关系, filled and driven by the tab host's relation coordinator.
+    let relationsView = RelationsSectionView()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var storyline: WorkspaceStoryline
@@ -87,7 +90,8 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         chaptersView.translatesAutoresizingMaskIntoConstraints = false
         let chaptersRow = NSView()
         chaptersRow.addSubview(chaptersView)
-        let stack = NSStackView(views: [header, chaptersRow, documentView])
+        let relationsRow = relationsView.inset()
+        let stack = NSStackView(views: [header, chaptersRow, relationsRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -96,6 +100,7 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             chaptersRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            relationsRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             chaptersView.leadingAnchor.constraint(equalTo: chaptersRow.leadingAnchor, constant: 14),
             chaptersView.trailingAnchor.constraint(equalTo: chaptersRow.trailingAnchor, constant: -14),
             chaptersView.topAnchor.constraint(equalTo: chaptersRow.topAnchor, constant: 2),

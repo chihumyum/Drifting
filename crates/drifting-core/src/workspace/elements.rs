@@ -1,8 +1,8 @@
 //! Elements library: categories and elements with the renderer's rows,
 //! alias set and canonical originals. Element and category bodies are Yjs
 //! documents (`element:<id>`, `category:<id>`) seeded like chapters.
-//! Facts use the normalized key/value authority. Category body templates,
-//! portraits and relations are refused explicitly until they are ported.
+//! Facts use the normalized key/value authority. Trash purges relations
+//! first; category body templates and portraits are not yet ported.
 use super::facts::{Fact, FactOwner};
 use super::*;
 use crate::prose_journal::encoding::Cbor;
@@ -388,7 +388,7 @@ impl WorkspaceStore<'_> {
                 incarnation,
                 ..
             } = self.live_element(tx, context, element_id)?;
-            self.guard_element_relations(tx, context, element_id)?;
+            let mut mutations = self.purge_relations(tx, context, "element", element_id)?;
             self.execute(
                 tx,
                 "UPDATE element SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
@@ -399,19 +399,11 @@ impl WorkspaceStore<'_> {
                     text(&context.project_id),
                 ],
             )?;
-            self.commit_changes(
-                tx,
-                context,
-                &[journal::Mutation::json(
-                    "entity",
-                    "element",
-                    element_id,
-                    "entity.trash",
-                    json!({}),
-                )
-                .at_incarnation(incarnation)],
-                None,
-            )?;
+            mutations.push(
+                journal::Mutation::json("entity", "element", element_id, "entity.trash", json!({}))
+                    .at_incarnation(incarnation),
+            );
+            self.commit_changes(tx, context, &mutations, None)?;
             element.updated_at = context.now_iso.clone();
             Ok(element)
         })
@@ -441,7 +433,6 @@ impl WorkspaceStore<'_> {
                     "Restoring elements with portraits is not supported natively yet".into(),
                 );
             }
-            self.guard_element_relations(tx, context, element_id)?;
             let incarnation = incarnation
                 .checked_add(1)
                 .filter(|n| *n <= MAX_SAFE)
@@ -594,14 +585,15 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             let (mut category, incarnation) = self.live_category(tx, context, category_id)?;
-            self.guard_relations(tx, context, "category", category_id)?;
+            let mut mutations = self.purge_relations(tx, context, "category", category_id)?;
             self.execute(tx, "UPDATE element SET category_id=NULL,updated_at=? WHERE category_id=? AND project_id=?",
                 vec![text(&context.now_iso), text(category_id), text(&context.project_id)])?;
             self.execute(tx, "UPDATE element_category SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
                 vec![text(&context.now_iso), text(&context.now_iso), text(category_id), text(&context.project_id)])?;
-            self.commit_changes(tx, context, &[journal::Mutation::json(
+            mutations.push(journal::Mutation::json(
                 "entity", "element-category", category_id, "entity.trash", json!({}))
-                .at_incarnation(incarnation)], None)?;
+                .at_incarnation(incarnation));
+            self.commit_changes(tx, context, &mutations, None)?;
             category.updated_at = context.now_iso.clone();
             Ok(category)
         })
@@ -629,7 +621,6 @@ impl WorkspaceStore<'_> {
             "#), vec![text(&context.sync_generation_id), text(category_id), text(&context.project_id)])?;
             let row = rows.first().ok_or("Category lifecycle must be trashed")?;
             let mut category = category_from_row(row)?;
-            self.guard_relations(tx, context, "category", category_id)?;
             let incarnation = safe_integer(&row[7], "category incarnation")?
                 .checked_add(1)
                 .filter(|n| *n <= MAX_SAFE)
@@ -753,43 +744,6 @@ impl WorkspaceStore<'_> {
             );
         }
         Ok(())
-    }
-
-    fn guard_element_relations(
-        &self,
-        tx: u64,
-        context: &AuthoredProseContext,
-        element_id: &str,
-    ) -> Result<(), String> {
-        self.guard_relations(tx, context, "element", element_id)
-    }
-
-    fn guard_relations(
-        &self,
-        tx: u64,
-        context: &AuthoredProseContext,
-        kind: &str,
-        id: &str,
-    ) -> Result<(), String> {
-        let rows = self.query(
-            Some(tx),
-            r#"
-            SELECT 1 FROM entity_relation WHERE project_id=?
-                AND ((from_kind=? AND from_id=?) OR (to_kind=? AND to_id=?)) LIMIT 1
-        "#,
-            vec![
-                text(&context.project_id),
-                text(kind),
-                text(id),
-                text(kind),
-                text(id),
-            ],
-        )?;
-        if rows.is_empty() {
-            Ok(())
-        } else {
-            Err("Trash and restore do not yet support linked relations".into())
-        }
     }
 
     fn live_category(

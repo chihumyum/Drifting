@@ -2,8 +2,9 @@
 
 The Mac client has a 设定库: element categories and elements, with each
 element's page (name, aliases, summary, group, category, facts and prose body)
-opening in the existing tab and split workspace. Category body templates,
-portraits and relations are later batches and are refused explicitly.
+opening in the existing tab and split workspace. Category body templates and
+portraits are later batches and are refused explicitly; element and category
+trash purge their [relations](relations.md).
 
 ## Domain contract
 
@@ -26,10 +27,10 @@ originals:
   lowercase, the last value of a member wins, and `set.remove` carries exactly
   the observed add tags. `aliases_json` is the projection in member order.
   Unchanged values write nothing.
-- Trash writes `entity.trash`. Restore reauthors the next incarnation: restore
-  seed, one `set.add` per alias, then the complete body state, with a System
-  revision, like chapter restore. Elements with relations or a portrait are
-  refused until those domains are ported.
+- Trash purges the element's relations, then writes `entity.trash`. Restore
+  reauthors the next incarnation: restore seed, one `set.add` per alias, then
+  the complete body state, with a System revision, like chapter restore.
+  Elements with a portrait are refused until portraits are ported.
 
 Facts (`entity_kv_entry`) port the renderer's normalized key/value authority:
 rows with a blank key and value are dropped; entry IDs are reconciled (exact

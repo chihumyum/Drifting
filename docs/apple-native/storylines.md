@@ -37,8 +37,8 @@ write the renderer's rows and originals.
 - Chapter trash keeps its links; chapter restore re-adds its memberships in the
   new incarnation (see [chapter trash](chapter-trash.md)).
 
-Relations to storylines are refused for trash and restore until relations are
-ported. No SQLite migration is added.
+Storyline trash purges the storyline's [relations](relations.md) inside its
+trash original; restore does not bring them back. No SQLite migration is added.
 
 ## Native interaction
 

@@ -248,6 +248,18 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         }
     }
 
+    /// Scrolls to a category, e.g. when a 关系 row names it; categories have
+    /// no page of their own.
+    func reveal(categoryID: String) {
+        guard isViewLoaded else { return }
+        guard let row = rows.firstIndex(where: { if case .category(let category, _) = $0 { return category.id == categoryID }; return false }),
+              case .category(let category, _) = rows[row] else {
+            model.showStatus("这个分类已不可用，请刷新设定库。"); return
+        }
+        table.scrollRowToVisible(row)
+        model.showStatus("“\(category.name)”在下方列表中；右键分类查看更多操作。")
+    }
+
     private func canChange() -> Bool {
         guard !model.busy, canNavigate?() == true else {
             model.showStatus("请先完成输入，并等待正文保存后再修改设定库。"); return false

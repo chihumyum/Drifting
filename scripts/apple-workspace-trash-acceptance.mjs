@@ -53,7 +53,7 @@ const boundaries = {
     yjs_document_revision_provenance: ['created_at'], yjs_snapshots: ['updated_at'],
   },
   limitations: [
-    'Bounded chapters without storyline or relation associations; unsupported associations are refused instead of silently removed.',
+    'Bounded chapters without storyline or relation associations. Chapter trash purges every relation touching the chapter inside its trash original (see relations.md; relation-report evidence) and keeps storyline links (storyline-report evidence).',
     'Local lifecycle support and legacy TypeScript compatibility oracle; native remote lifecycle receive and provider transport are not certified.',
     'Release preflight may refresh an unchanged prose snapshot timestamp before a metadata failure; core transaction rows and snapshot body remain intact.',
     'Synthetic in-process receipt failure and cold reopen; no SIGKILL, power loss, permanent deletion, UI, physical device, cloud account or release acceptance.',

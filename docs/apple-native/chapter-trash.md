@@ -22,8 +22,8 @@ provenance, original and materialization receipt commit together. No published
 migration changes.
 
 Trash keeps a chapter's [storyline](storylines.md) links, as the renderer does.
-Chapters with entity relations are still refused explicitly until relations are
-ported; this must not silently delete their relationships.
+Trash purges every [relation](relations.md) touching the chapter inside its
+trash original, as the renderer does; restore does not bring them back.
 
 ## Native editor ownership
 

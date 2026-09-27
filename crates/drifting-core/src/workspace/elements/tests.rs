@@ -557,11 +557,12 @@ fn workspace_elements_trash_restore_and_failures() {
         vec![("set.remove", 1)]
     );
     exec(&g,"INSERT INTO entity_relation(id,project_id,from_kind,from_id,to_kind,to_id,relation_type_id,created_at,updated_at) SELECT 'rel','elements-project','element','hero','node','x',id,'t','t' FROM entity_relation_type LIMIT 1");
+    // Trash purges relations; one without a lifecycle fails closed.
     let before = state(&g);
     assert!(store
         .trash_element(&c, "hero")
         .unwrap_err()
-        .contains("relations"));
+        .contains("no lifecycle"));
     assert_eq!(state(&g), before);
 }
 
@@ -821,12 +822,13 @@ fn workspace_elements_category_trash_detaches_elements_and_restores() {
         None,
         "elements stay detached"
     );
-    // Relations name categories with the entity kind `category`.
+    // Relations name categories with the entity kind `category`; trash
+    // purges them, and one without a lifecycle fails closed.
     exec(&g,"INSERT INTO entity_relation(id,project_id,from_kind,from_id,to_kind,to_id,relation_type_id,created_at,updated_at) SELECT 'rel','elements-project','element','hero','category','people',id,'t','t' FROM entity_relation_type LIMIT 1");
     let before = state(&g);
     assert!(store
         .trash_element_category(&c, "people")
         .unwrap_err()
-        .contains("relations"));
+        .contains("no lifecycle"));
     assert_eq!(state(&g), before);
 }

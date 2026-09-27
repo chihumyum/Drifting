@@ -79,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var driftModel: DriftLibraryModel?
     private var profileButton: NSButton!
     private var profileSheet: ProjectProfileSheet?
+    private var relationTypesPanel: RelationTypesPanel?
+    private var relationTypesController: MacRelationTypesViewController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -131,6 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let drifts = editMenu.addItem(withTitle: "漂流", action: #selector(showDrifts), keyEquivalent: "d")
         drifts.keyEquivalentModifierMask = [.command, .shift]
         drifts.target = self
+        let relationTypes = editMenu.addItem(withTitle: "关系类型…", action: #selector(showRelationTypes), keyEquivalent: "r")
+        relationTypes.keyEquivalentModifierMask = [.command, .shift]
+        relationTypes.target = self
         editMenu.addItem(.separator())
         // Nil-targeted: the focused editor pane validates its own selection.
         let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
@@ -227,6 +232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         chapterWorkspace.onNodeMetadata = { [weak self] projectID, metadata in
             self?.adoptNodeMetadata(projectID: projectID, metadata: metadata)
+        }
+        chapterWorkspace.onManageRelationTypes = { [weak self] project in self?.openRelationTypes(project: project) }
+        // Categories have no page: a 关系 row opens the 设定库 at the category.
+        chapterWorkspace.onOpenCategory = { [weak self] project, categoryID in
+            guard let self else { return }
+            self.showElements()
+            if self.elementsController?.model.projectID == project.id { self.elementsController?.reveal(categoryID: categoryID) }
         }
         NSLayoutConstraint.activate([
             chapterWorkspace.leadingAnchor.constraint(equalTo: editorHost.leadingAnchor),
@@ -463,6 +475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if elementsController?.model.projectID != project.id { closeElements() }
         if storylinesController?.model.projectID != project.id { closeStorylines() }
         if driftsController?.model.projectID != project.id { closeDrifts() }
+        if relationTypesController?.model.projectID != project.id { closeRelationTypes() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -971,6 +984,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
+    // MARK: Relation types
+
+    @objc private func showRelationTypes() {
+        guard let project = currentProject ?? selectedProject else { return }
+        openRelationTypes(project: project)
+    }
+
+    /// 关系类型: a panel over the window, sharing the project's relation
+    /// library with every page's 关系 section.
+    private func openRelationTypes(project: WorkspaceProject) {
+        if let relationTypesPanel, relationTypesPanel.isVisible, relationTypesController?.model.projectID == project.id {
+            relationTypesPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeRelationTypes()
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        let controller = MacRelationTypesViewController(model: chapterWorkspace.relations.model(projectID: project.id))
+        let panel = RelationTypesPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 480),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        panel.title = "\(name) · 关系类型"
+        panel.minSize = NSSize(width: 320, height: 300)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        relationTypesPanel = panel; relationTypesController = controller
+        panel.onClose = { [weak self] in self?.relationTypesPanel = nil; self?.relationTypesController = nil }
+        controller.onClose = { [weak self] in self?.closeRelationTypes() }
+        window.addChildWindow(panel, ordered: .above)
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 96, y: frame.maxY - 150))
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    private func closeRelationTypes() {
+        let panel = relationTypesPanel
+        relationTypesPanel = nil; relationTypesController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
     private func closeSearch() {
         let panel = searchPanel
         searchPanel = nil; searchController = nil; pendingSearch = nil
@@ -1092,6 +1141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.elementsPanel?.title = "\(updated.name) · 设定库"
                     self.storylinesPanel?.title = "\(updated.name) · 故事线"
                     self.driftsPanel?.title = "\(updated.name) · 漂流"
+                    self.relationTypesPanel?.title = "\(updated.name) · 关系类型"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -1341,7 +1391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success:
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
-                self.closeStorylines(); self.closeDrifts()
+                self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
             }
@@ -1360,6 +1410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeElements()
         closeStorylines()
         closeDrifts()
+        closeRelationTypes()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }

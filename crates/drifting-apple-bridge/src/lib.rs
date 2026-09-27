@@ -445,6 +445,12 @@ enum Request {
         project_id: String,
         command: workspace::metadata::MetadataCommand,
     },
+    WorkspaceRelations {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        command: workspace::relations::RelationCommand,
+    },
     WorkspaceClose {
         handle: u64,
     },
@@ -1132,6 +1138,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceStorylines { .. }
         | Request::WorkspaceDrifts { .. }
         | Request::WorkspaceMetadata { .. }
+        | Request::WorkspaceRelations { .. }
         | Request::WorkspaceClose { .. } => {
             unreachable!("Workspace requests are dispatched before document requests")
         }

@@ -14,6 +14,8 @@ mod links;
 mod metadata;
 #[path = "workspace_outline_tests.rs"]
 mod outline;
+#[path = "workspace_relation_tests.rs"]
+mod relation_tests;
 #[path = "workspace_remote_changes_tests.rs"]
 mod remote_changes;
 #[path = "workspace_remote_prose_tests.rs"]

@@ -327,11 +327,13 @@ fn workspace_trash_rejects_wrong_scope_lifecycle_and_associations_without_writes
         .is_err());
     assert_eq!(state(&g), before);
     exec(&g, "INSERT INTO entity_relation(id,project_id,from_kind,from_id,to_kind,to_id,relation_type_id,created_at,updated_at) VALUES ('edge','trash-project','node','trash-chapter','node','other-chapter','system:generic-association:trash-project','now','now')");
+    // A relation without a lifecycle cannot be purged, so the trash fails
+    // closed, as the renderer's incarnation resolver does.
     let linked = state(&g);
     assert!(store
         .trash_chapter(&c, "trash-chapter")
         .unwrap_err()
-        .contains("linked relations"));
+        .contains("no lifecycle"));
     assert_eq!(state(&g), linked);
     exec(&g, "DELETE FROM entity_relation WHERE id='edge'");
     store.trash_chapter(&c, "trash-chapter").unwrap();

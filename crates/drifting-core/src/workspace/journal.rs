@@ -224,7 +224,14 @@ impl WorkspaceStore<'_> {
                             // Only removing a book-axis separator is exposed.
                             // This must not become a chapter/content purge path.
                             if mutation.family != "entity"
-                                || !matches!(mutation.kind, "book-act" | "kv-entry" | "drift-group")
+                                || !matches!(
+                                    mutation.kind,
+                                    "book-act"
+                                        | "kv-entry"
+                                        | "drift-group"
+                                        | "entity-relation"
+                                        | "entity-relation-type"
+                                )
                             {
                                 return Err("Unsupported workspace purge target".into());
                             }

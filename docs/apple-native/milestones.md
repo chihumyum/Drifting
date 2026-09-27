@@ -34,7 +34,7 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata |
+| P3 | Shared domain commands and queries | In progress: projects, chapters, order, trash, acts, outline, search, comments, element categories, elements, facts, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Agent not started; Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
 | P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | Not started |
@@ -60,14 +60,16 @@ architectural redesign.
 | Entity links and backlinks | `6e189fd5` | [entity links](entity-links.md) |
 | Storylines and chapter membership | `aaffcdd5` | [storylines](storylines.md) |
 | Drifts, drift groups and act notes | `c4cfcdb0` | [drifts](drifts.md) |
-| Chapter, drift and project metadata | this batch | [metadata](metadata.md) |
+| Chapter, drift and project metadata | `034c6d7c` | [metadata](metadata.md) |
+| Relation types and relations | this batch | [relations](relations.md) |
 
 ## Next batch
 
-Relation types and curated relations, with relations removed by trash; then
-the asset library (portraits, materials), import/export and settings as P5b
-parity. The in-process Agent (P4) waits for the author's decision on its
-approach.
+Word counts and body projections: the renderer's ProseMirror projection,
+outline and prose metrics after every chapter or drift save and on project
+open, which also refreshes the node body caches. Then the asset library
+(portraits, materials), import/export and settings as P5b parity. The
+in-process Agent (P4) waits for the author's decision on its approach.
 
 ## Open gates
 

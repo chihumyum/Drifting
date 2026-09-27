@@ -9,6 +9,7 @@ mod facts;
 mod journal;
 mod metadata;
 mod outline;
+mod relations;
 mod storylines;
 mod trash;
 pub use comments::{plain_comment_doc, NewChapterComment, WorkspaceComment};
@@ -19,6 +20,7 @@ pub use elements::{
 pub use facts::Fact;
 pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetails};
 pub use outline::WorkspaceOutlineRow;
+pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};
 #[cfg(test)]
 mod tests;

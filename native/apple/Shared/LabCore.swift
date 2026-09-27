@@ -24,6 +24,7 @@ enum LabError: LocalizedError {
     case storylineUnavailable(reason: String)
     case driftUnavailable(reason: String)
     case metadataUnavailable(reason: String)
+    case relationUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -31,7 +32,7 @@ enum LabError: LocalizedError {
         switch self {
         case .message(let text), .pendingRemoteUpdate(let text), .historyUnavailable(let text), .formattingUnavailable(let text),
              .commentUnavailable(let text), .elementUnavailable(let text), .storylineUnavailable(let text),
-             .driftUnavailable(let text), .metadataUnavailable(let text): return text
+             .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -48,7 +49,29 @@ enum LabError: LocalizedError {
         case .storylineUnavailable(let reason): return LabError.storylineMessage(reason)
         case .driftUnavailable(let reason): return LabError.driftMessage(reason)
         case .metadataUnavailable(let reason): return LabError.metadataMessage(reason)
+        case .relationUnavailable(let reason): return LabError.relationMessage(reason)
         }
+    }
+
+    /// Relation refusals happen before any row or journal change. Rust gives
+    /// the renderer's Chinese messages; those naming stored identities or
+    /// written for diagnostics are restated.
+    private static func relationMessage(_ reason: String) -> String {
+        if let range = reason.range(of: "不符合新约束：") {
+            return "已有关系不符合新的端点约束：" + reason[range.upperBound...]
+        }
+        let known: [(String, String)] = [
+            ("需要先交换两端", "已有关系需要先交换两端，才能把这个类型改为对称关系。"),
+            ("不存在或已在回收站", "关系一端已不可用（可能已移到回收站），请刷新后重试。"),
+            ("not supported natively", "原生版本暂不支持这种关系端点。"),
+            ("is not a structural kind", "关系的目标端必须是章节、漂流、设定、分类或故事线。"),
+            ("has no lifecycle", "关系数据不完整，暂时无法修改。"),
+            ("is not live", "关系数据已变化，请刷新后重试。"),
+        ]
+        if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
+        // The renderer's own messages, e.g. 关系类型「师徒」已存在.
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "关系操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
     /// Summary, status and project detail refusals happen before any row or
@@ -74,7 +97,6 @@ enum LabError: LocalizedError {
             ("Drift group name is empty", "分组名称不能为空。"),
             ("already bound to another act", "这条漂流已是另一幕的笔记，请先在那一幕解除。"),
             ("Act is not live", "这一幕已不可用，请刷新整书大纲。"),
-            ("linked relations", "这条漂流有关联关系，原生版本暂不支持移入回收站或恢复。"),
             ("live document owner", "请先关闭这条漂流的页面，再恢复。"),
             ("Drift lifecycle must be", "漂流状态已变化，请刷新漂流列表。"),
             ("Drift is not open", "这条漂流的页面已关闭，请重新打开。"),
@@ -94,7 +116,6 @@ enum LabError: LocalizedError {
             ("Chapter is not available", "这一章已不可用，请刷新章节列表。"),
             ("primary storyline must be one of", "主线必须是已勾选的故事线之一。"),
             ("Invalid storyline colour", "颜色须为有效的颜色值。"),
-            ("linked relations", "这条故事线有关联关系，原生版本暂不支持移入回收站或恢复。"),
             ("live document owner", "请先关闭这条故事线的页面，再恢复。"),
             ("Storyline lifecycle must be", "故事线状态已变化，请刷新故事线列表。"),
             ("Unknown storyline position", "故事线顺序已变化，请刷新后重试。"),
@@ -120,7 +141,6 @@ enum LabError: LocalizedError {
             ("Element is not available", "这个设定已不可用，请刷新设定库。"),
             ("Category name is empty", "分类名称不能为空，颜色须为有效的颜色值。"),
             ("body templates are not supported", "这个分类带有正文模板，原生版本暂不支持在其中新建设定。"),
-            ("linked relations", "这个设定或分类有关联关系，原生版本暂不支持移入回收站或恢复。"),
             ("portraits", "这个设定有头像，原生版本暂不支持恢复。"),
             ("Category has unresolved prose dependencies", "分类正文还有未完成的同步依赖，暂时无法恢复。"),
             ("unresolved prose dependencies", "设定正文还有未完成的同步依赖，暂时无法恢复。"),
@@ -273,6 +293,9 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceMetadata" {
                 throw LabError.metadataUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspaceRelations" {
+                throw LabError.relationUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -757,8 +780,9 @@ final class LabWorkspaceCore {
         }
     }
 
-    /// Detaches every element of the category; no element owner changes, so
-    /// open element pages stay open. Category bodies have no native owner.
+    /// Detaches every element of the category and removes the category's
+    /// relations; no element owner changes, so open element pages stay open.
+    /// Category bodies have no native owner.
     func trashElementCategory(projectID: String, categoryID: String,
                               completion: @escaping (Result<WorkspaceElementReply<WorkspaceElementCategory>, Error>) -> Void) {
         perform(completion) { try self.elementRequest(projectID, ["action": "trashCategory", "categoryId": categoryID]) }
@@ -770,6 +794,7 @@ final class LabWorkspaceCore {
     }
 
     /// Rust saves an open body before the trash commits, then retires it.
+    /// The element's relations are removed with it and do not come back on restore.
     func trashElement(projectID: String, elementID: String,
                       completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
         changeLifecycle(.element(ElementScope(projectID: projectID, elementID: elementID)), closesOwner: true, completion: completion) {
@@ -860,7 +885,8 @@ final class LabWorkspaceCore {
     }
 
     /// Rust saves an open body before the trash commits, then retires it.
-    /// Chapters whose primary it was lose all their storylines.
+    /// Chapters whose primary it was lose all their storylines, and its
+    /// relations are removed.
     func trashStoryline(projectID: String, storylineID: String,
                         completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
         changeLifecycle(.storyline(StorylineScope(projectID: projectID, storylineID: storylineID)), closesOwner: true, completion: completion) {
@@ -916,8 +942,8 @@ final class LabWorkspaceCore {
         perform(completion) { try self.driftRequest(projectID, command) }
     }
 
-    /// Rust unbinds the drift's act and saves an open body before the trash
-    /// commits, then retires it.
+    /// Rust unbinds the drift's act, removes its relations and saves an open
+    /// body before the trash commits, then retires it.
     func trashDrift(projectID: String, driftID: String,
                     completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
         changeLifecycle(.drift(DriftScope(projectID: projectID, driftID: driftID)), closesOwner: true, completion: completion) {
@@ -970,6 +996,65 @@ final class LabWorkspaceCore {
 
     private func driftRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
         try request("workspaceDrifts", fields: ["projectId": projectID, "command": command])
+    }
+
+    // MARK: Relations
+
+    /// Every relation type and relation of one project.
+    func relationLibrary(projectID: String, completion: @escaping (Result<WorkspaceRelationLibrary, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceRelationReply<WorkspaceRelationType> = try self.relationRequest(projectID, ["action": "library"])
+            return reply.library
+        }
+    }
+
+    /// Relation writes change no document: no owner guard applies.
+    func createRelationType(projectID: String, definition: RelationTypeDefinition,
+                            completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelationType>, Error>) -> Void) {
+        perform(completion) { try self.relationRequest(projectID, ["action": "createType", "definition": definition.payload]) }
+    }
+
+    /// Refused for the built-in type and when a relation of the type would
+    /// no longer fit; an unchanged definition writes nothing.
+    func updateRelationType(projectID: String, relationTypeID: String, definition: RelationTypeDefinition,
+                            completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelationType>, Error>) -> Void) {
+        perform(completion) {
+            try self.relationRequest(projectID, ["action": "updateType", "relationTypeId": relationTypeID, "definition": definition.payload])
+        }
+    }
+
+    /// Refused for the built-in type and a type still in use; the reply has no result.
+    func deleteRelationType(projectID: String, relationTypeID: String,
+                            completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelationType>, Error>) -> Void) {
+        perform(completion) { try self.relationRequest(projectID, ["action": "deleteType", "relationTypeId": relationTypeID]) }
+    }
+
+    /// Rust validates the ends against the type and stores symmetric ends in
+    /// canonical order; an identical edge is returned without writing.
+    func addRelation(projectID: String, from: RelationEndpoint, to: RelationEndpoint, relationTypeID: String,
+                     completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelation>, Error>) -> Void) {
+        perform(completion) {
+            try self.relationRequest(projectID, ["action": "addRelation", "fromKind": from.kind, "fromId": from.id,
+                "toKind": to.kind, "toId": to.id, "relationTypeId": relationTypeID])
+        }
+    }
+
+    /// An unknown relation is a no-op; the reply has no result.
+    func removeRelation(projectID: String, relationID: String,
+                        completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelation>, Error>) -> Void) {
+        perform(completion) { try self.relationRequest(projectID, ["action": "removeRelation", "relationId": relationID]) }
+    }
+
+    func retypeRelation(projectID: String, relationID: String, relationTypeID: String, swap: Bool,
+                        completion: @escaping (Result<WorkspaceRelationReply<WorkspaceRelation>, Error>) -> Void) {
+        perform(completion) {
+            try self.relationRequest(projectID, ["action": "retypeRelation", "relationId": relationID,
+                "relationTypeId": relationTypeID, "swap": swap])
+        }
+    }
+
+    private func relationRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
+        try request("workspaceRelations", fields: ["projectId": projectID, "command": command])
     }
 
     // MARK: Metadata

@@ -32,6 +32,19 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
         var drift: WorkspaceDrift? { if case .drift(let drift) = target { return drift }; return nil }
         var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? drift?.title ?? "" }
+        /// Every page kind shows 关系.
+        var relationsView: RelationsSectionView? {
+            page?.relationsView ?? storylinePage?.relationsView ?? driftPage?.relationsView ?? chapterPage?.relationsView
+        }
+        /// Chapters and drifts are `node` ends.
+        var relationEndpoint: RelationEndpoint {
+            switch target {
+            case .chapter(let chapter): return RelationEndpoint(kind: "node", id: chapter.id)
+            case .element(let element): return RelationEndpoint(kind: "element", id: element.id)
+            case .storyline(let storyline): return RelationEndpoint(kind: "storyline", id: storyline.id)
+            case .drift(let drift): return RelationEndpoint(kind: "node", id: drift.id)
+            }
+        }
         var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
         static func scope(of target: WorkspaceTabTarget, projectID: String) -> DocumentScope {
             switch target {
@@ -129,6 +142,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onNodeMetadata: ((String, WorkspaceNodeMetadata) -> Void)?
     /// Act rows were read again (act names for the drift panel).
     var onOutline: ((String, [WorkspaceOutlineEntry]) -> Void)?
+    /// Each project's relation library and every page's 关系 section.
+    let relations: RelationCoordinator
+    /// A 关系 row named a category; categories have no page of their own.
+    var onOpenCategory: ((WorkspaceProject, String) -> Void)?
+    /// 关系类型… from a page's 关系 section.
+    var onManageRelationTypes: ((WorkspaceProject) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -164,7 +183,20 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     init(workspace: LabWorkspaceCore) {
         self.workspace = workspace
+        relations = RelationCoordinator(workspace: workspace)
         super.init(frame: .zero)
+        relations.names = { [weak self] projectID in self?.relationNames(projectID: projectID) ?? .empty }
+        relations.requestNames = { [weak self] projectID in
+            guard let self, self.storylineLibraries[projectID] == nil, !self.loadingStorylines.contains(projectID) else { return }
+            self.storylinesChanged(projectID: projectID)
+        }
+        relations.onOpen = { [weak self] projectID, endpoint, section in
+            self?.openRelationTarget(endpoint, projectID: projectID, from: section)
+        }
+        relations.onManageTypes = { [weak self] projectID in
+            guard let self, let project = self.allTabs.first(where: { $0.project.id == projectID })?.project else { return }
+            self.onManageRelationTypes?(project)
+        }
         splitView.isVertical = true
         splitView.dividerStyle = .thin
         splitView.delegate = self
@@ -385,7 +417,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let scope = DocumentScope.chapter(ChapterScope(projectID: projectID, chapterID: chapterID))
         workspace.trashChapter(projectID: projectID, chapterID: chapterID) { [weak self] result in
             guard let self else { return }
-            if case .success = result { self.removeAll(scope) }
+            // Rust removed the chapter's relations inside the trash.
+            if case .success = result { self.removeAll(scope); self.relations.reload(projectID: projectID) }
             self.setBusy(false)
             self.onChange?()
             completion(result)
@@ -404,6 +437,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.removeAll(scope)
                 self.applyElementLibrary(projectID: projectID, library: reply.library)
                 self.onElementLibrary?(projectID, reply.library)
+                self.relations.reload(projectID: projectID)
             }
             self.setBusy(false)
             self.onChange?()
@@ -424,6 +458,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.removeAll(scope)
                 self.applyStorylineLibrary(projectID: projectID, library: reply.library)
                 self.onStorylineLibrary?(projectID, reply.library)
+                self.relations.reload(projectID: projectID)
             }
             self.setBusy(false)
             self.onChange?()
@@ -444,6 +479,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.removeAll(scope)
                 self.applyDriftLibrary(projectID: projectID, library: reply.library)
                 self.onDriftLibrary?(projectID, reply.library)
+                self.relations.reload(projectID: projectID)
             }
             self.setBusy(false)
             self.onChange?()
@@ -601,7 +637,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// page fields follow stored values (uncommitted text is kept), and every
     /// storyline page lists its chapters again.
     func applyStorylineLibrary(projectID: String, library: WorkspaceStorylineLibrary) {
+        let lost = lostIDs(storylineLibraries[projectID]?.storylines.map(\.id), library.storylines.map(\.id))
         storylineLibraries[projectID] = library
+        defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         for tab in allTabs where tab.project.id == projectID {
             guard let storyline = tab.storyline, let page = tab.storylinePage else { continue }
             if let stored = library.storyline(id: storyline.id) {
@@ -652,6 +690,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// follow drift titles and trash states, and changed titles link every
     /// open body again.
     func applyDriftLibrary(projectID: String, library: WorkspaceDriftLibrary) {
+        let lost = lostIDs(linkSources[projectID]?.drifts?.drifts.map(\.id), library.drifts.map(\.id))
+        defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         for tab in allTabs where tab.project.id == projectID {
             guard let drift = tab.drift, let page = tab.driftPage else { continue }
             if let stored = library.drift(id: drift.id) {
@@ -745,6 +785,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// the new names, colours and trash states; changed names or aliases
     /// link every open body again (retroactive linking).
     func applyElementLibrary(projectID: String, library: WorkspaceElementLibrary) {
+        let previousLibrary = linkSources[projectID]?.library
+        let lost = lostIDs(previousLibrary.map { $0.elements.map(\.id) + $0.categories.map(\.id) },
+                           library.elements.map(\.id) + library.categories.map(\.id))
+        defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         elementCategories[projectID] = library.categories
         for tab in allTabs where tab.project.id == projectID {
             guard let element = tab.element, let stored = library.elements.first(where: { $0.id == element.id }) else { continue }
@@ -757,6 +801,66 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         updateLinkDirectory(projectID: projectID)
         if previous.map(EntityLinkDirectory.linkNames) != EntityLinkDirectory.linkNames(library) {
             requestEntityLinks(projectID: projectID)
+        }
+    }
+
+    // MARK: Relations
+
+    /// The names relation rows and the add sheet resolve against.
+    func relationNames(projectID: String) -> RelationNameDirectory {
+        let sources = linkSources[projectID]
+        return RelationNameDirectory(elements: sources?.library, chapters: sources?.chapters, drifts: sources?.drifts,
+                                     storylines: storylineLibraries[projectID])
+    }
+
+    /// Identities live before and missing now, e.g. after a trash; nil
+    /// before the first read.
+    private func lostIDs(_ previous: [String]?, _ current: [String]) -> Set<String> {
+        previous.map { Set($0).subtracting(current) } ?? []
+    }
+
+    /// Names follow renames. An entity that left its live list may have
+    /// taken relations with it (trash purges them), so the library is read again.
+    private func relationSourcesChanged(projectID: String, lost: Set<String>) {
+        if !lost.isEmpty { relations.reload(projectID: projectID) }
+        relations.refresh(projectID: projectID)
+    }
+
+    /// A 关系 row's other end opens in the pane that showed the row: an
+    /// element, storyline or drift as its page, a chapter as its tab. A
+    /// category has no page and goes to `onOpenCategory`.
+    private func openRelationTarget(_ endpoint: RelationEndpoint, projectID: String, from section: RelationsSectionView) {
+        let tab = allTabs.first { $0.relationsView === section }
+        guard let project = tab?.project ?? allTabs.first(where: { $0.project.id == projectID })?.project else { return }
+        let index = tab.flatMap { pane(of: $0) } ?? activePane
+        let done: (Result<NativeDocumentView, Error>) -> Void = { [weak self, weak section] result in
+            guard case .failure(let error) = result else { return }
+            section?.showMessage(error.localizedDescription)
+            self?.onError?(error)
+        }
+        let unavailable = { (text: String) in section.showMessage(text) }
+        let sources = linkSources[projectID]
+        switch endpoint.kind {
+        case "element":
+            guard let element = sources?.library?.elements.first(where: { $0.id == endpoint.id }) else {
+                unavailable("这个设定已不可用，请刷新设定库。"); return
+            }
+            open(project: project, element: element, in: index, completion: done)
+        case "node":
+            if let chapter = sources?.chapters?.first(where: { $0.id == endpoint.id }) {
+                open(project: project, chapter: chapter, in: index, completion: done)
+            } else if let drift = sources?.drifts?.drift(id: endpoint.id) {
+                open(project: project, drift: drift, in: index, completion: done)
+            } else { unavailable("这一章或这条漂流已不可用，请刷新列表。") }
+        case "storyline":
+            guard let storyline = storylineLibraries[projectID]?.storyline(id: endpoint.id) else {
+                unavailable("这条故事线已不可用，请刷新故事线列表。"); return
+            }
+            open(project: project, storyline: storyline, in: index, completion: done)
+        case "category":
+            if let onOpenCategory { onOpenCategory(project, endpoint.id) } else { unavailable("分类没有单独的页面，可以在设定库中查看。") }
+        default:
+            unavailable("原生版本暂不支持打开这种关系端点。")
         }
     }
 
@@ -789,6 +893,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func applyChapters(projectID: String, chapters: [WorkspaceChapter], trashed: [WorkspaceChapter]?) {
         func titles(_ list: [WorkspaceChapter]) -> [[String]] { list.map { [$0.id, $0.title] }.sorted { $0[0] < $1[0] } }
         let previous = linkSources[projectID]?.chapters
+        defer { relationSourcesChanged(projectID: projectID, lost: lostIDs(previous?.map(\.id), chapters.map(\.id))) }
         linkSources[projectID, default: LinkSources()].chapters = chapters
         if let trashed { linkSources[projectID]?.trashedChapters = trashed }
         updateLinkDirectory(projectID: projectID)
@@ -952,6 +1057,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     private func blocked() -> LabError { .message("请先完成所有标签中的输入，并保存或处理待恢复草稿。") }
     private func connect(_ tab: Tab, pane: Int) {
+        if let section = tab.relationsView {
+            relations.attach(section, projectID: tab.project.id, endpoint: tab.relationEndpoint)
+        }
         tab.view.isInteractionLocked = isBusy || externallyLocked
         tab.view.onFocus = { [weak self] in self?.activate(pane: pane) }
         tab.view.linkDirectory = linkDirectories[tab.project.id]
@@ -1033,6 +1141,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
     private func disconnect(_ tab: Tab) {
+        if let section = tab.relationsView { relations.detach(section) }
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil

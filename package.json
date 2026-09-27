@@ -123,6 +123,8 @@
     "apple:workspace-link:check": "node scripts/apple-workspace-link-acceptance.mjs --check",
     "apple:workspace-metadata:acceptance": "node scripts/apple-workspace-metadata-acceptance.mjs",
     "apple:workspace-metadata:check": "node scripts/apple-workspace-metadata-acceptance.mjs --check",
+    "apple:workspace-relation:acceptance": "node scripts/apple-workspace-relation-acceptance.mjs",
+    "apple:workspace-relation:check": "node scripts/apple-workspace-relation-acceptance.mjs --check",
     "apple:workspace-storyline:acceptance": "node scripts/apple-workspace-storyline-acceptance.mjs",
     "apple:workspace-storyline:check": "node scripts/apple-workspace-storyline-acceptance.mjs --check",
     "apple:workspace-trash:acceptance": "node scripts/apple-workspace-trash-acceptance.mjs",

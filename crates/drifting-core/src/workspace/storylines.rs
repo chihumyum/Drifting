@@ -365,7 +365,7 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             let incarnation = self.live_storyline(tx, context, storyline_id)?;
-            self.guard_storyline_relations(tx, context, storyline_id)?;
+            let mut mutations = self.purge_relations(tx, context, "storyline", storyline_id)?;
             let primary_of: BTreeSet<String> = self
                 .query(
                     Some(tx),
@@ -397,7 +397,6 @@ impl WorkspaceStore<'_> {
                 "DELETE FROM node_storyline_link WHERE storyline_id=?",
                 vec![text(storyline_id)],
             )?;
-            let mut mutations = Vec::new();
             for node in &members {
                 self.membership_projection(tx, context, node, false, None, &mut mutations)?;
             }
@@ -461,7 +460,6 @@ impl WorkspaceStore<'_> {
                 .filter(|n| *n <= MAX_SAFE)
                 .ok_or("Storyline incarnation overflow")?;
             let template = string(row, 1)?;
-            self.guard_storyline_relations(tx, context, storyline_id)?;
             let before = self.storyline(tx, &context.project_id, storyline_id)?;
             let repo = ProseRepository::new(self.gateway, self.client);
             let revision = repo.get_revision(&before.document_id, Some(tx))?;
@@ -730,23 +728,6 @@ impl WorkspaceStore<'_> {
             return Err("Storyline is not available in this project".into());
         }
         self.lifecycle_incarnation(tx, context, "storyline", storyline_id)
-    }
-
-    fn guard_storyline_relations(
-        &self,
-        tx: u64,
-        context: &AuthoredProseContext,
-        storyline_id: &str,
-    ) -> Result<(), String> {
-        let rows = self.query(Some(tx), r#"
-            SELECT 1 FROM entity_relation WHERE project_id=?
-                AND ((from_kind='storyline' AND from_id=?) OR (to_kind='storyline' AND to_id=?)) LIMIT 1
-        "#, vec![text(&context.project_id), text(storyline_id), text(storyline_id)])?;
-        if rows.is_empty() {
-            Ok(())
-        } else {
-            Err("Trash and restore do not yet support linked relations".into())
-        }
     }
 
     /// A chapter's linked storylines (UTF-8 order) and primary.

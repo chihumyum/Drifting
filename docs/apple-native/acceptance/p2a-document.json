@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_p2a_document_compatibility",
-  "generatedAt": "2026-09-26T23:26:36.105Z",
+  "generatedAt": "2026-09-27T00:10:04.291Z",
   "status": "passed",
   "source": {
-    "commit": "c4cfcdb027b99545d9d125421e57e7f122e47073",
+    "commit": "034c6d7c8e47d9523fd2dc61776a516ed34774a0",
     "dirty": true,
-    "fingerprint": "881997944f471f91ff4086dc0a9e4848aa51b5706e472e3aaa86e73aeb878078"
+    "fingerprint": "12cf1e37737bb6c8f3ea16a1537af103b554f95001901c3326986f908082818f"
   },
   "libraries": {
     "yjs": "13.6.32",

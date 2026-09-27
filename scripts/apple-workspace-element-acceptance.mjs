@@ -116,7 +116,7 @@ const boundaries = {
     'Native local element library commands; the TypeScript remote reducer is a compatibility oracle, not a native remote receive or provider transport claim.',
     'Exported alias steps add members and replace one display (set.remove with observedAddTags, then set.add); removing a member outright is core-test evidence.',
     'Exported fact steps create, edit values, insert, reorder and purge; key renames (field.set key) and same-slot reconciliation are core-test evidence and are checked here only if an exported step emits them.',
-    'Category body templates, portraits, relations and permanent deletion are refused natively and not covered.',
+    'Category body templates, portraits and permanent deletion are refused natively and not covered. Element and category trash purge every relation touching the entity inside the trash original (see relations.md); the elements exported here carry none, and relation purges are relation-report evidence.',
     'Element body prose edits, undo/redo and reopen are native bridge-test evidence; body edits are not exported originals here.',
     'Synthetic in-process receipt failure and cold reopen; no SIGKILL, power loss, UI, physical device, cloud account or release acceptance.',
   ],

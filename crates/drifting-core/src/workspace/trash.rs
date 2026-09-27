@@ -39,7 +39,7 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             let mut current = self.trash_candidate(tx, context, chapter_id, false)?;
-            self.guard_trash_associations(tx, context, chapter_id)?;
+            let mut mutations = self.purge_relations(tx, context, "node", chapter_id)?;
             self.execute(
                 tx,
                 "UPDATE book_node SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
@@ -50,21 +50,11 @@ impl WorkspaceStore<'_> {
                     text(&context.project_id),
                 ],
             )?;
-            self.commit_changes(
-                tx,
-                context,
-                &[
-                    journal::Mutation::json(
-                        "entity",
-                        "node",
-                        chapter_id,
-                        "entity.trash",
-                        json!({}),
-                    )
+            mutations.push(
+                journal::Mutation::json("entity", "node", chapter_id, "entity.trash", json!({}))
                     .at_incarnation(current.incarnation),
-                ],
-                None,
-            )?;
+            );
+            self.commit_changes(tx, context, &mutations, None)?;
             current.chapter.updated_at = context.now_iso.clone();
             Ok(current.chapter)
         })
@@ -86,7 +76,6 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             let mut current = self.trash_candidate(tx, context, chapter_id, true)?;
-            self.guard_trash_associations(tx, context, chapter_id)?;
             let incarnation = current
                 .incarnation
                 .checked_add(1)
@@ -110,7 +99,6 @@ impl WorkspaceStore<'_> {
             if self.trash_candidate(tx, context, chapter_id, true)? != current {
                 return Err("Chapter changed while capturing restored prose".into());
             }
-            self.guard_trash_associations(tx, context, chapter_id)?;
             self.execute(
                 tx,
                 "UPDATE book_node SET deleted_at=NULL,updated_at=? WHERE id=? AND project_id=?",
@@ -225,24 +213,5 @@ impl WorkspaceStore<'_> {
             position: json!({"x":number(row, 10)?,"y":number(row, 11)?}),
             chapter,
         })
-    }
-
-    /// Storyline links survive chapter trash and are re-authored on restore;
-    /// linked relations are not yet supported natively.
-    fn guard_trash_associations(
-        &self,
-        tx: u64,
-        _context: &AuthoredProseContext,
-        chapter_id: &str,
-    ) -> Result<(), String> {
-        let rows = self.query(
-            Some(tx),
-            "SELECT 1 FROM entity_relation WHERE (from_kind='node' AND from_id=?) OR (to_kind='node' AND to_id=?) LIMIT 1",
-            vec![text(chapter_id), text(chapter_id)],
-        )?;
-        if !rows.is_empty() {
-            return Err("Chapter trash and restore do not yet support linked relations".into());
-        }
-        Ok(())
     }
 }

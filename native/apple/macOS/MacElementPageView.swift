@@ -1,7 +1,8 @@
 import AppKit
 
-/// One element's page: editable fields and ordered facts, then 被引用 (the
-/// chapters that link it), above the element's prose body. Each field commits
+/// One element's page: editable fields and ordered facts, then 关系 (curated
+/// relations) and 被引用 (the chapters that link it), above the element's
+/// prose body. Each field commits
 /// on end-editing or Return through `onCommit`; the facts list commits as a
 /// whole through `onCommitFacts`. A refusal keeps the typed text and rows and
 /// shows the reason. The body is an ordinary native editor bound to the
@@ -19,6 +20,8 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     let backlinksView = ElementBacklinksView()
+    /// 关系, filled and driven by the tab host's relation coordinator.
+    let relationsView = RelationsSectionView()
     /// The last backlinks read; nil until the first read completes.
     private(set) var backlinks: WorkspaceElementBacklinks?
     private var backlinkGeneration = 0
@@ -100,7 +103,8 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         backlinksView.translatesAutoresizingMaskIntoConstraints = false
         let backlinksRow = NSView()
         backlinksRow.addSubview(backlinksView)
-        let stack = NSStackView(views: [header, backlinksRow, documentView])
+        let relationsRow = relationsView.inset()
+        let stack = NSStackView(views: [header, relationsRow, backlinksRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -109,6 +113,7 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             backlinksRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            relationsRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             backlinksView.leadingAnchor.constraint(equalTo: backlinksRow.leadingAnchor, constant: 14),
             backlinksView.trailingAnchor.constraint(equalTo: backlinksRow.trailingAnchor, constant: -14),
             backlinksView.topAnchor.constraint(equalTo: backlinksRow.topAnchor, constant: 2),

@@ -270,7 +270,6 @@ impl WorkspaceStore<'_> {
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
             let LiveDrift { mut drift, incarnation } = self.live_drift(tx, context, drift_id)?;
-            self.guard_drift_relations(tx, context, drift_id)?;
             // unbindMarkersForDrift, then unbindActsForDrift: one original each,
             // rows in index (rowid) order. A marker keeps its own caption and
             // otherwise takes the drift title, and journals both fields.
@@ -303,10 +302,13 @@ impl WorkspaceStore<'_> {
                 }
                 self.commit_changes(tx, context, &mutations, None)?;
             }
+            // The trash original itself purges the drift's relations first.
+            let mut mutations = self.purge_relations(tx, context, "node", drift_id)?;
             self.execute(tx, "UPDATE book_node SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
                 vec![text(&context.now_iso), text(&context.now_iso), text(drift_id), text(&context.project_id)])?;
-            self.commit_changes(tx, context, &[journal::Mutation::json("entity", "node", drift_id, "entity.trash", json!({}))
-                .at_incarnation(incarnation)], None)?;
+            mutations.push(journal::Mutation::json("entity", "node", drift_id, "entity.trash", json!({}))
+                .at_incarnation(incarnation));
+            self.commit_changes(tx, context, &mutations, None)?;
             drift.act_id = None;
             drift.updated_at = context.now_iso.clone();
             Ok(drift)
@@ -334,7 +336,6 @@ impl WorkspaceStore<'_> {
                 WHERE n.id=? AND n.project_id=? AND n.kind='drift' AND n.deleted_at IS NOT NULL
             "#, vec![text(&context.sync_generation_id), text(drift_id), text(&context.project_id)])?;
             let row = rows.first().ok_or("Drift lifecycle must be trashed")?;
-            self.guard_drift_relations(tx, context, drift_id)?;
             let incarnation = match &row[6] {
                 V::Integer(v) => v.parse::<u64>().ok(),
                 _ => None,
@@ -592,27 +593,6 @@ impl WorkspaceStore<'_> {
                 .filter(|n| *n <= MAX_SAFE)
                 .ok_or_else(|| "Invalid incarnation".into()),
             Some(_) => Err("Invalid incarnation".into()),
-        }
-    }
-
-    fn guard_drift_relations(
-        &self,
-        tx: u64,
-        context: &AuthoredProseContext,
-        drift_id: &str,
-    ) -> Result<(), String> {
-        let rows = self.query(
-            Some(tx),
-            r#"
-            SELECT 1 FROM entity_relation WHERE project_id=?
-                AND ((from_kind='node' AND from_id=?) OR (to_kind='node' AND to_id=?)) LIMIT 1
-        "#,
-            vec![text(&context.project_id), text(drift_id), text(drift_id)],
-        )?;
-        if rows.is_empty() {
-            Ok(())
-        } else {
-            Err("Trash and restore do not yet support linked relations".into())
         }
     }
 
