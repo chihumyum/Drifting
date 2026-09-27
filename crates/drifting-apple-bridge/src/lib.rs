@@ -416,11 +416,11 @@ impl LabSession {
             return Ok(false);
         }
         let state = self.document.update(None, 1)?;
-        let content = self
-            .document
-            .prose_projection()
-            .ok()
-            .map(|projection| projection.content_json);
+        let projection = self.document.prose_projection().ok();
+        let content = projection
+            .as_ref()
+            .map(|projection| projection.content_json.clone());
+        let word_count = projection.map(|projection| projection.word_count);
         store.capture_snapshot(
             project,
             drifting_core::workspace::SnapshotCapture {
@@ -430,6 +430,7 @@ impl LabSession {
                 state: &state,
                 content_json: content.as_deref(),
                 reason,
+                word_count,
                 now_iso: now,
             },
         )

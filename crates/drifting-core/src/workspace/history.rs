@@ -46,6 +46,8 @@ pub struct SnapshotCapture<'a> {
     pub content_json: Option<&'a str>,
     /// `periodic`, `close` or `restore`.
     pub reason: &'a str,
+    /// The body's word count at capture, recorded with the metadata.
+    pub word_count: Option<u64>,
     pub now_iso: &'a str,
 }
 
@@ -60,10 +62,14 @@ impl WorkspaceStore<'_> {
             return Err("Invalid snapshot capture".into());
         }
         self.transaction(TransactionBehavior::Immediate, |tx| {
-            let meta = match self.snapshot_meta(tx, project_id, capture.entity_kind, capture.entity_id)? {
+            let mut meta = match self.snapshot_meta(tx, project_id, capture.entity_kind, capture.entity_id)? {
                 Some(meta) => meta,
                 None => return Ok(false),
             };
+            meta["reason"] = json!(capture.reason);
+            if let Some(words) = capture.word_count {
+                meta["wordCount"] = json!(words);
+            }
             let latest = self.query(Some(tx), &format!(r#"
                 SELECT state_blob,{}-{} FROM entity_snapshot_history
                 WHERE project_id=? AND entity_kind=? AND entity_id=? ORDER BY created_at DESC,id DESC LIMIT 1

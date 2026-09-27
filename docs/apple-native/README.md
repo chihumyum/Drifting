@@ -48,6 +48,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Act boundary editing](act-boundaries.md)
 - [Chapter tabs and split editing](tabs-and-split.md)
 - [Whole book (全书长卷), statistics and writing plan](whole-book.md)
+- [Element overview (设定总览)](element-overview.md)
 - [Native interaction specification](design.md)
 - [P2 document corpus specification](fixtures.md)
 - [Shared document contract and P2a findings](document-core.md)
@@ -97,6 +98,7 @@ creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages and automatic entity links, storylines with chapter membership, drifts with groups and act notes, a writing
 assistant whose proposals the author reviews, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
+an element overview of categories around the chapter band with relation edges,
 chapter tabs with a two-pane split, formatting, project search, native
 editing, save and reopen. Every write goes through shared Rust domain commands,
 transactions and canonical journals; views of one chapter share its document

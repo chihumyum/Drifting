@@ -72,6 +72,8 @@ enum LabError: LocalizedError {
             ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
             ("Invalid node incarnation", "章节数据已变化，请刷新故事图谱。"),
             ("Invalid marker incarnation", "时间标记数据已变化，请刷新故事图谱。"),
+            ("Storyline is not available", "这条故事线已不可用（可能已移到回收站），章节的轨道和位置都未改变。请刷新故事图谱。"),
+            ("Chapter is not available", "这一章已不可用，请刷新故事图谱。"),
         ]
         if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
         // Rust's own messages, e.g. 时间标记需要名称，或绑定一条漂流.
@@ -976,6 +978,22 @@ final class LabWorkspaceCore {
         closeDocument(.element(ElementScope(projectID: projectID, elementID: elementID)), completion: completion)
     }
 
+    /// Every live category's placement on the 设定总览 grid (`auto`, or
+    /// `pinned` at a cell) with the library. A read only.
+    func categoryLayouts(projectID: String,
+                         completion: @escaping (Result<WorkspaceElementReply<[WorkspaceCategoryLayout]>, Error>) -> Void) {
+        perform(completion) { try self.elementRequest(projectID, ["action": "categoryLayouts"]) }
+    }
+
+    /// Pins a category to a grid cell, or returns it to the solver with nil.
+    /// Metadata only; an unchanged placement writes nothing.
+    func setCategoryLayout(projectID: String, categoryID: String, cell: ElementOverviewCell?,
+                           completion: @escaping (Result<WorkspaceElementReply<WorkspaceCategoryLayout>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "setCategoryLayout", "categoryId": categoryID]
+        if let cell { command["gridX"] = cell.x; command["gridY"] = cell.y }
+        perform(completion) { try self.elementRequest(projectID, command) }
+    }
+
     /// Chapters whose prose links the element, read from live owners or cold
     /// durable state. A read only: no owner, history or journal changes.
     func elementBacklinks(projectID: String, elementID: String,
@@ -1316,14 +1334,9 @@ final class LabWorkspaceCore {
         perform(completion) { try self.metadataRequest(projectID, ["action": "node", "nodeId": nodeID]) }
     }
 
-    /// Several nodes in one queue turn; a node that is no longer live is left out.
-    func nodeMetadata(projectID: String, nodeIDs: [String], completion: @escaping (Result<[WorkspaceNodeMetadata], Error>) -> Void) {
-        perform(completion) {
-            guard self.handle != nil else { throw LabError.message("请先打开工作区") }
-            return nodeIDs.compactMap { id in
-                try? self.metadataRequest(projectID, ["action": "node", "nodeId": id]) as WorkspaceNodeMetadata
-            }
-        }
+    /// Every live chapter's and drift's title, summary and status in one read.
+    func nodesMetadata(projectID: String, completion: @escaping (Result<[WorkspaceNodeMetadata], Error>) -> Void) {
+        perform(completion) { try self.metadataRequest(projectID, ["action": "nodes"]) }
     }
 
     /// Metadata only: the node's body owner, its input and history are untouched.
@@ -1540,6 +1553,19 @@ final class LabWorkspaceCore {
             try self.timelineRequest(projectID, ["action": "setNarrativeOrder", "chapterId": chapterID,
                 "order": order.map { $0 as Any } ?? NSNull()])
         }
+    }
+
+    /// One story graph drop: the narrative order (`.some(nil)` unplaces) and
+    /// the lane (`.some(id)` makes that storyline primary, dropping the
+    /// previous primary's link and keeping the others; `.some(nil)` removes
+    /// every link) change together in one original, or not at all. Absent
+    /// fields stay. Metadata only.
+    func moveChapterOnTimeline(projectID: String, chapterID: String, order: Double??, lane: String??,
+                               completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineNode>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "moveChapter", "chapterId": chapterID]
+        if let order { command["order"] = order.map { $0 as Any } ?? NSNull() }
+        if let lane { command["lane"] = lane.map { $0 as Any } ?? NSNull() }
+        perform(completion) { try self.timelineRequest(projectID, command) }
     }
 
     /// A drift card's place in the story graph's free area.

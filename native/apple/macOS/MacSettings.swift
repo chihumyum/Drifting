@@ -47,6 +47,8 @@ struct LabSettings: Codable, Equatable {
     /// Each project's 写作计划, keyed by project identity; a project without
     /// one uses the defaults.
     var writingPlans: [String: WritingPlan] = [:]
+    /// Each project's 设定总览 viewport, keyed by project identity.
+    var elementOverviewViewports: [String: ElementOverviewViewport] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -58,7 +60,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
-        case writingPlans
+        case writingPlans, elementOverviewViewports
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -75,6 +77,8 @@ struct LabSettings: Codable, Equatable {
         spellcheck = (try? values.decodeIfPresent(Bool.self, forKey: .spellcheck)) ?? true
         manuscriptLocale = (try? values.decodeIfPresent(String.self, forKey: .manuscriptLocale)) ?? "zh-CN"
         writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
+        elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
+                                                                forKey: .elementOverviewViewports)) ?? [:]
         self = normalized()
     }
 
@@ -241,6 +245,19 @@ final class LabSettingsStore {
             $0.importedFont = nil
             if $0.fontSource == .imported { $0.fontSource = .systemSerif }
         }
+    }
+
+    // MARK: Element overview
+
+    /// Where the project's 设定总览 was last left, if anywhere.
+    func elementOverviewViewport(projectID: String) -> ElementOverviewViewport? { settings.elementOverviewViewports[projectID] }
+
+    /// Saves the viewport when the panel closes; an unchanged viewport
+    /// writes nothing. Editors and the settings window are not told.
+    func setElementOverviewViewport(_ viewport: ElementOverviewViewport, projectID: String) {
+        guard settings.elementOverviewViewports[projectID] != viewport else { return }
+        settings.elementOverviewViewports[projectID] = viewport
+        save()
     }
 
     // MARK: Writing plan

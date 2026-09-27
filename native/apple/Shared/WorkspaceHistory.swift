@@ -35,16 +35,33 @@ struct VersionHistoryTarget: Equatable {
 
 /// What a version records about its entity at that moment: a chapter's or
 /// drift's title, summary and status; an element's or storyline's name and
-/// summary (an element also its group).
+/// summary (an element also its group); why it was captured and the body's
+/// word count. Versions from before `reason` and `wordCount` lack them.
 struct WorkspaceHistoryMeta: Decodable, Equatable {
     let title: String?
     let name: String?
     let summary: String?
     let writingStatus: String?
     let groupName: String?
+    /// `periodic`, `close` or `restore`.
+    let reason: String?
+    let wordCount: Int?
 
     /// The title or name at the time.
     var displayName: String? { (title ?? name).flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// 自动保存, 关闭时 or 恢复前; nil for an unknown or missing reason.
+    var reasonLabel: String? {
+        switch reason {
+        case "periodic": return "自动保存"
+        case "close": return "关闭时"
+        case "restore": return "恢复前"
+        default: return nil
+        }
+    }
+
+    /// “1,234 字”, when recorded.
+    var wordCountText: String? { wordCount.map(WordCountText.full) }
 }
 
 /// One version, newest first in a list. `text` is a plain-text preview of

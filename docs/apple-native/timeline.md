@@ -13,6 +13,10 @@ interoperability is kept.
 - Book-axis moves reuse chapter reordering; moving a chapter into another lane
   makes that storyline its primary (the previous primary's membership is
   dropped, others stay), through storyline membership.
+- `moveChapter` is one graph drop: an optional order (`null` unplaces) and an
+  optional lane (a storyline becomes primary by the same rule; `null` removes
+  every link) change together in one original, or not at all, and it returns
+  the moved node. An unchanged drop writes nothing.
 - Timeline markers (`timeline_marker`) sit at a narrative order with a label,
   optionally bound to a live drift, which captions a label-less marker. Create,
   edit (order, label, binding) and delete journal a `timeline-marker` entity;
@@ -44,8 +48,11 @@ along the narrative axis it takes the midpoint of its new neighbours' orders
 (one step beyond a single neighbour, 1 on an empty axis), and a drop on the
 tray sets null. Dropped in another lane, the target storyline becomes primary,
 the previous primary's membership is dropped and others stay (未归属 clears
-them). A lane change is sent before the order, each only when it changes; a
-drop in place writes nothing. A card's menu offers 打开 (also double-click),
+them). On 故事时间 the lane and the order go in one `moveChapter` command, so a
+refusal (a storyline trashed elsewhere, say) leaves both as they were; the
+storyline library is read again after a lane change. On 成书顺序 a lane change
+is sent before the book move. Each is sent only when it changes; a drop in
+place writes nothing. A card's menu offers 打开 (also double-click),
 移出故事时间 or 放到故事时间末尾, 移到轨道 and 写作状态.
 
 On 故事时间 the marker row shows pins at their orders, placed linearly between
@@ -71,8 +78,10 @@ mouse events: lanes by primary with book positions, statuses and counts; a
 book drag (no Rust call or render until the drop, one `field.set node`, the
 chapter list and memberships following, nothing for a drop in place); lane
 drags and 移到轨道 checked against the storyline library and journal; tray
-placement at neighbour midpoints, reordering, a combined lane and order drop,
-and null through the menu and the tray; markers created, renamed, bound,
+placement at neighbour midpoints, reordering, a combined lane and order drop
+as one original, a drop into a storyline trashed elsewhere and a non-finite
+order refused with neither the lane nor the order changed, and null through
+the menu and the tray; markers created, renamed, bound,
 captioned, dragged, converting story time, unbound, refused unnamed and
 deleted; drift positions (`tuple.set node`), clamping and opening; a cold
 reopen; and 200 chapters dragged without calls until the drop. Physical drags,

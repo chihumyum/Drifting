@@ -7,7 +7,12 @@ facts a new storyline clones). The Mac client edits all of them.
 ## Domain contract
 
 Rust's `workspaceMetadata` command (`project`, `updateProject`, `node`,
-`setNodeSummary`, `setNodeStatus`) authors the renderer's originals:
+`nodes`, `setNodeSummary`, `setNodeStatus`) authors the renderer's originals:
+
+- `nodes` reads every live chapter's and drift's id, kind, title, summary,
+  status and `updated_at` in one query. The writing assistant's
+  `list_chapters`, the 漂流 panel's statuses and the 设定总览's pills use it
+  instead of one `node` read per chapter or drift.
 
 - `updateProject` is one original: project facts through the KV authority
   (purges, creates and `field.set`s, then `order.move` for inserted runs or an
@@ -90,7 +95,8 @@ the app wires them. They check the journal rows each step writes.
 - **Drift page.** 摘要 reaches the drift library and link targets. 休眠 from the
   page mutes the panel row. The panel menu checks the current status, writes
   nothing when it is chosen again, and rests a drift that has no open page.
-  Rust refuses a chapter status. A cold panel reads the statuses back.
+  Rust refuses a chapter status. A cold panel reads the statuses back from
+  one `nodes` read, which lists every live chapter and drift as `node` does.
 - **Project sheet.** It shows the default facts and the status counts. 本书简介 is
   trimmed, and an unchanged summary writes nothing. Facts are stored untrimmed
   and in order, and a blank row is not written. After a refusal the typed rows

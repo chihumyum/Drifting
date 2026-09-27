@@ -27,6 +27,7 @@ fn capture<'a>(id: &'a str, state: &'a [u8], reason: &'a str, now: &'a str) -> S
         state,
         content_json: Some("{}"),
         reason,
+        word_count: Some(7),
         now_iso: now,
     }
 }
@@ -128,6 +129,13 @@ fn workspace_history_captures_thins_and_reads_versions() {
     assert_eq!(ids(&store), ["s7"]);
     let entry = &store.snapshot_history(p, "node", "chapter").unwrap()[0];
     assert_eq!(entry.meta["title"], "第一章");
+    assert_eq!(
+        (
+            entry.meta["reason"].as_str(),
+            entry.meta["wordCount"].as_u64()
+        ),
+        (Some("periodic"), Some(7))
+    );
     assert_eq!(
         store.snapshot_state(p, "s7").unwrap(),
         ("node".into(), "chapter".into(), b"e".to_vec())

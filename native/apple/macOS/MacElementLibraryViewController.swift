@@ -28,6 +28,8 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     var onTrashCategory: ((WorkspaceElementCategory) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
+    /// 总览: the 设定总览 canvas of this project.
+    var onShowOverview: (() -> Void)?
     /// The stored portrait of an element, shown small beside its name.
     var portraitPath: ((String) -> String?)?
     /// Presents a confirmation. Nil uses a sheet on the panel; acceptance
@@ -38,6 +40,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     private let table = NSTableView()
     private let status = NSTextField(wrappingLabelWithString: "")
     private let createCategoryButton = NSButton(title: "新建分类", target: nil, action: nil)
+    let overviewButton = NSButton(title: "总览", target: nil, action: nil)
     private(set) var rows: [ElementLibraryModel.Row] = []
 
     init(model: ElementLibraryModel) {
@@ -66,9 +69,12 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         status.setAccessibilityIdentifier("element-library-status")
         createCategoryButton.target = self; createCategoryButton.action = #selector(createCategory)
         createCategoryButton.setAccessibilityIdentifier("create-element-category")
+        overviewButton.target = self; overviewButton.action = #selector(showOverview)
+        overviewButton.setAccessibilityIdentifier("show-element-overview")
+        overviewButton.toolTip = "设定总览：分类排在章节带上下，并画出设定之间的关系（⌥⌘E）"
         let close = NSButton(title: "关闭设定库", target: self, action: #selector(closeLibrary))
         close.setAccessibilityIdentifier("close-element-library")
-        let actions = NSStackView(views: [createCategoryButton, NSView(), close])
+        let actions = NSStackView(views: [createCategoryButton, overviewButton, NSView(), close])
         let stack = NSStackView(views: [status, actions, scroll])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -91,6 +97,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
         rows = model.rows
         status.stringValue = model.status
         createCategoryButton.isEnabled = !model.busy && model.loaded
+        overviewButton.isEnabled = model.loaded && onShowOverview != nil
         table.reloadData()
     }
 
@@ -413,6 +420,7 @@ final class MacElementLibraryViewController: NSViewController, NSTableViewDataSo
     }
 
     @objc private func closeLibrary() { endTemplateSheet(); onClose?() }
+    @objc private func showOverview() { onShowOverview?() }
 }
 
 private final class LibraryButton: NSButton {

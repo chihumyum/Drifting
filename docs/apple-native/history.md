@@ -10,7 +10,9 @@ Native only; no Tauri interoperability is kept.
 - A snapshot (`entity_snapshot_history`) stores the full Yjs state, the
   ProseMirror projection for previews and the metadata (title, summary and
   status for chapters and drifts; name, summary, group and facts for elements;
-  name, summary and facts for storylines).
+  name, summary and facts for storylines), with `reason` (`periodic`, `close`
+  or `restore`) and the body's `wordCount`. Versions from before these two
+  fields lack them.
 - Saving a body captures a `periodic` version at most every 15 minutes (the
   check runs before the state is encoded); closing a body captures `close` and
   restoring captures the replaced state as `restore`, both regardless of the
@@ -34,7 +36,10 @@ active chapter, drift, element or storyline page, and in 编辑 › 历史版本
 Once input has settled it opens a sheet on the window. The list shows versions
 newest first: the time (刚刚, N 分钟前, 今天 or 昨天 with the time, M月d日, with
 the year before this year; the exact time as a tooltip), the title or name and
-a chapter's or drift's status at that time, and the first words. The preview
+a chapter's or drift's status at that time, why the version was kept (自动保存,
+关闭时 or 恢复前) and its word count (“1,234 字”), and the first words. Older
+versions without a reason or count show neither. The preview's heading
+repeats both. The preview
 shows the selected version read-only, compared with the current body
 paragraph by paragraph (a replaced paragraph refined to its changed middle):
 text the current body lacks on a green wash, text the version lacks struck
@@ -53,10 +58,12 @@ thinning; bridge tests cover capture on save and close, listing, restoring
 closed and open bodies, undo and refusals.
 
 Six programmatic AppKit cases in the [binding report](acceptance/p2b-binding.json)
-(`--history-only`) cover the time labels; versions captured on save and close
-without journal rows, listed newest first with the title of their time and
-reached from each page kind's pane header; the marked and plain preview; a
-restore into an open chapter (one `yjs.update prose-document` original, the
-editor updated, one undo step and redo) and into a closed chapter and an open
-element page; and refusals of a foreign or missing version, queued input and a
+(`--history-only`) cover the time labels and row details (reason and words,
+and neither for older versions); versions captured on save and close without
+journal rows, listed newest first with the title of their time, 自动保存 or
+关闭时 and the word count, and reached from each page kind's pane header; the
+marked and plain preview; a restore into an open chapter (one `yjs.update
+prose-document` original, the editor updated, one undo step and redo, and a
+later restore over newer text keeping it as 恢复前) and into a closed chapter
+and an open element page; and refusals of a foreign or missing version, queued input and a
 cancelled confirmation, all without changes.

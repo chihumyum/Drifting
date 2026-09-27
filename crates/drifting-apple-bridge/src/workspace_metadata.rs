@@ -20,6 +20,8 @@ pub(crate) enum MetadataCommand {
     Node {
         node_id: String,
     },
+    /// Every live chapter and drift in one read.
+    Nodes,
     SetNodeSummary {
         node_id: String,
         summary: String,
@@ -50,6 +52,7 @@ impl WorkspaceSession {
                 &mut || identifier("fact"),
             )?),
             MetadataCommand::Node { node_id } => json!(store.node_metadata(project_id, node_id)?),
+            MetadataCommand::Nodes => json!(store.nodes_metadata(project_id)?),
             MetadataCommand::SetNodeSummary { node_id, summary } =>
                 json!(store.set_node_summary(&self.context(&project)?, node_id, summary)?),
             MetadataCommand::SetNodeStatus { node_id, status } =>

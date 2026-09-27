@@ -98,6 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var wholeBookButton: NSButton!
     private var wholeBookPanel: WholeBookPanel?
     private var wholeBookController: MacWholeBookViewController?
+    /// 设定总览: categories around the chapter band, element cards and relation edges.
+    private var overviewPanel: ElementOverviewPanel?
+    private var overviewController: MacElementOverviewViewController?
     /// 统计 opened from 项目资料.
     private var profileStats: (popover: NSPopover, controller: MacBookStatsViewController)?
     /// 历史版本… of the active page's body.
@@ -210,6 +213,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let wholeBook = viewMenu.addItem(withTitle: "全书长卷", action: #selector(showWholeBook), keyEquivalent: "b")
         wholeBook.keyEquivalentModifierMask = [.command, .shift]
         wholeBook.target = self
+        let overview = viewMenu.addItem(withTitle: "设定总览", action: #selector(showElementOverview), keyEquivalent: "e")
+        overview.keyEquivalentModifierMask = [.command, .option]
+        overview.target = self
         view.submenu = viewMenu
         menu.addItem(view)
         NSApp.mainMenu = menu
@@ -292,8 +298,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             if let model = self.commentsController?.model, model.store === view.binding.store { model.reload(after: "批注已添加。") }
         }
         chapterWorkspace.onElementLibrary = { [weak self] projectID, library in
+            if let overview = self?.overviewController?.model, overview.projectID == projectID { overview.applyElementLibrary(library) }
             guard let model = self?.elementsController?.model, model.projectID == projectID else { return }
             model.apply(library, message: nil)
+        }
+        chapterWorkspace.onRemoteOriginal = { [weak self] projectID in
+            if let overview = self?.overviewController?.model, overview.projectID == projectID { overview.refresh() }
         }
         chapterWorkspace.onStorylineLibrary = { [weak self] projectID, library in
             self?.adoptStorylines(projectID: projectID, library: library, fromWorkspace: true)
@@ -495,6 +505,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let model = driftModel, model.projectID == projectID { model.applyNodeMetadata(metadata) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyNodeMetadata(metadata) }
         if let book = wholeBookController, book.project.id == projectID { book.applyNodeMetadata(metadata) }
+        if let overview = overviewController?.model, overview.projectID == projectID { overview.applyNodeMetadata(metadata) }
         if let stats = profileStats?.controller, stats.model.projectID == projectID { stats.model.applyNodeMetadata(metadata) }
     }
 
@@ -742,6 +753,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if relationTypesController?.model.projectID != project.id { closeRelationTypes() }
         if materialsController?.model.projectID != project.id { closeMaterials() }
         if graphController?.model.projectID != project.id { closeStoryGraph() }
+        if overviewController?.model.projectID != project.id { closeElementOverview() }
         setLoading(true)
         workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
@@ -972,8 +984,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         panel.onClose = { [weak self] in self?.elementsPanel = nil; self?.elementsController = nil }
         model.onLibrary = { [weak self] library in
             self?.chapterWorkspace.applyElementLibrary(projectID: project.id, library: library)
+            if let overview = self?.overviewController?.model, overview.projectID == project.id { overview.applyElementLibrary(library) }
         }
         controller.onClose = { [weak self] in self?.closeElements() }
+        controller.onShowOverview = { [weak self] in self?.showElementOverview() }
         controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
         controller.onOpen = { [weak self] element in self?.openElement(element, project: project, focusName: false) }
         controller.onCreated = { [weak self] element in self?.openElement(element, project: project, focusName: true) }
@@ -1099,6 +1113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyStorylines(library) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyStorylines(library) }
+        if let overview = overviewController?.model, overview.projectID == projectID { overview.applyStorylines(library) }
         if selectedProject?.id == projectID, !showingTrash { reloadChapterRows() }
         // A storyline page counts its chapters.
         updateWordStatus()
@@ -1219,6 +1234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         if let outline = outlineController?.model, outline.projectID == projectID { outline.applyDrifts(library) }
         if let graph = graphController?.model, graph.projectID == projectID { graph.applyDrifts(library) }
+        if let overview = overviewController?.model, overview.projectID == projectID { overview.applyDrifts(library) }
     }
 
     @objc private func showDrifts() {
@@ -1422,6 +1438,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String) {
         chapterWorkspace.applyChapters(projectID: projectID, chapters: chapters, trashed: nil)
         wholeBookChanged(projectID: projectID)
+        overviewChaptersChanged(projectID: projectID)
         if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
         guard selectedProject?.id == projectID else { return }
         self.chapters = chapters
@@ -1439,6 +1456,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private func graphChaptersChanged(projectID: String) {
         if let model = graphController?.model, model.projectID == projectID { model.refresh() }
         wholeBookChanged(projectID: projectID)
+        overviewChaptersChanged(projectID: projectID)
+    }
+
+    /// Chapters or acts changed: the 设定总览's band reads them again.
+    private func overviewChaptersChanged(projectID: String) {
+        if let overview = overviewController?.model, overview.projectID == projectID { overview.chaptersChanged() }
     }
 
     /// Chapters or acts changed: the 全书长卷 reads the book again.
@@ -1450,6 +1473,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let model = graphController?.model { graphAxes[model.projectID] = model.axis }
         let panel = graphPanel
         graphPanel = nil; graphController = nil
+        if let panel { window.removeChildWindow(panel); panel.close() }
+    }
+
+    // MARK: Element overview
+
+    /// 设定总览 (视图 › 设定总览, ⌥⌘E, or 总览 in the 设定库): a large panel over
+    /// the window. Opening a page closes it, as the 故事图谱 does; the viewport
+    /// is remembered per project in settings.json. It reads everything again
+    /// when it becomes key.
+    @objc private func showElementOverview() {
+        guard !loading, let project = currentProject ?? selectedProject else { return }
+        if let overviewPanel, overviewPanel.isVisible, overviewController?.model.projectID == project.id {
+            overviewPanel.makeKeyAndOrderFront(nil); return
+        }
+        closeElementOverview()
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        let model = ElementOverviewModel(workspace: workspace, projectID: project.id,
+                                         relations: chapterWorkspace.relations.model(projectID: project.id))
+        let viewport = settingsStore.elementOverviewViewport(projectID: project.id)
+        model.showsDrifts = viewport?.showsDrifts ?? false
+        // A pin's reply reaches open pages and the 设定库.
+        model.onElementLibrary = { [weak self] library in
+            guard let self else { return }
+            self.chapterWorkspace.applyElementLibrary(projectID: project.id, library: library)
+            if let elements = self.elementsController?.model, elements.projectID == project.id { elements.apply(library, message: nil) }
+        }
+        let controller = MacElementOverviewViewController(model: model)
+        controller.initialViewport = viewport
+        func leave(_ open: @escaping () -> Void) -> Bool {
+            guard canLeaveDocument() else { return false }
+            closeElementOverview()
+            open()
+            return true
+        }
+        controller.onOpenElement = { [weak self, weak controller] element in
+            guard let self else { return }
+            if !leave({ self.openElement(element, project: project, focusName: false) }) {
+                controller?.showStatus("请先完成输入，并等待正文保存后再打开设定。")
+            }
+        }
+        controller.onOpenCategory = { [weak self, weak controller] category in
+            guard let self else { return }
+            if !leave({ self.openCategory(category, project: project) }) {
+                controller?.showStatus("请先完成输入，并等待正文保存后再打开分类页。")
+            }
+        }
+        controller.onOpenChapter = { [weak self, weak controller] chapter in
+            guard let self else { return }
+            if !leave({ self.openChapter(chapter, project: project); self.window.makeKeyAndOrderFront(nil) }) {
+                controller?.showStatus("请先完成输入，并等待正文保存后再打开章节。")
+            }
+        }
+        controller.onOpenDrift = { [weak self, weak controller] drift in
+            guard let self else { return }
+            if !leave({ self.openDrift(drift, project: project, focusTitle: false) }) {
+                controller?.showStatus("请先完成输入，并等待正文保存后再打开漂流。")
+            }
+        }
+        controller.onTrashElement = { [weak self] element in self?.trashElement(element, project: project) }
+        controller.onClose = { [weak self] in self?.closeElementOverview() }
+        let panel = ElementOverviewPanel(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 700),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        panel.title = "\(name) · 设定总览"
+        panel.minSize = NSSize(width: 640, height: 420)
+        panel.isReleasedWhenClosed = false; panel.contentViewController = controller
+        panel.setContentSize(NSSize(width: 1100, height: 700))
+        overviewPanel = panel; overviewController = controller
+        panel.onClose = { [weak self, weak panel, weak controller] in
+            guard let self, self.overviewPanel === panel else { return }
+            if let controller { self.settingsStore.setElementOverviewViewport(controller.viewport, projectID: controller.model.projectID) }
+            self.overviewPanel = nil; self.overviewController = nil
+        }
+        window.addChildWindow(panel, ordered: .above)
+        panel.center(); panel.makeKeyAndOrderFront(nil)
+        // Edits made in the window meanwhile are read when it is key again.
+        panel.onBecomeKey = { [weak model] in if model?.loaded == true { model?.refresh() } }
+        model.load()
+    }
+
+    /// Remembers the viewport, then closes the panel.
+    private func closeElementOverview() {
+        if let controller = overviewController {
+            settingsStore.setElementOverviewViewport(controller.viewport, projectID: controller.model.projectID)
+            controller.endRelationSheet()
+        }
+        let panel = overviewPanel
+        overviewPanel = nil; overviewController = nil
         if let panel { window.removeChildWindow(panel); panel.close() }
     }
 
@@ -1643,6 +1753,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         model.onEntries = { [weak self] entries in
             self?.chapterWorkspace.applyOutline(projectID: project.id, entries: entries)
             self?.chapterWorkspace.driftsChanged(projectID: project.id)
+            // Acts may have changed: the 设定总览's act strip follows.
+            self?.overviewChaptersChanged(projectID: project.id)
             // Act boundaries may have moved: the 全书长卷's separators follow.
             if let book = self?.wholeBookController, book.project.id == project.id, book.model.layout.acts.map(\.id) != entries.filter({ $0.kind == "act" }).map(\.id)
                 || book.model.layout.acts.map(\.title) != entries.filter({ $0.kind == "act" }).map(\.title) {
@@ -1755,6 +1867,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.materialsPanel?.title = "\(updated.name) · 素材库"
                     self.graphPanel?.title = "\(updated.name) · 故事图谱"
                     self.wholeBookPanel?.title = "\(updated.name) · 全书长卷"
+                    self.overviewPanel?.title = "\(updated.name) · 设定总览"
                     if let index = self.projects.firstIndex(where: { $0.id == updated.id }) { self.projects[index] = updated }
                     self.selectedProject = updated
                     self.chapterWorkspace.rename(project: updated)
@@ -2031,6 +2144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
                 self.closeStoryGraph()
+                self.closeElementOverview()
                 self.transfer.endImport()
                 completion(true)
             case .failure(let error): self.status.stringValue = error.localizedDescription; completion(false)
@@ -2053,6 +2167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeRelationTypes()
         closeMaterials()
         closeStoryGraph()
+        closeElementOverview()
         closeWholeBook()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

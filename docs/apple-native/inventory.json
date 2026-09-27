@@ -124,7 +124,7 @@
         "semantic operation comparisons and immutable schema"
       ],
       "milestone": "P3",
-      "status": "planned",
+      "status": "Rust-domain-commands-per-delivered-Mac-feature; no-separate-model-layer",
       "decisionTask": null
     },
     {
@@ -163,7 +163,7 @@
         "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation"
       ],
       "milestone": "P5/P6",
-      "status": "local-writing-tabs-two-pane-and-chapter-trash-implemented; remaining-workspace-parity-planned",
+      "status": "local-writing-tabs-two-pane-chapter-trash-and-whole-book-editor-implemented; project-home-planned",
       "decisionTask": null
     },
     {
@@ -200,7 +200,7 @@
         "five-level semantics, nullable storyline, ordering and drift visibility; act boundaries created at current chapter coordinates, renamed and removed without changing prose or chapter order"
       ],
       "milestone": "P5/P6",
-      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-and-act-notes-implemented; graph-timeline-views-and-drift-positions-planned",
+      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-and-story-graph-implemented; drift-graph-positions-planned",
       "decisionTask": null
     },
     {
@@ -218,7 +218,7 @@
         "category, element, patch CRUD and reference cleanup; categories and elements created, renamed, aliased, trashed and restored with exact renderer originals and alias set authority"
       ],
       "milestone": "P3/P5",
-      "status": "Mac-categories-elements-aliases-facts-template-facts-trash-restore-and-element-body-editing-implemented; category-body-templates-portraits-relations-patches-planned",
+      "status": "Mac-categories-elements-aliases-facts-template-facts-trash-restore-body-editing-category-pages-body-templates-portraits-relations-and-element-overview-implemented",
       "decisionTask": null
     },
     {
@@ -237,7 +237,7 @@
         "anchor preservation, invalidation and durable review decisions; selection comments created, listed, located, edited and resolved/reopened with exact renderer originals"
       ],
       "milestone": "P2/P3/P5",
-      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-implemented; review-panel-relations-TODO-and-suggestions-planned",
+      "status": "P2-sibling-anchor-history-and-fixture-checkpoint-accepted; Mac-selection-comments-add-list-locate-edit-resolve-and-Agent-proposal-review-implemented; review-panel-relations-TODO-planned",
       "decisionTask": null
     },
     {
@@ -257,7 +257,7 @@
         "relation types, drift-endpoint rule, timeline/order, pointer/touch and large projects"
       ],
       "milestone": "P5",
-      "status": "planned",
+      "status": "Mac-story-graph-timeline-markers-relation-types-and-element-overview-implemented",
       "decisionTask": null
     },
     {
@@ -278,7 +278,7 @@
         "install/delete/restart boundaries and durable asset refs"
       ],
       "milestone": "P3/P5",
-      "status": "planned",
+      "status": "Mac-image-and-PDF-materials-library-portraits-and-asset-garbage-collection-implemented",
       "decisionTask": null
     },
     {
@@ -298,7 +298,7 @@
         "synthetic corpus counting parity; preserve Apache-2.0 provenance"
       ],
       "milestone": "P3",
-      "status": "planned",
+      "status": "Rust-word-count-port-and-whole-book-statistics-implemented",
       "decisionTask": "D6"
     },
     {
@@ -338,7 +338,7 @@
         "consistent generations, owned metrics patches and structural refresh barrier"
       ],
       "milestone": "P3/P5",
-      "status": "planned",
+      "status": "Rust-node-projection-materialization-and-word-count-queries-implemented",
       "decisionTask": null
     },
     {
@@ -358,7 +358,7 @@
         "restore identities, guarded inverse, journal and asset closure"
       ],
       "milestone": "P3/P4",
-      "status": "planned",
+      "status": "Mac-version-history-capture-thinning-and-undoable-restore-implemented; backup-planned",
       "decisionTask": null
     },
     {
@@ -420,7 +420,7 @@
         "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
       ],
       "milestone": "P4/P5",
-      "status": "planned",
+      "status": "Mac-writing-assistant-prose-tools-and-reviewed-proposals-implemented",
       "decisionTask": "D7"
     },
     {
@@ -439,7 +439,7 @@
         "streaming/cancel, provider neutrality and versioned contracts"
       ],
       "milestone": "P4",
-      "status": "planned",
+      "status": "Swift-provider-drivers-with-streaming-and-cancel-following-renderer-configuration-implemented",
       "decisionTask": null
     },
     {
@@ -474,7 +474,7 @@
         "namespace isolation, no plaintext fallback, opaque references and reauthorization"
       ],
       "milestone": "P4",
-      "status": "planned",
+      "status": "lab-Keychain-namespace-for-provider-keys-implemented; OAuth-planned",
       "decisionTask": "D5"
     },
     {
@@ -494,7 +494,7 @@
         "PDF preview, image derivatives, microphone permission, capture interruptions"
       ],
       "milestone": "P5",
-      "status": "planned",
+      "status": "image-and-PDF-thumbnails-and-Quick-Look-implemented; audio-and-capture-planned",
       "decisionTask": "D8"
     },
     {
@@ -509,7 +509,7 @@
         "font enumeration, preferences and fallback"
       ],
       "milestone": "P2/P5",
-      "status": "planned",
+      "status": "Mac-font-import-and-editor-typography-preferences-implemented",
       "decisionTask": null
     },
     {
@@ -528,7 +528,7 @@
         "DOCX/Markdown import/export parity and synthetic asset fixtures"
       ],
       "milestone": "P5",
-      "status": "planned",
+      "status": "Mac-Markdown-text-and-Word-import-and-Markdown-text-export-implemented",
       "decisionTask": "D8"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "planned",
+      "status": "Mac-editor-preferences-fonts-writing-plans-and-provider-keys-implemented; localization-planned",
       "decisionTask": null
     },
     {

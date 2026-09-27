@@ -334,7 +334,8 @@ final class AgentWorkspaceTools {
             }
             workspace.wordCounts(projectID: projectID) { counts in
                 let library = (try? counts.get()).map { WordCountLibrary($0.counts) }
-                workspace.nodeMetadata(projectID: projectID, nodeIDs: chapters.map(\.id)) { metadata in
+                // Every chapter's summary in one read.
+                workspace.nodesMetadata(projectID: projectID) { metadata in
                     let summaries = Dictionary(((try? metadata.get()) ?? []).map { ($0.id, $0.summary) }, uniquingKeysWith: { first, _ in first })
                     let rows: [[String: Any]] = chapters.prefix(Self.listLimit).enumerated().map { index, chapter in
                         ["id": chapter.id, "title": chapter.title, "order": index + 1,

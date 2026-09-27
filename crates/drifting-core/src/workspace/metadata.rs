@@ -116,6 +116,25 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Every live chapter and drift's title, summary and status in one read.
+    pub fn nodes_metadata(&self, project_id: &str) -> Result<Vec<WorkspaceNodeMetadata>, String> {
+        self.query(
+            None,
+            r#"
+            SELECT n.id,n.kind,n.title,n.summary,n.writing_status,n.updated_at FROM book_node n
+            JOIN sync_generation g ON g.project_id=n.project_id AND g.status='active'
+            LEFT JOIN sync_entity_lifecycle l ON l.sync_generation_id=g.sync_generation_id
+                AND l.entity_kind='node' AND l.entity_id=n.id
+            WHERE n.project_id=? AND n.deleted_at IS NULL AND (l.state IS NULL OR l.state='live')
+            ORDER BY n.kind,n.book_order,n.created_at,n.id
+        "#,
+            vec![text(project_id)],
+        )?
+        .iter()
+        .map(|row| metadata_from_row(row))
+        .collect()
+    }
+
     pub fn node_metadata(
         &self,
         project_id: &str,

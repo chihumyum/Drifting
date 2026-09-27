@@ -1,7 +1,8 @@
 import AppKit
 
 /// 历史版本… for one chapter, drift, element or storyline body: versions
-/// newest first with their relative time and the title at that time, a
+/// newest first with their relative time, the title at that time, why they
+/// were kept and their word count, a
 /// read-only preview of the selected version marked against the current text,
 /// and 恢复此版本 after a confirmation. Refusals stay in the sheet.
 final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDelegate {
@@ -150,15 +151,25 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
         rowView(entries[row])
     }
 
-    /// One version's row: its time, the title then, and the first words.
+    /// The row's details after the time: the title then, the status then,
+    /// why the version was kept (自动保存, 关闭时, 恢复前) and its word count.
+    static func details(_ entry: WorkspaceHistoryEntry) -> String {
+        var details: [String] = []
+        if let name = entry.meta?.displayName { details.append(name) }
+        if let status = entry.meta?.writingStatus, !status.isEmpty { details.append(WritingStatus.label(status)) }
+        if let reason = entry.meta?.reasonLabel { details.append(reason) }
+        if let words = entry.meta?.wordCountText { details.append(words) }
+        return details.joined(separator: " · ")
+    }
+
+    /// One version's row: its time, the title then, why it was kept, its
+    /// word count and the first words.
     func rowView(_ entry: WorkspaceHistoryEntry) -> NSView {
         let time = NSTextField(labelWithString: VersionHistoryTime.label(entry.createdAt))
         time.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         time.toolTip = VersionHistoryTime.exact(entry.createdAt)
         time.setContentHuggingPriority(.required, for: .horizontal)
-        var details: [String] = []
-        if let name = entry.meta?.displayName { details.append(name) }
-        if let status = entry.meta?.writingStatus, !status.isEmpty { details.append(WritingStatus.label(status)) }
+        let details = [Self.details(entry)].filter { !$0.isEmpty }
         let meta = NSTextField(labelWithString: details.joined(separator: " · "))
         meta.font = .systemFont(ofSize: 11)
         meta.textColor = .secondaryLabelColor
@@ -205,6 +216,7 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
             return
         }
         previewTitle.stringValue = "\(VersionHistoryTime.exact(entry.createdAt)) 的版本" + (entry.meta?.displayName.map { " · \($0)" } ?? "")
+            + (entry.meta?.reasonLabel.map { " · \($0)" } ?? "") + (entry.meta?.wordCountText.map { " · \($0)" } ?? "")
         let segments = diffCheckbox.state == .on ? model.segments(of: entry) : nil
         previewView.textStorage?.setAttributedString(Self.attributed(segments: segments, version: entry.text))
         if diffCheckbox.state == .off {

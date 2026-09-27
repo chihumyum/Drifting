@@ -46,6 +46,25 @@ fn workspace_timeline_orders_markers_positions_and_cold_reopen() {
         json!({"action":"setNarrativeOrder","chapterId":drift,"order":1})
     ))
     .contains("章节"));
+    // A graph drop moves the order and the lane in one original.
+    let storyline = success(json!({"operation":"workspaceStorylines","handle":fixture.workspace,"projectId":fixture.project,
+        "command":{"action":"createStoryline","name":"支线"}}))["result"]["id"].clone();
+    let moved = success(timeline(
+        &fixture,
+        json!({"action":"moveChapter","chapterId":chapter,"order":4.5,"lane":storyline}),
+    ));
+    assert_eq!(moved["result"]["narrativeOrder"], 4.5);
+    let nodes = success(json!({"operation":"workspaceMetadata","handle":fixture.workspace,"projectId":fixture.project,
+        "command":{"action":"nodes"}}))["result"].clone();
+    assert!(nodes
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["id"] == json!(chapter) && n["kind"] == "chapter"));
+    success(timeline(
+        &fixture,
+        json!({"action":"moveChapter","chapterId":chapter,"order":2.25,"lane":null}),
+    ));
     fixture.close();
     fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
         ["handle"]

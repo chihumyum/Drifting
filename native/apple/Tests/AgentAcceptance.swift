@@ -425,6 +425,11 @@ extension BindingAcceptance {
         defer { harness.remove() }
         let view = try harness.open(0)
         try harness.type(view, "雨夜里钟声响起。")
+        // list_chapters reads every chapter's summary in one nodes read.
+        let projectID = harness.project.id, voyage = harness.chapters[1].id
+        let _: WorkspaceNodeMetadata = try elementResult {
+            harness.workspace.setNodeSummary(projectID: projectID, nodeID: voyage, summary: "船驶向北岸。", completion: $0)
+        }
         var choice = AgentModelChoice.standard
         choice.thinking = .adaptive
         harness.controller.setChoice(choice)
@@ -447,7 +452,8 @@ extension BindingAcceptance {
         try require(call["reasoning_content"] as? String == "先看章节列表。"
             && ((call["tool_calls"] as? [[String: Any]])?.first?["function"] as? [String: Any])?["name"] as? String == "list_chapters",
             "reasoning_content was not replayed with the tool call")
-        try require(listed.contains("启程") && listed.contains("航行") && listed.contains("\"order\":2"), "list_chapters result differs: \(listed)")
+        try require(listed.contains("启程") && listed.contains("航行") && listed.contains("\"order\":2") && listed.contains("船驶向北岸。"),
+            "list_chapters result differs: \(listed)")
         let thirdMessages = third["messages"] as? [[String: Any]] ?? []
         let read = thirdMessages.last { $0["role"] as? String == "tool" }?["content"] as? String ?? ""
         try require(read.contains("雨夜里钟声响起。") && read.contains("\"title\":\"启程\""), "read_chapter did not read the live text: \(read)")

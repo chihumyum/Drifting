@@ -78,8 +78,22 @@ impl WorkspaceStore<'_> {
         chapter_id: &str,
         order: Option<f64>,
     ) -> Result<TimelineNode, String> {
+        self.move_chapter_on_timeline(context, chapter_id, Some(order), None)
+    }
+
+    /// One timeline drop: the narrative order (`Some`) and the lane
+    /// (`Some(Some(storyline))` makes it primary, dropping the previous
+    /// primary's link and keeping the others; `Some(None)` removes every
+    /// link) change together in one original, or not at all.
+    pub fn move_chapter_on_timeline(
+        &self,
+        context: &AuthoredProseContext,
+        chapter_id: &str,
+        order: Option<Option<f64>>,
+        lane: Option<Option<&str>>,
+    ) -> Result<TimelineNode, String> {
         validate_context(context)?;
-        if let Some(order) = order {
+        if let Some(Some(order)) = order {
             finite(order, "Narrative order")?;
         }
         self.transaction(TransactionBehavior::Immediate, |tx| {
@@ -88,18 +102,34 @@ impl WorkspaceStore<'_> {
             if current.kind != "chapter" {
                 return Err("只有章节能放在故事时间线上".into());
             }
-            if current.narrative_order == order {
-                return Ok(current);
+            let mut mutations = Vec::new();
+            if let Some(lane) = lane {
+                let (links, primary) = self.chapter_links(tx, &context.project_id, chapter_id)?;
+                let (ids, next_primary): (Vec<String>, Option<&str>) = match lane {
+                    None => (Vec::new(), None),
+                    Some(target) => {
+                        let mut ids: Vec<String> = links.into_iter().filter(|id| Some(id) != primary.as_ref()).collect();
+                        if !ids.iter().any(|id| id == target) {
+                            ids.push(target.to_string());
+                        }
+                        (ids, Some(target))
+                    }
+                };
+                self.apply_chapter_storylines(tx, context, chapter_id, &ids, Some(next_primary), &mut mutations)?;
             }
-            self.execute(tx, r#"
-                UPDATE book_node SET narrative_order=?1,updated_at=CASE
-                    WHEN julianday(updated_at) IS NULL OR julianday(?2)>julianday(updated_at) THEN ?2
-                    ELSE strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds') END
-                WHERE id=?3 AND project_id=?4
-            "#, vec![order.map(V::Real).unwrap_or(V::Null), text(&context.now_iso), text(chapter_id),
-                text(&context.project_id)])?;
-            self.commit_changes(tx, context, &[journal::Mutation::field("node", chapter_id, incarnation,
-                "narrativeOrder", json!(order))], None)?;
+            if let Some(order) = order.filter(|order| *order != current.narrative_order) {
+                self.execute(tx, r#"
+                    UPDATE book_node SET narrative_order=?1,updated_at=CASE
+                        WHEN julianday(updated_at) IS NULL OR julianday(?2)>julianday(updated_at) THEN ?2
+                        ELSE strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds') END
+                    WHERE id=?3 AND project_id=?4
+                "#, vec![order.map(V::Real).unwrap_or(V::Null), text(&context.now_iso), text(chapter_id),
+                    text(&context.project_id)])?;
+                mutations.push(journal::Mutation::field("node", chapter_id, incarnation, "narrativeOrder", json!(order)));
+            }
+            if !mutations.is_empty() {
+                self.commit_changes(tx, context, &mutations, None)?;
+            }
             Ok(self.timeline_node(tx, context, chapter_id)?.0)
         })
     }

@@ -176,6 +176,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var onManageRelationTypes: ((WorkspaceProject) -> Void)?
     /// 历史版本… from a pane's header; the pane is active by then.
     var onShowHistory: (() -> Void)?
+    /// A remote original was accepted for this project, after counts were
+    /// reconciled; views that show the whole project read it again.
+    var onRemoteOriginal: ((String) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -233,7 +236,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         // A remote original may change bodies without an open owner, whose
         // projections only a reconcile writes.
-        workspace.onRemoteOriginal = { [weak self] projectID in self?.wordCountModels[projectID]?.reconcile() }
+        workspace.onRemoteOriginal = { [weak self] projectID in
+            self?.wordCountModels[projectID]?.reconcile()
+            self?.onRemoteOriginal?(projectID)
+        }
         splitView.isVertical = true
         splitView.dividerStyle = .thin
         splitView.delegate = self

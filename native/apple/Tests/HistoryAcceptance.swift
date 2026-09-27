@@ -142,10 +142,10 @@ extension BindingAcceptance {
         try historyRestoreClosed()
         try historyRefusals()
         return [
-            "AppKit 历史版本 times read 刚刚, N 分钟前, 今天, 昨天, a date this year and a date with its year",
-            "AppKit 历史版本 lists versions captured on save and close newest first with relative times and the title at that time, capturing without journal rows, reachable from every page kind's pane header",
+            "AppKit 历史版本 times read 刚刚, N 分钟前, 今天, 昨天, a date this year and a date with its year, and rows name why a version was kept (自动保存, 关闭时, 恢复前) and its word count, leaving both out for older versions",
+            "AppKit 历史版本 lists versions captured on save and close newest first with relative times, the title at that time, why each was kept and its word count, capturing without journal rows, reachable from every page kind's pane header",
             "AppKit 历史版本 previews the selected version read-only, marking text the current body lacks on a green wash and struck-through text the version lacks, identical versions as such, and the plain version without the diff",
-            "AppKit 历史版本 restore into an open chapter after confirmation updates the editor in place with one original, keeps the replaced text as a version, and one undo returns the text before redo restores the version",
+            "AppKit 历史版本 restore into an open chapter after confirmation updates the editor in place with one original, keeps the replaced text as a version, and one undo returns the text before redo restores the version; restoring over newer text keeps it as a version marked 恢复前 with its word count",
             "AppKit 历史版本 restore into a closed chapter through a temporary owner and into an open element page reaches the stored body and the editor",
             "AppKit 历史版本 refuses a version of another body, a missing version and queued input in Chinese in the sheet without changing the body or the journal, and cancelling the confirmation writes nothing",
         ]
@@ -170,6 +170,12 @@ extension BindingAcceptance {
             try require(label == expected, "\(iso) reads \(label) instead of \(expected)")
         }
         try require(VersionHistoryTime.exact("2026-09-27T01:30:05.000Z", calendar: calendar) == "2026年9月27日 09:30:05", "The exact time differs")
+        // Why a version was kept and its words; versions from before both were recorded lack them.
+        let json = #"{"entries":[{"id":"a","createdAt":"2026-09-27T06:59:40.000Z","meta":{"title":"雨夜","writingStatus":"finished","reason":"periodic","wordCount":1234},"text":"甲"},{"id":"b","createdAt":"2026-09-27T06:59:40.000Z","meta":{"title":"雨夜","reason":"close","wordCount":0},"text":""},{"id":"c","createdAt":"2026-09-27T06:59:40.000Z","meta":{"name":"北塔","reason":"restore"},"text":"乙"},{"id":"d","createdAt":"2026-09-27T06:59:40.000Z","meta":{"title":"旧版"},"text":"丙"}]}"#
+        let list = try JSONDecoder().decode(WorkspaceHistoryList.self, from: Data(json.utf8))
+        let details = list.entries.map(VersionHistorySheet.details)
+        try require(details == ["雨夜 · 已完成 · 自动保存 · 1,234 字", "雨夜 · 关闭时 · 0 字", "北塔 · 恢复前", "旧版"],
+            "Row details differ: \(details)")
     }
 
     // MARK: (b) Versions appear
@@ -207,7 +213,12 @@ extension BindingAcceptance {
             && model.entries[1].meta?.writingStatus == "draft", "Versions do not keep the title of their time")
         try require(sheet.table.numberOfRows == model.entries.count && model.selectedID == model.entries[0].id, "The list or its selection differs")
         let row = sheet.rowView(model.entries[1])
-        try require(row.accessibilityLabel() == "刚刚 雨夜 · 草稿", "The row reads \(row.accessibilityLabel() ?? "")")
+        guard let words = model.entries[1].meta?.wordCount, model.entries[1].meta?.reason == "close", words > 0 else {
+            throw LabError.message("The closed version lacks its reason or words: \(String(describing: model.entries[1].meta))")
+        }
+        try require(row.accessibilityLabel() == "刚刚 雨夜 · 草稿 · 关闭时 · \(words) 字", "The row reads \(row.accessibilityLabel() ?? "")")
+        try require(model.entries.allSatisfy { $0.meta?.reasonLabel != nil && $0.meta?.wordCount != nil }, "A new version lacks its reason or words")
+        try require(model.entries.contains { $0.meta?.reason == "periodic" }, "No version was kept by 自动保存: \(model.entries.map { $0.meta?.reason ?? "" })")
         try require(historyDescendant(sheet.window.contentView!, "history-title").flatMap { ($0 as? NSTextField)?.stringValue }
             == "历史版本 · 章节“雨夜（二稿）”", "The sheet title differs")
         try require(model.status.contains("个版本") && !model.statusIsError, "The status differs: \(model.status)")
@@ -336,6 +347,18 @@ extension BindingAcceptance {
         try require(view.textView.string == "第一稿。", "Redo did not restore the version")
         try harness.type(view, "续写。")
         try require(try harness.stored(harness.target(rain)) == "第一稿。续写。", "Typing after the restore was lost")
+        // Restoring over the newer text keeps it as a version marked 恢复前.
+        let again = try harness.sheet(harness.target(rain))
+        harness.answer = { _ in .alertFirstButtonReturn }
+        again.restore(snapshotID: try harness.entry(again, text: "改写：第一稿。").id)
+        try harness.settled(again)
+        try harness.settle(view)
+        guard let kept = again.model.entries.first, kept.text == "第一稿。续写。", let words = kept.meta?.wordCount else {
+            throw LabError.message("The replaced text was not kept: \(again.model.entries.map(\.text))")
+        }
+        try require(kept.meta?.reason == "restore" && VersionHistorySheet.details(kept) == "雨夜 · 草稿 · 恢复前 · \(words) 字" && words > 0,
+            "The kept version reads \(VersionHistorySheet.details(kept))")
+        again.close()
         try harness.shutdown()
     }
 

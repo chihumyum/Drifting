@@ -283,7 +283,7 @@ extension BindingAcceptance {
             "AppKit 故事图谱 shows one lane per storyline in authored order and 未归属 for chapters without a primary, each chapter card in its primary's lane at its book position with its § number, status and word count, and card menus open a chapter and set its status with one field.set",
             "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters through the chapter move with one original that the chapter list and memberships follow, and a drop back in its slot writes nothing",
             "AppKit 故事图谱 drag across lanes and 移到轨道 make the target storyline primary, drop the previous primary's membership, keep other memberships and clear them all in 未归属, matching the storyline library and the tab host",
-            "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
+            "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
             "AppKit 故事图谱 markers are created from 添加标记… and the marker row, renamed, bound to a drift that captions a label-less marker, dragged to a new narrative order, unbound keeping the caption and deleted after confirmation, numeric labels convert story time and an unnamed unbound marker is refused without writing",
             "AppKit 故事图谱 drift cards flow until placed, a drag stores the position inside the area as one tuple.set, a click-sized drag writes nothing and double-click or 打开 opens the drift",
             "AppKit 故事图谱 narrative orders, lanes, book order, markers with their bindings and drift positions survive a cold reopen into a new graph",
@@ -469,14 +469,48 @@ extension BindingAcceptance {
         try harness.drag(try harness.card("北塔"), to: NSPoint(x: StoryGraphMetrics.slotCenter(2) + 60, y: harness.laneY(1)))
         try require(try harness.storedOrder("北塔") == 3, "北塔 was not moved after 序章")
         try require(model.placedChapters.map(\.title) == ["雨夜", "序章", "北塔"], "Story order differs: \(model.placedChapters.map(\.title))")
-        // One drop changes lane and order: 钟声 (暗线) into 主线 at the start.
+        // One drop changes lane and order: 钟声 (暗线) into 主线 at the start,
+        // as one moveChapter original followed by one storyline read.
         mark = try harness.journal.mark()
+        var requests = model.requests
         try harness.drag(try harness.card("钟声"), to: NSPoint(x: StoryGraphMetrics.slotCenter(0) - 60, y: harness.laneY(0)))
         let bellID = try harness.chapter("钟声").id
         try require(try harness.storedOrder("钟声") == 0.5 && model.primary(of: bellID) == lanes.main.id,
             "The combined drop differs: \(String(describing: try harness.storedOrder("钟声"))), \(String(describing: model.primary(of: bellID)))")
-        try harness.expect(journal: [["set.remove membership", "field.set node-storyline-primary"], ["field.set node"]],
+        try harness.expect(journal: [["set.remove membership", "field.set node-storyline-primary", "field.set node"]],
                            since: mark, "The combined drop")
+        try require(model.requests == requests + 2 && harness.host.storylineLibrary(projectID: harness.project.id) == model.storylines,
+            "The combined drop sent \(model.requests - requests) requests or the tab host missed the library")
+        try require(model.status == "“钟声”的主线已改为“主线”，在故事时间中的位置已保存。", "The combined status differs: \(model.status)")
+
+        // A storyline trashed elsewhere while the graph still shows its lane:
+        // Rust refuses the drop as a whole, so the lane and the order stay.
+        let spare = try harness.storyline("支线")
+        model.refresh()
+        try wait { model.lanes.count == 4 }
+        try require(model.lanes.map(\.name) == ["主线", "暗线", "支线", "未归属"], "The new lane is missing: \(model.lanes.map(\.name))")
+        let projectID = harness.project.id, workspace = harness.workspace
+        let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
+            workspace.trashStoryline(projectID: projectID, storylineID: spare.id, completion: $0)
+        }
+        let rainID = try harness.chapter("雨夜").id
+        let rainOrder = try harness.storedOrder("雨夜"), rainLanes = try harness.memberships().membership(chapterID: rainID)
+        mark = try harness.journal.mark()
+        try harness.drag(try harness.card("雨夜"), to: NSPoint(x: StoryGraphMetrics.slotCenter(3) + 60, y: harness.laneY(2)))
+        try require(model.status == "这条故事线已不可用（可能已移到回收站），章节的轨道和位置都未改变。请刷新故事图谱。",
+            "The refused drop was not explained: \(model.status)")
+        try require(try harness.storedOrder("雨夜") == rainOrder && (try harness.memberships().membership(chapterID: rainID)) == rainLanes,
+            "The refused drop changed the order or the lane")
+        try harness.expect(journal: [], since: mark, "The refused drop")
+        // A non-finite order cannot be sent; the lane is not changed first.
+        requests = model.requests
+        var refused: Bool?
+        model.drop(chapterID: rainID, lane: .some(lanes.hidden.id), placement: .narrative(.infinity)) { refused = !$0 }
+        try require(refused == true && model.requests == requests && model.primary(of: rainID) == lanes.main.id
+            && model.status.contains("章节的轨道和位置都未改变"), "A non-finite order was sent or changed the lane")
+        try harness.expect(journal: [], since: mark, "The non-finite order")
+        model.refresh()
+        try wait { model.lanes.count == 3 }
         // A drop in place writes nothing.
         mark = try harness.journal.mark()
         let rain = try harness.card("雨夜")

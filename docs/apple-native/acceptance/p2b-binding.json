@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T13:16:05.418Z",
+  "generatedAt": "2026-09-27T14:24:55.571Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "f251cf7bde289b35510bf6987cc40211877b2d93",
+    "commit": "38d5e4e70111132e7f0384c94ff45f6ba601e2ee",
     "dirty": true,
-    "fingerprint": "22c14775913a8034a748b589c196bb1030785ee12100a3ef18983d17ae0961ed"
+    "fingerprint": "295c63d44ca28e0a4b28283996f5748a31ca39094d93a9460f54ce7fc3470eb2"
   },
   "cases": [
     {
@@ -407,7 +407,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit drift page 摘要 and 状态 reach the panel, which mutes 休眠 drifts and offers the other status in its row menu, the current status and a chapter status write nothing, and statuses survive cold reopen into a new panel",
+      "name": "AppKit drift page 摘要 and 状态 reach the panel, which mutes 休眠 drifts and offers the other status in its row menu, the current status and a chapter status write nothing, and statuses survive cold reopen into a new panel, read with every live chapter's and drift's metadata in one nodes read",
       "status": "passed"
     },
     {
@@ -503,7 +503,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
+      "name": "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
       "status": "passed"
     },
     {
@@ -523,11 +523,11 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 历史版本 times read 刚刚, N 分钟前, 今天, 昨天, a date this year and a date with its year",
+      "name": "AppKit 历史版本 times read 刚刚, N 分钟前, 今天, 昨天, a date this year and a date with its year, and rows name why a version was kept (自动保存, 关闭时, 恢复前) and its word count, leaving both out for older versions",
       "status": "passed"
     },
     {
-      "name": "AppKit 历史版本 lists versions captured on save and close newest first with relative times and the title at that time, capturing without journal rows, reachable from every page kind's pane header",
+      "name": "AppKit 历史版本 lists versions captured on save and close newest first with relative times, the title at that time, why each was kept and its word count, capturing without journal rows, reachable from every page kind's pane header",
       "status": "passed"
     },
     {
@@ -535,7 +535,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 历史版本 restore into an open chapter after confirmation updates the editor in place with one original, keeps the replaced text as a version, and one undo returns the text before redo restores the version",
+      "name": "AppKit 历史版本 restore into an open chapter after confirmation updates the editor in place with one original, keeps the replaced text as a version, and one undo returns the text before redo restores the version; restoring over newer text keeps it as a version marked 恢复前 with its word count",
       "status": "passed"
     },
     {
@@ -600,6 +600,34 @@
     },
     {
       "name": "AppKit 写作计划 in 项目资料 parses and stores the target and daily goal per project in settings.json with the book's progress, refuses unreadable input without saving, writes nothing to the journal, and restores both after a cold relaunch of the workspace and settings",
+      "status": "passed"
+    },
+    {
+      "name": "Swift 设定总览 solver packs automatic category boxes largest first on the side that keeps them lowest while balancing area above and below the band, routes them around pinned boxes, snaps a pinned box that crosses the band to the nearer side, sizes and groups boxes as the renderer does and places the same boxes identically in any input order",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 shows the book's chapters in book order across the band grouped by act in storyline lanes, category boxes above and below it holding their element cards in groups, 未分类 for elements without a category and an empty category as 空, opens from the 设定库's 总览, and pans by drag and scroll and zooms by ⌘-scroll, ⌘+, ⌘− and ⌘0 within 40%–200% writing nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 dragging a category box pins it to the cell under the drop with one original of field.set placements, snaps a box dropped across the band to the nearer side, packs automatic boxes around the pins, writes nothing for a drop in place or a click-sized drag, returns it to the solver with 恢复自动排列 (offered only for pinned boxes), and keeps pins and the viewport (settings.json) through a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 draws relation edges between element cards and chapter pills, selects an edge to show its ends and type and retypes, swaps and removes it through the shared relation library that page 关系 sections follow, creates relations by ⌥-drag, Shift-click and the card menu in the 新建关系 sheet, and refuses a reversed type, a self relation (Rust's Chinese refusal) and a cancelled sheet without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 opens an element card's page, a legend's 分类页 and a double-clicked chapter pill as tabs in the tab host, a single click on a pill opens nothing, and 移到回收站 from a card's menu trashes the element through the tab host and removes its card and edges",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 follows changes made elsewhere without reopening: elements created and categories renamed in the 设定库, an element renamed on its page and recategorised, a category trashed moving its elements to 未分类, a relation added through a page's relation library, chapters created and renamed, a lane change, drifts in the 漂流 row with their edges, and a remote chapter original",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 lays out 60 chapters in 3 acts and 3 lanes, 20 categories, 300 elements and 400 relations with the solver under 100 ms and no main-thread pass (open, refresh, pan, zoom, sharpen) over 100 ms in a debug build, and opening, panning and zooming write nothing to the journal",
       "status": "passed"
     }
   ],

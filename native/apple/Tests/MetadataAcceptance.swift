@@ -183,7 +183,7 @@ extension BindingAcceptance {
         try projectProfileSheet()
         return [
             "AppKit chapter page 摘要 and 状态 trim and write once, skip unchanged, Escape and refused edits without journal rows, follow the split pane and the outline status and 操作 menu, keep body history and survive cold reopen",
-            "AppKit drift page 摘要 and 状态 reach the panel, which mutes 休眠 drifts and offers the other status in its row menu, the current status and a chapter status write nothing, and statuses survive cold reopen into a new panel",
+            "AppKit drift page 摘要 and 状态 reach the panel, which mutes 休眠 drifts and offers the other status in its row menu, the current status and a chapter status write nothing, and statuses survive cold reopen into a new panel, read with every live chapter's and drift's metadata in one nodes read",
             "AppKit project sheet trims 本书简介, edits 本书字段 and 故事线字段模版 as ordered untrimmed lists, writes nothing when unchanged, keeps typed rows and stays open on refusal, 完成 saves pending edits, a new storyline clones the template while an older one stays unchanged, and everything survives cold reopen",
         ]
     }
@@ -397,6 +397,11 @@ extension BindingAcceptance {
         let stored: WorkspaceNodeMetadata = try elementResult { cold.nodeMetadata(projectID: project.id, nodeID: tide.id, completion: $0) }
         try require(stored.kind == "drift" && stored.summary == "月亮牵引潮水。" && stored.writingStatus == "resting" && stored.title == "潮汐手记",
             "Drift metadata did not survive cold reopen")
+        // One nodes read holds every live chapter and drift, each as a node read gives it.
+        let nodes: [WorkspaceNodeMetadata] = try elementResult { cold.nodesMetadata(projectID: project.id, completion: $0) }
+        try require(Set(nodes.map(\.id)) == Set([harness.chapters[0].id, tide.id, shore.id]) && nodes.first { $0.id == tide.id } == stored
+            && nodes.first { $0.id == harness.chapters[0].id }.map { $0.kind == "chapter" && $0.title == "启程" } == true,
+            "The nodes read differs: \(nodes.map(\.title))")
         let coldPanel = DriftLibraryModel(workspace: cold, projectID: project.id)
         let coldController = MacDriftLibraryViewController(model: coldPanel)
         _ = coldController.view

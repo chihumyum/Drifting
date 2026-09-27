@@ -230,21 +230,22 @@ final class DriftLibraryModel {
         onChange?()
     }
 
-    /// Reads the statuses of live drifts not yet known. A trashed drift is
-    /// forgotten, so a restored one is read again.
+    /// Reads the statuses of live drifts not yet known, with every node's
+    /// metadata in one read. A trashed drift is forgotten, so a restored one
+    /// is read again.
     private func readStatuses() {
         let live = library.drifts.map(\.id), liveSet = Set(live)
         statuses = statuses.filter { liveSet.contains($0.key) }
         let missing = live.filter { statuses[$0] == nil && !readingStatuses.contains($0) }
         guard !missing.isEmpty else { return }
         readingStatuses.formUnion(missing)
-        workspace.nodeMetadata(projectID: projectID, nodeIDs: missing) { [weak self] result in
+        workspace.nodesMetadata(projectID: projectID) { [weak self] result in
             guard let self else { return }
             self.readingStatuses.subtract(missing)
             guard case .success(let nodes) = result else { return }
             // Replies arrive in queue order, so a later command's reply still
-            // lands after this read.
-            for node in nodes where node.kind == "drift" && self.library.drift(id: node.id) != nil {
+            // lands after this read; statuses already known stay.
+            for node in nodes where node.kind == "drift" && missing.contains(node.id) && self.library.drift(id: node.id) != nil {
                 self.statuses[node.id] = node.writingStatus
             }
             self.onChange?()

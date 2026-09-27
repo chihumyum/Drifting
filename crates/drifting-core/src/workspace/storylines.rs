@@ -313,43 +313,96 @@ impl WorkspaceStore<'_> {
         validate_context(context)?;
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
-            if !self.chapters(Some(tx), &context.project_id)?.iter().any(|c| c.id == chapter_id) {
-                return Err("Chapter is not available in this project".into());
-            }
-            let live = self.storyline_rows(Some(tx), &context.project_id, false)?;
-            let (current, current_primary) = self.links(Some(tx), &context.project_id, chapter_id)?;
-            let mut primary = match primary {
-                Some(primary) => primary.map(str::to_owned),
-                None => current_primary.clone(),
-            };
-            if primary.is_none() {
-                primary = storyline_ids.first().cloned();
-            }
-            let mut ids: Vec<&String> = storyline_ids.iter().collect();
-            if let Some(primary) = primary.as_ref().filter(|p| !storyline_ids.contains(p)) {
-                ids.insert(0, primary);
-            }
-            let mut desired: Vec<&WorkspaceStoryline> = Vec::new();
-            for id in ids {
-                let storyline = live.iter().find(|s| &s.id == id).ok_or("Storyline is not available in this project")?;
-                if !desired.iter().any(|s| s.id == storyline.id) {
-                    desired.push(storyline);
-                }
-            }
-            let wanted: BTreeSet<&str> = desired.iter().map(|s| s.id.as_str()).collect();
-            if current.iter().map(String::as_str).collect::<BTreeSet<_>>() == wanted && current_primary == primary {
-                return self.membership(tx, &context.project_id, chapter_id);
-            }
-            self.execute(tx, "DELETE FROM node_storyline_link WHERE node_id=?", vec![text(chapter_id)])?;
-            for storyline in &desired {
-                self.execute(tx, "INSERT INTO node_storyline_link(node_id,storyline_id,is_primary) VALUES (?,?,?)",
-                    vec![text(chapter_id), text(&storyline.id), integer(u64::from(Some(&storyline.id) == primary.as_ref()))])?;
-            }
             let mut mutations = Vec::new();
-            self.membership_projection(tx, context, chapter_id, false, None, &mut mutations)?;
-            self.commit_changes(tx, context, &mutations, None)?;
+            self.apply_chapter_storylines(
+                tx,
+                context,
+                chapter_id,
+                storyline_ids,
+                primary,
+                &mut mutations,
+            )?;
+            if !mutations.is_empty() {
+                self.commit_changes(tx, context, &mutations, None)?;
+            }
             self.membership(tx, &context.project_id, chapter_id)
         })
+    }
+
+    /// Replaces a chapter's links and appends their projection to
+    /// `mutations`; an unchanged membership appends nothing.
+    pub(super) fn apply_chapter_storylines(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        chapter_id: &str,
+        storyline_ids: &[String],
+        primary: Option<Option<&str>>,
+        mutations: &mut Vec<journal::Mutation>,
+    ) -> Result<(), String> {
+        if !self
+            .chapters(Some(tx), &context.project_id)?
+            .iter()
+            .any(|c| c.id == chapter_id)
+        {
+            return Err("Chapter is not available in this project".into());
+        }
+        let live = self.storyline_rows(Some(tx), &context.project_id, false)?;
+        let (current, current_primary) = self.links(Some(tx), &context.project_id, chapter_id)?;
+        let mut primary = match primary {
+            Some(primary) => primary.map(str::to_owned),
+            None => current_primary.clone(),
+        };
+        if primary.is_none() {
+            primary = storyline_ids.first().cloned();
+        }
+        let mut ids: Vec<&String> = storyline_ids.iter().collect();
+        if let Some(primary) = primary.as_ref().filter(|p| !storyline_ids.contains(p)) {
+            ids.insert(0, primary);
+        }
+        let mut desired: Vec<&WorkspaceStoryline> = Vec::new();
+        for id in ids {
+            let storyline = live
+                .iter()
+                .find(|s| &s.id == id)
+                .ok_or("Storyline is not available in this project")?;
+            if !desired.iter().any(|s| s.id == storyline.id) {
+                desired.push(storyline);
+            }
+        }
+        let wanted: BTreeSet<&str> = desired.iter().map(|s| s.id.as_str()).collect();
+        if current.iter().map(String::as_str).collect::<BTreeSet<_>>() == wanted
+            && current_primary == primary
+        {
+            return Ok(());
+        }
+        self.execute(
+            tx,
+            "DELETE FROM node_storyline_link WHERE node_id=?",
+            vec![text(chapter_id)],
+        )?;
+        for storyline in &desired {
+            self.execute(
+                tx,
+                "INSERT INTO node_storyline_link(node_id,storyline_id,is_primary) VALUES (?,?,?)",
+                vec![
+                    text(chapter_id),
+                    text(&storyline.id),
+                    integer(u64::from(Some(&storyline.id) == primary.as_ref())),
+                ],
+            )?;
+        }
+        self.membership_projection(tx, context, chapter_id, false, None, mutations)
+    }
+
+    /// A chapter's current links (UTF-8 order) and primary, for moves.
+    pub(super) fn chapter_links(
+        &self,
+        tx: u64,
+        project_id: &str,
+        chapter_id: &str,
+    ) -> Result<(Vec<String>, Option<String>), String> {
+        self.links(Some(tx), project_id, chapter_id)
     }
 
     /// Live chapters whose primary was this storyline lose all their links and

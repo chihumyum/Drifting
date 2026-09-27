@@ -401,29 +401,50 @@ final class StoryGraphModel {
         case narrative(Double?)
     }
 
-    /// Applies one drop: first the lane (membership), then the axis position,
-    /// each only when it changes. `lane` nil keeps the lane; `.some(nil)` is
-    /// 未归属. The first refusal stops and is shown.
+    /// Applies one drop. On the narrative axis the lane and the order are one
+    /// `moveChapter` command that changes both or neither; elsewhere the lane
+    /// (membership) goes first, then the book position, each only when it
+    /// changes. `lane` nil keeps the lane; `.some(nil)` is 未归属. The first
+    /// refusal stops and is shown.
     func drop(chapterID: String, lane: String??, placement: Placement?, completion: ((Bool) -> Void)? = nil) {
         guard !busy else { showStatus("正在保存故事图谱，请稍后再拖动。"); completion?(false); return }
         let title = chapter(id: chapterID)?.title ?? "章节"
-        var steps: [(@escaping (Bool) -> Void) -> Void] = []
+        var laneChange: (target: String?, membership: (ids: [String], primary: String?), message: String)?
         if case .some(let target) = lane, !storylines.storylines.isEmpty,
            let membership = Self.laneMembership(current: storylines.membership(chapterID: chapterID), target: target) {
             let name = target.flatMap { storylines.storyline(id: $0)?.name }
+            laneChange = (target, membership, name.map { "“\(title)”的主线已改为“\($0)”" } ?? "“\(title)”已移到未归属")
+        }
+        if case .narrative(let order)? = placement {
+            let orderChanged = order != narrativeOrder(of: chapterID)
+            guard orderChanged || laneChange != nil else { onChange?(); completion?(false); return }
+            // JSON has no non-finite numbers; such an order is refused here
+            // and the lane stays as it is.
+            if let order, !order.isFinite {
+                showStatus("这个位置无法保存，请重新拖动。章节的轨道和位置都未改变。"); completion?(false); return
+            }
+            busy = true; onChange?()
+            let orderArgument: Double?? = orderChanged ? .some(order) : nil
+            var laneArgument: String?? = nil
+            if let laneChange { laneArgument = .some(laneChange.target) }
+            moveOnTimeline(chapterID: chapterID, order: orderArgument, lane: laneArgument,
+                           message: Self.moveMessage(title: title, lane: laneChange?.message, order: orderArgument)) { [weak self] ok in
+                guard let self else { return }
+                self.busy = false
+                self.onChange?()
+                completion?(ok)
+                self.runQueuedRefresh()
+            }
+            return
+        }
+        var steps: [(@escaping (Bool) -> Void) -> Void] = []
+        if let laneChange {
             steps.append { [weak self] next in
-                self?.setMembership(chapterID: chapterID, membership: membership,
-                                    message: name.map { "“\(title)”的主线已改为“\($0)”。" } ?? "“\(title)”已移到未归属。", completion: next)
+                self?.setMembership(chapterID: chapterID, membership: laneChange.membership, message: laneChange.message + "。", completion: next)
             }
         }
-        switch placement {
-        case .book(let before)?:
+        if case .book(let before)? = placement {
             steps.append { [weak self] next in self?.moveInBook(chapterID: chapterID, before: before, title: title, completion: next) }
-        case .narrative(let order)?:
-            if order != narrativeOrder(of: chapterID) {
-                steps.append { [weak self] next in self?.setNarrativeOrder(chapterID: chapterID, order: order, title: title, completion: next) }
-            }
-        case nil: break
         }
         guard !steps.isEmpty else { onChange?(); completion?(false); return }
         busy = true; onChange?()
@@ -498,15 +519,43 @@ final class StoryGraphModel {
         }
     }
 
-    private func setNarrativeOrder(chapterID: String, order: Double?, title: String, completion: @escaping (Bool) -> Void) {
+    private static func moveMessage(title: String, lane: String?, order: Double??) -> String {
+        let place: String?
+        switch order {
+        case .some(nil): place = "移出故事时间，放回“未放置”"
+        case .some(.some): place = "在故事时间中的位置已保存"
+        case nil: place = nil
+        }
+        switch (lane, place) {
+        case (let lane?, let place?): return "\(lane)，\(place)。"
+        case (let lane?, nil): return "\(lane)。"
+        case (nil, let place?): return place.hasPrefix("移出") ? "“\(title)”已\(place)。" : "“\(title)”\(place)。"
+        case (nil, nil): return "“\(title)”未改变。"
+        }
+    }
+
+    /// One `moveChapter` original: the order and the lane together. A lane
+    /// change reads the storyline library again, as a membership reply
+    /// would carry it.
+    private func moveOnTimeline(chapterID: String, order: Double??, lane: String??, message: String,
+                                completion: @escaping (Bool) -> Void) {
         beginCommand()
-        workspace.setNarrativeOrder(projectID: projectID, chapterID: chapterID, order: order) { [weak self] result in
+        workspace.moveChapterOnTimeline(projectID: projectID, chapterID: chapterID, order: order, lane: lane) { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let reply):
                 self.timeline = reply.timeline
-                self.status = order == nil ? "“\(title)”已移出故事时间，放回“未放置”。" : "“\(title)”在故事时间中的位置已保存。"
-                completion(true)
+                self.status = message
+                guard lane != nil else { completion(true); return }
+                self.requests += 1
+                self.workspace.storylineLibrary(projectID: self.projectID) { [weak self] library in
+                    guard let self else { return }
+                    if case .success(let library) = library {
+                        self.storylines = library
+                        self.onStorylineLibrary?(library)
+                    }
+                    completion(true)
+                }
             case .failure(let error): self.status = error.localizedDescription; completion(false)
             }
         }

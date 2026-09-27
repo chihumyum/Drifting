@@ -19,10 +19,10 @@ Native only; no Tauri interoperability is kept.
   empty seed, then fills its body with the template's blocks through a
   short-lived owner as the author's input (one `entity.create` original, then
   the body's Yjs revisions). Templates no longer block creation.
-- For the element overview, `categoryLayouts` lists each live category's
-  placement (`auto`, or `pinned` at a grid cell) and `setCategoryLayout` pins
-  a category or returns it to `auto` with `field.set` of `layoutMode`,
-  `gridX` and `gridY`; unchanged placements write nothing.
+- For the [element overview](element-overview.md), `categoryLayouts` lists
+  each live category's placement (`auto`, or `pinned` at a grid cell) and
+  `setCategoryLayout` pins a category or returns it to `auto` with `field.set`
+  of `layoutMode`, `gridX` and `gridY`; unchanged placements write nothing.
 
 No SQLite migration is added.
 

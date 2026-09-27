@@ -1,6 +1,14 @@
 //! The story timeline and graph: narrative order, markers and card positions.
 use super::elements::present;
 use super::*;
+use serde::Deserializer;
+
+/// Absent stays `None`; an explicit `null` becomes `Some(None)`.
+fn present_number<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Option<f64>>, D::Error> {
+    Ok(Some(Option::<f64>::deserialize(deserializer)?))
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(
@@ -14,6 +22,15 @@ pub(crate) enum TimelineCommand {
     SetNarrativeOrder {
         chapter_id: String,
         order: Option<f64>,
+    },
+    /// One drop on the graph: order and/or lane, atomically. Absent fields
+    /// stay; `order: null` unplaces, `lane: null` removes every link.
+    MoveChapter {
+        chapter_id: String,
+        #[serde(default, deserialize_with = "present_number")]
+        order: Option<Option<f64>>,
+        #[serde(default, deserialize_with = "present")]
+        lane: Option<Option<String>>,
     },
     SetPosition {
         node_id: String,
@@ -51,6 +68,16 @@ impl WorkspaceSession {
             TimelineCommand::SetNarrativeOrder { chapter_id, order } => {
                 json!(store.set_narrative_order(&self.context(&project)?, chapter_id, *order)?)
             }
+            TimelineCommand::MoveChapter {
+                chapter_id,
+                order,
+                lane,
+            } => json!(store.move_chapter_on_timeline(
+                &self.context(&project)?,
+                chapter_id,
+                *order,
+                lane.as_ref().map(|lane| lane.as_deref()),
+            )?),
             TimelineCommand::SetPosition { node_id, x, y } => {
                 json!(store.set_node_position(&self.context(&project)?, node_id, *x, *y)?)
             }

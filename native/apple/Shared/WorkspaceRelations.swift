@@ -340,10 +340,17 @@ final class RelationLibraryModel {
     /// A read failed; the last library stays.
     var onReadFailure: ((String) -> Void)?
     var onChange: (() -> Void)?
+    private var observers: [(owner: () -> AnyObject?, block: (WorkspaceRelationLibrary) -> Void)] = []
 
     init(workspace: LabWorkspaceCore, projectID: String) {
         self.workspace = workspace
         self.projectID = projectID
+    }
+
+    /// Calls `block` with every adopted library while `owner` lives, e.g.
+    /// the 设定总览 beside the page sections.
+    func observe(_ owner: AnyObject, _ block: @escaping (WorkspaceRelationLibrary) -> Void) {
+        observers.append(({ [weak owner] in owner }, block))
     }
 
     /// Reads the library again, e.g. after a trash purged relations. A read
@@ -407,6 +414,8 @@ final class RelationLibraryModel {
     private func adopt(_ library: WorkspaceRelationLibrary) {
         self.library = library; loaded = true; loadError = nil
         onLibrary?(library)
+        observers.removeAll { $0.owner() == nil }
+        for observer in observers { observer.block(library) }
         onChange?()
     }
 

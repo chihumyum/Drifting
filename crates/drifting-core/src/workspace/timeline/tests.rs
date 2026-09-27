@@ -156,3 +156,101 @@ fn workspace_timeline_orders_markers_and_positions() {
         (None, "灵感")
     );
 }
+
+#[test]
+fn workspace_timeline_moves_order_and_lane_in_one_original() {
+    let dir = tempfile::tempdir().unwrap();
+    let g = DatabaseGateway::new(dir.path().into()).unwrap();
+    g.open("timeline-move.db".into(), CLIENT.into(), false)
+        .unwrap();
+    let store = WorkspaceStore::new(&g, CLIENT);
+    let c = context();
+    store
+        .create_project(
+            &c,
+            CreateProject {
+                user_id: "local-user".into(),
+                name: "时间".into(),
+                default_kv_ids: std::array::from_fn(|i| format!("timeline-move-fact-{i}")),
+            },
+        )
+        .unwrap();
+    store
+        .create_chapter(
+            &c,
+            CreateChapter {
+                id: "chapter".into(),
+                title: "第一章".into(),
+                book_order: Some(1.0),
+                seed: seed(),
+            },
+        )
+        .unwrap();
+    let mut ids = 0;
+    let mut fact = || {
+        ids += 1;
+        Ok::<_, String>(format!("timeline-move-kv-{ids}"))
+    };
+    for (id, name) in [("main", "主线"), ("side", "支线"), ("third", "暗线")] {
+        store
+            .create_storyline(
+                &c,
+                NewStoryline {
+                    id: id.into(),
+                    name: name.into(),
+                    color: "#888888".into(),
+                    seed: seed(),
+                },
+                &mut fact,
+            )
+            .unwrap();
+    }
+    store
+        .set_chapter_storylines(
+            &c,
+            "chapter",
+            &["main".into(), "third".into()],
+            Some(Some("main")),
+        )
+        .unwrap();
+    let before = count(&g);
+    // Into the 支线 lane at story time 2: the old primary's link goes, 暗线 stays.
+    let moved = store
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(Some("side")))
+        .unwrap();
+    assert_eq!(moved.narrative_order, Some(2.0));
+    let after = count(&g);
+    let (V::Integer(a), V::Integer(b)) = (&before[0][0], &after[0][0]) else {
+        panic!("counts")
+    };
+    assert_eq!(
+        b.parse::<u64>().unwrap(),
+        a.parse::<u64>().unwrap() + 1,
+        "one original"
+    );
+    let membership = store.chapter_memberships(&c.project_id).unwrap().remove(0);
+    assert_eq!(membership.primary.as_deref(), Some("side"));
+    let mut links = membership.storyline_ids.clone();
+    links.sort();
+    assert_eq!(links, ["side", "third"]);
+    // A refused lane changes nothing, the order included.
+    assert!(store
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(5.0)), Some(Some("missing")))
+        .is_err());
+    assert_eq!(
+        store.timeline(&c.project_id).unwrap().nodes[0].narrative_order,
+        Some(2.0)
+    );
+    // No lane: every link goes.
+    store
+        .move_chapter_on_timeline(&c, "chapter", None, Some(None))
+        .unwrap();
+    assert!(store.chapter_memberships(&c.project_id).unwrap()[0]
+        .storyline_ids
+        .is_empty());
+    let before = count(&g);
+    store
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(None))
+        .unwrap();
+    assert_eq!(count(&g), before, "unchanged writes nothing");
+}
