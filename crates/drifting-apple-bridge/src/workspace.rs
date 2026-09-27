@@ -67,11 +67,12 @@ struct WorkspaceSession {
     link_spans: HashMap<String, (i64, Vec<drifting_document::EntityLinkSpan>)>,
 }
 
-fn trashed_json(entities: &[(String, String)]) -> Value {
-    json!(entities
-        .iter()
-        .map(|(kind, id)| json!({"kind": kind, "id": id}))
-        .collect::<Vec<_>>())
+/// One trashed entity the author confirmed for 清空回收站.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TrashKey {
+    kind: String,
+    id: String,
 }
 
 impl WorkspaceSession {
@@ -209,6 +210,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceDiagnostics { .. }
             | Request::WorkspacePurgeTrashed { .. }
             | Request::WorkspaceEmptyTrash { .. }
+            | Request::WorkspaceTrash { .. }
             | Request::WorkspaceRenameChapter { .. }
             | Request::WorkspaceMoveChapter { .. }
             | Request::WorkspaceCreateAct { .. }
@@ -352,9 +354,20 @@ pub(super) fn dispatch(
             for asset in &purged.asset_ids {
                 let _ = assets.remove(project_id, asset);
             }
-            json!({"purged": [purged], "trashed": trashed_json(&store.trashed_entities(project_id)?)})
+            json!({"purged": [purged], "trashed": store.trash_listing(project_id)?})
         }
-        Request::WorkspaceEmptyTrash { handle, project_id } => {
+        Request::WorkspaceTrash { handle, project_id } => {
+            let workspace = workspaces
+                .get(handle)
+                .ok_or("Unknown or closed workspace")?;
+            workspace.project(project_id)?;
+            json!({"trashed": WorkspaceStore::new(&workspace.gateway, CLIENT).trash_listing(project_id)?})
+        }
+        Request::WorkspaceEmptyTrash {
+            handle,
+            project_id,
+            confirmed,
+        } => {
             let workspace = workspaces
                 .get(handle)
                 .ok_or("Unknown or closed workspace")?;
@@ -367,12 +380,16 @@ pub(super) fn dispatch(
             {
                 return Err("请先关闭回收站里仍打开的页面，再清空回收站".into());
             }
-            let purged = store.empty_trash(&workspace.context(&project)?)?;
+            let confirmed: Vec<(String, String)> = confirmed
+                .iter()
+                .map(|key| (key.kind.clone(), key.id.clone()))
+                .collect();
+            let purged = store.empty_trash(&workspace.context(&project)?, &confirmed)?;
             let assets = workspace.assets();
             for asset in purged.iter().flat_map(|entity| &entity.asset_ids) {
                 let _ = assets.remove(project_id, asset);
             }
-            json!({"purged": purged, "trashed": trashed_json(&store.trashed_entities(project_id)?)})
+            json!({"purged": purged, "trashed": store.trash_listing(project_id)?})
         }
         Request::WorkspaceDiagnostics { handle } => {
             let workspace = workspaces

@@ -31,6 +31,10 @@ pub(crate) enum TimelineCommand {
         order: Option<Option<f64>>,
         #[serde(default, deserialize_with = "present")]
         lane: Option<Option<String>>,
+        /// A reading-order drop: before this chapter, or last with null,
+        /// in the same original as the lane.
+        #[serde(default, deserialize_with = "present")]
+        book_before: Option<Option<String>>,
     },
     SetPosition {
         node_id: String,
@@ -72,11 +76,13 @@ impl WorkspaceSession {
                 chapter_id,
                 order,
                 lane,
+                book_before,
             } => json!(store.move_chapter_on_timeline(
                 &self.context(&project)?,
                 chapter_id,
                 *order,
                 lane.as_ref().map(|lane| lane.as_deref()),
+                book_before.as_ref().map(|before| before.as_deref()),
             )?),
             TimelineCommand::SetPosition { node_id, x, y } => {
                 json!(store.set_node_position(&self.context(&project)?, node_id, *x, *y)?)

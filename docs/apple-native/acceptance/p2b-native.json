@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "apple_native_lab_acceptance",
-  "generatedAt": "2026-09-27T21:18:49.720Z",
+  "generatedAt": "2026-09-27T22:16:48.514Z",
   "status": "passed",
   "scope": "macOS build, core and source-matched programmatic AppKit acceptance; mobile platforms deferred",
   "simulatorKinds": [],
   "source": {
-    "commit": "2c017a2aac34d3376b5b3f459af91888b9df3ad1",
+    "commit": "add67d346d40cfd065ff5fe0685cdd98802e186a",
     "dirty": true,
-    "runtimeFingerprint": "b0825375bb0f176c8c9f1e0331c2b7ca25f460dbd5714595f4ac3ee214283b05"
+    "runtimeFingerprint": "a4d2edc6a63c8f9a5914d459ae9948f8465f86b3407352a9859ca130bd8423d8"
   },
   "checks": [
     {
@@ -37,10 +37,10 @@
     {
       "name": "macos-binding",
       "status": "passed",
-      "passed": 193,
+      "passed": 195,
       "method": "validated-source-matched-report",
       "evidence": "docs/apple-native/acceptance/p2b-binding.json",
-      "sourceFingerprint": "68b331a38cbf547d7f1be3e4891657a766ae503725650decd8e2d1f59bb8d919"
+      "sourceFingerprint": "b49dbdbdcb6c7272b708a016f48630035e58f975ef132c4e5b7fceca412fed10"
     },
     {
       "name": "source-still-current",

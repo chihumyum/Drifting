@@ -285,6 +285,8 @@ final class MacBookTransfer {
     /// updates its lists. Workspace libraries are read again here.
     var onImported: ((WorkspaceProject, WorkspaceImportedEntity) -> Void)?
     private(set) var importSheet: MacImportSheet?
+    /// The project the open import sheet writes into.
+    private var importProjectID: String?
     private(set) var isExporting = false
 
     static let importTypes: [UTType] = [UTType(filenameExtension: "md"), UTType(filenameExtension: "markdown"), .plainText,
@@ -325,6 +327,7 @@ final class MacBookTransfer {
     private func present(_ document: BookImportDocument, project: WorkspaceProject, window: NSWindow?) {
         let sheet = MacImportSheet(document: document)
         importSheet = sheet
+        importProjectID = project.id
         workspace.elementLibrary(projectID: project.id) { [weak sheet] result in
             switch result {
             case .success(let library): sheet?.setCategories(library.categories)
@@ -382,9 +385,10 @@ final class MacBookTransfer {
         }
     }
 
-    func endImport() {
-        guard let sheet = importSheet else { return }
-        importSheet = nil
+    /// Closes the import sheet; with a project, only a sheet importing into it.
+    func endImport(projectID: String? = nil) {
+        guard let sheet = importSheet, projectID == nil || projectID == importProjectID else { return }
+        importSheet = nil; importProjectID = nil
         if let parent = sheet.window.sheetParent { parent.endSheet(sheet.window) } else { sheet.window.orderOut(nil) }
     }
 

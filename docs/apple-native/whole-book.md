@@ -35,10 +35,23 @@ Right-clicking a chapter offers its 写作状态.
   read with `agentReadProse` (a read only). Clicking it attaches the editor
   there.
 - **Release.** An editor is released only when its view has no queued input,
-  failed or marked draft. Its owner is closed only when no tab shows the
-  chapter. Closing such a tab leaves the owner to the long page. Owner changes
-  suspend every editor briefly, so they wait for a pause in typing (0.6 s).
-  Rows above the reading position that change height keep it in place.
+  failed or marked draft. Its owner is closed only when no tab or other view
+  shows the chapter. Closing such a tab leaves the owner to the long page.
+  Owner changes suspend every editor briefly, so they wait for a pause in
+  typing (0.6 s). Rows above the reading position that change height keep it
+  in place.
+- **Undo across scrolling.** The owner of a chapter typed in during this
+  session stays open without an editor while it has undo (or redo) history,
+  so scrolling back reattaches the same owner and ⌘Z undoes the typing. At
+  most 12 such owners are kept; beyond that the least recently edited one is
+  closed and its undo history is lost, as it is for all of them when the
+  panel closes.
+- **Failed closes.** An owner whose close fails stays tracked and is tried
+  again at the next quiet moment (a pause in typing, at least 2 s after the
+  failure). The status line names its chapter and the reason until it
+  closes. 删除项目 asks the panel first and refuses, naming the chapter,
+  before anything closes; a panel closing for deletion reports the failure
+  instead of waiting ([workspace](workspace.md)).
 - **Tab parity.** Edits, undo, formatting, comments and ⌘-click on links
   behave as in a tab. The tab host gives these views the link directory and
   link passes, and counts their saved bodies. A ⌘-clicked link closes the
@@ -103,15 +116,21 @@ chapter are not ported. Each attached chapter keeps its own editor controls.
 
 ## Acceptance
 
-Six programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
+Seven programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
 (`--whole-book-only`; [binding report](acceptance/p2b-binding.json)) drive the
 real controllers, tab host, Rust workspace and SQLite:
 
 - 200 synthetic chapters in three acts: book order and separators; at most
-  six editors, six owners and 60 row views while scrolling to the end; no pass
-  over 100 ms (debug build); no journal writes. Text typed in chapter 3 just
-  before scrolling far away is saved and the owner closed. It shows again on
-  return, and the chapter keeps its editor nearby while focused.
+  six editors, six owners plus kept ones and 60 row views while scrolling to
+  the end; no pass over 100 ms (debug build); no journal writes. Text typed
+  in chapter 3 just before scrolling far away is saved and its owner kept.
+  It shows again on return and ⌘Z undoes it; with the limit at one, a later
+  edit elsewhere closes chapter 3's owner. The chapter keeps its editor
+  nearby while focused.
+- An injected close failure: the owner stays open and tracked through
+  repeated attempts, the status line names it, 删除项目 refuses naming it
+  with nothing closed or written, it closes once closes work again, and a
+  shutdown reports a failure instead of waiting.
 - An attached chapter shared with a tab: edit, element link, undo and redo,
   a comment, word counts in the header and 统计, a closed tab leaving the
   owner, ⌘-click, and releasing only owners no tab shows.

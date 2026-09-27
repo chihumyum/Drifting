@@ -17,8 +17,8 @@ extension BindingAcceptance {
         try markdownFolderExport()
         try diagnosticSummary()
         return [
-            "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines newest first with kind, title and time, filters by kind, follows a trash made elsewhere, and 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens",
-            "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and purges the rest in one original that survives a cold reopen",
+            "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines from workspaceTrash newest first by their own trash time (a category above an element of it trashed earlier) with kind, title and time, filters by kind, follows a trash made elsewhere, 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens, and a failed read turns 清空回收站 off naming the kinds it could not read",
+            "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and sends exactly the counted entries: one trashed elsewhere while it asks makes Rust refuse with nothing deleted and the list read again, then the rest is purged in one original that survives a cold reopen",
             "AppKit 项目书架 lists every project with summary, chapters, words and last edit newest first, reorders after an edit, creates, renames and opens projects, deletes through the project deletion sheet, reads without writing and lists the same after a cold relaunch",
             "AppKit 导出为 Markdown 文件夹 writes every archive file as UTF-8 into <项目名>-<yyyy-MM-dd> with subfolders, wiki links and front matter, adds a numeric suffix instead of overwriting, offers 在访达中显示, writes no journal row and refuses paths that leave the folder",
             "AppKit 诊断摘要 shows Rust's counts with the app version, macOS version and architecture as read-only JSON, says it holds no book content, copies and saves it, and contains no synthetic title, prose, identity or path",
@@ -159,8 +159,10 @@ extension BindingAcceptance {
         let places: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
             workspace.createElementCategory(projectID: project.id, name: "地点", completion: $0)
         }
+        // 北塔 is in 地点, which is trashed after it: the list keeps each
+        // entry's own trash time, not the later detach.
         let tower: WorkspaceElementReply<WorkspaceElement> = try elementResult {
-            workspace.createElement(projectID: project.id, categoryID: people.result!.id, name: "北塔", completion: $0)
+            workspace.createElement(projectID: project.id, categoryID: places.result!.id, name: "北塔", completion: $0)
         }
         let lamp: WorkspaceElementReply<WorkspaceElement> = try elementResult {
             workspace.createElement(projectID: project.id, categoryID: people.result!.id, name: "灯塔", completion: $0)
@@ -201,7 +203,11 @@ extension BindingAcceptance {
         defer { panel.close() }
         let model = controller.model
         try require(trashTitles(controller) == ["故事线:支线", "漂流:旧梦", "分类:地点", "设定:北塔", "章节:钟楼"],
-            "The trash is not newest first: \(trashTitles(controller))")
+            "The trash is not newest first by trash time: \(trashTitles(controller))")
+        let listed: WorkspaceTrashListing = try elementResult { workspace.trash(projectID: project.id, completion: $0) }
+        try require(listed.trashed.map(\.id) == controller.rows.map(\.id)
+            && zip(listed.trashed, listed.trashed.dropFirst()).allSatisfy { $0.trashedAt >= $1.trashedAt },
+            "The panel does not show workspaceTrash's order")
         try require(controller.rows.allSatisfy { $0.trashedDate != nil && !WorkspaceTrashText.time($0).isEmpty }
             && controller.table.numberOfRows == 5 && controller.table.numberOfColumns == 3,
             "Rows lack a kind, title or trash time")
@@ -234,7 +240,8 @@ extension BindingAcceptance {
             controller.restore(item) { finished = .some($0) }
             try wait { finished != nil && !model.busy }
             if case .some(.some(let error)) = finished { throw LabError.message("\(label) restore failed: \(error.localizedDescription)") }
-            try wait { check() }
+            // The panel reads the trash again after the kind's list arrives.
+            try wait { check() && !model.items.contains(where: { $0.key == item.key }) }
             try require(try harness.journal.originals(since: mark).count == 1, "\(label) restore wrote \(try harness.journal.originals(since: mark))")
             try require(!model.items.contains(where: { $0.key == item.key }) && host.tabTitles(pane: 0) == tabs && host.paneCount == 1,
                 "\(label) stayed in the trash or opened a tab: \(host.tabTitles(pane: 0))")
@@ -263,6 +270,37 @@ extension BindingAcceptance {
         let fresh = WorkspaceTrashModel(workspace: workspace, projectID: project.id)
         fresh.load(); try wait { fresh.loaded }
         try require(fresh.items.map(\.key) == model.items.map(\.key), "A fresh read differs: \(fresh.items.map(\.title))")
+
+        // A failed read turns 清空回收站 off and names the kinds it could not read.
+        var asked = 0
+        controller.presentAlert = { _, done in asked += 1; done(.alertSecondButtonReturn) }
+        try require(controller.emptyButton.isEnabled && model.canEmpty, "清空回收站 is off for a readable trash")
+        let reader = model.read
+        model.read = { done in done(.failure(LabError.message("合成的读取失败"))) }
+        model.load()
+        try wait { model.unread != nil }
+        try require(!controller.emptyButton.isEnabled
+            && model.status.contains("无法读取回收站中的章节、漂流、设定、分类和故事线：合成的读取失败") && model.status.contains("清空回收站已停用"),
+            "A failed read left 清空回收站 on or unnamed: \(model.status)")
+        var refused: Error??
+        controller.emptyTrash { refused = .some($0) }
+        try require(asked == 0 && refused != nil, "清空回收站 asked after a failed read")
+        model.read = reader
+        model.load()
+        try wait { model.unread == nil && controller.emptyButton.isEnabled }
+        // A re-read after a trash elsewhere fails: only that kind is named.
+        model.read = { done in done(.failure(LabError.message("合成的读取失败"))) }
+        let _: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+            host.trashDrift(projectID: project.id, driftID: dream.result!.id, completion: $0)
+        }
+        try wait { model.unread != nil }
+        try require(model.unread?.kinds == [.drift] && model.status.contains("无法读取回收站中的漂流：") && !controller.emptyButton.isEnabled,
+            "A failed re-read names \(model.status)")
+        model.read = reader
+        model.load()
+        try wait { model.unread == nil && trashTitles(controller) == ["漂流:旧梦", "设定:灯塔"] }
+        try require(controller.emptyButton.isEnabled && model.summary.hasPrefix("回收站中有 2 项") && !model.status.contains("无法读取"),
+            "A later read did not restore 清空回收站: \(model.status)")
         let closed: Bool = try elementResult { host.close(completion: $0) }
         try require(closed, "The workspace did not close")
     }
@@ -395,7 +433,8 @@ extension BindingAcceptance {
             "The purged link is not plain, unrewritten prose: \(attributes)")
         try requireStyleReference(view.textView.textStorage!, view.binding.store.projection!, "purged link", links: view.linkDirectory)
 
-        // 清空回收站 with counts, in one original.
+        // 清空回收站 sends the entries it counted: a category trashed elsewhere
+        // while the question is open makes Rust refuse, deleting nothing.
         try harness.trashChapter(harness.chapters[1])
         let _: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
             host.trashDrift(projectID: project.id, driftID: dream.result!.id, completion: $0)
@@ -403,10 +442,33 @@ extension BindingAcceptance {
         let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
             host.trashStoryline(projectID: project.id, storylineID: branch.result!.id, completion: $0)
         }
+        try wait { model.items.count == 3 && controller.emptyButton.isEnabled }
+        var answer: ((NSApplication.ModalResponse) -> Void)?
+        controller.presentAlert = { alert, done in answered.append(alert); answer = done }
+        result = nil
+        controller.emptyTrash { result = .some($0) }
+        try wait { answer != nil }
+        try require(answered.last?.informativeText.hasPrefix("将永久删除回收站中的全部 3 项") == true, "The question did not count 3 entries")
         let _: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
             host.trashCategory(projectID: project.id, categoryID: places.result!.id, completion: $0)
         }
-        try wait { model.items.count == 4 && controller.emptyButton.isEnabled }
+        try wait { model.items.count == 4 }
+        mark = try journal.mark()
+        answer?(.alertFirstButtonReturn)
+        try wait { result != nil && !model.busy }
+        guard case .some(.some(let changed)) = result, changed.localizedDescription.contains("确认后有变化") else {
+            throw LabError.message("A changed trash was emptied: \(String(describing: result))")
+        }
+        try journal.expect([], since: mark, "Emptying a trash that changed after the question")
+        for table in ["book_node WHERE id='\(harness.chapters[1].id)'", "book_node WHERE id='\(dream.result!.id)'",
+                      "storylines WHERE id='\(branch.result!.id)'", "element_category WHERE id='\(places.result!.id)'"] {
+            try require(try harness.count("SELECT COUNT(*) AS n FROM \(table)") == 1, "\(table) was purged after the trash changed")
+        }
+        try wait { model.items.count == 4 && !model.busy && controller.emptyButton.isEnabled }
+        try require(model.status.hasPrefix("回收站在确认后有变化，没有删除任何内容"), "The refusal reads \(model.status)")
+
+        // 清空回收站 with counts, in one original.
+        controller.presentAlert = { alert, done in answered.append(alert); done(.alertFirstButtonReturn) }
         mark = try journal.mark()
         result = nil
         controller.emptyTrash { result = .some($0) }

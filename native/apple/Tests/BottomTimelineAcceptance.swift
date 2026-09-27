@@ -14,7 +14,7 @@ extension BindingAcceptance {
         return [
             "AppKit 底部时间轴 阅读顺序 shows chapter tiles in book order in storyline rows with 未归属, the 幕 rail's bands over their chapters in stored or default act colours, highlights the current chapter and follows the active tab, opens a chapter from a tile click, and showing, switching modes and scrolling write nothing to the journal",
             "AppKit 底部时间轴 幕 rail: dragging a boundary sends nothing until the drop and then one workspaceMoveAct field.set, a drop at its own start writes nothing, the drag is clamped strictly between the neighbouring boundaries, a boundary created elsewhere makes Rust refuse the stale drop in Chinese without writing and the rail reads acts again; double-click and 重命名… rename, 在此处开始新幕 creates, 删除 after confirmation removes only the boundary, 幕颜色 stores and clears a colour, and other act views are told",
-            "AppKit 底部时间轴 tile drags reuse the story graph's commands: a book move with one original that the tab host and the 幕 rail follow, a row change making the storyline primary, a drop in place and a click writing nothing; 故事时间 lists chapters without a story time in 未放置, places them with 放到末尾, orders them by drag, shows the timeline markers and takes one back with 移出故事时间",
+            "AppKit 底部时间轴 tile drags reuse the story graph's commands: a book move with one original that the tab host and the 幕 rail follow, a row change making the storyline primary, a drop into another row and slot moving both in one original, a drop in place and a click writing nothing; 故事时间 lists chapters without a story time in 未放置, places them with 放到末尾, orders them by drag, shows the timeline markers and takes one back with 移出故事时间",
             "AppKit 底部时间轴 follows chapters created, renamed and moved, acts created, renamed and recoloured in the 整书大纲, storyline changes and story time set in the 故事图谱 without reopening, and 视图 › 底部时间轴 remembers shown or hidden and the mode per project in settings.json through a cold relaunch, writing nothing to the journal",
             "AppKit 底部时间轴 lays out 200 chapters in 3 acts and 3 storyline rows with no main-thread pass over 100 ms in a debug build while loading, switching modes, scrolling and dragging, and a drag across them sends no Rust call and no render until the drop, which moves the chapter once",
         ]
@@ -490,6 +490,15 @@ extension BindingAcceptance {
         // 移到轨道 from the tile menu: 尾声 into 暗线.
         try harness.press("timeline-tile-lane-\(lanes.hidden.id)", in: .chapter(try harness.chapter("尾声").id))
         try require(model.graph.primary(of: try harness.chapter("尾声").id) == lanes.hidden.id, "移到轨道 did not move 尾声")
+        // 尾声 into 主线's row before 雨夜: the row and the book position in one original.
+        mark = try harness.journal.mark()
+        let coda = try harness.tile("尾声"), codaID = try harness.chapter("尾声").id
+        try harness.drag(from: NSPoint(x: coda.midX, y: coda.midY), to: NSPoint(x: M.slotCenter(2) - 30, y: harness.laneY(0)))
+        let reordered = try ["序章", "归途", "尾声", "雨夜", "北塔", "钟声"].map { try harness.chapter($0).id }
+        let written = try harness.journal.originals(since: mark)
+        try require(model.chapters.map(\.id) == reordered && harness.chapterLists.last == reordered && model.graph.primary(of: codaID) == lanes.main.id
+            && written.count == 1 && written[0].contains("field.set node") && written[0].contains("field.set node-storyline-primary"),
+            "The combined tile drop differs: \(model.chapters.map(\.title)) \(written)")
 
         // 故事时间: 未放置, 放到末尾, a drag and 移出故事时间.
         harness.controller.setAxis(.narrative)

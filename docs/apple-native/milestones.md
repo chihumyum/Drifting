@@ -84,13 +84,13 @@ architectural redesign.
 | Element patches and the bottom timeline | `0fd6f68a` | [patches](patches.md), [timeline](timeline.md), [act boundaries](act-boundaries.md) |
 | Writing assistant tools | `f802c7d4` | [agent](agent.md), [entity links](entity-links.md), [act boundaries](act-boundaries.md) |
 | Trash, hover cards, typewriter scrolling, the project shelf and Markdown folder export | `2c017a2a` | [trash](trash.md), [entity links](entity-links.md), [settings](settings.md), [workspace](workspace.md), [library](library.md) |
-| Assistant rules, working memory, task plans, compaction and retries | this batch | [agent](agent.md), [review](review.md) |
+| Assistant rules, working memory, task plans, compaction and retries | `add67d34` | [agent](agent.md), [review](review.md) |
+| Review fixes: trash confirmation, project deletion cleanup, compose target, whole-book undo, atomic reading-order drops | this batch | [trash](trash.md), [workspace](workspace.md), [review](review.md), [whole book](whole-book.md), [timeline](timeline.md) |
 
 ## Next batch
 
-Fixes from the code review (trash confirmation, project deletion cleanup,
-compose target, whole-book undo, atomic reading-order drops); then Copilot
-suggestions; MCP extensions; printing, PDF export and custom shortcuts.
+Copilot suggestions (experimental); then MCP extensions; printing, PDF
+export and custom shortcuts.
 
 ## Open gates
 

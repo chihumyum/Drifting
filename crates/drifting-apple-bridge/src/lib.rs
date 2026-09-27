@@ -520,10 +520,18 @@ enum Request {
         kind: String,
         id: String,
     },
+    WorkspaceTrash {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+    },
     WorkspaceEmptyTrash {
         handle: u64,
         #[serde(rename = "projectId")]
         project_id: String,
+        /// The `{kind, id}` entries the author confirmed; the trash must
+        /// still hold exactly these.
+        confirmed: Vec<workspace::TrashKey>,
     },
     WorkspaceDiagnostics {
         handle: u64,
@@ -1441,6 +1449,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceDiagnostics { .. }
         | Request::WorkspacePurgeTrashed { .. }
         | Request::WorkspaceEmptyTrash { .. }
+        | Request::WorkspaceTrash { .. }
         | Request::WorkspaceRenameChapter { .. }
         | Request::WorkspaceMoveChapter { .. }
         | Request::WorkspaceCreateAct { .. }

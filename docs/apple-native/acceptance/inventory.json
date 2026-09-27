@@ -202,8 +202,8 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "21c43925c2afb1b3c3ac107d1b308222b611207352b6b75ecb1692696520bd73",
-    "runtimeFingerprint": "b0825375bb0f176c8c9f1e0331c2b7ca25f460dbd5714595f4ac3ee214283b05",
+    "fingerprint": "ccb17eb5679deb63623eb31fa03ab9e166801f647d4d7937a7ae006dab0b12ff",
+    "runtimeFingerprint": "a4d2edc6a63c8f9a5914d459ae9948f8465f86b3407352a9859ca130bd8423d8",
     "files": [
       {
         "path": ".github/workflows/ci.yml",
@@ -231,11 +231,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/lib.rs",
-        "sha256": "361ccf198c40374ead945c7870cd04cb03f94c4431459f3914f0a2ff91ad0e2c"
+        "sha256": "bdf2eaaced30a61cd8de97338f758841be9c15804b5dc17d56420f473f496599"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace.rs",
-        "sha256": "cdeed9cf224e7c9bba27b7a09ce7eb248fdbcd010060d7ae1f03753a6c55c592"
+        "sha256": "85c6b0bbab97516bd1a0f6e4680883c3dc63ff586a5c2b7e7bf77989ac74c88d"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_act_tests.rs",
@@ -339,7 +339,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_purge_tests.rs",
-        "sha256": "c8cdad3776a9d3f2973a9115b96fd9943709347fefc5d14fece432d5b91d7b3d"
+        "sha256": "27a83f08f7a690870c79487b3c42eca9003df127d650287e4e680fd1435c056a"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_relation_tests.rs",
@@ -395,11 +395,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_timeline.rs",
-        "sha256": "f1b294270405691322df6e5e379b9cf9ed460ad85f77d1a5cc6b43ff8b43a0f3"
+        "sha256": "8ea56db7cd0d20dbdc339bfd11771c05ab9746d798c9b394de2a806b8465a910"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_timeline_tests.rs",
-        "sha256": "b0ea5bfe85237df7257d91ed026f026dc8673db7e993ffa80649f7c5eb21c8ba"
+        "sha256": "df9217ab4aa3aca920c5a5261aeff5dd02c9e9dae60f23cd89bc49bfc1af1367"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_todo_tests.rs",
@@ -527,7 +527,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "3769a71e980c812b66586d14af8077e2d92650bf649965bed1d74764128a125b"
+        "sha256": "d84c530887d2ac31d3f3cf2dc16ddbb1a8999395f07198412be4560183832084"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -631,7 +631,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/purge.rs",
-        "sha256": "e983390b1338f8613797c541b0536fbef9a9d5b8efb7e4f828b28cc6d8e417e5"
+        "sha256": "7a5744521038d295f093ea193999c2499f9d0d9e5ccf6e2907292a2f6d8e8103"
       },
       {
         "path": "crates/drifting-core/src/workspace/purge/tests.rs",
@@ -667,11 +667,11 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/timeline.rs",
-        "sha256": "09534c37d0979ea7ef5f43041d256c21140496a44e61d349515100af7990a22c"
+        "sha256": "61dd45f30b27d61f49a6507c61cad5d60c1a931801fb0bf3945a3c098c256255"
       },
       {
         "path": "crates/drifting-core/src/workspace/timeline/tests.rs",
-        "sha256": "8dee6250beae69789b338d28ebbe5fd6010ad653a9c0e0b5b7c2771cfc0f63db"
+        "sha256": "dc8e7051ecf6b608a9c7f239965a1a279b281fe8fec55d6d2ebd4afaed5acd53"
       },
       {
         "path": "crates/drifting-core/src/workspace/trash.rs",
@@ -963,7 +963,7 @@
       },
       {
         "path": "docs/apple-native/agent.md",
-        "sha256": "c44a6b865eac8f31b1cd17ab604cd642f5b64ce096a2a8db663c9ae11f47618e"
+        "sha256": "fb9a87e642fecfe91814e567c36c8e682d208324f1b1e54dfd25919687fac35b"
       },
       {
         "path": "docs/apple-native/architecture.md",
@@ -1047,7 +1047,7 @@
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "ed9bc7d170560ded27182fe15f843a3576b77f310b3c55231d8c4cef717d52a1"
+        "sha256": "8e79d08357cf1e8187f1849d59364606d254b1081e320663c9aa97affe2d4bb1"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -1083,7 +1083,7 @@
       },
       {
         "path": "docs/apple-native/review.md",
-        "sha256": "ea21cdcd60ef2ed1186422688570dfb823995cf8172de07e93a1d5fc581a1f55"
+        "sha256": "7feef6b7877f3ab953f1f01f8516983f798ef249acf047fb6868f48df0712223"
       },
       {
         "path": "docs/apple-native/search.md",
@@ -1107,15 +1107,15 @@
       },
       {
         "path": "docs/apple-native/timeline.md",
-        "sha256": "be0c8ee0b005cf5ac6bb6e34c9226a52eb27688f8f631d9dd0c0b65ff886f93b"
+        "sha256": "294855264f6d783e24a9569ae82473b29207a27d7ac51b4229c8f5eaefaf3c1f"
       },
       {
         "path": "docs/apple-native/trash.md",
-        "sha256": "b128b72d446623f3ec8f2388cdcb920b9f7f8ca9717d7be673aee2a7b4e9d932"
+        "sha256": "89aef7212aedc8c332ea6fdd09a29102ddb3ff0c8808605ead0c1dd73c51790e"
       },
       {
         "path": "docs/apple-native/whole-book.md",
-        "sha256": "f679d26b0b82ba266ae0d7d36008b51ebe788efa4ea4f705df6260341975caa4"
+        "sha256": "e5ee3fe1b3f7a9e043dc95df16b13b9124e3b6b703c86e68f1bcc54984463272"
       },
       {
         "path": "docs/apple-native/word-counts.md",
@@ -1123,7 +1123,7 @@
       },
       {
         "path": "docs/apple-native/workspace.md",
-        "sha256": "3805ecfe6f4ba739e1190f5bef31dbfeeaa2ecbc7ffdb8d92e7c1e3d7c483389"
+        "sha256": "2f1c2a2fa1792416d41d091a4ce22526df9f2c476d68129773cf24155d1640e5"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -1223,7 +1223,7 @@
       },
       {
         "path": "native/apple/Shared/AgentTranscript.swift",
-        "sha256": "caf55e960a170744f34910caa2b77019b2463ca685553ac8583118946d0cd477"
+        "sha256": "16ecf0077acfe704dfc2b8d4f59d8ef1bbad02ace02f689e8b1f30e2e732bcbe"
       },
       {
         "path": "native/apple/Shared/AgentUsage.swift",
@@ -1255,7 +1255,7 @@
       },
       {
         "path": "native/apple/Shared/LabCore.swift",
-        "sha256": "3640f96e49f0db6c298b6cada7305f5f86f39b28f6201ed1271dd1c6a5839c19"
+        "sha256": "4d0f5ff90c07731dd692d2daad95e6156b4b98922186501bc332dfc56afbb575"
       },
       {
         "path": "native/apple/Shared/WorkspaceArchive.swift",
@@ -1311,7 +1311,7 @@
       },
       {
         "path": "native/apple/Shared/WorkspaceReview.swift",
-        "sha256": "402daf5d7308fef8f27e2bcecd8eea1ffe93e35eeef054faa51b4eaad6bb67d9"
+        "sha256": "77d7cafbecca4da2afb3ef8c53f54000b8cc7ebe7152158ea73a7c4e198e26fa"
       },
       {
         "path": "native/apple/Shared/WorkspaceSearch.swift",
@@ -1327,11 +1327,11 @@
       },
       {
         "path": "native/apple/Shared/WorkspaceTimeline.swift",
-        "sha256": "0202b3dfdd912eba3f44cb0db57ccebf157033e34b9f608e36e1c3978be9238e"
+        "sha256": "e12cf09216ed5da2bffbda39c1cb5cdf6d1bc7891fe9aa6d7de79d58cee01d97"
       },
       {
         "path": "native/apple/Shared/WorkspaceTrash.swift",
-        "sha256": "f7b845224e582195cb5056ca22ad312fe8d5ddf368d816fc2f830c8bb7447c9c"
+        "sha256": "c44c695d36c717fc93a4ff3e477ee6dd6050b85cc28e23ef2078bfdee19eac8b"
       },
       {
         "path": "native/apple/TestSupport/WorkspaceRemoteProseFixture.swift",
@@ -1359,7 +1359,7 @@
       },
       {
         "path": "native/apple/Tests/BottomTimelineAcceptance.swift",
-        "sha256": "a4f0545d47672588ed8f2f52e89ff651afe8878a760103dfeb96360192bd7e72"
+        "sha256": "e133e5dd07d9f367cfe439049331cad5e83fdb89d5c33a3627e8c5c349ea7a15"
       },
       {
         "path": "native/apple/Tests/CategoryAcceptance.swift",
@@ -1467,7 +1467,7 @@
       },
       {
         "path": "native/apple/Tests/ReviewAcceptance.swift",
-        "sha256": "b33faeb362ff4daf7ff07d863d9c0ac7017e0212125c637ac7ce84b20b1537de"
+        "sha256": "637e10f0692f5f6aa21073d4eaa75d3488c11798b4a4e88bb5e2816d4fdc6c24"
       },
       {
         "path": "native/apple/Tests/SearchAcceptance.swift",
@@ -1499,15 +1499,15 @@
       },
       {
         "path": "native/apple/Tests/TimelineAcceptance.swift",
-        "sha256": "4c2bd9eb5c9891ffff27da719b5d7f8eb622f581892fdb0128fe134514131c62"
+        "sha256": "da245a40da339842ad73795b8c297413b49512422e1e5ea91eb16b37eb2b3f7e"
       },
       {
         "path": "native/apple/Tests/TrashShelfAcceptance.swift",
-        "sha256": "1b3b8fe3b158024182bf1891b2663ae331e9dfde73fc3c66c1c4a1642ff2d79a"
+        "sha256": "9b41c9acf8ed3585ff15d0a0a725700beb2821450cefb41af3d583e7b3af5b93"
       },
       {
         "path": "native/apple/Tests/WholeBookAcceptance.swift",
-        "sha256": "1a5755e0c1206a51cf591f8edbd071dc162bf7726d30a68af4bfe076c881d725"
+        "sha256": "b55d143cd1e5c31aa526f4b0b95cce3b8419c84f9ae44399d4e2f54c8fbf1624"
       },
       {
         "path": "native/apple/Tests/WordCountAcceptance.swift",
@@ -1575,7 +1575,7 @@
       },
       {
         "path": "native/apple/macOS/AppDelegate.swift",
-        "sha256": "c6c04c5a02a0af2a9454b21b81ac394dde9fca34279ee7d64eb5f70bd9c019e9"
+        "sha256": "50f9239892d87a36b26def87a51a3a1485089a1e150f9127691a8b4ba033d1a6"
       },
       {
         "path": "native/apple/macOS/BookOutlineViewController.swift",
@@ -1599,7 +1599,7 @@
       },
       {
         "path": "native/apple/macOS/MacBookTransfer.swift",
-        "sha256": "5972a69c789873d44a71300f0d045188b1a69292bbfd2003a334ca3ec4a0f497"
+        "sha256": "0d4bf12e110f7d549b28d5035678f169db8d5dab528a44750bd0129850aa453c"
       },
       {
         "path": "native/apple/macOS/MacBottomTimelineView.swift",
@@ -1623,7 +1623,7 @@
       },
       {
         "path": "native/apple/macOS/MacChapterWorkspace.swift",
-        "sha256": "825806dcc7db7802bfe69486ac7f215354987f6da73e9cd4c5f5c34a56e0d5f1"
+        "sha256": "031bf1d3d65143a0837a4703e9a2ab641186dafa7b2d3dcbc20c4c4a699e3ce0"
       },
       {
         "path": "native/apple/macOS/MacDailyWords.swift",
@@ -1687,7 +1687,7 @@
       },
       {
         "path": "native/apple/macOS/MacProjectDeletion.swift",
-        "sha256": "d66405f9e396898d953485906a87c190bd52a9e4f6234c8257f935ce0d0ec34e"
+        "sha256": "c68b8acace7ac8865c7003b10e0b6004300697eb48df2350a23a2b4b1afdaba5"
       },
       {
         "path": "native/apple/macOS/MacProjectProfileSheet.swift",
@@ -1707,7 +1707,7 @@
       },
       {
         "path": "native/apple/macOS/MacReviewViewController.swift",
-        "sha256": "1913175bb186d4527f07a6a16c0128ea531ed339a8f60df22be06777094e8719"
+        "sha256": "9be732e78e7eab037b523739e0b3af759fe138f490ab6fb424ad44b7a0dcfa4c"
       },
       {
         "path": "native/apple/macOS/MacSettings.swift",
@@ -1731,7 +1731,7 @@
       },
       {
         "path": "native/apple/macOS/MacTrashViewController.swift",
-        "sha256": "0cff78c827d3d5a65e3d91aca077423ca5c5f4758631a3dfd27b8b96d40e40ee"
+        "sha256": "7855175e9ff53f5300cf9e3568611f31dbda9d60df9006064e80bf5aa7d9f8e7"
       },
       {
         "path": "native/apple/macOS/MacVersionHistorySheet.swift",
@@ -1739,7 +1739,7 @@
       },
       {
         "path": "native/apple/macOS/MacWholeBookViewController.swift",
-        "sha256": "59025ae997070182beee5706502d91c405ff65a0d315dff146abfca85865bb12"
+        "sha256": "a951e02defd005439f864ea1f6863c7577119cc71c928d118b8dcf27fa711ffd"
       },
       {
         "path": "native/apple/macOS/MacWordCounts.swift",
@@ -1763,7 +1763,7 @@
       },
       {
         "path": "scripts/apple-binding-acceptance.mjs",
-        "sha256": "67aa0bb30dfccbdedb9aa10bab6af66bde508a05b0b8d2b1e53d50e4767c1da3"
+        "sha256": "030f813d8a8625b5b07a66f4ae0313ba7b8c4f7ea7bc9f6926a81e1f28437fee"
       },
       {
         "path": "scripts/apple-comment-oracle.ts",

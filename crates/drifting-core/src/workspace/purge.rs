@@ -19,6 +19,16 @@ pub struct PurgedEntity {
     pub asset_ids: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashedEntity {
+    pub kind: String,
+    pub id: String,
+    pub title: String,
+    /// When it entered the trash (its `deleted_at`).
+    pub trashed_at: String,
+}
+
 struct Target {
     table: &'static str,
     lifecycle: &'static str,
@@ -59,8 +69,38 @@ fn target(kind: &str) -> Result<Target, String> {
 }
 
 impl WorkspaceStore<'_> {
+    /// The trash, newest first by the time each entity was trashed.
+    pub fn trash_listing(&self, project_id: &str) -> Result<Vec<TrashedEntity>, String> {
+        let mut found = Vec::new();
+        for sql in [
+            "SELECT kind,id,title,deleted_at FROM book_node WHERE project_id=? AND deleted_at IS NOT NULL AND kind IN ('chapter','drift')",
+            "SELECT 'element',id,name,deleted_at FROM element WHERE project_id=? AND deleted_at IS NOT NULL",
+            "SELECT 'category',id,name,deleted_at FROM element_category WHERE project_id=? AND deleted_at IS NOT NULL",
+            "SELECT 'storyline',id,name,deleted_at FROM storylines WHERE project_id=? AND deleted_at IS NOT NULL",
+        ] {
+            for row in self.query(None, sql, vec![text(project_id)])? {
+                found.push(TrashedEntity {
+                    kind: string(&row, 0)?,
+                    id: string(&row, 1)?,
+                    title: string(&row, 2)?,
+                    trashed_at: string(&row, 3)?,
+                });
+            }
+        }
+        found.sort_by(|a, b| b.trashed_at.cmp(&a.trashed_at).then(a.id.cmp(&b.id)));
+        Ok(found)
+    }
+
     /// Every trashed entity of the project, as `(kind, id)` in a stable order.
     pub fn trashed_entities(&self, project_id: &str) -> Result<Vec<(String, String)>, String> {
+        self.trashed_in(None, project_id)
+    }
+
+    fn trashed_in(
+        &self,
+        tx: Option<u64>,
+        project_id: &str,
+    ) -> Result<Vec<(String, String)>, String> {
         let mut found = Vec::new();
         for (sql, kind) in [
             ("SELECT id,kind FROM book_node WHERE project_id=? AND deleted_at IS NOT NULL AND kind IN ('chapter','drift') ORDER BY id", ""),
@@ -68,7 +108,7 @@ impl WorkspaceStore<'_> {
             ("SELECT id FROM element_category WHERE project_id=? AND deleted_at IS NOT NULL ORDER BY id", "category"),
             ("SELECT id FROM storylines WHERE project_id=? AND deleted_at IS NOT NULL ORDER BY id", "storyline"),
         ] {
-            for row in self.query(None, sql, vec![text(project_id)])? {
+            for row in self.query(tx, sql, vec![text(project_id)])? {
                 let kind = if kind.is_empty() { string(&row, 1)? } else { kind.to_string() };
                 found.push((kind, string(&row, 0)?));
             }
@@ -93,14 +133,28 @@ impl WorkspaceStore<'_> {
     }
 
     /// Purges everything in the project's trash in one original.
-    pub fn empty_trash(&self, context: &AuthoredProseContext) -> Result<Vec<PurgedEntity>, String> {
+    /// `confirmed` is the `(kind, id)` set the author saw and confirmed; the
+    /// trash must still hold exactly that set, or nothing is purged.
+    pub fn empty_trash(
+        &self,
+        context: &AuthoredProseContext,
+        confirmed: &[(String, String)],
+    ) -> Result<Vec<PurgedEntity>, String> {
         validate_context(context)?;
-        let trashed = self.trashed_entities(&context.project_id)?;
-        if trashed.is_empty() {
-            return Ok(Vec::new());
-        }
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
+            let trashed = self.trashed_in(Some(tx), &context.project_id)?;
+            let mut expected: Vec<&(String, String)> = confirmed.iter().collect();
+            let mut actual: Vec<&(String, String)> = trashed.iter().collect();
+            expected.sort();
+            expected.dedup();
+            actual.sort();
+            if expected != actual {
+                return Err("回收站在确认后有变化，请重新查看后再清空".into());
+            }
+            if trashed.is_empty() {
+                return Ok(Vec::new());
+            }
             let mut mutations = Vec::new();
             let mut purged = Vec::new();
             for (kind, id) in &trashed {
@@ -210,6 +264,32 @@ impl WorkspaceStore<'_> {
                         )
                         .at_incarnation(patch_incarnation),
                     );
+                }
+            }
+        }
+        // Patches made from a purged chapter or drift keep their text but
+        // lose the source, journaled rather than left to the foreign key.
+        if target.table == "book_node" {
+            for row in self.query(
+                Some(tx),
+                "SELECT id FROM element_patch WHERE project_id=? AND source_node_id=? ORDER BY id",
+                vec![text(&context.project_id), text(id)],
+            )? {
+                let patch = string(&row, 0)?;
+                self.execute(tx, "UPDATE element_patch SET source_node_id=NULL,updated_at=? WHERE id=? AND project_id=?",
+                    vec![text(&context.now_iso), text(&patch), text(&context.project_id)])?;
+                if let Some((patch_incarnation, "live")) = self
+                    .lifecycle_of_kind(tx, context, "element-patch", &patch)?
+                    .as_ref()
+                    .map(|(i, s)| (*i, s.as_str()))
+                {
+                    mutations.push(journal::Mutation::field(
+                        "element-patch",
+                        &patch,
+                        patch_incarnation,
+                        "sourceNodeId",
+                        Value::Null,
+                    ));
                 }
             }
         }

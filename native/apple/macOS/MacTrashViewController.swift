@@ -9,7 +9,8 @@ final class TrashPanel: NSPanel {
 /// and storyline of one project with its kind, title and when it was
 /// trashed, newest first, filtered by kind. 恢复 uses the kind's restore
 /// command through the tab host and opens nothing; 彻底删除… and 清空回收站…
-/// ask first and name what goes with each item.
+/// ask first and name what goes with each item. 清空回收站 sends exactly the
+/// entries its confirmation counted, and is off while a read has failed.
 final class MacTrashViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     let model: WorkspaceTrashModel
     private weak var host: MacChapterWorkspace?
@@ -116,7 +117,7 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
         let idle = !model.busy && model.loaded
         restoreButton.isEnabled = idle && selectedItem != nil
         purgeButton.isEnabled = idle && selectedItem != nil
-        emptyButton.isEnabled = idle && !model.items.isEmpty
+        emptyButton.isEnabled = idle && model.canEmpty
     }
 
     var selectedItem: WorkspaceTrashItem? { rows.indices.contains(table.selectedRow) ? rows[table.selectedRow] : nil }
@@ -194,7 +195,7 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
                 self.model.setBusy(false)
                 switch result {
                 case .success(let reply):
-                    self.model.adoptRemaining(reply)
+                    self.model.adopt(reply)
                     self.model.showStatus("\(item.kind.label)“\(item.displayTitle)”已彻底删除。")
                     completion?(nil)
                 case .failure(let error):
@@ -205,11 +206,17 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
         }
     }
 
-    /// Asks with the counts, then purges everything in one original.
+    /// Asks with the counts, then purges exactly those entries in one
+    /// original. Rust refuses when the trash changed after the question; the
+    /// list is read again and nothing is deleted.
     @objc func emptyTrashPressed() { emptyTrash(completion: nil) }
 
     func emptyTrash(completion: ((Error?) -> Void)?) {
-        guard ready(), !model.items.isEmpty else { completion?(LabError.message("回收站是空的。")); return }
+        guard ready() else { completion?(LabError.message("回收站正忙，请稍后重试。")); return }
+        guard model.canEmpty else {
+            let reason = model.unread != nil ? "回收站没能完整读取，暂时不能清空。" : "回收站是空的。"
+            completion?(LabError.message(reason)); return
+        }
         let items = model.items
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -225,16 +232,21 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
                 completion?(LabError.message("已取消。")); return
             }
             self.model.setBusy(true)
-            host.emptyTrash(projectID: self.model.projectID) { [weak self] result in
+            host.emptyTrash(projectID: self.model.projectID, confirmed: items) { [weak self] result in
                 guard let self else { return }
                 self.model.setBusy(false)
                 switch result {
                 case .success(let reply):
-                    self.model.adoptRemaining(reply)
+                    self.model.adopt(reply)
                     self.model.showStatus("回收站已清空，彻底删除了 \(reply.purged.count) 项。")
                     completion?(nil)
                 case .failure(let error):
-                    self.model.showStatus(error.localizedDescription)
+                    if error.localizedDescription.contains("确认后有变化") {
+                        self.model.showStatus("回收站在确认后有变化，没有删除任何内容。列表已重新读取，请查看后再清空。")
+                        self.model.load()
+                    } else {
+                        self.model.showStatus(error.localizedDescription)
+                    }
                     completion?(error)
                 }
             }

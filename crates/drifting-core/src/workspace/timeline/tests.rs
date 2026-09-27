@@ -216,7 +216,7 @@ fn workspace_timeline_moves_order_and_lane_in_one_original() {
     let before = count(&g);
     // Into the 支线 lane at story time 2: the old primary's link goes, 暗线 stays.
     let moved = store
-        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(Some("side")))
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(Some("side")), None)
         .unwrap();
     assert_eq!(moved.narrative_order, Some(2.0));
     let after = count(&g);
@@ -235,7 +235,7 @@ fn workspace_timeline_moves_order_and_lane_in_one_original() {
     assert_eq!(links, ["side", "third"]);
     // A refused lane changes nothing, the order included.
     assert!(store
-        .move_chapter_on_timeline(&c, "chapter", Some(Some(5.0)), Some(Some("missing")))
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(5.0)), Some(Some("missing")), None)
         .is_err());
     assert_eq!(
         store.timeline(&c.project_id).unwrap().nodes[0].narrative_order,
@@ -243,14 +243,14 @@ fn workspace_timeline_moves_order_and_lane_in_one_original() {
     );
     // No lane: every link goes.
     store
-        .move_chapter_on_timeline(&c, "chapter", None, Some(None))
+        .move_chapter_on_timeline(&c, "chapter", None, Some(None), None)
         .unwrap();
     assert!(store.chapter_memberships(&c.project_id).unwrap()[0]
         .storyline_ids
         .is_empty());
     let before = count(&g);
     store
-        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(None))
+        .move_chapter_on_timeline(&c, "chapter", Some(Some(2.0)), Some(None), None)
         .unwrap();
     assert_eq!(count(&g), before, "unchanged writes nothing");
 }

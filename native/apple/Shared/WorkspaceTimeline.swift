@@ -457,11 +457,10 @@ final class StoryGraphModel {
         case narrative(Double?)
     }
 
-    /// Applies one drop. On the narrative axis the lane and the order are one
-    /// `moveChapter` command that changes both or neither; elsewhere the lane
-    /// (membership) goes first, then the book position, each only when it
-    /// changes. `lane` nil keeps the lane; `.some(nil)` is 未归属. The first
-    /// refusal stops and is shown.
+    /// Applies one drop. The lane and the narrative order, or the lane and
+    /// the reading-order position, are one `moveChapter` command that changes
+    /// both or neither; a lane change alone is the membership command.
+    /// `lane` nil keeps the lane; `.some(nil)` is 未归属. A refusal is shown.
     func drop(chapterID: String, lane: String??, placement: Placement?, completion: ((Bool) -> Void)? = nil) {
         guard !busy else { showStatus("正在保存故事图谱，请稍后再拖动。"); completion?(false); return }
         let title = chapter(id: chapterID)?.title ?? "章节"
@@ -493,29 +492,21 @@ final class StoryGraphModel {
             }
             return
         }
-        var steps: [(@escaping (Bool) -> Void) -> Void] = []
-        if let laneChange {
-            steps.append { [weak self] next in
-                self?.setMembership(chapterID: chapterID, membership: laneChange.membership, message: laneChange.message + "。", completion: next)
-            }
+        let finish: (Bool) -> Void = { [weak self] ok in
+            guard let self else { return }
+            self.busy = false
+            self.onChange?()
+            completion?(ok)
+            self.runQueuedRefresh()
         }
         if case .book(let before)? = placement {
-            steps.append { [weak self] next in self?.moveInBook(chapterID: chapterID, before: before, title: title, completion: next) }
+            busy = true; onChange?()
+            moveInBook(chapterID: chapterID, before: before, lane: laneChange.map { ($0.target, $0.message) }, title: title, completion: finish)
+            return
         }
-        guard !steps.isEmpty else { onChange?(); completion?(false); return }
+        guard let laneChange else { onChange?(); completion?(false); return }
         busy = true; onChange?()
-        func run(_ index: Int) {
-            guard index < steps.count else { finish(true); return }
-            let step = steps[index]
-            step { ok in ok ? run(index + 1) : finish(false) }
-        }
-        func finish(_ ok: Bool) {
-            busy = false
-            onChange?()
-            completion?(ok)
-            runQueuedRefresh()
-        }
-        run(0)
+        setMembership(chapterID: chapterID, membership: laneChange.membership, message: laneChange.message + "。", completion: finish)
     }
 
     /// 移出故事时间: back to the 未放置 tray.
@@ -551,24 +542,41 @@ final class StoryGraphModel {
         }
     }
 
-    private func moveInBook(chapterID: String, before: String?, title: String, completion: @escaping (Bool) -> Void) {
+    /// A reading-order drop: the book position and, with a lane, the lane in
+    /// one `moveChapter` original, or neither. The chapter list is read after
+    /// it, and the storyline library too when the reply does not carry it
+    /// (memberships list chapters in book order).
+    private func moveInBook(chapterID: String, before: String?, lane: (target: String?, message: String)?, title: String,
+                            completion: @escaping (Bool) -> Void) {
         beginCommand()
-        workspace.moveChapter(projectID: projectID, chapterID: chapterID, beforeChapterID: before) { [weak self] result in
+        let laneArgument: String?? = lane.map { $0.target }
+        workspace.moveChapterOnTimeline(projectID: projectID, chapterID: chapterID, order: nil, lane: laneArgument,
+                                        bookBefore: .some(before)) { [weak self] result in
             guard let self else { return }
             switch result {
-            case .success(let chapters):
-                self.chapters = chapters
-                self.status = "“\(title)”的成书顺序已保存。"
-                self.onChapters?(chapters)
-                // Memberships list chapters in book order.
+            case .success(let reply):
+                self.timeline = reply.timeline
+                self.status = lane.map { "\($0.message)，成书顺序已保存。" } ?? "“\(title)”的成书顺序已保存。"
+                if let library = reply.storylines {
+                    self.storylines = library
+                    self.onStorylineLibrary?(library)
+                }
                 self.requests += 1
-                self.workspace.storylineLibrary(projectID: self.projectID) { [weak self] library in
+                self.workspace.chapters(projectID: self.projectID) { [weak self] chapters in
                     guard let self else { return }
-                    if case .success(let library) = library {
-                        self.storylines = library
-                        self.onStorylineLibrary?(library)
+                    if case .success(let chapters) = chapters {
+                        self.chapters = chapters
+                        self.onChapters?(chapters)
                     }
-                    completion(true)
+                    guard reply.storylines == nil else { completion(true); return }
+                    self.requests += 1
+                    self.workspace.storylineLibrary(projectID: self.projectID) { [weak self] library in
+                        if let self, case .success(let library) = library {
+                            self.storylines = library
+                            self.onStorylineLibrary?(library)
+                        }
+                        completion(true)
+                    }
                 }
             case .failure(let error): self.status = error.localizedDescription; completion(false)
             }

@@ -281,7 +281,7 @@ extension BindingAcceptance {
         try graphLargeBook()
         return [
             "AppKit 故事图谱 shows one lane per storyline in authored order and 未归属 for chapters without a primary, each chapter card in its primary's lane at its book position with its § number, status and word count, and card menus open a chapter and set its status with one field.set",
-            "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters through the chapter move with one original that the chapter list and memberships follow, and a drop back in its slot writes nothing",
+            "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters with one original that the chapter list and memberships follow, a drop back in its slot writes nothing, a drop into another lane and slot moves both in one moveChapter original, and a destination trashed elsewhere is refused in Chinese leaving the lane and the book order unchanged",
             "AppKit 故事图谱 drag across lanes and 移到轨道 make the target storyline primary, drop the previous primary's membership, keep other memberships and clear them all in 未归属, matching the storyline library and the tab host",
             "AppKit 故事图谱 故事时间 places chapters from the 未放置 tray at orders from their neighbours, reorders them by drag, changes lane and order in one drop as one moveChapter original whose reply carries the storyline library, refuses a drop into a storyline trashed elsewhere and a non-finite order leaving both the lane and the order unchanged, and 移出故事时间 or a drop on the tray sets null, one field.set per change and none for a drop in place",
             "AppKit 故事图谱 markers are created from 添加标记… and the marker row, renamed, bound to a drift that captions a label-less marker, dragged to a new narrative order, unbound keeping the caption and deleted after confirmation, numeric labels convert story time and an unnamed unbound marker is refused without writing",
@@ -357,7 +357,7 @@ extension BindingAcceptance {
     private static func graphBookDrag() throws {
         let harness = try GraphHarness()
         defer { harness.remove() }
-        _ = try harness.standardLanes()
+        let lanes = try harness.standardLanes()
         try harness.openGraph()
         let model = harness.model!, canvas = harness.canvas
         let homeward = try harness.card("归途")
@@ -387,6 +387,40 @@ extension BindingAcceptance {
         try require(model.requests == before && abs(homeward.frame.midX - StoryGraphMetrics.slotCenter(1)) < 0.5,
             "A drop in place sent a command or left the card")
         try harness.expect(journal: [], since: mark, "The drop in place")
+
+        // 尾声 (未归属) into 主线 before 雨夜: the lane and the book position
+        // change together in one moveChapter original.
+        let coda = try harness.card("尾声"), codaID = try harness.chapter("尾声").id
+        mark = try harness.journal.mark()
+        try harness.drag(coda, to: NSPoint(x: StoryGraphMetrics.slotCenter(2) - 30, y: harness.laneY(0)))
+        let combined = try ["序章", "归途", "尾声", "雨夜", "北塔", "钟声"].map { try harness.chapter($0).id }
+        let storedAfter: [WorkspaceChapter] = try elementResult { harness.workspace.chapters(projectID: harness.project.id, completion: $0) }
+        var library = try harness.memberships()
+        try require(storedAfter.map(\.id) == combined && model.chapters.map(\.id) == combined && harness.chapterLists.last == combined
+            && library.membership(chapterID: codaID)?.storylineIds == [lanes.main.id] && library.primary(chapterID: codaID)?.id == lanes.main.id
+            && library.memberships.map(\.chapterId) == combined && model.primary(of: codaID) == lanes.main.id,
+            "The combined drop differs: \(storedAfter.map(\.title)) \(String(describing: library.membership(chapterID: codaID)))")
+        let written = try harness.journal.originals(since: mark)
+        try require(written.count == 1 && written[0].contains("field.set node") && written[0].contains("field.set node-storyline-primary"),
+            "The combined drop wrote \(written)")
+
+        // 北塔 trashed elsewhere: 钟声 dropped into 主线 before it is refused
+        // in one transaction, keeping 钟声's lane and the book order.
+        let northID = try harness.chapter("北塔").id, bellID = try harness.chapter("钟声").id
+        let _: WorkspaceChapterTrashReply = try elementResult {
+            harness.workspace.trashChapter(projectID: harness.project.id, chapterID: northID, completion: $0)
+        }
+        let bellBefore = library.membership(chapterID: bellID)
+        mark = try harness.journal.mark()
+        let bell = try harness.card("钟声")
+        try harness.drag(bell, to: NSPoint(x: StoryGraphMetrics.slotCenter(4) - 30, y: harness.laneY(0)))
+        library = try harness.memberships()
+        let storedRefused: [WorkspaceChapter] = try elementResult { harness.workspace.chapters(projectID: harness.project.id, completion: $0) }
+        try require(library.membership(chapterID: bellID) == bellBefore && library.primary(chapterID: bellID)?.id == lanes.hidden.id
+            && storedRefused.map(\.id) == combined.filter { $0 != northID } && model.primary(of: bellID) == lanes.hidden.id,
+            "A refused destination changed the lane or the order: \(String(describing: library.membership(chapterID: bellID)))")
+        try require(model.status.hasPrefix("目标位置旁的章节已不可用"), "The refusal reads \(model.status)")
+        try harness.expect(journal: [], since: mark, "A drop before a chapter trashed elsewhere")
         try harness.close()
     }
 
@@ -738,7 +772,8 @@ extension BindingAcceptance {
             try require(model.requests == requests && canvas.renders == renders, "The drag across 200 cards called Rust or rendered")
         }
         try require(model.bookIndex(of: try harness.chapter("第1章").id) == 150, "The chapter did not move to 150")
-        try require(model.requests == requests + 2, "The drop sent \(model.requests - requests) requests instead of the move and one read")
+        // The move, then the chapter list and the storyline library.
+        try require(model.requests == requests + 3, "The drop sent \(model.requests - requests) requests instead of the move and two reads")
         try harness.close()
     }
 }

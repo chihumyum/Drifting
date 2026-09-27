@@ -68,6 +68,71 @@ fn workspace_timeline_orders_markers_positions_and_cold_reopen() {
         json!({"action":"moveChapter","chapterId":chapter,"order":4.75}),
     ));
     assert!(order_only.get("storylines").is_none());
+    // A reading-order drop moves the book position with the lane in one
+    // original; a refused destination leaves both unchanged.
+    let changes = |fixture: &Fixture| {
+        gateway(fixture.open(0)["handle"].as_u64().unwrap())
+            .query(
+                "SELECT COUNT(*) FROM sync_change_set".into(),
+                vec![],
+                None,
+                CLIENT.into(),
+            )
+            .unwrap()
+            .rows
+    };
+    let before = changes(&fixture);
+    let first = fixture.chapters[0].clone();
+    rejected(timeline(
+        &fixture,
+        json!({"action":"moveChapter","chapterId":chapter,"lane":null,"bookBefore":"missing"}),
+    ));
+    assert_eq!(changes(&fixture), before);
+    let second = fixture.chapters[1].clone();
+    let lane_and_book = success(timeline(
+        &fixture,
+        json!({"action":"moveChapter","chapterId":second,"lane":null,"bookBefore":first}),
+    ));
+    let membership = lane_and_book["storylines"]["memberships"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["chapterId"] == json!(second))
+        .unwrap()
+        .clone();
+    assert_eq!(membership["storylineIds"], json!([]));
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let actions: Vec<String> = db
+        .query(
+            "SELECT action FROM sync_mutation WHERE change_set_id=(SELECT change_set_id FROM sync_change_set ORDER BY rowid DESC LIMIT 1) ORDER BY mutation_index".into(),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows
+        .iter()
+        .map(|row| match &row[0] {
+            DatabaseValue::Text(value) => value.clone(),
+            _ => panic!("action"),
+        })
+        .collect();
+    assert!(actions.iter().any(|a| a == "set.remove"), "{actions:?}");
+    assert!(actions.iter().any(|a| a == "field.set"), "{actions:?}");
+    let chapters = success(
+        json!({"operation":"workspaceChapters","handle":fixture.workspace,
+        "projectId":fixture.project}),
+    );
+    let list = chapters["chapters"]
+        .as_array()
+        .or(chapters.as_array())
+        .unwrap();
+    assert_eq!(list[0]["id"], json!(second));
+    let count = |rows: &Vec<Vec<DatabaseValue>>| match &rows[0][0] {
+        DatabaseValue::Integer(value) => value.parse::<u64>().unwrap(),
+        _ => panic!("count"),
+    };
+    assert_eq!(count(&changes(&fixture)), count(&before) + 1);
     let nodes = success(json!({"operation":"workspaceMetadata","handle":fixture.workspace,"projectId":fixture.project,
         "command":{"action":"nodes"}}))["result"].clone();
     assert!(nodes

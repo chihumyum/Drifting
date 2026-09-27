@@ -317,7 +317,10 @@ final class WholeBookChapterRow: WholeBookRow {
 /// each backed by the chapter's document owner as a tab's is. The rest
 /// show read-only text, placeholders sized from their word count, or
 /// nothing at all. An owner is released only when its view has no input in
-/// flight, and closed only when no tab shows it.
+/// flight, and closed only when no view shows it. The owner of a chapter
+/// edited in this session stays open while it has undo history (the most
+/// recently edited `keptOwnerLimit`), so ⌘Z works when the chapter returns.
+/// An owner whose close fails stays tracked and is closed again later.
 final class MacWholeBookViewController: NSViewController {
     /// Editors near the viewport; the one being written in may stay beyond.
     static var maximumAttached = 6
@@ -330,6 +333,10 @@ final class MacWholeBookViewController: NSViewController {
     /// Owner changes suspend every editor briefly, so they wait for a pause in typing.
     static var typingPause: TimeInterval = 0.6
     static var retryDelay: TimeInterval = 0.15
+    /// Owners of edited chapters kept for undo after their editor left.
+    static var keptOwnerLimit = 12
+    /// How long a failed close waits before the next attempt.
+    static var closeRetryDelay: TimeInterval = 2
     static let columnWidth: CGFloat = 760
     static let topInset: CGFloat = 12
 
@@ -383,8 +390,17 @@ final class MacWholeBookViewController: NSViewController {
     private var retired: [WholeBookChapterRow] = []
     private var counts: WordCountLibrary?
     private var ownersToClose: [DocumentScope: LabCore] = [:]
-    /// Refused closes per owner; after three the owner stays open until the workspace closes.
-    private var closeFailures: [DocumentScope: Int] = [:]
+    /// Owners closed without success: the chapter's title, the reason and
+    /// when. They stay in `ownersToClose` and are tried again after a pause.
+    private var closeFailures: [DocumentScope: (title: String, reason: String, at: Date)] = [:]
+    /// Owners of chapters edited in this session that left their editor with
+    /// undo history, least recently edited first.
+    private var keptOwners: [(scope: DocumentScope, core: LabCore)] = []
+    /// The order of each chapter's last edit in this session.
+    private var edits: [String: Int] = [:]
+    private var editCount = 0
+    /// Closes a chapter's owner; acceptance replaces it to make closes fail.
+    var closeChapterOwner: ((ChapterScope, @escaping (Result<Bool, Error>) -> Void) -> Void)?
     private var ownerOperation = false
     private var previewLoading: String?
     private var previews: [String: NSAttributedString] = [:]
@@ -398,7 +414,7 @@ final class MacWholeBookViewController: NSViewController {
     private var pendingFocus: (chapterID: String, location: Int)?
     private var shuttingDown = false
     private(set) var isShutDown = false
-    private var drained: [() -> Void] = []
+    private var drained: [(String?) -> Void] = []
     /// Kept alive while owners close after the panel is gone.
     private var closingSelf: MacWholeBookViewController?
 
@@ -424,11 +440,37 @@ final class MacWholeBookViewController: NSViewController {
     func frame(ofChapter id: String) -> NSRect? { slotsByKey["chapter:\(id)"]?.frame }
     /// Chapters with an editor, in reading order.
     var attachedChapterIDs: [String] { attachedRows.map(\.chapter.id) }
+    /// Chapters whose owner is kept for undo without an editor, least recently edited first.
+    var keptChapterIDs: [String] { keptOwners.compactMap { if case .chapter(let chapter) = $0.scope { return chapter.chapterID }; return nil } }
+    /// Titles of chapters whose owner could not be closed and is tried again later.
+    var unclosedChapterTitles: [String] { closeFailures.values.sorted { $0.at < $1.at }.map(\.title) }
+    /// An editor has queued input, a failed or marked draft.
+    var hasInputInFlight: Bool {
+        (attachedRows + retired).contains { row in
+            row.editor.map { $0.binding.hasPendingWork || $0.binding.hasUnsubmittedDraft || $0.textView.hasMarkedText() } ?? false
+        }
+    }
+    /// Why the project cannot be deleted yet, or nil: input in flight, or
+    /// an owner this panel could not close, named by chapter title.
+    var deletionRefusal: String? {
+        if hasInputInFlight { return "全书长卷中还有未完成的输入，请等待正文保存后再删除。" }
+        return closeFailureText
+    }
+    /// 全书长卷中“长卷章节 003”的正文未能关闭：…。稍后空闲时会再试。, or nil.
+    var closeFailureText: String? {
+        let failures = closeFailures.values.sorted { $0.at < $1.at }
+        guard let last = failures.last else { return nil }
+        let titles = failures.map { "“\($0.title)”" }.joined(separator: "、")
+        let reason = last.reason.hasSuffix("。") ? last.reason : last.reason + "。"
+        return "全书长卷中\(titles)的正文未能关闭：\(reason)稍后空闲时会再试。"
+    }
     /// Row views in the long page.
     var shownRowCount: Int { documentView.subviews.count }
     /// No owner change, read, reveal, row fit or row view is waiting.
     var isSettled: Bool {
-        guard !passScheduled, !fitScheduled, !ownerOperation, previewLoading == nil, ownersToClose.isEmpty, pendingReveal == nil else { return false }
+        // Owners waiting after a failed close do not count: they are tried later.
+        guard !passScheduled, !fitScheduled, !ownerOperation, previewLoading == nil,
+              ownersToClose.keys.allSatisfy({ closeFailures[$0] != nil }), pendingReveal == nil else { return false }
         guard attachedRows.allSatisfy({ !$0.opening && ($0.editor.map { !$0.binding.hasPendingWork && $0.binding.state != nil } ?? true) }) else {
             return false
         }
@@ -515,13 +557,19 @@ final class MacWholeBookViewController: NSViewController {
     private func modelChanged() { timed { applyModel() } }
 
     private func applyModel() {
-        statusLabel.stringValue = model.status
-        statusLabel.isHidden = model.status.isEmpty
+        showStatus()
         guard model.loaded else { return }
         rebuildSlots()
         rebuildJumpMenu()
         statsController?.reload()
         schedulePass()
+    }
+
+    /// The status line: an owner that could not be closed, then the model's status.
+    private func showStatus() {
+        let text = [closeFailureText, model.status.isEmpty ? nil : model.status].compactMap { $0 }.joined(separator: " ")
+        statusLabel.stringValue = text
+        statusLabel.isHidden = text.isEmpty
     }
 
     /// Slots follow the layout. Existing rows are kept with their bodies, so
@@ -843,10 +891,10 @@ final class MacWholeBookViewController: NSViewController {
         DispatchQueue.main.async { [weak self] in self?.runPass() }
     }
 
-    private func scheduleRetry() {
+    private func scheduleRetry(after delay: TimeInterval = MacWholeBookViewController.retryDelay) {
         guard !retryScheduled, !isShutDown else { return }
         retryScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.retryDelay) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.retryScheduled = false
             self?.schedulePass()
         }
@@ -911,6 +959,13 @@ final class MacWholeBookViewController: NSViewController {
         // A retired owner (trash, workspace close) leaves its editor unusable.
         for row in attachedRows + retired where row.core?.isClosed == true { dropClosed(row) }
         retired.removeAll { row in !row.isAttached || release(row) }
+        // A kept owner closed elsewhere is gone; one whose chapter left the book closes.
+        keptOwners.removeAll { $0.core.isClosed }
+        for entry in keptOwners {
+            guard case .chapter(let chapter) = entry.scope, slotsByKey["chapter:\(chapter.chapterID)"] == nil else { continue }
+            keptOwners.removeAll { $0.scope == entry.scope }
+            ownersToClose[entry.scope] = entry.core
+        }
         let wanted = wanted()
         let wantedIDs = Set(wanted.map { ObjectIdentifier($0) })
         let unwanted = attachedRows.filter { !wantedIDs.contains(ObjectIdentifier($0)) }
@@ -923,8 +978,11 @@ final class MacWholeBookViewController: NSViewController {
             if release(row) { surplus -= 1 } else { blocked = true }
         }
         if !retired.isEmpty { blocked = true }
+        // An owner whose close failed waits a while before the next attempt.
+        let waiting = ownersToClose.keys.compactMap { closeFailures[$0].map { Self.closeRetryDelay - Date().timeIntervalSince($0.at) } }
+        let closable = ownersToClose.first { entry in closeFailures[entry.key].map { Date().timeIntervalSince($0.at) >= Self.closeRetryDelay } ?? true }
         if canChangeOwners {
-            if let entry = ownersToClose.first {
+            if let entry = closable {
                 closeOwner(entry.key, entry.value)
             } else {
                 let busy = chapterSlots.compactMap(\.chapterRow).filter { $0.isAttached || $0.opening }.count - exempt.count
@@ -933,12 +991,13 @@ final class MacWholeBookViewController: NSViewController {
                     attach(next)
                 }
             }
-        } else if !ownersToClose.isEmpty || wanted.contains(where: { !$0.isAttached && !recentlyFailed($0) }) {
+        } else if closable != nil || wanted.contains(where: { !$0.isAttached && !recentlyFailed($0) }) {
             blocked = true
         }
         showPreviews(in: previewBand, skipping: wantedIDs)
         resolvePending()
         if blocked || wanted.contains(where: { recentlyFailed($0) }) { scheduleRetry() }
+        else if let wait = waiting.min(), closable == nil { scheduleRetry(after: max(Self.retryDelay, wait)) }
         if shuttingDown, ownersToClose.isEmpty, !ownerOperation, retired.isEmpty { finishShutdown() }
     }
 
@@ -959,6 +1018,8 @@ final class MacWholeBookViewController: NSViewController {
             switch result {
             case .success(let core):
                 self.ownersToClose.removeValue(forKey: scope)
+                self.keptOwners.removeAll { $0.scope == scope }
+                if self.closeFailures.removeValue(forKey: scope) != nil { self.showStatus() }
                 if let row, self.chapterRow(chapterID) === row, row.superview != nil, !self.shuttingDown, !self.isShutDown {
                     row.openFailed = nil
                     self.install(core, in: row)
@@ -989,8 +1050,9 @@ final class MacWholeBookViewController: NSViewController {
             self.schedulePass()
         }
         view.onHeightChange = { [weak self, weak row] in if let self, let row { self.rowChanged(row) } }
-        view.onEdited = { [weak self, weak view] in
+        view.onEdited = { [weak self, weak view, weak row] in
             self?.lastEdit = Date()
+            if let self, let row { self.editCount += 1; self.edits[row.chapter.id] = self.editCount }
             DispatchQueue.main.async { if let view { self?.keepCaretVisible(view) } }
         }
         row.showEditor(view, core: core)
@@ -1024,8 +1086,31 @@ final class MacWholeBookViewController: NSViewController {
             row.showPlaceholder(height: estimatedBodyHeight(chapterID: row.chapter.id, row: row))
         }
         rowChanged(row)
-        if !core.isClosed, host?.hasTab(row.scope) != true { ownersToClose[row.scope] = core }
+        if !core.isClosed, host?.hasTab(row.scope) != true {
+            // Edited here and still undoable: the owner stays for ⌘Z on return.
+            if !shuttingDown, edits[row.chapter.id] != nil, projection.map({ $0.canUndo || $0.canRedo }) == true {
+                keep(row.scope, core)
+            } else {
+                ownersToClose[row.scope] = core
+            }
+        }
         return true
+    }
+
+    /// Keeps an edited chapter's owner open without an editor. Beyond the
+    /// limit, the least recently edited one is closed and loses its undo.
+    private func keep(_ scope: DocumentScope, _ core: LabCore) {
+        func order(_ scope: DocumentScope) -> Int {
+            if case .chapter(let chapter) = scope { return edits[chapter.chapterID] ?? 0 }
+            return 0
+        }
+        keptOwners.removeAll { $0.scope == scope }
+        keptOwners.append((scope, core))
+        keptOwners.sort { order($0.scope) < order($1.scope) }
+        while keptOwners.count > Self.keptOwnerLimit {
+            let oldest = keptOwners.removeFirst()
+            ownersToClose[oldest.scope] = oldest.core
+        }
     }
 
     /// The owner was retired elsewhere: its editor can no longer edit.
@@ -1040,23 +1125,35 @@ final class MacWholeBookViewController: NSViewController {
     }
 
     private func closeOwner(_ scope: DocumentScope, _ core: LabCore) {
-        // A tab opened the chapter meanwhile, or the owner was retired.
-        guard !core.isClosed, host?.hasTab(scope) != true, case .chapter(let chapter) = scope,
+        // A tab or another view opened the chapter meanwhile, or the owner was retired.
+        guard !core.isClosed, host?.hasTab(scope) != true, !core.hasDocumentViews, case .chapter(let chapter) = scope,
               chapterRow(chapter.chapterID)?.isAttached != true else {
-            ownersToClose.removeValue(forKey: scope); schedulePass(); return
+            ownersToClose.removeValue(forKey: scope)
+            if closeFailures.removeValue(forKey: scope) != nil { showStatus() }
+            schedulePass(); return
         }
         ownerOperation = true
-        workspace.closeChapter(projectID: chapter.projectID, chapterID: chapter.chapterID) { [weak self] result in
+        let done: (Result<Bool, Error>) -> Void = { [weak self] result in
             guard let self else { return }
             self.ownerOperation = false
             switch result {
-            case .success: self.ownersToClose.removeValue(forKey: scope); self.closeFailures.removeValue(forKey: scope)
-            case .failure:
-                self.closeFailures[scope, default: 0] += 1
-                if self.closeFailures[scope]! >= 3 { self.ownersToClose.removeValue(forKey: scope) } else { self.scheduleRetry() }
+            case .success:
+                self.ownersToClose.removeValue(forKey: scope)
+                if self.closeFailures.removeValue(forKey: scope) != nil { self.showStatus() }
+            case .failure(let error):
+                // Still tracked, named in the status line and tried again
+                // after a pause; a shutdown waiting on it hears why.
+                let title = self.slotsByKey["chapter:\(chapter.chapterID)"].flatMap { slot -> String? in
+                    if case .chapter(let item) = slot.item { return item.title }; return nil
+                } ?? self.closeFailures[scope]?.title ?? "章节"
+                self.closeFailures[scope] = (title, error.localizedDescription, Date())
+                self.showStatus()
+                self.reportShutdownFailure()
             }
             self.schedulePass()
         }
+        if let closeChapterOwner { closeChapterOwner(chapter, done) }
+        else { workspace.closeChapter(projectID: chapter.projectID, chapterID: chapter.chapterID, completion: done) }
     }
 
     // MARK: Read-only text
@@ -1206,26 +1303,38 @@ final class MacWholeBookViewController: NSViewController {
 
     @objc private func closePressed() { onClose?() }
 
-    /// Releases every editor and closes the owners no tab shows, one at a
-    /// time; `completion` runs once they are closed. False, changing
-    /// nothing, while an editor has input in flight.
+    /// Releases every editor and closes the owners no tab shows (kept ones
+    /// too), one at a time; `completion` runs with nil once they are closed,
+    /// or with the reason as soon as one fails to close. That owner stays
+    /// tracked and is closed again later. False, changing nothing, while an
+    /// editor has input in flight.
     @discardableResult
-    func shutdown(completion: (() -> Void)? = nil) -> Bool {
-        if isShutDown { completion?(); return true }
+    func shutdown(completion: ((String?) -> Void)? = nil) -> Bool {
+        if isShutDown { completion?(nil); return true }
+        guard !hasInputInFlight else { return false }
         let attached = attachedRows + retired
-        guard attached.allSatisfy({ row in
-            row.editor.map { !$0.binding.hasPendingWork && !$0.binding.hasUnsubmittedDraft && !$0.textView.hasMarkedText() } ?? true
-        }) else { return false }
         shuttingDown = true
         pendingReveal = nil; pendingFocus = nil
         statsPopover.close()
         for row in attached where !release(row) { dropClosed(row) }
         retired.removeAll()
+        for entry in keptOwners { ownersToClose[entry.scope] = entry.core }
+        keptOwners.removeAll()
         if let completion { drained.append(completion) }
         closingSelf = self
         passScheduled = false
+        // An owner that already failed to close is reported at once.
+        if !closeFailures.isEmpty { reportShutdownFailure() }
         schedulePass()
         return true
+    }
+
+    /// A shutdown waiting for owners hears that one could not be closed.
+    private func reportShutdownFailure() {
+        guard shuttingDown, let text = closeFailureText, !drained.isEmpty else { return }
+        let callbacks = drained
+        drained = []
+        callbacks.forEach { $0(text) }
     }
 
     private func finishShutdown() {
@@ -1233,7 +1342,7 @@ final class MacWholeBookViewController: NSViewController {
         isShutDown = true
         let callbacks = drained
         drained = []
-        callbacks.forEach { $0() }
+        callbacks.forEach { $0(nil) }
         closingSelf = nil
     }
 }

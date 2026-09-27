@@ -205,8 +205,11 @@ proposal and never touch the book, SQLite, user defaults or the journal.
   usage records.
 - The project's 作者规则 are `author-rules.json` in the same folder, written
   on the same queue.
-- Writes run on a serial queue: a temporary file is written, then renamed
-  over the old one.
+- Writes run on one serial queue shared by every store: a temporary file is
+  written, then renamed over the old one.
+- Deleting a project stops its running turn and removes its folder on that
+  queue after the writes already queued; later saves to it are dropped
+  ([workspace](workspace.md)).
 - A new conversation is written after its first message. The panel can create,
   rename, delete (after confirmation) and switch conversations.
 - A proposal that was being applied when the app stopped reopens as pending.

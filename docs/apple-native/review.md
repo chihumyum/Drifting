@@ -52,8 +52,12 @@ flight; once deleted its highlight leaves every open view of the chapter.
 
 新建批注… and 新建待办… open a sheet with the kind, 位置 (当前 page, or 浮动
 for a TODO), 优先级, 关联 chips and the body. A new TODO floats with the focused
-page pre-associated, as in the renderer; a note needs a page. A refusal
-(an empty body, Rust's messages) keeps everything typed.
+page pre-associated, as in the renderer; a note needs a page. 当前 is the page
+focused when the sheet opens: 创建 writes on that page even if another tab is
+focused meanwhile. If that page was trashed or deleted meanwhile, 创建 is
+refused naming it (“漂流「旧信」已不可用（可能已移到回收站），批注没有创建。”).
+A refusal (an empty body, a missing page, Rust's messages) keeps everything
+typed.
 
 The chapter's own 批注 panel (编辑 › 批注列表, or 本章批注… in 审阅) keeps the
 anchor view of selection notes and shows notes written on the whole chapter
@@ -74,10 +78,12 @@ reordering ([library](library.md)).
 
 ## Acceptance
 
-Seven programmatic AppKit cases in `native/apple/Tests/ReviewAcceptance.swift`
+Eight programmatic AppKit cases in `native/apple/Tests/ReviewAcceptance.swift`
 (`--review-only`; [binding report](acceptance/p2b-binding.json)) drive the
 real controllers, tab host, Rust workspace and SQLite with synthetic data:
-composing, filters and 当前 ranking with a changing focus; priority,
+composing, filters and 当前 ranking with a changing focus; a sheet that writes
+on the page it opened on after another tab is focused, and refuses a page
+trashed while it is open keeping the text; priority,
 resolve/reopen, 已解决 and the board's archive, conversion and body edits;
 定位, deletion (a passage note in a chapter open in two panes, then typing, a
 save and cold reopen); 关联 for TODOs and library items with a cold relaunch;

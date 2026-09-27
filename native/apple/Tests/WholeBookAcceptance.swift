@@ -17,13 +17,15 @@ extension BindingAcceptance {
         DocumentStore.entityLinkDelay = 0.05
         WordCountModel.refreshDelay = 0.05
         try wholeBookVirtualizes()
+        try wholeBookCloseFailures()
         try wholeBookEditsShareOwners()
         try wholeBookNavigates()
         try wholeBookStatistics()
         try wholeBookPlanPersists()
         try wholeBookTodayWords()
         return [
-            "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved, its owner closed and shown again on return",
+            "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in, and owners kept for undo), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved with its owner kept, so ⌘Z on return undoes the typing, while beyond the kept limit the least recently edited owner closes",
+            "AppKit 全书长卷 keeps tracking an owner whose close fails, names its chapter in the status line, tries again at the next quiet moment until it closes, makes 删除项目 refuse naming the chapter before anything closes, and a shutdown reports the failure instead of waiting",
             "AppKit 全书长卷 edits, undo and redo in an attached chapter go through the owner a tab of that chapter shares, typed element names link, a comment reaches the tab, word counts follow in the header and 统计, a closed tab leaves the owner to the long page, ⌘-click opens the element, and releasing closes only owners no tab shows",
             "AppKit 全书长卷 scrolls to a chapter or a heading chosen in the 整书大纲 and to chapters and acts in the 跳到 menu, attaching the chapter's editor at the top of the viewport with the caret on the heading",
             "AppKit 统计 reads 统计中… until every chapter is counted, then the total, chapter count, average, completion and written/target progress of a synthetic book, colours each chapter bar by its act, lists each act's chapters and words, and a click on a bar scrolls the 全书长卷 to its chapter",
@@ -149,7 +151,7 @@ extension BindingAcceptance {
 
         func closeBook() throws {
             var drained = false
-            try BindingAcceptance.require(controller.shutdown { drained = true }, "The long page refused to close")
+            try BindingAcceptance.require(controller.shutdown { _ in drained = true }, "The long page refused to close")
             try BindingAcceptance.wait { drained }
             bookWindow.close()
         }
@@ -227,7 +229,9 @@ extension BindingAcceptance {
 
         func checkBound(_ context: String) throws {
             let attached = controller.attachedChapterIDs
-            try require(attached.count <= maximum && harness.editorsShown == attached.count && workspace.openDocumentCount <= maximum,
+            // Owners: the editors', plus those kept for undo of edited chapters.
+            try require(attached.count <= maximum && harness.editorsShown == attached.count
+                && workspace.openDocumentCount <= maximum + controller.keptChapterIDs.count,
                 "\(context): \(attached.count) editors, \(harness.editorsShown) shown and \(workspace.openDocumentCount) owners exceed \(maximum)")
             // Row views exist only near the viewport, never for the whole book.
             try require(controller.shownRowCount <= 60, "\(context): \(controller.shownRowCount) row views are in the page")
@@ -293,29 +297,118 @@ extension BindingAcceptance {
         try require(try harness.row(chapters[2]).isAttached && harness.row(chapters[2]).isFocused,
             "The chapter being written in lost its editor nearby")
         try require(controller.attachedChapterIDs.count <= maximum + 1, "The focused chapter exceeded the bound by more than one")
-        // Far away it is released once its input is saved, and its owner closes.
+        // Far away its editor is released once its input is saved; the owner
+        // stays, since the chapter was edited here and has undo history.
         controller.scroll(toChapter: chapters[150].id)
         try harness.settle()
         let scope = DocumentScope.chapter(ChapterScope(projectID: harness.project.id, chapterID: chapters[2].id))
-        try require(controller.chapterRow(chapters[2].id)?.isAttached != true && !workspace.hasOpenDocument(scope),
-            "Chapter 3 kept its editor or owner far away")
+        try require(controller.chapterRow(chapters[2].id)?.isAttached != true && workspace.hasOpenDocument(scope)
+            && controller.keptChapterIDs == [chapters[2].id], "Chapter 3 kept its editor, or lost its owner, far away")
         let stored = try harness.prose(chapters[2])
-        try require(!stored.live && stored.text.hasSuffix(typed), "Chapter 3's typed text was not saved: \(stored.text.suffix(8))")
+        try require(stored.text.hasSuffix(typed), "Chapter 3's typed text was not saved: \(stored.text.suffix(8))")
         try checkBound("Far away")
         let afterTyping = try harness.journal.mark()
-        // Back again: a new owner shows the saved text.
+        // Back again: the kept owner shows the saved text and ⌘Z undoes the typing.
         controller.scroll(toChapter: chapters[2].id)
         try harness.settle()
         let returned = try harness.editor(chapters[2])
-        try require(returned !== writing && returned.textView.string.hasSuffix(typed) && returned.binding.canEdit,
-            "Chapter 3 did not show its saved text on return")
+        try require(returned !== writing && returned.textView.string.hasSuffix(typed) && returned.binding.canEdit
+            && controller.keptChapterIDs.isEmpty, "Chapter 3 did not show its saved text on return")
         try harness.journal.expect([], since: afterTyping, "Scrolling away from and back to chapter 3")
         try checkBound("Returned")
+        try require(harness.bookWindow.makeFirstResponder(returned.textView), "Chapter 3 refused keyboard focus on return")
+        try require(NSApp.sendAction(Selector(("undo:")), to: returned.textView, from: nil), "⌘Z found no undo")
+        try harness.settle()
+        try require(!returned.textView.string.hasSuffix(typed) && !(try harness.prose(chapters[2])).text.hasSuffix(typed),
+            "⌘Z on return did not undo the typing: \(returned.textView.string.suffix(8))")
 
-        // Closing releases every editor and closes every owner.
+        // Beyond the kept limit the least recently edited owner closes.
+        let limit = MacWholeBookViewController.keptOwnerLimit
+        MacWholeBookViewController.keptOwnerLimit = 1
+        defer { MacWholeBookViewController.keptOwnerLimit = limit }
+        controller.scroll(toChapter: chapters[150].id)
+        try harness.settle()
+        let later = try harness.editor(chapters[150])
+        try require(harness.bookWindow.makeFirstResponder(later.textView), "Chapter 151 refused keyboard focus")
+        later.textView.insertText("钟声", replacementRange: NSRange(location: 0, length: 0))
+        try harness.settle()
+        controller.scroll(toChapter: chapters[60].id)
+        try harness.settle()
+        let laterScope = DocumentScope.chapter(ChapterScope(projectID: harness.project.id, chapterID: chapters[150].id))
+        try require(controller.keptChapterIDs == [chapters[150].id] && workspace.hasOpenDocument(laterScope) && !workspace.hasOpenDocument(scope),
+            "The kept limit did not close the least recently edited owner: \(controller.keptChapterIDs)")
+        let afterEdits = try harness.journal.mark()
+
+        // Closing releases every editor and closes every owner, kept ones too.
         try harness.closeBook()
         try require(workspace.openDocumentCount == 0 && harness.editorsShown == 0, "Closing left \(workspace.openDocumentCount) owners open")
-        try harness.journal.expect([], since: afterTyping, "Closing the long page")
+        try harness.journal.expect([], since: afterEdits, "Closing the long page")
+    }
+
+    // MARK: (a2) An owner that fails to close
+
+    private static func wholeBookCloseFailures() throws {
+        let harness = try BookHarness(name: "长卷关闭合成项目")
+        defer { try? harness.close() }
+        for index in 1...40 { try harness.chapter(String(format: "关闭章节 %02d", index), [.paragraph(ideographs(40, seed: index))]) }
+        let chapters = harness.chapters, project = harness.project, workspace = harness.workspace
+        let savedDelay = MacWholeBookViewController.closeRetryDelay
+        MacWholeBookViewController.closeRetryDelay = 0.1
+        defer { MacWholeBookViewController.closeRetryDelay = savedDelay }
+        try harness.openBook()
+        let controller = harness.controller!
+        let first = chapters[0], scope = DocumentScope.chapter(ChapterScope(projectID: project.id, chapterID: chapters[0].id))
+        try require(controller.attachedChapterIDs.contains(first.id), "The first chapter is not attached")
+
+        // Every close fails: the owner stays tracked and is tried again.
+        var attempts: [String] = []
+        controller.closeChapterOwner = { chapter, done in attempts.append(chapter.chapterID); done(.failure(LabError.message("合成的关闭失败"))) }
+        controller.scroll(toChapter: chapters[39].id)
+        try wait { attempts.filter { $0 == first.id }.count >= 4 }
+        try harness.settle()
+        try require(workspace.hasOpenDocument(scope) && controller.unclosedChapterTitles.contains(first.title)
+            && !controller.statusLabel.isHidden && controller.statusLabel.stringValue.contains("“\(first.title)”")
+            && controller.statusLabel.stringValue.contains("的正文未能关闭：合成的关闭失败。稍后空闲时会再试。"),
+            "A failed close is not tracked or shown: \(controller.statusLabel.stringValue)")
+
+        // 删除项目 refuses, naming the chapter, before anything closes.
+        let tab: NativeDocumentView = try elementResult { harness.host.open(project: project, chapter: chapters[20], completion: $0) }
+        try elementSettled(harness.host, tab)
+        let coordinator = ProjectDeletionCoordinator(workspace: workspace, host: harness.host)
+        var panelsClosed = false
+        coordinator.panelRefusal = { _ in controller.deletionRefusal }
+        coordinator.closePanels = { _, done in panelsClosed = true; done(nil) }
+        let mark = try harness.journal.mark()
+        let refusal = try elementRefused({ (done: @escaping (Result<ProjectDeletionCoordinator.Outcome, Error>) -> Void) in
+            coordinator.delete(project, completion: done)
+        }, "Deletion went ahead with an owner the long page could not close")
+        try require(refusal.contains("“\(first.title)”") && refusal.contains("合成的关闭失败") && refusal.hasSuffix("项目未删除。")
+            && !panelsClosed && harness.host.hasTabs(projectID: project.id), "The deletion refusal reads \(refusal)")
+        try harness.journal.expect([], since: mark, "A deletion refused for an unclosed owner")
+        let _: Bool = try elementResult { harness.host.closeTab(pane: 0, scope: .chapter(ChapterScope(projectID: project.id, chapterID: chapters[20].id)), completion: $0) }
+
+        // Once closes work again, the next quiet moment closes it.
+        controller.closeChapterOwner = nil
+        try wait { controller.unclosedChapterTitles.isEmpty && !workspace.hasOpenDocument(scope) }
+        try harness.settle()
+        try require(!controller.statusLabel.stringValue.contains("未能关闭") && controller.deletionRefusal == nil,
+            "The status line kept the failure: \(controller.statusLabel.stringValue)")
+
+        // A shutdown hears the failure instead of waiting, and the owner still closes later.
+        controller.scroll(toChapter: first.id)
+        try harness.settle()
+        controller.closeChapterOwner = { _, done in done(.failure(LabError.message("合成的关闭失败"))) }
+        var reported: String??
+        try require(controller.shutdown { reported = .some($0) }, "The long page refused to shut down")
+        try wait { reported != nil }
+        guard case .some(.some(let reason)) = reported, !controller.unclosedChapterTitles.isEmpty,
+              controller.unclosedChapterTitles.allSatisfy({ reason.contains("“\($0)”") }) else {
+            throw LabError.message("The shutdown did not report the failed close: \(String(describing: reported))")
+        }
+        try require(!controller.isShutDown && workspace.hasOpenDocument(scope), "The shutdown finished with an owner open")
+        controller.closeChapterOwner = nil
+        try wait { controller.isShutDown && workspace.openDocumentCount == 0 }
+        harness.bookWindow.close()
     }
 
     // MARK: (b) Editing, undo, links, comments and counts beside a tab

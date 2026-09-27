@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T21:12:50.907Z",
+  "generatedAt": "2026-09-27T22:07:53.984Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "2c017a2aac34d3376b5b3f459af91888b9df3ad1",
+    "commit": "add67d346d40cfd065ff5fe0685cdd98802e186a",
     "dirty": true,
-    "fingerprint": "68b331a38cbf547d7f1be3e4891657a766ae503725650decd8e2d1f59bb8d919"
+    "fingerprint": "b49dbdbdcb6c7272b708a016f48630035e58f975ef132c4e5b7fceca412fed10"
   },
   "cases": [
     {
@@ -543,7 +543,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters through the chapter move with one original that the chapter list and memberships follow, and a drop back in its slot writes nothing",
+      "name": "AppKit 故事图谱 book-order drag of a card sends nothing until the drop, then reorders chapters with one original that the chapter list and memberships follow, a drop back in its slot writes nothing, a drop into another lane and slot moves both in one moveChapter original, and a destination trashed elsewhere is refused in Chinese leaving the lane and the book order unchanged",
       "status": "passed"
     },
     {
@@ -631,7 +631,11 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved, its owner closed and shown again on return",
+      "name": "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in, and owners kept for undo), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved with its owner kept, so ⌘Z on return undoes the typing, while beyond the kept limit the least recently edited owner closes",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 keeps tracking an owner whose close fails, names its chapter in the status line, tries again at the next quiet moment until it closes, makes 删除项目 refuse naming the chapter before anything closes, and a shutdown reports the failure instead of waiting",
       "status": "passed"
     },
     {
@@ -687,6 +691,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 审阅 新建 writes a note or TODO on the page the sheet opened on even after another tab is focused before 创建, and refuses a page trashed while the sheet is open in Chinese naming it, keeping the typed text and writing nothing",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 审阅 sets and clears a priority with one field.set each and none for the current one, resolves and reopens under 已解决 and from the board's 已完成 archive, converts a passage note to a TODO and back keeping its anchor, refuses making a floating TODO a note in Chinese without writing, and edits a body through the composer writing nothing when unchanged",
       "status": "passed"
     },
@@ -707,7 +715,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input or an owner outside the tabs is open, closes the 全书长卷 and every tab of the project first, deletes with one sync-generation purge and the asset bytes, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
+      "name": "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input (before any panel closes, so a TODO being composed keeps its draft) or an owner outside the tabs is open, closes every tab of the project and then the 全书长卷, deletes with one sync-generation purge and the asset bytes, stops the writing assistant and removes its conversations and rules so a later save cannot recreate them, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
       "status": "passed"
     },
     {
@@ -743,7 +751,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 底部时间轴 tile drags reuse the story graph's commands: a book move with one original that the tab host and the 幕 rail follow, a row change making the storyline primary, a drop in place and a click writing nothing; 故事时间 lists chapters without a story time in 未放置, places them with 放到末尾, orders them by drag, shows the timeline markers and takes one back with 移出故事时间",
+      "name": "AppKit 底部时间轴 tile drags reuse the story graph's commands: a book move with one original that the tab host and the 幕 rail follow, a row change making the storyline primary, a drop into another row and slot moving both in one original, a drop in place and a click writing nothing; 故事时间 lists chapters without a story time in 未放置, places them with 放到末尾, orders them by drag, shows the timeline markers and takes one back with 移出故事时间",
       "status": "passed"
     },
     {
@@ -755,11 +763,11 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines newest first with kind, title and time, filters by kind, follows a trash made elsewhere, and 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens",
+      "name": "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines from workspaceTrash newest first by their own trash time (a category above an element of it trashed earlier) with kind, title and time, filters by kind, follows a trash made elsewhere, 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens, and a failed read turns 清空回收站 off naming the kinds it could not read",
       "status": "passed"
     },
     {
-      "name": "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and purges the rest in one original that survives a cold reopen",
+      "name": "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and sends exactly the counted entries: one trashed elsewhere while it asks makes Rust refuse with nothing deleted and the list read again, then the rest is purged in one original that survives a cold reopen",
       "status": "passed"
     },
     {

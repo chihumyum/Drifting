@@ -86,7 +86,7 @@ enum LabError: LocalizedError {
         ]
         if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
         if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
-        return "彻底删除未能完成。回收站里的内容未改变，可以稍后重试。"
+        return "回收站的操作未能完成。回收站里的内容未改变，可以稍后重试。"
     }
 
     /// Patch refusals happen before any row or journal change. Rust's own
@@ -171,6 +171,8 @@ enum LabError: LocalizedError {
             ("Invalid marker incarnation", "时间标记数据已变化，请刷新故事图谱。"),
             ("Storyline is not available", "这条故事线已不可用（可能已移到回收站），章节的轨道和位置都未改变。请刷新故事图谱。"),
             ("Chapter is not available", "这一章已不可用，请刷新故事图谱。"),
+            ("Destination chapter", "目标位置旁的章节已不可用（可能已移到回收站），章节的轨道和成书顺序都未改变。请刷新故事图谱。"),
+            ("Moving chapter is not available", "这一章已不可用，请刷新故事图谱。"),
         ]
         if let message = known.first(where: { reason.contains($0.0) })?.1 { return message }
         // Rust's own messages, e.g. 时间标记需要名称，或绑定一条漂流.
@@ -432,6 +434,8 @@ final class LabCore {
     }
 
     fileprivate var documentViewCount: Int { sharedDocument?.viewCount ?? 0 }
+    /// A tab, page or the 全书长卷 shows this owner.
+    var hasDocumentViews: Bool { documentViewCount > 0 }
 
     fileprivate static func call<Payload: Decodable>(_ request: [String: Any]) throws -> Payload? {
         let data = try JSONSerialization.data(withJSONObject: request)
@@ -497,7 +501,7 @@ final class LabCore {
             if request["operation"] as? String == "workspaceDeleteProject" {
                 throw LabError.projectUnavailable(reason: reason)
             }
-            if ["workspacePurgeTrashed", "workspaceEmptyTrash"].contains(request["operation"] as? String ?? "") {
+            if ["workspacePurgeTrashed", "workspaceEmptyTrash", "workspaceTrash"].contains(request["operation"] as? String ?? "") {
                 throw LabError.trashUnavailable(reason: reason)
             }
             if request["operation"] as? String == "workspaceHistory" {
@@ -993,13 +997,23 @@ final class LabWorkspaceCore {
         }
     }
 
-    /// 清空回收站: everything in the project's trash in one original.
-    func emptyTrash(projectID: String, completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+    /// The project's trash: every trashed chapter, drift, element, category
+    /// and storyline with its title, newest first by the time it was trashed.
+    func trash(projectID: String, completion: @escaping (Result<WorkspaceTrashListing, Error>) -> Void) {
+        perform(completion) { try self.request("workspaceTrash", fields: ["projectId": projectID]) }
+    }
+
+    /// 清空回收站: everything in the project's trash in one original. Rust
+    /// purges only while the trash holds exactly `confirmed`, the entries the
+    /// author was shown; otherwise it refuses and writes nothing.
+    func emptyTrash(projectID: String, confirmed: [WorkspaceTrashItem],
+                    completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
         precondition(Thread.isMainThread)
         guard !isChangingOwners else {
             completion(.failure(LabError.message("请先完成输入，并等待正文保存后再清空回收站。"))); return
         }
-        perform(completion) { try self.request("workspaceEmptyTrash", fields: ["projectId": projectID]) }
+        let keys = confirmed.map { ["kind": $0.kind.rawValue, "id": $0.id] }
+        perform(completion) { try self.request("workspaceEmptyTrash", fields: ["projectId": projectID, "confirmed": keys]) }
     }
 
     // MARK: Diagnostics
@@ -1960,11 +1974,18 @@ final class LabWorkspaceCore {
     /// previous primary's link and keeping the others; `.some(nil)` removes
     /// every link) change together in one original, or not at all. Absent
     /// fields stay. Metadata only.
-    func moveChapterOnTimeline(projectID: String, chapterID: String, order: Double??, lane: String??,
+    /// `bookBefore`, when present, also moves the chapter in reading order
+    /// (before that chapter, or last with nil) in the same original.
+    func moveChapterOnTimeline(projectID: String, chapterID: String, order: Double??, lane: String??, bookBefore: String?? = nil,
                                completion: @escaping (Result<WorkspaceTimelineReply<WorkspaceTimelineNode>, Error>) -> Void) {
         var command: [String: Any] = ["action": "moveChapter", "chapterId": chapterID]
         if let order { command["order"] = order.map { $0 as Any } ?? NSNull() }
         if let lane { command["lane"] = lane.map { $0 as Any } ?? NSNull() }
+        if let bookBefore { command["bookBefore"] = bookBefore.map { $0 as Any } ?? NSNull() }
+        // A book move waits for input and owner changes, as chapter reordering does.
+        if bookBefore != nil, isChangingOwners || hasPendingDocuments {
+            completion(.failure(LabError.message("请先完成输入，并等待正文保存后再操作"))); return
+        }
         perform(completion) { try self.timelineRequest(projectID, command) }
     }
 

@@ -78,7 +78,7 @@ impl WorkspaceStore<'_> {
         chapter_id: &str,
         order: Option<f64>,
     ) -> Result<TimelineNode, String> {
-        self.move_chapter_on_timeline(context, chapter_id, Some(order), None)
+        self.move_chapter_on_timeline(context, chapter_id, Some(order), None, None)
     }
 
     /// One timeline drop: the narrative order (`Some`) and the lane
@@ -91,6 +91,7 @@ impl WorkspaceStore<'_> {
         chapter_id: &str,
         order: Option<Option<f64>>,
         lane: Option<Option<&str>>,
+        book_before: Option<Option<&str>>,
     ) -> Result<TimelineNode, String> {
         validate_context(context)?;
         if let Some(Some(order)) = order {
@@ -116,6 +117,13 @@ impl WorkspaceStore<'_> {
                     }
                 };
                 self.apply_chapter_storylines(tx, context, chapter_id, &ids, Some(next_primary), &mut mutations)?;
+            }
+            // A reading-order drop moves the chapter in the book too, in the
+            // same original as its lane.
+            if let Some(before) = book_before {
+                if let Some(mutation) = self.book_move(tx, context, chapter_id, before)? {
+                    mutations.push(mutation);
+                }
             }
             if let Some(order) = order.filter(|order| *order != current.narrative_order) {
                 self.execute(tx, r#"

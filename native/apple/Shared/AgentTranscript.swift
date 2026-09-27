@@ -316,17 +316,37 @@ struct AgentConversation: Codable, Equatable {
 
 /// Conversations of one project as JSON files under the lab's data directory:
 /// `<data>/agent/<projectId>/<conversationId>.json`, written atomically (a
-/// temporary file renamed over the old one) on a serial queue. The project's
-/// 作者规则 live beside them in `author-rules.json` on the same queue.
+/// temporary file renamed over the old one) on one serial queue shared by
+/// every store. The project's 作者规则 live beside them in
+/// `author-rules.json`. A deleted project's folder is removed on that queue,
+/// after the writes already queued, and later writes to it are dropped.
 final class AgentConversationStore {
     static let rulesFile = "author-rules.json"
     let directory: URL
-    private let queue = DispatchQueue(label: "cc.drifting.native-lab.agent-store")
+    private static let queue = DispatchQueue(label: "cc.drifting.native-lab.agent-store")
+    /// Folders of deleted projects; read and written only on `queue`.
+    private static var removed: Set<String> = []
+    private var queue: DispatchQueue { Self.queue }
 
     /// `root` is the `agent` folder beside the lab workspace directory.
     init(root: URL, projectID: String) {
+        directory = Self.directory(root: root, projectID: projectID)
+    }
+
+    private static func directory(root: URL, projectID: String) -> URL {
         let safe = projectID.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) || "-_".unicodeScalars.contains($0) ? String($0) : "_" }.joined()
-        directory = root.appendingPathComponent(safe.isEmpty ? "_" : safe, isDirectory: true)
+        return root.appendingPathComponent(safe.isEmpty ? "_" : safe, isDirectory: true)
+    }
+
+    /// The project was deleted: its folder (conversations with their memory,
+    /// plans and usage, and 作者规则) goes after every write already queued,
+    /// and no later save of any store recreates it.
+    static func removeProject(root: URL, projectID: String) {
+        let directory = directory(root: root, projectID: projectID)
+        queue.async {
+            removed.insert(directory.standardizedFileURL.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
     }
 
     /// ISO 8601 with milliseconds, so the list keeps its order after a reload.
@@ -385,6 +405,7 @@ final class AgentConversationStore {
     private func write(_ data: Data, name: String) {
         let directory = self.directory
         queue.async {
+            guard !Self.removed.contains(directory.standardizedFileURL.path) else { return }
             let target = directory.appendingPathComponent(name)
             let temporary = directory.appendingPathComponent(".\(name).\(UUID().uuidString).tmp")
             do {

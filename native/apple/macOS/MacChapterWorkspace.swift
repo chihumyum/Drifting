@@ -1465,11 +1465,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
-    /// 清空回收站: every trashed entity of the project in one original.
-    func emptyTrash(projectID: String, completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+    /// 清空回收站: every trashed entity of the project in one original,
+    /// only while the trash holds exactly the `confirmed` entries.
+    func emptyTrash(projectID: String, confirmed: [WorkspaceTrashItem],
+                    completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
         guard canNavigate else { completion(.failure(blocked())); return }
         setBusy(true)
-        workspace.emptyTrash(projectID: projectID) { [weak self] result in
+        workspace.emptyTrash(projectID: projectID, confirmed: confirmed) { [weak self] result in
             guard let self else { return }
             if case .success(let reply) = result { self.adoptPurge(reply, projectID: projectID) }
             self.setBusy(false)

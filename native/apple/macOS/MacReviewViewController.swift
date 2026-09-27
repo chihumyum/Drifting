@@ -90,7 +90,8 @@ final class ReviewCommands {
 
     // MARK: Sheets
 
-    /// 新建批注 or 新建待办: on the focused page, or a floating TODO.
+    /// 新建批注 or 新建待办: on the page focused when the sheet opens (and
+    /// on that page even if another tab is focused by 创建), or a floating TODO.
     func compose(kind: String) {
         // A sheet needs a window; one left unshown would block later sheets.
         guard composeSheet == nil, editor == nil, presentSheet != nil || window() != nil else { return }
@@ -98,7 +99,7 @@ final class ReviewCommands {
         composeSheet = sheet
         sheet.onSubmit = { [weak self] draft, done in
             guard let self else { done(LabError.message("审阅已关闭。")); return }
-            self.model.create(kind: draft.kind, onFocus: draft.onFocus, body: draft.body, priority: draft.priority,
+            self.model.create(kind: draft.kind, on: draft.page, body: draft.body, priority: draft.priority,
                               associate: draft.associations) { result in
                 switch result {
                 case .success: done(nil)
@@ -523,7 +524,8 @@ extension ReviewCardView: NSMenuDelegate {
 final class ReviewComposeSheet: NSObject {
     struct Draft {
         let kind: String
-        let onFocus: Bool
+        /// The page it is written on, as the sheet showed it; nil floats.
+        let page: ReviewFocus?
         let priority: CommentPriority?
         let body: String
         let associations: [RelationEndpoint]
@@ -673,7 +675,7 @@ final class ReviewComposeSheet: NSObject {
         guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { show("请输入内容。"); return }
         if kind == "note", focus == nil { show("批注需要写在一个页面上。请先打开章节、漂流、设定、分类或故事线，或改为浮动待办。"); return }
         let priority = priorityPopup.indexOfSelectedItem > 0 ? CommentPriority.allCases[priorityPopup.indexOfSelectedItem - 1] : nil
-        let draft = Draft(kind: kind, onFocus: kind == "note" || onFocus, priority: priority, body: body, associations: associated)
+        let draft = Draft(kind: kind, page: kind == "note" || onFocus ? focus : nil, priority: priority, body: body, associations: associated)
         guard let onSubmit else { return }
         isSubmitting = true; setEnabled(false); show(nil)
         onSubmit(draft) { [weak self] error in

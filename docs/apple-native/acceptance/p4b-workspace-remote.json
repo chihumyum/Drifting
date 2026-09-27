@@ -22,11 +22,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/lib.rs",
-        "sha256": "361ccf198c40374ead945c7870cd04cb03f94c4431459f3914f0a2ff91ad0e2c"
+        "sha256": "bdf2eaaced30a61cd8de97338f758841be9c15804b5dc17d56420f473f496599"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace.rs",
-        "sha256": "cdeed9cf224e7c9bba27b7a09ce7eb248fdbcd010060d7ae1f03753a6c55c592"
+        "sha256": "85c6b0bbab97516bd1a0f6e4680883c3dc63ff586a5c2b7e7bf77989ac74c88d"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_act_tests.rs",
@@ -130,7 +130,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_purge_tests.rs",
-        "sha256": "c8cdad3776a9d3f2973a9115b96fd9943709347fefc5d14fece432d5b91d7b3d"
+        "sha256": "27a83f08f7a690870c79487b3c42eca9003df127d650287e4e680fd1435c056a"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_relation_tests.rs",
@@ -186,11 +186,11 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_timeline.rs",
-        "sha256": "f1b294270405691322df6e5e379b9cf9ed460ad85f77d1a5cc6b43ff8b43a0f3"
+        "sha256": "8ea56db7cd0d20dbdc339bfd11771c05ab9746d798c9b394de2a806b8465a910"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_timeline_tests.rs",
-        "sha256": "b0ea5bfe85237df7257d91ed026f026dc8673db7e993ffa80649f7c5eb21c8ba"
+        "sha256": "df9217ab4aa3aca920c5a5261aeff5dd02c9e9dae60f23cd89bc49bfc1af1367"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_todo_tests.rs",
@@ -318,7 +318,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace.rs",
-        "sha256": "3769a71e980c812b66586d14af8077e2d92650bf649965bed1d74764128a125b"
+        "sha256": "d84c530887d2ac31d3f3cf2dc16ddbb1a8999395f07198412be4560183832084"
       },
       {
         "path": "crates/drifting-core/src/workspace/acts.rs",
@@ -422,7 +422,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/purge.rs",
-        "sha256": "e983390b1338f8613797c541b0536fbef9a9d5b8efb7e4f828b28cc6d8e417e5"
+        "sha256": "7a5744521038d295f093ea193999c2499f9d0d9e5ccf6e2907292a2f6d8e8103"
       },
       {
         "path": "crates/drifting-core/src/workspace/purge/tests.rs",
@@ -458,11 +458,11 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/timeline.rs",
-        "sha256": "09534c37d0979ea7ef5f43041d256c21140496a44e61d349515100af7990a22c"
+        "sha256": "61dd45f30b27d61f49a6507c61cad5d60c1a931801fb0bf3945a3c098c256255"
       },
       {
         "path": "crates/drifting-core/src/workspace/timeline/tests.rs",
-        "sha256": "8dee6250beae69789b338d28ebbe5fd6010ad653a9c0e0b5b7c2771cfc0f63db"
+        "sha256": "dc8e7051ecf6b608a9c7f239965a1a279b281fe8fec55d6d2ebd4afaed5acd53"
       },
       {
         "path": "crates/drifting-core/src/workspace/trash.rs",
@@ -2193,7 +2193,7 @@
         "sha256": "814a38a0ca1b078d656b8e70236d3b0412cd8d0aee4a5405299d8342fb4574b1"
       }
     ],
-    "fingerprint": "99e3f09e974283f40469b83e7997017800c3eaca89b03bfbccf0e1ece7accf89"
+    "fingerprint": "48708b8a312c66b7f450d3c1b0816161f6804ed162c11b7a76f604e1efafe9cd"
   },
   "toolchain": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -2208,7 +2208,7 @@
         "remote_workspace_metadata::tests::remote_workspace_metadata_rejects_unsupported_and_rolls_back_receipt_failure",
         "remote_workspace_metadata::tests::remote_workspace_metadata_late_fields_reproject_verified_winners"
       ],
-      "logSha256": "1c94c0955224387034c4a10abee2f5e9c4dc28ffa9884a42ebc05476cb84420c"
+      "logSha256": "661878256f81867835d0b3c703f2ec06b28b6bc5b1029b732901d441190f2d95"
     },
     {
       "name": "bridge-workspace-remote",
@@ -2217,44 +2217,44 @@
       "cases": [
         "workspace_tests::remote_changes::workspace_remote_changes_receipt_rollback_and_retry",
         "workspace_tests::remote_changes::workspace_remote_changes_late_fields_before_create",
-        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order",
-        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose"
+        "workspace_tests::remote_changes::workspace_remote_changes_create_and_prose",
+        "workspace_tests::remote_changes::workspace_remote_changes_competing_fields_and_order"
       ],
-      "logSha256": "c0c4a5a6b7989dee5a8631aa1e625a74dc1d11071e71ceb08566f9ee29b3825e"
+      "logSha256": "41c57e4a5ce0549c39a275634d776048b3cb27dcc0bac3deecfbbb31f6531bcd"
     }
   ],
   "renderer": {
     "schemaVersion": 1,
     "status": "passed",
-    "inputSha256": "e8a8a983bf445e75d9b8648e5465d476923ed32014bc1afdbe14241f259398db",
+    "inputSha256": "719165b43f8da812e6d7f8550adee9ff2f5305e70d922c1ee046666f1ef39966",
     "cases": [
       {
         "name": "chapter-create-and-prose",
         "status": "passed",
-        "beforeDatabaseSha256": "6573a24c12c149c91e34c689efa93f38f3e763de931b0293a58557942d038157",
-        "afterDatabaseSha256": "26a8e427f28bf824731a3b6f506f062c12cc928d6325a548b282dfe9e3731178",
+        "beforeDatabaseSha256": "72a95eb791b8946cc8e393735b5eb632b54dc9d5ab0953d84fbd9cb53c1565d4",
+        "afterDatabaseSha256": "492c04c5e9beefc822c935455e0fbca331aeb247a0760d4026a624a246258c8f",
         "deliveries": [
           {
-            "changeSetId": "lab-31638-1790540174794215000-68-writer:lab-31638-1790540174794215000-68-epoch:1",
-            "envelopeSha256": "f130bca2eddce68e744ff84eac098271ef10973c71959ffdaa049881e853c5be",
+            "changeSetId": "lab-94057-1790547300439789000-71-writer:lab-94057-1790547300439789000-71-epoch:1",
+            "envelopeSha256": "6f98b84ca76e709d31279ccede534054832c02e52fa5e40652d264a402727825",
             "mutationCount": 3,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174794215000-68-writer:lab-31638-1790540174794215000-68-epoch:2",
-            "envelopeSha256": "67ea8497561d5ff0b8b3fea7884efb40b4dac6051ec1d08f4cadc0cbfc50c307",
+            "changeSetId": "lab-94057-1790547300439789000-71-writer:lab-94057-1790547300439789000-71-epoch:2",
+            "envelopeSha256": "bcb7aa94ef0946479fc71b5f197fb9bb3421e283e0848a2d601113cfa5cc2976",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174794215000-68-writer:lab-31638-1790540174794215000-68-epoch:1",
-            "envelopeSha256": "f130bca2eddce68e744ff84eac098271ef10973c71959ffdaa049881e853c5be",
+            "changeSetId": "lab-94057-1790547300439789000-71-writer:lab-94057-1790547300439789000-71-epoch:1",
+            "envelopeSha256": "6f98b84ca76e709d31279ccede534054832c02e52fa5e40652d264a402727825",
             "mutationCount": 3,
             "status": "duplicate"
           },
           {
-            "changeSetId": "lab-31638-1790540174794215000-68-writer:lab-31638-1790540174794215000-68-epoch:2",
-            "envelopeSha256": "67ea8497561d5ff0b8b3fea7884efb40b4dac6051ec1d08f4cadc0cbfc50c307",
+            "changeSetId": "lab-94057-1790547300439789000-71-writer:lab-94057-1790547300439789000-71-epoch:2",
+            "envelopeSha256": "bcb7aa94ef0946479fc71b5f197fb9bb3421e283e0848a2d601113cfa5cc2976",
             "mutationCount": 1,
             "status": "duplicate"
           }
@@ -2263,62 +2263,62 @@
           {
             "name": "sync_change_set",
             "rows": 6,
-            "sha256": "1a3820cf0c38fa1ec5ad49f0f8dc4e022dca228b85091b78ac578536f2f3d8c8"
+            "sha256": "9fb82be4f63ba72b828f687d41b472ce9bfa4dbdd81e2b0fe515594a02c25713"
           },
           {
             "name": "sync_mutation",
             "rows": 25,
-            "sha256": "b2bb67c46bce1a204d83477c8ae08641cdf9456a224d32ff2f4b2eac38a72683"
+            "sha256": "6f0b2b65715acde55640a6dcc0b18f59d0594fa962cb79a9d5c7db4d7eb3cf83"
           },
           {
             "name": "sync_apply_receipt",
             "rows": 6,
-            "sha256": "13cac2e9db272440a0484dc3e4d877ff08aba3937aa7a8aabe2351f3686da2c3"
+            "sha256": "5632ce15ba0cb02d97464f38aecbc61f63a3d06ff3725dbd03299227ba7ea336"
           },
           {
             "name": "sync_yjs_materialization_receipt",
             "rows": 5,
-            "sha256": "5dc063750ca60899b6575a704d08cff39b3c0b3ca5452e9fd34a4793514e7d90"
+            "sha256": "8b94147797e16d92580b396a686ecb7df4d1a640c61c34fc105a8fc6b2c51cdc"
           },
           {
             "name": "sync_generation_writer_state",
             "rows": 3,
-            "sha256": "b43209c5dba97d4405086cd8874d618215cfb1f55df66d0a5dc64b45a070bf0d"
+            "sha256": "da89a17d347dd8ffe88b22a9f25bf0d65ada9b7e87adaa8505cb98be1b5a73ce"
           },
           {
             "name": "yjs_updates",
             "rows": 3,
-            "sha256": "c1d188b90722854c57b989073bdfa88e6e2f2c6d773414a00e81c155c14d4985"
+            "sha256": "6ad86a61ec08ddf44c90534555c94f377c3c635a9246bb0b7eb4a2b06b898ad4"
           },
           {
             "name": "yjs_snapshots",
             "rows": 1,
-            "sha256": "4ae78b4e817bb9166b39873da9e59d2eb4d2f6b75be3337e52eccf3a3c4c306d"
+            "sha256": "59f037f90c4b68ab457bbe6e219ee6b163dfc7891012c165dd0a0fb9a1951ca0"
           },
           {
             "name": "yjs_document_revision",
             "rows": 3,
-            "sha256": "a793a0b9dc9bde67ffdf52faf562d8b4bfd6167d8ee8d35720210f378d53a428"
+            "sha256": "7261cded785e70e21de4b7e7049af97ff95ea92910e3b67240fddc9cf66265cb"
           },
           {
             "name": "yjs_document_revision_provenance",
             "rows": 5,
-            "sha256": "3a19a3e9742d1dac2820007b30ea5d348f7aadfcb65e10933b604d6446022ad0"
+            "sha256": "534d0ac6880be44c2eff43869b27aec8353f03df0eda20e2a5d7aaef617df2fc"
           },
           {
             "name": "node_content",
             "rows": 3,
-            "sha256": "a9f617aae2afa19f27f1a5eeff9cc2e57fae3b74e143092b237fe411f6b03d67"
+            "sha256": "35c81d5899d0efa280bcb137784366551dacc4a6435dbed739b4e16b21c4c3b8"
           },
           {
             "name": "project",
             "rows": 1,
-            "sha256": "d38b789a0a292e672a2439c1fe60d7630640fac6f35cc3dac0d87bb9286813ca"
+            "sha256": "532d074081353e5aaf877a2f493c1ba5f07e157d75280945a169303ffd551a3f"
           },
           {
             "name": "book_node",
             "rows": 3,
-            "sha256": "ec2e9b261ab4a806fdf1e9b0feb7e1b9d49f20bb7546e945edd773a478de6edc"
+            "sha256": "7f88e705e62348118077ca0987781a874d2dc3c2725086e2df7800271c01dd34"
           },
           {
             "name": "node_storyline_link",
@@ -2328,12 +2328,12 @@
           {
             "name": "sync_entity_lifecycle",
             "rows": 11,
-            "sha256": "1fdc022b7038257bd23d15dc77c22537ebb702b6490a43696250279aa9f06e12"
+            "sha256": "32b9cd15bbf782b77eb5559d1a6d94e587e889f4b26ef10b6a544903aa00275e"
           },
           {
             "name": "sync_field_clock",
             "rows": 3,
-            "sha256": "1ab3f4c7c07ee743c2e50025bd65736c10b981eaf6e4704fee41cfe9e4a1f81d"
+            "sha256": "f875038e34f4e238ab31065125b810f9be32660e06a4fa98db4ad2db45c50484"
           },
           {
             "name": "sync_conflict",
@@ -2343,51 +2343,51 @@
         ],
         "documents": [
           {
-            "documentId": "node-content:native-chapter-31638-1790540174794245000-69",
-            "stateSha256": "b5b5ba89dda96fa48b7ff81a4b94e57a3de5a304c444e7d4625fc9bd7214bde9",
+            "documentId": "node-content:native-chapter-94057-1790547300439819000-72",
+            "stateSha256": "c20269ddda4f6a0c4649595c459f7e67af68d59cf5d3eccfd7b150ac5ef0a2ae",
             "semanticCache": "passed"
           }
         ],
         "proseSaveStamps": [
           {
-            "native": "2026-09-27T20:16:14.823Z",
-            "receiver": "2026-09-27T20:16:13.855Z"
+            "native": "2026-09-27T22:15:00.467Z",
+            "receiver": "2026-09-27T22:14:59.460Z"
           }
         ]
       },
       {
         "name": "competing-fields-and-order",
         "status": "passed",
-        "beforeDatabaseSha256": "66213c08b01014d5f33e16b22296836a2b7b5f34bb09fd267d8e12d8aa1a8ab8",
-        "afterDatabaseSha256": "fd79d1375b6c2a842394d4514c904c9ddb1cd6a3ab430a448e35b5feff16dbb0",
+        "beforeDatabaseSha256": "698fd071cf1ef02e81cb9c33687c17d8da6c1e7e5a09d49ba78526625e829e5d",
+        "afterDatabaseSha256": "194858e53954c8d64b9d1ed4fafee335b1b417a53da1a5d178ef445c77a1310a",
         "deliveries": [
           {
-            "changeSetId": "lab-31638-1790540174806182000-85-writer:lab-31638-1790540174806182000-85-epoch:4",
-            "envelopeSha256": "88a791ef58d5c0c25c646cfbb0766ab4003ffb603e08ba89cd65d0791c67d9cc",
+            "changeSetId": "lab-94057-1790547300450166000-85-writer:lab-94057-1790547300450166000-85-epoch:4",
+            "envelopeSha256": "112f8167e96652259e685895c202a180db25e4449da7f74756e1ddb6a46c24dc",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174806182000-85-writer:lab-31638-1790540174806182000-85-epoch:3",
-            "envelopeSha256": "a700b43d322fb58f3f053d40abe50386f6db56fae02c7ac98b0a37a47418bee5",
+            "changeSetId": "lab-94057-1790547300450166000-85-writer:lab-94057-1790547300450166000-85-epoch:3",
+            "envelopeSha256": "a6d33c16a9cf2f92988dceba7fdd0503485567953076da1ac6652dd66b297ef8",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174806182000-85-writer:lab-31638-1790540174806182000-85-epoch:2",
-            "envelopeSha256": "ee1c7c75c44e67a9132fced7be2545b1c76547cfb1f330e2ff8688b92f750915",
+            "changeSetId": "lab-94057-1790547300450166000-85-writer:lab-94057-1790547300450166000-85-epoch:2",
+            "envelopeSha256": "a0a88fbb6ccdddcf2344aa1ba043685452557b3e17e7a066d92681b01277a205",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174806182000-85-writer:lab-31638-1790540174806182000-85-epoch:1",
-            "envelopeSha256": "35c23d4e2b3f2eb3cca21c6bed2fc80e9a6f1fb7382f80c6bfaaa3ba27950ade",
+            "changeSetId": "lab-94057-1790547300450166000-85-writer:lab-94057-1790547300450166000-85-epoch:1",
+            "envelopeSha256": "62d90bcd4dcabf59f80f3f7acd82dd94b2e24935f2c177fa2601834d0bb408db",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174806182000-85-writer:lab-31638-1790540174806182000-85-epoch:1",
-            "envelopeSha256": "35c23d4e2b3f2eb3cca21c6bed2fc80e9a6f1fb7382f80c6bfaaa3ba27950ade",
+            "changeSetId": "lab-94057-1790547300450166000-85-writer:lab-94057-1790547300450166000-85-epoch:1",
+            "envelopeSha256": "62d90bcd4dcabf59f80f3f7acd82dd94b2e24935f2c177fa2601834d0bb408db",
             "mutationCount": 1,
             "status": "duplicate"
           }
@@ -2396,62 +2396,62 @@
           {
             "name": "sync_change_set",
             "rows": 9,
-            "sha256": "985136b31a9005787db09c87e9f5659754f843730723ac760d7ccf0c7eaae840"
+            "sha256": "776f3264109faea47e913f1846857eee7ba23d808abc730043881152e87d7592"
           },
           {
             "name": "sync_mutation",
             "rows": 26,
-            "sha256": "4a81771ec2e677e00e2a9d687875b27cba6e323ce60d57de14d2fb03dc7211a9"
+            "sha256": "f82534743746c6782f6c679a51f1bc9a827a128b11c778491985891f7c1e2ffa"
           },
           {
             "name": "sync_apply_receipt",
             "rows": 9,
-            "sha256": "ecad0a514edb486134fd17df956e198150157b567ca08fb8535e2cf7dc6bdddc"
+            "sha256": "7e14f523f53acb7efc3a2bf492da56cf744c11c741f0fd3ae3278bfc7cb975a7"
           },
           {
             "name": "sync_yjs_materialization_receipt",
             "rows": 3,
-            "sha256": "d7cbac60b089628a8669892e9233e1cf119944062d6b0858dcc3908f8a68877e"
+            "sha256": "1a832d852cefb0ff58bafe7820a05cf296c0c5a133b0bc9e099f89014b57aa8c"
           },
           {
             "name": "sync_generation_writer_state",
             "rows": 3,
-            "sha256": "0794bc02c2d9bf33b9040acb576302e2feb7994fb10f02549c68334ce6cf5647"
+            "sha256": "688ced490ae77fc08e394475c60c1704da8d37f582640ff13f0e8b8fa1189acb"
           },
           {
             "name": "yjs_updates",
             "rows": 2,
-            "sha256": "b042b88b510e7beb125ef8bc51c60001f08c9104451762333b4ff419083b490e"
+            "sha256": "d3b106ce5e2a5a7bb7d58cd4690364dac7a5cea013b7de82e819052b790c2965"
           },
           {
             "name": "yjs_snapshots",
             "rows": 1,
-            "sha256": "a4976b34831c4f1c2c6dcc6d050a2c37c3a1fa1af0d3db78455c08ecec1bc52e"
+            "sha256": "7c08d16aeb75c99a156684573094aa5acc4ac908edc1572b234bcbec33a644f1"
           },
           {
             "name": "yjs_document_revision",
             "rows": 2,
-            "sha256": "27f1ec7769be64463fca2947cdcc0114df754cfcbbed4b4878e969345fd5d29c"
+            "sha256": "25cda40caa579ca0371d6c7872c69226a3c66645486e0a49547f2489562b40f8"
           },
           {
             "name": "yjs_document_revision_provenance",
             "rows": 3,
-            "sha256": "dd71ef1c0d5a56ae7125c39d79e7a7f5876d071b5ed257da73bc0d35d47f6135"
+            "sha256": "f9b6cec546837c479cebf2f18508330d8ac7d15b99f6578074bc092201f917fa"
           },
           {
             "name": "node_content",
             "rows": 2,
-            "sha256": "477fc36d94654e77ba085a1154ff822dcb0a0c31df08c2efe5ee64a77fe7dd6f"
+            "sha256": "ca13e2dbaa621b7095c4a6ea0e2ff7a4d3567fda492dee1cf21dc1d676ab0cda"
           },
           {
             "name": "project",
             "rows": 1,
-            "sha256": "f77a1dd3aa9fdb4ebdeabe5d36118d91a31100f20b77e95ba6243335af4b127b"
+            "sha256": "63fa45cd7b5254d8be0b12061f4ab784de53fc19bcb14f5189dc7e21f042a315"
           },
           {
             "name": "book_node",
             "rows": 2,
-            "sha256": "edbcaada1c79c614fcc60517930075b51c9847013fe336ed414dcd5f0af6cebb"
+            "sha256": "ca9ad8701fa45c5fb6500fdfe950720ef05d69c1fe3f2f4626c39dbd716cbcaf"
           },
           {
             "name": "node_storyline_link",
@@ -2461,12 +2461,12 @@
           {
             "name": "sync_entity_lifecycle",
             "rows": 10,
-            "sha256": "2d50a7a2a10b8e0db7f12ab0ba80ad7ec7b0e43722c8a2e8c37cbd562979006f"
+            "sha256": "7b3bb0f3636576b4f7dee501e3488d71d9436d85939cdec613104c1998d17e47"
           },
           {
             "name": "sync_field_clock",
             "rows": 6,
-            "sha256": "051347f3c2edb2f0d7dcc4ea93e3bbaf72e26403c61358239c32ef32894c788a"
+            "sha256": "5b468c83130c7bfbabd10f2b4c13868d08719ae6e76a7d8e2c731f80e1c6e4f9"
           },
           {
             "name": "sync_conflict",
@@ -2476,8 +2476,8 @@
         ],
         "documents": [
           {
-            "documentId": "node-content:native-chapter-31638-1790540173859106000-36",
-            "stateSha256": "87ba8b11e13d131c416f6036f24ddbfb8ef1cc95ff2169af72ff198f46e00259",
+            "documentId": "node-content:native-chapter-94057-1790547299464635000-33",
+            "stateSha256": "58008283814e1ece036318297a046d034e3e41c7024c68655d5ba395a124ef12",
             "semanticCache": "passed"
           }
         ],
@@ -2486,36 +2486,36 @@
       {
         "name": "late-fields-before-create",
         "status": "passed",
-        "beforeDatabaseSha256": "6a5d6428134b8b90b3309b0d5b5de6f7e867ddce6dc1bec781d2f6a2b6366320",
-        "afterDatabaseSha256": "e276b02993a075c0d0d7e03fb352996d375de91f38d5b0ce339ae238ca851919",
+        "beforeDatabaseSha256": "bef7a44bac51836eccb1964c8958f30f57587e15cd52390c9eaa77f0cd8c15c6",
+        "afterDatabaseSha256": "12b6de3b01bf15ecdfaa89798221697dd4a648905e1b6092a7870542a6dc1772",
         "deliveries": [
           {
-            "changeSetId": "lab-31638-1790540174797949000-74-writer:lab-31638-1790540174797949000-74-epoch:3",
-            "envelopeSha256": "d650420dafe67e87c4934f2ddad6d46a7c3734c0e76639646e440312389ea9d7",
+            "changeSetId": "lab-94057-1790547300441732000-74-writer:lab-94057-1790547300441732000-74-epoch:3",
+            "envelopeSha256": "a0a5bf149809848d69b5c2188e311cf48bcfa7c5ff3f1c7d8787a6eb1c619c86",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174797949000-74-writer:lab-31638-1790540174797949000-74-epoch:2",
-            "envelopeSha256": "ceac0fcd556893e06049919630e64e4f5d4a2a7dea01081e0e984d200e4c2c6f",
+            "changeSetId": "lab-94057-1790547300441732000-74-writer:lab-94057-1790547300441732000-74-epoch:2",
+            "envelopeSha256": "c04ffe2aad28e48d5ff5f8048e713bb627a07f55e26f78b93d5dd56d1f12543b",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174797949000-74-writer:lab-31638-1790540174797949000-74-epoch:1",
-            "envelopeSha256": "014a691c281483210ce39dc987bc60c970ff8fa4d0b934d04555495d8169d703",
+            "changeSetId": "lab-94057-1790547300441732000-74-writer:lab-94057-1790547300441732000-74-epoch:1",
+            "envelopeSha256": "ee7d80fb50d4f7f062900e91633620d3692f9d5c0bb57c0edd81935b7bd4312c",
             "mutationCount": 3,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174797949000-74-writer:lab-31638-1790540174797949000-74-epoch:4",
-            "envelopeSha256": "a039ae7a23157fdc2abb0f98c2cf78e647af60a42fdb06a6318cc0a6dbe2d9d2",
+            "changeSetId": "lab-94057-1790547300441732000-74-writer:lab-94057-1790547300441732000-74-epoch:4",
+            "envelopeSha256": "e9a9581d979d2b8ca177828a223c13e5343b712b022971c5a97d2b179e388f3f",
             "mutationCount": 1,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174797949000-74-writer:lab-31638-1790540174797949000-74-epoch:1",
-            "envelopeSha256": "014a691c281483210ce39dc987bc60c970ff8fa4d0b934d04555495d8169d703",
+            "changeSetId": "lab-94057-1790547300441732000-74-writer:lab-94057-1790547300441732000-74-epoch:1",
+            "envelopeSha256": "ee7d80fb50d4f7f062900e91633620d3692f9d5c0bb57c0edd81935b7bd4312c",
             "mutationCount": 3,
             "status": "duplicate"
           }
@@ -2524,62 +2524,62 @@
           {
             "name": "sync_change_set",
             "rows": 7,
-            "sha256": "a1fdfae8c4baba2c060c1462dba5f7b988e1b84a8844908692313cb5a94c6f09"
+            "sha256": "36a631563b884c93dfafc72ae58209c7a77ad02a0d321320e79f19d6ec4476c4"
           },
           {
             "name": "sync_mutation",
             "rows": 26,
-            "sha256": "c923f09e44cec738a022811346499e75f28fb60473d9a50aa225edc84b25149d"
+            "sha256": "35233eb2fce9f10d12505cc620e86d2de26efb458962ec29732bbcd7908501e0"
           },
           {
             "name": "sync_apply_receipt",
             "rows": 7,
-            "sha256": "1e41e463b767ea2499928eea7865db4cb8f3a741ba9d77a90c7f7dcc53922c8c"
+            "sha256": "6b7cde43d369c98cbb50d317c8e975c8030ccd5e19dcd3f7b6ad688713248408"
           },
           {
             "name": "sync_yjs_materialization_receipt",
             "rows": 4,
-            "sha256": "61c5654cd639f23ad97f7a78a5d46518c73d7b64f3144f4ce5dc1fc08b58dc1a"
+            "sha256": "173f880b1173ef8c7e90cef4eac1dab45db1a3eae305b24f3d7963bf186beec7"
           },
           {
             "name": "sync_generation_writer_state",
             "rows": 2,
-            "sha256": "d27b24875dea615b67360044a695bdc5b141be2a1be1296a66a7f0a448b2eb41"
+            "sha256": "ee62eb0148246785f311df9797963b0cbb6a2ad8a3c092cea67752900c4e8ab0"
           },
           {
             "name": "yjs_updates",
             "rows": 3,
-            "sha256": "d05bf6e0da36133f89d72ff2a92dc4ef8bf94b8ee19d527690891179951d11c4"
+            "sha256": "018e590916553e7f971972979692afe1beff4a4fd18b0dd7ddb43dfcef040592"
           },
           {
             "name": "yjs_snapshots",
             "rows": 1,
-            "sha256": "c6c67f279aeb6529e3a54c36a62360c8e9e651f101eb7326c1b7b52b4b76e32e"
+            "sha256": "33fdae02237d328cd3f7b92a29546ef3426004a7df4adbbe7f27880205fe6495"
           },
           {
             "name": "yjs_document_revision",
             "rows": 3,
-            "sha256": "90f9aa028c3976b9b6f073ea70f8cd6524e573874f2cc2ee6a4e7ebc2bf6f6cf"
+            "sha256": "3941d18995d0ad40c5366dc1a7f2ced9be7296e620a7d66c8d0d7d45dc7eb44f"
           },
           {
             "name": "yjs_document_revision_provenance",
             "rows": 4,
-            "sha256": "92f0daf9d18eb46d084af13875859ce87e808d58d49a665b2098d4bc700409c2"
+            "sha256": "3211caa86b0caa86267d1ada67024679e5dd777a85052c2b76875704aa1383de"
           },
           {
             "name": "node_content",
             "rows": 3,
-            "sha256": "8a902177ca6034c6e55e82458b3fbd72f4a53759ebf2323283fae047935e674c"
+            "sha256": "dca8f2834e99f0ce6e2fb29fe7f4f197aa1e70c73448a63e732027664a0a8384"
           },
           {
             "name": "project",
             "rows": 1,
-            "sha256": "78e2d7e2b1cf6fbbff32d8caded654e11bd2d8ce28f3d3e828bc4c9152f87b33"
+            "sha256": "0b7be9a2c07158c25a4d8e3805cc2b9765298fb4fd184dcacc025801338d3f87"
           },
           {
             "name": "book_node",
             "rows": 3,
-            "sha256": "96b5e09b1db14d08668aaca1bde071627ab1013528ed79477cb31fef8a685563"
+            "sha256": "70cc8315c94246ff57b9d1b0cccf95fb6caa9f806339b4950e9e1fe52265725e"
           },
           {
             "name": "node_storyline_link",
@@ -2589,12 +2589,12 @@
           {
             "name": "sync_entity_lifecycle",
             "rows": 11,
-            "sha256": "f52c334c315f72bbd28b04edf5ccbb159cd1d99f8d8005f0714d6e4000bbd15c"
+            "sha256": "f1334bd6e2ab49449b704caa1a2878b505f952368815d9314cad464418375c2a"
           },
           {
             "name": "sync_field_clock",
             "rows": 5,
-            "sha256": "3a276c21c86445b3a632eb2be497cad45c076f7281e3bfa1b3aa7737a40bbf44"
+            "sha256": "462ba4d4f1cfa9b9fda83ca279103c7263f4a5e13fb055737c2e06235df54299"
           },
           {
             "name": "sync_conflict",
@@ -2604,8 +2604,8 @@
         ],
         "documents": [
           {
-            "documentId": "node-content:native-chapter-31638-1790540174797977000-75",
-            "stateSha256": "5dbfbf6711626b2be421b12c06a8b2b71996906b2f684d539a2a85ee7932605b",
+            "documentId": "node-content:native-chapter-94057-1790547300441763000-75",
+            "stateSha256": "8ba36876cf8ef564ac43b47be0b1bf56eb158298ef9346eb5a6a753e6e7da7d8",
             "semanticCache": "passed"
           }
         ],
@@ -2614,24 +2614,24 @@
       {
         "name": "receipt-rollback-and-retry",
         "status": "passed",
-        "beforeDatabaseSha256": "a61c82e05b85f72a146c4d4a8ae1d6643b79bb1723722d9c11ff312e6063bfbd",
-        "afterDatabaseSha256": "97de57f76727c74a8a9a2a5be9ff11ba5b67fc07eeb783313612412eb061e3f8",
+        "beforeDatabaseSha256": "496945b0eb0e76ffbc447a5cc31c828f48b2ee03faafb91e53db792a4c1d5c8c",
+        "afterDatabaseSha256": "bf4df3e438601430515a7b0e620dcec1fbf995914774d9fd2a5df4c567141493",
         "deliveries": [
           {
-            "changeSetId": "lab-31638-1790540174796121000-71-writer:lab-31638-1790540174796121000-71-epoch:1",
-            "envelopeSha256": "b500eb9f89e13e2c48fa0fb298fb5d4ff113f0f1b81d067cab92d3939dbfbf1f",
+            "changeSetId": "lab-94057-1790547300437873000-68-writer:lab-94057-1790547300437873000-68-epoch:1",
+            "envelopeSha256": "4fd53b1af4fd28c7b170d59ef44c931a13ce427727380272ecb5a2b7143ece50",
             "mutationCount": 3,
             "status": "rejected"
           },
           {
-            "changeSetId": "lab-31638-1790540174796121000-71-writer:lab-31638-1790540174796121000-71-epoch:1",
-            "envelopeSha256": "b500eb9f89e13e2c48fa0fb298fb5d4ff113f0f1b81d067cab92d3939dbfbf1f",
+            "changeSetId": "lab-94057-1790547300437873000-68-writer:lab-94057-1790547300437873000-68-epoch:1",
+            "envelopeSha256": "4fd53b1af4fd28c7b170d59ef44c931a13ce427727380272ecb5a2b7143ece50",
             "mutationCount": 3,
             "status": "applied"
           },
           {
-            "changeSetId": "lab-31638-1790540174796121000-71-writer:lab-31638-1790540174796121000-71-epoch:1",
-            "envelopeSha256": "b500eb9f89e13e2c48fa0fb298fb5d4ff113f0f1b81d067cab92d3939dbfbf1f",
+            "changeSetId": "lab-94057-1790547300437873000-68-writer:lab-94057-1790547300437873000-68-epoch:1",
+            "envelopeSha256": "4fd53b1af4fd28c7b170d59ef44c931a13ce427727380272ecb5a2b7143ece50",
             "mutationCount": 3,
             "status": "duplicate"
           }
@@ -2640,62 +2640,62 @@
           {
             "name": "sync_change_set",
             "rows": 4,
-            "sha256": "1c572816c08d4cf7e9509b86e6bdc362048ad2c9e67b25233095c9e9e4752b2e"
+            "sha256": "4ad4cff2d7f4edaf31a388262d285d9e24aedad262adcd363e01fcc0865e754a"
           },
           {
             "name": "sync_mutation",
             "rows": 23,
-            "sha256": "9b0f1e3ce5dd00ddcffbda567f4e622488aa1ec86871a1ae3426d320731fef0d"
+            "sha256": "332edefcfb42a39a28bed181ac5732f491f0486b078fab953e0d2f2f3071cd41"
           },
           {
             "name": "sync_apply_receipt",
             "rows": 4,
-            "sha256": "20ee84c07bff28d2d24a405b082c23034a405ea0351bfc2a8a29286e532711b5"
+            "sha256": "9460d1f116afa6b1f7d1b6c4c7d5ddcef6092b2e859b6bd682359a454a081ceb"
           },
           {
             "name": "sync_yjs_materialization_receipt",
             "rows": 3,
-            "sha256": "01d61a809e25562131a681cdd38b8dc09c9c456ba192054b360effad32be7c2b"
+            "sha256": "129528c2cad4469c6914c0c0dcf4a382ae9ec035b0e8b4e60e4b97f56d6c1f61"
           },
           {
             "name": "sync_generation_writer_state",
             "rows": 2,
-            "sha256": "39b94f863a8a3518d59a0d363fa90fd9a416f4c23b1d7f73967958660cc04ced"
+            "sha256": "bab41d9787604311e5856f4d98686cb91dcfd4cab212d44fb9d8f84e3927caaf"
           },
           {
             "name": "yjs_updates",
             "rows": 2,
-            "sha256": "ce374b3fc5a49938965575571cd58063dd6c721b20cd716c8cb0c7faff6989a1"
+            "sha256": "1b565aae856b2ec0aac44a8ecb61feed1558fea94df667923040c576aa5a42d4"
           },
           {
             "name": "yjs_snapshots",
             "rows": 1,
-            "sha256": "1f15ac403319dcdb2a63f4bce92424b777917a56659db6fb36d66aa924ec364f"
+            "sha256": "832c05289afdd26b62d2b200a3336f6161b9ac6d7198e3aecb0042f500c2d29c"
           },
           {
             "name": "yjs_document_revision",
             "rows": 3,
-            "sha256": "f239ff8f01f82ead72175ad7b7ecb7c847d7a369b42a9212e4a1f027f8d2f68c"
+            "sha256": "db8063b022998e1e1456980caceee1c94ba4869f1c87d3ad8aac8007797157da"
           },
           {
             "name": "yjs_document_revision_provenance",
             "rows": 3,
-            "sha256": "7851086d353b7742b6ca8755fc7da7fa362010af972c5d6abe8ace5289f0c433"
+            "sha256": "910c30cd160fa1f214e15b1aca3cbb6e3a8936ce3e9c24aae026623778007e64"
           },
           {
             "name": "node_content",
             "rows": 3,
-            "sha256": "1c1c955aea8b2e3d4e1bdde70029852cd3f050b81c9c446680ca457c7a33ab57"
+            "sha256": "a846ef713124019b2bcdfe87523f3a559db4c2f38dc9a4a5ff0c57114926c0f8"
           },
           {
             "name": "project",
             "rows": 1,
-            "sha256": "a418b60070f0c806c0013651d27d6092d2bacb92976760e3e6f3455d8cf8f9cf"
+            "sha256": "72036639d855a4c97613c99c42adae9ca45bbc95153601e6957f28f290a91c0b"
           },
           {
             "name": "book_node",
             "rows": 3,
-            "sha256": "2bca55c71c0354e163e64a601ba1e660eb26039076b5a1ad0a718b6f09e73705"
+            "sha256": "5334cf90db59ae1fef1c818a45d74bb56c2d50496f3abfc7cebd2a5d11df57c5"
           },
           {
             "name": "node_storyline_link",
@@ -2705,12 +2705,12 @@
           {
             "name": "sync_entity_lifecycle",
             "rows": 11,
-            "sha256": "f691ce7b39d4043e977e124327084b43302e59f450bacd4663bbe2183fb81003"
+            "sha256": "06aa6952b03fc37f2dc87549c8ff7ad2a8ec4e8dc5ae75b28b5f6b574a26d249"
           },
           {
             "name": "sync_field_clock",
             "rows": 3,
-            "sha256": "1aca405a04b57c9979ce4f10bd8b2cb7f1d28487cd9c3508895c92cb20fef45e"
+            "sha256": "11c7da1f774290175f897f4191013df2854688fe6fd9f30601a5dd4497f80751"
           },
           {
             "name": "sync_conflict",
@@ -2720,8 +2720,8 @@
         ],
         "documents": [
           {
-            "documentId": "node-content:native-chapter-31638-1790540174796148000-72",
-            "stateSha256": "c0fd19cec800528ba022254cfe8584c4692315e37e8e29fcf0592c94fb8b912b",
+            "documentId": "node-content:native-chapter-94057-1790547300437898000-69",
+            "stateSha256": "a0d73a7c2c4d644a152065941c946b3f2cc0a4883946cb463a3dfdc2fb6c89c4",
             "semanticCache": "passed"
           }
         ],
@@ -2772,88 +2772,88 @@
   },
   "rawEvidence": [
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/source-before.json",
-      "sha256": "8723ae71c175a8326dbde32b0d66c29318bf4c9888599ba50d1015dc94255be8"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/source-before.json",
+      "sha256": "a31cdae70fc8d3e12328442b71a63d5bfdfbbb726bc23833164d40c867670771"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/rustc.log",
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/rustc.log",
       "sha256": "f962b371312f239ad54b94edec7a19892f75006d762441ad20bf81649b42f173"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/cargo.log",
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/cargo.log",
       "sha256": "6261fe7541b564f7e7e113f7dc96703e30ddbc559e255674515deb0feb15f093"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/core-workspace-metadata.log",
-      "sha256": "1c94c0955224387034c4a10abee2f5e9c4dc28ffa9884a42ebc05476cb84420c"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/core-workspace-metadata.log",
+      "sha256": "661878256f81867835d0b3c703f2ec06b28b6bc5b1029b732901d441190f2d95"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/bridge-workspace-remote.log",
-      "sha256": "c0c4a5a6b7989dee5a8631aa1e625a74dc1d11071e71ceb08566f9ee29b3825e"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/bridge-workspace-remote.log",
+      "sha256": "41c57e4a5ce0549c39a275634d776048b3cb27dcc0bac3deecfbbb31f6531bcd"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/workspace-remote-wire.json",
-      "sha256": "e8a8a983bf445e75d9b8648e5465d476923ed32014bc1afdbe14241f259398db"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/workspace-remote-wire.json",
+      "sha256": "719165b43f8da812e6d7f8550adee9ff2f5305e70d922c1ee046666f1ef39966"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/renderer.json",
-      "sha256": "6a28dc77d4d91beba09126c2b749e43e83bed465416621fa9271fd9c61e02879"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/renderer.json",
+      "sha256": "928d1627256aeda991fb555b2341fae8ad66ab5ce3b00a9f62c7bf8ca391c98d"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/renderer.log",
-      "sha256": "3910fc5505a8b08ffb9b7b31c67b3779fae2f314e09895599741f13d0d9a8acb"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/renderer.log",
+      "sha256": "d4e2645008730a36f89c32f1d25cc7f5b83efb6bcce0bb9e8d7e75afc54ee237"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/typecheck.log",
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/typecheck.log",
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/chapter-create-and-prose.json",
-      "sha256": "980109e588afaa139ee21c83d05945b518568ac3cd2248e557c71d9b8ae8a8d7"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/chapter-create-and-prose.json",
+      "sha256": "98c01ff352d5c6881337a425e3bc5037f1e22a3d6d84dfe578637f073c0f2eda"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/competing-fields-and-order.json",
-      "sha256": "ea2ec7e3a9f7d34b4ce373de2df2f90dfc5fe2899fe5b1295e500a20930ed009"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/competing-fields-and-order.json",
+      "sha256": "f552524ef8a8e380d7826edb9b2362f8a26679c8e03bf13fd571b3a7509e059e"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/late-fields-before-create.json",
-      "sha256": "0daa204527d7506f292c04e9a73adf1b82dbf984b4942b569281da411cfcdd87"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/late-fields-before-create.json",
+      "sha256": "86d1b59b90b6650c94eb6a88c9aa724653c65b13511b9e8b3f70669c121f9c9e"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/receipt-rollback-and-retry.json",
-      "sha256": "49aa3dd3161afd8423a7cba71da065ce1de6ec8a2383e7dbd608275b1f9ebec3"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/receipt-rollback-and-retry.json",
+      "sha256": "f64805fa7f2175a765c83e0827db299cf3825a8358d6175ffc4b220ab69ebf62"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/chapter-create-and-prose-before.db",
-      "sha256": "6573a24c12c149c91e34c689efa93f38f3e763de931b0293a58557942d038157"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/chapter-create-and-prose-before.db",
+      "sha256": "72a95eb791b8946cc8e393735b5eb632b54dc9d5ab0953d84fbd9cb53c1565d4"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/chapter-create-and-prose-after.db",
-      "sha256": "26a8e427f28bf824731a3b6f506f062c12cc928d6325a548b282dfe9e3731178"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/chapter-create-and-prose-after.db",
+      "sha256": "492c04c5e9beefc822c935455e0fbca331aeb247a0760d4026a624a246258c8f"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/competing-fields-and-order-before.db",
-      "sha256": "66213c08b01014d5f33e16b22296836a2b7b5f34bb09fd267d8e12d8aa1a8ab8"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/competing-fields-and-order-before.db",
+      "sha256": "698fd071cf1ef02e81cb9c33687c17d8da6c1e7e5a09d49ba78526625e829e5d"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/competing-fields-and-order-after.db",
-      "sha256": "fd79d1375b6c2a842394d4514c904c9ddb1cd6a3ab430a448e35b5feff16dbb0"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/competing-fields-and-order-after.db",
+      "sha256": "194858e53954c8d64b9d1ed4fafee335b1b417a53da1a5d178ef445c77a1310a"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/late-fields-before-create-before.db",
-      "sha256": "6a5d6428134b8b90b3309b0d5b5de6f7e867ddce6dc1bec781d2f6a2b6366320"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/late-fields-before-create-before.db",
+      "sha256": "bef7a44bac51836eccb1964c8958f30f57587e15cd52390c9eaa77f0cd8c15c6"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/late-fields-before-create-after.db",
-      "sha256": "e276b02993a075c0d0d7e03fb352996d375de91f38d5b0ce339ae238ca851919"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/late-fields-before-create-after.db",
+      "sha256": "12b6de3b01bf15ecdfaa89798221697dd4a648905e1b6092a7870542a6dc1772"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/receipt-rollback-and-retry-before.db",
-      "sha256": "a61c82e05b85f72a146c4d4a8ae1d6643b79bb1723722d9c11ff312e6063bfbd"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/receipt-rollback-and-retry-before.db",
+      "sha256": "496945b0eb0e76ffbc447a5cc31c828f48b2ee03faafb91e53db792a4c1d5c8c"
     },
     {
-      "path": ".local-data/apple-native/workspace-remote-acceptance-76bWMv/receipt-rollback-and-retry-after.db",
-      "sha256": "97de57f76727c74a8a9a2a5be9ff11ba5b67fc07eeb783313612412eb061e3f8"
+      "path": ".local-data/apple-native/workspace-remote-acceptance-p7RixV/receipt-rollback-and-retry-after.db",
+      "sha256": "bf4df3e438601430515a7b0e620dcec1fbf995914774d9fd2a5df4c567141493"
     }
   ]
 }

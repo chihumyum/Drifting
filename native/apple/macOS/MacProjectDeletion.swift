@@ -44,11 +44,16 @@ struct ProjectDeletionSummary: Equatable {
     }
 }
 
-/// 删除项目: closes every panel and tab of the project (the 全书长卷 lets go
-/// of its editors first; a tab saves as closing it does), then deletes the
-/// project in Rust and moves to another project, or to a new empty one when
-/// none remain. A panel or tab that cannot close stops it with the reason
-/// and nothing is deleted.
+/// 删除项目: first asks the project's panels whether they can let go (the
+/// 全书长卷 cannot while input is in flight or an owner it could not close
+/// is still open), then closes every tab of the project (each saves as
+/// closing it does), then the panels that show the project, then deletes
+/// the project in Rust and moves to another project, or to a new empty one
+/// when none remain. A panel or tab that cannot close stops it with the
+/// reason and nothing is deleted; a refusal before the panels close leaves
+/// every panel and sheet (e.g. a draft being composed) as it was. After
+/// Rust deletes the project, its writing-assistant turn stops and its
+/// conversations, rules and usage are removed from disk.
 final class ProjectDeletionCoordinator {
     struct Outcome {
         let deletion: WorkspaceProjectDeletion
@@ -64,10 +69,16 @@ final class ProjectDeletionCoordinator {
     static let replacementName = "未命名项目"
     private let workspace: LabWorkspaceCore
     private weak var host: MacChapterWorkspace?
-    /// Closes the project's panels; reports nil, or why one could not close.
+    /// Why a panel of the project cannot let go now; asked before anything
+    /// closes. Nil lets deletion go on.
+    var panelRefusal: ((String) -> String?)?
+    /// Closes the panels showing the project (and only those); reports nil,
+    /// or why one could not close.
     var closePanels: ((String, @escaping (String?) -> Void) -> Void)?
     /// Drops what the lab stores per project (settings.json).
     var forgetSettings: ((String) -> Void)?
+    /// Stops the writing assistant's running turn in the project, if any.
+    var stopAssistant: ((String) -> Void)?
     private(set) var isDeleting = false
 
     init(workspace: LabWorkspaceCore, host: MacChapterWorkspace) {
@@ -82,19 +93,15 @@ final class ProjectDeletionCoordinator {
             self?.isDeleting = false
             completion(result)
         }
-        let closeTabs = { [weak self] in
-            host.closeTabs(projectID: project.id) { [weak self] result in
-                guard let self else { return }
-                switch result {
-                case .success: self.remove(project, finish: finish)
-                case .failure(let error):
-                    finish(.failure(LabError.message("\(error.localizedDescription) 项目未删除。")))
-                }
+        let refuse: (String) -> Void = { reason in finish(.failure(LabError.message("\(reason) 项目未删除。"))) }
+        if let reason = panelRefusal?(project.id) { refuse(reason); return }
+        host.closeTabs(projectID: project.id) { [weak self] result in
+            guard let self else { return }
+            if case .failure(let error) = result { refuse(error.localizedDescription); return }
+            guard let closePanels = self.closePanels else { self.remove(project, finish: finish); return }
+            closePanels(project.id) { [weak self] reason in
+                if let reason { refuse(reason) } else { self?.remove(project, finish: finish) }
             }
-        }
-        guard let closePanels else { closeTabs(); return }
-        closePanels(project.id) { reason in
-            if let reason { finish(.failure(LabError.message("\(reason) 项目未删除。"))) } else { closeTabs() }
         }
     }
 
@@ -106,6 +113,8 @@ final class ProjectDeletionCoordinator {
             case .success(let reply):
                 self.host?.forget(projectID: project.id)
                 self.forgetSettings?(project.id)
+                self.stopAssistant?(project.id)
+                AgentConversationStore.removeProject(root: self.workspace.agentDirectory, projectID: project.id)
                 if let next = reply.projects.first {
                     finish(.success(Outcome(deletion: reply.deleted, projects: reply.projects, next: next, created: false)))
                     return
@@ -153,7 +162,7 @@ final class ProjectDeletionSheet: NSObject, NSTextFieldDelegate {
         heading.font = .systemFont(ofSize: 15, weight: .semibold)
         summaryLabel.textColor = .labelColor
         summaryLabel.setAccessibilityIdentifier("delete-project-summary")
-        let closing = NSTextField(wrappingLabelWithString: "删除前会先保存并关闭这个项目打开的所有标签页和面板。删除后无法恢复。")
+        let closing = NSTextField(wrappingLabelWithString: "删除前会先保存并关闭这个项目打开的所有标签页和面板，写作助手在这个项目里的对话和作者规则也会一并删除。删除后无法恢复。")
         closing.textColor = .secondaryLabelColor
         closing.font = .systemFont(ofSize: 12)
         let prompt = NSTextField(wrappingLabelWithString: "请输入项目名称“\(project.name)”以确认：")

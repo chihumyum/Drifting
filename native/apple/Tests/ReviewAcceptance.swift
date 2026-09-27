@@ -17,6 +17,7 @@ extension BindingAcceptance {
         MacWholeBookViewController.typingPause = 0.2
         MacWholeBookViewController.retryDelay = 0.05
         try reviewComposeFiltersAndRanking()
+        try reviewComposeKeepsItsPage()
         try reviewPriorityResolveConvertAndEdit()
         try reviewDeleteAndLocate()
         try reviewAssociations()
@@ -25,12 +26,13 @@ extension BindingAcceptance {
         try reviewProjectDeletion()
         return [
             "AppKit 审阅 composes a note on the focused chapter, a TODO on it with a priority and a floating TODO associated with it, lists 全部/批注/待办 and 当前 (whole page first, then passage notes, then associated items, each newest first) or 全书, follows the focused tab, and refuses an empty body, a note without a page and Rust's floating note in Chinese without writing",
+            "AppKit 审阅 新建 writes a note or TODO on the page the sheet opened on even after another tab is focused before 创建, and refuses a page trashed while the sheet is open in Chinese naming it, keeping the typed text and writing nothing",
             "AppKit 审阅 sets and clears a priority with one field.set each and none for the current one, resolves and reopens under 已解决 and from the board's 已完成 archive, converts a passage note to a TODO and back keeping its anchor, refuses making a floating TODO a note in Chinese without writing, and edits a body through the composer writing nothing when unchanged",
             "AppKit 审阅 定位 opens a note's page as a tab and selects a passage note's anchored text, deletes only after confirmation, refuses while the chapter has marked input, removes a passage note with its highlight from both open views and the chapter's comment panel while typing continues and saves through cold reopen, and deletes an associated TODO with its relations in one original",
             "AppKit 关联 of TODOs and library items with chapters, drifts, elements, categories and storylines through menus and chips writes one entity-relation original each, stays out of pages' 关系 sections, follows a rename and survives a cold relaunch",
             "AppKit 备忘与素材 board shows open TODO cards beside the library's cards with kind chips and counts that hide and show 待办, 图片, PDF, 链接 and 文字, reorders library items by drag with one order original also while a kind is hidden, writes nothing for a drop in place, and keeps the order through a cold relaunch",
             "AppKit 幕颜色 from the 整书大纲 and a 全书长卷 separator stores one field.set per change and nothing for the current colour, the separator wash, 统计 strip, act rows and chapter bars follow while other acts keep the hue cycle, 恢复默认 clears it, and colours survive a cold relaunch",
-            "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input or an owner outside the tabs is open, closes the 全书长卷 and every tab of the project first, deletes with one sync-generation purge and the asset bytes, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
+            "AppKit 删除项目 names what is removed, enables 删除项目 only for the exact typed name, refuses in Chinese with nothing written while a tab has marked input (before any panel closes, so a TODO being composed keeps its draft) or an owner outside the tabs is open, closes every tab of the project and then the 全书长卷, deletes with one sync-generation purge and the asset bytes, stops the writing assistant and removes its conversations and rules so a later save cannot recreate them, switches to the remaining project, is gone after a cold relaunch, and deleting the last project opens a new empty one",
         ]
     }
 
@@ -232,6 +234,61 @@ extension BindingAcceptance {
     fileprivate static func reviewSegment(_ control: NSSegmentedControl, _ index: Int) {
         control.selectedSegment = index
         control.sendAction(control.action, to: control.target)
+    }
+
+    // MARK: The sheet's page
+
+    private static func reviewComposeKeepsItsPage() throws {
+        let harness = try ReviewHarness(name: "审阅位置合成项目")
+        defer { harness.cleanup() }
+        let rain = harness.chapters[0], bell = harness.chapters[1]
+        _ = try harness.openChapter(rain)
+        try harness.openReview()
+        let controller = harness.controller!, model = harness.model!, host = harness.host, project = harness.project
+
+        // Opened on 雨夜; 钟楼's tab is focused before 创建: the note is on 雨夜.
+        var mark = try harness.journal.mark()
+        let note = try harness.compose(kind: "note", body: "写在雨夜上") { sheet in
+            try require(sheet.placePopup.titleOfSelectedItem == "当前：章节「雨夜」", "The sheet did not open on 雨夜")
+            _ = try harness.openChapter(bell)
+            try harness.settle()
+            try require(model.focus?.endpoint == harness.endpoint(bell), "The focus did not move to 钟楼")
+        }
+        try harness.journal.expect([["entity.create comment"]], since: mark, "A note from a sheet opened on 雨夜")
+        try require(note.targetKind == "node" && note.targetId == rain.id, "The note went to \(note.targetId ?? "no page")")
+
+        // A TODO placed on 钟楼 stays there after the element's tab is focused.
+        mark = try harness.journal.mark()
+        let todo = try harness.compose(kind: "todo", body: "钟楼的钟几点响") { sheet in
+            sheet.placePopup.selectItem(at: 0)
+            sheet.removeAssociation(harness.endpoint(bell))
+            let _: NativeDocumentView = try elementResult { host.open(project: project, element: harness.element, completion: $0) }
+            try harness.settle()
+            try require(model.focus?.endpoint == RelationEndpoint(kind: "element", id: harness.element.id), "The focus did not move to 老周")
+        }
+        try harness.journal.expect([["entity.create comment"]], since: mark, "A TODO from a sheet opened on 钟楼")
+        try require(todo.targetId == bell.id && todo.kind == "todo", "The TODO went to \(todo.targetId ?? "no page")")
+
+        // The page is trashed while the sheet is open: refused, text kept.
+        let _: NativeDocumentView = try elementResult { host.open(project: project, drift: harness.drift, completion: $0) }
+        try harness.settle()
+        controller.newNote()
+        guard let sheet = controller.commands.composeSheet else { throw LabError.message("No compose sheet") }
+        try require(sheet.placePopup.titleOfSelectedItem == "当前：漂流「旧信」", "The sheet did not open on the drift")
+        sheet.bodyView.string = "旧信的批注"
+        let _: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+            host.trashDrift(projectID: project.id, driftID: harness.drift.id, completion: $0)
+        }
+        try harness.settle()
+        let count = model.comments.count
+        mark = try harness.journal.mark()
+        sheet.submit()
+        try wait { !sheet.isSubmitting && !model.busy }
+        try require(sheet.errorMessage == "漂流「旧信」已不可用（可能已移到回收站），批注没有创建。" && controller.commands.composeSheet === sheet
+            && sheet.bodyView.string == "旧信的批注" && model.comments.count == count,
+            "A note on a trashed page was not refused in the sheet: \(sheet.errorMessage ?? "none")")
+        try harness.journal.expect([], since: mark, "A note on a trashed page")
+        sheet.cancel()
     }
 
     // MARK: Compose, filters and scope
@@ -920,17 +977,32 @@ extension BindingAcceptance {
             throw LabError.message("The image was not stored")
         }
 
+        // The writing assistant's conversation and rules of both projects.
+        var conversation = AgentConversation(projectID: project.id)
+        conversation.title = "删前的对话"
+        let agentStore = AgentConversationStore(root: workspace.agentDirectory, projectID: project.id)
+        agentStore.save(conversation)
+        agentStore.saveRules([AgentAuthorRule(kind: .preference, text: "少用感叹号", source: "author")])
+        let keptStore = AgentConversationStore(root: workspace.agentDirectory, projectID: kept.id)
+        keptStore.save(AgentConversation(projectID: kept.id))
+        agentStore.flush()
+        let agentFiles = { (try? FileManager.default.contentsOfDirectory(atPath: agentStore.directory.path)) ?? [] }
+        try require(Set(agentFiles()) == ["\(conversation.id).json", AgentConversationStore.rulesFile], "The conversation was not saved: \(agentFiles())")
+
         // The coordinator and sheet as AppDelegate wires them.
         let coordinator = ProjectDeletionCoordinator(workspace: workspace, host: host)
         var book: MacWholeBookViewController?
         var panelsClosed = 0
+        var stopped: [String] = []
+        coordinator.panelRefusal = { _ in book?.deletionRefusal }
         coordinator.closePanels = { _, done in
             panelsClosed += 1
             harness.controller.commands.endSheets()
             guard let open = book else { done(nil); return }
-            if !open.shutdown(completion: { done(nil) }) { done("全书长卷中还有未完成的输入，请等待正文保存后再删除。") }
+            if !open.shutdown(completion: { done($0) }) { done("全书长卷中还有未完成的输入，请等待正文保存后再删除。") }
         }
         coordinator.forgetSettings = { settings.forgetProject($0) }
+        coordinator.stopAssistant = { stopped.append($0) }
         let sheet = ProjectDeletionSheet(project: project)
         var outcome: ProjectDeletionCoordinator.Outcome?
         sheet.onConfirm = { done in
@@ -961,14 +1033,21 @@ extension BindingAcceptance {
         sheet.type("将删的书")
         try require(sheet.deleteButton.isEnabled && sheet.errorMessage == nil, "The exact name did not enable 删除项目")
 
-        // Marked input in a tab stops it before anything is written.
+        // Marked input in a tab stops it before anything is written, and
+        // before any panel closes: a TODO being composed keeps its draft.
+        harness.controller.newTodo()
+        guard let draft = harness.controller.commands.composeSheet else { throw LabError.message("No compose sheet") }
+        draft.bodyView.string = "删除前写了一半的待办"
         view.textView.setSelectedRange(NSRange(location: 0, length: 0))
         view.textView.setMarkedText("ye", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: 0, length: 0))
         sheet.confirm()
         try wait { !sheet.isDeleting }
         try require(sheet.errorMessage?.contains("无法关闭") == true && sheet.errorMessage?.hasSuffix("项目未删除。") == true
             && outcome == nil && !finished && host.hasTabs(projectID: project.id), "Marked input did not stop deletion: \(sheet.errorMessage ?? "")")
+        try require(panelsClosed == 0 && harness.controller.commands.composeSheet === draft && draft.bodyView.string == "删除前写了一半的待办",
+            "A refused deletion closed panels or discarded the draft")
         try harness.journal.expect([], since: mark, "Deletion held by marked input")
+        draft.cancel()
         view.textView.insertText("夜", replacementRange: NSRange(location: NSNotFound, length: 0))
         try elementSettled(host, view, second)
 
@@ -998,6 +1077,8 @@ extension BindingAcceptance {
         try require(Set(listed.map(\.id)) == [project.id, kept.id] && FileManager.default.fileExists(atPath: stored.path),
             "A refused deletion removed something: \(listed.map(\.name)) \(FileManager.default.fileExists(atPath: stored.path))")
         let _: Bool = try elementResult { workspace.closeDrift(projectID: project.id, driftID: driftScope.driftID, completion: $0) }
+        agentStore.flush()
+        try require(agentFiles().count == 2 && stopped.isEmpty, "A refused deletion touched the writing assistant's files")
 
         // Tabs opened again close first; then the project goes.
         let reopened = try harness.openChapter(chapter)
@@ -1014,6 +1095,18 @@ extension BindingAcceptance {
             "The deletion outcome differs")
         let reloaded = LabSettingsStore(directory: workspace.dataDirectory)
         try require(reloaded.writingPlan(projectID: project.id) == WritingPlan(), "settings.json kept the deleted project's plan")
+        // The assistant's turn stops and its folder goes; a save that fires
+        // afterwards (a stopped turn finishing) does not bring it back.
+        agentStore.flush()
+        try require(stopped == [project.id] && !FileManager.default.fileExists(atPath: agentStore.directory.path),
+            "The deleted project's conversations stayed: \(agentFiles())")
+        conversation.title = "删除后才保存"
+        agentStore.save(conversation)
+        agentStore.saveRules([])
+        AgentConversationStore(root: workspace.agentDirectory, projectID: project.id).save(conversation)
+        agentStore.flush()
+        try require(!FileManager.default.fileExists(atPath: agentStore.directory.path), "A late save recreated the deleted project's folder")
+        try require(keptStore.load().count == 1, "Another project's conversation was removed")
 
         // Cold relaunch without it.
         let closed: Bool = try elementResult { host.close(completion: $0) }

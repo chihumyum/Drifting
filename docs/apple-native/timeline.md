@@ -10,15 +10,17 @@ interoperability is kept.
 - A chapter's narrative order is a finite number or `null` (not placed in story
   time). Setting it writes `field.set narrativeOrder` and advances `updated_at`
   by at least 1 ms; drifts have none. Unchanged values write nothing.
-- Book-axis moves reuse chapter reordering; moving a chapter into another lane
-  makes that storyline its primary (the previous primary's membership is
-  dropped, others stay), through storyline membership.
-- `moveChapter` is one graph drop: an optional order (`null` unplaces) and an
+- Moving a chapter into another lane makes that storyline its primary (the
+  previous primary's membership is dropped, others stay); a lane change alone
+  is a storyline membership command.
+- `moveChapter` is one graph drop: an optional order (`null` unplaces), an
   optional lane (a storyline becomes primary by the same rule; `null` removes
-  every link) change together in one original, or not at all, and it returns
-  the moved node. With a lane it also returns the storyline library
-  (`storylines`: `{storylines, trashedStorylines, memberships}`). An
-  unchanged drop writes nothing.
+  every link) and an optional `bookBefore` (a reading-order move before that
+  chapter, or last with `null`, as chapter reordering does) change together
+  in one original, or not at all, and it returns the moved node. With a lane
+  it also returns the storyline library (`storylines`: `{storylines,
+  trashedStorylines, memberships}`). A destination that is gone is refused.
+  An unchanged drop writes nothing.
 - Timeline markers (`timeline_marker`) sit at a narrative order with a label,
   optionally bound to a live drift, which captions a label-less marker. Create,
   edit (order, label, binding) and delete journal a `timeline-marker` entity;
@@ -53,8 +55,11 @@ the previous primary's membership is dropped and others stay (未归属 clears
 them). On 故事时间 the lane and the order go in one `moveChapter` command, so a
 refusal (a storyline trashed elsewhere, say) leaves both as they were; the
 reply's storyline library replaces the graph's and the tab host's, with no
-second read. On 成书顺序 a lane change
-is sent before the book move. Each is sent only when it changes; a drop in
+second read. On 成书顺序 the lane and the book position go in one
+`moveChapter` with `bookBefore` in the same way, so a refused destination (a
+chapter trashed elsewhere) leaves the lane unchanged too; the chapter list is
+read after it, and the storyline library when no lane was sent. A lane change
+alone is the membership command. Each is sent only when it changes; a drop in
 place writes nothing. A card's menu offers 打开 (also double-click),
 移出故事时间 or 放到故事时间末尾, 移到轨道 and 写作状态.
 
@@ -92,9 +97,9 @@ and drop commands, while outline rows supply its acts.
 - **Tiles.** A click opens the chapter as a tab (or scrolls the open 全书长卷);
   the active tab's chapter is outlined in the accent colour and 定位当前章
   scrolls to it. A drag moves only the tile view and shows the insertion
-  point; the drop sends the story graph's commands (a book move, a lane
-  change, or one `moveChapter` in story time), and a drop in place writes
-  nothing. A tile's menu offers 打开, 移到轨道, 在此开始新幕 or 移出故事时间.
+  point; the drop sends the story graph's commands (one `moveChapter` for a
+  book move with or without a row change or for story time, or a lane
+  change alone), and a drop in place writes nothing. A tile's menu offers 打开, 移到轨道, 在此开始新幕 or 移出故事时间.
 - **Following.** Chapters created, renamed, moved, trashed or restored,
   acts changed in the 整书大纲 or a 全书长卷 separator, storylines, statuses,
   counts and story time changed in the 故事图谱 reach the dock without
@@ -115,7 +120,9 @@ Eight programmatic AppKit cases in the [binding report](acceptance/p2b-binding.j
 (`--timeline-only`) drive the real panel, canvas and cards with synthesized
 mouse events: lanes by primary with book positions, statuses and counts; a
 book drag (no Rust call or render until the drop, one `field.set node`, the
-chapter list and memberships following, nothing for a drop in place); lane
+chapter list and memberships following, nothing for a drop in place), a drop
+into another lane and slot as one original, and a destination trashed
+elsewhere refused with the lane and the book order unchanged; lane
 drags and 移到轨道 checked against the storyline library and journal; tray
 placement at neighbour midpoints, reordering, a combined lane and order drop
 as one original and one request whose library matches a separate read, a
@@ -133,8 +140,9 @@ canvas with synthesized mouse events: rows, bands in act colours, the
 current chapter following the tab and a tile click opening it, with nothing
 written by showing, switching or scrolling; boundary drags (nothing until the
 drop, one `field.set`, clamping, a stale drop refused and read again) and
-rename, new act, deletion and colour from the rail; tile drags and 故事时间
-with 未放置, 放到末尾, markers and 移出故事时间; following changes made elsewhere
+rename, new act, deletion and colour from the rail; tile drags (a row and
+slot change in one original) and 故事时间 with 未放置, 放到末尾, markers and
+移出故事时间; following changes made elsewhere
 and remembering per project through a cold relaunch; and 200 chapters in 3
 acts and 3 rows with no main-thread pass over 100 ms (debug build) while
 loading, switching, scrolling and dragging. A dock on screen, physical drags

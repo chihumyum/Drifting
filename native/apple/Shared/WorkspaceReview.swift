@@ -322,13 +322,26 @@ final class ReviewModel {
     /// is named in the status.
     func create(kind: String, onFocus: Bool, body: String, priority: CommentPriority?, associate: [RelationEndpoint] = [],
                 completion: ((Result<WorkspaceComment, Error>) -> Void)? = nil) {
-        let target = onFocus ? focus?.endpoint : nil
-        if onFocus, target == nil {
+        if onFocus, focus == nil {
             let refusal = "请先打开一个章节、漂流、设定、分类或故事线，或写一条浮动待办。"
             showStatus(refusal); completion?(.failure(LabError.message(refusal))); return
         }
+        create(kind: kind, on: onFocus ? focus : nil, body: body, priority: priority, associate: associate, completion: completion)
+    }
+
+    /// A note or TODO on exactly `page` (the page a sheet was opened on,
+    /// whatever is focused now), or a floating TODO with nil. A page that
+    /// is gone is refused in Chinese, naming it; nothing is written.
+    func create(kind: String, on page: ReviewFocus?, body: String, priority: CommentPriority?, associate: [RelationEndpoint] = [],
+                completion: ((Result<WorkspaceComment, Error>) -> Void)? = nil) {
+        let target = page?.endpoint
         send(message: { "\($0?.kindLabel ?? "批注")已添加。" }, change: { $0.map(ReviewChange.created) }, completion: { [weak self] result in
-            guard let self, case .success(let created) = result, let created else {
+            guard let self else { return }
+            if case .failure(let error) = result, let page, error.localizedDescription.contains("所在的页面已不可用") {
+                let refusal = "\(page.label)已不可用（可能已移到回收站），\(kind == "todo" ? "待办" : "批注")没有创建。"
+                self.showStatus(refusal); completion?(.failure(LabError.message(refusal))); return
+            }
+            guard case .success(let created) = result, let created else {
                 completion?(result.flatMap { $0.map { .success($0) } ?? .failure(LabError.message("审阅结果缺失")) }); return
             }
             let targets = associate.filter { $0 != target }

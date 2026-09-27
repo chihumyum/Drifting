@@ -98,6 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var wholeBookButton: NSButton!
     private var wholeBookPanel: WholeBookPanel?
     private var wholeBookController: MacWholeBookViewController?
+    /// A 全书长卷 whose panel closed while its owners still close, e.g. one
+    /// that failed and is tried again; project deletion asks it too.
+    private weak var closingWholeBook: MacWholeBookViewController?
     /// 设定总览: categories around the chapter band, element cards and relation edges.
     private var overviewPanel: ElementOverviewPanel?
     private var overviewController: MacElementOverviewViewController?
@@ -1764,7 +1767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if let wholeBookPanel, wholeBookPanel.isVisible, wholeBookController?.project.id == project.id {
             wholeBookPanel.makeKeyAndOrderFront(nil); return
         }
-        guard closeWholeBook(completion: { [weak self] in self?.openWholeBook(project) }) else { return }
+        guard closeWholeBook(completion: { [weak self] _ in self?.openWholeBook(project) }) else { return }
     }
 
     private func openWholeBook(_ project: WorkspaceProject) {
@@ -1779,7 +1782,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // A linked page opens as a tab in the window under the panel.
         controller.onOpenLink = { [weak self] target in
             guard let self else { return }
-            _ = self.closeWholeBook { [weak self] in
+            _ = self.closeWholeBook { [weak self] _ in
                 guard let self else { return }
                 self.chapterWorkspace.openLink(target, project: named)
                 self.window.makeKeyAndOrderFront(nil)
@@ -1814,11 +1817,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     /// Releases the 全书长卷's editors and closes the panel; `completion` runs
-    /// once the owners no tab shows are closed. False, keeping the panel,
-    /// while one of its editors has input in flight.
+    /// once the owners no tab shows are closed, or with the reason when one
+    /// could not be closed (it is tried again later). False, keeping the
+    /// panel, while one of its editors has input in flight.
     @discardableResult
-    private func closeWholeBook(completion: (() -> Void)? = nil) -> Bool {
-        guard let controller = wholeBookController else { completion?(); return true }
+    private func closeWholeBook(completion: ((String?) -> Void)? = nil) -> Bool {
+        guard let controller = wholeBookController else { completion?(nil); return true }
         guard controller.shutdown(completion: completion) else {
             let message = "请先完成全书长卷中的输入，并等待正文保存后再关闭。"
             status.stringValue = message
@@ -1827,6 +1831,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         let panel = wholeBookPanel
         wholeBookPanel = nil; wholeBookController = nil
+        if !controller.isShutDown { closingWholeBook = controller }
         if let panel { window.removeChildWindow(panel); panel.close() }
         return true
     }
@@ -2080,9 +2085,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let named = namedProject(project)
         let sheet = ProjectDeletionSheet(project: named)
         deletionSheet = sheet
+        projectDeletion.panelRefusal = { [weak self] projectID in
+            guard let self else { return nil }
+            // The 全书长卷 (open, or still closing its owners) answers first.
+            return [self.wholeBookController, self.closingWholeBook].compactMap { $0 }
+                .filter { $0.project.id == projectID }.lazy.compactMap(\.deletionRefusal).first
+        }
         projectDeletion.closePanels = { [weak self] projectID, done in
             guard let self else { done(nil); return }
             self.closePanels(of: projectID, completion: done)
+        }
+        projectDeletion.stopAssistant = { [weak self] projectID in
+            if self?.agentController?.projectID == projectID { self?.agentController?.stop() }
         }
         projectDeletion.forgetSettings = { [weak self] projectID in
             self?.dailyWords.forget(projectID: projectID)
@@ -2111,11 +2125,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         ProjectDeletionSummary.load(workspace: workspace, projectID: named.id) { [weak sheet] summary in sheet?.show(summary) }
     }
 
-    /// Closes every panel showing the project. The 全书长卷 first lets go of
-    /// its editors; it reports why when input is still in flight there.
+    /// Closes every panel showing the project, and only those; the tabs of
+    /// the project are already closed, so 批注 follows the active pane. The
+    /// 全书长卷 lets go of its editors and owners; it reports why when input
+    /// is still in flight there or an owner could not be closed.
     private func closePanels(of projectID: String, completion: @escaping (String?) -> Void) {
-        closeOutline(); closeSearch(); closeComments()
-        profileStats?.popover.close(); profileStats = nil
+        if outlineController?.model.projectID == projectID { closeOutline() }
+        if searchController?.model.projectID == projectID { closeSearch() }
+        updateComments()
+        if profileStats?.controller.model.projectID == projectID { profileStats?.popover.close(); profileStats = nil }
         if reviewController?.model.projectID == projectID { closeReview() }
         if boardController?.review.projectID == projectID { closeBoard() }
         if elementsController?.model.projectID == projectID { closeElements() }
@@ -2129,9 +2147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if trashController?.model.projectID == projectID { closeTrash() }
         timelineDock.forget(projectID: projectID)
         updateTimelineMenu()
-        transfer.endImport()
+        transfer.endImport(projectID: projectID)
         guard wholeBookController?.project.id == projectID else { completion(nil); return }
-        if !closeWholeBook(completion: { completion(nil) }) {
+        if !closeWholeBook(completion: { completion($0) }) {
             completion("全书长卷中还有未完成的输入，请等待正文保存后再删除。")
         }
     }
@@ -2834,7 +2852,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard !closingWorkspace, canLeaveDocument() else { completion(false); return }
         closingWorkspace = true
         // The 全书长卷 lets go of its owners before the workspace closes.
-        guard closeWholeBook(completion: { [weak self] in self?.closeWorkspaceOwners(completion: completion) }) else {
+        guard closeWholeBook(completion: { [weak self] _ in self?.closeWorkspaceOwners(completion: completion) }) else {
             closingWorkspace = false; completion(false); return
         }
     }

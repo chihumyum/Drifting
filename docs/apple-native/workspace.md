@@ -95,14 +95,22 @@ AppKit offers 删除项目… in the project list's context menu, 文件 and 项
 A sheet names what is removed (chapters, drifts, elements, categories,
 storylines, notes and TODOs, library items with their stored files, and
 their relations, trash, history and writing plan) and enables 删除项目 only
-when the project's name is typed exactly. It then closes the project's
-panels (the 全书长卷 first lets go of its editors), then every tab of the
-project in both panes, saving each as closing a tab does. A panel or tab
-that cannot close (input in flight, a failed save) stops it with the reason
-in Chinese and nothing is deleted; a Rust refusal is shown the same way. On
-success the lab forgets the project's writing plan and 设定总览 viewport and
-opens the first remaining project, or creates an empty “未命名项目” when none
-remain. The [review cases](review.md) accept it.
+when the project's name is typed exactly. It first asks the project's
+全书长卷 whether it can let go: input in flight there, or an owner it could
+not close (named by chapter title), refuses before anything closes. Then
+every tab of the project in both panes closes, saving each as closing a tab
+does; a tab that cannot (marked or queued input, a failed save) stops it
+before any panel closes or sheet is cancelled, so a note or TODO being
+composed keeps its draft. Only then do the panels that show the project
+close; panels of other projects stay. Every refusal names its reason in
+Chinese and nothing is deleted; a Rust refusal is shown the same way. On
+success the lab forgets the project's writing plan and 设定总览 viewport,
+stops the writing assistant's turn in it and removes
+`<data>/agent/<projectId>/` (conversations with their memory, plans and
+usage, and 作者规则) on the queue the conversation store writes on, after
+any queued write, so no later save recreates it. It then opens the first
+remaining project, or creates an empty “未命名项目” when none remain. The
+[review cases](review.md) accept it.
 
 ## 项目书架
 
