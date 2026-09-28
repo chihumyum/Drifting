@@ -20,7 +20,7 @@ use drifting_core::prose::{ProseRepository, RevisionSource};
 use drifting_core::prose_journal::{AuthoredProseContext, AuthoredProseJournal};
 use drifting_document::{
     CommentAnchorRecord, DocumentSession, NativeDraftCommit, NativeDraftStart, NativeFormatting,
-    NativeInputEdit, NativeReplacement, NativeSelectionRequest,
+    NativeInputEdit, NativeLinking, NativeReplacement, NativeSelectionRequest,
 };
 use drifting_prose::{DurabilityPhase, DurableDocument};
 use serde::Deserialize;
@@ -858,6 +858,11 @@ enum Request {
         handle: u64,
         edit: NativeFormatting,
     },
+    /// Sets or removes the URL link of a selection (see `NativeLinking`).
+    DocumentLink {
+        handle: u64,
+        edit: NativeLinking,
+    },
     DocumentReplace {
         handle: u64,
         edit: NativeReplacement,
@@ -1378,6 +1383,22 @@ fn dispatch(request: Request) -> Result<Value, String> {
             session.persist();
             session.document_state()
         }
+        Request::DocumentLink { handle, edit } => {
+            let session = sessions
+                .get_mut(&handle)
+                .ok_or("Unknown or closed session")?;
+            if session.write_blocked() {
+                return Err("Retry the pending save before formatting".into());
+            }
+            if session.document.active_drafts() > 0
+                || session.document.active_input_compositions() > 0
+            {
+                return Err("Commit or cancel active drafts before formatting".into());
+            }
+            session.document.link_native(edit)?;
+            session.persist();
+            session.document_state()
+        }
         Request::DocumentReplace { handle, edit } => {
             let session = sessions
                 .get_mut(&handle)
@@ -1523,7 +1544,10 @@ fn reply(input: &str) -> Value {
             // Successful commands and ordinary replies incur no second parse.
             let formatting = serde_json::from_str::<Value>(input)
                 .ok()
-                .is_some_and(|request| request["operation"] == "documentFormat");
+                .is_some_and(|request| {
+                    request["operation"] == "documentFormat"
+                        || request["operation"] == "documentLink"
+                });
             let error = if formatting {
                 format!("NATIVE_FORMATTING_UNAVAILABLE: {error}")
             } else {

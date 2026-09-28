@@ -729,7 +729,7 @@ extension BindingAcceptance {
         try requireMenu(editedMenu, .wholeBook, "", [], "Conflicting default")
         try requireMenu(editedMenu, .board, "t", [.command, .option], "Screenshot entry")
         try requireMenu(editedMenu, .materials, "m", [.command, .shift], "Emacs entry")
-        try requireMenu(editedMenu, .storyGraph, "g", [.command, .shift], "Spaces entry")
+        try requireMenu(editedMenu, .storyGraph, "g", [.command, .control], "Spaces entry")
         try requireMenu(editedMenu, .elementOverview, "e", [.command, .option], "Delete-word entry")
         edited.setShortcut(MenuShortcut(key: "k", flags: [.command, .control]), for: .agent)
         let saved = try String(contentsOf: edited.fileURL, encoding: .utf8)

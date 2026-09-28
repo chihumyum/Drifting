@@ -832,6 +832,50 @@ fn workspace_formatting_preserves_multiblock_text_history_and_cold_marks() {
 }
 
 #[test]
+fn workspace_alignment_indent_underline_and_links_persist_through_cold_reopen() {
+    let mut fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    let text = "北岸灯塔\n港口";
+    insert(handle, text);
+    format_document(handle, "alignCenter", json!({"location":1,"length":0}));
+    format_document(handle, "indentIncrease", json!({"location":0,"length":6}));
+    format_document(handle, "underline", json!({"location":5,"length":2}));
+    let current = state(handle);
+    let linked = success(json!({"operation":"documentLink","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":0,"length":2},
+        "href":"https://example.invalid/north"}}));
+    assert_eq!(linked["saved"], true);
+    let blocks = linked["projection"]["blocks"].clone();
+    assert_eq!(blocks[0]["attributes"]["textAlign"], "center");
+    assert_eq!(blocks[0]["attributes"]["indent"], 1);
+    assert_eq!(blocks[1]["attributes"]["indent"], 1);
+    assert_eq!(
+        blocks[0]["runs"][0]["attributes"]["link"]["href"],
+        "https://example.invalid/north"
+    );
+    assert!(blocks[1]["runs"][0]["attributes"]
+        .get("underline")
+        .is_some());
+    // A refused link is a formatting refusal, not a failed save.
+    let current = state(handle);
+    let refused = rejected(json!({"operation":"documentLink","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":0,"length":2},
+        "href":"javascript:void(0)"}}));
+    assert!(
+        refused.starts_with("NATIVE_FORMATTING_UNAVAILABLE:"),
+        "{refused}"
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let reopened = fixture.open(0);
+    assert_eq!(reopened["document"]["projection"]["blocks"], blocks);
+    fixture.close();
+}
+
+#[test]
 fn workspace_formatting_rejection_preserves_input_and_save_failure_retries_once() {
     let fixture = Fixture::new();
     let handle = fixture.open(0)["handle"].as_u64().unwrap();

@@ -1,4 +1,6 @@
 use super::*;
+use crate::formatting::MAX_INDENT;
+use yrs::Number;
 
 fn source() -> DocumentSession {
     let mut seed = DocumentSession::with_test_client_id(78001).unwrap();
@@ -400,4 +402,146 @@ fn native_format_italic_event_replays_on_peer_and_preserves_remote_history() {
         .all(|(_, attrs)| !attrs.contains_key("italic")));
     assert!(doc.redo());
     assert!(marks(&doc, "p")[1].1.contains_key("italic"));
+}
+
+fn attribute(doc: &DocumentSession, id: &str, key: &str) -> Option<Any> {
+    let txn = doc.doc.transact();
+    match doc
+        .editable_block(&txn, id)
+        .unwrap()
+        .get_attribute(&txn, key)
+    {
+        Some(Out::Any(value)) => Some(value),
+        None => None,
+        Some(other) => panic!("{other:?}"),
+    }
+}
+
+fn link(doc: &mut DocumentSession, at: u32, length: u32, href: Option<&str>) -> Result<(), String> {
+    doc.link_native(NativeLinking {
+        revision: doc.revision,
+        range: NativeRange {
+            location: at,
+            length,
+        },
+        href: href.map(String::from),
+    })
+}
+
+#[test]
+fn native_format_underline_and_strike_toggle_like_bold_and_keep_other_marks() {
+    let mut doc = source();
+    let before = doc.semantic().unwrap();
+    let log = doc.capture_authored_updates().unwrap();
+    format(&mut doc, NativeFormatAction::Underline, 1, 7);
+    format(&mut doc, NativeFormatAction::Strike, 0, 3);
+    assert_eq!(log.drain_records().len(), 2);
+    assert!(marks(&doc, "q")
+        .iter()
+        .all(|(_, attrs)| attrs.contains_key("underline")));
+    assert!(marks(&doc, "p")[0].1.contains_key("strike"));
+    assert!(!marks(&doc, "p")[0].1.contains_key("underline"));
+    format(&mut doc, NativeFormatAction::Underline, 1, 7);
+    assert!(marks(&doc, "q")
+        .iter()
+        .all(|(_, attrs)| !attrs.contains_key("underline")));
+    assert!(doc.undo() && doc.undo() && doc.undo());
+    assert_eq!(doc.semantic().unwrap(), before);
+}
+
+#[test]
+fn native_format_alignment_and_indent_set_block_attributes_in_one_unit() {
+    let mut doc = source();
+    let before = doc.semantic().unwrap();
+    let log = doc.capture_authored_updates().unwrap();
+    // A caret takes its block; a selection every block it touches.
+    format(&mut doc, NativeFormatAction::AlignCenter, 1, 0);
+    assert_eq!(attribute(&doc, "p", "textAlign"), Some(Any::from("center")));
+    assert_eq!(attribute(&doc, "q", "textAlign"), None);
+    format(&mut doc, NativeFormatAction::AlignRight, 1, 7);
+    assert_eq!(attribute(&doc, "p", "textAlign"), Some(Any::from("right")));
+    assert_eq!(attribute(&doc, "q", "textAlign"), Some(Any::from("right")));
+    assert_eq!(log.drain_records().len(), 2);
+    // Already so: nothing is written.
+    let revision = doc.revision;
+    format(&mut doc, NativeFormatAction::AlignRight, 7, 0);
+    assert_eq!((doc.revision, log.drain_records().len()), (revision, 0));
+    format(&mut doc, NativeFormatAction::AlignLeft, 0, 8);
+    assert_eq!(attribute(&doc, "p", "textAlign"), None);
+    // Indent climbs to eight and falls back to none.
+    for _ in 0..10 {
+        format(&mut doc, NativeFormatAction::IndentIncrease, 0, 0);
+    }
+    assert_eq!(
+        attribute(&doc, "p", "indent"),
+        Some(Any::Number(Number::Int(MAX_INDENT as i64)))
+    );
+    assert_eq!(log.drain_records().len(), 1 + MAX_INDENT as usize);
+    format(&mut doc, NativeFormatAction::IndentDecrease, 0, 7);
+    assert_eq!(
+        attribute(&doc, "p", "indent"),
+        Some(Any::Number(Number::Int(MAX_INDENT as i64 - 1)))
+    );
+    assert_eq!(attribute(&doc, "q", "indent"), None);
+    // A heading keeps its alignment and indent.
+    format(&mut doc, NativeFormatAction::AlignCenter, 0, 0);
+    format(&mut doc, NativeFormatAction::Heading2, 0, 0);
+    assert_eq!(attribute(&doc, "p", "textAlign"), Some(Any::from("center")));
+    assert!(attribute(&doc, "p", "indent").is_some());
+    while doc.undo() {}
+    assert_eq!(doc.semantic().unwrap(), before);
+}
+
+#[test]
+fn native_link_sets_replaces_and_removes_urls_keeping_other_marks() {
+    let mut doc = source();
+    let entity = Any::from_json(r#"{"id":"e1","kind":"element"}"#).unwrap();
+    mark(
+        &doc,
+        "q",
+        0,
+        2,
+        [("entityLink".into(), entity.clone())]
+            .into_iter()
+            .collect(),
+    );
+    let before = doc.semantic().unwrap();
+    let log = doc.capture_authored_updates().unwrap();
+    // Refusals write nothing.
+    for (href, length) in [
+        (Some("javascript:alert(1)"), 2),
+        (Some("https://a b"), 2),
+        (Some("https://example.invalid"), 0),
+    ] {
+        assert!(link(&mut doc, 6, length, href).is_err());
+    }
+    assert_eq!(log.drain_records().len(), 0);
+    link(&mut doc, 6, 2, Some(" https://example.invalid/港 ")).unwrap();
+    let runs = marks(&doc, "q");
+    let Any::Map(value) = &runs[0].1["link"] else {
+        panic!("link")
+    };
+    assert_eq!(
+        value.get("href"),
+        Some(&Any::from("https://example.invalid/港"))
+    );
+    assert_eq!(runs[0].1["entityLink"], entity);
+    // The same address again writes nothing; another replaces it.
+    let revision = doc.revision;
+    link(&mut doc, 6, 2, Some("https://example.invalid/港")).unwrap();
+    assert_eq!((doc.revision, log.drain_records().len()), (revision, 1));
+    link(&mut doc, 6, 1, Some("mailto:author@example.invalid")).unwrap();
+    assert_eq!(marks(&doc, "q").len(), 2);
+    // A caret inside removes the whole link around it, runs of either address.
+    link(&mut doc, 7, 0, None).unwrap();
+    assert!(marks(&doc, "q")
+        .iter()
+        .all(|(_, attrs)| !attrs.contains_key("link") && attrs["entityLink"] == entity));
+    // Nothing to remove writes nothing.
+    let revision = doc.revision;
+    link(&mut doc, 1, 0, None).unwrap();
+    assert_eq!(doc.revision, revision);
+    assert_eq!(log.drain_records().len(), 2);
+    while doc.undo() {}
+    assert_eq!(doc.semantic().unwrap(), before);
 }

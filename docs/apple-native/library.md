@@ -128,9 +128,11 @@ order: a title page with the project's name and summary, a page per act, and
 every chapter from a new page under its heading, with the book title and the
 page number in the header (none on the title and act pages). The paper is
 A4 or Letter as set in 文件 › 页面设置… (any other paper means A4). Body
-headings are set one level below the chapter heading; bold, italic, strike,
-inline and block code, quotes, lists, rules and links are styled, entity
-links are plain text and comments are not marked.
+headings are set one level below the chapter heading; bold, italic,
+underline, strike, inline and block code, quotes, lists, rules and links are
+styled, paragraphs keep their alignment and block indent (two em of the body
+size per level, as in the editor), entity links are plain text and comments
+are not marked. 打印… sets a page the same way.
 
 Bodies come from `workspaceAgent readProjection` (`{projection:{text,
 blocks}, live}`): an open owner gives its live text, including text whose
@@ -193,4 +195,8 @@ destination, an earlier file untouched), checks the progress reported, and
 waits for queued input before reading. The print panel, a printer and the
 progress sheet on screen are not covered. The same run drives 设置 › 快捷键:
 recording, the reserved and text-editing refusals and stored values the
-rules now refuse ([settings](settings.md)).
+rules now refuse ([settings](settings.md)). `--format-extras-only` prints a
+page whose paragraphs are centred, indented and right-aligned with an
+underline and a URL link, checks the typeset attributes from the live
+projection and the positions of those lines in the PDF
+([formatting](formatting.md)).

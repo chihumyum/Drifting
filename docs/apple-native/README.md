@@ -49,7 +49,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Native writing assistant](agent.md)
 - [Copilot（实验）: element and patch suggestions while writing](copilot.md)
 - [Settings: appearance, typesetting and language](settings.md)
-- [Native editor formatting](formatting.md)
+- [Native editor formatting, find and pickers](formatting.md)
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
 - [Story graph, story time and the bottom timeline (底部时间轴)](timeline.md)
@@ -121,7 +121,10 @@ an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
 library ordering, act colours, project deletion, a bottom timeline dock with
 a draggable act rail,
-chapter tabs with a two-pane split, formatting, project search over chapters,
+chapter tabs with a two-pane split, formatting (bold, italic, underline,
+strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
+toolbar and the context menu), a slash menu, find in the editor (⌘F, no
+replace), an @ picker that inserts and links names, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, one 回收站 per project with 彻底删除, hover cards
 on entity links, typewriter scrolling, a 项目书架 of every project, Markdown

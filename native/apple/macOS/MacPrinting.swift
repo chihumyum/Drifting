@@ -34,9 +34,9 @@ struct PrintGeometry: Equatable {
 
 /// Prose set for paper in the editor's typography (设置's face, size, line
 /// height, first-line indent and manuscript language) in black on white,
-/// whatever the app's appearance. Headings, bold, italic, strike, code,
-/// quotes, lists and links are styled; entity links are plain text and
-/// comments are not marked.
+/// whatever the app's appearance. Headings, bold, italic, underline, strike,
+/// code, quotes, lists, links, alignment and block indent are styled; entity
+/// links are plain text and comments are not marked.
 final class PrintTypesetter {
     let typography: DocumentTypography
     /// Body headings are set this many levels lower: in the book PDF the
@@ -144,6 +144,7 @@ final class PrintTypesetter {
         var prefix = ""
         if block.kind == "heading" { paragraph.paragraphSpacingBefore = size * 0.5 }
         if block.kind == "horizontalRule" { paragraph.alignment = .center }
+        if isText, block.kind != "codeBlock" { paragraph.alignment = DocumentStyle.alignment(block.textAlign) }
         if block.depth == 0 {
             if block.kind == "paragraph" { paragraph.firstLineHeadIndent = typography.paragraphIndent }
             if mono { paragraph.headIndent = typography.size; paragraph.firstLineHeadIndent = typography.size }
@@ -181,6 +182,12 @@ final class PrintTypesetter {
             } else {
                 paragraph.headIndent = quoteIndent; paragraph.firstLineHeadIndent = quoteIndent
             }
+        }
+        // An indented paragraph or heading shifts whole, keeping its first-line indent.
+        let shift = block.kind == "codeBlock" ? 0 : DocumentStyle.indentWidth(block.indent, size: typography.size)
+        if shift > 0 {
+            paragraph.headIndent += shift; paragraph.firstLineHeadIndent += shift
+            paragraph.tabStops = paragraph.tabStops.map { NSTextTab(textAlignment: $0.alignment, location: $0.location + shift) }
         }
         let result = NSMutableAttributedString(string: prefix + content, attributes: base(paragraph, font: bodyFont, color: color))
         if mono { result.addAttribute(.backgroundColor, value: Self.codeWash, range: NSRange(location: 0, length: result.length)) }

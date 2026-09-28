@@ -1,82 +1,131 @@
-# Native editor formatting
+# Native editor formatting, find and pickers
 
-This writing-workflow batch adds selection bold/italic and paragraph/heading 1–3
-to AppKit and UIKit. It follows chapter ordering (`5bc7a9f8`) and keeps the same
-document owner, history and persistence path. It does not complete editor parity
-or enable general remote synchronization.
+Selection marks (bold, italic, underline, strike, URL links), block styles
+(paragraph, heading 1–3) and block attributes (alignment, indent) use the same
+document owner, history and persistence path as typing, in every Mac body
+editor: chapter, drift, element, category and storyline pages and the
+全书长卷. The slash menu, find and the @ picker are editor tools on that path.
+Native only; no Tauri interoperability is kept. The deferred UIKit editor keeps
+bold, italic and the paragraph-style menu.
 
-## Document command
+## Document commands
 
-`DocumentSession::format_native(NativeFormatting)` takes the displayed revision,
-a global UTF-16 range and one action: `bold`, `italic`, `paragraph`, `heading1`,
-`heading2` or `heading3`. The core validates the entire selection before mutation.
-One command uses one local transaction and one undo unit, including selections
-across paragraphs. Empty inline selections are disabled; block actions accept a
-caret. Formatting does not introduce a separate typing-marks state.
+`DocumentSession::format_native(NativeFormatting)` (`documentFormat`) takes the
+displayed revision, a global UTF-16 range and one action: `bold`, `italic`,
+`underline`, `strike`, `paragraph`, `heading1`–`heading3`, `alignLeft`,
+`alignCenter`, `alignRight`, `indentIncrease` or `indentDecrease`. The core
+validates the whole selection before mutation; one command is one local
+transaction and one undo unit, also across paragraphs, and a command that
+changes nothing writes nothing and keeps the revision. There is no separate
+typing-marks state.
 
-Bold/italic remove the target mark when all selected text already has it;
-otherwise they apply it across the selection. Other marks and entity links are
-preserved. Heading commands change the actual XML tag and numeric level. They
-retain text, public block IDs, typed metadata, comments and selection lineage.
-Changing the heading level invalidates both native views' style projections.
+- **Marks** need selected text. They are removed when all selected text has the
+  mark, otherwise applied across it; other marks and entity links stay.
+- **Headings** change the actual tag and level and keep text, block IDs, typed
+  metadata, comments, selection lineage, alignment and indent. **Paragraph**
+  converts selected root text blocks, removes their level and clears bold,
+  italic and strike from selected characters only (a caret clears nothing);
+  entity links, unknown metadata, alignment and indent stay. Resetting inside
+  quotes and lists, or turning a list item's first paragraph into a heading, is
+  refused atomically.
+- **Alignment and indent** set the block attribute `textAlign` (`center`,
+  `right`; left removes it) or `indent` (1–8; 0 removes it) on every paragraph
+  or heading the selection touches; a caret takes its block. Other block kinds
+  refuse. Enter carries both to the next block of the same kind.
 
-Paragraph converts selected root text blocks to paragraph, removes their level,
-and clears bold/italic/strike only from selected characters. A caret does not
-clear all characters in its paragraph. Entity links, unknown metadata and current
-indent/alignment values remain intact. This is a bounded paragraph command, not
-full `clearNodes` parity. Container unwrapping and block indentation are later
-workflow work. Paragraph reset inside quotes/lists and converting a list item's
-required first paragraph to a heading are rejected atomically. A supported
-heading inside a quote retains the quote container.
+`DocumentSession::link_native(NativeLinking)` (`documentLink`) sets the URL
+link mark `link: {href}` on selected text — a trimmed http, https or mailto
+address without spaces, at most 2,048 bytes — replacing URL links there and
+keeping entity links and other marks. Without an address it removes URL links
+from the selection, or at a caret the whole link around it.
 
-The `documentFormat` bridge guards pending recovery and active drafts/composition,
-then uses the existing durable session. `NATIVE_FORMATTING_UNAVAILABLE:` denotes
-a pre-mutation refusal: Swift keeps its input bases and resumes queued input.
-Persistence failure instead returns the edited state with `saved: false` and its
-save error; retry retains the format and does not author a duplicate operation.
+The bridge guards pending recovery and active drafts or composition, then uses
+the durable session. `NATIVE_FORMATTING_UNAVAILABLE:` marks a refusal before
+mutation, for formatting and links alike: Swift keeps its input bases, resumes
+queued input and shows the reason in Chinese. A persistence failure instead
+returns the edited state with `saved: false`; retry keeps the change without a
+duplicate operation.
 
 ## Native interaction
 
-Both toolbars expose bold, italic and a paragraph-style menu. macOS Cmd+B/Cmd+I
-dispatch through the text responder to the same command. Formatting preserves
-selection, focus and scroll position. Pending input, marked text, recovery and
-failed drafts guard the actions. Unsupported operations surface their reason
-without making the editor unusable. Heading 1/2/3 use 28/24/20 point styles.
+- **格式 menu**: 加粗 ⌘B, 斜体 ⌘I, 下划线 ⌘U, 删除线; 正文, 标题 1–3; 左对齐,
+  居中 and 右对齐 on the macOS ⌘{ ⌘| ⌘} (shown and recorded with their ⇧, as
+  ⇧⌘{); 增加缩进, 减少缩进; 链接… ⌘K, 移除链接. Items are checked for
+  the selection: a mark when all selected text has it (mixed when some), the
+  block style and alignment of the touched blocks. The prose context menu has
+  the same 格式 submenu, and 打开链接 on a URL link. Every body's toolbar offers
+  加粗, 斜体, 下划线, 删除线, 段落样式, 对齐, 减少缩进, 增加缩进 and 链接…; a narrow
+  pane drops the last controls first.
+- **Keys**: Tab and ⇧Tab indent the caret's paragraph or every selected one, as
+  in the renderer, and never type a tab character. ⌘[ and ⌘] stay free for
+  back and forward. The shortcuts are listed in 设置 › 快捷键
+  ([settings](settings.md)).
+- **Guards**: pending input, marked text, recovery and failed drafts disable
+  the commands, as for bold and italic. Tab, or a slash-menu row, pressed while
+  typed text is still on its way applies once it lands; a click in the prose
+  drops it. Formatting keeps selection, focus and scroll position.
+- **Rendering** (`DocumentStyle`, every editor and the 全书长卷's read-only
+  rows): underline and strike; URL links in the system link colour, underlined
+  (an entity link's own presentation wins on the same text); paragraph
+  alignment; an indent shifts the whole block by two em of the body size per
+  level, on top of 设置's first-line indent. An empty paragraph's line break
+  carries its paragraph style, so its caret follows the alignment. Headings are
+  28/24/20 pt at the 17 pt body. Printing and the PDF export set the same
+  ([library](library.md)).
+- **链接…** needs a selection, or a caret inside a URL link (which selects the
+  link). The sheet is prefilled from the existing link or a selected address (a
+  URL, a `www.` host or an e-mail address); a bare domain becomes https and a
+  bare e-mail address mailto; any other scheme, such as `javascript:`, is
+  refused in Chinese and the typed address stays. 移除链接 shows when there is a
+  link. The range and revision are taken when the sheet opens. ⌘-click on a URL
+  link, or 打开链接, opens http, https and mailto addresses in the default app; a
+  plain click edits. Typing never autolinks.
+- **Slash menu**: “/” typed at the start of an empty paragraph or heading (also
+  ／, and 、, which the / key types with Pinyin) opens a popover at the caret
+  with 正文, 标题 1, 标题 2, 标题 3, 居中 and 右对齐. Typing filters by title or
+  keyword (`h1`, `center` …); ↑ and ↓ move, Return chooses: “/query” is deleted
+  through the input path, then the format applies once that input lands (two
+  undo units). Esc, a caret moved away, lost focus, a space or no match closes
+  it and leaves the text.
+- **Find**: ⌘F shows the standard find bar of the page's editor with
+  incremental search highlighting every match; ⌘G, ⇧⌘G and ⌘E work as in every
+  Mac app (编辑 › 查找…, 查找下一个, 查找上一个, 用所选内容查找). While the bar is open,
+  incremental search moves a highlight and selects the match when the bar
+  closes. The bar has no 替换: a replacement from it would not pass through the
+  binding's input path, and 全部替换 could not be one undo unit. The 全书长卷
+  offers no find.
+- **@ picker**: “@” (or ＠) typed anywhere opens a popover of the project's live
+  element names and aliases (latest edited first) and chapter titles (book
+  order), without the body's own element or chapter. Typing filters (exact,
+  then prefix, then other matches; at most 30). Return replaces “@query” with
+  the name through the input path and asks for a link pass, which links it as
+  [automatic linking](entity-links.md) does — leftmost-longest, so a longer
+  overlapping name wins. A query that names no element adds ＋ 新建设定「…」 for
+  each category: it creates the element there, every open view adopts the
+  library, and the name is inserted and linked while “@query” is still in
+  place. Esc leaves the text.
 
 ## Acceptance and limits
 
-- Six Rust document tests cover selection toggling, actual tags/levels, typed
-  metadata, comments, history, cold reopening and atomic refusal.
-- The document acceptance runner exchanges actual format updates with installed
-  Yjs, checks one undo across two Unicode paragraphs, links, unknown metadata,
-  heading levels and paragraph clearing, duplicate delivery and fresh reopening.
-  The old peer edits after receiving the new structure; this does not prove late
-  edits against deleted physical parents.
-- Two bridge tests use real workspace SQLite: format/history/reopen and
-  refusal/continued input/receipt failure/retry without duplicate writes.
-- Programmatic AppKit checks both views' real text attributes, selection,
-  heading sizes, history, links/comments, reopen and usable input after refusal.
-- Hosted UIKit checks selection, actual fonts, history, body reset, links/comments,
-  composition guards and SQLite reopen. The simulator writing UI scenario uses
-  the heading menu and checks its value after process restart.
-
-Exact source identities, counts and outcomes are generated in
-[document](acceptance/p2a-document.json), [workspace](acceptance/p3a-workspace.json),
-[binding](acceptance/p2b-binding.json) and [native](acceptance/p2b-native.json)
-reports. Existing authoring and process-recovery evidence is refreshed for the
-changed core. No new performance matrix is part of this batch.
-
-The completed run passes 138 document tests, 29 bridge tests, 63 programmatic
-AppKit cases and 266 total Rust authoring tests with 80 renderer comparisons.
-Both iPhone and iPad pass 14 hosted binding cases and two UI workflows. Mac,
-simulator and unsigned device builds pass. Targeted CUA on the freshly rebuilt
-Mac app observes Cmd+B, the italic button, heading 2, selection-preserving
-undo/redo and bold/italic/heading persistence after quitting and restarting.
-The attended record includes source and binary hashes in ignored
-`.local-data/apple-native/editor-format/macos-observation.json`.
-
-Desktop XCTest, physical IME/device, real accounts and signed distribution remain
-separate gates. The six known old-peer alias-delete failures and the existing
-late-parent retention guard remain open; local format acceptance does not certify
-the affected remote path. Next connect the native outline while preserving
-act/chapter/scene/beat/note semantics.
+- Rust document tests cover marks, heading levels, paragraph reset, atomic
+  refusal, underline and strike, alignment and indent (clamped at eight, no-op
+  without a write, headings keeping both) and URL links (set, replace, removal
+  at a caret, entity links kept, refusals); bridge tests cover format, history,
+  refusal, save retry and alignment, indent, underline and links through a cold
+  reopen of the workspace SQLite.
+- `--format-extras-only` (seven AppKit cases in
+  `native/apple/Tests/FormatExtrasAcceptance.swift`, in the
+  [binding report](acceptance/p2b-binding.json)) drives the real tab host, both
+  panes, the Rust workspace and SQLite: every new command through the menu, its
+  key, the toolbar and the context submenu with checkmarks, one undo unit each,
+  unchanged commands writing nothing, marked text disabling them, Tab and ⇧Tab
+  (also while input is queued, up to eight levels), the drawn attributes, the
+  link sheet (prefill, replace, `javascript:` refused in the sheet and in Rust,
+  removal three ways, entity links kept), ⌘-click and 打开链接 through an
+  injected opener, the slash menu, find, the @ picker with element creation,
+  printing a page with these attributes and a cold reopen. `--style-only` and
+  the older formatting cases keep the incremental-style reference.
+- Not covered: physical keys and clicks, the popovers and find bar on screen,
+  typing into the find bar's field, and input-method composition inside a
+  picker's query. The version-history preview shows plain text, since the
+  history entries Rust returns carry text only.

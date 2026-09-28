@@ -41,6 +41,12 @@ the renderer's retroactive pass on element creation matches each new name
 independently, so overlapping names can both link (native reuses the
 auto-detect pass, which is leftmost-longest).
 
+The [@ picker](formatting.md) inserts an element name, alias or chapter title
+through the input path and requests a pass at once, so a picked name is linked
+exactly as a typed one; its ＋ 新建设定「…」 creates the element first. URL
+links (`link` marks) are separate from entity links; both can cover the same
+text.
+
 ## Backlinks
 
 `workspaceElements` `backlinks` reads every live chapter's links from its open

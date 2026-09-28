@@ -2280,6 +2280,34 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    // MARK: @ picker
+
+    /// The @ picker's names for one body: the project's live element names
+    /// and aliases, then its live chapter titles, without the body's own.
+    func mentionSource(projectID: String, excludingElement: String?, excludingChapter: String?) -> ProseMentionSource {
+        let sources = linkSources[projectID]
+        return ProseMentionSource(library: sources?.library, chapters: sources?.chapters ?? [],
+                                  excludingElement: excludingElement, excludingChapter: excludingChapter)
+    }
+
+    /// ＋ 新建设定「…」 from the @ picker: one element named as typed in the
+    /// chosen category. Every open view adopts the library, and names that
+    /// changed link again, as after 新建设定 in the 设定库.
+    func createElementFromPicker(projectID: String, name: String, categoryID: String,
+                                 completion: @escaping (Result<WorkspaceElement, Error>) -> Void) {
+        workspace.createElement(projectID: projectID, categoryID: categoryID, name: name) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                if let self {
+                    self.applyElementLibrary(projectID: projectID, library: reply.library)
+                    self.onElementLibrary?(projectID, reply.library)
+                }
+                completion(reply.result.map { .success($0) } ?? .failure(LabError.message("设定结果缺失")))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
     // MARK: 悬停卡片
 
     /// The project's element library as last read.
@@ -2384,6 +2412,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             guard let self else { return }
             self.patches.beginCreate(projectID: project.id, source: source, from: view?.window ?? self.window)
         }
+        view.mentionSource = { [weak self] in
+            self?.mentionSource(projectID: project.id, excludingElement: nil, excludingChapter: chapterID) ?? .empty
+        }
+        view.onCreateElement = { [weak self] name, categoryID, done in
+            guard let self else { done(.failure(LabError.message("全书长卷已关闭，设定未创建。"))); return }
+            self.createElementFromPicker(projectID: project.id, name: name, categoryID: categoryID, completion: done)
+        }
         ensureLinkSources(projectID: project.id)
     }
 
@@ -2392,6 +2427,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         externalViews.removeValue(forKey: ObjectIdentifier(view))
         view.onEntityLinks = nil; view.onCommentCreated = nil; view.hoverCardSource = nil
         view.onCreatePatch = nil; view.patchNodeID = nil
+        view.mentionSource = nil; view.onCreateElement = nil
     }
 
     /// The view's owner settled: a body saved at a new revision is counted,
@@ -2615,6 +2651,15 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onEntityLinks = { [weak self, weak tab] in
             if let self, let tab { self.scheduleBacklinks(projectID: tab.project.id) }
         }
+        let ownElement = tab.element?.id, ownChapter = tab.chapter?.id
+        tab.view.mentionSource = { [weak self, weak tab] in
+            guard let self, let tab else { return .empty }
+            return self.mentionSource(projectID: tab.project.id, excludingElement: ownElement, excludingChapter: ownChapter)
+        }
+        tab.view.onCreateElement = { [weak self, weak tab] name, categoryID, done in
+            guard let self, let tab else { done(.failure(LabError.message("标签已关闭，设定未创建。"))); return }
+            self.createElementFromPicker(projectID: tab.project.id, name: name, categoryID: categoryID, completion: done)
+        }
         if let page = tab.page, let element = tab.element {
             patches.attach(page.patchesView, projectID: tab.project.id, elementID: element.id)
         }
@@ -2787,6 +2832,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onCreatePatch = nil; tab.view.patchNodeID = nil
         tab.view.onActivity = nil; tab.view.onFocus = nil; tab.view.onComments = nil; tab.view.onCommentCreated = nil
         tab.view.onOpenLink = nil; tab.view.onEntityLinks = nil; tab.view.hoverCardSource = nil
+        tab.view.mentionSource = nil; tab.view.onCreateElement = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onOpenBacklinkSource = nil; tab.page?.onSetPortrait = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil

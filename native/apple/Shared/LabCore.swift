@@ -60,8 +60,7 @@ enum LabError: LocalizedError {
             return "有已保存但尚未应用的远端更新。原始数据已保留，当前暂不打开文档。"
         case .historyUnavailable:
             return "远端修改影响了这次操作，暂时无法撤销或重做。当前文字已保留，可以继续编辑。"
-        case .formattingUnavailable:
-            return "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
+        case .formattingUnavailable(let reason): return LabError.formattingMessage(reason)
         case .commentUnavailable(let reason): return LabError.commentMessage(reason)
         case .elementUnavailable(let reason): return LabError.elementMessage(reason)
         case .storylineUnavailable(let reason): return LabError.storylineMessage(reason)
@@ -383,6 +382,20 @@ enum LabError: LocalizedError {
         return known.first { reason.contains($0.0) }?.1 ?? "设定操作未能完成。已有内容未改变，可以稍后重试。"
     }
 
+    /// Formatting and link refusals happen before the prose changes; known
+    /// core reasons get specific guidance, the exact text stays diagnostic.
+    private static func formattingMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("http, https or mailto", "链接地址需要以 http://、https:// 或 mailto: 开头，且不能包含空格。正文和选区已保留。"),
+            ("Select text before adding a link", "请先选中要加链接的文字。"),
+            ("require a paragraph or heading", "只有正文段落和标题可以对齐或缩进。正文和选区已保留。"),
+            ("Document changed", "正文已变化，请重新选择后再试。"),
+            ("active drafts", "请先完成输入，再设置格式。"),
+            ("pending save", "正文尚未保存，请先重试保存。"),
+        ]
+        return known.first { reason.contains($0.0) }?.1 ?? "当前选区暂时无法应用这种格式。正文和选区已保留，可以继续编辑。"
+    }
+
     /// Comment refusals happen before any row, anchor or prose changes. Known
     /// core reasons get specific guidance; the exact text stays diagnostic.
     private static func commentMessage(_ reason: String) -> String {
@@ -505,7 +518,7 @@ final class LabCore {
                reason.hasPrefix("NATIVE_HISTORY_UNAVAILABLE:") {
                 throw LabError.historyUnavailable(reason: reason)
             }
-            if request["operation"] as? String == "documentFormat",
+            if ["documentFormat", "documentLink"].contains(request["operation"] as? String ?? ""),
                reason.hasPrefix("NATIVE_FORMATTING_UNAVAILABLE:") {
                 throw LabError.formattingUnavailable(reason: reason)
             }
@@ -1026,18 +1039,14 @@ struct WorkspaceBodyProjection: Decodable {
         let containers: [String]
         /// The number of the nearest enclosing ordered-list item.
         let listNumber: Int?
+        /// `center` or `right` (nil is left) and the block indent level 0–8.
+        let textAlign: String?
+        let indent: Int
         private enum CodingKeys: String, CodingKey { case kind, depth, container, range, runs, attributes, containers, listNumber }
-        private struct Attributes: Decodable {
-            let level: Double?
-            private enum CodingKeys: String, CodingKey { case level }
-            init(from decoder: Decoder) throws {
-                level = try? decoder.container(keyedBy: CodingKeys.self).decode(Double.self, forKey: .level)
-            }
-        }
         init(kind: String, depth: Int = 0, container: String = "", range: NativeRange, runs: [Run] = [], level: Int? = nil,
-             containers: [String] = [], listNumber: Int? = nil) {
+             containers: [String] = [], listNumber: Int? = nil, textAlign: String? = nil, indent: Int = 0) {
             self.kind = kind; self.depth = depth; self.container = container; self.range = range; self.runs = runs; self.level = level
-            self.containers = containers; self.listNumber = listNumber
+            self.containers = containers; self.listNumber = listNumber; self.textAlign = textAlign; self.indent = indent
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -1046,9 +1055,20 @@ struct WorkspaceBodyProjection: Decodable {
             container = (try? values.decode(String.self, forKey: .container)) ?? ""
             range = try values.decode(NativeRange.self, forKey: .range)
             runs = (try? values.decode([Run].self, forKey: .runs)) ?? []
-            level = (try? values.decode(Attributes.self, forKey: .attributes))?.level.map { Int($0) }
+            // The editor's reading of block attributes: unknown values fall back.
+            let attributes = try? values.decode(NativeBlockAttributes.self, forKey: .attributes)
+            level = attributes?.level ?? (try? values.decode(LevelOnly.self, forKey: .attributes))?.level.map { Int($0) }
+            textAlign = attributes?.textAlign
+            indent = attributes?.indent ?? 0
             containers = (try? values.decode([String].self, forKey: .containers)) ?? []
             listNumber = try? values.decode(Int.self, forKey: .listNumber)
+        }
+        private struct LevelOnly: Decodable {
+            let level: Double?
+            private enum CodingKeys: String, CodingKey { case level }
+            init(from decoder: Decoder) throws {
+                level = try? decoder.container(keyedBy: CodingKeys.self).decode(Double.self, forKey: .level)
+            }
         }
     }
     struct Projection: Decodable {

@@ -90,10 +90,15 @@ enum MacMenuCommand: String, CaseIterable {
     case exportPDF = "file.exportPDF", pageSetup = "file.pageSetup", print = "file.print"
     case shelf = "project.shelf", projectTrash = "project.trash", projectProfile = "project.profile", projectDelete = "project.delete"
     case undo = "edit.undo", redo = "edit.redo", cut = "edit.cut", copy = "edit.copy", paste = "edit.paste", selectAll = "edit.selectAll"
+    case find = "edit.find", findNext = "edit.findNext", findPrevious = "edit.findPrevious", findSelection = "edit.findSelection"
     case search = "edit.search", elements = "edit.elements", storylines = "edit.storylines", drifts = "edit.drifts"
     case relationTypes = "edit.relationTypes", addComment = "edit.addComment", comments = "edit.comments"
     case copilot = "edit.copilot", history = "edit.history"
-    case bold = "format.bold", italic = "format.italic"
+    case bold = "format.bold", italic = "format.italic", underline = "format.underline", strike = "format.strike"
+    case bodyText = "format.paragraph", heading1 = "format.heading1", heading2 = "format.heading2", heading3 = "format.heading3"
+    case alignLeft = "format.alignLeft", alignCenter = "format.alignCenter", alignRight = "format.alignRight"
+    case indentIncrease = "format.indentIncrease", indentDecrease = "format.indentDecrease"
+    case link = "format.link", removeLink = "format.removeLink"
     case projectHome = "view.projectHome"
     case agent = "view.agent", materials = "view.materials", review = "view.review", board = "view.board"
     case storyGraph = "view.storyGraph", wholeBook = "view.wholeBook", elementOverview = "view.elementOverview"
@@ -121,6 +126,10 @@ enum MacMenuCommand: String, CaseIterable {
         case .copy: return "复制"
         case .paste: return "粘贴"
         case .selectAll: return "全选"
+        case .find: return "查找…"
+        case .findNext: return "查找下一个"
+        case .findPrevious: return "查找上一个"
+        case .findSelection: return "用所选内容查找"
         case .search: return "项目搜索"
         case .elements: return "设定库"
         case .storylines: return "故事线"
@@ -132,6 +141,19 @@ enum MacMenuCommand: String, CaseIterable {
         case .history: return "历史版本…"
         case .bold: return "加粗"
         case .italic: return "斜体"
+        case .underline: return "下划线"
+        case .strike: return "删除线"
+        case .bodyText: return "正文"
+        case .heading1: return "标题 1"
+        case .heading2: return "标题 2"
+        case .heading3: return "标题 3"
+        case .alignLeft: return "左对齐"
+        case .alignCenter: return "居中"
+        case .alignRight: return "右对齐"
+        case .indentIncrease: return "增加缩进"
+        case .indentDecrease: return "减少缩进"
+        case .link: return "链接…"
+        case .removeLink: return "移除链接"
         case .projectHome: return "项目主页"
         case .agent: return "写作助手"
         case .materials: return "素材库"
@@ -148,7 +170,9 @@ enum MacMenuCommand: String, CaseIterable {
 
     /// The shortcut the command has until the author changes it. ⇧⌘I is
     /// Copilot 分析 and ⌥⌘I 项目资料, as in the renderer; ⇧⌘P is the 项目书架,
-    /// so 页面设置… starts without one.
+    /// so 页面设置… starts without one. Find and alignment keep the macOS
+    /// standard (⌘F, ⌘G, ⇧⌘G, ⌘E; ⌘{ ⌘| ⌘}), so 故事图谱 is ⌃⌘G; indent has
+    /// Tab and ⇧Tab in the editor, leaving ⌘[ and ⌘] for back and forward.
     var defaultShortcut: MenuShortcut {
         let command: NSEvent.ModifierFlags = .command, shift: NSEvent.ModifierFlags = [.command, .shift]
         let option: NSEvent.ModifierFlags = [.command, .option]
@@ -166,6 +190,10 @@ enum MacMenuCommand: String, CaseIterable {
         case .copy: return MenuShortcut(key: "c", flags: command)
         case .paste: return MenuShortcut(key: "v", flags: command)
         case .selectAll: return MenuShortcut(key: "a", flags: command)
+        case .find: return MenuShortcut(key: "f", flags: command)
+        case .findNext: return MenuShortcut(key: "g", flags: command)
+        case .findPrevious: return MenuShortcut(key: "g", flags: shift)
+        case .findSelection: return MenuShortcut(key: "e", flags: command)
         case .search: return MenuShortcut(key: "f", flags: shift)
         case .elements: return MenuShortcut(key: "e", flags: shift)
         case .storylines: return MenuShortcut(key: "l", flags: shift)
@@ -176,11 +204,17 @@ enum MacMenuCommand: String, CaseIterable {
         case .history: return MenuShortcut(key: "y", flags: option)
         case .bold: return MenuShortcut(key: "b", flags: command)
         case .italic: return MenuShortcut(key: "i", flags: command)
+        case .underline: return MenuShortcut(key: "u", flags: command)
+        // ⌘{ ⌘| ⌘} are pressed with ⇧, and recorded that way.
+        case .alignLeft: return MenuShortcut(key: "{", flags: shift)
+        case .alignCenter: return MenuShortcut(key: "|", flags: shift)
+        case .alignRight: return MenuShortcut(key: "}", flags: shift)
+        case .link: return MenuShortcut(key: "k", flags: command)
         case .agent: return MenuShortcut(key: "a", flags: option)
         case .materials: return MenuShortcut(key: "m", flags: shift)
         case .review: return MenuShortcut(key: "r", flags: option)
         case .board: return MenuShortcut(key: "t", flags: option)
-        case .storyGraph: return MenuShortcut(key: "g", flags: shift)
+        case .storyGraph: return MenuShortcut(key: "g", flags: [.command, .control])
         case .wholeBook: return MenuShortcut(key: "b", flags: shift)
         case .elementOverview: return MenuShortcut(key: "e", flags: option)
         case .bottomTimeline: return MenuShortcut(key: "b", flags: option)
@@ -206,6 +240,51 @@ enum MacMenuCommand: String, CaseIterable {
         case .copilot: return #selector(ProseTextView.copilotAnalyze(_:))
         case .bold: return #selector(ProseTextView.boldProse(_:))
         case .italic: return #selector(ProseTextView.italicProse(_:))
+        case .underline: return #selector(ProseTextView.underlineProse(_:))
+        case .strike: return #selector(ProseTextView.strikeProse(_:))
+        case .bodyText: return #selector(ProseTextView.bodyTextProse(_:))
+        case .heading1: return #selector(ProseTextView.heading1Prose(_:))
+        case .heading2: return #selector(ProseTextView.heading2Prose(_:))
+        case .heading3: return #selector(ProseTextView.heading3Prose(_:))
+        case .alignLeft: return #selector(ProseTextView.alignLeftProse(_:))
+        case .alignCenter: return #selector(ProseTextView.alignCenterProse(_:))
+        case .alignRight: return #selector(ProseTextView.alignRightProse(_:))
+        case .indentIncrease: return #selector(ProseTextView.indentProse(_:))
+        case .indentDecrease: return #selector(ProseTextView.outdentProse(_:))
+        case .link: return #selector(ProseTextView.editProseLink(_:))
+        case .removeLink: return #selector(ProseTextView.removeProseLink(_:))
+        case .find, .findNext, .findPrevious, .findSelection: return #selector(NSResponder.performTextFinderAction(_:))
+        default: return nil
+        }
+    }
+
+    /// Find commands name their `NSTextFinder.Action` by tag, as AppKit's do.
+    var tag: Int {
+        switch self {
+        case .find: return NSTextFinder.Action.showFindInterface.rawValue
+        case .findNext: return NSTextFinder.Action.nextMatch.rawValue
+        case .findPrevious: return NSTextFinder.Action.previousMatch.rawValue
+        case .findSelection: return NSTextFinder.Action.setSearchString.rawValue
+        default: return 0
+        }
+    }
+
+    /// The editor format a 格式 command applies.
+    var formatAction: NativeFormatAction? {
+        switch self {
+        case .bold: return .bold
+        case .italic: return .italic
+        case .underline: return .underline
+        case .strike: return .strike
+        case .bodyText: return .paragraph
+        case .heading1: return .heading1
+        case .heading2: return .heading2
+        case .heading3: return .heading3
+        case .alignLeft: return .alignLeft
+        case .alignCenter: return .alignCenter
+        case .alignRight: return .alignRight
+        case .indentIncrease: return .indentIncrease
+        case .indentDecrease: return .indentDecrease
         default: return nil
         }
     }
@@ -232,9 +311,10 @@ enum MacMainMenu {
         ("文件", [.save, nil, .fileProfile, .fileDeleteProject, nil, .importFile, .exportBook, .exportMarkdownFolder, .exportPDF,
                 nil, .pageSetup, .print]),
         ("项目", [.shelf, .projectTrash, nil, .projectProfile, .projectDelete]),
-        ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, .search, .elements, .storylines, .drifts, .relationTypes, nil,
-                .addComment, .comments, .copilot, nil, .history]),
-        ("格式", [.bold, .italic]),
+        ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,
+                .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, nil, .history]),
+        ("格式", [.bold, .italic, .underline, .strike, nil, .bodyText, .heading1, .heading2, .heading3, nil,
+                .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
         ("视图", [.projectHome, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
                 .trash]),
         ("帮助", [.diagnostics]),
@@ -257,6 +337,10 @@ enum MacMainMenu {
                 item.keyEquivalentModifierMask = command.defaultShortcut.flags
                 item.target = actions[command]?.target
                 item.identifier = command.identifier
+                item.tag = command.tag
+                if command == .indentIncrease || command == .indentDecrease {
+                    item.toolTip = command == .indentIncrease ? "在正文中也可按 Tab" : "在正文中也可按 ⇧Tab"
+                }
                 submenu.addItem(item)
             }
             top.submenu = submenu

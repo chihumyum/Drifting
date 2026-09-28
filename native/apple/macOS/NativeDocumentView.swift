@@ -6,23 +6,43 @@ final class ProseTextView: NSTextView {
     static let topInset: CGFloat = 20
     override var textContainerOrigin: NSPoint { NSPoint(x: textContainerInset.width, y: Self.topInset) }
     var onFocus: (() -> Void)?
+    /// The prose lost the keyboard (an open picker closes).
+    var onResign: (() -> Void)?
+    /// A click in the prose, before the text system moves the caret.
+    var onMouseDown: (() -> Void)?
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { onFocus?() }
+        return accepted
+    }
+    override func resignFirstResponder() -> Bool {
+        let accepted = super.resignFirstResponder()
+        if accepted { onResign?() }
         return accepted
     }
     var canPerformHistory: ((Bool) -> Bool)?
     var performHistory: ((Bool) -> Void)?
     var canPerformFormat: ((NativeFormatAction) -> Bool)?
     var performFormat: ((NativeFormatAction) -> Void)?
+    /// The selection's state for a format's checkmark.
+    var formatState: ((NativeFormatAction) -> NativeFormatState)?
     var canPerformComment: (() -> Bool)?
     var performComment: (() -> Void)?
+    /// 链接… (⌘K) and 移除链接.
+    var canEditLink: (() -> Bool)?
+    var performEditLink: (() -> Void)?
+    var canRemoveLink: (() -> Bool)?
+    var performRemoveLink: (() -> Void)?
     /// 编辑 › Copilot 分析 (⇧⌘I) on this body.
     var canPerformCopilot: (() -> Bool)?
     var performCopilot: (() -> Void)?
-    /// Opens the first live link target at a character; false when none.
+    /// The find bar of this editor; nil where find is not offered (the
+    /// 全书长卷's rows).
+    weak var textFinder: NSTextFinder?
+    /// Opens the first live link target at a character, or its URL link;
+    /// false when none.
     var openLink: ((Int) -> Bool)?
-    /// Whether a character carries a link mark.
+    /// Whether a character carries an entity or URL link.
     var hasLink: ((Int) -> Bool)?
     /// The linked character under a resting or moving mouse, or nil.
     var onHover: ((Int?) -> Void)?
@@ -44,9 +64,11 @@ final class ProseTextView: NSTextView {
         onHover?(nil)
     }
 
-    /// ⌘-click on a live link opens its target instead of moving the caret.
+    /// ⌘-click on a live link opens its target (or a URL link's address in
+    /// the browser) instead of moving the caret; a plain click edits.
     override func mouseDown(with event: NSEvent) {
         onHover?(nil)
+        onMouseDown?()
         if event.modifierFlags.contains(.command), let index = linkIndex(for: event), openLink?(index) == true { return }
         super.mouseDown(with: event)
     }
@@ -66,6 +88,19 @@ final class ProseTextView: NSTextView {
         return nil
     }
 
+    /// The menu and toolbar format commands, by action.
+    static let formatSelectors: [Selector: NativeFormatAction] = [
+        #selector(boldProse(_:)): .bold, #selector(italicProse(_:)): .italic, #selector(underlineProse(_:)): .underline,
+        #selector(strikeProse(_:)): .strike, #selector(bodyTextProse(_:)): .paragraph, #selector(heading1Prose(_:)): .heading1,
+        #selector(heading2Prose(_:)): .heading2, #selector(heading3Prose(_:)): .heading3,
+        #selector(alignLeftProse(_:)): .alignLeft, #selector(alignCenterProse(_:)): .alignCenter,
+        #selector(alignRightProse(_:)): .alignRight, #selector(indentProse(_:)): .indentIncrease,
+        #selector(outdentProse(_:)): .indentDecrease,
+        // AppKit's own rich-text actions reach the same commands, never the storage.
+        #selector(NSText.underline(_:)): .underline, #selector(NSText.alignLeft(_:)): .alignLeft,
+        #selector(NSText.alignCenter(_:)): .alignCenter, #selector(NSText.alignRight(_:)): .alignRight,
+    ]
+
     // Standard responder actions also cover text-system key bindings. Never
     // let NSTextView's independent undo stack replay a CRDT-owned operation.
     @objc func undo(_ sender: Any?) {
@@ -76,13 +111,36 @@ final class ProseTextView: NSTextView {
         guard canPerformHistory?(true) == true else { return }
         performHistory?(true)
     }
-    @objc func boldProse(_ sender: Any?) {
-        guard canPerformFormat?(.bold) == true else { return }
-        performFormat?(.bold)
+    private func format(_ action: NativeFormatAction) {
+        guard canPerformFormat?(action) == true else { return }
+        performFormat?(action)
     }
-    @objc func italicProse(_ sender: Any?) {
-        guard canPerformFormat?(.italic) == true else { return }
-        performFormat?(.italic)
+    @objc func boldProse(_ sender: Any?) { format(.bold) }
+    @objc func italicProse(_ sender: Any?) { format(.italic) }
+    @objc func underlineProse(_ sender: Any?) { format(.underline) }
+    @objc func strikeProse(_ sender: Any?) { format(.strike) }
+    @objc func bodyTextProse(_ sender: Any?) { format(.paragraph) }
+    @objc func heading1Prose(_ sender: Any?) { format(.heading1) }
+    @objc func heading2Prose(_ sender: Any?) { format(.heading2) }
+    @objc func heading3Prose(_ sender: Any?) { format(.heading3) }
+    @objc func alignLeftProse(_ sender: Any?) { format(.alignLeft) }
+    @objc func alignCenterProse(_ sender: Any?) { format(.alignCenter) }
+    @objc func alignRightProse(_ sender: Any?) { format(.alignRight) }
+    @objc func indentProse(_ sender: Any?) { format(.indentIncrease) }
+    @objc func outdentProse(_ sender: Any?) { format(.indentDecrease) }
+    override func underline(_ sender: Any?) { format(.underline) }
+    override func alignLeft(_ sender: Any?) { format(.alignLeft) }
+    override func alignCenter(_ sender: Any?) { format(.alignCenter) }
+    override func alignRight(_ sender: Any?) { format(.alignRight) }
+    /// Justified text is not a stored alignment.
+    override func alignJustified(_ sender: Any?) {}
+    @objc func editProseLink(_ sender: Any?) {
+        guard canEditLink?() == true else { return }
+        performEditLink?()
+    }
+    @objc func removeProseLink(_ sender: Any?) {
+        guard canRemoveLink?() == true else { return }
+        performRemoveLink?()
     }
     @objc func addProseComment(_ sender: Any?) {
         guard canPerformComment?() == true else { return }
@@ -92,23 +150,43 @@ final class ProseTextView: NSTextView {
         guard canPerformCopilot?() == true else { return }
         performCopilot?()
     }
+    /// 查找…, 查找下一个, 查找上一个 and 用所选内容查找 name their action by tag.
+    override func performTextFinderAction(_ sender: Any?) {
+        guard let finder = textFinder, let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
+              let action = NSTextFinder.Action(rawValue: tag), finder.validateAction(action) else { return }
+        finder.performAction(action)
+    }
+
+    private func validate(_ item: NSValidatedUserInterfaceItem) -> Bool? {
+        guard let action = item.action else { return nil }
+        if action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
+        if action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
+        if let format = Self.formatSelectors[action] {
+            if let menuItem = item as? NSMenuItem {
+                switch formatState?(format) ?? .off {
+                case .on: menuItem.state = .on
+                case .mixed: menuItem.state = .mixed
+                case .off: menuItem.state = .off
+                }
+            }
+            return canPerformFormat?(format) == true
+        }
+        if action == #selector(alignJustified(_:)) { return false }
+        if action == #selector(editProseLink(_:)) { return canEditLink?() == true }
+        if action == #selector(removeProseLink(_:)) { return canRemoveLink?() == true }
+        if action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
+        if action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
+        if action == #selector(performTextFinderAction(_:)) {
+            guard let finder = textFinder, let finderAction = NSTextFinder.Action(rawValue: item.tag) else { return false }
+            return finder.validateAction(finderAction)
+        }
+        return nil
+    }
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
-        if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
-        if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
-        if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
-        if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
-        if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
-        if item.action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
-        return super.validateUserInterfaceItem(item)
+        validate(item) ?? super.validateUserInterfaceItem(item)
     }
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if item.action == #selector(undo(_:)) { return canPerformHistory?(false) == true }
-        if item.action == #selector(redo(_:)) { return canPerformHistory?(true) == true }
-        if item.action == #selector(boldProse(_:)) { return canPerformFormat?(.bold) == true }
-        if item.action == #selector(italicProse(_:)) { return canPerformFormat?(.italic) == true }
-        if item.action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
-        if item.action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
-        return super.validateMenuItem(item)
+        validate(item) ?? super.validateMenuItem(item)
     }
 }
 
@@ -140,7 +218,37 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private let discardButton = NSButton(title: "放弃窗口草稿", target: nil, action: nil)
     private let boldButton = NSButton(title: "加粗", target: nil, action: nil)
     private let italicButton = NSButton(title: "斜体", target: nil, action: nil)
+    private let underlineButton = NSButton(title: "下划线", target: nil, action: nil)
+    private let strikeButton = NSButton(title: "删除线", target: nil, action: nil)
     private let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let alignMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let outdentButton = NSButton(title: "减少缩进", target: nil, action: nil)
+    private let indentButton = NSButton(title: "增加缩进", target: nil, action: nil)
+    private let linkButton = NSButton(title: "链接…", target: nil, action: nil)
+    /// ⌘F in this editor: the find bar with incremental search, ⌘G, ⇧⌘G and
+    /// ⌘E; no 替换. Nil in the 全书长卷's rows, where find is not offered.
+    private(set) var textFinder: NSTextFinder?
+    private var finderClient: ProseFinderClient?
+    /// Opens a URL link's address: the default browser (or mail app).
+    /// Acceptance replaces it.
+    static var openURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    /// 链接… while it is open.
+    private(set) var linkSheet: MacLinkSheetController?
+    /// The slash menu or @ picker while open, and whether its popover shows
+    /// (never in a window that is not on screen).
+    private(set) var picker: ProsePickerSession?
+    private let pickerPopover = NSPopover()
+    private let pickerController = ProsePickerController()
+    var isPickerShown: Bool { pickerPopover.isShown }
+    /// The @ picker's names: set by the tab host; without one only the
+    /// slash menu opens.
+    var mentionSource: (() -> ProseMentionSource)?
+    /// ＋ 新建设定「…」: creates an element with the name in the category.
+    var onCreateElement: ((_ name: String, _ categoryID: String, _ done: @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
+    /// A block command (Tab, a slash row) waiting for queued input to land.
+    private(set) var deferredFormat: NativeFormatAction?
+    /// The text an allowed input is about to insert, for opening a picker.
+    private var pendingReplacement: String?
     private var rendering = false
     /// The text system's own selection colours, used without an accent.
     private lazy var defaultSelection = textView.selectedTextAttributes
@@ -239,12 +347,22 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performHistory = { [weak self] in self?.performHistory(redo: $0) }
         textView.canPerformFormat = { [weak self] in self?.canPerformFormat($0) == true }
         textView.performFormat = { [weak self] in self?.performFormat($0) }
+        textView.formatState = { [weak self] in self?.formatState($0) ?? .off }
+        textView.canEditLink = { [weak self] in self?.canEditLink == true }
+        textView.performEditLink = { [weak self] in self?.beginLink() }
+        textView.canRemoveLink = { [weak self] in self?.canRemoveLink == true }
+        textView.performRemoveLink = { [weak self] in self?.removeLink() }
+        textView.onResign = { [weak self] in self?.closePicker() }
+        textView.onMouseDown = { [weak self] in self?.deferredFormat = nil }
         textView.canPerformComment = { [weak self] in self?.canAddComment == true }
         textView.performComment = { [weak self] in self?.beginComment() }
         textView.canPerformCopilot = { [weak self] in self?.canRequestCopilot == true }
         textView.performCopilot = { [weak self] in self?.requestCopilot() }
-        textView.openLink = { [weak self] in self?.openLink(at: $0) == true }
-        textView.hasLink = { [weak self] in self?.links(at: $0).isEmpty == false }
+        textView.openLink = { [weak self] index in
+            guard let self else { return false }
+            return self.openLink(at: index) || self.openURLLink(at: index)
+        }
+        textView.hasLink = { [weak self] in self?.links(at: $0).isEmpty == false || self?.urlLink(at: $0) != nil }
         textView.onHover = { [weak self] in self?.hover(at: $0) }
         linkPreview.behavior = .semitransient
         linkPreview.animates = false
@@ -260,6 +378,26 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         italicButton.target = self; italicButton.action = #selector(italicProse)
         boldButton.setAccessibilityIdentifier("format-bold")
         italicButton.setAccessibilityIdentifier("format-italic")
+        underlineButton.target = self; underlineButton.action = #selector(underlineProse)
+        strikeButton.target = self; strikeButton.action = #selector(strikeProse)
+        underlineButton.setAccessibilityIdentifier("format-underline")
+        strikeButton.setAccessibilityIdentifier("format-strike")
+        alignMenu.addItems(withTitles: NativeFormatAction.alignments.map(\.title))
+        alignMenu.setAccessibilityIdentifier("format-align")
+        alignMenu.setAccessibilityLabel("对齐")
+        for (index, action) in NativeFormatAction.alignments.enumerated() {
+            alignMenu.item(at: index)?.setAccessibilityIdentifier(action.accessibilityID)
+        }
+        alignMenu.target = self; alignMenu.action = #selector(alignBlock)
+        outdentButton.target = self; outdentButton.action = #selector(outdentProse)
+        indentButton.target = self; indentButton.action = #selector(indentProse)
+        outdentButton.setAccessibilityIdentifier("format-indentDecrease")
+        indentButton.setAccessibilityIdentifier("format-indentIncrease")
+        outdentButton.toolTip = "减少所在段落的缩进（⇧Tab）"
+        indentButton.toolTip = "增加所在段落的缩进（Tab）"
+        linkButton.target = self; linkButton.action = #selector(beginLink)
+        linkButton.setAccessibilityIdentifier("format-link")
+        linkButton.toolTip = "为选中的文字添加或修改网址链接（⌘K）"
         blockMenu.addItems(withTitles: NativeFormatAction.blocks.map(\.title))
         blockMenu.setAccessibilityIdentifier("format-block")
         blockMenu.setAccessibilityLabel("段落样式")
@@ -269,8 +407,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         blockMenu.target = self; blockMenu.action = #selector(formatBlock)
         let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
         toolbar.spacing = 8
-        let formats = NSStackView(views: [boldButton, italicButton, blockMenu])
+        let formats = NSStackView(views: [boldButton, italicButton, underlineButton, strikeButton, blockMenu, alignMenu,
+                                          outdentButton, indentButton, linkButton])
         formats.spacing = 8
+        // A narrow pane drops the last controls first; the 格式 menu and the
+        // context menu keep every command.
+        formats.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        for (control, priority) in [(underlineButton, 700), (strikeButton, 700), (alignMenu, 600), (outdentButton, 500),
+                                    (indentButton, 500), (linkButton, 400)] as [(NSView, Float)] {
+            formats.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: priority), for: control)
+        }
         status.textColor = .secondaryLabelColor
         status.setAccessibilityIdentifier("document-status")
         comments.textColor = .secondaryLabelColor
@@ -294,6 +440,20 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             textHeight = height
         }
         applyEditorPreferences()
+        if !growsWithText {
+            let client = ProseFinderClient(textView: textView)
+            let finder = NSTextFinder()
+            finder.client = client
+            finder.findBarContainer = scroll
+            finder.isIncrementalSearchingEnabled = true
+            finder.incrementalSearchingShouldDimContentView = true
+            finderClient = client; textFinder = finder
+            textView.textFinder = finder
+        }
+        pickerPopover.behavior = .applicationDefined
+        pickerPopover.animates = false
+        pickerPopover.contentViewController = pickerController
+        pickerController.onChoose = { [weak self] in self?.choosePickerItem($0) }
         NotificationCenter.default.addObserver(self, selector: #selector(typographyChanged),
                                                name: DocumentStyle.typographyDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(editorPreferencesChanged),
@@ -306,6 +466,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             self.updateEditability()
             self.updateActions()
             self.onActivity?(busy)
+            if !busy { self.runDeferredFormat() }
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -348,6 +509,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let replacedText = !NativeText.identical(textView.string, projection.text)
         if replacedText {
             for change in changes { selection = change.mapSelection(selection) }
+            textFinder?.noteClientStringWillChange()
             textView.string = projection.text
         }
         if let storage = textView.textStorage {
@@ -608,7 +770,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil { closeLinkPreview() }
+        if window == nil { closeLinkPreview(); closePicker() }
     }
 
     @discardableResult
@@ -639,6 +801,227 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         // Resolve again: the target may have been trashed while the menu was open.
         guard let target = linkDirectory.current(chosen), !target.trashed else { return }
         onOpenLink?(target)
+    }
+
+    // MARK: URL links
+
+    /// The URL link address on the displayed character at a UTF-16 index.
+    func urlLink(at index: Int) -> String? { run(at: index)?.attributes.href }
+
+    /// ⌘-click or 打开链接: opens a URL link's http, https or mailto address
+    /// through `openURL`; the caret and the prose stay as they are.
+    @discardableResult
+    func openURLLink(at index: Int) -> Bool {
+        guard !textView.hasMarkedText(), let href = urlLink(at: index) else { return false }
+        guard let url = ProseLinkAddress.openable(href) else { status.stringValue = "无法打开这个链接地址：\(href)"; return false }
+        Self.openURL(url)
+        return true
+    }
+
+    @objc private func openURLItem(_ sender: NSMenuItem) {
+        guard let href = sender.representedObject as? String, let url = ProseLinkAddress.openable(href) else { return }
+        Self.openURL(url)
+    }
+
+    /// 链接…: a selection, or a caret inside a URL link (which selects it).
+    var canEditLink: Bool {
+        guard !isInteractionLocked, !textView.hasMarkedText() else { return false }
+        let range = textView.selectedRange()
+        return binding.canLink(range: range) || (range.length == 0 && binding.canRemoveLink(range: range))
+    }
+    var canRemoveLink: Bool {
+        !isInteractionLocked && !textView.hasMarkedText() && binding.canRemoveLink(range: textView.selectedRange())
+    }
+
+    /// Opens 链接… for the selection, prefilled from its link or a selected
+    /// address. The range and revision are captured now; if the prose changes
+    /// first, the command is refused and the sheet keeps the typed address.
+    @objc func beginLink() {
+        guard canEditLink, linkSheet == nil, let projection = binding.store.projection else { return }
+        var range = textView.selectedRange()
+        if range.length == 0, let around = projection.urlLinkRange(around: range.location) {
+            range = around
+            textView.setSelectedRange(range)
+            binding.selectionChanged(range, text: textView.string, marked: false)
+        }
+        guard range.length > 0 else { return }
+        let revision = projection.revision
+        let existing = projection.urlLink(in: range)
+        let selected = (projection.text as NSString).substring(with: range)
+        let prefill = existing ?? (ProseLinkAddress.looksLikeAddress(selected) ? selected.trimmingCharacters(in: .whitespacesAndNewlines) : "")
+        let sheet = MacLinkSheetController(address: prefill, hasLink: existing != nil, quote: selected)
+        sheet.onSubmit = { [weak self] href, done in
+            guard let self else { done(LabError.message("编辑栏已关闭，链接未设置。")); return }
+            guard self.binding.store.projection?.revision == revision else {
+                done(LabError.message("正文已变化，请重新选择要加链接的文字。")); return
+            }
+            self.binding.link(range: range, href: href) { done($0) }
+        }
+        sheet.onFinish = { [weak self] in
+            guard let self else { return }
+            self.linkSheet = nil
+            self.focus()
+        }
+        linkSheet = sheet
+        if let window, window.isVisible { sheet.present(on: window) }
+    }
+
+    /// 移除链接: the URL links of the selection, or the whole link around the caret.
+    @objc func removeLink() {
+        guard canRemoveLink else { return }
+        let range = textView.selectedRange()
+        focus()
+        binding.link(range: range, href: nil)
+    }
+
+    // MARK: Slash menu and @ picker
+
+    /// After committed input or a caret move: open a picker when its
+    /// trigger was just typed, else follow or close the open one.
+    private func updatePicker(typed: String?) {
+        guard !textView.hasMarkedText() else { return }
+        let text = textView.string as NSString
+        let selection = textView.selectedRange()
+        guard var session = picker else {
+            guard let typed, selection.length == 0, selection.location >= 1, !isInteractionLocked else { return }
+            let trigger = selection.location - 1
+            let character = text.substring(with: NSRange(location: trigger, length: 1))
+            guard typed.hasSuffix(character) else { return }
+            if ProsePickers.slashTriggers.contains(character), slashAllowed(trigger: trigger, caret: selection.location) {
+                picker = ProsePickerSession(kind: .slash, trigger: trigger, triggerCharacter: character, query: "", items: [], selected: 0)
+            } else if ProsePickers.mentionTriggers.contains(character), mentionSource != nil {
+                picker = ProsePickerSession(kind: .mention, trigger: trigger, triggerCharacter: character, query: "", items: [], selected: 0)
+            } else { return }
+            updatePicker(typed: nil)
+            return
+        }
+        // The caret stays right after the trigger and the query typed since.
+        let caret = selection.location
+        guard selection.length == 0, session.trigger < text.length, caret > session.trigger,
+              text.substring(with: NSRange(location: session.trigger, length: 1)) == session.triggerCharacter else { closePicker(); return }
+        let query = text.substring(with: NSRange(location: session.trigger + 1, length: caret - session.trigger - 1))
+        guard query.rangeOfCharacter(from: .whitespacesAndNewlines) == nil, (query as NSString).length <= ProsePickers.maximumQuery,
+              session.kind == .mention || slashAllowed(trigger: session.trigger, caret: caret) else { closePicker(); return }
+        let items = session.kind == .slash ? ProsePickers.slashItems(query: query)
+            : ProsePickers.mentionItems(query: query, source: mentionSource?() ?? .empty, canCreate: onCreateElement != nil)
+        guard !items.isEmpty else { closePicker(); return }
+        if query != session.query || items != session.items { session.selected = 0 }
+        session.query = query; session.items = items
+        session.selected = min(session.selected, items.count - 1)
+        picker = session
+        showPicker()
+    }
+
+    /// The slash menu opens only at the start of an otherwise empty
+    /// paragraph or heading, with the caret at its end.
+    private func slashAllowed(trigger: Int, caret: Int) -> Bool {
+        let text = textView.string as NSString
+        guard trigger == 0 || text.character(at: trigger - 1) == 10 else { return false }
+        guard caret == text.length || text.character(at: caret) == 10 else { return false }
+        let blocks = binding.displayedBlocks
+        guard NativeText.identical(binding.displayedText, textView.string), let index = NativeLayout.index(trigger, blocks: blocks) else {
+            return false
+        }
+        let block = blocks[index]
+        return block.editable && (block.kind == "paragraph" || block.kind == "heading")
+    }
+
+    private func showPicker() {
+        guard let picker else { return }
+        pickerController.show(picker.items, selected: picker.selected)
+        guard let window = textView.window, window.isVisible else { return }
+        pickerPopover.contentSize = pickerController.preferredContentSize
+        guard !pickerPopover.isShown else { return }
+        let screen = textView.firstRect(forCharacterRange: NSRange(location: picker.trigger, length: 1), actualRange: nil)
+        let rect = textView.convert(window.convertFromScreen(screen), from: nil)
+        pickerPopover.show(relativeTo: rect, of: textView, preferredEdge: .maxY)
+    }
+
+    /// Esc, a caret moved away or lost focus: the typed text stays.
+    func closePicker() {
+        picker = nil
+        if pickerPopover.isShown { pickerPopover.performClose(nil) }
+    }
+
+    /// ↑ and ↓ move through the rows, Return chooses, Esc closes; other
+    /// keys go to the text. With marked text the input method keeps them.
+    private func pickerCommand(_ selector: Selector) -> Bool {
+        guard var session = picker, !session.items.isEmpty else { return false }
+        switch selector {
+        case #selector(NSResponder.moveDown(_:)):
+            session.selected = (session.selected + 1) % session.items.count
+        case #selector(NSResponder.moveUp(_:)):
+            session.selected = (session.selected - 1 + session.items.count) % session.items.count
+        case #selector(NSResponder.insertNewline(_:)):
+            choosePickerItem(session.selected); return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            closePicker(); return true
+        default: return false
+        }
+        picker = session
+        showPicker()
+        return true
+    }
+
+    /// Choosing replaces the trigger and query through the normal input
+    /// path: a format then applies once that input lands; a name is linked
+    /// by the link pass, as typed names are.
+    func choosePickerItem(_ index: Int) {
+        guard let session = picker, session.items.indices.contains(index) else { return }
+        closePicker()
+        switch session.items[index].action {
+        case .format(let action):
+            guard replaceThroughInput(session.range, with: "") else { return }
+            formatWhenIdle(action)
+        case .mention(let name, _, _):
+            guard replaceThroughInput(session.range, with: name) else { return }
+            binding.store.requestEntityLinks()
+        case .createElement(let name, let categoryID):
+            guard let onCreateElement else { return }
+            let range = session.range
+            let typed = (textView.string as NSString).substring(with: range)
+            onCreateElement(name, categoryID) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let element):
+                    let text = self.textView.string as NSString
+                    // Inserted only while the typed query is still in place.
+                    if NSMaxRange(range) <= text.length, text.substring(with: range) == typed,
+                       self.replaceThroughInput(range, with: element.name) {
+                        self.binding.store.requestEntityLinks()
+                    }
+                case .failure(let error):
+                    self.status.stringValue = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// Replaces text as typing does: the text system asks the binding, then
+    /// the change is submitted as one input event.
+    @discardableResult
+    private func replaceThroughInput(_ range: NSRange, with replacement: String) -> Bool {
+        guard !isInteractionLocked, textView.isEditable, !textView.hasMarkedText(),
+              NSMaxRange(range) <= (textView.string as NSString).length,
+              textView.shouldChangeText(in: range, replacementString: replacement) else { return false }
+        textView.replaceCharacters(in: range, with: replacement)
+        textView.setSelectedRange(NSRange(location: range.location + (replacement as NSString).length, length: 0))
+        textView.didChangeText()
+        return true
+    }
+
+    /// A block command that waits for queued input (Tab typed right after
+    /// text, a slash row): it runs once the owner is idle, on the block the
+    /// caret is in then. A click in the prose drops it.
+    private func formatWhenIdle(_ action: NativeFormatAction) {
+        if canPerformFormat(action) { performFormat(action); return }
+        if binding.store.hasQueuedInput, binding.canEdit, !binding.hasFailedDraft { deferredFormat = action }
+    }
+
+    private func runDeferredFormat() {
+        guard let action = deferredFormat, !binding.hasPendingWork else { return }
+        deferredFormat = nil
+        if canPerformFormat(action) { performFormat(action) }
     }
 
     // MARK: Comments
@@ -723,8 +1106,39 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         onCopilotAnalyze?(textView.selectedRange())
     }
 
+    /// The prose context menu's 格式 submenu: the 格式 menu's commands on
+    /// this editor, validated and checked against the selection.
+    private func formatMenuItem() -> NSMenuItem {
+        let submenu = NSMenu(title: "格式")
+        let groups: [[MacMenuCommand]] = [[.bold, .italic, .underline, .strike], [.bodyText, .heading1, .heading2, .heading3],
+                                          [.alignLeft, .alignCenter, .alignRight], [.indentIncrease, .indentDecrease], [.link, .removeLink]]
+        for (index, group) in groups.enumerated() {
+            if index > 0 { submenu.addItem(.separator()) }
+            for command in group {
+                let item = NSMenuItem(title: command.title, action: command.responderAction, keyEquivalent: "")
+                item.target = textView
+                item.setAccessibilityIdentifier("context-\(command.rawValue)")
+                submenu.addItem(item)
+            }
+        }
+        let item = NSMenuItem(title: "格式", action: nil, keyEquivalent: "")
+        item.submenu = submenu
+        item.setAccessibilityIdentifier("context-format")
+        return item
+    }
+
     func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
+        closePicker()
         var leading: [NSMenuItem] = linkMenuItems(at: charIndex)
+        if let href = urlLink(at: charIndex) {
+            let item = NSMenuItem(title: "打开链接", action: #selector(openURLItem(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = href
+            item.toolTip = href
+            item.isEnabled = ProseLinkAddress.openable(href) != nil
+            item.setAccessibilityIdentifier("context-open-url")
+            leading.append(item)
+        }
+        leading.append(formatMenuItem())
         if allowsComments, !menu.items.contains(where: { $0.action == #selector(ProseTextView.addProseComment(_:)) }) {
             let item = NSMenuItem(title: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "")
             item.target = textView
@@ -752,7 +1166,24 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard !isInteractionLocked, let replacementString else { return false }
-        return binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())
+        let allowed = binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())
+        if allowed { textFinder?.noteClientStringWillChange(); pendingReplacement = replacementString }
+        return allowed
+    }
+
+    /// Tab and ⇧Tab indent the block (never a tab character), as in the
+    /// renderer; ↑, ↓, Return and Esc drive an open picker.
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if !textView.hasMarkedText(), pickerCommand(commandSelector) { return true }
+        switch commandSelector {
+        case #selector(NSResponder.insertTab(_:)), #selector(NSResponder.insertBacktab(_:)):
+            guard textView.isEditable else { return false }
+            if !textView.hasMarkedText(), !isInteractionLocked {
+                formatWhenIdle(commandSelector == #selector(NSResponder.insertTab(_:)) ? .indentIncrease : .indentDecrease)
+            }
+            return true
+        default: return false
+        }
     }
     func textDidChange(_ notification: Notification) {
         guard !rendering else { return }
@@ -764,6 +1195,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         fitTextHeight()
         typewriterFollowsInput = typewriterEnabled
         scheduleTypewriterAlignment()
+        let typed = marked ? nil : pendingReplacement
+        if !marked { pendingReplacement = nil }
+        updatePicker(typed: typed)
         onEdited?()
     }
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -774,6 +1208,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         binding.changed(text, marked: marked)
         // Keyboard caret moves follow the typewriter line; clicks do not.
         if NSApp.currentEvent?.type == .keyDown { scheduleTypewriterAlignment() }
+        if picker != nil { updatePicker(typed: nil) }
     }
     private func canPerformHistory(redo: Bool) -> Bool {
         guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
@@ -806,9 +1241,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.isEditable = !isInteractionLocked && binding.canEdit
     }
     private func focus() { onFocus?(); window?.makeFirstResponder(textView) }
+    private func formatState(_ action: NativeFormatAction) -> NativeFormatState {
+        binding.formatState(action, range: textView.selectedRange())
+    }
     private func updateFormatControls() {
         boldButton.isEnabled = canPerformFormat(.bold)
         italicButton.isEnabled = canPerformFormat(.italic)
+        underlineButton.isEnabled = canPerformFormat(.underline)
+        strikeButton.isEnabled = canPerformFormat(.strike)
         blockMenu.isEnabled = canPerformFormat(.paragraph)
         if let action = binding.blockFormat(at: textView.selectedRange()) {
             blockMenu.selectItem(withTitle: action.title)
@@ -816,6 +1256,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             blockMenu.select(nil)
             blockMenu.title = "段落样式"
         }
+        alignMenu.isEnabled = canPerformFormat(.alignLeft)
+        if let current = NativeFormatAction.alignments.first(where: { formatState($0) == .on }) {
+            alignMenu.selectItem(withTitle: current.title)
+        } else {
+            alignMenu.select(nil)
+            alignMenu.title = "对齐"
+        }
+        outdentButton.isEnabled = canPerformFormat(.indentDecrease)
+        indentButton.isEnabled = canPerformFormat(.indentIncrease)
+        linkButton.isEnabled = canEditLink
     }
     private func performFormat(_ action: NativeFormatAction) {
         guard canPerformFormat(action) else { return }
@@ -825,6 +1275,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
     @objc private func boldProse() { performFormat(.bold) }
     @objc private func italicProse() { performFormat(.italic) }
+    @objc private func underlineProse() { performFormat(.underline) }
+    @objc private func strikeProse() { performFormat(.strike) }
+    @objc private func indentProse() { performFormat(.indentIncrease) }
+    @objc private func outdentProse() { performFormat(.indentDecrease) }
+    @objc private func alignBlock() {
+        guard NativeFormatAction.alignments.indices.contains(alignMenu.indexOfSelectedItem) else { return }
+        performFormat(NativeFormatAction.alignments[alignMenu.indexOfSelectedItem])
+    }
     @objc private func formatBlock() {
         guard NativeFormatAction.blocks.indices.contains(blockMenu.indexOfSelectedItem) else { return }
         performFormat(NativeFormatAction.blocks[blockMenu.indexOfSelectedItem])

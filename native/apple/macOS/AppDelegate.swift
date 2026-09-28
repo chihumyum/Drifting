@@ -246,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         moveUpButton = button("上移", id: "move-chapter-up", action: #selector(moveChapterUp))
         moveDownButton = button("下移", id: "move-chapter-down", action: #selector(moveChapterDown))
         graphButton = button("故事图谱", id: "show-story-graph", action: #selector(showStoryGraph))
-        graphButton.toolTip = "按成书顺序或故事时间，在故事线轨道上排列章节（⇧⌘G）"
+        graphButton.toolTip = "按成书顺序或故事时间，在故事线轨道上排列章节（⌃⌘G）"
         wholeBookButton = button("长卷", id: "show-whole-book", action: #selector(showWholeBook))
         wholeBookButton.toolTip = "全书长卷：按成书顺序连续阅读和编辑全部章节（⇧⌘B）"
         let projectActions = NSStackView(views: [createProjectButton, renameProjectButton, profileButton])
@@ -1690,7 +1690,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     // MARK: Story graph
 
-    /// 故事图谱 (sidebar and 视图 › 故事图谱, ⇧⌘G): a large panel over the
+    /// 故事图谱 (sidebar and 视图 › 故事图谱, ⌃⌘G): a large panel over the
     /// window. Book moves, lane changes and statuses reach the chapter list,
     /// pages and the outline; it reads everything again when it becomes key.
     @objc private func showStoryGraph() {

@@ -302,6 +302,31 @@ final class DocumentStore {
             }
         }
     }
+    /// Sets (`href`) or removes (nil) the range's URL link in one undo unit.
+    /// A refusal before mutation keeps the input bases, like formatting.
+    func link(range: NSRange, href: String?, revision: UInt64, completion: ((Error?) -> Void)? = nil) {
+        guard !hasPendingWork, canEdit, projection?.revision == revision else {
+            completion?(LabError.message("请先完成输入，并等待正文保存后再设置链接。")); return
+        }
+        sending = true; activity()
+        var edit: [String: Any] = ["revision": revision, "range": ["location": range.location, "length": range.length]]
+        if let href { edit["href"] = href }
+        core.document("documentLink", edit: edit) { [weak self] result in
+            guard let self else { completion?(LabError.message("正文已关闭。")); return }
+            self.sending = false
+            switch result {
+            case .success(let value):
+                self.state = value; self.needsRefresh = true; self.reportSave(value); self.pump()
+                completion?(nil)
+            case .failure(let error):
+                if let lab = error as? LabError, case .formattingUnavailable = lab {
+                    self.status(error.localizedDescription); self.pump()
+                } else { self.fail(error.localizedDescription) }
+                completion?(error)
+            }
+        }
+    }
+
     /// Comment rows live in SQLite beside this owner. Listing is a read on the
     /// same serial core queue, ordered after any command already sent.
     func comments(completion: @escaping (Result<[WorkspaceComment], Error>) -> Void) {
@@ -562,9 +587,12 @@ enum NativeLayout {
                 let kind = index == 0 ? (headingStart ? "paragraph" : survivor.kind)
                     : (change.text == "\n" && survivor.kind == "heading" && tail > 0 ? "heading" : "paragraph")
                 let id = headingStart ? (index == 1 ? survivor.id : nil) : (index == 0 ? survivor.id : nil)
+                // The survivor keeps its level, alignment and indent; Enter
+                // gives a block of the same kind the same ones.
+                let keeps = (id != nil && id == survivor.id) || kind == "heading" || (change.text == "\n" && kind == survivor.kind)
                 inserted.append(NativeBlock(id: id, kind: kind, depth: survivor.depth, container: rightParentHint ? last.container : survivor.container,
                     structuralAttributes: merged, range: NativeRange(location: at, length: length), editable: true, runs: [],
-                    attributes: kind == "heading" ? survivor.attributes : nil))
+                    attributes: keeps ? survivor.attributes : nil))
                 at += length + 1
             }
             blocks.replaceSubrange(firstIndex...lastIndex, with: inserted)

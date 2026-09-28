@@ -34,7 +34,7 @@ No SQLite migration is added.
 
 ## Native interaction
 
-故事图谱 (the sidebar's 故事图谱 beside 上移/下移, and 视图 › 故事图谱, ⇧⌘G) opens a
+故事图谱 (the sidebar's 故事图谱 beside 上移/下移, and 视图 › 故事图谱, ⌃⌘G) opens a
 large panel over the window. Its toolbar switches the axis between 成书顺序 (the
 default) and 故事时间 and offers 添加标记…. The canvas has one lane per live
 storyline in authored order, then 未归属 (本书 while there are no storylines);

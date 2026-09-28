@@ -81,8 +81,13 @@ interoperability is kept.
   ([copilot](copilot.md#settings)).
 - 快捷键: the installed main menu's commands grouped by menu (应用, 文件, 项目,
   编辑, 格式, 视图, 帮助) with their shortcuts; one layout builds the menu and
-  this list (defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析 and
-  ⌥⌘I 项目资料…). Clicking a shortcut records the next key press, which the
+  this list. Defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析,
+  ⌥⌘I 项目资料…, ⌘F 查找…, ⌘G 查找下一个, ⇧⌘G 查找上一个, ⌘E 用所选内容查找, and
+  for [格式](formatting.md) ⌘U 下划线, ⌘K 链接… and the macOS ⌘{ ⌘| ⌘} for
+  左对齐, 居中 and 右对齐, pressed and shown with ⇧ (⇧⌘{). 故事图谱 is ⌃⌘G, so
+  ⇧⌘G finds as in every Mac app. 删除线, 正文, 标题 1–3, 增加缩进, 减少缩进 and
+  移除链接 start without one: indent is Tab and ⇧Tab in the prose, and ⌘[ ⌘]
+  stay free for back and forward. Clicking a shortcut records the next key press, which the
   menus do not see; Esc cancels and ⌫ removes it. A combination the system
   reserves (⌘Q, ⌘W, ⌘H, ⌥⌘H, ⌘M, ⌘Tab, ⌘`, ⌘Space, ⌃⌘F, the screenshots
   ⇧⌘3–5, which arrive as the shifted characters and are also compared on

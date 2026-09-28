@@ -256,13 +256,33 @@ enum DocumentStyle {
         return typography.headingSize(block.headingLevel)
     }
 
-    /// The paragraph style of a block under the current typography.
-    static func paragraphStyle(kind: String, depth: Int) -> NSParagraphStyle {
+    /// The paragraph style of a block under the current typography. An
+    /// indented block shifts whole by `indentWidth` and keeps its first-line
+    /// indent; alignment is the block's `textAlign`.
+    static func paragraphStyle(kind: String, depth: Int, textAlign: String? = nil, indent: Int = 0) -> NSParagraphStyle {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = typography.lineSpacing; paragraph.paragraphSpacing = typography.paragraphSpacing
-        paragraph.headIndent = CGFloat(depth) * 12
+        paragraph.headIndent = CGFloat(depth) * 12 + indentWidth(indent, size: typography.size)
         paragraph.firstLineHeadIndent = paragraph.headIndent + (kind == "paragraph" && depth == 0 ? typography.paragraphIndent : 0)
+        paragraph.alignment = alignment(textAlign)
         return paragraph
+    }
+
+    /// One indent level is two em of the body size, as the renderer's
+    /// `--editor-indent-step`; levels past eight are clamped.
+    static func indentWidth(_ level: Int, size: CGFloat) -> CGFloat { CGFloat(min(max(level, 0), 8)) * size * 2 }
+
+    /// A block's `textAlign` as a paragraph alignment; left is natural.
+    static func alignment(_ textAlign: String?) -> NSTextAlignment {
+        switch textAlign {
+        case "center": return .center
+        case "right": return .right
+        default: return .natural
+        }
+    }
+
+    static func paragraphStyle(_ block: NativeBlock) -> NSParagraphStyle {
+        paragraphStyle(kind: block.kind, depth: block.depth, textAlign: block.textAlign, indent: block.indent)
     }
 
     /// Plain body text as editors set it: the settings preview uses this.
@@ -339,12 +359,20 @@ enum DocumentStyle {
         var plain: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: PlatformColor.labelColorForDocument]
         if let language = typography.language { plain[languageKey] = language }
         storage.setAttributes(plain, range: range)
+        let text = storage.string as NSString
         for block in blocks {
-            var base: [NSAttributedString.Key: Any] = [.paragraphStyle: paragraphStyle(kind: block.kind, depth: block.depth)]
+            let style = paragraphStyle(block)
+            var base: [NSAttributedString.Key: Any] = [.paragraphStyle: style]
             if block.kind == "heading" { base[.font] = font(size: fontSize(block), weight: .semibold) }
             if block.kind == "codeBlock" { base[.font] = font(size: typography.codeSize, monospaced: true) }
             if !block.editable { base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument }
             storage.addAttributes(base, range: block.range.nsRange)
+            // The separator ends the block's paragraph: an empty block's caret
+            // follows its alignment and indent. Font and colour stay plain.
+            let end = NSMaxRange(block.range.nsRange)
+            if end < NSMaxRange(range), end >= range.location, end < text.length, text.character(at: end) == 10 {
+                storage.addAttribute(.paragraphStyle, value: style, range: NSRange(location: end, length: 1))
+            }
             for run in block.runs {
                 var attrs: [NSAttributedString.Key: Any] = [:]
                 if run.attributes.bold || run.attributes.italic {
@@ -353,6 +381,12 @@ enum DocumentStyle {
                         italic: run.attributes.italic)
                 }
                 if run.attributes.strike { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+                if run.attributes.underline { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+                if run.attributes.href != nil {
+                    attrs[.foregroundColor] = PlatformColor.linkColorForDocument
+                    attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                }
+                // An entity link's own presentation wins on the same text.
                 if run.attributes.entityLink { attrs.merge(linkAttributes(run.attributes, links: links)) { _, new in new } }
                 storage.addAttributes(attrs, range: run.range.nsRange)
             }
@@ -372,13 +406,14 @@ enum DocumentStyle {
     private static func sameMarks(_ left: NativeMarks, _ right: NativeMarks) -> Bool {
         left.bold == right.bold && left.italic == right.italic
             && left.entityLink == right.entityLink && left.strike == right.strike && left.links == right.links
+            && left.underline == right.underline && left.href == right.href
     }
 
     private static func sameBlock(_ left: NativeBlock, _ right: NativeBlock) -> Bool {
         left.id == right.id && left.kind == right.kind && left.depth == right.depth
             && left.container == right.container && left.editable == right.editable
             && left.structuralAttributes == right.structuralAttributes
-            && left.headingLevel == right.headingLevel
+            && left.headingLevel == right.headingLevel && left.textAlign == right.textAlign && left.indent == right.indent
     }
 
     private static func sameRuns(_ left: [NativeRun], _ right: [NativeRun], offset: Int = 0) -> Bool {
@@ -438,6 +473,13 @@ private extension PlatformColor {
         return .labelColor
         #else
         return .label
+        #endif
+    }
+    static var linkColorForDocument: PlatformColor {
+        #if os(macOS)
+        return .linkColor
+        #else
+        return .link
         #endif
     }
     static var secondaryLabelColorForDocument: PlatformColor {

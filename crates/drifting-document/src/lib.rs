@@ -16,7 +16,7 @@ mod concurrent_draft_tests;
 mod draft_tests;
 mod drafts;
 mod formatting;
-pub use formatting::{NativeFormatAction, NativeFormatting};
+pub use formatting::{NativeFormatAction, NativeFormatting, NativeLinking};
 #[cfg(test)]
 mod formatting_tests;
 mod history;

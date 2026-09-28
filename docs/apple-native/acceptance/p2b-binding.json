@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T13:12:44.193Z",
+  "generatedAt": "2026-09-28T15:21:26.065Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "3717a99d1928282abd9309fc3738c3c1f7b2ac36",
+    "commit": "a6a1db34eefd38918fca10f67e7291e2b2553a5b",
     "dirty": true,
-    "fingerprint": "ec0e411d8b50cf4286ef3daa7c640e1b9cfba4ea696818d4b3feaa509307da59"
+    "fingerprint": "d7703b041362d6e0e8deb36fb4f4fe18482716d0039e9eddf614d85f515c0abf"
   },
   "cases": [
     {
@@ -968,6 +968,34 @@
     },
     {
       "name": "AppKit 项目主页 最近 lists the last ten pages this device opened newest first without duplicates, opens them, leaves out a trashed page until it is restored and forgets a purged one, follows a chapter rename, a status change, word counts and a project rename, writes nothing to the journal, and shows the same counts and pages after a cold relaunch from settings.json",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 格式 下划线 (⌘U), 删除线, 左对齐/居中/右对齐 (⌘{ ⌘| ⌘}) and 增加缩进/减少缩进 through the menu, their keys, the toolbar and the prose context menu's 格式 submenu, with checkmarks for the selection's marks and alignment, as one undo unit each; an unchanged alignment writes nothing, marked text disables them, and both panes of the chapter restyle",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Tab and ⇧Tab indent the caret's paragraph or every selected paragraph without inserting a tab, up to eight levels, also when pressed while typed text is still on its way; the editors draw underline, strike, paragraph alignment and a whole-block shift of two em per level that keeps the first-line indent, and all of it survives a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 链接… (⌘K) sets a URL link on the selection prefilled from a selected address, replaces it, keeps an entity link on the same text, refuses a javascript: address in the sheet and in Rust in Chinese without writing, edits the link around the caret, removes it from the sheet, the menu and the caret as one undo unit each, opens it by ⌘-click and 打开链接 through the injected opener, and survives a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit slash menu opens when / (or 、) is typed at the start of an empty paragraph or heading, filters as typed, moves with ↑ and ↓, and Return removes the “/query” through the input path and applies a heading level, 正文, 居中 or 右对齐 once that input lands; Esc, moving the caret away and a query without matches close it leaving the text, and / elsewhere opens nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit ⌘F shows the editor's find bar with incremental search highlighting every match and no 替换, ⌘E takes the selection as the search text, ⌘G and ⇧⌘G (查找下一个, 查找上一个) select the next and previous match without writing, and a 全书长卷 row offers no find",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit @ picker lists element names, aliases and chapter titles but not the body's own, filters as typed, and Return inserts the chosen name through the input path where the link pass links it to its element or chapter; Esc leaves the text, and ＋ 新建设定「…」 creates the element in the chosen category, inserts and links it",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 打印 of a page sets its paragraph alignment, block indent, underline and URL links from the live projection, and the printed PDF centres and shifts those lines",
       "status": "passed"
     }
   ],

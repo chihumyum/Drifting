@@ -16,22 +16,42 @@ struct NativeRange: Decodable, Equatable {
 }
 
 enum NativeFormatAction: String, CaseIterable {
-    case bold, italic, paragraph, heading1, heading2, heading3
+    case bold, italic, underline, strike, paragraph, heading1, heading2, heading3
+    case alignLeft, alignCenter, alignRight, indentIncrease, indentDecrease
 
-    var requiresSelection: Bool { self == .bold || self == .italic }
+    /// Marks toggle over selected text; a caret has nothing to mark.
+    var isMark: Bool { Self.marks.contains(self) }
+    var requiresSelection: Bool { isMark }
+    /// Alignment and indent set one attribute of each paragraph or heading
+    /// the selection touches (a caret takes its block).
+    var isBlockAttribute: Bool { Self.alignments.contains(self) || self == .indentIncrease || self == .indentDecrease }
     var title: String {
         switch self {
         case .bold: return "加粗"
         case .italic: return "斜体"
+        case .underline: return "下划线"
+        case .strike: return "删除线"
         case .paragraph: return "正文"
         case .heading1: return "标题 1"
         case .heading2: return "标题 2"
         case .heading3: return "标题 3"
+        case .alignLeft: return "左对齐"
+        case .alignCenter: return "居中"
+        case .alignRight: return "右对齐"
+        case .indentIncrease: return "增加缩进"
+        case .indentDecrease: return "减少缩进"
         }
     }
     var accessibilityID: String { "format-\(rawValue)" }
+    /// The `textAlign` an alignment leaves; left is the absent default.
+    var textAlign: String? { self == .alignCenter ? "center" : (self == .alignRight ? "right" : nil) }
+    static let marks: [NativeFormatAction] = [.bold, .italic, .underline, .strike]
     static let blocks: [NativeFormatAction] = [.paragraph, .heading1, .heading2, .heading3]
+    static let alignments: [NativeFormatAction] = [.alignLeft, .alignCenter, .alignRight]
 }
+
+/// How much of a selection has a format, for menu checkmarks.
+enum NativeFormatState: Equatable { case off, mixed, on }
 
 /// The target one entity-link mark names. A payload without a kind is an
 /// element, as in the renderer; one without an identity names nothing.
@@ -47,6 +67,9 @@ struct NativeMarks: Decodable {
     let italic: Bool
     let entityLink: Bool
     let strike: Bool
+    let underline: Bool
+    /// The address of the run's URL link (`link` mark), if any.
+    let href: String?
     /// Every link on the run, ordered by mark key; one run may link several
     /// targets. Empty when `entityLink` carries no readable target.
     let links: [NativeEntityLink]
@@ -60,6 +83,7 @@ struct NativeMarks: Decodable {
         let targetKind: String?
         let targetId: String?
     }
+    private struct URLPayload: Decodable { let href: String? }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: Keys.self)
         // y-prosemirror hashes overlapping mark keys; these are display hints
@@ -70,6 +94,9 @@ struct NativeMarks: Decodable {
         let names = Set(values.allKeys.map(base))
         bold = names.contains("bold"); italic = names.contains("italic")
         entityLink = names.contains("entityLink"); strike = names.contains("strike")
+        underline = names.contains("underline")
+        href = values.allKeys.filter { base($0) == "link" }.sorted { $0.stringValue < $1.stringValue }
+            .lazy.compactMap { (try? values.decode(URLPayload.self, forKey: $0))?.href }.first { !$0.isEmpty }
         var links: [NativeEntityLink] = []
         for key in values.allKeys.filter({ base($0) == "entityLink" }).sorted(by: { $0.stringValue < $1.stringValue }) {
             guard let payload = try? values.decode(LinkPayload.self, forKey: key), let id = payload.targetId else { continue }
@@ -80,14 +107,26 @@ struct NativeMarks: Decodable {
     }
 }
 struct NativeRun: Decodable { let range: NativeRange; let attributes: NativeMarks }
-struct NativeBlockAttributes: Decodable {
+struct NativeBlockAttributes: Decodable, Equatable {
     let level: Int?
-    private enum CodingKeys: String, CodingKey { case level }
+    /// `center` or `right`; nil is left, the default.
+    let textAlign: String?
+    /// The block indent level, 0 (none) to 8.
+    let indent: Int
+    static let maximumIndent = 8
+    private enum CodingKeys: String, CodingKey { case level, textAlign, indent }
+    init(level: Int? = nil, textAlign: String? = nil, indent: Int = 0) {
+        self.level = level; self.textAlign = textAlign; self.indent = indent
+    }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         // Unknown attribute payloads remain in Rust; a display hint must not
         // prevent opening a document whose metadata this view cannot render.
         level = try? values.decode(Int.self, forKey: .level)
+        let align = try? values.decode(String.self, forKey: .textAlign)
+        textAlign = align == "center" || align == "right" ? align : nil
+        let stored = (try? values.decode(Double.self, forKey: .indent)).flatMap { $0.isFinite ? $0 : nil } ?? 0
+        indent = Int(min(max(stored, 0), Double(Self.maximumIndent)))
     }
 }
 struct NativeBlock: Decodable {
@@ -101,6 +140,10 @@ struct NativeBlock: Decodable {
     var runs: [NativeRun]
     var attributes: NativeBlockAttributes? = nil
     var headingLevel: Int { attributes?.level ?? 1 }
+    var textAlign: String? { attributes?.textAlign }
+    var indent: Int { attributes?.indent ?? 0 }
+    /// Alignment and indent apply to paragraphs and headings.
+    var acceptsBlockAttributes: Bool { editable && (kind == "paragraph" || kind == "heading") }
 }
 struct NativeProjection: Decodable {
     let revision: UInt64
@@ -114,6 +157,105 @@ struct NativeProjection: Decodable {
     // outline panel keeps its last authoritative list while input is pending.
     var outline: [NativeOutlineItem] = []
 }
+/// Display hints about a selection's formats and links. Rust decides what a
+/// command edits; these only enable commands and draw checkmarks.
+extension NativeProjection {
+    /// The blocks a range touches, as Rust counts them: a caret its block, a
+    /// selection every block from its start to the last one it enters.
+    func blockIndices(touching range: NSRange) -> ClosedRange<Int>? {
+        guard range.location >= 0, range.length >= 0, let first = NativeLayout.index(range.location, blocks: blocks) else { return nil }
+        guard range.length > 0 else { return first...first }
+        let end = NSMaxRange(range)
+        guard let last = blocks.lastIndex(where: { $0.range.location < end }), last >= first else { return nil }
+        return first...last
+    }
+
+    /// The block and run holding the character at a UTF-16 index.
+    func run(at index: Int) -> (block: NativeBlock, run: NativeRun)? {
+        guard let block = blocks.first(where: { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }),
+              let run = block.runs.first(where: { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }) else { return nil }
+        return (block, run)
+    }
+
+    /// A mark over a selection: on when all selected text has it. At a caret
+    /// the character before it (or after it at a block's start) decides.
+    func markState(in range: NSRange, _ has: (NativeMarks) -> Bool) -> NativeFormatState {
+        if range.length == 0 {
+            guard let index = NativeLayout.index(range.location, blocks: blocks) else { return .off }
+            let block = blocks[index]
+            let at = range.location > block.range.location ? range.location - 1 : range.location
+            return run(at: at).map { has($0.run.attributes) ? .on : .off } ?? .off
+        }
+        var marked = 0, plain = 0
+        for block in blocks {
+            for run in block.runs {
+                let overlap = NSIntersectionRange(run.range.nsRange, range).length
+                guard overlap > 0 else { continue }
+                if has(run.attributes) { marked += overlap } else { plain += overlap }
+            }
+        }
+        return marked == 0 ? .off : (plain == 0 ? .on : .mixed)
+    }
+
+    /// A format's state over a selection: marks by their characters, block
+    /// styles and alignments by the blocks the selection touches.
+    func formatState(_ action: NativeFormatAction, in range: NSRange) -> NativeFormatState {
+        func blockState(_ matches: (NativeBlock) -> Bool, considered: (NativeBlock) -> Bool = { _ in true }) -> NativeFormatState {
+            guard let indices = blockIndices(touching: range) else { return .off }
+            let touched = blocks[indices].filter(considered)
+            let count = touched.filter(matches).count
+            return count == 0 ? .off : (count == touched.count ? .on : .mixed)
+        }
+        switch action {
+        case .bold: return markState(in: range) { $0.bold }
+        case .italic: return markState(in: range) { $0.italic }
+        case .underline: return markState(in: range) { $0.underline }
+        case .strike: return markState(in: range) { $0.strike }
+        case .paragraph: return blockState { $0.kind == "paragraph" }
+        case .heading1, .heading2, .heading3:
+            return blockState { $0.kind == "heading" && "heading\($0.headingLevel)" == action.rawValue }
+        case .alignLeft, .alignCenter, .alignRight:
+            return blockState({ $0.textAlign == action.textAlign }, considered: \.acceptsBlockAttributes)
+        case .indentIncrease, .indentDecrease: return .off
+        }
+    }
+
+    /// Whether alignment and indent can apply: every touched block is an
+    /// editable paragraph or heading.
+    func acceptsBlockAttributes(in range: NSRange) -> Bool {
+        guard let indices = blockIndices(touching: range) else { return false }
+        return blocks[indices].allSatisfy(\.acceptsBlockAttributes)
+    }
+
+    /// The URL link around a character or caret: the contiguous linked runs
+    /// of its block (any address), as Rust removes it at a caret.
+    func urlLinkRange(around location: Int) -> NSRange? {
+        guard let index = NativeLayout.index(location, blocks: blocks) else { return nil }
+        let runs = blocks[index].runs
+        guard let hit = runs.firstIndex(where: {
+            $0.attributes.href != nil && $0.range.location <= location && location <= NSMaxRange($0.range.nsRange)
+        }) else { return nil }
+        var from = hit, to = hit
+        while from > 0, runs[from - 1].attributes.href != nil, NSMaxRange(runs[from - 1].range.nsRange) == runs[from].range.location { from -= 1 }
+        while to + 1 < runs.count, runs[to + 1].attributes.href != nil, runs[to + 1].range.location == NSMaxRange(runs[to].range.nsRange) { to += 1 }
+        return NSUnionRange(runs[from].range.nsRange, runs[to].range.nsRange)
+    }
+
+    /// The first URL link address in a selection, or around a caret.
+    func urlLink(in range: NSRange) -> String? {
+        if range.length == 0 {
+            guard let around = urlLinkRange(around: range.location) else { return nil }
+            return run(at: around.location)?.run.attributes.href
+        }
+        for block in blocks {
+            for run in block.runs where run.attributes.href != nil && NSIntersectionRange(run.range.nsRange, range).length > 0 {
+                return run.attributes.href
+            }
+        }
+        return nil
+    }
+}
+
 struct NativeOutlineItem: Decodable, Equatable {
     let blockId: String
     let level: Int
@@ -222,6 +364,10 @@ final class DocumentBinding {
     var hasFailedDraft: Bool { failed }
     var hasPendingWork: Bool { store.hasPendingWork }
     var canEdit: Bool { attached && store.canEdit && !failed }
+    /// The text and blocks this view shows, including its own input still
+    /// on its way to Rust (display hints only).
+    var displayedText: String { localText }
+    var displayedBlocks: [NativeBlock] { localBlocks }
     var hasRemoteBlock: Bool { store.remoteBlock != nil }
     var selectionIsAnchored: Bool { capturedEpoch == selectionEpoch }
 
@@ -379,17 +525,42 @@ final class DocumentBinding {
     }
 
     func history(redo: Bool) { store.history(redo: redo) }
-    func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
+    /// The projection a command may use: the owner is idle and the range lies
+    /// in its text. Pending input, drafts and recovery guard every command.
+    private func commandProjection(_ range: NSRange) -> NativeProjection? {
         guard canEdit, !hasPendingWork, !hasUnsubmittedDraft, let projection = store.projection,
               range.location >= 0, range.length >= 0,
               range.location <= (projection.text as NSString).length,
-              range.length <= (projection.text as NSString).length - range.location else { return false }
+              range.length <= (projection.text as NSString).length - range.location else { return nil }
+        return projection
+    }
+    func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
+        guard let projection = commandProjection(range) else { return false }
+        if action.isBlockAttribute { return projection.acceptsBlockAttributes(in: range) }
         return !action.requiresSelection || range.length > 0
     }
     func format(_ action: NativeFormatAction, range: NSRange) {
         guard canFormat(action, range: range), let projection = store.projection else { return }
         selectionChanged(range, text: projection.text, marked: false)
         store.format(action, range: range, revision: projection.revision)
+    }
+    /// Checkmarks: how much of the selection has the format (display only).
+    func formatState(_ action: NativeFormatAction, range: NSRange) -> NativeFormatState {
+        store.projection?.formatState(action, in: range) ?? .off
+    }
+
+    /// Setting a URL link needs selected text; removing one needs a link in
+    /// the selection or around the caret.
+    func canLink(range: NSRange) -> Bool { commandProjection(range) != nil && range.length > 0 }
+    func canRemoveLink(range: NSRange) -> Bool { commandProjection(range)?.urlLink(in: range) != nil }
+    /// Sets (`href`) or removes (nil) the URL link of the range; the reply
+    /// reports nil or the refusal. Rust validates the address.
+    func link(range: NSRange, href: String?, completion: ((Error?) -> Void)? = nil) {
+        guard href == nil ? canRemoveLink(range: range) : canLink(range: range), let projection = store.projection else {
+            completion?(LabError.message("请先完成输入，并等待正文保存后再设置链接。")); return
+        }
+        selectionChanged(range, text: projection.text, marked: false)
+        store.link(range: range, href: href, revision: projection.revision, completion: completion)
     }
 
     /// A comment needs non-blank text in the authoritative display. Rust trims

@@ -57,10 +57,14 @@ Right-clicking a chapter offers its 写作状态.
   close, or a book already shut down) still lets 全书长卷 reopen. Every book
   whose panel closed while its owners still close is tracked until it has
   shut down, and 删除项目 asks each of them.
-- **Tab parity.** Edits, undo, formatting, comments and ⌘-click on links
-  behave as in a tab. The tab host gives these views the link directory and
-  link passes, and counts their saved bodies. A ⌘-clicked link closes the
-  panel and opens the target as a tab.
+- **Tab parity.** Edits, undo, [formatting](formatting.md) (alignment,
+  indent and URL links included), the slash menu and @ picker, comments and
+  ⌘-click on links behave as in a tab; find is not offered here. The tab host
+  gives these views the link directory, link passes and the @ picker's names,
+  and counts their saved bodies. A ⌘-clicked entity link closes the panel and
+  opens the target as a tab; a URL link opens in the browser. A read-only row
+  set from the last projection draws them like the editor; one read as plain
+  text does not.
 
 统计 (from the toolbar and 节奏统计… in 项目资料) shows:
 

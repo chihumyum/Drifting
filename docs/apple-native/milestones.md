@@ -92,7 +92,8 @@ architectural redesign.
 | MCP and Copilot hardening | `ec4bf6f2` | [agent](agent.md), [copilot](copilot.md), [settings](settings.md) |
 | Plot planner and drift conversions | `1866145c` | [plot planner](plot-planner.md), [drifts](drifts.md), [trash](trash.md) |
 | Review fixes for printing, planner and conversions | `faa58ca4` | [drifts](drifts.md), [plot planner](plot-planner.md), [settings](settings.md), [agent](agent.md), [copilot](copilot.md) |
-| Database recovery and project home | this batch | [recovery](recovery.md), [project home](project-home.md), [whole book](whole-book.md), [settings](settings.md) |
+| Database recovery and project home | `3717a99d` `a6a1db34` | [recovery](recovery.md), [project home](project-home.md), [whole book](whole-book.md), [settings](settings.md) |
+| Editor formatting, find and pickers | this batch | [formatting](formatting.md), [settings](settings.md), [library](library.md), [whole book](whole-book.md), [entity links](entity-links.md) |
 
 ## Next batch
 
