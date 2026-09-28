@@ -46,7 +46,7 @@ architectural redesign.
 | P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash (with permanent deletion), acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups with conversion to chapters and elements, plot grids, chapter/drift/project metadata, relations and associations, library order, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries, usage and MCP extensions ([agent](agent.md)); experimental Copilot suggestions ([copilot](copilot.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary, experimental Copilot suggestions, MCP extensions, printing, PDF export and custom shortcuts, the plot planner and drift conversions, database recovery and the project home delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary, experimental Copilot suggestions, MCP extensions, printing, PDF export and custom shortcuts, the plot planner and drift conversions, database recovery and the project home, storyline chapter templates and list filters, bulk import and all-project export, and editor layout settings delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -95,7 +95,8 @@ architectural redesign.
 | Database recovery and project home | `3717a99d` `a6a1db34` | [recovery](recovery.md), [project home](project-home.md), [whole book](whole-book.md), [settings](settings.md) |
 | Editor formatting, find and pickers | `dd217788` | [formatting](formatting.md), [settings](settings.md), [library](library.md), [whole book](whole-book.md), [entity links](entity-links.md) |
 | Tabs, navigation and restore | `2f24cbb9` | [tabs and split](tabs-and-split.md), [workspace](workspace.md), [settings](settings.md), [project home](project-home.md) |
-| Picker, shortcut and tab fixes | this batch | [formatting](formatting.md), [entity links](entity-links.md), [settings](settings.md), [tabs and split](tabs-and-split.md) |
+| Picker, shortcut and tab fixes | `e754a7f7` | [formatting](formatting.md), [entity links](entity-links.md), [settings](settings.md), [tabs and split](tabs-and-split.md) |
+| Storyline templates, filters, bulk import/export and editor settings | this batch | [storylines](storylines.md), [categories](categories.md), [library](library.md), [settings](settings.md), [whole book](whole-book.md), [history](history.md), [workspace](workspace.md) |
 
 ## Next batch
 

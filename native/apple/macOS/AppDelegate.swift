@@ -206,6 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             .importFile: .init(#selector(importFile), self),
             .exportBook: .init(#selector(exportBook), self),
             .exportMarkdownFolder: .init(#selector(exportMarkdownFolderMenu), self),
+            .exportAllMarkdown: .init(#selector(exportAllMarkdownMenu), self),
             .exportPDF: .init(#selector(exportPDF), self),
             .pageSetup: .init(#selector(pageSetup), self),
             .print: .init(#selector(printPage), self),
@@ -361,6 +362,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.onTrash = { [weak self] projectID, source in self?.adoptTrash(projectID: projectID, source: source) }
         // 情节规划格 docks are remembered per page in settings.json.
         chapterWorkspace.plotPlannerSettings = settingsStore
+        // So are storyline and category pages' list filters.
+        chapterWorkspace.listFilterSettings = settingsStore
+        chapterWorkspace.onChapterCreated = { [weak self] project, chapter in self?.adoptCreatedChapter(chapter, projectID: project.id) }
         chapterWorkspace.onPlotPlanner = { [weak self] in self?.updatePlotPlannerMenu() }
         chapterWorkspace.onDriftConverted = { [weak self] projectID, outcome in self?.adoptDriftConversion(projectID: projectID, outcome: outcome) }
         // A 转为设定 that stopped part way may have moved notes to the element.
@@ -1456,6 +1460,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.onOpen = { [weak self] storyline in self?.openStoryline(storyline, project: project, focusName: false) }
         controller.onCreated = { [weak self] storyline in self?.openStoryline(storyline, project: project, focusName: true) }
         controller.onTrash = { [weak self] storyline in self?.trashStoryline(storyline, project: project) }
+        controller.onCreateChapter = { [weak self] storyline in
+            guard let self else { return }
+            self.chapterWorkspace.createChapter(project: self.namedProject(project), storyline: storyline) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let chapter): self.status.stringValue = "已在“\(storyline.name)”中新建章节“\(chapter.title)”。"
+                case .failure(let error) where error.localizedDescription != MacChapterWorkspace.chapterCreationCancelled:
+                    self.storylinesController?.model.showStatus(error.localizedDescription)
+                case .failure: break
+                }
+            }
+        }
         window.addChildWindow(panel, ordered: .above)
         let frame = window.frame
         panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 48, y: frame.maxY - 110))
@@ -1976,6 +1992,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             }
         }
         controller.onActColorChanged = { [weak self] in self?.actColorsChanged(projectID: project.id, fromWholeBook: true) }
+        // It opens where it was read last, remembered per project.
+        controller.initialPosition = settingsStore.wholeBookPosition(projectID: project.id)
+        controller.onPosition = { [weak self] position in self?.settingsStore.setWholeBookPosition(position, projectID: project.id) }
         let panel = WholeBookPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
             styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         panel.title = "\(name) · 全书长卷"
@@ -2616,6 +2635,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         exportMarkdownFolder(namedProject(project))
     }
 
+    /// 文件 › 导出全部项目为 Markdown 文件夹…: every project, each in its own
+    /// folder inside a new dated folder.
+    @objc private func exportAllMarkdownMenu() {
+        guard canLeaveDocument() else { return }
+        guard !projects.isEmpty else { status.stringValue = "还没有项目可以导出。"; return }
+        markdownExport.beginAll(projects: projects.map(namedProject), window: window)
+    }
+
     private func exportMarkdownFolder(_ project: WorkspaceProject, from parent: NSWindow? = nil) {
         guard canLeaveDocument() else { return }
         markdownExport.begin(project: namedProject(project), window: parent ?? window)
@@ -2708,6 +2735,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     /// An imported chapter joins the chapter list before its page opens.
+    /// A chapter created in a storyline (its page or the 故事线 panel) joins
+    /// the chapter list; with nil (created, then a later step failed) the
+    /// list is read again.
+    private func adoptCreatedChapter(_ chapter: WorkspaceChapter?, projectID: String) {
+        graphChaptersChanged(projectID: projectID)
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
+        wholeBookChanged(projectID: projectID)
+        guard selectedProject?.id == projectID else { return }
+        guard let chapter else {
+            workspace.chapters(projectID: projectID) { [weak self] result in
+                guard let self, self.selectedProject?.id == projectID, case .success(let chapters) = result else { return }
+                self.chapters = chapters
+                if !self.showingTrash { self.reloadChapterRows() }
+                self.chapterEmpty.isHidden = !self.displayedChapters.isEmpty
+            }
+            return
+        }
+        guard !chapters.contains(where: { $0.id == chapter.id }) else { return }
+        chapters.append(chapter)
+        if !showingTrash { reloadChapterRows() }
+        chapterEmpty.isHidden = !displayedChapters.isEmpty
+    }
+
     private func adoptImported(_ entity: WorkspaceImportedEntity, project: WorkspaceProject) {
         graphChaptersChanged(projectID: project.id)
         guard case .chapter(let chapter) = entity, selectedProject?.id == project.id,

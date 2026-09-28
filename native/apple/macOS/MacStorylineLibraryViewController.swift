@@ -17,6 +17,8 @@ final class MacStorylineLibraryViewController: NSViewController, NSTableViewData
     var onOpen: ((WorkspaceStoryline) -> Void)?
     var onTrash: ((WorkspaceStoryline) -> Void)?
     var onCreated: ((WorkspaceStoryline) -> Void)?
+    /// 新建章节… in a row's menu: a chapter in that storyline, from its 章节模版.
+    var onCreateChapter: ((WorkspaceStoryline) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     /// Presents an alert (confirmations and name or summary prompts). Nil uses
@@ -220,6 +222,12 @@ final class MacStorylineLibraryViewController: NSViewController, NSTableViewData
         case .storyline(let storyline, _, _):
             let index = model.library.storylines.firstIndex { $0.id == storyline.id } ?? 0
             let open = LibraryMenuItem(title: "打开页面", identifier: "open-storyline") { [weak self] in self?.open(storyline) }
+            let chapter = LibraryMenuItem(title: "新建章节…", identifier: "create-storyline-chapter") { [weak self] in
+                guard let self, self.canChange() else { return }
+                self.onCreateChapter?(storyline)
+            }
+            chapter.toolTip = "新章节以这条故事线为主线，正文从它的章节模版开始"
+            chapter.isEnabled = onCreateChapter != nil
             let rename = LibraryMenuItem(title: "重命名…", identifier: "rename-storyline") { [weak self] in self?.rename(storyline) }
             let colors = NSMenuItem(title: "更改颜色", action: nil, keyEquivalent: "")
             let palette = NSMenu(title: "更改颜色")
@@ -249,7 +257,7 @@ final class MacStorylineLibraryViewController: NSViewController, NSTableViewData
             let trash = LibraryMenuItem(title: "移到回收站…", identifier: "trash-storyline") { [weak self] in
                 self?.confirmTrash(storyline)
             }
-            return [open, .separator(), rename, colors, summary, .separator(), up, down, .separator(), trash]
+            return [open, chapter, .separator(), rename, colors, summary, .separator(), up, down, .separator(), trash]
         case .trashed(let storyline):
             return [LibraryMenuItem(title: "恢复", identifier: "restore-storyline") { [weak self] in self?.restore(storyline) }]
         default:

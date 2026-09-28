@@ -35,9 +35,23 @@ page (`MacCategoryPageView`) has a header on a wash in the category's colour
 with 名称 and 颜色 (`updateCategory`, committed on Return, end of editing or a
 colour choice), the live element count with 新建设定, and 模板字段, the same
 ordered row editor as the 设定库's sheet (`setCategoryTemplateFacts`). Then come
-the shared 关系 section, 新设定模版 and the category's own body editor, with
+设定 (the category's elements in library order, each opening its page in
+the page's pane), the shared 关系 section, 新设定模版 and the category's own
+body editor, with
 历史版本… in the pane header. A refusal keeps typed text and rows and shows
 the reason in Chinese.
+
+设定 is filtered by 全部, 已填写 and 未填写 (with their counts), from what an
+element page shows: an element is 已填写 when its 简介 has text, a 字段 has a
+value other than the one the category's 模板字段 gave it (same key, trimmed),
+or its body has text other than the 新设定模版 (lines compared without
+surrounding spaces and blank lines); otherwise 未填写, so an element created
+from the templates and not touched since is 未填写. Bodies are read with
+`agentReadProse` (live from an open owner, else stored; a read only) when the
+page opens, the library or template changes and an element body settles at
+a new revision; until every body and the template are read all elements
+show. The filter is kept per page in `settings.json` (`listFilters`,
+`category:<id>`) like the [storyline page's](storylines.md).
 
 新设定模版 previews how a new element's body starts, in the body editor's
 typography. 编辑模版… opens a sheet of block rows: 正文 or 标题 1–3, the text,
@@ -77,4 +91,7 @@ element page opens the 分类页, which lists the relation back. 历史版本
 restores the body as one undoable edit, and the assistant reads and revises
 the open body. Trash closes the tabs and sheet only after the commit, and
 restore and cold reopen keep the body, 模板字段 and template. Physical input,
-desktop XCTest and devices are not covered.
+desktop XCTest and devices are not covered. `--small-items-only` lists six
+elements (简介, a changed 字段, a written body, template-only, blank, and one
+written later), filters them, follows a body edit and restores the filter
+after a cold relaunch.

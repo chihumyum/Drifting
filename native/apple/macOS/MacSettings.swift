@@ -11,6 +11,12 @@ enum MacEditorPreferences {
     static var accentColor: NSColor? { didSet { if accentColor != oldValue { post() } } }
     /// 打字机滚动: typing keeps the caret line at a fixed height in every body.
     static var typewriterScrolling: Bool? { didSet { if typewriterScrolling != oldValue { post() } } }
+    /// 打字机位置: where that line sits, as a share of the visible height
+    /// from the top; nil is 40%.
+    static var typewriterPosition: CGFloat? { didSet { if typewriterPosition != oldValue { post() } } }
+    /// 版心宽度: the widest the prose column of a body editor and the 全书长卷
+    /// grows, in points; nil fills the pane (the headless default).
+    static var columnWidth: CGFloat? { didSet { if columnWidth != oldValue { post() } } }
     private static func post() { NotificationCenter.default.post(name: didChange, object: nil) }
 }
 
@@ -53,8 +59,25 @@ struct LabSettings: Codable, Equatable {
     var paragraphIndent: Indent = .none
     var spellcheck = true
     var manuscriptLocale = "zh-CN"
-    /// 打字机滚动 (off by default): the caret line stays about 40% down.
+    /// 打字机滚动 (off by default): the caret line stays at 打字机位置.
     var typewriterScrolling = false
+    /// 打字机位置: the caret line's height with 打字机滚动, in percent of the
+    /// visible prose from the top (25–75, default 40).
+    var typewriterPosition: Double = 40
+    /// 段间距: space after each paragraph, in em of the body size (0–2.5;
+    /// 0.7 is the earlier 12 pt at 17 pt).
+    var paragraphSpacing: Double = 0.7
+    /// 版心宽度: the widest the prose column grows, in points (480–1280;
+    /// 760 is the 全书长卷's earlier column).
+    var columnWidth: Double = 760
+    /// 自动链接设定名称: while on, settled typing links element names,
+    /// aliases and chapter titles; off adds no new links, existing ones stay.
+    var autoEntityLinks = true
+    /// The list filter of each storyline or category page, per project and
+    /// page (`storyline:<id>`, `category:<id>`); 全部 has no entry.
+    var listFilters: [String: [String: String]] = [:]
+    /// 全书长卷: each project's reading position.
+    var wholeBookPositions: [String: WholeBookPosition] = [:]
     /// Each project's 写作计划, keyed by project identity; a project without
     /// one uses the defaults.
     var writingPlans: [String: WritingPlan] = [:]
@@ -93,6 +116,9 @@ struct LabSettings: Codable, Equatable {
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
+    static let paragraphSpacings: ClosedRange<Double> = 0...2.5
+    static let columnWidths: ClosedRange<Double> = 480...1280
+    static let typewriterPositions: ClosedRange<Double> = 25...75
     static let locales: [(code: String, name: String)] = [
         ("zh-CN", "中文（简体）"), ("zh-TW", "中文（繁體）"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"), ("fr", "Français"),
     ]
@@ -101,7 +127,7 @@ struct LabSettings: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
-        case typewriterScrolling
+        case typewriterScrolling, typewriterPosition, paragraphSpacing, columnWidth, autoEntityLinks, listFilters, wholeBookPositions
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
         case recentPages, dailyStreaks, tabSessions, lastProject
     }
@@ -120,6 +146,15 @@ struct LabSettings: Codable, Equatable {
         spellcheck = (try? values.decodeIfPresent(Bool.self, forKey: .spellcheck)) ?? true
         manuscriptLocale = (try? values.decodeIfPresent(String.self, forKey: .manuscriptLocale)) ?? "zh-CN"
         typewriterScrolling = (try? values.decodeIfPresent(Bool.self, forKey: .typewriterScrolling)) ?? false
+        typewriterPosition = (try? values.decodeIfPresent(Double.self, forKey: .typewriterPosition)) ?? 40
+        paragraphSpacing = (try? values.decodeIfPresent(Double.self, forKey: .paragraphSpacing)) ?? 0.7
+        columnWidth = (try? values.decodeIfPresent(Double.self, forKey: .columnWidth)) ?? 760
+        autoEntityLinks = (try? values.decodeIfPresent(Bool.self, forKey: .autoEntityLinks)) ?? true
+        // One unreadable project or page drops alone.
+        let filterValues = (try? values.decodeIfPresent([String: LenientFilters].self, forKey: .listFilters)) ?? [:]
+        listFilters = filterValues.mapValues(\.value).filter { !$0.value.isEmpty }
+        let positionValues = (try? values.decodeIfPresent([String: LenientPosition].self, forKey: .wholeBookPositions)) ?? [:]
+        wholeBookPositions = positionValues.compactMapValues(\.value)
         writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
@@ -148,6 +183,11 @@ struct LabSettings: Codable, Equatable {
         next.lineHeight = min(max(lineHeight.isFinite ? (lineHeight * 100).rounded() / 100 : 1.5, Self.lineHeights.lowerBound),
                               Self.lineHeights.upperBound)
         next.systemFontFamily = String(systemFontFamily.trimmingCharacters(in: .whitespacesAndNewlines).prefix(128))
+        next.paragraphSpacing = Self.clamped(paragraphSpacing, Self.paragraphSpacings, step: 0.1, fallback: 0.7)
+        next.columnWidth = Self.clamped(columnWidth, Self.columnWidths, step: 10, fallback: 760)
+        next.typewriterPosition = Self.clamped(typewriterPosition, Self.typewriterPositions, step: 1, fallback: 40)
+        next.listFilters = listFilters.mapValues { $0.filter { ListFilter.known($0.value) && $0.value != ListFilter.all } }
+            .filter { !$0.value.isEmpty }
         if let accent = accentColor, DocumentStyle.linkColor(hex: accent) == nil { next.accentColor = nil }
         if !Self.locales.contains(where: { $0.code == manuscriptLocale }) { next.manuscriptLocale = "zh-CN" }
         if next.fontSource == .systemCustom, next.systemFontFamily.isEmpty { next.fontSource = .systemSerif }
@@ -157,6 +197,31 @@ struct LabSettings: Codable, Equatable {
         // system) is dropped; the command keeps its default.
         next.shortcuts = shortcuts.filter { MacShortcuts.refusal($0.value) == nil }
         return next
+    }
+
+    /// A finite value rounded to `step` inside `range`; anything else is `fallback`.
+    static func clamped(_ value: Double, _ range: ClosedRange<Double>, step: Double, fallback: Double) -> Double {
+        guard value.isFinite else { return fallback }
+        let rounded = (value / step).rounded() * step
+        // Keep one decimal exact (0.7, not 0.7000000000000001).
+        let tidy = (rounded * 1000).rounded() / 1000
+        return min(max(tidy, range.lowerBound), range.upperBound)
+    }
+
+    private struct LenientFilters: Decodable {
+        let value: [String: String]
+        init(from decoder: Decoder) throws {
+            let raw = (try? [String: LenientString](from: decoder)) ?? [:]
+            value = raw.compactMapValues(\.value)
+        }
+    }
+    private struct LenientString: Decodable {
+        let value: String?
+        init(from decoder: Decoder) throws { value = try? String(from: decoder) }
+    }
+    private struct LenientPosition: Decodable {
+        let value: WholeBookPosition?
+        init(from decoder: Decoder) throws { value = try? WholeBookPosition(from: decoder) }
     }
 
     private struct LenientShortcut: Decodable {
@@ -180,6 +245,34 @@ struct LabSettings: Codable, Equatable {
         default: return manuscriptLocale
         }
     }
+}
+
+/// Where the 全书长卷 was read: the row at the top of the viewport
+/// (`chapter:<id>` or `act:<id>`) and how far into it the top is, in points.
+struct WholeBookPosition: Codable, Equatable {
+    var row: String
+    var offset: Double
+
+    private enum CodingKeys: String, CodingKey { case row, offset }
+    init(row: String, offset: Double) { self.row = row; self.offset = offset }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        row = try values.decode(String.self, forKey: .row)
+        let offset = try values.decode(Double.self, forKey: .offset)
+        guard row.hasPrefix("chapter:") || row.hasPrefix("act:"), offset.isFinite else {
+            throw DecodingError.dataCorruptedError(forKey: .row, in: values, debugDescription: "Unknown 全书长卷 position")
+        }
+        self.offset = min(max(offset, -10_000), 10_000_000)
+    }
+}
+
+/// The filters of a storyline page's chapters (全部, 已写, 未起) and a
+/// category page's elements (全部, 已填写, 未填写), as `settings.json` keeps them.
+enum ListFilter {
+    static let all = "all"
+    static let written = "written", unwritten = "unwritten"
+    static let filled = "filled", unfilled = "unfilled"
+    static func known(_ value: String) -> Bool { [all, written, unwritten, filled, unfilled].contains(value) }
 }
 
 /// A page this device opened, for 项目主页 › 最近: a chapter, drift,
@@ -341,12 +434,13 @@ final class LabSettingsStore {
         apply()
     }
 
-    /// 还原推荐样式: the system serif at 17 pt, line height 1.5, no indent.
-    /// An imported font stays available.
+    /// 还原推荐样式: the system serif at 17 pt, line height 1.5, no indent,
+    /// 段间距 0.7 and 版心宽度 760. An imported font stays available.
     func resetTypesetting() {
         fontNotice = nil
         update {
             $0.fontSource = .systemSerif; $0.fontSize = 17; $0.lineHeight = 1.5; $0.paragraphIndent = .none
+            $0.paragraphSpacing = 0.7; $0.columnWidth = 760
         }
     }
 
@@ -718,10 +812,38 @@ final class LabSettingsStore {
         save()
     }
 
+    // MARK: List filters
+
+    /// A storyline or category page's list filter; nil is 全部.
+    func listFilter(projectID: String, page: String) -> String? { settings.listFilters[projectID]?[page] }
+
+    /// Saves a page's filter; 全部 (or nil) removes the entry and an unchanged
+    /// one writes nothing. Editors and the settings window are not told.
+    func setListFilter(_ filter: String?, projectID: String, page: String) {
+        let value = filter.flatMap { ListFilter.known($0) && $0 != ListFilter.all ? $0 : nil }
+        guard settings.listFilters[projectID]?[page] != value else { return }
+        var pages = settings.listFilters[projectID] ?? [:]
+        pages[page] = value
+        settings.listFilters[projectID] = pages.isEmpty ? nil : pages
+        save()
+    }
+
+    // MARK: 全书长卷 position
+
+    func wholeBookPosition(projectID: String) -> WholeBookPosition? { settings.wholeBookPositions[projectID] }
+
+    /// Saves where the 全书长卷 is read; an unchanged position writes nothing.
+    func setWholeBookPosition(_ position: WholeBookPosition?, projectID: String) {
+        guard settings.wholeBookPositions[projectID] != position else { return }
+        settings.wholeBookPositions[projectID] = position
+        save()
+    }
+
     // MARK: Deleted projects
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
-    /// 底部时间轴 or 情节规划格 state, recent pages, tabs or MCP servers
+    /// 底部时间轴 or 情节规划格 state, recent pages, tabs, list filters, 全书长卷
+    /// position or MCP servers
     /// behind, nor stays the project that opens at launch (their Keychain
     /// secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
@@ -730,7 +852,10 @@ final class LabSettingsStore {
             || settings.bottomTimelines[projectID] != nil
             || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
             || settings.recentPages[projectID] != nil || settings.tabSessions[projectID] != nil
+            || settings.listFilters[projectID] != nil || settings.wholeBookPositions[projectID] != nil
             || settings.lastProject == projectID else { return }
+        settings.listFilters.removeValue(forKey: projectID)
+        settings.wholeBookPositions.removeValue(forKey: projectID)
         settings.tabSessions.removeValue(forKey: projectID)
         if settings.lastProject == projectID { settings.lastProject = nil }
         settings.recentPages.removeValue(forKey: projectID)
@@ -797,7 +922,7 @@ final class LabSettingsStore {
         var typography = DocumentTypography()
         typography.size = CGFloat(settings.fontSize)
         typography.language = settings.languageTag
-        typography.paragraphSpacing = (12 * typography.size / 17).rounded()
+        typography.paragraphSpacing = (CGFloat(settings.paragraphSpacing) * typography.size).rounded()
         typography.paragraphIndent = typography.size * CGFloat(LabSettings.Indent.allCases.firstIndex(of: settings.paragraphIndent) ?? 0)
         var fallback: String?
         switch settings.fontSource {
@@ -839,6 +964,9 @@ final class LabSettingsStore {
         DocumentStyle.typography = typography
         MacEditorPreferences.spellChecking = settings.spellcheck
         MacEditorPreferences.typewriterScrolling = settings.typewriterScrolling
+        MacEditorPreferences.typewriterPosition = CGFloat(settings.typewriterPosition / 100)
+        MacEditorPreferences.columnWidth = CGFloat(settings.columnWidth)
+        DocumentStore.automaticEntityLinks = settings.autoEntityLinks
         let accent = settings.accentColor.flatMap { DocumentStyle.linkColor(hex: $0) }
         let accentChanged = accent != MacEditorPreferences.accentColor
         MacEditorPreferences.accentColor = accent
@@ -861,6 +989,9 @@ final class LabSettingsStore {
         MacEditorPreferences.spellChecking = nil
         MacEditorPreferences.accentColor = nil
         MacEditorPreferences.typewriterScrolling = nil
+        MacEditorPreferences.typewriterPosition = nil
+        MacEditorPreferences.columnWidth = nil
+        DocumentStore.automaticEntityLinks = true
         NSApplication.shared.appearance = nil
     }
 

@@ -258,7 +258,17 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
     let lineHeightValue = NSTextField(labelWithString: "")
     let indentControl = NSSegmentedControl(labels: ["无", "一字符", "两字符"], trackingMode: .selectOne, target: nil, action: nil)
     let resetButton = NSButton(title: "还原推荐样式", target: nil, action: nil)
+    let paragraphSpacingSlider = NSSlider(value: 0.7, minValue: LabSettings.paragraphSpacings.lowerBound,
+                                          maxValue: LabSettings.paragraphSpacings.upperBound, target: nil, action: nil)
+    let paragraphSpacingValue = NSTextField(labelWithString: "")
+    let columnWidthSlider = NSSlider(value: 760, minValue: LabSettings.columnWidths.lowerBound,
+                                     maxValue: LabSettings.columnWidths.upperBound, target: nil, action: nil)
+    let columnWidthValue = NSTextField(labelWithString: "")
     let typewriterCheckbox = NSButton(checkboxWithTitle: "打字机滚动", target: nil, action: nil)
+    let typewriterPositionSlider = NSSlider(value: 40, minValue: LabSettings.typewriterPositions.lowerBound,
+                                            maxValue: LabSettings.typewriterPositions.upperBound, target: nil, action: nil)
+    let typewriterPositionValue = NSTextField(labelWithString: "")
+    let autoLinkCheckbox = NSButton(checkboxWithTitle: "自动链接设定名称", target: nil, action: nil)
     let autosaveText = SettingsLayout.detail("每次输入提交后立即保存到本机，没有需要设置的间隔。历史版本在保存时最多每 15 分钟记录一次，关闭页面时也会记录。")
     private let storageMessage = SettingsLayout.storageLabel()
     /// The font rows; the message row shows only with a message.
@@ -311,7 +321,18 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         sizeSlider.setAccessibilityIdentifier("settings-font-size")
         lineHeightSlider.target = self; lineHeightSlider.action = #selector(lineHeightChanged)
         lineHeightSlider.setAccessibilityIdentifier("settings-line-height")
-        for label in [sizeValue, lineHeightValue] {
+        paragraphSpacingSlider.target = self; paragraphSpacingSlider.action = #selector(paragraphSpacingChanged)
+        paragraphSpacingSlider.setAccessibilityIdentifier("settings-paragraph-spacing")
+        columnWidthSlider.target = self; columnWidthSlider.action = #selector(columnWidthChanged)
+        columnWidthSlider.setAccessibilityIdentifier("settings-column-width")
+        typewriterPositionSlider.target = self; typewriterPositionSlider.action = #selector(typewriterPositionChanged)
+        typewriterPositionSlider.setAccessibilityIdentifier("settings-typewriter-position")
+        autoLinkCheckbox.target = self; autoLinkCheckbox.action = #selector(autoLinkChanged)
+        autoLinkCheckbox.setAccessibilityIdentifier("settings-auto-link")
+        paragraphSpacingValue.setAccessibilityIdentifier("settings-paragraph-spacing-value")
+        columnWidthValue.setAccessibilityIdentifier("settings-column-width-value")
+        typewriterPositionValue.setAccessibilityIdentifier("settings-typewriter-position-value")
+        for label in [sizeValue, lineHeightValue, paragraphSpacingValue, columnWidthValue, typewriterPositionValue] {
             label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             label.textColor = .secondaryLabelColor
         }
@@ -342,6 +363,9 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
             familyField.widthAnchor.constraint(equalToConstant: 240),
             sizeSlider.widthAnchor.constraint(equalToConstant: 200),
             lineHeightSlider.widthAnchor.constraint(equalToConstant: 200),
+            paragraphSpacingSlider.widthAnchor.constraint(equalToConstant: 200),
+            columnWidthSlider.widthAnchor.constraint(equalToConstant: 200),
+            typewriterPositionSlider.widthAnchor.constraint(equalToConstant: 200),
         ])
         let fonts = SettingsLayout.grid([
             ("创作内容字体", [fontPopup, SettingsLayout.detail("作用于章节、设定、故事线与漂流的正文；界面始终使用系统字体。字体选择只保存在本机。")]),
@@ -354,12 +378,20 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         let typesetting = SettingsLayout.grid([
             ("字号", [SettingsLayout.line([sizeSlider, sizeValue]), SettingsLayout.detail("只影响编辑视图；标题随正文字号缩放，导出稿件不受影响。")]),
             ("行距", [SettingsLayout.line([lineHeightSlider, lineHeightValue])]),
+            ("段间距", [SettingsLayout.line([paragraphSpacingSlider, paragraphSpacingValue]),
+                     SettingsLayout.detail("段落之间的距离，以字号为单位；只影响编辑视图、全书长卷和打印。")]),
             ("段首缩进", [indentControl, SettingsLayout.detail("只作用于正文段落；标题、引用与列表不缩进。")]),
+            ("版心宽度", [SettingsLayout.line([columnWidthSlider, columnWidthValue]),
+                      SettingsLayout.detail("正文一栏最宽多少；窗口更宽时正文居中，更窄时随窗口收窄。全书长卷也按这个宽度排版。")]),
             ("", [resetButton]),
         ])
         let writing = SettingsLayout.grid([
             ("输入", [typewriterCheckbox,
-                    SettingsLayout.detail("输入时让光标所在行停在编辑区约 40% 的高度，所有正文编辑器都适用；手动滚动不受影响，下次输入时再回到这一高度。")]),
+                    SettingsLayout.detail("输入时让光标所在行停在编辑区的固定高度，所有正文编辑器和全书长卷都适用；手动滚动不受影响，下次输入时再回到这一高度。")]),
+            ("打字机位置", [SettingsLayout.line([typewriterPositionSlider, typewriterPositionValue]),
+                       SettingsLayout.detail("光标所在行距编辑区顶部的比例：25% 靠上，50% 居中，75% 靠下。打字机滚动打开时生效。")]),
+            ("设定链接", [autoLinkCheckbox,
+                      SettingsLayout.detail("输入停下后，把正文中出现的设定名称、别名和章节标题自动链接到对应页面。关闭后不再新增链接（用 @ 插入的名称也不链接），已有的链接保留。")]),
         ])
         let saving = SettingsLayout.grid([("自动保存", [autosaveText])])
         let previewHeading = SettingsLayout.heading("预览"), fontHeading = SettingsLayout.heading("字体")
@@ -402,6 +434,14 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         lineHeightValue.stringValue = String(format: "%.2f", settings.lineHeight)
         indentControl.selectedSegment = LabSettings.Indent.allCases.firstIndex(of: settings.paragraphIndent) ?? 0
         typewriterCheckbox.state = settings.typewriterScrolling ? .on : .off
+        paragraphSpacingSlider.doubleValue = settings.paragraphSpacing
+        paragraphSpacingValue.stringValue = String(format: "%.1f 倍字号", settings.paragraphSpacing)
+        columnWidthSlider.doubleValue = settings.columnWidth
+        columnWidthValue.stringValue = "\(Int(settings.columnWidth)) pt"
+        typewriterPositionSlider.doubleValue = settings.typewriterPosition
+        typewriterPositionValue.stringValue = "\(Int(settings.typewriterPosition))%"
+        typewriterPositionSlider.isEnabled = settings.typewriterScrolling
+        autoLinkCheckbox.state = settings.autoEntityLinks ? .on : .off
         preview.textStorage?.setAttributedString(NSAttributedString(string: Self.previewText.joined(separator: "\n"),
                                                                     attributes: DocumentStyle.bodyAttributes))
         SettingsLayout.storage(storageMessage, store)
@@ -441,6 +481,25 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
     @objc func typewriterChanged() {
         let on = typewriterCheckbox.state == .on
         store.update { $0.typewriterScrolling = on }
+    }
+    @objc func typewriterPositionChanged() {
+        let value = typewriterPositionSlider.doubleValue.rounded()
+        store.update { $0.typewriterPosition = value }
+        refresh()
+    }
+    @objc func paragraphSpacingChanged() {
+        let value = (paragraphSpacingSlider.doubleValue * 10).rounded() / 10
+        store.update { $0.paragraphSpacing = value }
+        refresh()
+    }
+    @objc func columnWidthChanged() {
+        let value = (columnWidthSlider.doubleValue / 10).rounded() * 10
+        store.update { $0.columnWidth = value }
+        refresh()
+    }
+    @objc func autoLinkChanged() {
+        let on = autoLinkCheckbox.state == .on
+        store.update { $0.autoEntityLinks = on }
     }
     @objc func sizeChanged() {
         let value = sizeSlider.doubleValue.rounded()

@@ -70,8 +70,8 @@ enum MacDocxImport {
     }
 }
 
-/// 导入: the guessed title (editable), the target — 章节, 设定 with its
-/// 分类, or 漂流 — and a short preview of the parsed blocks.
+/// 导入: the guessed title (editable), the target — 章节 with an optional
+/// 故事线, 设定 with its 分类, or 漂流 — and a short preview of the parsed blocks.
 final class MacImportSheet: NSObject {
     let document: BookImportDocument
     let window: NSWindow
@@ -79,13 +79,17 @@ final class MacImportSheet: NSObject {
     let targetPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let categoryPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let categoryLabel = NSTextField(labelWithString: "分类")
+    /// 故事线 for 章节: none, or a live storyline the chapter joins as 主线.
+    let storylinePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let storylineLabel = NSTextField(labelWithString: "故事线")
     let preview = NSTextField(wrappingLabelWithString: "")
     let summary = NSTextField(labelWithString: "")
     let importButton = NSButton(title: "导入", target: nil, action: nil)
     let cancelButton = NSButton(title: "取消", target: nil, action: nil)
     private let message = NSTextField(wrappingLabelWithString: "")
     private var categories: [WorkspaceElementCategory]?
-    var onImport: ((String, BookImportTarget) -> Void)?
+    /// The title, the target and, for a chapter, the storyline it joins.
+    var onImport: ((String, BookImportTarget, String?) -> Void)?
     var onCancel: (() -> Void)?
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
@@ -119,6 +123,9 @@ final class MacImportSheet: NSObject {
         categoryPopup.addItem(withTitle: "正在读取分类…")
         categoryPopup.isEnabled = false
         categoryLabel.textColor = .secondaryLabelColor
+        storylineLabel.textColor = .secondaryLabelColor
+        storylinePopup.setAccessibilityIdentifier("import-storyline")
+        MacImportSheet.fill(storylinePopup, with: [])
         preview.font = .systemFont(ofSize: 12)
         preview.textColor = .secondaryLabelColor
         preview.maximumNumberOfLines = 9
@@ -137,7 +144,7 @@ final class MacImportSheet: NSObject {
         cancelButton.target = self; cancelButton.action = #selector(cancel)
         cancelButton.keyEquivalent = "\u{1b}"
         cancelButton.setAccessibilityIdentifier("cancel-import")
-        let targetRow = NSStackView(views: [targetPopup, categoryLabel, categoryPopup])
+        let targetRow = NSStackView(views: [targetPopup, categoryLabel, categoryPopup, storylineLabel, storylinePopup])
         targetRow.spacing = 8
         let grid = NSGridView(views: [[label("标题"), titleField], [label("导入为"), targetRow]])
         grid.rowSpacing = 10; grid.columnSpacing = 10
@@ -203,6 +210,37 @@ final class MacImportSheet: NSObject {
         }
     }
 
+    /// 不加入故事线, then live storylines in their order.
+    static func fill(_ popup: NSPopUpButton, with storylines: [WorkspaceStoryline]) {
+        let selected = popup.selectedItem?.representedObject as? String
+        popup.removeAllItems()
+        popup.addItem(withTitle: "不加入故事线")
+        popup.lastItem?.setAccessibilityIdentifier("import-storyline-none")
+        for storyline in storylines {
+            popup.addItem(withTitle: storyline.name)
+            popup.lastItem?.representedObject = storyline.id
+            popup.lastItem?.image = ElementSwatch.image(color: ElementSwatch.color(hex: storyline.color))
+            popup.lastItem?.setAccessibilityIdentifier("import-storyline-\(storyline.id)")
+        }
+        if let selected, let index = popup.itemArray.firstIndex(where: { $0.representedObject as? String == selected }) {
+            popup.selectItem(at: index)
+        }
+    }
+
+    /// Live storylines a chapter may join.
+    func setStorylines(_ storylines: [WorkspaceStoryline]) {
+        Self.fill(storylinePopup, with: storylines)
+        targetChanged()
+    }
+
+    func select(storylineID: String?) {
+        let index = storylinePopup.itemArray.firstIndex { $0.representedObject as? String == storylineID } ?? 0
+        storylinePopup.selectItem(at: index)
+    }
+
+    /// The storyline a chapter joins; nil for none.
+    var selectedStorylineID: String? { selectedKind == "chapter" ? storylinePopup.selectedItem?.representedObject as? String : nil }
+
     /// Live categories for the 设定 target, in library order.
     func setCategories(_ categories: [WorkspaceElementCategory]) {
         self.categories = categories
@@ -221,6 +259,9 @@ final class MacImportSheet: NSObject {
         let element = selectedKind == "element"
         categoryLabel.isHidden = !element
         categoryPopup.isHidden = !element
+        let chapter = selectedKind == "chapter"
+        storylineLabel.isHidden = !chapter
+        storylinePopup.isHidden = !chapter
         categoryPopup.isEnabled = element && categories?.isEmpty == false
         if element, categories?.isEmpty == true {
             showError("还没有设定分类。请先在设定库中新建一个分类，例如“人物”。")
@@ -253,7 +294,7 @@ final class MacImportSheet: NSObject {
         default: target = .chapter
         }
         showError(nil)
-        onImport?(title, target)
+        onImport?(title, target, selectedStorylineID)
     }
     @objc func cancel() { onCancel?() }
 }
@@ -273,10 +314,13 @@ private final class ImportPreviewWash: NSView {
 /// author confirm title and target, creates the entity with its body in
 /// Rust and opens its page. Export writes Rust's text as UTF-8.
 final class MacBookTransfer {
-    private let workspace: LabWorkspaceCore
-    private let host: MacChapterWorkspace
-    /// Chooses a source file; nil uses an open panel. Acceptance answers here.
+    let workspace: LabWorkspaceCore
+    let host: MacChapterWorkspace
+    /// Chooses one source file; acceptance answers here. Without it (and
+    /// `chooseImportFiles`) an open panel takes several files or a folder.
     var chooseImportFile: ((NSWindow?, @escaping (URL?) -> Void) -> Void)?
+    /// Chooses several files and folders; acceptance answers here.
+    var chooseImportFiles: ((NSWindow?, @escaping ([URL]) -> Void) -> Void)?
     /// Chooses a destination and format; nil uses a save panel with a
     /// format popup. Acceptance answers here.
     var chooseExportDestination: ((NSWindow?, String, @escaping ((URL, BookExportFormat)?) -> Void) -> Void)?
@@ -285,8 +329,10 @@ final class MacBookTransfer {
     /// updates its lists. Workspace libraries are read again here.
     var onImported: ((WorkspaceProject, WorkspaceImportedEntity) -> Void)?
     private(set) var importSheet: MacImportSheet?
+    /// The sheet for several files or a folder.
+    var bulkSheet: MacBulkImportSheet?
     /// The project the open import sheet writes into.
-    private var importProjectID: String?
+    var importProjectID: String?
     private(set) var isExporting = false
 
     static let importTypes: [UTType] = [UTType(filenameExtension: "md"), UTType(filenameExtension: "markdown"), .plainText,
@@ -306,22 +352,30 @@ final class MacBookTransfer {
         return document
     }
 
+    /// One file opens the single-file sheet; several files or a folder open
+    /// the sheet that imports them all.
     func beginImport(project: WorkspaceProject, window: NSWindow?) {
-        guard importSheet == nil else { importSheet?.window.makeKeyAndOrderFront(nil); return }
-        let finish: (URL?) -> Void = { [weak self] url in
-            guard let self, let url else { return }
-            do { self.present(try Self.read(url), project: project, window: window) }
-            catch { self.onStatus?(error.localizedDescription) }
+        if let sheet = importSheet { sheet.window.makeKeyAndOrderFront(nil); return }
+        if let sheet = bulkSheet { sheet.window.makeKeyAndOrderFront(nil); return }
+        let finish: ([URL]) -> Void = { [weak self] urls in
+            guard let self, !urls.isEmpty else { return }
+            if urls.count == 1, !Self.isFolder(urls[0]) {
+                do { self.present(try Self.read(urls[0]), project: project, window: window) }
+                catch { self.onStatus?(error.localizedDescription) }
+            } else {
+                self.presentBulk(Self.items(urls), project: project, window: window)
+            }
         }
-        if let chooseImportFile { chooseImportFile(window, finish); return }
+        if let chooseImportFile { chooseImportFile(window) { finish($0.map { [$0] } ?? []) }; return }
+        if let chooseImportFiles { chooseImportFiles(window, finish); return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = Self.importTypes
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = "选择 Markdown、纯文本或 Word（.docx）文件，导入为新的章节、设定或漂流。"
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.message = "选择一个或多个 Markdown、纯文本或 Word（.docx）文件，或一个文件夹，导入为新的章节、设定或漂流。"
         panel.prompt = "选择"
-        if let window { panel.beginSheetModal(for: window) { if $0 == .OK { finish(panel.url) } } }
-        else if panel.runModal() == .OK { finish(panel.url) }
+        if let window { panel.beginSheetModal(for: window) { if $0 == .OK { finish(panel.urls) } } }
+        else if panel.runModal() == .OK { finish(panel.urls) }
     }
 
     private func present(_ document: BookImportDocument, project: WorkspaceProject, window: NSWindow?) {
@@ -334,11 +388,15 @@ final class MacBookTransfer {
             case .failure(let error): sheet?.setCategories([]); sheet?.showError(error.localizedDescription)
             }
         }
+        workspace.storylineLibrary(projectID: project.id) { [weak sheet] result in
+            sheet?.setStorylines((try? result.get())?.storylines ?? [])
+        }
         sheet.onCancel = { [weak self] in self?.endImport() }
-        sheet.onImport = { [weak self, weak sheet] title, target in
+        sheet.onImport = { [weak self, weak sheet] title, target, storylineID in
             guard let self, let sheet else { return }
             sheet.setImporting(true)
-            self.workspace.importBlocks(projectID: project.id, title: title, target: target, blocks: document.blocks) { [weak self, weak sheet] result in
+            self.importOne(project: project, title: title, target: target, storylineID: storylineID,
+                           blocks: document.blocks) { [weak self, weak sheet] result in
                 guard let self else { return }
                 sheet?.setImporting(false)
                 switch result {
@@ -353,6 +411,24 @@ final class MacBookTransfer {
         }
         if let window { window.beginSheet(sheet.window) }
         sheet.window.makeFirstResponder(sheet.titleField)
+    }
+
+    /// The single-file path every import takes: Rust creates the entity with
+    /// its body; a chapter then joins the storyline as its 主线. A failed join
+    /// keeps the chapter and says so.
+    func importOne(project: WorkspaceProject, title: String, target: BookImportTarget, storylineID: String?,
+                   blocks: [BookImportBlock], completion: @escaping (Result<WorkspaceImportedEntity, Error>) -> Void) {
+        workspace.importBlocks(projectID: project.id, title: title, target: target, blocks: blocks) { [weak self] result in
+            guard let self, case .success(.chapter(let chapter)) = result, let storylineID else { completion(result); return }
+            self.workspace.setChapterStorylines(projectID: project.id, chapterID: chapter.id, storylineIDs: [storylineID],
+                                                primary: storylineID) { [weak self] joined in
+                if case .failure(let error) = joined {
+                    self?.onStatus?("已导入“\(chapter.title)”，但未能加入故事线：\(error.localizedDescription)")
+                }
+                self?.host.storylinesChanged(projectID: project.id)
+                completion(result)
+            }
+        }
     }
 
     /// Lists learn about the new entity and its page opens once every open
@@ -387,9 +463,11 @@ final class MacBookTransfer {
 
     /// Closes the import sheet; with a project, only a sheet importing into it.
     func endImport(projectID: String? = nil) {
-        guard let sheet = importSheet, projectID == nil || projectID == importProjectID else { return }
-        importSheet = nil; importProjectID = nil
-        if let parent = sheet.window.sheetParent { parent.endSheet(sheet.window) } else { sheet.window.orderOut(nil) }
+        guard projectID == nil || projectID == importProjectID else { return }
+        let window = importSheet?.window ?? bulkSheet?.window
+        importSheet = nil; bulkSheet = nil; importProjectID = nil
+        guard let window else { return }
+        if let parent = window.sheetParent { parent.endSheet(window) } else { window.orderOut(nil) }
     }
 
     /// Asks for a destination and format, then writes the book.

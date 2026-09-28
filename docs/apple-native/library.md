@@ -78,7 +78,8 @@ image dropped on it replaces the portrait; anything else is refused before Rust.
 Every open page of the element, and the 设定库 rows (a small portrait beside the
 name), follow the reply.
 
-文件 › 导入… (⇧⌘O) reads one Markdown, text or Word file into blocks on the host.
+文件 › 导入… (⇧⌘O) takes one or more Markdown, text and Word files, or a folder,
+and reads each into blocks on the host.
 Text: paragraphs split at blank lines with their lines joined (no space between
 CJK characters); a file without blank lines keeps one paragraph per line.
 Markdown, line by line: front matter and rules are dropped, `#`–`###` (and
@@ -90,10 +91,24 @@ Office Open XML reader, one block per paragraph keeping bold and italic runs
 (a heading's own whole-text style is dropped); only a short paragraph without
 closing punctuation at least 1.25× the body size (or with a header level)
 becomes a heading. The title guess is the first `#` heading or first line
-(Markdown), the first line (text) or the file name (Word). A sheet shows the
-editable title, 导入为 章节, 设定 (with a 分类 popup; none refuses) or 漂流, the
-block count and a preview; 导入 creates the entity and opens its page once
-every open body is idle, and lists and links read the new entity.
+(Markdown), the first line (text) or the file name (Word). For one file a
+sheet shows the editable title, 导入为 章节 (with an optional 故事线 it joins as
+主线), 设定 (with a 分类 popup; none refuses) or 漂流, the block count and a
+preview; 导入 creates the entity and opens its page once every open body is
+idle, and lists and links read the new entity.
+
+Several files, or a folder, open one sheet for all of them. It lists every
+file sorted by name as the Finder sorts (第2章 before 第10章) with its format
+and block count; a folder contributes its Markdown, text and Word files (not
+subfolders, hidden or other files, which the summary counts), and a chosen
+file of another kind, an empty or unreadable file is listed as skipped with
+the reason. One target applies to all: 章节 with an optional 故事线, 设定 with
+a 分类, or 漂流. 导入 imports the files one after another through the
+single-file path, each with its guessed title (a chapter then joins the
+storyline), and each line then reads 已创建「标题」 or 跳过 with Rust's
+refusal (for example a 设定 name already used). The summary counts created and
+skipped files and 完成 closes the sheet; lists and libraries learn about the
+new entities and no page opens.
 
 文件 › 导出全书… asks for a destination in a save panel whose 格式 popup offers
 Markdown (.md) or 纯文本 (.txt), then writes Rust's text as UTF-8. Queued input
@@ -111,6 +126,14 @@ Every path is checked before the first byte: absolute, `..`, `.`, empty or
 backslashed components, and duplicates refuse the whole export. Files are
 UTF-8 in subfolders, never overwriting. An alert reports the count and offers
 在访达中显示. Reading writes no journal row; images and PDFs are not included.
+
+文件 › 导出全部项目为 Markdown 文件夹… asks for a location, creates a new
+`全部项目-<yyyy-MM-dd>` folder there (`-2`, `-3` … when it exists) and writes
+every project's archive into its own folder inside it, exactly as the
+single-project export does (the same path checks, `<项目名>-<yyyy-MM-dd>`
+naming, `-2` for a second project of the same name). A project that fails is
+named with its reason while the others still export; an alert lists each
+project's folder and file count with the total and offers 在访达中显示.
 
 ## Printing and PDF
 
@@ -176,6 +199,13 @@ headings and paragraphs, export Markdown and text, and reopen cold with the
 library, portrait and bodies intact. Reordering and 关联 are covered by the
 [review](review.md) cases (`--review-only`). Physical drag and drop, the open
 and save panels, the Quick Look window and devices are not covered.
+`--small-items-only` chooses five files (two Markdown, a text file, a PNG and
+an empty file) and imports them as chapters of a storyline, then a folder
+with Markdown, text, a Word document written by AppKit, a PDF, a hidden file
+and a subfolder as 设定 of a category (one refused as a used name) and as
+漂流, checking the listed order, reasons, results, bodies, memberships and
+journal; it exports three projects (two with the same name) twice and
+compares every project folder with its archive, with no journal row.
 `--trash-shelf-only` exports a Markdown folder into a temporary folder twice
 (the second with `-2`), compares every written file with the archive, checks
 subfolders, front matter and wiki links, 在访达中显示 and that no journal row

@@ -40,10 +40,15 @@ a chapter's or drift's status at that time, why the version was kept (自动保�
 关闭时 or 恢复前) and its word count (“1,234 字”), and the first words. Older
 versions without a reason or count show neither. The preview's heading
 repeats both. The preview
-shows the selected version read-only, compared with the current body
-paragraph by paragraph (a replaced paragraph refined to its changed middle):
-text the current body lacks on a green wash, text the version lacks struck
-through, an identical version said as such. 标出与当前正文的差异 turns the marks
+shows the selected version read-only in the editors' typography with its
+formatting — headings, bold, italic, underline, strike, URL and entity links,
+alignment and block indent — from `workspaceHistory {"action":"preview"}`
+(the version's native projection, read when it is first selected; a version
+of another body is refused with “不属于”, and a failed read shows plain text).
+It is compared with the current body paragraph by paragraph (a replaced
+paragraph refined to its changed middle): text the current body lacks on a
+green wash in its own formatting, text the version lacks inserted struck
+through in the style around it, an identical version said as such. 标出与当前正文的差异 turns the marks
 off. 恢复此版本… confirms that the current text is first kept as a version, that
 only the body changes and that 撤销 undoes it. An open editor adopts the
 restored state in place, as an accepted Agent revision does; its queued input
@@ -66,4 +71,8 @@ marked and plain preview; a restore into an open chapter (one `yjs.update
 prose-document` original, the editor updated, one undo step and redo, and a
 later restore over newer text keeping it as 恢复前) and into a closed chapter
 and an open element page; and refusals of a foreign or missing version, queued input and a
-cancelled confirmation, all without changes.
+cancelled confirmation, all without changes. `--small-items-only` previews a
+closed version with a heading, bold, italic, underline, strike, a URL link,
+a centred and an indented paragraph against a changed body, checks each
+attribute and the diff marks, the plain version with marks off, and a
+foreign version's refusal.

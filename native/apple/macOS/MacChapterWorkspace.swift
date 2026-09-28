@@ -236,6 +236,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private var elementRereads: Set<String> = []
     /// Per project, the word counts pages, lists and the status line show.
     private var wordCountModels: [String: WordCountModel] = [:]
+    /// Per project, each element's body text as category pages last read it,
+    /// for 已填写 and 未填写.
+    private var elementBodies: [String: [String: String]] = [:]
+    /// A category page's element bodies are read again after this pause.
+    private var elementBodyRefresh: [String: DispatchWorkItem] = [:]
+    /// Element body scopes by the revision their last settled save had.
+    private var elementRevisions: [DocumentScope: UInt64] = [:]
+    static var elementBodyDelay: TimeInterval = 0.3
     /// The body revision each chapter or drift scope was last counted at.
     private var countedRevisions: [DocumentScope: UInt64] = [:]
     private(set) var activePane = 0
@@ -298,6 +306,16 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var plotPlannerSettings: LabSettingsStore?
     /// A page's 情节规划格 was shown or hidden (视图 › 情节规划格 follows).
     var onPlotPlanner: (() -> Void)?
+    /// Where storyline and category pages remember their list filter; nil
+    /// remembers it for the page only.
+    var listFilterSettings: LabSettingsStore?
+    /// Asks for a new chapter's title in a storyline (nil: cancelled); nil
+    /// uses an alert on the window. Acceptance answers here.
+    var askChapterTitle: ((NSWindow?, WorkspaceStoryline, @escaping (String?) -> Void) -> Void)?
+    /// A chapter was created here (a storyline's 新建章节), before its tab
+    /// opens: the caller lists it. With nil, Rust created it but a later step
+    /// failed, and the caller reads its chapters again.
+    var onChapterCreated: ((WorkspaceProject, WorkspaceChapter?) -> Void)?
     /// A drift became a chapter or an element. Its tabs were already
     /// replaced and the drift, chapter, storyline and element lists read;
     /// views outside the tabs follow.
@@ -578,11 +596,23 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func prepare(_ tab: Tab) {
         let projectID = tab.project.id
         ensureLinkSources(projectID: projectID)
-        if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
+        if let page = tab.storylinePage {
+            if let storyline = tab.storyline {
+                page.chaptersView.setFilter(listFilter(projectID: projectID, page: "storyline:\(storyline.id)"))
+            }
+            showChapters(of: page, projectID: projectID)
+            loadChapterTemplate(of: tab)
+        }
         if let page = tab.driftPage { showAct(of: page, projectID: projectID) }
         loadMetadata(of: tab); showWordCount(of: tab); showPlotDock(of: tab)
         if tab.page != nil { showPortrait(of: tab) }
-        if tab.categoryPage != nil { showCategory(of: tab); loadTemplate(of: tab) }
+        if tab.categoryPage != nil {
+            if let category = tab.category {
+                tab.categoryPage?.elementsView.setFilter(listFilter(projectID: projectID, page: "category:\(category.id)"))
+            }
+            showCategory(of: tab); loadTemplate(of: tab)
+            refreshElementBodies(projectID: projectID)
+        }
     }
 
     /// A page opened before any library reply still needs the category
@@ -1025,6 +1055,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Every open chapter and drift page of the project shows its count.
     private func applyWordCounts(projectID: String, library: WordCountLibrary) {
         for tab in allTabs where tab.project.id == projectID { showWordCount(of: tab) }
+        for tab in allTabs where tab.project.id == projectID {
+            if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
+        }
         for home in homes(projectID: projectID) { home.model.applyWordCounts(library) }
         onWordCounts?(projectID, library)
     }
@@ -1100,9 +1133,184 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         let titles = Dictionary(chapters.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let id = page.storyline.id
+        let counts = wordCountModels[projectID]?.library
         page.showChapters(library.chapters(storylineID: id).compactMap { membership in
-            titles[membership.chapterId].map { StorylineChaptersView.Entry(chapter: $0, primary: membership.primary == id) }
+            titles[membership.chapterId].map {
+                StorylineChaptersView.Entry(chapter: $0, primary: membership.primary == id, words: counts?.count(nodeID: $0.id))
+            }
         })
+    }
+
+    // MARK: 章节模版, new chapters in a storyline and list filters
+
+    /// Reads the storyline's 章节模版 into its page.
+    private func loadChapterTemplate(of tab: Tab) {
+        guard let storyline = tab.storyline, let page = tab.storylinePage else { return }
+        workspace.storylineChapterTemplate(projectID: tab.project.id, storylineID: storyline.id) { [weak page] result in
+            switch result {
+            case .success(let blocks): page?.showTemplate(blocks)
+            case .failure(let error): page?.showTemplateUnavailable(error)
+            }
+        }
+    }
+
+    /// Writes the 章节模版, then reads it back as stored: every open page of
+    /// the storyline shows it (the blocks as sent if the read fails, since
+    /// the write committed), and the 故事线 panel adopts the reply's library.
+    private func saveChapterTemplate(_ tab: Tab, blocks: [BookImportBlock],
+                                     completion: @escaping (Result<[BookImportBlock], Error>) -> Void) {
+        guard let storyline = tab.storyline else { completion(.failure(LabError.message("这个标签不是故事线页面。"))); return }
+        let projectID = tab.project.id
+        workspace.setStorylineChapterTemplate(projectID: projectID, storylineID: storyline.id, blocks: blocks) { [weak self] result in
+            switch result {
+            case .failure(let error): completion(.failure(error))
+            case .success(let reply):
+                guard let self else { completion(.failure(LabError.message("故事线页面已关闭。"))); return }
+                self.applyStorylineLibrary(projectID: projectID, library: reply.library)
+                self.onStorylineLibrary?(projectID, reply.library)
+                self.workspace.storylineChapterTemplate(projectID: projectID, storylineID: storyline.id) { [weak self] stored in
+                    let shown = (try? stored.get()) ?? blocks
+                    for tab in self?.allTabs ?? [] where tab.project.id == projectID && tab.storyline?.id == storyline.id {
+                        tab.storylinePage?.showTemplate(shown)
+                    }
+                    completion(.success(shown))
+                }
+            }
+        }
+    }
+
+    /// 新建章节 in a storyline (its page, or the 故事线 panel): asks for the
+    /// title, then Rust creates the chapter with the storyline as its 主线 and
+    /// its body from the 章节模版. The chapter is listed, the storylines are
+    /// read again and it opens in `pane` (the active pane with nil).
+    func createChapter(project: WorkspaceProject, storyline: WorkspaceStoryline, in pane: Int? = nil,
+                       completion: ((Result<WorkspaceChapter, Error>) -> Void)? = nil) {
+        guard canNavigate else {
+            completion?(.failure(LabError.message("请先完成输入，并等待正文保存后再新建章节。"))); return
+        }
+        let ask = askChapterTitle ?? { [weak self] window, storyline, done in self?.presentChapterTitle(window, storyline, done) }
+        ask(window, storyline) { [weak self] title in
+            guard let self else { return }
+            guard let title else { completion?(.failure(LabError.message(Self.chapterCreationCancelled))); return }
+            let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { completion?(.failure(LabError.message("章节标题不能为空。"))); return }
+            self.workspace.createChapter(projectID: project.id, title: name, storylineID: storyline.id) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .failure(let error):
+                    // Rust created the chapter before a later step failed.
+                    if error.localizedDescription.hasPrefix("章节「") {
+                        self.onChapterCreated?(project, nil)
+                        self.chaptersChanged(projectID: project.id)
+                    }
+                    self.onError?(error)
+                    completion?(.failure(error))
+                case .success(let chapter):
+                    self.onChapterCreated?(project, chapter)
+                    self.chaptersChanged(projectID: project.id)
+                    self.storylinesChanged(projectID: project.id)
+                    self.open(project: project, chapter: chapter, in: pane.flatMap { $0 < self.panes.count ? $0 : nil }) { [weak self] opened in
+                        switch opened {
+                        case .success: completion?(.success(chapter))
+                        case .failure(let error): self?.onError?(error); completion?(.failure(error))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The reason `createChapter` reports when the title prompt was cancelled.
+    static let chapterCreationCancelled = "已取消新建章节。"
+
+    private func presentChapterTitle(_ window: NSWindow?, _ storyline: WorkspaceStoryline, _ done: @escaping (String?) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "在“\(storyline.name)”中新建章节"
+        alert.informativeText = "新章节以这条故事线为主线，正文从它的章节模版开始。"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 28))
+        field.placeholderString = "章节标题"
+        field.setAccessibilityIdentifier("new-storyline-chapter-title")
+        alert.accessoryView = field
+        alert.addButton(withTitle: "创建").setAccessibilityIdentifier("confirm-storyline-chapter")
+        alert.addButton(withTitle: "取消")
+        let finish: (NSApplication.ModalResponse) -> Void = { done($0 == .alertFirstButtonReturn ? field.stringValue : nil) }
+        if let window { alert.beginSheetModal(for: window, completionHandler: finish) } else { finish(alert.runModal()) }
+        alert.window.makeFirstResponder(field)
+    }
+
+    private func listFilter(projectID: String, page: String) -> String {
+        listFilterSettings?.listFilter(projectID: projectID, page: page) ?? ListFilter.all
+    }
+
+    /// Remembers a page's filter; every other open view of the page follows.
+    private func setListFilter(_ filter: String, project: WorkspaceProject, page: String) {
+        listFilterSettings?.setListFilter(filter, projectID: project.id, page: page)
+        for tab in allTabs where tab.project.id == project.id {
+            if let storyline = tab.storyline, page == "storyline:\(storyline.id)", tab.storylinePage?.chaptersView.filter != filter {
+                tab.storylinePage?.chaptersView.setFilter(filter)
+            }
+            if let category = tab.category, page == "category:\(category.id)", tab.categoryPage?.elementsView.filter != filter {
+                tab.categoryPage?.elementsView.setFilter(filter)
+            }
+        }
+    }
+
+    /// A category page's 设定 with 已填写 from the bodies read last; an
+    /// element whose body (or the page's template) is not read yet is unknown.
+    private func showElements(of tab: Tab) {
+        guard let page = tab.categoryPage, let category = tab.category else { return }
+        guard let library = linkSources[tab.project.id]?.library else { page.elementsView.showMessage("正在读取设定…"); return }
+        let bodies = elementBodies[tab.project.id] ?? [:]
+        let templateText = page.template.map { $0.map(\.text).joined(separator: "\n") }
+        page.elementsView.show(library.elements.filter { $0.categoryId == category.id }.map { element in
+            let filled = templateText.flatMap { template in
+                bodies[element.id].map {
+                    CategoryElementsView.isFilled(element, bodyText: $0, templateText: template, templateFacts: category.templateFacts)
+                }
+            }
+            return CategoryElementsView.Entry(element: element, filled: filled)
+        })
+    }
+
+    /// Reads the bodies of the elements open category pages list (a read
+    /// only: live text from an open owner, else stored), after a pause.
+    private func refreshElementBodies(projectID: String) {
+        elementBodyRefresh[projectID]?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.elementBodyRefresh[projectID] = nil
+            let categories = Set(self.allTabs.filter { $0.project.id == projectID }.compactMap { $0.category?.id })
+            guard !categories.isEmpty, let library = self.linkSources[projectID]?.library else { return }
+            let ids = library.elements.filter { $0.categoryId.map(categories.contains) ?? false }.map(\.id)
+            self.readElementBodies(projectID: projectID, ids: ids[...], read: [:])
+        }
+        elementBodyRefresh[projectID] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.elementBodyDelay, execute: work)
+    }
+
+    private func readElementBodies(projectID: String, ids: ArraySlice<String>, read: [String: String]) {
+        guard let id = ids.first else {
+            elementBodies[projectID, default: [:]].merge(read) { _, new in new }
+            for tab in allTabs where tab.project.id == projectID && tab.categoryPage != nil { showElements(of: tab) }
+            return
+        }
+        workspace.agentReadProse(projectID: projectID, kind: "element", id: id) { [weak self] result in
+            var next = read
+            // An unreadable body counts as empty rather than blocking the list.
+            next[id] = (try? result.get().text) ?? ""
+            self?.readElementBodies(projectID: projectID, ids: ids.dropFirst(), read: next)
+        }
+    }
+
+    /// An element body settled at a new revision: category pages of the
+    /// project read their bodies again.
+    private func elementBodySaved(_ tab: Tab) {
+        guard tab.element != nil, let revision = tab.view.binding.state?.projection.revision,
+              elementRevisions[tab.scope] != revision else { return }
+        let first = elementRevisions[tab.scope] == nil
+        elementRevisions[tab.scope] = revision
+        guard !first, allTabs.contains(where: { $0.project.id == tab.project.id && $0.categoryPage != nil }) else { return }
+        refreshElementBodies(projectID: tab.project.id)
     }
 
     // MARK: Drifts
@@ -1234,6 +1442,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             if let category = tab.category, let stored = library.categories.first(where: { $0.id == category.id }) {
                 tab.target = .category(stored)
                 tab.categoryPage?.apply(category: stored, elementCount: library.elements.filter { $0.categoryId == stored.id }.count)
+                showElements(of: tab)
                 continue
             }
             guard let element = tab.element, let stored = library.elements.first(where: { $0.id == element.id }) else { continue }
@@ -1243,6 +1452,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         refreshTabs(); onChange?()
         let previous = linkSources[projectID]?.library
         linkSources[projectID, default: LinkSources()].library = library
+        if allTabs.contains(where: { $0.project.id == projectID && $0.categoryPage != nil }) {
+            refreshElementBodies(projectID: projectID)
+        }
         if refreshDormant(projectID: projectID) { refreshTabs() }
         updateLinkDirectory(projectID: projectID)
         if previous.map(EntityLinkDirectory.linkNames) != EntityLinkDirectory.linkNames(library) {
@@ -1305,11 +1517,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Reads the category's element template into its page.
     private func loadTemplate(of tab: Tab) {
         guard let category = tab.category, let page = tab.categoryPage else { return }
-        workspace.elementTemplate(projectID: tab.project.id, categoryID: category.id) { [weak page] result in
+        workspace.elementTemplate(projectID: tab.project.id, categoryID: category.id) { [weak self, weak page, weak tab] result in
             switch result {
             case .success(let blocks): page?.showTemplate(blocks)
             case .failure(let error): page?.showTemplateUnavailable(error)
             }
+            if let self, let tab { self.showElements(of: tab) }
         }
     }
 
@@ -1331,6 +1544,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     let shown = (try? stored.get()) ?? blocks
                     for tab in self?.allTabs ?? [] where tab.project.id == projectID && tab.category?.id == category.id {
                         tab.categoryPage?.showTemplate(shown)
+                        self?.showElements(of: tab)
                     }
                     completion(.success(shown))
                 }
@@ -3454,6 +3668,22 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     self.workspace.setStorylineFacts(projectID: $0, storylineID: $1, facts: facts, completion: $2)
                 }
             }
+            page.onSaveTemplate = { [weak self, weak tab] blocks, done in
+                guard let self, let tab else { done(.failure(LabError.message("故事线页面已关闭，模版未保存。"))); return }
+                self.saveChapterTemplate(tab, blocks: blocks, completion: done)
+            }
+            page.onCreateChapter = { [weak self, weak tab] in
+                guard let self, let tab, let storyline = tab.storyline else { return }
+                self.activate(tab: tab)
+                self.createChapter(project: tab.project, storyline: storyline, in: self.pane(of: tab)) { [weak tab] result in
+                    guard case .failure(let error) = result, error.localizedDescription != Self.chapterCreationCancelled else { return }
+                    tab?.storylinePage?.showMessage(error.localizedDescription)
+                }
+            }
+            page.onFilterChange = { [weak self, weak tab] filter in
+                guard let self, let tab, let storyline = tab.storyline else { return }
+                self.setListFilter(filter, project: tab.project, page: "storyline:\(storyline.id)")
+            }
         } else if let page = tab.driftPage {
             page.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             page.onCommit = { [weak self, weak tab] changes, done in
@@ -3493,6 +3723,16 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             page.onCreateElement = { [weak self, weak tab] in
                 if let self, let tab { self.createElement(from: tab) }
             }
+            page.onOpenElement = { [weak self, weak tab] element in
+                guard let self, let tab, let index = self.pane(of: tab) else { return }
+                self.open(project: tab.project, element: element, in: index) { [weak self] result in
+                    if case .failure(let error) = result { self?.onError?(error) }
+                }
+            }
+            page.onFilterChange = { [weak self, weak tab] filter in
+                guard let self, let tab, let category = tab.category else { return }
+                self.setListFilter(filter, project: tab.project, page: "category:\(category.id)")
+            }
         } else {
             tab.chapterPage?.metadataEditor.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             tab.view.onComments = { [weak self, weak view = tab.view] in
@@ -3522,7 +3762,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.resolveSearchReveal()
             // Settled chapter prose may add or remove references.
             if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
-            if !busy, let tab { self.countSavedBody(of: tab) }
+            if !busy, let tab { self.countSavedBody(of: tab); self.elementBodySaved(tab) }
             self.onActivity?(!self.canNavigate)
         }
     }
@@ -3555,14 +3795,17 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.mentionSource = nil; tab.view.onCreateElement = nil
         tab.page?.onFocus = nil; tab.page?.onCommit = nil; tab.page?.onCommitFacts = nil
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onOpenBacklinkSource = nil; tab.page?.onSetPortrait = nil
+        tab.storylinePage?.endTemplateSheet()
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
-        tab.storylinePage?.onOpenChapter = nil
+        tab.storylinePage?.onOpenChapter = nil; tab.storylinePage?.onSaveTemplate = nil
+        tab.storylinePage?.onCreateChapter = nil; tab.storylinePage?.onFilterChange = nil
         tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil; tab.driftPage?.onConvert = nil
         tab.plotToggle?.onToggle = nil
         tab.showPlotDock(nil)
         tab.categoryPage?.endTemplateSheet()
         tab.categoryPage?.onFocus = nil; tab.categoryPage?.onCommit = nil; tab.categoryPage?.onCommitFacts = nil
         tab.categoryPage?.onSaveTemplate = nil; tab.categoryPage?.onCreateElement = nil
+        tab.categoryPage?.onOpenElement = nil; tab.categoryPage?.onFilterChange = nil
         tab.metadataEditor?.onCommit = nil; tab.chapterPage?.metadataEditor.onFocus = nil
         _ = tab.view.binding.detach(); tab.content.removeFromSuperview()
     }

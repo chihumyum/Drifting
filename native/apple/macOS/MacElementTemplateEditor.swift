@@ -495,11 +495,35 @@ final class ElementTemplatePreviewView: NSView {
     }
 }
 
-/// Edits one category's element template in a sheet: the block rows, a live
-/// preview of how a new element's body starts, and 清空模版. Nothing is
-/// written until 保存; a refusal keeps the rows and shows the reason.
+/// Edits a body template in a sheet: a category's 新设定模版 or a storyline's
+/// 章节模版. The block rows, a live preview of how a new body starts, and
+/// 清空模版. Nothing is written until 保存; a refusal keeps the rows and
+/// shows the reason.
 final class ElementTemplateSheet: NSObject {
-    let category: WorkspaceElementCategory
+    /// What the sheet says: its title, the explanation and the preview's caption.
+    struct Texts {
+        var windowTitle: String
+        var title: String
+        var explanation: String
+        var previewTitle: String
+        var clearTooltip: String
+
+        /// A category's 新设定模版.
+        static func category(_ name: String) -> Texts {
+            Texts(windowTitle: "新设定模版", title: "“\(name)”的新设定模版",
+                  explanation: "之后在“\(name)”中新建的设定，正文会从这份模版开始。已有的设定不会改变。",
+                  previewTitle: "预览 · 新设定的正文", clearTooltip: "移除所有段落；保存后新设定的正文从空白开始")
+        }
+
+        /// A storyline's 章节模版.
+        static func storyline(_ name: String) -> Texts {
+            Texts(windowTitle: "章节模版", title: "“\(name)”的章节模版",
+                  explanation: "之后在“\(name)”中新建的章节会加入这条故事线，正文从这份模版开始。已有的章节不会改变。",
+                  previewTitle: "预览 · 新章节的正文", clearTooltip: "移除所有段落；保存后新章节的正文从空白开始")
+        }
+    }
+
+    let texts: Texts
     let window: NSWindow
     let editor = ElementTemplateEditor()
     let preview = ElementTemplatePreviewView(scale: 1, maximumHeight: 220)
@@ -513,16 +537,19 @@ final class ElementTemplateSheet: NSObject {
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
 
-    init(category: WorkspaceElementCategory, blocks: [BookImportBlock]) {
-        self.category = category
+    convenience init(category: WorkspaceElementCategory, blocks: [BookImportBlock]) {
+        self.init(texts: .category(category.name), blocks: blocks)
+    }
+
+    init(texts: Texts, blocks: [BookImportBlock]) {
+        self.texts = texts
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 520), styleMask: [.titled],
                           backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        window.title = "新设定模版"
-        explanation = NSTextField(wrappingLabelWithString:
-            "之后在“\(category.name)”中新建的设定，正文会从这份模版开始。已有的设定不会改变。")
+        window.title = texts.windowTitle
+        explanation = NSTextField(wrappingLabelWithString: texts.explanation)
         super.init()
-        let title = NSTextField(labelWithString: "“\(category.name)”的新设定模版")
+        let title = NSTextField(labelWithString: texts.title)
         title.font = .systemFont(ofSize: 15, weight: .semibold)
         title.lineBreakMode = .byTruncatingTail
         explanation.textColor = .secondaryLabelColor
@@ -530,7 +557,7 @@ final class ElementTemplateSheet: NSObject {
         let hint = NSTextField(wrappingLabelWithString: "选中一段中的文字后点加粗或斜体；没有选中时作用于整段。回车在下方添加段落。")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
-        let previewTitle = NSTextField(labelWithString: "预览 · 新设定的正文")
+        let previewTitle = NSTextField(labelWithString: texts.previewTitle)
         previewTitle.font = .systemFont(ofSize: 12, weight: .semibold)
         previewTitle.textColor = .secondaryLabelColor
         preview.setAccessibilityIdentifier("element-template-sheet-preview")
@@ -548,7 +575,7 @@ final class ElementTemplateSheet: NSObject {
         cancelButton.setAccessibilityIdentifier("cancel-element-template")
         clearButton.target = self; clearButton.action = #selector(clear)
         clearButton.setAccessibilityIdentifier("clear-element-template")
-        clearButton.toolTip = "移除所有段落；保存后新设定的正文从空白开始"
+        clearButton.toolTip = texts.clearTooltip
         let buttons = NSStackView(views: [clearButton, NSView(), cancelButton, saveButton])
         let stack = NSStackView(views: [title, explanation, editor, hint, previewTitle, preview, message, buttons])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
@@ -600,31 +627,42 @@ final class ElementTemplateSheet: NSObject {
     }
 }
 
-/// 新设定模版 on a category page: a preview of how a new element's body
-/// starts, with 编辑模版… opening the sheet. Typography and spacing only.
+/// 新设定模版 on a category page, or 章节模版 on a storyline page: a
+/// preview of how a new body starts, with 编辑模版… opening the sheet.
+/// Typography and spacing only.
 final class ElementTemplateSectionView: NSView {
-    private let title = NSTextField(labelWithString: "新设定模版")
+    private let title: NSTextField
     let detail = NSTextField(labelWithString: "")
     let editButton = NSButton(title: "编辑模版…", target: nil, action: nil)
     let preview = ElementTemplatePreviewView(scale: 0.8, maximumHeight: 150)
     var onEdit: (() -> Void)?
+    /// What a set template's detail says before its summary.
+    private let setDetail: String
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        setAccessibilityIdentifier("element-template-section")
+    /// A category's 新设定模版, with the `element-template` identifiers.
+    convenience override init(frame: NSRect) {
+        self.init(title: "新设定模版", identifier: "element-template", setDetail: "新建设定时正文从这里开始",
+                  editTooltip: "编辑之后新建的设定正文从哪里开始")
+    }
+
+    init(title text: String, identifier: String, setDetail: String, editTooltip: String) {
+        title = NSTextField(labelWithString: text)
+        self.setDetail = setDetail
+        super.init(frame: .zero)
+        setAccessibilityIdentifier("\(identifier)-section")
         title.font = .systemFont(ofSize: 12, weight: .semibold)
         title.textColor = .secondaryLabelColor
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .tertiaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
-        detail.setAccessibilityIdentifier("element-template-detail")
+        detail.setAccessibilityIdentifier("\(identifier)-detail")
         editButton.isBordered = false
         editButton.font = .systemFont(ofSize: 12)
         editButton.contentTintColor = .labAccent
         editButton.target = self; editButton.action = #selector(edit)
-        editButton.setAccessibilityIdentifier("edit-element-template")
-        editButton.toolTip = "编辑之后新建的设定正文从哪里开始"
-        preview.setAccessibilityIdentifier("element-template-preview")
+        editButton.setAccessibilityIdentifier("edit-\(identifier)")
+        editButton.toolTip = editTooltip
+        preview.setAccessibilityIdentifier("\(identifier)-preview")
         let header = NSStackView(views: [title, detail, NSView(), editButton])
         header.spacing = 8
         let stack = NSStackView(views: [header, preview])
@@ -647,7 +685,7 @@ final class ElementTemplateSectionView: NSView {
     }
 
     func show(_ blocks: [BookImportBlock]) {
-        detail.stringValue = blocks.isEmpty ? "未设置" : "新建设定时正文从这里开始 · \(ElementTemplateStyle.summary(blocks))"
+        detail.stringValue = blocks.isEmpty ? "未设置" : "\(setDetail) · \(ElementTemplateStyle.summary(blocks))"
         preview.show(blocks)
     }
 

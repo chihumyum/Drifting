@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T17:32:53.237Z",
+  "generatedAt": "2026-09-28T18:46:57.884Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "2f24cbb943b120db59097f9a07178aca16658e95",
+    "commit": "e754a7f7f664587a6a1d94fdfbe918f2368c28c7",
     "dirty": true,
-    "fingerprint": "57cc22b114345a6069114a1570f3763a056299e89767b6e892ff54d95d628d3f"
+    "fingerprint": "c149de64621c4ca6b4c2d25b4094642704b7e26bd5d6ee85346c750e63dff431"
   },
   "cases": [
     {
@@ -1036,6 +1036,34 @@
     },
     {
       "name": "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 章节模版 on a storyline page is edited in the template sheet (a heading, a paragraph with bold on a selected range, Return adding a row), writes one field.set storyline on 保存 and nothing when unchanged or cancelled, and 新建章节 on the page and 新建章节… in the 故事线 panel create the chapter with that storyline as its 主线 and its body from the template, listed on the page, told to the chapter list and opened; 清空模版 returns new chapters to an empty body, an unknown or trashed storyline is refused before anything is written, and templates and chapters survive a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit a storyline page filters its chapters by 全部, 已写 and 未起 from the canonical word counts (following typing in a chapter) and a category page lists its 设定 and filters them by 已填写 and 未填写 (简介, a 字段 value beyond the 模板字段, or body text beyond the 新设定模版, following a body edit); each page's filter is kept per page in settings.json, another view of the page follows, and both come back after a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 文件 › 导入… with several Markdown, text and Word files, and with a folder, lists the supported files sorted by name (a chosen image and an empty file skipped with their reasons, other folder files left out), imports each through the single-file path as chapters joining a chosen 故事线 as 主线, as 设定 of a chosen 分类 or as 漂流, and shows each file as created or skipped with Rust's reason, telling the lists without opening pages",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 文件 › 导出全部项目为 Markdown 文件夹… writes every project's archive (the same files as its own export) into its own folder inside a new 全部项目 folder named by the day, suffixes a second export and a second project of the same name, reports the projects and files with 在访达中显示, and writes nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 › 编辑器 段间距, 版心宽度, 打字机位置 and 自动链接设定名称 apply at once and persist in settings.json: paragraph spacing in every body's paragraph style (a hidden tab too) and the 全书长卷, a centred text column of the chosen width in pane editors and the 全书长卷's rows (a narrow pane keeps its margins), the caret line at the chosen height with 打字机滚动, and with linking off typed names get no new link while existing links stay, until linking is on again",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 reports its reading position (the row at the top and the offset into it) per project to settings.json after scrolling and on closing, a cold relaunch opens the book at that chapter and offset, another project keeps its own position, and a position whose chapter left the book opens at the top",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 历史版本 preview reads the selected version from Rust's projection and sets it with its headings, bold, italic, underline, strike, URL links, centred alignment and block indent, keeps marking text the current body lacks on a green wash and striking text the version lacks, falls back to plain text when the marks are off, and another body's version is refused",
       "status": "passed"
     }
   ],

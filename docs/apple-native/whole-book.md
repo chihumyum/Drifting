@@ -9,7 +9,9 @@ There is no new Rust command or SQLite migration.
 ## Native interaction
 
 视图 › 全书长卷 (⇧⌘B) or 长卷 beside 新建章节 opens a panel over the editor
-area, beside the chapter list, like the 故事图谱 panel. Its toolbar has 跳到
+area, beside the chapter list, like the 故事图谱 panel. The reading column is
+设置's 版心宽度 (760 points by default; narrower panels fill with a margin),
+and paragraph spacing and 打字机位置 follow 设置 as editors do. Its toolbar has 跳到
 (acts and numbered chapters), 统计 and 关闭. While it is open, a chapter row in
 the sidebar and a chapter or heading in the 整书大纲 scroll it there, and the
 heading takes the caret.
@@ -66,6 +68,15 @@ Right-clicking a chapter offers its 写作状态.
   set from the last projection draws them like the editor; one read as plain
   text does not.
 
+**Reading position.** The panel reports the row at the top of the viewport
+(`chapter:<id>` or `act:<id>`) and the offset into it once scrolling or a
+jump has settled (0.5 s) and when it closes; AppDelegate keeps it per project
+in `settings.json` (`wholeBookPositions`). The next time the project's book
+opens, even after a relaunch, it places that row at the top with the same
+offset as soon as the book is laid out, and keeps it while rows above are
+measured. A position whose row left the book (a trashed chapter) opens at
+the top; nothing is reported before the book is first laid out.
+
 统计 (from the toolbar and 节奏统计… in 项目资料) shows:
 
 - 全书概览: 总字数 (chapters only, from the word-count model), 章节,
@@ -120,9 +131,8 @@ version restores, and chapter trash and restore do not count.
 
 ## Not ported
 
-Find in the long view (`AllChaptersFindPanel`), the outline rail, remembering
-the reading position across launches, and a shared toolbar for the focused
-chapter are not ported. Each attached chapter keeps its own editor controls.
+Find in the long view (`AllChaptersFindPanel`), the outline rail and a shared
+toolbar for the focused chapter are not ported. Each attached chapter keeps its own editor controls.
 
 ## Acceptance
 
@@ -161,3 +171,8 @@ real controllers, tab host, Rust workspace and SQLite:
   31 kept days, no journal writes, and a cold relaunch that counts nothing twice.
 
 Physical input, desktop XCTest and a visible panel on screen are not covered.
+`--small-items-only` scrolls a 24-chapter book, checks the reported position
+and `settings.json`, the position reported on closing, another project's own
+position, a cold relaunch opening at the same chapter and offset, and a
+trashed chapter's position opening at the top; it also follows 版心宽度 and
+段间距 in the panel.

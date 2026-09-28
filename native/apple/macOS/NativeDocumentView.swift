@@ -10,6 +10,13 @@ final class ProseTextView: NSTextView {
     var onResign: (() -> Void)?
     /// A click in the prose, before the text system moves the caret.
     var onMouseDown: (() -> Void)?
+    /// The prose was resized, e.g. with its pane (the 版心宽度 column follows).
+    var onResize: (() -> Void)?
+    override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = abs(newSize.width - frame.width) >= 0.5
+        super.setFrameSize(newSize)
+        if widthChanged { onResize?() }
+    }
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { onFocus?() }
@@ -355,6 +362,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performRemoveLink = { [weak self] in self?.removeLink() }
         textView.onResign = { [weak self] in self?.closePicker() }
         textView.onMouseDown = { [weak self] in self?.deferredFormat = nil }
+        textView.onResize = { [weak self] in self?.updateTextInsets() }
         textView.canPerformComment = { [weak self] in self?.canAddComment == true }
         textView.performComment = { [weak self] in self?.beginComment() }
         textView.canPerformCopilot = { [weak self] in self?.canRequestCopilot == true }
@@ -545,7 +553,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     override func layout() {
         super.layout()
         fitTextHeight()
-        updateTypewriterTail()
+        updateTextInsets()
     }
 
     /// Sizes the prose to its laid-out text at the current width, so a long
@@ -581,30 +589,48 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         var selected = defaultSelection
         if let accent = MacEditorPreferences.accentColor { selected[.backgroundColor] = accent.withAlphaComponent(0.28) }
         textView.selectedTextAttributes = selected
-        updateTypewriterTail()
+        updateTextInsets()
     }
 
     // MARK: 打字机滚动
 
-    /// Where the middle of the caret line sits, from the top of the visible prose.
-    static let typewriterPosition: CGFloat = 0.4
+    /// Where the middle of the caret line sits, from the top of the visible
+    /// prose: 设置's 打字机位置, else 40%.
+    static var typewriterPosition: CGFloat { min(max(MacEditorPreferences.typewriterPosition ?? 0.4, 0.05), 0.95) }
     var typewriterEnabled: Bool { MacEditorPreferences.typewriterScrolling == true }
 
     /// The scroll view that follows the caret: the prose's own, or the long
     /// scroll a growing body sits in (the 全书长卷).
     private var typewriterScroll: NSScrollView? { growsWithText ? enclosingScrollView : scroll }
 
-    /// Room below the text so the last line can reach the typewriter height:
-    /// the container inset grows while the text keeps its top origin. Not a
+    /// The side inset that centres a 版心宽度 column in the prose; at least
+    /// 20 points. A growing body (the 全书长卷) is laid out at its column already.
+    var columnInset: CGFloat {
+        guard !growsWithText, let column = MacEditorPreferences.columnWidth else { return 20 }
+        let width = textView.frame.width
+        guard width > 1 else { return 20 }
+        return max(20, ((width - column) / 2).rounded(.down))
+    }
+
+    /// The width of the prose's text column, in points.
+    var textColumnWidth: CGFloat { textView.textContainer?.size.width ?? 0 }
+
+    /// The container inset: the 版心宽度 column centred at the sides, and
+    /// room below the text so the last line can reach the typewriter height
+    /// (the container grows while the text keeps its top origin). Not a
     /// scroll view inset, which the text system would treat as covered and
     /// scroll the caret out of. A growing body leaves its long scroll alone.
-    private func updateTypewriterTail() {
-        guard !growsWithText else { return }
-        let tail = typewriterEnabled ? ceil(scroll.contentView.bounds.height * (1 - Self.typewriterPosition)) : 0
-        let inset = NSSize(width: 20, height: ProseTextView.topInset + tail / 2)
+    private func updateTextInsets() {
+        let tail = !growsWithText && typewriterEnabled ? ceil(scroll.contentView.bounds.height * (1 - Self.typewriterPosition)) : 0
+        let inset = NSSize(width: columnInset, height: ProseTextView.topInset + tail / 2)
         guard textView.textContainerInset != inset else { return }
+        let widthChanged = textView.textContainerInset.width != inset.width
         textView.textContainerInset = inset
-        textView.sizeToFit()
+        // The container follows the view's width only when that changes.
+        if widthChanged, let container = textView.textContainer, textView.bounds.width > 1 {
+            container.containerSize = NSSize(width: max(1, textView.bounds.width - inset.width * 2), height: container.containerSize.height)
+        }
+        if growsWithText { fitTextHeight() } else { textView.sizeToFit() }
     }
 
     /// The room below the text for 打字机滚动, in points.

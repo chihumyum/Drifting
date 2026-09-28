@@ -88,6 +88,7 @@ enum MacMenuCommand: String, CaseIterable {
     case save = "file.save", closeTab = "file.closeTab"
     case fileProfile = "file.projectProfile", fileDeleteProject = "file.deleteProject"
     case importFile = "file.import", exportBook = "file.exportBook", exportMarkdownFolder = "file.exportMarkdownFolder"
+    case exportAllMarkdown = "file.exportAllMarkdown"
     case exportPDF = "file.exportPDF", pageSetup = "file.pageSetup", print = "file.print"
     case shelf = "project.shelf", projectTrash = "project.trash", projectProfile = "project.profile", projectDelete = "project.delete"
     case undo = "edit.undo", redo = "edit.redo", cut = "edit.cut", copy = "edit.copy", paste = "edit.paste", selectAll = "edit.selectAll"
@@ -118,6 +119,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .importFile: return "导入…"
         case .exportBook: return "导出全书…"
         case .exportMarkdownFolder: return "导出为 Markdown 文件夹…"
+        case .exportAllMarkdown: return "导出全部项目为 Markdown 文件夹…"
         case .exportPDF: return "导出 PDF…"
         case .pageSetup: return "页面设置…"
         case .print: return "打印…"
@@ -324,7 +326,7 @@ enum MacMainMenu {
     /// Menus in order; nil is a separator. The app menu's title is empty.
     static let layout: [(title: String, items: [MacMenuCommand?])] = [
         ("", [.settings, nil, .quit]),
-        ("文件", [.save, .closeTab, nil, .fileProfile, .fileDeleteProject, nil, .importFile, .exportBook, .exportMarkdownFolder, .exportPDF,
+        ("文件", [.save, .closeTab, nil, .fileProfile, .fileDeleteProject, nil, .importFile, .exportBook, .exportMarkdownFolder, .exportAllMarkdown, .exportPDF,
                 nil, .pageSetup, .print]),
         ("项目", [.shelf, .projectTrash, nil, .projectProfile, .projectDelete]),
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,

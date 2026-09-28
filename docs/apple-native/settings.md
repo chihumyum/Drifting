@@ -13,8 +13,9 @@ interoperability is kept.
   (`~/Library/Application Support/<lab bundle id>/`, beside `apple-native-lab/`
   and `agent/`). No user defaults domain is used, so the production app's
   settings are never read or written. Values are read one by one: an unknown
-  or out-of-range value falls back to its default (size 12–28 pt, line height
-  1.0–2.0); an unreadable file means defaults and a message in 设置.
+  or out-of-range value falls back to its default or is clamped (size 12–28 pt,
+  line height 1.0–2.0, 段间距 0–2.5, 版心宽度 480–1280 pt, 打字机位置 25–75%);
+  an unreadable file means defaults and a message in 设置.
 - The same file keeps each project's 写作计划 under `writingPlans`, edited in
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
 - Each page's 情节规划格 dock (shown and height) is under `plotPlanners`
@@ -22,6 +23,11 @@ interoperability is kept.
 - 今日字数 days are under `dailyWords` ([whole book](whole-book.md)), and each
   project's last ten opened pages under `recentPages` as `{kind, id}`
   ([project home](project-home.md)); an unreadable entry is dropped alone.
+- Storyline and category pages' list filters are under `listFilters`, per
+  project and page (`storyline:<id>`, `category:<id>`; 全部 has no entry),
+  and the 全书长卷's reading position under `wholeBookPositions` as `{row,
+  offset}` per project ([whole book](whole-book.md)); an unreadable entry is
+  dropped alone.
 - Each project's tabs are under `tabSessions` (per pane: `tabs` as
   `{kind, id}`, the shown `active` tab, `home` and `homeShown`, then
   `activePane`; two panes are the split) and the project selected last under
@@ -54,13 +60,19 @@ interoperability is kept.
   installed family (picked from the list or typed, localized names accepted) or
   one imported TTF/OTF (at most 64 MB, validated by CoreText). 字号 scales headings
   (28, 24, 20 pt at 17); 行距 is a multiple of the size as in CSS (line spacing =
-  size × 行距 − the face's natural line height); 段首缩进 indents top-level body
-  paragraphs by one or two characters. 还原推荐样式 restores serif, 17 pt, 1.5 and
-  no indent. A preview shows the result. Only bodies (chapter, element,
+  size × 行距 − the face's natural line height); 段间距 is the space after each
+  paragraph in multiples of the size (default 0.7, the earlier 12 pt at 17 pt;
+  also in printing); 段首缩进 indents top-level body paragraphs by one or two
+  characters. 版心宽度 (default 760 pt, the 全书长卷's earlier column) is the
+  widest the prose column grows: a wider pane centres it with equal side
+  insets, a narrower one keeps the 20-point margins; the 全书长卷 sets its
+  column the same way. 还原推荐样式 restores serif, 17 pt, 1.5, no indent, 段间距
+  0.7 and 版心宽度 760. A preview shows the result. Only bodies (chapter, element,
   storyline, drift) use the prose font; page headers and all UI keep the system
   font.
-- 打字机滚动 (编辑器 › 书写, default off) keeps the caret line about 40% down
-  the visible prose while typing, in every body editor. It aligns after the
+- 打字机滚动 (编辑器 › 书写, default off) keeps the caret line at 打字机位置
+  (default 40% down the visible prose, 25–75%) while typing, in every body
+  editor. It aligns after the
   text system finishes an input (typing, composition, undo and redo, keyboard
   caret moves; not clicks), and once more after the input's reply restyles
   the text. Only the scroll position changes: text, selection, marked text
@@ -69,6 +81,11 @@ interoperability is kept.
   inset under an unchanged top origin, not a scroll view inset, which the text
   system would treat as covered); the 全书长卷 aligns its long scroll without
   extra room, so near the end of the book the line sits lower.
+- 自动链接设定名称 (编辑器 › 书写, default on): the [link pass](entity-links.md)
+  after settled typing, on opening a body and after names change. Off, no pass
+  runs, so typed names, new names and names inserted with the @ picker (which
+  relies on a pass) get no link; links already in the prose stay. Turned on
+  again, the next settled input links the body's unlinked names.
 - 自动保存 is shown read-only: every committed input is saved at once, so there
   is no idle interval to set. Versions are captured on save at most every
   15 minutes and on close ([history](history.md)).
@@ -151,6 +168,13 @@ the settings window with the shortcuts applied; a hand-edited file falls back
 entry by entry, also for values the rules now refuse; an earlier ⌘F for
 项目搜索 stays its shortcut while 查找… shows 无 naming the holder, and
 resetting 项目搜索 returns ⌘F to 查找…. Physical key presses are not covered.
+`--small-items-only` changes 段间距, 版心宽度, 打字机位置 and 自动链接设定名称
+through the 编辑器 pane's controls with pane editors, a hidden tab and the
+全书长卷 open: paragraph styles, the centred column's width and insets (a
+narrow pane keeps its margins), the 全书长卷's column and editors, the caret
+line at 60% and 30% after typing, no new link while off (typing and a new
+element's name) with an existing link kept, then linking again; the values
+in `settings.json`, a cold store and hand-edited values clamped.
 `--tabs-nav-only` checks that 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进,
 上一个标签 and 下一个标签 with their defaults and refuses ⌘[ for another command,
 and covers `tabSessions` and `lastProject` ([tabs](tabs-and-split.md)).

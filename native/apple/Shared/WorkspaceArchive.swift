@@ -43,21 +43,16 @@ enum MarkdownFolderWriter {
         return parts
     }
 
-    /// Writes the archive into a new folder inside `parent` and returns it.
-    static func write(_ archive: WorkspaceMarkdownArchive, into parent: URL, date: Date = Date(),
-                      fileManager: FileManager = .default) throws -> URL {
-        let checked = try archive.files.map { (try components(of: $0.path), $0.text) }
-        guard Set(checked.map { $0.0.joined(separator: "/").lowercased() }).count == checked.count else {
-            throw LabError.message("导出内容包含重复的文件路径，已停止导出，没有写入任何文件。")
-        }
-        let base = folderName(projectName: archive.projectName, date: date)
+    /// Creates `base` inside `parent`, or `base-2`, `base-3` … when it
+    /// exists: never an existing folder, so nothing is merged or overwritten.
+    static func newFolder(_ base: String, in parent: URL, fileManager: FileManager = .default) throws -> URL {
         var folder = parent.appendingPathComponent(base, isDirectory: true)
         var suffix = 1
         while true {
             do {
-                // Never an existing folder: creation fails instead of merging.
+                // Creation fails on an existing folder instead of merging.
                 try fileManager.createDirectory(at: folder, withIntermediateDirectories: false)
-                break
+                return folder
             } catch let error as CocoaError where error.code == .fileWriteFileExists {
                 suffix += 1
                 guard suffix < 1000 else { throw LabError.message("目标位置已有太多同名文件夹，请换一个位置再试。") }
@@ -66,6 +61,16 @@ enum MarkdownFolderWriter {
                 throw LabError.message("无法在所选位置创建文件夹，请换一个位置再试。")
             }
         }
+    }
+
+    /// Writes the archive into a new folder inside `parent` and returns it.
+    static func write(_ archive: WorkspaceMarkdownArchive, into parent: URL, date: Date = Date(),
+                      fileManager: FileManager = .default) throws -> URL {
+        let checked = try archive.files.map { (try components(of: $0.path), $0.text) }
+        guard Set(checked.map { $0.0.joined(separator: "/").lowercased() }).count == checked.count else {
+            throw LabError.message("导出内容包含重复的文件路径，已停止导出，没有写入任何文件。")
+        }
+        let folder = try newFolder(folderName(projectName: archive.projectName, date: date), in: parent, fileManager: fileManager)
         let root = folder.standardizedFileURL.path
         for (parts, text) in checked {
             let url = parts.reduce(folder) { $0.appendingPathComponent($1) }

@@ -128,6 +128,9 @@ in the main window and 项目主页 its [project home](project-home.md); 新建�
 workspace commands, and the main window's list, titles and panels follow;
 导出为 Markdown 文件夹… exports that project ([library](library.md)); 删除项目…
 opens the deletion sheet above. Queued or marked input holds every command.
+The renderer's 进行中 and 搁置 filter is not offered: native projects carry
+no status, and the renderer only derives one from the age of the last edit,
+which the shelf already shows and sorts by.
 
 A workspace that does not open shows the [恢复](recovery.md) window instead.
 

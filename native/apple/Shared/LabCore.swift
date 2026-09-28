@@ -1566,6 +1566,27 @@ final class LabWorkspaceCore {
         perform(completion) { try self.storylineRequest(projectID, command) }
     }
 
+    /// The storyline's 章节模版 as editable blocks (the shape of a category's
+    /// element template); empty when unset. A read only.
+    func storylineChapterTemplate(projectID: String, storylineID: String,
+                                  completion: @escaping (Result<[BookImportBlock], Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceStorylineReply<[BookImportBlock]> = try self.storylineRequest(projectID,
+                ["action": "chapterTemplate", "storylineId": storylineID])
+            return reply.result ?? []
+        }
+    }
+
+    /// Replaces the 章节模版; an empty list clears it and an unchanged
+    /// template writes nothing. Metadata only: no owner changes.
+    func setStorylineChapterTemplate(projectID: String, storylineID: String, blocks: [BookImportBlock],
+                                     completion: @escaping (Result<WorkspaceStorylineReply<WorkspaceStoryline>, Error>) -> Void) {
+        perform(completion) {
+            try self.storylineRequest(projectID, ["action": "setChapterTemplate", "storylineId": storylineID,
+                                                  "blocks": blocks.map(\.payload)])
+        }
+    }
+
     /// Rust saves an open body before the trash commits, then retires it.
     /// Chapters whose primary it was lose all their storylines, and its
     /// relations are removed.
@@ -2442,10 +2463,27 @@ final class LabWorkspaceCore {
         }
     }
 
-    func createChapter(projectID: String, title: String,
+    /// With a storyline the chapter joins it as 主线 and its body starts from
+    /// the storyline's 章节模版; an unknown or trashed storyline refuses
+    /// before anything is written, and a failure after creation starts with
+    /// “章节「标题」已创建”.
+    func createChapter(projectID: String, title: String, storylineID: String? = nil,
                        completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
+        var fields: [String: Any] = ["projectId": projectID, "title": title]
+        if let storylineID { fields["storylineId"] = storylineID }
         perform(completion) {
-            try self.request("workspaceCreateChapter", fields: ["projectId": projectID, "title": title])
+            try self.request("workspaceCreateChapter", fields: fields)
+        }
+    }
+
+    /// A version's body as Rust projects it (blocks, runs and attributes),
+    /// read only; a version of another body is refused (“不属于”).
+    func versionPreview(projectID: String, target: VersionHistoryTarget, snapshotID: String,
+                        completion: @escaping (Result<NativeProjection, Error>) -> Void) {
+        struct Preview: Decodable { let projection: NativeProjection }
+        perform({ (result: Result<Preview, Error>) in completion(result.map(\.projection)) }) {
+            try self.request("workspaceHistory", fields: ["projectId": projectID, "command": [
+                "action": "preview", "target": target.payload, "snapshotId": snapshotID]])
         }
     }
 

@@ -2,9 +2,9 @@ import AppKit
 
 /// 历史版本… for one chapter, drift, element or storyline body: versions
 /// newest first with their relative time, the title at that time, why they
-/// were kept and their word count, a
-/// read-only preview of the selected version marked against the current text,
-/// and 恢复此版本 after a confirmation. Refusals stay in the sheet.
+/// were kept and their word count, a read-only preview of the selected
+/// version with its formatting (Rust's projection of it), marked against the
+/// current text, and 恢复此版本 after a confirmation. Refusals stay in the sheet.
 final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     let model: VersionHistoryModel
     let window: NSWindow
@@ -218,7 +218,11 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
         previewTitle.stringValue = "\(VersionHistoryTime.exact(entry.createdAt)) 的版本" + (entry.meta?.displayName.map { " · \($0)" } ?? "")
             + (entry.meta?.reasonLabel.map { " · \($0)" } ?? "") + (entry.meta?.wordCountText.map { " · \($0)" } ?? "")
         let segments = diffCheckbox.state == .on ? model.segments(of: entry) : nil
-        previewView.textStorage?.setAttributedString(Self.attributed(segments: segments, version: entry.text))
+        if let projection = model.preview(of: entry), let styled = Self.attributed(projection: projection, segments: segments) {
+            previewView.textStorage?.setAttributedString(styled)
+        } else {
+            previewView.textStorage?.setAttributedString(Self.attributed(segments: segments, version: entry.text))
+        }
         if diffCheckbox.state == .off {
             legend.stringValue = "只显示这个版本的正文。"
         } else if let segments {
@@ -230,8 +234,49 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
         }
     }
 
-    /// The version, or with segments the version marked against the current
-    /// text: added text on a green wash, removed text struck through.
+    /// The version set as editors set it (headings, bold, italic, underline,
+    /// strike, links, alignment and indent from its projection), then with
+    /// segments marked against the current text: text the current body lacks
+    /// on a green wash, and text the version lacks inserted struck through in
+    /// the style around it. Nil when the segments do not spell the projection.
+    static func attributed(projection: NativeProjection, segments: [ProseDiff.Segment]?) -> NSAttributedString? {
+        // Styled as an editor's storage is: fonts are fixed lazily when the
+        // preview lays out, so the runs keep the fonts DocumentStyle chose.
+        let styled = LazyStyledText(text: projection.text)
+        DocumentStyle.apply(projection, to: styled)
+        // Comment highlights are not part of a version's comparison.
+        styled.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: styled.length))
+        guard let segments else { return styled }
+        let result = NSMutableAttributedString()
+        var cursor = 0
+        for segment in segments {
+            let length = (segment.text as NSString).length
+            switch segment.kind {
+            case .same, .added:
+                guard cursor + length <= styled.length else { return nil }
+                let piece = NSMutableAttributedString(attributedString: styled.attributedSubstring(from: NSRange(location: cursor, length: length)))
+                if segment.kind == .added {
+                    piece.addAttribute(.backgroundColor, value: NSColor.systemGreen.withAlphaComponent(0.22),
+                                       range: NSRange(location: 0, length: piece.length))
+                }
+                result.append(piece)
+                cursor += length
+            case .removed:
+                var attributes = styled.length == 0 ? DocumentStyle.bodyAttributes
+                    : styled.attributes(at: min(cursor, styled.length - 1), effectiveRange: nil)
+                attributes[.underlineStyle] = nil
+                attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+                attributes[.strikethroughColor] = NSColor.systemRed
+                attributes[.foregroundColor] = NSColor.secondaryLabelColor
+                attributes[.backgroundColor] = NSColor.systemRed.withAlphaComponent(0.1)
+                result.append(NSAttributedString(string: segment.text, attributes: attributes))
+            }
+        }
+        return cursor == styled.length ? result : nil
+    }
+
+    /// The version as plain text, or with segments the version marked against
+    /// the current text: added text on a green wash, removed text struck through.
     static func attributed(segments: [ProseDiff.Segment]?, version: String) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 4
@@ -289,5 +334,38 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
     @objc func close() {
         if let parent = window.sheetParent { parent.endSheet(window) } else { window.orderOut(nil) }
         onFinish?()
+    }
+}
+
+/// Text styled with `DocumentStyle.apply` without fixing its fonts at once
+/// (a standalone storage would replace a CJK run's italic face on
+/// `endEditing`); the text view showing it fixes them for drawing.
+private final class LazyStyledText: NSTextStorage {
+    private let backing = NSMutableAttributedString()
+    override init() { super.init() }
+    convenience init(text: String) {
+        self.init()
+        backing.append(NSAttributedString(string: text))
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
+        fatalError("init(pasteboardPropertyList:ofType:) has not been implemented")
+    }
+    override var fixesAttributesLazily: Bool { true }
+    override var string: String { backing.string }
+    override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
+        backing.attributes(at: location, effectiveRange: range)
+    }
+    override func replaceCharacters(in range: NSRange, with str: String) {
+        beginEditing()
+        backing.replaceCharacters(in: range, with: str)
+        edited(.editedCharacters, range: range, changeInLength: (str as NSString).length - range.length)
+        endEditing()
+    }
+    override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        beginEditing()
+        backing.setAttributes(attrs, range: range)
+        edited(.editedAttributes, range: range, changeInLength: 0)
+        endEditing()
     }
 }

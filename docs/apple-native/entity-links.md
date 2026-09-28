@@ -33,7 +33,8 @@ The bridge builds the map from the workspace for each body and persists a
 non-empty result. Hosts run it 500 ms after local input settles, when a body
 opens, and for every open body after element or chapter names change
 (retroactive linking). Closed chapters are linked when next opened, as in the
-renderer.
+renderer. With 设置 › 编辑器 › 自动链接设定名称 off no pass runs; existing links
+stay ([settings](settings.md)).
 
 The node names include drift titles after chapter titles, as the renderer's
 map holds every live book node. Known difference, outside the verified fixture:

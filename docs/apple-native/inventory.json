@@ -200,7 +200,7 @@
         "five-level semantics, nullable storyline, ordering and drift visibility; act boundaries created at current chapter coordinates, renamed and removed without changing prose or chapter order"
       ],
       "milestone": "P5/P6",
-      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-drift-to-chapter-and-element-conversions-and-story-graph-with-drift-positions-implemented",
+      "status": "five-level-navigation-act-boundaries-storylines-membership-storyline-chapter-templates-drifts-drift-groups-act-notes-drift-to-chapter-and-element-conversions-and-story-graph-with-drift-positions-implemented",
       "decisionTask": null
     },
     {
@@ -358,7 +358,7 @@
         "restore identities, guarded inverse, journal and asset closure; the verified pre-upgrade safety copy restores, exports and is revealed through the database recovery window"
       ],
       "milestone": "P3/P4",
-      "status": "Mac-version-history-capture-thinning-and-undoable-restore-implemented; Mac-database-recovery-safety-copy-restore-and-export-implemented",
+      "status": "Mac-version-history-capture-thinning-formatted-preview-and-undoable-restore-implemented; Mac-database-recovery-safety-copy-restore-and-export-implemented",
       "decisionTask": null
     },
     {
@@ -528,7 +528,7 @@
         "DOCX/Markdown import/export parity and synthetic asset fixtures"
       ],
       "milestone": "P5",
-      "status": "Mac-Markdown-text-and-Word-import-and-Markdown-text-export-implemented; Mac-page-printing-and-whole-book-PDF-export-implemented",
+      "status": "Mac-Markdown-text-and-Word-import-of-files-and-folders-and-Markdown-text-export-implemented; Mac-all-project-Markdown-folder-export-implemented; Mac-page-printing-and-whole-book-PDF-export-implemented",
       "decisionTask": "D8"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "Mac-editor-preferences-fonts-writing-plans-provider-keys-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
+      "status": "Mac-editor-preferences-fonts-paragraph-spacing-column-width-typewriter-position-auto-link-toggle-list-filters-writing-plans-provider-keys-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
       "decisionTask": null
     },
     {

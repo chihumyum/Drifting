@@ -1,8 +1,8 @@
 import AppKit
 
 /// One storyline's page: 名称, 颜色, 简介 and 字段 on a wash in the storyline's
-/// colour, then its chapters in book order and 关系, above the storyline's
-/// prose body.
+/// colour, then its chapters in book order (filtered by 全部, 已写 or 未起,
+/// with 新建章节), 章节模版 and 关系, above the storyline's prose body.
 /// Each field commits on end-editing, Return or a colour choice through
 /// `onCommit`; facts commit as one ordered list through `onCommitFacts`. A
 /// refusal keeps the typed text and rows and shows the reason. The body is an
@@ -16,6 +16,10 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
     let summaryView = NSTextView()
     let factsEditor = ElementFactsEditor(prefix: "storyline-fact", emptyText: "还没有字段。可以添加“主题”“时间跨度”这类要点。")
     let chaptersView = StorylineChaptersView()
+    /// 章节模版: the stored template's preview and 编辑模版….
+    let templateView = ElementTemplateSectionView(title: "章节模版", identifier: "chapter-template",
+                                                  setDetail: "在这条故事线中新建的章节正文从这里开始",
+                                                  editTooltip: "编辑在这条故事线中新建的章节正文从哪里开始")
     /// 关系, filled and driven by the tab host's relation coordinator.
     let relationsView = RelationsSectionView()
     private let message = NSTextField(wrappingLabelWithString: "")
@@ -24,6 +28,22 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
     private(set) var isCommitting = false
     private enum Pending: Equatable { case field(Field), facts }
     private var queued: [Pending] = []
+    /// The stored 章节模版; nil until it was read.
+    private(set) var template: [BookImportBlock]?
+    /// The open 章节模版 sheet, if any.
+    private(set) var templateSheet: ElementTemplateSheet?
+    /// Saves the 章节模版; reports the template as stored, or the refusal.
+    var onSaveTemplate: (([BookImportBlock], @escaping (Result<[BookImportBlock], Error>) -> Void) -> Void)?
+    /// 新建章节 in this storyline.
+    var onCreateChapter: (() -> Void)? {
+        get { chaptersView.onCreate }
+        set { chaptersView.onCreate = newValue }
+    }
+    /// The chapters' filter changed (全部, 已写 or 未起).
+    var onFilterChange: ((String) -> Void)? {
+        get { chaptersView.onFilterChange }
+        set { chaptersView.onFilterChange = newValue }
+    }
     /// Receives one field's changes; reports the stored storyline or the refusal.
     var onCommit: ((WorkspaceStorylineChanges, @escaping (Result<WorkspaceStoryline, Error>) -> Void) -> Void)?
     /// Receives the complete ordered facts list exactly as typed.
@@ -69,6 +89,7 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         message.setAccessibilityIdentifier("storyline-page-error")
         factsEditor.onCommit = { [weak self] in self?.commitFacts() }
         factsEditor.onFocus = { [weak self] in self?.onFocus?() }
+        templateView.onEdit = { [weak self] in self?.editTemplate() }
         let factsLabel = label("字段")
 
         let grid = NSGridView(views: [
@@ -90,8 +111,11 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         chaptersView.translatesAutoresizingMaskIntoConstraints = false
         let chaptersRow = NSView()
         chaptersRow.addSubview(chaptersView)
+        templateView.translatesAutoresizingMaskIntoConstraints = false
+        let templateRow = NSView()
+        templateRow.addSubview(templateView)
         let relationsRow = relationsView.inset()
-        let stack = NSStackView(views: [header, chaptersRow, relationsRow, documentView])
+        let stack = NSStackView(views: [header, chaptersRow, templateRow, relationsRow, documentView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -105,6 +129,11 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
             chaptersView.trailingAnchor.constraint(equalTo: chaptersRow.trailingAnchor, constant: -14),
             chaptersView.topAnchor.constraint(equalTo: chaptersRow.topAnchor, constant: 2),
             chaptersView.bottomAnchor.constraint(equalTo: chaptersRow.bottomAnchor, constant: -2),
+            templateRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            templateView.leadingAnchor.constraint(equalTo: templateRow.leadingAnchor, constant: 14),
+            templateView.trailingAnchor.constraint(equalTo: templateRow.trailingAnchor, constant: -14),
+            templateView.topAnchor.constraint(equalTo: templateRow.topAnchor, constant: 2),
+            templateView.bottomAnchor.constraint(equalTo: templateRow.bottomAnchor, constant: -2),
             documentView.widthAnchor.constraint(equalTo: stack.widthAnchor),
             headerStack.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
@@ -204,6 +233,57 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
     /// storyline is its 主线. Nil while chapters are still being read.
     func showChapters(_ chapters: [StorylineChaptersView.Entry]?) {
         if let chapters { chaptersView.show(chapters) } else { chaptersView.showMessage("正在读取章节…") }
+    }
+
+    // MARK: 章节模版
+
+    /// Shows the stored template; the sheet, if open, keeps its rows.
+    func showTemplate(_ blocks: [BookImportBlock]) {
+        template = blocks
+        templateView.show(blocks)
+    }
+
+    func showTemplateUnavailable(_ error: Error) {
+        if let template { templateView.show(template) } else { templateView.showUnavailable(error.localizedDescription) }
+    }
+
+    /// 编辑模版… opens the sheet with the stored template.
+    func editTemplate() {
+        onFocus?()
+        guard templateSheet == nil else { return }
+        guard let template else { showMessage("模版还在读取，请稍后再编辑。"); return }
+        let sheet = ElementTemplateSheet(texts: .storyline(storyline.name), blocks: template)
+        templateSheet = sheet
+        sheet.onCancel = { [weak self] in self?.endTemplateSheet() }
+        sheet.onSave = { [weak self, weak sheet] blocks in
+            guard let self, let sheet else { return }
+            self.saveTemplate(blocks, from: sheet)
+        }
+        if let window, window.isVisible { window.beginSheet(sheet.window) }
+        if let first = sheet.editor.rows.first { sheet.window.makeFirstResponder(first.textField) }
+    }
+
+    private func saveTemplate(_ blocks: [BookImportBlock], from sheet: ElementTemplateSheet) {
+        guard let onSaveTemplate else { sheet.showError("故事线页面已关闭，模版未保存。"); return }
+        sheet.showError(nil)
+        sheet.setSaving(true)
+        onSaveTemplate(blocks) { [weak self, weak sheet] result in
+            sheet?.setSaving(false)
+            switch result {
+            case .success(let stored):
+                self?.showTemplate(stored)
+                if let self, sheet === self.templateSheet { self.endTemplateSheet() }
+            // The typed rows stay in the sheet for another try.
+            case .failure(let error): sheet?.showError(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Closes the sheet without saving, e.g. when the page's tab closes.
+    func endTemplateSheet() {
+        guard let sheet = templateSheet else { return }
+        templateSheet = nil
+        if let parent = sheet.window.sheetParent { parent.endSheet(sheet.window) } else { sheet.window.orderOut(nil) }
     }
 
     // MARK: Commit
@@ -306,7 +386,7 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         nameField.currentEditor()?.selectAll(nil)
     }
 
-    private func showMessage(_ text: String?) {
+    func showMessage(_ text: String?) {
         message.stringValue = text ?? ""
         message.isHidden = text == nil
     }
@@ -323,26 +403,48 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
 }
 
 /// 章节: the storyline's chapters in book order, each opening the chapter;
-/// a chapter whose 主线 is this storyline says so. Typography and spacing only.
+/// a chapter whose 主线 is this storyline says so, and each shows its words
+/// or 未起. 全部, 已写 and 未起 filter by the canonical word count (a chapter
+/// with words is 已写); until every listed chapter is counted all are shown.
+/// 新建章节 creates a chapter in this storyline. Typography and spacing only.
 final class StorylineChaptersView: NSView {
     struct Entry: Equatable {
         let chapter: WorkspaceChapter
         let primary: Bool
+        /// The canonical word count; nil while it is not known.
+        var words: Int? = nil
         static func == (lhs: Entry, rhs: Entry) -> Bool {
             lhs.chapter.id == rhs.chapter.id && lhs.chapter.title == rhs.chapter.title && lhs.primary == rhs.primary
+                && lhs.words == rhs.words
         }
     }
+    /// The filters in order, as `settings.json` keeps them.
+    static let filters = [ListFilter.all, ListFilter.written, ListFilter.unwritten]
     private let title = NSTextField(labelWithString: "章节")
+    let filterControl = NSSegmentedControl(labels: ["全部", "已写", "未起"], trackingMode: .selectOne, target: nil, action: nil)
+    let createButton = NSButton(title: "新建章节", target: nil, action: nil)
     private let rows = NSStackView()
     private var entries: [Entry] = []
+    private var loaded = false
     /// Long lists show this many chapters until expanded, so the body stays in view.
     static let collapsedCount = 8
     private(set) var expanded = false
+    /// `all`, `written` or `unwritten`.
+    private(set) var filter = ListFilter.all
     var onOpen: ((WorkspaceChapter) -> Void)?
-    /// One button per listed chapter, in book order.
+    var onCreate: (() -> Void)?
+    var onFilterChange: ((String) -> Void)?
+    /// One button per shown chapter, in book order.
     private(set) var chapterButtons: [NSButton] = []
-    /// Everything listed, in book order, including collapsed chapters.
+    /// Everything listed, in book order, including collapsed and filtered-out chapters.
     var listed: [Entry] { entries }
+    /// The chapters the filter shows, in book order, including collapsed ones.
+    var filtered: [Entry] {
+        guard filter != ListFilter.all, countsReady else { return entries }
+        return entries.filter { (($0.words ?? 0) > 0) == (filter == ListFilter.written) }
+    }
+    /// Every listed chapter has a count.
+    var countsReady: Bool { entries.allSatisfy { $0.words != nil } }
     private(set) var mutedLines: [String] = []
 
     override init(frame: NSRect) {
@@ -350,37 +452,58 @@ final class StorylineChaptersView: NSView {
         setAccessibilityIdentifier("storyline-chapters")
         title.font = .systemFont(ofSize: 12, weight: .semibold)
         title.textColor = .secondaryLabelColor
+        filterControl.controlSize = .small
+        filterControl.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        filterControl.selectedSegment = 0
+        filterControl.target = self; filterControl.action = #selector(filterChosen)
+        filterControl.setAccessibilityIdentifier("storyline-chapter-filter")
+        filterControl.setAccessibilityLabel("章节筛选")
+        createButton.bezelStyle = .rounded; createButton.controlSize = .small
+        createButton.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        createButton.target = self; createButton.action = #selector(create)
+        createButton.setAccessibilityIdentifier("storyline-create-chapter")
+        createButton.toolTip = "在这条故事线中新建章节：它以这条故事线为主线，正文从章节模版开始"
         rows.orientation = .vertical; rows.alignment = .leading; rows.spacing = 2
-        let stack = NSStackView(views: [title, rows])
+        let header = NSStackView(views: [title, filterControl, NSView(), createButton])
+        header.spacing = 8
+        let stack = NSStackView(views: [header, rows])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
+        updateFilterLabels()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func showMessage(_ text: String) {
-        clear(); entries = []
+        clear(); entries = []; loaded = false
+        updateFilterLabels()
         addMuted(text)
     }
 
     func show(_ entries: [Entry]) {
-        clear(); self.entries = entries
+        clear(); self.entries = entries; loaded = true
         title.stringValue = entries.isEmpty ? "章节" : "章节 · \(entries.count)"
-        if entries.isEmpty { addMuted("还没有章节属于这条故事线。可以在章节的“故事线…”中选择。") }
-        let shown = expanded ? entries.count : min(entries.count, Self.collapsedCount)
-        for (index, entry) in entries.prefix(shown).enumerated() {
+        updateFilterLabels()
+        if entries.isEmpty { addMuted("还没有章节属于这条故事线。可以点“新建章节”，或在章节的“故事线…”中选择。"); return }
+        let shownEntries = filtered
+        if filter != ListFilter.all, !countsReady { addMuted("字数统计中，暂时显示全部章节。") }
+        if shownEntries.isEmpty { addMuted(filter == ListFilter.written ? "这条故事线还没有写过的章节。" : "这条故事线的章节都已动笔。") }
+        let shown = expanded ? shownEntries.count : min(shownEntries.count, Self.collapsedCount)
+        for entry in shownEntries.prefix(shown) {
             let button = NSButton(title: "", target: self, action: #selector(open(_:)))
-            button.isBordered = false; button.tag = index
+            button.isBordered = false; button.tag = entries.firstIndex(of: entry) ?? 0
             button.alignment = .left
             let text = NSMutableAttributedString(string: entry.chapter.title,
                 attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
-            if entry.primary {
-                text.append(NSAttributedString(string: "  主线",
-                    attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
+            let secondary: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]
+            if entry.primary { text.append(NSAttributedString(string: "  主线", attributes: secondary)) }
+            if let words = entry.words {
+                text.append(NSAttributedString(string: words > 0 ? "  \(WordCountText.full(words))" : "  未起", attributes: secondary))
             }
             button.attributedTitle = text
             button.setAccessibilityIdentifier("storyline-chapter-\(entry.chapter.id)")
@@ -389,8 +512,8 @@ final class StorylineChaptersView: NSView {
             rows.addArrangedSubview(button)
             chapterButtons.append(button)
         }
-        if entries.count > Self.collapsedCount {
-            let more = entries.count - Self.collapsedCount
+        if shownEntries.count > Self.collapsedCount {
+            let more = shownEntries.count - Self.collapsedCount
             let toggle = NSButton(title: expanded ? "收起" : "显示其余 \(more) 章", target: self, action: #selector(toggleExpanded))
             toggle.isBordered = false
             toggle.contentTintColor = .secondaryLabelColor
@@ -399,6 +522,36 @@ final class StorylineChaptersView: NSView {
             rows.addArrangedSubview(toggle)
         }
     }
+
+    /// Shows the chapters with a filter, e.g. the one remembered for the page.
+    func setFilter(_ value: String) {
+        let value = Self.filters.contains(value) ? value : ListFilter.all
+        filter = value
+        filterControl.selectedSegment = Self.filters.firstIndex(of: value) ?? 0
+        if loaded { show(entries) } else { updateFilterLabels() }
+    }
+
+    /// 全部 3, 已写 1, 未起 2 once counts are known.
+    private func updateFilterLabels() {
+        let written = entries.filter { ($0.words ?? 0) > 0 }.count
+        let ready = loaded && countsReady
+        let labels = ["全部" + (loaded ? " \(entries.count)" : ""), "已写" + (ready ? " \(written)" : ""),
+                      "未起" + (ready ? " \(entries.count - written)" : "")]
+        for (index, label) in labels.enumerated() {
+            filterControl.setLabel(label, forSegment: index)
+            filterControl.setWidth(0, forSegment: index)
+        }
+    }
+
+    @objc private func filterChosen() {
+        let index = filterControl.selectedSegment
+        guard Self.filters.indices.contains(index), Self.filters[index] != filter else { return }
+        expanded = false
+        setFilter(Self.filters[index])
+        onFilterChange?(filter)
+    }
+
+    @objc private func create() { onCreate?() }
 
     @objc private func toggleExpanded() {
         expanded.toggle()

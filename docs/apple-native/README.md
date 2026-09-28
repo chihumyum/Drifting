@@ -104,7 +104,10 @@ The Mac lab opens a separate synthetic workspace
 (`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
 creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages, element patches anchored to
-chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, drifts with groups and act notes that
+chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, a 章节模版 per storyline
+that chapters created in it (新建章节 on its page or in the 故事线 panel) start
+from, list filters on storyline pages (全部, 已写, 未起) and category pages (已填写,
+未填写) remembered per page, drifts with groups and act notes that
 convert into chapters or elements, a 情节规划格 (plot planner) docked below a
 chapter's or drift's prose, a writing assistant whose 63 tools read the project and propose prose, element, patch,
 storyline, relation, note/TODO, chapter, drift and project changes the author
@@ -130,8 +133,11 @@ toolbar and the context menu), a slash menu, find in the editor (⌘F, no
 replace), an @ picker that inserts and links names, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, one 回收站 per project with 彻底删除, hover cards
-on entity links, typewriter scrolling, a 项目书架 of every project, Markdown
-folder export, printing of the focused page and PDF export of the whole book,
+on entity links, typewriter scrolling at a chosen height, 设置's 段间距, 版心宽度
+and 自动链接设定名称, a 项目书架 of every project, import of several files or a
+folder, Markdown folder export of one or every project, printing of the focused
+page and PDF export of the whole book, a 全书长卷 that reopens where it was read,
+a 历史版本 preview with the version's formatting,
 custom menu shortcuts in 设置 › 快捷键, a diagnostic summary, a 项目主页 per
 project (counts, chapter statuses, 继续写作, today's words with streak, week
 and month, storyline tracks, categories and recently opened pages), a 恢复

@@ -337,7 +337,10 @@ final class MacWholeBookViewController: NSViewController {
     static var keptOwnerLimit = 12
     /// How long a failed close waits before the next attempt.
     static var closeRetryDelay: TimeInterval = 2
-    static let columnWidth: CGFloat = 760
+    /// The reading column: 设置's 版心宽度, else 760 points.
+    static var columnWidth: CGFloat { MacEditorPreferences.columnWidth ?? 760 }
+    /// How long the reading position settles before it is reported.
+    static var positionDelay: TimeInterval = 0.5
     static let topInset: CGFloat = 12
 
     /// One row of the book: its place, and its view while near the viewport.
@@ -368,6 +371,11 @@ final class MacWholeBookViewController: NSViewController {
     var onSetStatus: ((BookChapter, String) -> Void)?
     /// An act separator's 幕颜色 was stored; views that colour acts follow.
     var onActColorChanged: (() -> Void)?
+    /// Where the panel opens: the row and offset kept from an earlier
+    /// reading; nil (or a row no longer in the book) opens at the top.
+    var initialPosition: WholeBookPosition?
+    /// The reading position settled, or the panel shuts down; the caller keeps it.
+    var onPosition: ((WholeBookPosition) -> Void)?
 
     let jumpButton = NSPopUpButton(frame: .zero, pullsDown: true)
     let statsButton = NSButton(title: "统计", target: nil, action: nil)
@@ -407,6 +415,11 @@ final class MacWholeBookViewController: NSViewController {
     private var previewOrder: [String] = []
     private var anchor: (key: String, offset: CGFloat)?
     private var restoringAnchor = false
+    /// `initialPosition` is applied once the book is first laid out; until
+    /// then no position is reported, so an early top never replaces it.
+    private var positionApplied = false
+    private var positionTimer: DispatchWorkItem?
+    private var reportedPosition: WholeBookPosition?
     private var passScheduled = false
     private var retryScheduled = false
     private var lastEdit: Date?
@@ -529,6 +542,7 @@ final class MacWholeBookViewController: NSViewController {
         clip.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: clip)
         NotificationCenter.default.addObserver(self, selector: #selector(typographyChanged), name: DocumentStyle.typographyDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(preferencesChanged), name: MacEditorPreferences.didChange, object: nil)
         statsPopover.behavior = .transient
         statsPopover.animates = false
         model.observe(self) { [weak self] in self?.modelChanged() }
@@ -562,9 +576,22 @@ final class MacWholeBookViewController: NSViewController {
         showStatus()
         guard model.loaded else { return }
         rebuildSlots()
+        applyInitialPosition()
         rebuildJumpMenu()
         statsController?.reload()
         schedulePass()
+    }
+
+    /// The first loaded book opens where it was read last, when that row is
+    /// still in it.
+    private func applyInitialPosition() {
+        guard !positionApplied else { return }
+        positionApplied = true
+        if let position = initialPosition, slotsByKey[position.row] != nil {
+            anchor = (position.row, CGFloat(position.offset))
+            reportedPosition = position
+            placeRows()
+        }
     }
 
     /// The status line: an owner that could not be closed, then the model's status.
@@ -790,6 +817,14 @@ final class MacWholeBookViewController: NSViewController {
         }
     }
 
+    /// 设置's 版心宽度 may have changed: rows are placed at the new column
+    /// (an unchanged width only places them again).
+    @objc private func preferencesChanged() {
+        guard isViewLoaded, !isShutDown else { return }
+        placeRows()
+        schedulePass()
+    }
+
     /// 设置 changed the typography: read-only text is styled again from the
     /// chapters, and every row is measured again; editors restyle themselves.
     @objc private func typographyChanged() {
@@ -848,6 +883,7 @@ final class MacWholeBookViewController: NSViewController {
         anchor = (key, offset)
         restoreAnchor()
         schedulePass()
+        schedulePositionReport()
     }
 
     /// Scrolls the long page to a point, as the scroll wheel does.
@@ -859,8 +895,31 @@ final class MacWholeBookViewController: NSViewController {
     }
 
     @objc private func scrolled() {
-        if !restoringAnchor, !placingRows { recordAnchor() }
+        if !restoringAnchor, !placingRows { recordAnchor(); schedulePositionReport() }
         schedulePass()
+    }
+
+    /// The reading position: the row at the top of the viewport and the offset into it.
+    var readingPosition: WholeBookPosition? { anchor.map { WholeBookPosition(row: $0.key, offset: Double($0.offset.rounded())) } }
+
+    /// Reports the position once scrolling has settled.
+    private func schedulePositionReport() {
+        guard positionApplied, onPosition != nil else { return }
+        positionTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            self?.positionTimer = nil
+            self?.reportPosition()
+        }
+        positionTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.positionDelay, execute: timer)
+    }
+
+    /// Reports the current position now, when it changed.
+    func reportPosition() {
+        positionTimer?.cancel(); positionTimer = nil
+        guard positionApplied, let position = readingPosition, position != reportedPosition else { return }
+        reportedPosition = position
+        onPosition?(position)
     }
 
     /// The first row at the top of the viewport and how far into it the top is.
@@ -1314,6 +1373,8 @@ final class MacWholeBookViewController: NSViewController {
     func shutdown(completion: ((String?) -> Void)? = nil) -> Bool {
         if isShutDown { completion?(nil); return true }
         guard !hasInputInFlight else { return false }
+        // Where the book was read is kept before the rows go.
+        reportPosition()
         let attached = attachedRows + retired
         shuttingDown = true
         pendingReveal = nil; pendingFocus = nil

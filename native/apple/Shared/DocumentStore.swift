@@ -34,6 +34,10 @@ final class DocumentStore {
     /// counts as pending input, so navigation and typing are not held for it;
     /// later commands queue behind it on the same serial core queue.
     static var entityLinkDelay: TimeInterval = 0.5
+    /// 自动链接设定名称 (设置 › 编辑器). Off, no pass runs: typing, opening,
+    /// renamed names and names inserted with the @ picker (which rely on a
+    /// pass) link nothing new, and links already in the prose stay.
+    static var automaticEntityLinks = true
     private var linkNow = false
     private var linkAfterInput = false
     private var linkTimer: DispatchWorkItem?
@@ -433,7 +437,7 @@ final class DocumentStore {
     /// soon as this owner is idle. Composition, queued input, failed drafts,
     /// save failures and remote blocks defer it; nothing is interrupted.
     func requestEntityLinks() {
-        guard core.linksEntities, !core.isClosed else { return }
+        guard core.linksEntities, Self.automaticEntityLinks, !core.isClosed else { return }
         linkNow = true
         linkWhenIdle()
     }
@@ -451,6 +455,10 @@ final class DocumentStore {
     private func cancelLinkTimer() { linkTimer?.cancel(); linkTimer = nil }
 
     private func linkWhenIdle() {
+        guard Self.automaticEntityLinks else {
+            // Requests made while linking was off are dropped, not kept for later.
+            linkNow = false; linkAfterInput = false; cancelLinkTimer(); return
+        }
         guard core.linksEntities, !core.isClosed, !isLinking, linkNow || linkAfterInput, isIdleForLinks else { return }
         if linkNow { cancelLinkTimer(); sendLinks(); return }
         guard linkTimer == nil else { return }
@@ -459,7 +467,8 @@ final class DocumentStore {
         let timer = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.linkTimer = nil
-            if self.isIdleForLinks { self.linkNow = true; self.linkWhenIdle() }
+            if self.isIdleForLinks, Self.automaticEntityLinks { self.linkNow = true }
+            self.linkWhenIdle()
         }
         linkTimer = timer
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.entityLinkDelay, execute: timer)

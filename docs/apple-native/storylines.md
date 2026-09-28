@@ -36,6 +36,17 @@ write the renderer's rows and originals.
   incarnation; links are not restored.
 - Chapter trash keeps its links; chapter restore re-adds its memberships in the
   new incarnation (see [chapter trash](chapter-trash.md)).
+- 章节模版: `chapterTemplate` reads `node_content_template_json` as the blocks
+  a category's element template uses (headings 1–3 and paragraphs with bold
+  and italic ranges, [categories](categories.md)); `setChapterTemplate`
+  replaces it with one `field.set nodeContentTemplateJson` (`[]` clears it to
+  `{}`, an unchanged template writes nothing) and returns the storyline.
+- `workspaceCreateChapter` with `storylineId` refuses an unknown or trashed
+  storyline before anything is written, then creates the chapter, joins it
+  to the storyline as its primary (`set.add membership`,
+  `field.set node-storyline-primary`) and fills its body from the 章节模版
+  through a short-lived owner as the author's input. A failure after the
+  chapter exists starts with “章节「标题」已创建”.
 
 Storyline trash purges the storyline's [relations](relations.md) inside its
 trash original; restore does not bring them back. No SQLite migration is added.
@@ -60,8 +71,25 @@ either split pane. Its header, on a wash of the storyline colour, edits 名称
 the stored colour when Rust chose one outside it) and 简介, then 字段 with the
 element page's facts editor (`setStorylineFacts`). A refusal keeps typed text
 and rows. Below it, 章节 lists the storyline's chapters in book order, marking
-those whose 主线 it is; a row opens that chapter in the page's pane. The body
-is an ordinary durable owner with its own history and no comments. Reopening a
+those whose 主线 it is and each chapter's words (or 未起); a row opens that
+chapter in the page's pane. 全部, 已写 and 未起 (with their counts) filter the
+list by the canonical word count: a chapter with words is 已写. Until every
+listed chapter is counted the list shows all of them and says so; typing in a
+chapter moves it once its count is read. Each page's filter is kept in
+`settings.json` (`listFilters`, per project and `storyline:<id>`), other views
+of the page follow, and it comes back after a relaunch.
+
+新建章节 beside the list asks for a title, then creates the chapter in this
+storyline (its 主线) with its body from the 章节模版; the chapter list is told,
+the storylines are read again and the chapter opens in the page's pane. The
+故事线 panel's row menu has the same 新建章节…. The 章节模版 section below the
+list previews the template in the body typography; 编辑模版… opens the
+category page's template sheet (rows of 正文 or 标题 1–3, bold and italic on a
+selection, Return adding a row, a live preview and 清空模版). 保存 writes
+`setChapterTemplate` and every page of the storyline reads it back; an
+unchanged template or 取消 writes nothing, and a refusal keeps the rows. The
+sheet closes with the page's tab. The body is an ordinary durable owner with
+its own history and no comments. Reopening a
 storyline page from disk is disabled because `openStoryline` has no reopen flag.
 
 “故事线…” in a chapter's outline 操作 menu, or the sidebar chapter list's context
@@ -95,4 +123,9 @@ rule and closes only its page, restore keeps chapters unlinked with body and
 facts intact, chapter trash and restore keep memberships, a stale sheet save is
 refused without a journal row, and page body and facts survive cold reopen.
 Physical input, the sidebar context menu, desktop XCTest and devices are not
-covered.
+covered. `--small-items-only` edits, saves (one `field.set storyline`), keeps
+unchanged and cancelled templates without a journal row and clears the
+章节模版; creates chapters from the page and the panel into their storyline
+with the template body and the reported journal, refuses an unknown and a
+trashed storyline without a row, and filters the page's chapters by word
+count through typing, a second pane and a cold relaunch.

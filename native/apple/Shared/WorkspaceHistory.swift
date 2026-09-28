@@ -244,7 +244,11 @@ final class VersionHistoryModel {
     private(set) var status = "正在读取历史版本…"
     /// A refusal is shown as an error, other messages as information.
     private(set) var statusIsError = false
-    var selectedID: String? { didSet { if selectedID != oldValue { onChange?() } } }
+    var selectedID: String? { didSet { if selectedID != oldValue { loadSelectedPreview(); onChange?() } } }
+    /// Each version's body with its formatting, as Rust projects it; read
+    /// when the version is first selected. A failed read keeps the plain text.
+    private(set) var previews: [String: NativeProjection] = [:]
+    private var loadingPreviews: Set<String> = []
     var onChange: (() -> Void)?
     /// A restore succeeded; `live` when an open editor adopted it.
     var onRestored: ((Bool) -> Void)?
@@ -290,9 +294,25 @@ final class VersionHistoryModel {
         }
     }
 
-    /// The selected version against the current text; nil until both are read.
+    /// The selected version against the current text; nil until both are
+    /// read. With its projection read, the version's text is the projection's,
+    /// so the segments spell the formatted text exactly.
     func segments(of entry: WorkspaceHistoryEntry) -> [ProseDiff.Segment]? {
-        currentText.map { ProseDiff.segments(current: $0, version: entry.text) }
+        currentText.map { ProseDiff.segments(current: $0, version: previews[entry.id]?.text ?? entry.text) }
+    }
+
+    /// The version's formatted body, once read.
+    func preview(of entry: WorkspaceHistoryEntry) -> NativeProjection? { previews[entry.id] }
+
+    private func loadSelectedPreview() {
+        guard let id = selectedID, previews[id] == nil, loadingPreviews.insert(id).inserted else { return }
+        workspace.versionPreview(projectID: target.projectID, target: target, snapshotID: id) { [weak self] result in
+            guard let self else { return }
+            self.loadingPreviews.remove(id)
+            guard case .success(let projection) = result else { return }
+            self.previews[id] = projection
+            if self.selectedID == id { self.onChange?() }
+        }
     }
 
     /// Restores one version, then reads the list again (the replaced state
