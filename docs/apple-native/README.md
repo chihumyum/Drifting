@@ -43,6 +43,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Entity links and backlinks](entity-links.md)
 - [Storylines and chapter membership](storylines.md)
 - [Drifts and drift groups](drifts.md)
+- [Plot planner (情节规划格)](plot-planner.md)
 - [Native writing assistant](agent.md)
 - [Copilot（实验）: element and patch suggestions while writing](copilot.md)
 - [Settings: appearance, typesetting and language](settings.md)
@@ -101,8 +102,9 @@ The Mac lab opens a separate synthetic workspace
 (`apple-native-lab/apple-native-workspace.db`) with project and chapter lists,
 creation, rename, ordering, recoverable trash, act boundaries, selection
 comments, an elements library with element pages, element patches anchored to
-chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, drifts with groups and act notes, a writing
-assistant whose 63 tools read the project and propose prose, element, patch,
+chapter text and automatic entity links with backlinks from chapters and pages, storylines with chapter membership, drifts with groups and act notes that
+convert into chapters or elements, a 情节规划格 (plot planner) docked below a
+chapter's or drift's prose, a writing assistant whose 63 tools read the project and propose prose, element, patch,
 storyline, relation, note/TODO, chapter, drift and project changes the author
 reviews, with 作者规则, per-conversation 工作记忆 and 任务计划 (继续 after the
 round limit), context compaction, automatic retries and token usage in

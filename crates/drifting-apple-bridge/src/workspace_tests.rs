@@ -28,6 +28,8 @@ mod metrics;
 mod outline;
 #[path = "workspace_patch_tests.rs"]
 mod patch_tests;
+#[path = "workspace_plot_grid_tests.rs"]
+mod plot_grid_tests;
 #[path = "workspace_project_tests.rs"]
 mod project_tests;
 #[path = "workspace_purge_tests.rs"]

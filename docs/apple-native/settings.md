@@ -17,6 +17,8 @@ interoperability is kept.
   1.0–2.0); an unreadable file means defaults and a message in 设置.
 - The same file keeps each project's 写作计划 under `writingPlans`, edited in
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
+- Each page's 情节规划格 dock (shown and height) is under `plotPlanners`
+  ([plot planner](plot-planner.md)).
 - Copilot's choices are under `copilot`, read value by value like the rest
   (an unknown model is the provider's first, the delay is clamped to
   5–300 seconds); saving them applies nothing else.

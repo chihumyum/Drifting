@@ -1,8 +1,9 @@
 import AppKit
 
-/// One drift's page: 标题 with its word count, 摘要, 状态 and 分组 on a neutral
-/// wash, the act whose notes it is (幕笔记), then 关系 and the drift's prose
-/// body. The title commits on
+/// One drift's page: 标题 with its word count, 情节规划格 and 操作 (转为章节…,
+/// 转为设定…), 摘要, 状态 and 分组 on a neutral wash, the act whose notes it is
+/// (幕笔记), then 关系, the drift's prose body and the 情节规划格 dock when
+/// shown. The title commits on
 /// end-editing or Return and the group on a popup choice, through `onCommit`;
 /// 摘要 and 状态 commit through `metadataEditor`. A refusal keeps the typed
 /// text and shows the reason. The body is an ordinary native editor bound to
@@ -20,8 +21,15 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
     let actLabel = NSTextField(labelWithString: "")
     /// 关系, filled and driven by the tab host's relation coordinator.
     let relationsView = RelationsSectionView()
+    /// Shows or hides the 情节规划格 dock below the body.
+    let plotPlannerButton = PlotPlannerToggle()
+    /// 操作: 转为章节… and 转为设定….
+    let actionsButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
+    private let stack = NSStackView()
+    /// The 情节规划格 dock, while shown.
+    private(set) var plotDock: MacPlotPlannerDock?
     private(set) var drift: WorkspaceDrift
     private(set) var library: WorkspaceDriftLibrary
     private(set) var actName: String?
@@ -30,6 +38,8 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
     /// Receives one field's changes; reports the stored drift or the refusal.
     var onCommit: ((WorkspaceDriftChanges, @escaping (Result<WorkspaceDrift, Error>) -> Void) -> Void)?
     var onFocus: (() -> Void)?
+    /// 转为章节… or 转为设定… from 操作.
+    var onConvert: ((DriftConversionKind) -> Void)?
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
 
@@ -72,14 +82,22 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         grid.cell(for: actLabel)?.xPlacement = .leading
         titleField.setContentHuggingPriority(.init(1), for: .horizontal)
         titleField.setContentCompressionResistancePriority(.init(1), for: .horizontal)
-        let titleRow = NSStackView(views: [titleField, wordCountLabel])
+        actionsButton.addItem(withTitle: "操作")
+        actionsButton.setAccessibilityIdentifier("drift-page-actions"); actionsButton.setAccessibilityLabel("操作")
+        for kind in [DriftConversionKind.chapter, .element] {
+            actionsButton.menu?.addItem(LibraryMenuItem(title: kind.title, identifier: "page-\(kind.identifier)") { [weak self] in
+                self?.onConvert?(kind)
+            })
+        }
+        actionsButton.setContentHuggingPriority(.required, for: .horizontal)
+        let titleRow = NSStackView(views: [titleField, wordCountLabel, plotPlannerButton, actionsButton])
         titleRow.spacing = 10
         let headerStack = NSStackView(views: [titleRow, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
         let relationsRow = relationsView.inset()
-        let stack = NSStackView(views: [header, relationsRow, documentView])
+        stack.setViews([header, relationsRow, documentView], in: .leading)
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -178,6 +196,22 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         showAct()
     }
 
+    /// Places the 情节规划格 dock below the body, or removes it with nil.
+    func showPlotDock(_ dock: MacPlotPlannerDock?) {
+        plotDock = PlotPlannerToggle.place(dock, replacing: plotDock, in: stack)
+        plotPlannerButton.state = dock == nil ? .off : .on
+    }
+
+    /// 转为章节… or 转为设定… from 操作, e.g. for acceptance.
+    func conversionItem(_ kind: DriftConversionKind) -> LibraryMenuItem? {
+        actionsButton.menu?.items.first { $0.accessibilityIdentifier() == "page-\(kind.identifier)" } as? LibraryMenuItem
+    }
+
+    func showMessage(_ text: String?) {
+        message.stringValue = text ?? ""
+        message.isHidden = text == nil
+    }
+
     /// The stored 摘要 and 状态; a summary being typed is kept.
     func show(metadata: WorkspaceNodeMetadata) { metadataEditor.show(metadata) }
 
@@ -262,10 +296,6 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
         titleField.currentEditor()?.selectAll(nil)
     }
 
-    private func showMessage(_ text: String?) {
-        message.stringValue = text ?? ""
-        message.isHidden = text == nil
-    }
 
     func controlTextDidBeginEditing(_ notification: Notification) { onFocus?() }
     func controlTextDidEndEditing(_ notification: Notification) {

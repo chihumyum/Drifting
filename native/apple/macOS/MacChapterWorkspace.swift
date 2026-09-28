@@ -28,6 +28,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         var content: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? categoryPage ?? view }
         /// The 摘要 and 状态 of a chapter or drift tab.
         var metadataEditor: NodeMetadataEditor? { chapterPage?.metadataEditor ?? driftPage?.metadataEditor }
+        /// A chapter's or drift's 情节规划格 toggle and dock.
+        var plotToggle: PlotPlannerToggle? { chapterPage?.plotPlannerButton ?? driftPage?.plotPlannerButton }
+        var plotDock: MacPlotPlannerDock? { chapterPage?.plotDock ?? driftPage?.plotDock }
+        func showPlotDock(_ dock: MacPlotPlannerDock?) { chapterPage?.showPlotDock(dock); driftPage?.showPlotDock(dock) }
         var nodeID: String? { chapter?.id ?? drift?.id }
         var chapter: WorkspaceChapter? { if case .chapter(let chapter) = target { return chapter }; return nil }
         var element: WorkspaceElement? { if case .element(let element) = target { return element }; return nil }
@@ -81,9 +85,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = nil; categoryPage = page; view = page.documentView
             }
         }
-        /// Ends an uncommitted header edit of any page kind.
+        /// Ends an uncommitted header edit of any page kind, and a 情节规划格
+        /// cell being edited.
         func endEditing() {
             page?.endEditing(); storylinePage?.endEditing(); driftPage?.endEditing(); chapterPage?.endEditing(); categoryPage?.endEditing()
+            plotDock?.canvas.commitEditing()
         }
     }
     private final class Pane {
@@ -198,6 +204,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Content was purged from the trash: notes, TODOs and anything else
     /// that could name it are read again.
     var onPurged: ((String, [WorkspaceTrashPurgeReply.Purged]) -> Void)?
+    /// Presents conversion pickers and 情节规划格 confirmations; nil uses a
+    /// sheet on the given window.
+    var presentAlert: ((NSAlert, NSWindow?, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
+    /// Where each chapter's and drift's 情节规划格 dock is remembered (shown
+    /// or hidden, and its height); nil remembers them for the session only.
+    var plotPlannerSettings: LabSettingsStore?
+    /// A page's 情节规划格 was shown or hidden (视图 › 情节规划格 follows).
+    var onPlotPlanner: (() -> Void)?
+    /// A drift became a chapter or an element. Its tabs were already
+    /// replaced and the drift, chapter, storyline and element lists read;
+    /// views outside the tabs follow.
+    var onDriftConverted: ((String, DriftConversionOutcome) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -266,6 +284,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // projections only a reconcile writes.
         workspace.onRemoteOriginal = { [weak self] projectID in
             self?.wordCountModels[projectID]?.reconcile()
+            self?.refreshPlotGrids(projectID: projectID)
             self?.onRemoteOriginal?(projectID)
         }
         splitView.isVertical = true
@@ -394,45 +413,58 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             guard let self else { return }
             switch result {
             case .success(let core):
-                let scope = Tab.scope(of: target, projectID: project.id)
-                let tab: Tab
-                let isNew: Bool
-                if let retained = self.panes[index].tabs.first(where: { $0.scope == scope }) {
-                    isNew = false
-                    tab = retained
-                    tab.project = project
-                    // A retained element, storyline or drift page keeps its
-                    // own, newer fields: library replies already updated it.
-                    if case .chapter(let chapter) = target { tab.target = target; tab.chapterPage?.apply(chapter: chapter) }
-                } else {
-                    isNew = true
-                    // Another view of this element may hold newer fields.
-                    let current = self.allTabs.first { $0.scope == scope }?.target ?? target
-                    tab = Tab(project: project, target: current, core: core, categories: self.elementCategories[project.id] ?? [],
-                              drifts: self.linkSources[project.id]?.drifts)
-                    self.panes[index].tabs.append(tab)
-                    self.connect(tab, pane: index)
-                }
-                self.panes[index].selected = scope
-                self.activePane = index
-                self.showSelected(in: index)
-                self.pendingFocus = tab.view
-                // A new binding can adopt an already-loaded shared store
-                // before its view installs callbacks. Always render it once.
-                if isNew { tab.view.binding.load() }
+                let (tab, isNew) = self.install(core, project: project, target: target, in: index)
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
-                if isNew { self.ensureLinkSources(projectID: project.id) }
-                if isNew, let page = tab.storylinePage { self.showChapters(of: page, projectID: project.id) }
-                if isNew, let page = tab.driftPage { self.showAct(of: page, projectID: project.id) }
-                if isNew { self.loadMetadata(of: tab); self.showWordCount(of: tab) }
-                if isNew, tab.page != nil { self.showPortrait(of: tab) }
-                if isNew, tab.categoryPage != nil { self.showCategory(of: tab); self.loadTemplate(of: tab) }
+                if isNew { self.prepare(tab) }
                 completion(.success(tab.view))
             case .failure(let error): self.setBusy(false); completion(.failure(error))
             }
         }
+    }
+
+    /// Shows the body's tab in the pane, selected and active: the pane's
+    /// tab of it when there is one, else a new tab on the opened core.
+    private func install(_ core: LabCore, project: WorkspaceProject, target: WorkspaceTabTarget, in index: Int) -> (Tab, Bool) {
+        let scope = Tab.scope(of: target, projectID: project.id)
+        let tab: Tab
+        let isNew: Bool
+        if let retained = panes[index].tabs.first(where: { $0.scope == scope }) {
+            isNew = false
+            tab = retained
+            tab.project = project
+            // A retained element, storyline or drift page keeps its
+            // own, newer fields: library replies already updated it.
+            if case .chapter(let chapter) = target { tab.target = target; tab.chapterPage?.apply(chapter: chapter) }
+        } else {
+            isNew = true
+            // Another view of this element may hold newer fields.
+            let current = allTabs.first { $0.scope == scope }?.target ?? target
+            tab = Tab(project: project, target: current, core: core, categories: elementCategories[project.id] ?? [],
+                      drifts: linkSources[project.id]?.drifts)
+            panes[index].tabs.append(tab)
+            connect(tab, pane: index)
+        }
+        panes[index].selected = scope
+        activePane = index
+        showSelected(in: index)
+        pendingFocus = tab.view
+        // A new binding can adopt an already-loaded shared store
+        // before its view installs callbacks. Always render it once.
+        if isNew { tab.view.binding.load() }
+        return (tab, isNew)
+    }
+
+    /// A new tab reads what its page shows beside the body.
+    private func prepare(_ tab: Tab) {
+        let projectID = tab.project.id
+        ensureLinkSources(projectID: projectID)
+        if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
+        if let page = tab.driftPage { showAct(of: page, projectID: projectID) }
+        loadMetadata(of: tab); showWordCount(of: tab); showPlotDock(of: tab)
+        if tab.page != nil { showPortrait(of: tab) }
+        if tab.categoryPage != nil { showCategory(of: tab); loadTemplate(of: tab) }
     }
 
     /// A page opened before any library reply still needs the category
@@ -650,6 +682,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 tab.view.binding.load()
                 self.loadMetadata(of: tab)
                 self.showWordCount(of: tab)
+                self.showPlotDock(of: tab)
                 self.setBusy(false)
                 self.onChange?()
                 self.focusWhenReady()
@@ -1498,11 +1531,316 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if kinds.contains(.drift) { driftsChanged(projectID: projectID) }
         if kinds.contains(.element) || kinds.contains(.category) { elementsChanged(projectID: projectID) }
         if kinds.contains(.storyline) { storylinesChanged(projectID: projectID) }
+        // A purged chapter or drift took its 情节规划格 with it.
+        for purged in reply.purged where purged.kind == "chapter" || purged.kind == "drift" {
+            let key = PlotNodeKey(projectID: projectID, nodeID: purged.id)
+            plotGridModels.removeValue(forKey: key)
+            plotPlannerSession.removeValue(forKey: key)
+            plotPlannerSettings?.forgetPlotPlanner(projectID: projectID, nodeID: purged.id)
+        }
         relations.reload(projectID: projectID)
         // An element's patches went with it; patch sources may name a purged chapter.
         patches.reload(projectID: projectID)
         scheduleBacklinks(projectID: projectID)
         onPurged?(projectID, reply.purged)
+    }
+
+    // MARK: 情节规划格
+
+    private var plotGridModels: [PlotNodeKey: PlotGridModel] = [:]
+    /// Dock states remembered for the session when there is no settings store.
+    private var plotPlannerSession: [PlotNodeKey: PlotPlannerSetting] = [:]
+
+    /// The node's grid, shared by every dock that shows the page.
+    func plotGridModel(projectID: String, nodeID: String) -> PlotGridModel {
+        let key = PlotNodeKey(projectID: projectID, nodeID: nodeID)
+        if let model = plotGridModels[key] { return model }
+        let model = PlotGridModel(workspace: workspace, projectID: projectID, nodeID: nodeID)
+        plotGridModels[key] = model
+        return model
+    }
+
+    /// Whether the page's dock was left shown, and its height.
+    func plotPlannerSetting(projectID: String, nodeID: String) -> PlotPlannerSetting {
+        plotPlannerSettings?.plotPlanner(projectID: projectID, nodeID: nodeID)
+            ?? plotPlannerSession[PlotNodeKey(projectID: projectID, nodeID: nodeID)] ?? PlotPlannerSetting(shown: false)
+    }
+
+    private func storePlotPlanner(_ setting: PlotPlannerSetting, projectID: String, nodeID: String) {
+        if let store = plotPlannerSettings { store.setPlotPlanner(setting, projectID: projectID, nodeID: nodeID) }
+        else { plotPlannerSession[PlotNodeKey(projectID: projectID, nodeID: nodeID)] = setting }
+    }
+
+    /// Shows or hides the page's dock in every pane and remembers it.
+    func setPlotPlanner(shown: Bool, projectID: String, nodeID: String) {
+        var setting = plotPlannerSetting(projectID: projectID, nodeID: nodeID)
+        setting.shown = shown
+        storePlotPlanner(setting, projectID: projectID, nodeID: nodeID)
+        for tab in allTabs where tab.project.id == projectID && tab.nodeID == nodeID { showPlotDock(of: tab) }
+        onPlotPlanner?()
+    }
+
+    /// 视图 › 情节规划格 works on the active chapter or drift page.
+    var canTogglePlotPlanner: Bool { panes[activePane].active?.nodeID != nil }
+    var isActivePlotPlannerShown: Bool { panes[activePane].active?.plotDock != nil }
+
+    func toggleActivePlotPlanner() {
+        guard let tab = panes[activePane].active, let nodeID = tab.nodeID else { return }
+        setPlotPlanner(shown: tab.plotDock == nil, projectID: tab.project.id, nodeID: nodeID)
+    }
+
+    /// A tab's dock of the node, e.g. for acceptance.
+    func retainedPlotDock(pane: Int, nodeID: String) -> MacPlotPlannerDock? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.nodeID == nodeID }?.plotDock
+    }
+
+    /// Grids changed outside the docks (a received original, or anything
+    /// done while the window was not key): every model of the project, or of
+    /// every project, reads its grid again.
+    func refreshPlotGrids(projectID: String? = nil) {
+        for model in plotGridModels.values where projectID == nil || model.projectID == projectID { model.load() }
+    }
+
+    /// Attaches or removes the tab's dock as the page's setting says.
+    private func showPlotDock(of tab: Tab) {
+        guard let nodeID = tab.nodeID else { return }
+        let projectID = tab.project.id
+        let setting = plotPlannerSetting(projectID: projectID, nodeID: nodeID)
+        guard setting.shown else {
+            // Hiding keeps a cell being edited.
+            tab.plotDock?.canvas.commitEditing()
+            if tab.plotDock != nil { tab.showPlotDock(nil) }
+            return
+        }
+        if let dock = tab.plotDock { dock.setHeight(CGFloat(setting.height)); return }
+        let dock = MacPlotPlannerDock(model: plotGridModel(projectID: projectID, nodeID: nodeID), height: CGFloat(setting.height))
+        dock.presentAlert = { [weak self, weak dock] alert, done in self?.present(alert, from: dock?.window, completion: done) }
+        dock.onHide = { [weak self] in self?.setPlotPlanner(shown: false, projectID: projectID, nodeID: nodeID) }
+        dock.onResized = { [weak self] height in
+            guard let self else { return }
+            var stored = self.plotPlannerSetting(projectID: projectID, nodeID: nodeID)
+            stored.height = PlotPlannerSetting.clamped(Double(height))
+            self.storePlotPlanner(stored, projectID: projectID, nodeID: nodeID)
+            for other in self.allTabs where other.project.id == projectID && other.nodeID == nodeID {
+                other.plotDock?.setHeight(CGFloat(stored.height))
+            }
+        }
+        dock.onFocus = { [weak self, weak tab] in
+            guard let self, let tab, let index = self.pane(of: tab) else { return }
+            self.activate(pane: index)
+        }
+        tab.showPlotDock(dock)
+        dock.model.load()
+    }
+
+    private func present(_ alert: NSAlert, from window: NSWindow?, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+        if let presentAlert { presentAlert(alert, window, completion); return }
+        if let window = window ?? self.window { alert.beginSheetModal(for: window, completionHandler: completion) }
+        else { completion(alert.runModal()) }
+    }
+
+    // MARK: 漂流转为章节 / 转为设定
+
+    /// 转为章节… or 转为设定… from a drift page or the 漂流 panel: asks for
+    /// the primary storyline (or none) or the category, then converts.
+    /// Completes with nil when the author cancels.
+    func beginConversion(_ kind: DriftConversionKind, driftID: String, project: WorkspaceProject, from window: NSWindow?,
+                         completion: @escaping (Result<DriftConversionOutcome, Error>?) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        let projectID = project.id
+        let ask: (WorkspaceDrift) -> Void = { [weak self] drift in
+            guard let self else { return }
+            let actName = drift.actId.flatMap { self.actNames[projectID]?[$0] }
+            switch kind {
+            case .chapter:
+                self.withStorylines(projectID: projectID) { storylines in
+                    let (alert, popup) = DriftConversionPicker.chapter(drift: drift, storylines: storylines, actName: actName)
+                    self.present(alert, from: window) { response in
+                        guard response == .alertFirstButtonReturn else { completion(nil); return }
+                        let chosen = popup.selectedItem?.representedObject as? String ?? ""
+                        self.convertDriftToChapter(project: project, driftID: drift.id, storylineID: chosen.isEmpty ? nil : chosen) { result in
+                            completion(result.map { chapter in DriftConversionOutcome.chapter(chapter, driftID: drift.id) })
+                        }
+                    }
+                }
+            case .element:
+                self.withCategories(projectID: projectID) { categories in
+                    guard let (alert, popup) = DriftConversionPicker.element(drift: drift, categories: categories, actName: actName) else {
+                        completion(.failure(LabError.message("还没有分类。请先在设定库新建一个分类，再把漂流转为设定。"))); return
+                    }
+                    self.present(alert, from: window) { response in
+                        guard response == .alertFirstButtonReturn, let category = popup.selectedItem?.representedObject as? String else {
+                            completion(nil); return
+                        }
+                        self.convertDriftToElement(project: project, driftID: drift.id, categoryID: category) { result in
+                            completion(result.map { element in DriftConversionOutcome.element(element, driftID: drift.id) })
+                        }
+                    }
+                }
+            }
+        }
+        if let drift = linkSources[projectID]?.drifts?.drift(id: driftID) { ask(drift); return }
+        workspace.driftLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            guard case .success(let library) = result, let drift = library.drift(id: driftID) else {
+                completion(.failure(LabError.message("这条漂流已不可用，请刷新漂流列表。"))); return
+            }
+            self.applyDriftLibrary(projectID: projectID, library: library)
+            ask(drift)
+        }
+    }
+
+    private func withStorylines(projectID: String, _ body: @escaping ([WorkspaceStoryline]) -> Void) {
+        if let library = storylineLibraries[projectID] { body(library.storylines); return }
+        workspace.storylineLibrary(projectID: projectID) { [weak self] result in
+            let library = try? result.get()
+            if let self, let library { self.applyStorylineLibrary(projectID: projectID, library: library) }
+            body(library?.storylines ?? [])
+        }
+    }
+
+    private func withCategories(projectID: String, _ body: @escaping ([WorkspaceElementCategory]) -> Void) {
+        if let library = linkSources[projectID]?.library { body(library.categories); return }
+        workspace.elementLibrary(projectID: projectID) { [weak self] result in
+            let library = try? result.get()
+            if let self, let library { self.applyElementLibrary(projectID: projectID, library: library) }
+            body(library?.categories ?? [])
+        }
+    }
+
+    /// Where a body's tabs are: each pane's position and whether selected.
+    private struct TabPlace { let pane: Int; let index: Int; let selected: Bool }
+    private func places(of scope: DocumentScope) -> [TabPlace] {
+        panes.indices.compactMap { index in
+            panes[index].tabs.firstIndex { $0.scope == scope }.map { TabPlace(pane: index, index: $0, selected: panes[index].selected == scope) }
+        }
+    }
+
+    /// 转为章节: one Rust original; the drift's tabs become the chapter's in
+    /// the same places (the same body, now its own chapter owner). The
+    /// drift, chapter and storyline lists and act names are read again.
+    func convertDriftToChapter(project: WorkspaceProject, driftID: String, storylineID: String?,
+                               completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        let projectID = project.id
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        // A title being typed is saved first; it is ahead on the queue.
+        for tab in allTabs where tab.scope == scope { tab.endEditing() }
+        let places = self.places(of: scope), active = activePane
+        setBusy(true)
+        workspace.convertDriftToChapter(projectID: projectID, driftID: driftID, storylineID: storylineID) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                self.setBusy(false); self.onChange?(); completion(.failure(error))
+            case .success(let reply):
+                guard let chapter = reply.result else {
+                    self.setBusy(false); completion(.failure(LabError.message("转换结果缺失，请刷新章节列表。"))); return
+                }
+                // Rust released the drift's owner; its tabs go without closing it again.
+                self.removeAll(scope)
+                self.applyDriftLibrary(projectID: projectID, library: reply.library)
+                self.onDriftLibrary?(projectID, reply.library)
+                self.chaptersChanged(projectID: projectID)
+                self.storylinesChanged(projectID: projectID)
+                self.actsChanged(projectID: projectID)
+                self.wordCountModels[projectID]?.scheduleRefresh()
+                self.setBusy(false)
+                let target = WorkspaceTabTarget.chapter(chapter)
+                let placed = places.isEmpty ? [TabPlace(pane: active, index: .max, selected: true)] : places
+                self.replaceTabs(at: placed, with: target, project: project, active: active) { error in
+                    self.onDriftConverted?(projectID, .chapter(chapter, driftID: driftID))
+                    if let error { self.onError?(error) }
+                    completion(.success(chapter))
+                }
+            }
+        }
+    }
+
+    /// 转为设定: Rust creates the element from the drift's title, summary
+    /// and body and trashes the drift. The drift's tabs close and the element
+    /// opens where the drift was shown. After a partial failure the lists are
+    /// read again, and tabs whose owner Rust released close.
+    func convertDriftToElement(project: WorkspaceProject, driftID: String, categoryID: String,
+                               completion: @escaping (Result<WorkspaceElement, Error>) -> Void) {
+        guard canNavigate else { completion(.failure(blocked())); return }
+        let projectID = project.id
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        for tab in allTabs where tab.scope == scope { tab.endEditing() }
+        let place = places(of: scope).first { $0.selected } ?? places(of: scope).first
+        let active = activePane
+        setBusy(true)
+        workspace.convertDriftToElement(projectID: projectID, driftID: driftID, categoryID: categoryID) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                if !self.workspace.hasOpenDocument(scope) { self.removeAll(scope) }
+                if (error as? LabError)?.diagnosticDescription.contains("已创建") == true {
+                    self.elementsChanged(projectID: projectID)
+                    self.driftsChanged(projectID: projectID)
+                    self.relations.reload(projectID: projectID)
+                }
+                self.setBusy(false); self.onChange?(); completion(.failure(error))
+            case .success(let reply):
+                guard let element = reply.result?.element else {
+                    self.setBusy(false); completion(.failure(LabError.message("转换结果缺失，请刷新设定库。"))); return
+                }
+                self.removeAll(scope)
+                self.applyDriftLibrary(projectID: projectID, library: reply.library)
+                self.onDriftLibrary?(projectID, reply.library)
+                self.elementsChanged(projectID: projectID)
+                self.actsChanged(projectID: projectID)
+                self.relations.reload(projectID: projectID)
+                self.setBusy(false)
+                let target = WorkspaceTabTarget.element(element)
+                let placed = [TabPlace(pane: place?.pane ?? active, index: place?.index ?? .max, selected: true)]
+                self.replaceTabs(at: placed, with: target, project: project, active: place?.pane ?? active) { error in
+                    self.onDriftConverted?(projectID, .element(element, driftID: driftID))
+                    if let error { self.onError?(error) }
+                    completion(.success(element))
+                }
+            }
+        }
+    }
+
+    /// Opens `target` once and shows it in each place, at the same
+    /// position, selected where the old tab was selected; `active` stays the
+    /// active pane.
+    private func replaceTabs(at places: [TabPlace], with target: WorkspaceTabTarget, project: WorkspaceProject, active: Int,
+                             completion: @escaping (Error?) -> Void) {
+        setBusy(true)
+        openCore(project, target, reopen: false) { [weak self] result in
+            guard let self else { return }
+            guard case .success(let core) = result else {
+                self.setBusy(false); self.onChange?()
+                if case .failure(let error) = result { completion(error) }
+                return
+            }
+            var created: [Tab] = []
+            for place in places where self.panes.indices.contains(place.pane) {
+                let pane = self.panes[place.pane]
+                let previous = pane.selected
+                let (tab, isNew) = self.install(core, project: project, target: target, in: place.pane)
+                if isNew { created.append(tab) }
+                if let from = pane.tabs.firstIndex(where: { $0 === tab }) {
+                    pane.tabs.remove(at: from)
+                    pane.tabs.insert(tab, at: min(place.index, pane.tabs.count))
+                }
+                if !place.selected, let previous, pane.tabs.contains(where: { $0.scope == previous }) {
+                    pane.selected = previous
+                    self.showSelected(in: place.pane)
+                }
+            }
+            if self.panes.indices.contains(active) { self.activePane = active }
+            self.pendingFocus = self.activeView
+            self.refreshTabs()
+            self.setBusy(false)
+            self.onChange?()
+            self.focusWhenReady()
+            created.forEach { self.prepare($0) }
+            completion(nil)
+        }
     }
 
     // MARK: Project deletion
@@ -1542,6 +1880,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         countedRevisions = countedRevisions.filter { $0.key.projectID != projectID }
         relations.forget(projectID: projectID)
         patches.forget(projectID: projectID)
+        plotGridModels = plotGridModels.filter { $0.value.projectID != projectID }
+        plotPlannerSession = plotPlannerSession.filter { $0.key.projectID != projectID }
     }
 
     // MARK: Entity links
@@ -2036,6 +2376,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 guard let self, let tab else { done(.failure(LabError.message("漂流页面已关闭，修改未保存。"))); return }
                 self.commitDrift(tab, changes: changes, completion: done)
             }
+            page.onConvert = { [weak self, weak tab, weak page] kind in
+                guard let self, let tab, let drift = tab.drift else { return }
+                page?.showMessage(nil)
+                self.beginConversion(kind, driftID: drift.id, project: tab.project, from: self.window) { result in
+                    if case .failure(let error)? = result { page?.showMessage(error.localizedDescription); self.onError?(error) }
+                }
+            }
         } else if let page = tab.categoryPage {
             page.onFocus = { [weak self] in self?.activate(pane: pane) }
             page.onCommit = { [weak self, weak tab] changes, done in
@@ -2065,6 +2412,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
                 if let self, let view { self.onCommentCreated?(view, comment) }
             }
+        }
+        tab.plotToggle?.onToggle = { [weak self, weak tab] in
+            guard let self, let tab, let nodeID = tab.nodeID else { return }
+            self.activate(pane: pane)
+            let shown = self.plotPlannerSetting(projectID: tab.project.id, nodeID: nodeID).shown
+            self.setPlotPlanner(shown: !shown, projectID: tab.project.id, nodeID: nodeID)
         }
         tab.metadataEditor?.onCommit = { [weak self, weak tab] change, done in
             guard let self, let tab else { done(.failure(LabError.message("页面已关闭，摘要和状态未保存。"))); return }
@@ -2114,7 +2467,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.page?.onLoadBacklinks = nil; tab.page?.onOpenBacklink = nil; tab.page?.onOpenBacklinkSource = nil; tab.page?.onSetPortrait = nil
         tab.storylinePage?.onFocus = nil; tab.storylinePage?.onCommit = nil; tab.storylinePage?.onCommitFacts = nil
         tab.storylinePage?.onOpenChapter = nil
-        tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil
+        tab.driftPage?.onFocus = nil; tab.driftPage?.onCommit = nil; tab.driftPage?.onConvert = nil
+        tab.plotToggle?.onToggle = nil
+        tab.showPlotDock(nil)
         tab.categoryPage?.endTemplateSheet()
         tab.categoryPage?.onFocus = nil; tab.categoryPage?.onCommit = nil; tab.categoryPage?.onCommitFacts = nil
         tab.categoryPage?.onSaveTemplate = nil; tab.categoryPage?.onCreateElement = nil
@@ -2224,8 +2579,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 view.topAnchor.constraint(equalTo: pane.body.topAnchor), view.bottomAnchor.constraint(equalTo: pane.body.bottomAnchor),
             ])
         }
-        // An element page reads 被引用 each time it is shown.
+        // An element page reads 被引用 each time it is shown, a 情节规划格 its grid.
         pane.active?.page?.reloadBacklinks()
+        pane.active?.plotDock?.model.load()
         refreshTabs()
     }
     @objc private func historyPressed(_ sender: NSButton) {
@@ -2298,4 +2654,16 @@ private final class ChapterTabButton: NSButton {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc private func press() { pressed() }
+}
+
+/// A chapter or drift of a project, for its 情节规划格.
+struct PlotNodeKey: Hashable {
+    let projectID: String
+    let nodeID: String
+}
+
+/// What a drift became.
+enum DriftConversionOutcome {
+    case chapter(WorkspaceChapter, driftID: String)
+    case element(WorkspaceElement, driftID: String)
 }

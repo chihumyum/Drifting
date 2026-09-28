@@ -25,6 +25,8 @@ pub(super) mod metadata;
 pub(super) mod metrics;
 #[path = "workspace_patches.rs"]
 pub(super) mod patches;
+#[path = "workspace_plot_grid.rs"]
+pub(super) mod plot_grid;
 #[path = "workspace_relations.rs"]
 pub(super) mod relations;
 #[path = "workspace_remote_prose.rs"]
@@ -241,6 +243,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceMetadata { .. }
             | Request::WorkspaceComments { .. }
             | Request::WorkspacePatches { .. }
+            | Request::WorkspacePlotGrid { .. }
             | Request::WorkspaceRelations { .. }
             | Request::WorkspaceMetrics { .. }
             | Request::WorkspaceAgent { .. }
@@ -712,6 +715,15 @@ pub(super) fn dispatch(
             .get_mut(handle)
             .ok_or("Unknown or closed workspace")?
             .relations(project_id, command)?,
+        Request::WorkspacePlotGrid {
+            handle,
+            project_id,
+            node_id,
+            ops,
+        } => workspaces
+            .get_mut(handle)
+            .ok_or("Unknown or closed workspace")?
+            .plot_grid(project_id, node_id, ops)?,
         Request::WorkspacePatches {
             handle,
             project_id,

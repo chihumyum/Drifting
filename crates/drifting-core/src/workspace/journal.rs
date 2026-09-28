@@ -240,6 +240,9 @@ impl WorkspaceStore<'_> {
                                         | "entity-relation"
                                         | "entity-relation-type"
                                         | "library-item"
+                                        | "plot-grid-row"
+                                        | "plot-grid-column"
+                                        | "plot-grid-cell"
                                         | "timeline-marker"
                                 )
                             {

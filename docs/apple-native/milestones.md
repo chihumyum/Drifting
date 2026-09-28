@@ -43,10 +43,10 @@ architectural redesign.
 | P2a | Headless Yjs/Yrs interoperability | Complete for the declared scope, with vendored Yrs fixes |
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
-| P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash (with permanent deletion), acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
+| P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash (with permanent deletion), acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups with conversion to chapters and elements, plot grids, chapter/drift/project metadata, relations and associations, library order, word counts |
 | P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries, usage and MCP extensions ([agent](agent.md)); experimental Copilot suggestions ([copilot](copilot.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary, experimental Copilot suggestions, MCP extensions, printing, PDF export and custom shortcuts delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary, experimental Copilot suggestions, MCP extensions, printing, PDF export and custom shortcuts, the plot planner and drift conversions delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -89,7 +89,8 @@ architectural redesign.
 | Copilot suggestions (experimental) | `c2d4ab42` `30439d6d` | [copilot](copilot.md), [review](review.md), [settings](settings.md), [chapter comments](chapter-comments.md) |
 | MCP extensions and assistant memory fixes | `ab4e6a8a` | [agent](agent.md), [settings](settings.md), [whole book](whole-book.md), [trash](trash.md) |
 | Printing, PDF export and custom shortcuts | `507f67ad` | [library](library.md), [settings](settings.md) |
-| MCP and Copilot hardening | this batch | [agent](agent.md), [copilot](copilot.md), [settings](settings.md) |
+| MCP and Copilot hardening | `ec4bf6f2` | [agent](agent.md), [copilot](copilot.md), [settings](settings.md) |
+| Plot planner and drift conversions | this batch | [plot planner](plot-planner.md), [drifts](drifts.md), [trash](trash.md) |
 
 ## Next batch
 

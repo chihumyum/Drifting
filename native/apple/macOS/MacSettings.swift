@@ -59,6 +59,9 @@ struct LabSettings: Codable, Equatable {
     var dailyWords: [String: [String: Int]] = [:]
     /// Each project's 底部时间轴: shown or hidden, and 阅读顺序 or 故事时间.
     var bottomTimelines: [String: BottomTimelineSetting] = [:]
+    /// Each chapter's or drift's 情节规划格 dock: shown or hidden and its
+    /// height, keyed by project identity, then node identity.
+    var plotPlanners: [String: [String: PlotPlannerSetting]] = [:]
     /// 设置 › Copilot（实验）: off by default.
     var copilot = CopilotSettings()
     /// 设置 › 写作助手 › MCP 扩展: each project's servers, keyed by project
@@ -80,7 +83,7 @@ struct LabSettings: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
-        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot, mcpServers, shortcuts
+        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -102,6 +105,7 @@ struct LabSettings: Codable, Equatable {
                                                                 forKey: .elementOverviewViewports)) ?? [:]
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
+        plotPlanners = (try? values.decodeIfPresent([String: [String: PlotPlannerSetting]].self, forKey: .plotPlanners)) ?? [:]
         copilot = (try? values.decodeIfPresent(CopilotSettings.self, forKey: .copilot)) ?? CopilotSettings()
         mcpServers = (try? values.decodeIfPresent([String: [AgentMcpServerConfig]].self, forKey: .mcpServers)) ?? [:]
         // One unreadable shortcut does not take the others with it.
@@ -151,6 +155,29 @@ struct BottomTimelineSetting: Codable, Equatable {
     init(shown: Bool, axis: StoryGraphModel.Axis) { self.shown = shown; mode = axis.rawValue }
 
     var axis: StoryGraphModel.Axis { StoryGraphModel.Axis(rawValue: mode) ?? .book }
+}
+
+/// A chapter's or drift's 情节规划格 dock below its prose. The height is
+/// clamped on read, so a hand-edited file still opens.
+struct PlotPlannerSetting: Codable, Equatable {
+    static let heights: ClosedRange<Double> = 140...640
+    static let defaultHeight: Double = 240
+    var shown: Bool
+    var height: Double
+
+    init(shown: Bool, height: Double = PlotPlannerSetting.defaultHeight) {
+        self.shown = shown
+        self.height = Self.clamped(height)
+    }
+    private enum CodingKeys: String, CodingKey { case shown, height }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        shown = (try? values.decodeIfPresent(Bool.self, forKey: .shown)) ?? false
+        height = Self.clamped((try? values.decodeIfPresent(Double.self, forKey: .height)) ?? Self.defaultHeight)
+    }
+    static func clamped(_ height: Double) -> Double {
+        height.isFinite ? min(max(height.rounded(), heights.lowerBound), heights.upperBound) : defaultHeight
+    }
 }
 
 /// 设置 of this lab install. `settings.json` and the imported font copy in
@@ -323,6 +350,27 @@ final class LabSettingsStore {
         save()
     }
 
+    // MARK: 情节规划格
+
+    /// Whether the page's 情节规划格 was left shown, and its height.
+    func plotPlanner(projectID: String, nodeID: String) -> PlotPlannerSetting? { settings.plotPlanners[projectID]?[nodeID] }
+
+    /// Saves the dock's state at once; an unchanged state writes nothing.
+    /// Editors and the settings window are not told.
+    func setPlotPlanner(_ setting: PlotPlannerSetting, projectID: String, nodeID: String) {
+        guard plotPlanner(projectID: projectID, nodeID: nodeID) != setting else { return }
+        settings.plotPlanners[projectID, default: [:]][nodeID] = setting
+        save()
+    }
+
+    /// A purged chapter or drift leaves no dock state behind.
+    func forgetPlotPlanner(projectID: String, nodeID: String) {
+        guard settings.plotPlanners[projectID]?[nodeID] != nil else { return }
+        settings.plotPlanners[projectID]?.removeValue(forKey: nodeID)
+        if settings.plotPlanners[projectID]?.isEmpty == true { settings.plotPlanners.removeValue(forKey: projectID) }
+        save()
+    }
+
     // MARK: Writing plan
 
     /// The project's 写作计划, or the defaults (120,000 字, 1,500 字 a day).
@@ -488,16 +536,17 @@ final class LabSettingsStore {
     // MARK: Deleted projects
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
-    /// 底部时间轴 state or MCP servers behind (their Keychain secrets are
+    /// 底部时间轴 or 情节规划格 state or MCP servers behind (their Keychain secrets are
     /// removed by the caller).
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
             || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil
-            || settings.mcpServers[projectID] != nil else { return }
+            || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil else { return }
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
         settings.dailyWords.removeValue(forKey: projectID)
         settings.bottomTimelines.removeValue(forKey: projectID)
+        settings.plotPlanners.removeValue(forKey: projectID)
         settings.mcpServers.removeValue(forKey: projectID)
         save()
     }

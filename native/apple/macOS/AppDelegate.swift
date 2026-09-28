@@ -146,6 +146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private lazy var timelineDock = BottomTimelineDock(workspace: workspace, settings: settingsStore)
     private let timelineHost = NSView()
     private var timelineMenuItem: NSMenuItem!
+    /// 视图 › 情节规划格: checked while the active page shows its dock.
+    private var plotPlannerMenuItem: NSMenuItem!
     private var editorMinimumHeight: NSLayoutConstraint!
     private var settingsWindow: MacSettingsWindowController?
     /// 回收站: one project's trashed content of every kind.
@@ -214,12 +216,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             .wholeBook: .init(#selector(showWholeBook), self),
             .elementOverview: .init(#selector(showElementOverview), self),
             .bottomTimeline: .init(#selector(toggleBottomTimeline), self),
+            .plotPlanner: .init(#selector(togglePlotPlanner), self),
             .trash: .init(#selector(showTrashMenu), self),
             .diagnostics: .init(#selector(showDiagnostics), self),
         ]
         let menu = MacMainMenu.build(actions)
         agentMenuItem = MacMainMenu.item(.agent, in: menu)
         timelineMenuItem = MacMainMenu.item(.bottomTimeline, in: menu)
+        plotPlannerMenuItem = MacMainMenu.item(.plotPlanner, in: menu)
         NSApp.helpMenu = MacMainMenu.submenu("帮助", in: menu)
         NSApp.mainMenu = menu
         // Stored shortcuts apply now and after every change in 设置 › 快捷键.
@@ -338,6 +342,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.adoptMaterials(projectID: projectID, library: library, fromWorkspace: true)
         }
         chapterWorkspace.onTrash = { [weak self] projectID, source in self?.adoptTrash(projectID: projectID, source: source) }
+        // 情节规划格 docks are remembered per page in settings.json.
+        chapterWorkspace.plotPlannerSettings = settingsStore
+        chapterWorkspace.onPlotPlanner = { [weak self] in self?.updatePlotPlannerMenu() }
+        chapterWorkspace.onDriftConverted = { [weak self] projectID, outcome in self?.adoptDriftConversion(projectID: projectID, outcome: outcome) }
         chapterWorkspace.copilot = { [weak self] projectID in self?.copilot(for: projectID) }
         NotificationCenter.default.addObserver(self, selector: #selector(copilotSettingsChanged), name: LabSettingsStore.copilotDidChange,
                                                object: settingsStore)
@@ -1005,6 +1013,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updateWordStatus()
         showCopilotStatus()
         timelineDock.currentChapterChanged(projectID: currentProject?.id, chapterID: currentChapter?.id)
+        updatePlotPlannerMenu()
         let minWidth: CGFloat = (chapterWorkspace.paneCount == 2 ? 1100 : 820) + (agentPanel.isHidden ? 0 : 360)
         window.minSize = NSSize(width: minWidth, height: 660)
         if window.frame.width < minWidth {
@@ -1468,6 +1477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 model.showStatus(Self.statusMessage(result, title: drift.title))
             }
         }
+        controller.onConvert = { [weak self, weak panel] drift, kind in self?.convertDrift(drift, kind, project: project, from: panel) }
         window.addChildWindow(panel, ordered: .above)
         let frame = window.frame
         panel.setFrameTopLeftPoint(NSPoint(x: frame.minX + 72, y: frame.maxY - 130))
@@ -1514,6 +1524,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 self.driftsController?.model.showStatus(error.localizedDescription)
             }
         }
+    }
+
+    /// 转为章节… / 转为设定… from the 漂流 panel: the picker is a sheet on
+    /// the panel; the tab host converts and reports to `adoptDriftConversion`.
+    private func convertDrift(_ drift: WorkspaceDrift, _ kind: DriftConversionKind, project: WorkspaceProject, from panel: NSWindow?) {
+        guard canLeaveDocument() else {
+            driftsController?.model.showStatus("请先完成输入，并等待正文保存后再转换漂流。"); return
+        }
+        chapterWorkspace.beginConversion(kind, driftID: drift.id, project: project, from: panel) { [weak self] result in
+            guard let self, case .failure(let error)? = result else { return }
+            self.status.stringValue = error.localizedDescription
+            if let model = self.driftModel, model.projectID == project.id { model.showStatus(error.localizedDescription) }
+        }
+    }
+
+    /// A drift became a chapter (appended to the book; the chapter list, the
+    /// 整书大纲, 全书长卷, story graph and 底部时间轴 follow) or an element
+    /// (the drift went to the trash; released acts and markers follow). The
+    /// tab host already replaced the tabs and read the drift, chapter,
+    /// storyline and element lists.
+    private func adoptDriftConversion(projectID: String, outcome: DriftConversionOutcome) {
+        let message: String
+        switch outcome {
+        case .chapter(let chapter, _):
+            if selectedProject?.id == projectID, !chapters.contains(where: { $0.id == chapter.id }) {
+                chapters.append(chapter)
+                if !showingTrash { reloadChapterRows() }
+                chapterEmpty.isHidden = !displayedChapters.isEmpty
+            }
+            message = "漂流已转为章节《\(chapter.title)》，加在全书最后。"
+        case .element(let element, _):
+            message = "漂流已转为设定“\(element.name)”，原漂流已移到回收站。"
+        }
+        graphChaptersChanged(projectID: projectID)
+        if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
+        if let model = driftModel, model.projectID == projectID { model.showStatus(message) }
+        status.stringValue = message
+        activeChapterChanged()
     }
 
     private func closeDrifts() {
@@ -1885,6 +1933,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let name = projects.first { $0.id == project.id }?.name ?? project.name
         timelineDock.toggle(WorkspaceProject(id: project.id, name: name))
         updateTimelineMenu()
+    }
+
+    /// 视图 › 情节规划格 (⌥⌘G): the active chapter's or drift's dock below
+    /// its prose; remembered per page in settings.json.
+    @objc private func togglePlotPlanner() {
+        guard chapterWorkspace.canTogglePlotPlanner else {
+            status.stringValue = "情节规划格在章节和漂流页面中，请先打开一章或一条漂流。"; return
+        }
+        chapterWorkspace.toggleActivePlotPlanner()
+    }
+
+    private func updatePlotPlannerMenu() {
+        plotPlannerMenuItem?.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(togglePlotPlanner) {
+            item.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
+            return chapterWorkspace.canTogglePlotPlanner
+        }
+        return true
     }
 
     private func updateTimelineMenu() {
@@ -2956,11 +3025,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             }
         }
     }
-    /// Edits made in panels meanwhile are read by the 底部时间轴.
+    /// Edits made in panels meanwhile are read by the 底部时间轴 and the
+    /// 情节规划格 docks.
     func windowDidBecomeKey(_ notification: Notification) {
         if let projectID = timelineDock.model?.projectID, timelineDock.model?.loaded == true {
             timelineDock.chaptersChanged(projectID: projectID)
         }
+        // 情节规划格 docks read their grids again.
+        chapterWorkspace.refreshPlotGrids()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {

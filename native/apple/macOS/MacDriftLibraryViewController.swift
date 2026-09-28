@@ -17,6 +17,8 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
     var onCreated: ((WorkspaceDrift) -> Void)?
     /// The row menu chose another status (`drifting` or `resting`).
     var onSetStatus: ((WorkspaceDrift, String) -> Void)?
+    /// 转为章节… or 转为设定… on a drift row.
+    var onConvert: ((WorkspaceDrift, DriftConversionKind) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
     /// Presents an alert (prompts, pickers and confirmations). Nil uses a
@@ -236,9 +238,12 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
             let trash = LibraryMenuItem(title: drift.actId == nil ? "移到回收站" : "移到回收站…", identifier: "trash-drift") { [weak self] in
                 self?.trash(drift)
             }
+            let converts = [DriftConversionKind.chapter, .element].map { kind in
+                LibraryMenuItem(title: kind.title, identifier: kind.identifier) { [weak self] in self?.convert(drift, kind) }
+            }
             var items: [NSMenuItem] = [open, .separator(), rename, move, .separator()]
             items += statusItems(drift)
-            items += [.separator(), trash]
+            items += [.separator()] + converts + [.separator(), trash]
             return items
         case .group(let group, _, _, _):
             let create = LibraryMenuItem(title: "新建漂流", identifier: "create-drift-in-group") { [weak self] in
@@ -298,6 +303,12 @@ final class MacDriftLibraryViewController: NSViewController, NSTableViewDataSour
     private func open(_ drift: WorkspaceDrift) {
         guard canChange() else { return }
         onOpen?(drift)
+    }
+
+    /// Conversion closes the drift's pages, so it waits like opening does.
+    private func convert(_ drift: WorkspaceDrift, _ kind: DriftConversionKind) {
+        guard canChange() else { return }
+        onConvert?(drift, kind)
     }
 
     private func restore(_ drift: WorkspaceDrift) {

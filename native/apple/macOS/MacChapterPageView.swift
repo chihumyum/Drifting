@@ -156,10 +156,11 @@ final class NodeMetadataEditor: NSObject, NSTextViewDelegate {
     @objc private func statusChosen() { onFocus?(); commit(.status) }
 }
 
-/// One chapter's page: its title and word count with 状态 beside them and 摘要
-/// below on a neutral wash, then 关系, above the chapter's prose body. The title is renamed from
-/// the chapter list; the body is the chapter's ordinary native editor with
-/// comments.
+/// One chapter's page: its title and word count with 情节规划格 and 状态 beside
+/// them and 摘要 below on a neutral wash, then 关系, above the chapter's prose
+/// body, and the 情节规划格 dock below the body when shown. The title is
+/// renamed from the chapter list; the body is the chapter's ordinary native
+/// editor with comments.
 final class MacChapterPageView: NSView {
     let documentView: NativeDocumentView
     let titleLabel = NSTextField(labelWithString: "")
@@ -168,9 +169,14 @@ final class MacChapterPageView: NSView {
     let wordCountLabel = MacWordCount.headerLabel(identifier: "chapter-word-count")
     /// 关系, filled and driven by the tab host's relation coordinator.
     let relationsView = RelationsSectionView()
+    /// Shows or hides the 情节规划格 dock below the body.
+    let plotPlannerButton = PlotPlannerToggle()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
+    private let stack = NSStackView()
     private(set) var chapter: WorkspaceChapter
+    /// The 情节规划格 dock, while shown.
+    private(set) var plotDock: MacPlotPlannerDock?
 
     var errorMessage: String? { message.isHidden ? nil : message.stringValue }
     var isCommitting: Bool { metadataEditor.isCommitting }
@@ -191,7 +197,7 @@ final class MacChapterPageView: NSView {
         metadataEditor.onMessage = { [weak self] in self?.showMessage($0) }
 
         let statusLabel = label("状态")
-        let titleRow = NSStackView(views: [titleLabel, wordCountLabel, NSView(), statusLabel, metadataEditor.statusPopup])
+        let titleRow = NSStackView(views: [titleLabel, wordCountLabel, NSView(), plotPlannerButton, statusLabel, metadataEditor.statusPopup])
         titleRow.spacing = 8
         titleRow.setCustomSpacing(10, after: titleLabel)
         let summaryLabel = label("摘要")
@@ -202,7 +208,7 @@ final class MacChapterPageView: NSView {
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
         let relationsRow = relationsView.inset()
-        let stack = NSStackView(views: [header, relationsRow, documentView])
+        stack.setViews([header, relationsRow, documentView], in: .leading)
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -231,6 +237,12 @@ final class MacChapterPageView: NSView {
         value.textColor = .secondaryLabelColor
         value.setContentHuggingPriority(.required, for: .horizontal)
         return value
+    }
+
+    /// Places the 情节规划格 dock below the body, or removes it with nil.
+    func showPlotDock(_ dock: MacPlotPlannerDock?) {
+        plotDock = PlotPlannerToggle.place(dock, replacing: plotDock, in: stack)
+        plotPlannerButton.state = dock == nil ? .off : .on
     }
 
     /// A renamed chapter shows its new title.

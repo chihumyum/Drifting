@@ -3,7 +3,8 @@
 Drifts (漂流) are free-floating notes outside the book order: a `book_node`
 with `kind='drift'`, no book order and no storylines, and its own prose body.
 The Mac client creates, renames, groups, trashes and restores them, organises
-them in drift groups, and binds a drift to an act boundary as that act's notes.
+them in drift groups, binds a drift to an act boundary as that act's notes,
+and converts a drift into a chapter or an element.
 
 ## Domain contract
 
@@ -36,6 +37,24 @@ them in drift groups, and binds a drift to an act boundary as that act's notes.
 
 Drift trash purges the drift's [relations](relations.md) inside its trash
 original; restore does not bring them back. No SQLite migration is added.
+
+## Conversions
+
+- `workspaceDrifts {"action":"convertToChapter","driftId","storylineId"?}`
+  makes the same node a chapter in one original: 草稿, appended after the
+  last chapter, out of its group, primary in the storyline when given, its
+  timeline markers (keeping their caption, or taking the title) and act
+  released; a title a chapter already uses is numbered. Body, summary,
+  relations and [情节规划格](plot-planner.md) stay. An open drift body is
+  saved and released first; the chapter opens its own owner. Word-count reads
+  bracket it, so it never counts as today's writing.
+- `workspaceDrifts {"action":"convertToElement","driftId","categoryId"}` →
+  `{element, driftId}`: creates the element (name and summary from the drift,
+  the category's template facts), copies the drift's full body into it as the
+  author's input, then trashes the drift (unbinding markers and acts, purging
+  its relations). An element name or alias conflict is refused before
+  anything is written. If a later step fails Rust says what was done
+  (“设定「…」已创建，但…”); the host reads the lists again.
 
 ## Native interaction
 
@@ -71,6 +90,18 @@ Every command reply's complete library updates the panel, open pages, entity
 links and the outline. Act create, rename and remove re-read act names and the
 drifts, since removing an act releases its notes.
 
+转为章节… and 转为设定… are in a drift page's 操作 menu and the panel's drift
+menu. 转为章节… asks for the primary storyline (the first one, or 无主线) and
+names what is released; 取消 writes nothing. The drift's tabs become the
+chapter's in the same places with the same body and planner (a drift not
+open opens as a chapter in the active pane); the chapter list, 整书大纲,
+全书长卷, story graph, 底部时间轴, storylines and the 漂流 panel follow.
+转为设定… asks for the category (refused in Chinese when there is none); the
+drift's tabs close and the element page opens where it was shown, and the
+设定库, 回收站 and act notes follow. Refusals, including Rust's name conflict
+(“灯塔”已被设定“灯塔”使用…) and partial-failure messages as Rust words them,
+show on the page or in the panel with the drift and its page unchanged.
+
 ## Acceptance
 
 `pnpm apple:workspace-drift:acceptance` generates
@@ -87,4 +118,8 @@ opening the page and a trashed drift's link dimming until restore; act notes bou
 from the outline picker on the act row and page following an act rename, a stale
 bind refused, queued input blocking the trash, trash unbinding and closing the tab
 only after commit, restore returning it unbound, and unbinding or removing an act
-keeping the drift. Physical input, desktop XCTest and devices are not covered.
+keeping the drift. Two more cases in `native/apple/Tests/PlotConvertAcceptance.swift`
+(`--plot-convert-only`) convert from the page and the panel with every view
+following and the journal pinned (one original for 转为章节; element, body
+copy and trash for 转为设定), 取消, and the name-conflict refusal with nothing
+written. Physical input, desktop XCTest and devices are not covered.

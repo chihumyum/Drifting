@@ -717,6 +717,16 @@ enum Request {
         project_id: String,
         command: workspace::drifts::DriftCommand,
     },
+    WorkspacePlotGrid {
+        handle: u64,
+        #[serde(rename = "projectId")]
+        project_id: String,
+        #[serde(rename = "nodeId")]
+        node_id: String,
+        /// Empty reads the grid.
+        #[serde(default)]
+        ops: Vec<workspace::plot_grid::PlotGridInput>,
+    },
     WorkspacePatches {
         handle: u64,
         #[serde(rename = "projectId")]
@@ -1480,6 +1490,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
         | Request::WorkspaceMetadata { .. }
         | Request::WorkspaceComments { .. }
         | Request::WorkspacePatches { .. }
+        | Request::WorkspacePlotGrid { .. }
         | Request::WorkspaceRelations { .. }
         | Request::WorkspaceMetrics { .. }
         | Request::WorkspaceAgent { .. }

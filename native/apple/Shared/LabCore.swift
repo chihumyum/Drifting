@@ -34,6 +34,7 @@ enum LabError: LocalizedError {
     case projectUnavailable(reason: String)
     case patchUnavailable(reason: String)
     case trashUnavailable(reason: String)
+    case plotGridUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -44,7 +45,8 @@ enum LabError: LocalizedError {
              .driftUnavailable(let text), .metadataUnavailable(let text), .relationUnavailable(let text),
              .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
              .versionHistoryUnavailable(let text), .reviewUnavailable(let text), .actUnavailable(let text),
-             .projectUnavailable(let text), .patchUnavailable(let text), .trashUnavailable(let text): return text
+             .projectUnavailable(let text), .patchUnavailable(let text), .trashUnavailable(let text),
+             .plotGridUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -71,7 +73,33 @@ enum LabError: LocalizedError {
         case .projectUnavailable(let reason): return LabError.projectMessage(reason)
         case .patchUnavailable(let reason): return LabError.patchMessage(reason)
         case .trashUnavailable(let reason): return LabError.trashMessage(reason)
+        case .plotGridUnavailable(let reason): return LabError.plotGridMessage(reason)
         }
+    }
+
+    /// 情节规划格 refusals roll the whole batch back. Rust's own reasons are
+    /// Chinese (这一行不存在, 单元格和标题最多 10000 字, 格子宽度须在…); the
+    /// rest are restated.
+    private static func plotGridMessage(_ reason: String) -> String {
+        let known: [(String, String)] = [
+            ("章节或灵感不存在或已在回收站", "这一章或这条漂流已不可用（可能已移到回收站），情节规划格未能保存。"),
+            ("Invalid plot grid identity", "情节规划格的行列标识无效，未能保存。"),
+            ("Plot grid identity already exists", "这一行或这一列已经存在，请稍后重试。"),
+            ("Project does not", "这个项目已不可用，请重新选择项目。"),
+            ("Project and active generation identity do not match", "这个项目已不可用，请重新选择项目。"),
+        ]
+        if let known = known.first(where: { reason.contains($0.0) }) { return known.1 }
+        if reason.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) { return reason }
+        return "情节规划格未能保存。已有内容未改变，可以稍后重试。"
+    }
+
+    /// “名称”已被设定“名称”使用: an element name or alias conflict, from
+    /// `Name "x" is already used by element "y"`.
+    static func elementNameConflict(_ reason: String) -> String? {
+        guard reason.contains("is already used by element") else { return nil }
+        let parts = reason.components(separatedBy: "\"")
+        return parts.count >= 5 ? "“\(parts[1])”已被设定“\(parts[3])”使用，请换一个名称或别名。"
+            : "名称或别名已被其他设定使用，请换一个。"
     }
 
     /// 彻底删除 refusals leave every row, body and journal entry in place.
@@ -268,7 +296,20 @@ enum LabError: LocalizedError {
     /// Drift and drift group refusals happen before any row, binding or
     /// journal change.
     private static func driftMessage(_ reason: String) -> String {
+        // 转为设定 is refused before writing when the drift's title is an
+        // element's name or alias; a conversion that stopped part way says
+        // what was done in Rust's own words.
+        if let conflict = elementNameConflict(reason) {
+            return conflict.replacingOccurrences(of: "请换一个名称或别名。", with: "请先给漂流或那个设定改名，再转为设定。")
+        }
+        if reason.contains("已创建") { return reason }
         let known: [(String, String)] = [
+            ("灵感不存在或已在回收站", "这条漂流已不可用，请刷新漂流列表。"),
+            ("Storyline is not available", "这条故事线已不可用，请刷新故事线列表后再转为章节。"),
+            ("Category is not available", "这个分类已不可用，请刷新设定库后再转为设定。"),
+            ("分类不存在或已在回收站", "这个分类已不可用，请刷新设定库后再转为设定。"),
+            ("Unsaved or unapplied prose remains", "漂流正文尚未保存，请先重试保存。"),
+            ("native draft is active", "请先完成漂流正文中的输入。"),
             ("nest at most one level", "分组最多嵌套一层：子分组中不能再建分组。"),
             ("Drift group is not available", "这个分组已不可用，请刷新漂流列表。"),
             ("Drift group name is empty", "分组名称不能为空。"),
@@ -308,11 +349,7 @@ enum LabError: LocalizedError {
     /// Element library refusals happen before any row or journal change.
     /// Name conflicts name both sides; other known reasons get guidance.
     private static func elementMessage(_ reason: String) -> String {
-        if reason.contains("is already used by element") {
-            let parts = reason.components(separatedBy: "\"")
-            return parts.count >= 5 ? "“\(parts[1])”已被设定“\(parts[3])”使用，请换一个名称或别名。"
-                : "名称或别名已被其他设定使用，请换一个。"
-        }
+        if let conflict = elementNameConflict(reason) { return conflict }
         let known: [(String, String)] = [
             ("Category is not available", "这个分类已不可用，请刷新设定库。"),
             ("Element is not available", "这个设定已不可用，请刷新设定库。"),
@@ -511,6 +548,9 @@ final class LabCore {
             }
             if request["operation"] as? String == "workspaceHistory" {
                 throw LabError.versionHistoryUnavailable(reason: reason)
+            }
+            if request["operation"] as? String == "workspacePlotGrid" {
+                throw LabError.plotGridUnavailable(reason: reason)
             }
             throw LabError.message(reason)
         }
@@ -1478,6 +1518,62 @@ final class LabWorkspaceCore {
 
     private func driftRequest<Payload: Decodable>(_ projectID: String, _ command: [String: Any]) throws -> Payload {
         try request("workspaceDrifts", fields: ["projectId": projectID, "command": command])
+    }
+
+    /// 转为章节: the same node joins the end of the book as a 草稿, primary in
+    /// `storylineID` when given, out of its group, with its markers and act
+    /// released, in one original. Rust saves and releases an open body; the
+    /// chapter opens its own owner. Like chapter trash, it is not the
+    /// author's writing for 今日字数, so word-count reads bracket it.
+    func convertDriftToChapter(projectID: String, driftID: String, storylineID: String?,
+                               completion: @escaping (Result<WorkspaceDriftReply<WorkspaceChapter>, Error>) -> Void) {
+        var command: [String: Any] = ["action": "convertToChapter", "driftId": driftID]
+        if let storylineID { command["storylineId"] = storylineID }
+        notAuthored(projectID) {
+            changeLifecycle(.drift(DriftScope(projectID: projectID, driftID: driftID)), closesOwner: true, completion: completion) {
+                try self.driftRequest(projectID, command)
+            }
+        }
+    }
+
+    /// 转为设定: a new element in the category with the drift's title,
+    /// summary and body, then the drift goes to the trash. A name conflict
+    /// is refused before anything is written. The drift's open body is
+    /// released on success, and when Rust reports that the element and its
+    /// body were made but the trash failed; the library reply is the drifts'.
+    func convertDriftToElement(projectID: String, driftID: String, categoryID: String,
+                               completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDriftElementConversion>, Error>) -> Void) {
+        precondition(Thread.isMainThread)
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        guard beginOwnerChange() else {
+            completion(.failure(LabError.message("请先完成输入，并保存或处理所有待恢复草稿"))); return
+        }
+        perform({ (result: Result<WorkspaceDriftReply<WorkspaceDriftElementConversion>, Error>) in
+            let released: Bool
+            switch result {
+            case .success: released = true
+            case .failure(let error):
+                released = ((error as? LabError)?.diagnosticDescription ?? "").contains("已创建并复制了正文")
+            }
+            if released { self.owners.removeValue(forKey: scope)?.core.invalidate() }
+            self.endOwnerChange()
+            completion(result)
+        }) {
+            try self.driftRequest(projectID, ["action": "convertToElement", "driftId": driftID, "categoryId": categoryID])
+        }
+    }
+
+    // MARK: 情节规划格
+
+    /// Without operations, reads the node's grid (nil before its first
+    /// edit). With operations, applies them in order in one original and
+    /// returns the grid; any refusal rolls the whole batch back. Chapters
+    /// and drifts only; the body, its history and word counts are untouched.
+    func plotGrid(projectID: String, nodeID: String, ops: [PlotGridOp],
+                  completion: @escaping (Result<WorkspacePlotGridReply, Error>) -> Void) {
+        var fields: [String: Any] = ["projectId": projectID, "nodeId": nodeID]
+        if !ops.isEmpty { fields["ops"] = ops.map(\.payload) }
+        perform(completion) { try self.request("workspacePlotGrid", fields: fields) }
     }
 
     // MARK: Relations

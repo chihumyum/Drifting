@@ -148,6 +148,12 @@ fn workspace_purge_removes_trashed_content_and_what_it_owns() {
         json!({"action":"trashDrift","driftId":drift}),
     );
     success(
+        json!({"operation":"workspacePlotGrid","handle":fixture.workspace,
+        "projectId":fixture.project,"nodeId":fixture.chapters[1],
+        "ops":[{"op":"addRow","id":"grid-row","label":"人物"},{"op":"addColumn","id":"grid-col","label":"开场"},
+            {"op":"setCell","rowId":"grid-row","columnId":"grid-col","value":"林岚"}]}),
+    );
+    success(
         json!({"operation":"workspaceTrashChapter","handle":fixture.workspace,
         "projectId":fixture.project,"chapterId":fixture.chapters[1]}),
     );
@@ -242,6 +248,12 @@ fn workspace_purge_removes_trashed_content_and_what_it_owns() {
             )
         ),
         "0"
+    );
+    // The purged chapter's plot planner went with it, journaled.
+    assert_eq!(count(&db, "SELECT COUNT(*) FROM plot_grid_row"), "0");
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM sync_mutation WHERE action='entity.purge' AND target_kind LIKE 'plot-grid-%'"),
+        "3"
     );
     // The live element's patch stays, its purged source cleared in the journal.
     assert_eq!(

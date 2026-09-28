@@ -15,6 +15,7 @@ mod metadata;
 mod metrics;
 mod outline;
 mod patches;
+mod plot_grid;
 mod purge;
 mod relations;
 mod storylines;
@@ -39,6 +40,7 @@ pub use metadata::{ProjectChanges, WorkspaceNodeMetadata, WorkspaceProjectDetail
 pub use metrics::{NodeProjection, NodeWordCount};
 pub use outline::WorkspaceOutlineRow;
 pub use patches::{NewPatch, PatchChanges, PatchSource, WorkspacePatch};
+pub use plot_grid::{plot_grid_document_id, PlotAxis, PlotCell, PlotGrid, PlotGridOp};
 pub use purge::{PurgedEntity, TrashedEntity};
 pub use relations::{RelationTypeDefinition, WorkspaceRelation, WorkspaceRelationType};
 pub use storylines::{ChapterMembership, NewStoryline, StorylineChanges, WorkspaceStoryline};

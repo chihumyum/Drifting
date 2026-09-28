@@ -89,6 +89,19 @@ struct WorkspaceDriftReply<Value: Decodable>: Decodable {
     let library: WorkspaceDriftLibrary
 }
 
+/// 转为设定's result: the new element and the drift now in the trash.
+struct WorkspaceDriftElementConversion: Decodable {
+    let element: WorkspaceElement
+    let driftId: String
+}
+
+/// 转为章节 or 转为设定.
+enum DriftConversionKind: Equatable {
+    case chapter, element
+    var title: String { self == .chapter ? "转为章节…" : "转为设定…" }
+    var identifier: String { self == .chapter ? "convert-drift-to-chapter" : "convert-drift-to-element" }
+}
+
 /// Present fields are written; an explicit nil inside `groupID` ungroups the
 /// drift. Rust keeps titles unique across chapters and drifts.
 struct WorkspaceDriftChanges {

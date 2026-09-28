@@ -12,7 +12,8 @@ interoperability is kept.
 - `workspacePurgeTrashed {handle, projectId, kind, id}` (`chapter`, `drift`,
   `element`, `category`, `storyline`) removes one trashed entity and what only
   it owns in one original: comments written on it (with their relations),
-  its facts, an element's patches, its Yjs body, revisions and version
+  its facts, an element's patches, a chapter's or drift's
+  [情节规划格](plot-planner.md), its Yjs body, revisions and version
   history. The lifecycle moves from `trashed` to `purged`; earlier originals
   stay in the journal. Live content is refused (“只有回收站里的内容才能彻底删除”)
   and so is an open page (“请先关闭这一页，再彻底删除”), writing nothing.

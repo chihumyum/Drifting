@@ -96,7 +96,7 @@ enum MacMenuCommand: String, CaseIterable {
     case bold = "format.bold", italic = "format.italic"
     case agent = "view.agent", materials = "view.materials", review = "view.review", board = "view.board"
     case storyGraph = "view.storyGraph", wholeBook = "view.wholeBook", elementOverview = "view.elementOverview"
-    case bottomTimeline = "view.bottomTimeline", trash = "view.trash"
+    case bottomTimeline = "view.bottomTimeline", plotPlanner = "view.plotPlanner", trash = "view.trash"
     case diagnostics = "help.diagnostics"
 
     var title: String {
@@ -139,6 +139,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .wholeBook: return "全书长卷"
         case .elementOverview: return "设定总览"
         case .bottomTimeline: return "底部时间轴"
+        case .plotPlanner: return "情节规划格"
         case .diagnostics: return "诊断摘要…"
         }
     }
@@ -181,6 +182,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .wholeBook: return MenuShortcut(key: "b", flags: shift)
         case .elementOverview: return MenuShortcut(key: "e", flags: option)
         case .bottomTimeline: return MenuShortcut(key: "b", flags: option)
+        case .plotPlanner: return MenuShortcut(key: "g", flags: option)
         default: return .unassigned
         }
     }
@@ -231,7 +233,8 @@ enum MacMainMenu {
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, .search, .elements, .storylines, .drifts, .relationTypes, nil,
                 .addComment, .comments, .copilot, nil, .history]),
         ("格式", [.bold, .italic]),
-        ("视图", [.agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, nil, .trash]),
+        ("视图", [.agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
+                .trash]),
         ("帮助", [.diagnostics]),
     ]
     /// How 设置 › 快捷键 names the app menu.

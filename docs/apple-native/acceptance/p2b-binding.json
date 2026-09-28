@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T02:56:13.030Z",
+  "generatedAt": "2026-09-28T09:38:53.104Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "ec4bf6f2e2e5803e2eadeb590b33fb8e3ba2ff0e",
+    "commit": "f1ff2b90ec1e61b69e8049fd3dd076e43a7e1128",
     "dirty": true,
-    "fingerprint": "9c7cace2319568c90bd2489bc25e46bbd9d65bbb7b6ca43f0b13e309f068594e"
+    "fingerprint": "06f72b26388d3f66419c0d8142cbf84c93f416feb7f00f242f254ef1af52a868"
   },
   "cases": [
     {
@@ -904,6 +904,30 @@
     },
     {
       "name": "AppKit 快捷键 persist in settings.json and apply to a new menu and the settings window at relaunch, while a hand-edited file's reserved, unreadable and conflicting entries fall back without losing the others or an unknown command's entry",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 情节规划格 toggles below a chapter's prose from the page header and 视图 › 情节规划格, remembered per page in settings.json, starts from an unsaved 3×3 template written by the first edit as one original, edits cells by click and Return with Tab, ⇧Tab and arrows moving, ⌥Return for a new line, Esc cancelling and Delete clearing, writes nothing for unchanged edits, and never touches the Yjs body, its undo history or word counts",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 情节规划格 rows and columns are added after the selection or at the end with their header then edited, renamed by double-click, moved by the header menu and by dragging a header with one order original each (a drop in place writes nothing), and deleted at once when empty or after confirmation when they hold text, with 取消 writing nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 情节规划格 pastes a tab-separated block from a cell or from the cell editor as one original that adds the rows and columns it needs, and sets the cell size within Rust's limits from the dock while an out-of-range size or an over-long cell is refused in Chinese with nothing written and the grid restored from Rust",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 情节规划格 in two panes of one chapter shares one grid so each follows the other's edits, 隐藏 hides it for the page in both panes, a grid written elsewhere is read again, a drift page has its own planner, the dock height drags and is remembered, docks, heights and grids survive a cold relaunch, and 彻底删除 of a drift takes its grid and remembered dock",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 转为章节… from the drift page and the 漂流 panel asks for the primary storyline or none and converts in one original: the drift's tab becomes the chapter's tab with the same body and 情节规划格, and the chapter list, 整书大纲, 全书长卷, story graph, 底部时间轴 and 漂流 panel follow with its act notes and timeline marker released; 取消 writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 转为设定… from the drift page and the 漂流 panel creates the element with the drift's title, summary and body in the chosen category, moves the drift to the trash, closes its tab and opens the element page, while a title already used by an element is refused in Chinese before anything is written and the drift page stays open",
       "status": "passed"
     }
   ],

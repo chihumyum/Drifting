@@ -293,6 +293,29 @@ impl WorkspaceStore<'_> {
                 }
             }
         }
+        // A chapter's or drift's plot planner goes with it, journaled.
+        if target.table == "book_node" {
+            let document = super::plot_grid::plot_grid_document_id(id);
+            for (table, grid_kind) in [
+                ("plot_grid_cell", "plot-grid-cell"),
+                ("plot_grid_row", "plot-grid-row"),
+                ("plot_grid_column", "plot-grid-column"),
+            ] {
+                for row in self.query(
+                    Some(tx),
+                    &format!("SELECT id FROM {table} WHERE document_id=? ORDER BY id"),
+                    vec![text(&document)],
+                )? {
+                    mutations.push(journal::Mutation::json(
+                        "entity",
+                        grid_kind,
+                        &string(&row, 0)?,
+                        "entity.purge",
+                        json!({}),
+                    ));
+                }
+            }
+        }
         let asset_ids: Vec<String> = if kind == "element" {
             self.query(Some(tx), "SELECT portrait_asset_id FROM element WHERE id=? AND project_id=? AND portrait_asset_id IS NOT NULL",
                 vec![text(id), text(&context.project_id)])?

@@ -105,7 +105,7 @@
         "IME, UTF-16 positions, split/merge IDs, marks, opaque data, selection, multi-view"
       ],
       "milestone": "P2",
-      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open",
+      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented",
       "decisionTask": "D2/D3/D4"
     },
     {
@@ -200,7 +200,7 @@
         "five-level semantics, nullable storyline, ordering and drift visibility; act boundaries created at current chapter coordinates, renamed and removed without changing prose or chapter order"
       ],
       "milestone": "P5/P6",
-      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-and-story-graph-implemented; drift-graph-positions-planned",
+      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-drift-to-chapter-and-element-conversions-and-story-graph-implemented; drift-graph-positions-planned",
       "decisionTask": null
     },
     {

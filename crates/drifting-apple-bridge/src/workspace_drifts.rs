@@ -3,7 +3,7 @@
 //! owner (`node-content:<id>`) keyed apart from chapters.
 use super::elements::{empty_body, present};
 use super::*;
-use drifting_core::workspace::NewDrift;
+use drifting_core::workspace::{NewDrift, NewElement};
 
 #[derive(Debug, Deserialize)]
 #[serde(
@@ -26,6 +26,18 @@ pub(crate) enum DriftCommand {
     },
     TrashDrift {
         drift_id: String,
+    },
+    /// 转为章节: the same node joins the book, primary in `storylineId`.
+    ConvertToChapter {
+        drift_id: String,
+        #[serde(default)]
+        storyline_id: Option<String>,
+    },
+    /// 转为设定: a new element in `categoryId` with the drift's title,
+    /// summary and body; the drift then goes to the trash.
+    ConvertToElement {
+        drift_id: String,
+        category_id: String,
     },
     RestoreDrift {
         drift_id: String,
@@ -83,6 +95,103 @@ impl WorkspaceSession {
                 title.as_deref(),
                 group_id.as_ref().map(Option::as_deref),
             )?),
+            DriftCommand::ConvertToChapter {
+                drift_id,
+                storyline_id,
+            } => {
+                let key = (project_id.to_owned(), drift_id.clone());
+                if let Some(handle) = self.drift_bodies.get(&key) {
+                    documents
+                        .get_mut(handle)
+                        .ok_or("Workspace document owner is missing")?
+                        .prepare_to_release()?;
+                }
+                let chapter = store.convert_drift_to_chapter(
+                    &self.context(&project)?,
+                    drift_id,
+                    storyline_id.as_deref(),
+                )?;
+                // The body now opens as a chapter.
+                if let Some(handle) = self.drift_bodies.remove(&key) {
+                    documents.remove(&handle);
+                }
+                json!(chapter)
+            }
+            DriftCommand::ConvertToElement {
+                drift_id,
+                category_id,
+            } => {
+                let key = (project_id.to_owned(), drift_id.clone());
+                if let Some(handle) = self.drift_bodies.get(&key) {
+                    documents
+                        .get_mut(handle)
+                        .ok_or("Workspace document owner is missing")?
+                        .prepare_to_release()?;
+                }
+                let drift = store
+                    .drifts(project_id)?
+                    .into_iter()
+                    .find(|drift| drift.id == *drift_id)
+                    .ok_or("灵感不存在或已在回收站")?;
+                let state = {
+                    let repository = ProseRepository::new(&self.gateway, CLIENT);
+                    let tx = self
+                        .gateway
+                        .begin(TransactionBehavior::Deferred, CLIENT.into())?;
+                    let loaded = drifting_prose::load_document(&repository, &drift.document_id, tx)
+                        .and_then(|(document, _)| document.update(None, 1));
+                    let _ = self.gateway.rollback(tx, CLIENT.into());
+                    loaded?
+                };
+                let context = self.context(&project)?;
+                let element = store.create_element(
+                    &context,
+                    NewElement {
+                        id: identifier("element")?,
+                        category_id: category_id.clone(),
+                        name: Some(drift.title.clone()).filter(|title| !title.trim().is_empty()),
+                        group_name: None,
+                        seed: empty_body()?,
+                        summary: drift.summary.clone(),
+                        aliases: Vec::new(),
+                        facts: None,
+                    },
+                    &mut || identifier("fact"),
+                )?;
+                // The drift's body replaces the new body through a
+                // short-lived owner, as the author's input.
+                let scope = store.document_scope(project_id, &format!("element:{}", element.id))?;
+                let mut owner = LabSession::open_body(
+                    self.directory.clone(),
+                    self.gateway.clone(),
+                    scope,
+                    "element",
+                    element.id.clone(),
+                    self.installation_id.clone(),
+                )?;
+                let copied = owner.document.replace_with_state(&state).and_then(|()| {
+                    owner.persist();
+                    owner.save_error.clone().map_or(Ok(()), Err)
+                });
+                let released = owner.prepare_to_release();
+                if let Err(error) = copied.and(released) {
+                    return Err(format!(
+                        "设定「{}」已创建，但灵感正文未能复制：{error}",
+                        element.name
+                    ));
+                }
+                let trashed = store.trash_drift(&context, drift_id);
+                if let Some(handle) = self.drift_bodies.remove(&key) {
+                    documents.remove(&handle);
+                }
+                if let Err(error) = trashed {
+                    return Err(format!(
+                        "设定「{}」已创建并复制了正文，但灵感未能移入回收站：{error}",
+                        element.name
+                    ));
+                }
+                json!({"element": element, "driftId": drift_id})
+            }
             DriftCommand::TrashDrift { drift_id } => {
                 let key = (project_id.to_owned(), drift_id.clone());
                 if let Some(handle) = self.drift_bodies.get(&key) {

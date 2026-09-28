@@ -315,6 +315,114 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// 转为章节: the same node becomes a chapter at the end of the book, a
+    /// 草稿 in `storyline` (primary) when given, out of its drift group, with
+    /// markers and acts bound to it released; its body is untouched. A title
+    /// already used by a chapter is numbered. One original.
+    pub fn convert_drift_to_chapter(
+        &self,
+        context: &AuthoredProseContext,
+        drift_id: &str,
+        storyline_id: Option<&str>,
+    ) -> Result<WorkspaceChapter, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let LiveDrift { drift, incarnation } = self.live_drift(tx, context, drift_id)?;
+            let mut mutations = Vec::new();
+            self.release_drift_bindings(tx, context, drift_id, &drift.title, &mut mutations)?;
+            let title = self.unique_chapter_title(tx, &context.project_id, &drift.title, Some(drift_id))?;
+            let last = self
+                .chapters(Some(tx), &context.project_id)?
+                .iter()
+                .map(|chapter| chapter.book_order)
+                .fold(0.0_f64, f64::max);
+            let order = last + 5.0;
+            self.execute(tx, r#"
+                UPDATE book_node SET kind='chapter',title=?,writing_status='draft',book_order=?,drift_group_id=NULL,
+                    updated_at=? WHERE id=? AND project_id=?
+            "#, vec![text(&title), V::Real(order), text(&context.now_iso), text(drift_id), text(&context.project_id)])?;
+            mutations.push(journal::Mutation::field("node", drift_id, incarnation, "kind", json!("chapter")));
+            if title != drift.title {
+                mutations.push(journal::Mutation::field("node", drift_id, incarnation, "title", json!(title)));
+            }
+            mutations.push(journal::Mutation::field("node", drift_id, incarnation, "writingStatus", json!("draft")));
+            mutations.push(journal::Mutation::field("node", drift_id, incarnation, "bookOrder", json!(order)));
+            if drift.drift_group_id.is_some() {
+                mutations.push(journal::Mutation::field("node", drift_id, incarnation, "driftGroupId", Value::Null));
+            }
+            if let Some(storyline) = storyline_id {
+                let ids = vec![storyline.to_string()];
+                self.apply_chapter_storylines(tx, context, drift_id, &ids, Some(Some(storyline)), &mut mutations)?;
+            }
+            self.commit_changes(tx, context, &mutations, None)?;
+            self.chapters(Some(tx), &context.project_id)?
+                .into_iter()
+                .find(|chapter| chapter.id == drift_id)
+                .ok_or_else(|| "The converted chapter is missing".into())
+        })
+    }
+
+    /// Markers keep their caption (or take the drift title) and acts lose
+    /// the binding, journaled into `mutations`.
+    fn release_drift_bindings(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        drift_id: &str,
+        title: &str,
+        mutations: &mut Vec<journal::Mutation>,
+    ) -> Result<(), String> {
+        let fallback = match js_trim(title) {
+            "" => "Marker",
+            title => title,
+        };
+        for (table, kind) in [
+            ("timeline_marker", "timeline-marker"),
+            ("book_act", "book-act"),
+        ] {
+            let label = if kind == "timeline-marker" {
+                "label"
+            } else {
+                "NULL"
+            };
+            let bound = self.query(Some(tx), &format!("SELECT id,{label} FROM {table} WHERE drift_node_id=? AND project_id=? ORDER BY rowid"),
+                vec![text(drift_id), text(&context.project_id)])?;
+            for row in &bound {
+                let id = string(row, 0)?;
+                let owner = self.lifecycle_of(tx, context, kind, &id)?;
+                mutations.push(journal::Mutation::field(
+                    kind,
+                    &id,
+                    owner,
+                    "driftNodeId",
+                    Value::Null,
+                ));
+                if kind == "timeline-marker" {
+                    let current = string(row, 1)?;
+                    let caption = if js_trim(&current).is_empty() {
+                        fallback.to_string()
+                    } else {
+                        current
+                    };
+                    self.execute(tx, "UPDATE timeline_marker SET drift_node_id=NULL,label=?,updated_at=? WHERE id=? AND project_id=?",
+                        vec![text(&caption), text(&context.now_iso), text(&id), text(&context.project_id)])?;
+                    mutations.push(journal::Mutation::field(
+                        kind,
+                        &id,
+                        owner,
+                        "label",
+                        json!(caption),
+                    ));
+                } else {
+                    self.execute(tx, "UPDATE book_act SET drift_node_id=NULL,updated_at=? WHERE id=? AND project_id=?",
+                        vec![text(&context.now_iso), text(&id), text(&context.project_id)])?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Reauthor the drift in the next incarnation: seed, graph position and
     /// the complete body state, as the renderer's node restore does.
     pub fn restore_drift<F>(

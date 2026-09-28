@@ -37,7 +37,7 @@ enum WorkspaceTrashKind: String, CaseIterable {
     /// What 彻底删除 removes with an item of this kind, as Rust purges it.
     var purgedWithIt: String {
         switch self {
-        case .chapter, .drift: return "它的正文和历史版本，以及写在它上面的批注与待办"
+        case .chapter, .drift: return "它的正文、历史版本和情节规划格，以及写在它上面的批注与待办"
         case .element: return "它的字段、补丁、正文和历史版本，以及写在它上面的批注与待办"
         case .category: return "它的模板字段、正文和历史版本，以及写在它上面的批注与待办"
         case .storyline: return "它的字段、正文和历史版本，以及写在它上面的批注与待办"
